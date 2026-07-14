@@ -151,6 +151,12 @@ VALUES
     ('settings:manage'),
     ('settings:read'),
     ('settings:update'),
+    ('support:assign'),
+    ('support:escalate'),
+    ('support:manage'),
+    ('support:read'),
+    ('support:write'),
+    ('navigation_support:read'),
     ('users:create'),
     ('users:delete'),
     ('users:manage'),
@@ -192,6 +198,18 @@ VALUES
     ('report_table_font_size'),
     ('service_tax_rate'),
     ('session_timeout'),
+    ('support_auto_close_resolved_days'),
+    ('support_categories'),
+    ('support_enabled'),
+    ('support_first_response_high_minutes'),
+    ('support_first_response_low_minutes'),
+    ('support_first_response_normal_minutes'),
+    ('support_first_response_urgent_minutes'),
+    ('support_reopen_window_days'),
+    ('support_resolution_high_minutes'),
+    ('support_resolution_low_minutes'),
+    ('support_resolution_normal_minutes'),
+    ('support_resolution_urgent_minutes'),
     ('timezone'),
     ('totp_issuer_name'),
     ('tourism_tax_rate');
@@ -257,6 +275,7 @@ VALUES
     ('room-config'),
     ('room-management'),
     ('settings'),
+    ('support'),
     ('timeline');
 
 -- Quarantine and remove invalid system-owned roles before reseeding.
@@ -475,6 +494,12 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('maintenance:write', 'maintenance', 'write', 'Create and update maintenance tickets', true),
 ('maintenance:manage', 'maintenance', 'manage', 'Full maintenance management', true),
 ('navigation_housekeeping:read', 'navigation:housekeeping', 'read', 'Show Housekeeping navigation', true),
+('support:read', 'support', 'read', 'View guest support conversations', true),
+('support:write', 'support', 'write', 'Reply to and resolve assigned guest support conversations', true),
+('support:assign', 'support', 'assign', 'Claim, assign, and hand off guest support conversations', true),
+('support:escalate', 'support', 'escalate', 'Escalate guest support conversations', true),
+('support:manage', 'support', 'manage', 'Full guest support management', true),
+('navigation_support:read', 'navigation:support', 'read', 'Show Support navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -562,6 +587,8 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage',
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
     'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
+    'support:read', 'support:write', 'support:assign', 'support:escalate', 'support:manage',
+    'navigation_support:read',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read'
@@ -572,6 +599,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptionist' AND p.name IN (
     'rooms:read', 'rooms:update', 'bookings:create', 'bookings:read', 'bookings:update',
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'navigation_housekeeping:read',
+    'support:read', 'support:write', 'support:assign', 'support:escalate', 'navigation_support:read',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
     'payments:update', 'payments:delete', 'payments:refund',
     'ledgers:read', 'ledgers:create', 'companies:read', 'companies:create',
@@ -591,7 +619,8 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'housekee
 -- Staff permissions
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'staff' AND p.name IN (
-    'rooms:read', 'bookings:read', 'guests:read', 'services:read', 'services:create', 'reviews:read'
+    'rooms:read', 'bookings:read', 'guests:read', 'services:read', 'services:create', 'reviews:read',
+    'support:read', 'support:write', 'navigation_support:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Guest permissions
@@ -631,7 +660,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'auditor'
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'support_readonly' AND p.name IN (
-    'ekyc:read', 'navigation_ekyc_admin:read'
+    'ekyc:read', 'navigation_ekyc_admin:read', 'support:read', 'navigation_support:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 INSERT INTO route_access_policies (
@@ -657,6 +686,48 @@ VALUES (
     '[]'::jsonb,
     '[]'::jsonb,
     '["navigation_housekeeping:read","housekeeping:read"]'::jsonb,
+    '[]'::jsonb,
+    '["guest"]'::jsonb,
+    true,
+    true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    required_roles = EXCLUDED.required_roles,
+    excluded_roles = EXCLUDED.excluded_roles,
+    nav_permissions = EXCLUDED.nav_permissions,
+    nav_roles = EXCLUDED.nav_roles,
+    nav_excluded_roles = EXCLUDED.nav_excluded_roles,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO route_access_policies (
+    route_id,
+    path,
+    nav_label,
+    nav_group,
+    required_permissions,
+    required_roles,
+    excluded_roles,
+    nav_permissions,
+    nav_roles,
+    nav_excluded_roles,
+    is_navigation,
+    is_system_policy
+)
+VALUES (
+    'support',
+    '/support',
+    'Support',
+    'operations',
+    '["support:read"]'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '["navigation_support:read","support:read"]'::jsonb,
     '[]'::jsonb,
     '["guest"]'::jsonb,
     true,
@@ -756,6 +827,18 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('report_table_font_size', '14', 'number', 'reports', 'Table font size in pixels for generated reports', false),
 ('report_caption_font_size', '13', 'number', 'reports', 'Caption and secondary label font size in pixels for generated reports', false),
 ('report_chip_font_size', '12', 'number', 'reports', 'Status chip font size in pixels for generated reports', false),
+('support_enabled', 'true', 'boolean', 'support', 'Enable guest portal support conversations', false),
+('support_categories', '["booking","stay","billing","loyalty","technical","other"]', 'json', 'support', 'Guest-selectable support conversation categories', false),
+('support_first_response_low_minutes', '240', 'number', 'support', 'First-response SLA for low priority support conversations in minutes', false),
+('support_first_response_normal_minutes', '60', 'number', 'support', 'First-response SLA for normal priority support conversations in minutes', false),
+('support_first_response_high_minutes', '15', 'number', 'support', 'First-response SLA for high priority support conversations in minutes', false),
+('support_first_response_urgent_minutes', '5', 'number', 'support', 'First-response SLA for urgent priority support conversations in minutes', false),
+('support_resolution_low_minutes', '1440', 'number', 'support', 'Resolution SLA for low priority support conversations in minutes', false),
+('support_resolution_normal_minutes', '480', 'number', 'support', 'Resolution SLA for normal priority support conversations in minutes', false),
+('support_resolution_high_minutes', '120', 'number', 'support', 'Resolution SLA for high priority support conversations in minutes', false),
+('support_resolution_urgent_minutes', '30', 'number', 'support', 'Resolution SLA for urgent priority support conversations in minutes', false),
+('support_reopen_window_days', '7', 'number', 'support', 'Days a resolved guest support conversation can be reopened by its guest', false),
+('support_auto_close_resolved_days', '7', 'number', 'support', 'Days after resolution before support conversations may be automatically closed', false),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)
 -- NOTE: `value` is intentionally NOT updated here. This seed re-runs on every
 -- desktop restart (see hotel-desktop/src-tauri/src/postgres.rs::run_database_setup),

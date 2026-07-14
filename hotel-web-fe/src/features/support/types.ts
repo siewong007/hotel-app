@@ -15,7 +15,7 @@ export type SupportQueue =
   | 'resolved'
   | 'closed';
 
-export type SupportMessageSender = 'guest' | 'staff' | 'system';
+export type SupportMessageAuthor = 'guest' | 'staff' | 'system';
 
 export type SupportAction =
   | 'claim'
@@ -84,9 +84,10 @@ export interface SupportConversation extends SupportConversationSummary {
 export interface SupportMessage {
   id: number;
   conversation_id: number;
-  sender_type: SupportMessageSender;
-  sender_user_id: number | null;
-  sender_name: string | null;
+  author_type: SupportMessageAuthor;
+  author_user_id: number | null;
+  author_guest_id?: number | null;
+  author_name: string | null;
   body: string;
   created_at: string;
 }

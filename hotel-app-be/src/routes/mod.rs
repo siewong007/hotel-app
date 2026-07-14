@@ -162,6 +162,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(analytics::routes())
         .merge(crate::modules::settings::routes::routes())
         .merge(crate::modules::ekyc::routes::routes())
+        .merge(crate::modules::support::routes::routes())
         .merge(guest_portal::routes())
         .merge(companies::routes())
         .merge(audit::routes())

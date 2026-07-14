@@ -40,6 +40,16 @@ const DB_SETTING_KEYS = [
   'max_login_attempts',
   'totp_issuer_name',
   'passkey_relying_party_name',
+  'support_enabled',
+  'support_first_response_low_minutes',
+  'support_first_response_normal_minutes',
+  'support_first_response_high_minutes',
+  'support_first_response_urgent_minutes',
+  'support_resolution_low_minutes',
+  'support_resolution_normal_minutes',
+  'support_resolution_high_minutes',
+  'support_resolution_urgent_minutes',
+  'support_reopen_window_days',
   'rate_codes',
   'market_codes',
   'booking_channels',
@@ -153,6 +163,43 @@ const mergeSystemSettings = (
     totp_issuer_name: values.get('totp_issuer_name') ?? localSettings.totp_issuer_name,
     passkey_relying_party_name:
       values.get('passkey_relying_party_name') ?? localSettings.passkey_relying_party_name,
+    support_enabled: parseBooleanSetting(values.get('support_enabled'), localSettings.support_enabled),
+    support_first_response_low_minutes: parseNumberSetting(
+      values.get('support_first_response_low_minutes'),
+      localSettings.support_first_response_low_minutes
+    ),
+    support_first_response_normal_minutes: parseNumberSetting(
+      values.get('support_first_response_normal_minutes'),
+      localSettings.support_first_response_normal_minutes
+    ),
+    support_first_response_high_minutes: parseNumberSetting(
+      values.get('support_first_response_high_minutes'),
+      localSettings.support_first_response_high_minutes
+    ),
+    support_first_response_urgent_minutes: parseNumberSetting(
+      values.get('support_first_response_urgent_minutes'),
+      localSettings.support_first_response_urgent_minutes
+    ),
+    support_resolution_low_minutes: parseNumberSetting(
+      values.get('support_resolution_low_minutes'),
+      localSettings.support_resolution_low_minutes
+    ),
+    support_resolution_normal_minutes: parseNumberSetting(
+      values.get('support_resolution_normal_minutes'),
+      localSettings.support_resolution_normal_minutes
+    ),
+    support_resolution_high_minutes: parseNumberSetting(
+      values.get('support_resolution_high_minutes'),
+      localSettings.support_resolution_high_minutes
+    ),
+    support_resolution_urgent_minutes: parseNumberSetting(
+      values.get('support_resolution_urgent_minutes'),
+      localSettings.support_resolution_urgent_minutes
+    ),
+    support_reopen_window_days: parseNumberSetting(
+      values.get('support_reopen_window_days'),
+      localSettings.support_reopen_window_days
+    ),
     rate_codes: parseStringListSetting(values.get('rate_codes'), localSettings.rate_codes),
     market_codes: parseStringListSetting(values.get('market_codes'), localSettings.market_codes),
     booking_channels: parseBookingChannelsSetting(values.get('booking_channels'), localSettings.booking_channels),

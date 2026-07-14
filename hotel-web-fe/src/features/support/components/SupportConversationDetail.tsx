@@ -59,7 +59,10 @@ interface SupportConversationDetailProps {
   detail?: SupportConversationDetailResponse;
   isLoading: boolean;
   agents: SupportAgent[];
+  currentUserId?: number;
   canWrite: boolean;
+  canAssign: boolean;
+  canEscalate: boolean;
   canManage: boolean;
   isBusy: boolean;
   onAction: (payload: SupportActionPayload) => Promise<void>;
@@ -74,9 +77,9 @@ function getTimelineItems(detail: SupportConversationDetailResponse): TimelineIt
 }
 
 function messageLabel(message: SupportMessage): string {
-  if (message.sender_type === 'guest') return message.sender_name || 'Guest';
-  if (message.sender_type === 'staff') return message.sender_name || 'Hotel support';
-  return message.sender_name || 'System';
+  if (message.author_type === 'guest') return message.author_name || 'Guest';
+  if (message.author_type === 'staff') return message.author_name || 'Hotel support';
+  return message.author_name || 'System';
 }
 
 function eventLabel(event: SupportEvent): string {
@@ -87,7 +90,10 @@ export default function SupportConversationDetail({
   detail,
   isLoading,
   agents,
+  currentUserId,
   canWrite,
+  canAssign,
+  canEscalate,
   canManage,
   isBusy,
   onAction,
@@ -135,7 +141,7 @@ export default function SupportConversationDetail({
 
     setLocalError(null);
     try {
-      if (composerMode === 'note') {
+      if (activeComposerMode === 'note') {
         await performAction({ action: 'add_internal_note', reason: draft.trim() });
         return;
       }
@@ -200,10 +206,20 @@ export default function SupportConversationDetail({
     );
   }
 
-  const canReply = canWrite && conversation.status !== 'closed';
-  const canResolve = canWrite && ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
+  const isAssignedToCurrentUser = conversation.assigned_to_user_id === currentUserId;
+  const canWorkOnConversation = canManage || !conversation.assigned_to_user_id || isAssignedToCurrentUser;
+  const canReply = canWrite
+    && canWorkOnConversation
+    && ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
+  const canAddInternalNote = canWrite && (canManage || isAssignedToCurrentUser);
+  const activeComposerMode = composerMode === 'note' && !canAddInternalNote ? 'reply' : composerMode;
+  const canResolve = canWrite
+    && (canManage || isAssignedToCurrentUser)
+    && ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
   const canReopen = canManage && ['resolved', 'closed'].includes(conversation.status);
   const canClose = canManage && conversation.status === 'resolved';
+  const canRelease = canAssign && Boolean(conversation.assigned_to_user_id)
+    && (canManage || isAssignedToCurrentUser);
 
   return (
     <Stack height="100%" minHeight={0}>
@@ -243,17 +259,17 @@ export default function SupportConversationDetail({
           </Stack>
 
           <Stack direction="row" gap={0.75} flexWrap="wrap" useFlexGap alignItems="center">
-            {canWrite && !conversation.assigned_to_user_id && conversation.status !== 'closed' ? (
+            {canAssign && !conversation.assigned_to_user_id && conversation.status !== 'closed' ? (
               <Button size="small" variant="outlined" startIcon={<ClaimIcon />} disabled={isBusy} onClick={() => void performAction({ action: 'claim' })}>
                 Claim
               </Button>
             ) : null}
-            {canManage ? (
+            {canAssign ? (
               <Button size="small" variant="outlined" startIcon={<AssignIcon />} disabled={isBusy} onClick={() => setDialogMode('assign')}>
                 Assign
               </Button>
             ) : null}
-            {canWrite && conversation.assigned_to_user_id && conversation.status !== 'closed' ? (
+            {canRelease && conversation.status !== 'closed' ? (
               <Button size="small" variant="text" disabled={isBusy} onClick={() => void performAction({ action: 'release' })}>
                 Return to queue
               </Button>
@@ -274,7 +290,7 @@ export default function SupportConversationDetail({
                 </Select>
               </FormControl>
             ) : null}
-            {canManage && conversation.status !== 'closed' ? (
+            {canEscalate && conversation.status !== 'closed' ? (
               <Button size="small" color="warning" variant="outlined" startIcon={<EscalateIcon />} disabled={isBusy} onClick={() => setDialogMode('escalate')}>
                 Escalate
               </Button>
@@ -329,7 +345,7 @@ export default function SupportConversationDetail({
               );
             }
 
-            const isGuest = item.value.sender_type === 'guest';
+            const isGuest = item.value.author_type === 'guest';
             return (
               <Box key={`message-${item.value.id}`} alignSelf={isGuest ? 'flex-start' : 'flex-end'} maxWidth={{ xs: '100%', sm: '80%' }}>
                 <Paper
@@ -362,19 +378,21 @@ export default function SupportConversationDetail({
       <Box sx={{ p: 2 }}>
         {localError ? <Alert severity="error" sx={{ mb: 1.25 }} onClose={() => setLocalError(null)}>{localError}</Alert> : null}
         {!canReply ? (
-          <Alert severity="info">This conversation is closed. Reopen it to add a reply or internal note.</Alert>
+          <Alert severity="info">This conversation must be reopened before another reply or internal note can be added.</Alert>
         ) : (
           <Stack spacing={1}>
             <Tabs
-              value={composerMode}
+              value={activeComposerMode}
               onChange={(_, value: ComposerMode) => setComposerMode(value)}
               aria-label="Message visibility"
               sx={{ minHeight: 36 }}
             >
               <Tab value="reply" icon={<ReplyIcon fontSize="small" />} iconPosition="start" label="Reply to guest" sx={{ minHeight: 36 }} />
-              <Tab value="note" icon={<InternalNoteIcon fontSize="small" />} iconPosition="start" label="Internal note" sx={{ minHeight: 36 }} />
+              {canAddInternalNote ? (
+                <Tab value="note" icon={<InternalNoteIcon fontSize="small" />} iconPosition="start" label="Internal note" sx={{ minHeight: 36 }} />
+              ) : null}
             </Tabs>
-            {composerMode === 'note' ? (
+            {activeComposerMode === 'note' ? (
               <Alert severity="warning" icon={<InternalNoteIcon />}>
                 Internal notes are only visible to hotel staff and never appear in the guest portal.
               </Alert>
@@ -383,8 +401,8 @@ export default function SupportConversationDetail({
               fullWidth
               multiline
               minRows={3}
-              label={composerMode === 'note' ? 'Internal note' : 'Reply to guest'}
-              placeholder={composerMode === 'note' ? 'Add private context for the next staff member…' : 'Write a response the guest will see…'}
+              label={activeComposerMode === 'note' ? 'Internal note' : 'Reply to guest'}
+              placeholder={activeComposerMode === 'note' ? 'Add private context for the next staff member…' : 'Write a response the guest will see…'}
               value={draft}
               disabled={isBusy}
               onChange={(event) => setDraft(event.target.value)}
@@ -392,12 +410,12 @@ export default function SupportConversationDetail({
             <Stack direction="row" justifyContent="flex-end">
               <Button
                 variant="contained"
-                color={composerMode === 'note' ? 'warning' : 'primary'}
-                startIcon={composerMode === 'note' ? <InternalNoteIcon /> : <ReplyIcon />}
+                color={activeComposerMode === 'note' ? 'warning' : 'primary'}
+                startIcon={activeComposerMode === 'note' ? <InternalNoteIcon /> : <ReplyIcon />}
                 disabled={!draft.trim() || isBusy}
                 onClick={() => void handleComposerSubmit()}
               >
-                {composerMode === 'note' ? 'Add internal note' : 'Send reply'}
+                {activeComposerMode === 'note' ? 'Add internal note' : 'Send reply'}
               </Button>
             </Stack>
           </Stack>
@@ -450,6 +468,7 @@ export default function SupportConversationDetail({
                   label="Resolution code"
                   value={resolutionCode}
                   onChange={(event) => setResolutionCode(event.target.value)}
+                  required
                   placeholder="For example: request_completed"
                 />
                 <TextField
@@ -468,8 +487,12 @@ export default function SupportConversationDetail({
             {dialogMode === 'escalate' || dialogMode === 'close' || dialogMode === 'reopen' ? (
               <TextField
                 fullWidth
-                required={dialogMode === 'escalate'}
-                label={dialogMode === 'escalate' ? 'Escalation reason' : 'Reason (optional)'}
+                required={dialogMode === 'escalate' || dialogMode === 'close'}
+                label={dialogMode === 'escalate'
+                  ? 'Escalation reason'
+                  : dialogMode === 'close'
+                    ? 'Closing reason'
+                    : 'Reopen reason (optional)'}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
                 multiline
@@ -483,7 +506,9 @@ export default function SupportConversationDetail({
           <Button
             variant="contained"
             onClick={handleDialogSubmit}
-            disabled={isBusy || (dialogMode === 'resolve' && !resolutionSummary.trim()) || (dialogMode === 'escalate' && !reason.trim())}
+            disabled={isBusy
+              || (dialogMode === 'resolve' && (!resolutionCode.trim() || !resolutionSummary.trim()))
+              || (['escalate', 'close'].includes(dialogMode ?? '') && !reason.trim())}
           >
             {dialogMode === 'assign' ? 'Assign' : dialogMode === 'resolve' ? 'Resolve' : dialogMode === 'escalate' ? 'Escalate' : dialogMode === 'reopen' ? 'Reopen' : 'Close'}
           </Button>
@@ -492,4 +517,3 @@ export default function SupportConversationDetail({
     </Stack>
   );
 }
-

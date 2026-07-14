@@ -1068,3 +1068,87 @@ CROSS JOIN permissions p
 WHERE r.name = 'receptionist'
 AND p.name IN ('payments:update', 'payments:delete');
 
+
+-- Source migration 024: support_workflow
+-- Guest support queue permissions, navigation policy, and runtime defaults.
+-- Values are only inserted on first run so a property can tune SLAs without
+-- having its choices reset on every desktop start.
+
+INSERT OR IGNORE INTO permissions (name, resource, action, description, is_system_permission) VALUES
+('support:read', 'support', 'read', 'View guest support conversations', 1),
+('support:write', 'support', 'write', 'Reply to and resolve assigned guest support conversations', 1),
+('support:assign', 'support', 'assign', 'Claim, assign, and hand off guest support conversations', 1),
+('support:escalate', 'support', 'escalate', 'Escalate guest support conversations', 1),
+('support:manage', 'support', 'manage', 'Full guest support management', 1),
+('navigation_support:read', 'navigation:support', 'read', 'Show Support navigation', 1);
+
+INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name IN ('super_admin', 'admin', 'manager')
+  AND p.name IN (
+      'support:read', 'support:write', 'support:assign', 'support:escalate',
+      'support:manage', 'navigation_support:read'
+  );
+
+INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'receptionist'
+  AND p.name IN (
+      'support:read', 'support:write', 'support:assign', 'support:escalate',
+      'navigation_support:read'
+  );
+
+INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'support_readonly'
+  AND p.name IN ('support:read', 'navigation_support:read');
+
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation,
+    is_system_policy
+)
+VALUES (
+    'support', '/support', 'Support', 'operations', '["support:read"]', '[]', '[]',
+    '["navigation_support:read","support:read"]', '[]', '["guest"]', 1, 1
+)
+ON CONFLICT(route_id) DO UPDATE SET
+    path = excluded.path,
+    nav_label = excluded.nav_label,
+    nav_group = excluded.nav_group,
+    required_permissions = excluded.required_permissions,
+    required_roles = excluded.required_roles,
+    excluded_roles = excluded.excluded_roles,
+    nav_permissions = excluded.nav_permissions,
+    nav_roles = excluded.nav_roles,
+    nav_excluded_roles = excluded.nav_excluded_roles,
+    is_navigation = excluded.is_navigation,
+    is_system_policy = excluded.is_system_policy,
+    updated_at = datetime('now');
+
+INSERT INTO system_settings (key, value, value_type, category, description, is_sensitive)
+VALUES
+    ('support_enabled', 'true', 'boolean', 'support', 'Enable guest portal support conversations', 0),
+    ('support_categories', '["booking","stay","billing","loyalty","technical","other"]', 'json', 'support', 'Guest-selectable support conversation categories', 0),
+    ('support_first_response_low_minutes', '240', 'number', 'support', 'First-response SLA for low priority support conversations in minutes', 0),
+    ('support_first_response_normal_minutes', '60', 'number', 'support', 'First-response SLA for normal priority support conversations in minutes', 0),
+    ('support_first_response_high_minutes', '15', 'number', 'support', 'First-response SLA for high priority support conversations in minutes', 0),
+    ('support_first_response_urgent_minutes', '5', 'number', 'support', 'First-response SLA for urgent priority support conversations in minutes', 0),
+    ('support_resolution_low_minutes', '1440', 'number', 'support', 'Resolution SLA for low priority support conversations in minutes', 0),
+    ('support_resolution_normal_minutes', '480', 'number', 'support', 'Resolution SLA for normal priority support conversations in minutes', 0),
+    ('support_resolution_high_minutes', '120', 'number', 'support', 'Resolution SLA for high priority support conversations in minutes', 0),
+    ('support_resolution_urgent_minutes', '30', 'number', 'support', 'Resolution SLA for urgent priority support conversations in minutes', 0),
+    ('support_reopen_window_days', '7', 'number', 'support', 'Days a resolved guest support conversation can be reopened by its guest', 0),
+    ('support_auto_close_resolved_days', '7', 'number', 'support', 'Days after resolution before support conversations may be automatically closed', 0)
+ON CONFLICT(key) DO UPDATE SET
+    value_type = excluded.value_type,
+    category = excluded.category,
+    description = excluded.description,
+    is_sensitive = excluded.is_sensitive,
+    updated_at = datetime('now');

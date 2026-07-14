@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as TimelineRouteImport } from './routes/timeline'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoomManagementRouteImport } from './routes/room-management'
 import { Route as RoomConfigRouteImport } from './routes/room-config'
@@ -50,6 +51,11 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
 const TimelineRoute = TimelineRouteImport.update({
   id: '/timeline',
   path: '/timeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -228,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
+  '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
+  '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -297,6 +305,7 @@ export interface FileRoutesById {
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
+  '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -333,6 +342,7 @@ export interface FileRouteTypes {
     | '/room-config'
     | '/room-management'
     | '/settings'
+    | '/support'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -367,6 +377,7 @@ export interface FileRouteTypes {
     | '/room-config'
     | '/room-management'
     | '/settings'
+    | '/support'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -401,6 +412,7 @@ export interface FileRouteTypes {
     | '/room-config'
     | '/room-management'
     | '/settings'
+    | '/support'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -436,6 +448,7 @@ export interface RootRouteChildren {
   RoomConfigRoute: typeof RoomConfigRoute
   RoomManagementRoute: typeof RoomManagementRoute
   SettingsRoute: typeof SettingsRoute
+  SupportRoute: typeof SupportRoute
   TimelineRoute: typeof TimelineRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
@@ -460,6 +473,13 @@ declare module '@tanstack/react-router' {
       path: '/timeline'
       fullPath: '/timeline'
       preLoaderRoute: typeof TimelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -700,6 +720,7 @@ const rootRouteChildren: RootRouteChildren = {
   RoomConfigRoute: RoomConfigRoute,
   RoomManagementRoute: RoomManagementRoute,
   SettingsRoute: SettingsRoute,
+  SupportRoute: SupportRoute,
   TimelineRoute: TimelineRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,

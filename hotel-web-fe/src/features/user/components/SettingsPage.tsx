@@ -30,7 +30,8 @@ import {
   Palette as PaletteIcon,
   LightMode as LightModeIcon,
   DarkMode as DarkModeIcon,
-  NightsStay as NightsStayIcon
+  NightsStay as NightsStayIcon,
+  SupportAgent as SupportIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { useThemeMode } from '../../../router/ThemeModeContext';
@@ -73,6 +74,17 @@ const TIMEZONES = [
   { value: 'America/Los_Angeles', label: 'USA (Los Angeles) - GMT-8/-7', region: 'Americas' },
   { value: 'America/Chicago', label: 'USA (Chicago) - GMT-6/-5', region: 'Americas' },
 ];
+
+type SupportPriority = 'low' | 'normal' | 'high' | 'urgent';
+
+const SUPPORT_PRIORITY_LABELS: Record<SupportPriority, string> = {
+  low: 'Low',
+  normal: 'Normal',
+  high: 'High',
+  urgent: 'Urgent',
+};
+
+const SUPPORT_PRIORITIES = Object.keys(SUPPORT_PRIORITY_LABELS) as SupportPriority[];
 
 const SettingsPage: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -119,6 +131,22 @@ const SettingsPage: React.FC = () => {
   const [maxLoginAttempts, setMaxLoginAttempts] = useState(5);
   const [totpIssuerName, setTotpIssuerName] = useState('Hotel Management System');
   const [passkeyRelyingPartyName, setPasskeyRelyingPartyName] = useState('Hotel Management System');
+
+  // Guest support workflow settings
+  const [supportEnabled, setSupportEnabled] = useState(true);
+  const [supportFirstResponseMinutes, setSupportFirstResponseMinutes] = useState<Record<SupportPriority, number>>({
+    low: 240,
+    normal: 60,
+    high: 15,
+    urgent: 5,
+  });
+  const [supportResolutionMinutes, setSupportResolutionMinutes] = useState<Record<SupportPriority, number>>({
+    low: 1440,
+    normal: 480,
+    high: 120,
+    urgent: 30,
+  });
+  const [supportReopenWindowDays, setSupportReopenWindowDays] = useState(7);
 
   // System Configuration
   const [rateCodes, setRateCodes] = useState<string[]>([]);
@@ -177,6 +205,20 @@ const SettingsPage: React.FC = () => {
     setMaxLoginAttempts(settings.max_login_attempts);
     setTotpIssuerName(settings.totp_issuer_name);
     setPasskeyRelyingPartyName(settings.passkey_relying_party_name);
+    setSupportEnabled(settings.support_enabled);
+    setSupportFirstResponseMinutes({
+      low: settings.support_first_response_low_minutes,
+      normal: settings.support_first_response_normal_minutes,
+      high: settings.support_first_response_high_minutes,
+      urgent: settings.support_first_response_urgent_minutes,
+    });
+    setSupportResolutionMinutes({
+      low: settings.support_resolution_low_minutes,
+      normal: settings.support_resolution_normal_minutes,
+      high: settings.support_resolution_high_minutes,
+      urgent: settings.support_resolution_urgent_minutes,
+    });
+    setSupportReopenWindowDays(settings.support_reopen_window_days);
     setRateCodes(settings.rate_codes);
     setMarketCodes(settings.market_codes);
     setBookingChannels(settings.booking_channels);
@@ -244,6 +286,16 @@ const SettingsPage: React.FC = () => {
         max_login_attempts: maxLoginAttempts,
         totp_issuer_name: totpIssuerName,
         passkey_relying_party_name: passkeyRelyingPartyName,
+        support_enabled: supportEnabled,
+        support_first_response_low_minutes: supportFirstResponseMinutes.low,
+        support_first_response_normal_minutes: supportFirstResponseMinutes.normal,
+        support_first_response_high_minutes: supportFirstResponseMinutes.high,
+        support_first_response_urgent_minutes: supportFirstResponseMinutes.urgent,
+        support_resolution_low_minutes: supportResolutionMinutes.low,
+        support_resolution_normal_minutes: supportResolutionMinutes.normal,
+        support_resolution_high_minutes: supportResolutionMinutes.high,
+        support_resolution_urgent_minutes: supportResolutionMinutes.urgent,
+        support_reopen_window_days: supportReopenWindowDays,
         rate_codes: rateCodes,
         market_codes: marketCodes,
         booking_channels: bookingChannels,
@@ -781,6 +833,94 @@ const SettingsPage: React.FC = () => {
                   max: REPORT_FONT_SIZE_MAX,
                   step: 1
                 }}
+              />
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Guest Support Workflow */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <SupportIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">Guest Support Workflow</Typography>
+          </Box>
+          <Divider sx={{ mb: 2 }} />
+
+          <FormControlLabel
+            control={(
+              <Switch
+                checked={supportEnabled}
+                onChange={(event) => setSupportEnabled(event.target.checked)}
+                disabled={!isAdmin}
+              />
+            )}
+            label="Allow guests to start support conversations in the portal"
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Existing conversations remain visible to staff when new guest requests are paused.
+          </Typography>
+
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+                First response target
+              </Typography>
+              <Grid container spacing={2}>
+                {SUPPORT_PRIORITIES.map(priority => (
+                  <Grid key={priority} size={{ xs: 6, sm: 3 }}>
+                    <TextField
+                      fullWidth
+                      label={`${SUPPORT_PRIORITY_LABELS[priority]} (minutes)`}
+                      type="number"
+                      value={supportFirstResponseMinutes[priority]}
+                      onChange={(event) => setSupportFirstResponseMinutes(current => ({
+                        ...current,
+                        [priority]: Math.max(1, Number.parseInt(event.target.value, 10) || 1),
+                      }))}
+                      disabled={!isAdmin}
+                      inputProps={{ min: 1, step: 1 }}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+                Resolution target
+              </Typography>
+              <Grid container spacing={2}>
+                {SUPPORT_PRIORITIES.map(priority => (
+                  <Grid key={priority} size={{ xs: 6, sm: 3 }}>
+                    <TextField
+                      fullWidth
+                      label={`${SUPPORT_PRIORITY_LABELS[priority]} (minutes)`}
+                      type="number"
+                      value={supportResolutionMinutes[priority]}
+                      onChange={(event) => setSupportResolutionMinutes(current => ({
+                        ...current,
+                        [priority]: Math.max(1, Number.parseInt(event.target.value, 10) || 1),
+                      }))}
+                      disabled={!isAdmin}
+                      inputProps={{ min: 1, step: 1 }}
+                    />
+                  </Grid>
+                ))}
+              </Grid>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Guest reopen window"
+                type="number"
+                value={supportReopenWindowDays}
+                onChange={(event) => setSupportReopenWindowDays(
+                  Math.max(1, Number.parseInt(event.target.value, 10) || 1)
+                )}
+                helperText="Days after resolution during which a guest can reopen a conversation"
+                disabled={!isAdmin}
+                inputProps={{ min: 1, step: 1 }}
               />
             </Grid>
           </Grid>
