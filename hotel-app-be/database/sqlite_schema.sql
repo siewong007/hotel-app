@@ -1468,3 +1468,102 @@ ALTER TABLE customer_ledgers ADD COLUMN posted_at TIMESTAMP;
 
 -- @migration 23 payments_refund_rbac
 
+
+-- @migration 24 support_workflow
+-- Guest-support conversations are separate from maintenance work orders. The
+-- tables mirror the PostgreSQL support workflow schema while storing event
+-- metadata as JSON text in SQLite.
+
+CREATE TABLE IF NOT EXISTS support_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_number TEXT NOT NULL UNIQUE,
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+    subject TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (
+        category IN ('booking', 'stay', 'billing', 'loyalty', 'technical', 'other')
+    ),
+    status TEXT NOT NULL DEFAULT 'waiting_for_staff' CHECK (
+        status IN ('waiting_for_staff', 'waiting_for_guest', 'resolved', 'closed')
+    ),
+    priority TEXT NOT NULL DEFAULT 'normal' CHECK (
+        priority IN ('low', 'normal', 'high', 'urgent')
+    ),
+    assigned_team TEXT NOT NULL DEFAULT 'front_desk',
+    assigned_to_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    escalation_level INTEGER NOT NULL DEFAULT 0 CHECK (escalation_level BETWEEN 0 AND 3),
+    escalated_at TEXT,
+    first_response_due_at TEXT,
+    resolution_due_at TEXT,
+    first_response_at TEXT,
+    resolved_at TEXT,
+    closed_at TEXT,
+    resolution_code TEXT,
+    resolution_summary TEXT,
+    reopen_count INTEGER NOT NULL DEFAULT 0 CHECK (reopen_count >= 0),
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+    last_activity_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    author_type TEXT NOT NULL CHECK (author_type IN ('guest', 'staff', 'system')),
+    author_guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
+    author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    body TEXT NOT NULL,
+    client_message_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS support_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    actor_guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
+    actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    event_type TEXT NOT NULL,
+    from_status TEXT,
+    to_status TEXT,
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS support_action_idempotency_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    actor_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    idempotency_key TEXT NOT NULL,
+    action TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (conversation_id, actor_user_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_conversations_guest_activity
+    ON support_conversations (guest_id, last_activity_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_conversations_queue
+    ON support_conversations (status, priority DESC, first_response_due_at, last_activity_at);
+CREATE INDEX IF NOT EXISTS idx_support_conversations_assignee
+    ON support_conversations (assigned_to_user_id, status, last_activity_at DESC)
+    WHERE assigned_to_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_conversations_booking
+    ON support_conversations (booking_id)
+    WHERE booking_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_messages_conversation_created
+    ON support_messages (conversation_id, created_at, id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_support_messages_client_id
+    ON support_messages (conversation_id, author_type, client_message_id)
+    WHERE client_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_events_conversation_created
+    ON support_events (conversation_id, created_at, id);
+
+CREATE TRIGGER IF NOT EXISTS update_support_conversations_updated_at
+AFTER UPDATE ON support_conversations
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE support_conversations
+    SET updated_at = datetime('now')
+    WHERE id = NEW.id;
+END;

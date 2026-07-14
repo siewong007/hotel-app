@@ -48,6 +48,16 @@ export interface HotelSettings {
   max_login_attempts: number; // Failed login attempts before lockout
   totp_issuer_name: string; // Issuer shown in authenticator apps
   passkey_relying_party_name: string; // Display name shown by passkey authenticators
+  support_enabled: boolean; // Whether guests can start support conversations in the portal
+  support_first_response_low_minutes: number;
+  support_first_response_normal_minutes: number;
+  support_first_response_high_minutes: number;
+  support_first_response_urgent_minutes: number;
+  support_resolution_low_minutes: number;
+  support_resolution_normal_minutes: number;
+  support_resolution_high_minutes: number;
+  support_resolution_urgent_minutes: number;
+  support_reopen_window_days: number;
   rate_codes: string[]; // Available booking rate codes
   market_codes: string[]; // Available market segment codes
   booking_channels: BookingChannel[]; // Configurable online booking channels (name + abbreviation)
@@ -79,6 +89,16 @@ const DEFAULT_SETTINGS: HotelSettings = {
   max_login_attempts: 5,
   totp_issuer_name: 'Hotel Management System',
   passkey_relying_party_name: 'Hotel Management System',
+  support_enabled: true,
+  support_first_response_low_minutes: 240,
+  support_first_response_normal_minutes: 60,
+  support_first_response_high_minutes: 15,
+  support_first_response_urgent_minutes: 5,
+  support_resolution_low_minutes: 1440,
+  support_resolution_normal_minutes: 480,
+  support_resolution_high_minutes: 120,
+  support_resolution_urgent_minutes: 30,
+  support_reopen_window_days: 7,
   rate_codes: ['RACK', 'OVR', 'CORP', 'GOVT', 'WKII', 'PKG', 'GRP', 'AAA', 'PROMO'],
   market_codes: ['WKII', 'CORP', 'GOVT', 'OTA', 'DIRECT', 'GROUP', 'EVENTS', 'LEISURE'],
   booking_channels: [
@@ -156,6 +176,17 @@ export const normalizeReportFontFamily = (raw: unknown): string => {
     : DEFAULT_REPORT_FONT_FAMILY;
 };
 
+const normalizePositiveInteger = (raw: unknown, fallback: number): number => {
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : fallback;
+};
+
+const normalizeBoolean = (raw: unknown, fallback: boolean): boolean => {
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw !== 'string') return fallback;
+  return ['true', '1', 'yes', 'on'].includes(raw.trim().toLowerCase());
+};
+
 // Get hotel settings from localStorage or return defaults
 export const getHotelSettings = (): HotelSettings => {
   try {
@@ -197,6 +228,43 @@ export const getHotelSettings = (): HotelSettings => {
           Math.max(reportBaseFontSize - 2, REPORT_FONT_SIZE_MIN)
         ),
         max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
+        support_enabled: normalizeBoolean(merged.support_enabled, DEFAULT_SETTINGS.support_enabled),
+        support_first_response_low_minutes: normalizePositiveInteger(
+          merged.support_first_response_low_minutes,
+          DEFAULT_SETTINGS.support_first_response_low_minutes
+        ),
+        support_first_response_normal_minutes: normalizePositiveInteger(
+          merged.support_first_response_normal_minutes,
+          DEFAULT_SETTINGS.support_first_response_normal_minutes
+        ),
+        support_first_response_high_minutes: normalizePositiveInteger(
+          merged.support_first_response_high_minutes,
+          DEFAULT_SETTINGS.support_first_response_high_minutes
+        ),
+        support_first_response_urgent_minutes: normalizePositiveInteger(
+          merged.support_first_response_urgent_minutes,
+          DEFAULT_SETTINGS.support_first_response_urgent_minutes
+        ),
+        support_resolution_low_minutes: normalizePositiveInteger(
+          merged.support_resolution_low_minutes,
+          DEFAULT_SETTINGS.support_resolution_low_minutes
+        ),
+        support_resolution_normal_minutes: normalizePositiveInteger(
+          merged.support_resolution_normal_minutes,
+          DEFAULT_SETTINGS.support_resolution_normal_minutes
+        ),
+        support_resolution_high_minutes: normalizePositiveInteger(
+          merged.support_resolution_high_minutes,
+          DEFAULT_SETTINGS.support_resolution_high_minutes
+        ),
+        support_resolution_urgent_minutes: normalizePositiveInteger(
+          merged.support_resolution_urgent_minutes,
+          DEFAULT_SETTINGS.support_resolution_urgent_minutes
+        ),
+        support_reopen_window_days: normalizePositiveInteger(
+          merged.support_reopen_window_days,
+          DEFAULT_SETTINGS.support_reopen_window_days
+        ),
         rate_codes: normalizeStringList(merged.rate_codes, DEFAULT_SETTINGS.rate_codes),
         market_codes: normalizeStringList(merged.market_codes, DEFAULT_SETTINGS.market_codes),
         booking_channels: normalizeBookingChannels(merged.booking_channels),

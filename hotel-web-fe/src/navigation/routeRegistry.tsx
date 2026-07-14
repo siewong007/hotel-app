@@ -15,6 +15,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StarIcon from '@mui/icons-material/Star';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
@@ -80,6 +81,7 @@ const AuditLogPage = lazyRoute(() => import('../features/admin/components/AuditL
 const NightAuditPage = lazyRoute(() => import('../features/admin/components/NightAuditPage'));
 const DataTransferPage = lazyRoute(() => import('../features/admin/components/DataTransferPage'));
 const HousekeepingPage = lazyRoute(() => import('../features/housekeeping'));
+const SupportManagementPage = lazyRoute(() => import('../features/support'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'unauth' },
@@ -174,6 +176,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: CleaningServicesIcon,
     breadcrumbLabel: 'Housekeeping',
     navLabel: 'Housekeeping',
+    navGroup: 'operations',
+    accessControlled: true,
+  },
+  {
+    id: 'support',
+    path: '/support',
+    component: SupportManagementPage,
+    animationType: 'slide',
+    visibility: 'auth',
+    icon: SupportAgentIcon,
+    breadcrumbLabel: 'Guest Support',
+    navLabel: 'Support',
     navGroup: 'operations',
     accessControlled: true,
   },

@@ -6092,3 +6092,100 @@ BEGIN
     END IF;
 END
 $$;
+
+-- ============================================================================
+-- 039_support_workflow.sql
+-- ============================================================================
+-- Guest-support conversations are intentionally separate from maintenance and
+-- housekeeping work orders. A conversation owns guest-visible messages while
+-- support_events keeps the staff-only, append-only operational history.
+
+CREATE TABLE IF NOT EXISTS support_conversations (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_number VARCHAR(40) NOT NULL UNIQUE,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+    booking_id BIGINT REFERENCES bookings(id) ON DELETE SET NULL,
+    subject VARCHAR(160) NOT NULL,
+    category VARCHAR(32) NOT NULL CHECK (
+        category IN ('booking', 'stay', 'billing', 'loyalty', 'technical', 'other')
+    ),
+    status VARCHAR(32) NOT NULL DEFAULT 'waiting_for_staff' CHECK (
+        status IN ('waiting_for_staff', 'waiting_for_guest', 'resolved', 'closed')
+    ),
+    priority VARCHAR(16) NOT NULL DEFAULT 'normal' CHECK (
+        priority IN ('low', 'normal', 'high', 'urgent')
+    ),
+    assigned_team VARCHAR(64) NOT NULL DEFAULT 'front_desk',
+    assigned_to_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    escalation_level SMALLINT NOT NULL DEFAULT 0 CHECK (escalation_level BETWEEN 0 AND 3),
+    escalated_at TIMESTAMP WITH TIME ZONE,
+    first_response_due_at TIMESTAMP WITH TIME ZONE,
+    resolution_due_at TIMESTAMP WITH TIME ZONE,
+    first_response_at TIMESTAMP WITH TIME ZONE,
+    resolved_at TIMESTAMP WITH TIME ZONE,
+    closed_at TIMESTAMP WITH TIME ZONE,
+    resolution_code VARCHAR(64),
+    resolution_summary TEXT,
+    reopen_count INTEGER NOT NULL DEFAULT 0 CHECK (reopen_count >= 0),
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+    last_activity_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS support_messages (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    author_type VARCHAR(16) NOT NULL CHECK (author_type IN ('guest', 'staff', 'system')),
+    author_guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
+    author_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    body TEXT NOT NULL,
+    client_message_id VARCHAR(128),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS support_events (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    actor_guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
+    actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    event_type VARCHAR(64) NOT NULL,
+    from_status VARCHAR(32),
+    to_status VARCHAR(32),
+    details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Staff action retries must be idempotent independently of message retries.
+CREATE TABLE IF NOT EXISTS support_action_idempotency_keys (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    actor_user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    idempotency_key VARCHAR(128) NOT NULL,
+    action VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (conversation_id, actor_user_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_conversations_guest_activity
+    ON support_conversations (guest_id, last_activity_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_conversations_queue
+    ON support_conversations (status, priority DESC, first_response_due_at, last_activity_at);
+CREATE INDEX IF NOT EXISTS idx_support_conversations_assignee
+    ON support_conversations (assigned_to_user_id, status, last_activity_at DESC)
+    WHERE assigned_to_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_conversations_booking
+    ON support_conversations (booking_id)
+    WHERE booking_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_messages_conversation_created
+    ON support_messages (conversation_id, created_at, id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_support_messages_client_id
+    ON support_messages (conversation_id, author_type, client_message_id)
+    WHERE client_message_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_support_events_conversation_created
+    ON support_events (conversation_id, created_at, id);
+
+DROP TRIGGER IF EXISTS update_support_conversations_updated_at ON support_conversations;
+CREATE TRIGGER update_support_conversations_updated_at
+    BEFORE UPDATE ON support_conversations
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
