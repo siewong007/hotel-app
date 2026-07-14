@@ -25,6 +25,7 @@ const ledgers = ['ledgers'] as const;
 const invoices = ['invoices'] as const;
 const housekeeping = ['housekeeping'] as const;
 const maintenance = ['maintenance'] as const;
+const promotions = ['promotions'] as const;
 
 const paramsOrEmpty = <T extends KeyParams | AuditLogQuery | undefined>(params: T) => params ?? {};
 
@@ -73,6 +74,18 @@ export const queryKeys = {
     all: maintenance,
     list: (params?: KeyParams) => [...maintenance, 'list', paramsOrEmpty(params)] as const,
     detail: (id: string | number) => [...maintenance, 'detail', String(id)] as const,
+  },
+  promotions: {
+    all: promotions,
+    publicCatalog: (params?: unknown) => [...promotions, 'public', params ?? {}] as const,
+    portal: (sessionScope: string) => [...promotions, 'portal', sessionScope] as const,
+    portalCatalog: (sessionScope: string, params?: unknown) =>
+      [...promotions, 'portal', sessionScope, 'catalog', params ?? {}] as const,
+    portalVouchers: (sessionScope: string, params?: unknown) =>
+      [...promotions, 'portal', sessionScope, 'vouchers', params ?? {}] as const,
+    adminList: (params?: unknown) => [...promotions, 'admin', 'list', params ?? {}] as const,
+    adminVouchers: (params?: unknown) =>
+      [...promotions, 'admin', 'vouchers', params ?? {}] as const,
   },
   roomTypes: {
     all: roomTypes,

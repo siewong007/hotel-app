@@ -77,16 +77,22 @@ export function useSendPortalSupportMessage(token: string) {
       conversationId,
       message,
       expectedVersion,
+      clientMessageId,
     }: {
       conversationId: PortalSupportConversationId;
       message: string;
       expectedVersion: number;
+      clientMessageId: string;
     }) =>
       GuestPortalSupportService.sendMessage(
         conversationId,
         {
           message,
-          client_message_id: newPortalSupportClientId(),
+          // The caller owns this id for the lifetime of its unsent draft. If a
+          // response is lost, retrying the same draft must preserve the id so
+          // the backend can return the original result instead of duplicating
+          // a guest message.
+          client_message_id: clientMessageId,
           expected_version: expectedVersion,
         },
         token,

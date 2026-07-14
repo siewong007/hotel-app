@@ -289,16 +289,18 @@ function ConversationDetail({
   isLoading: boolean;
   error: unknown;
   onRetry: () => void;
-  onSend: (message: string, expectedVersion: number) => Promise<void>;
+  onSend: (message: string, expectedVersion: number, clientMessageId: string) => Promise<void>;
   isSending: boolean;
   onReopen: () => Promise<void>;
   isReopening: boolean;
 }) {
   const [message, setMessage] = useState('');
+  const [clientMessageId, setClientMessageId] = useState(() => newPortalSupportClientId());
   const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     setMessage('');
+    setClientMessageId(newPortalSupportClientId());
     setSendError(null);
   }, [detail?.conversation.id]);
 
@@ -343,8 +345,9 @@ function ConversationDetail({
 
     try {
       setSendError(null);
-      await onSend(trimmedMessage, conversation.version);
+      await onSend(trimmedMessage, conversation.version, clientMessageId);
       setMessage('');
+      setClientMessageId(newPortalSupportClientId());
     } catch (submitError) {
       setSendError(getErrorMessage(submitError, 'We could not send your message. Please try again.'));
     }
@@ -536,9 +539,14 @@ export function PortalSupportTab({ token }: { token: string }) {
               isLoading={detailQuery.isLoading}
               error={detailQuery.error}
               onRetry={() => void detailQuery.refetch()}
-              onSend={async (message, expectedVersion) => {
+              onSend={async (message, expectedVersion, clientMessageId) => {
                 if (!selectedConversationId) return;
-                await sendMessage.mutateAsync({ conversationId: selectedConversationId, message, expectedVersion });
+                await sendMessage.mutateAsync({
+                  conversationId: selectedConversationId,
+                  message,
+                  expectedVersion,
+                  clientMessageId,
+                });
               }}
               isSending={sendMessage.isPending}
               onReopen={async () => {

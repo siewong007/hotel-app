@@ -1580,3 +1580,199 @@ CREATE TABLE IF NOT EXISTS support_guest_request_idempotency_keys (
 
 CREATE INDEX IF NOT EXISTS idx_support_guest_request_idempotency_conversation
     ON support_guest_request_idempotency_keys (conversation_id);
+
+
+-- @migration 26 promotions_vouchers
+-- Promotions define campaign terms, vouchers are guest-bound entitlements,
+-- and redemptions plus nightly allocations preserve the applied price snapshot.
+
+CREATE TABLE IF NOT EXISTS promotions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    terms TEXT,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (
+        status IN ('draft', 'published', 'paused', 'archived')
+    ),
+    promotion_kind TEXT NOT NULL DEFAULT 'voucher' CHECK (
+        promotion_kind IN ('deal', 'voucher')
+    ),
+    discount_type TEXT NOT NULL CHECK (
+        discount_type IN ('percentage', 'fixed_amount')
+    ),
+    discount_value DECIMAL(12, 2) NOT NULL,
+    max_discount_amount DECIMAL(12, 2),
+    currency TEXT NOT NULL DEFAULT 'USD',
+    claim_starts_at TEXT,
+    claim_ends_at TEXT,
+    stay_starts_on TEXT,
+    stay_ends_on TEXT,
+    min_nights INTEGER NOT NULL DEFAULT 1,
+    max_nights INTEGER,
+    min_subtotal DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    claim_limit INTEGER,
+    claimed_count INTEGER NOT NULL DEFAULT 0,
+    per_guest_limit INTEGER NOT NULL DEFAULT 1,
+    is_public INTEGER NOT NULL DEFAULT 1 CHECK (is_public IN (0, 1)),
+    version INTEGER NOT NULL DEFAULT 1,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT promotions_slug_not_blank CHECK (length(trim(slug)) > 0),
+    CONSTRAINT promotions_name_not_blank CHECK (length(trim(name)) > 0),
+    CONSTRAINT promotions_discount_value_valid CHECK (
+        discount_value >= 0
+        AND (discount_type <> 'percentage' OR discount_value <= 100)
+    ),
+    CONSTRAINT promotions_max_discount_valid CHECK (
+        max_discount_amount IS NULL OR max_discount_amount >= 0
+    ),
+    CONSTRAINT promotions_currency_valid CHECK (
+        length(currency) = 3 AND currency = upper(currency)
+    ),
+    CONSTRAINT promotions_claim_window_valid CHECK (
+        claim_starts_at IS NULL
+        OR claim_ends_at IS NULL
+        OR claim_ends_at > claim_starts_at
+    ),
+    CONSTRAINT promotions_stay_window_valid CHECK (
+        stay_starts_on IS NULL
+        OR stay_ends_on IS NULL
+        OR stay_ends_on >= stay_starts_on
+    ),
+    CONSTRAINT promotions_nights_valid CHECK (
+        min_nights >= 1 AND (max_nights IS NULL OR max_nights >= min_nights)
+    ),
+    CONSTRAINT promotions_min_subtotal_valid CHECK (min_subtotal >= 0),
+    CONSTRAINT promotions_claim_limit_valid CHECK (claim_limit IS NULL OR claim_limit >= 0),
+    CONSTRAINT promotions_claimed_count_valid CHECK (
+        claimed_count >= 0 AND (claim_limit IS NULL OR claimed_count <= claim_limit)
+    ),
+    CONSTRAINT promotions_per_guest_limit_valid CHECK (per_guest_limit >= 1),
+    CONSTRAINT promotions_version_valid CHECK (version >= 1)
+);
+
+CREATE TABLE IF NOT EXISTS promotion_room_types (
+    promotion_id INTEGER NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+    room_type_id INTEGER NOT NULL REFERENCES room_types(id) ON DELETE RESTRICT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (promotion_id, room_type_id)
+);
+
+CREATE TABLE IF NOT EXISTS vouchers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    promotion_id INTEGER NOT NULL REFERENCES promotions(id) ON DELETE RESTRICT,
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+    code TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'available' CHECK (
+        status IN ('available', 'redeemed', 'revoked')
+    ),
+    source TEXT NOT NULL CHECK (source IN ('guest_claim', 'admin_issue')),
+    expires_at TEXT,
+    redeemed_at TEXT,
+    revoked_at TEXT,
+    revoked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    revocation_reason TEXT,
+    issued_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    claimed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT vouchers_code_not_blank CHECK (length(trim(code)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS voucher_redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    voucher_id INTEGER NOT NULL REFERENCES vouchers(id) ON DELETE RESTRICT,
+    promotion_id INTEGER NOT NULL REFERENCES promotions(id) ON DELETE RESTRICT,
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE RESTRICT,
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+    status TEXT NOT NULL DEFAULT 'applied' CHECK (status IN ('applied', 'reversed')),
+    gross_subtotal DECIMAL(12, 2) NOT NULL CHECK (gross_subtotal >= 0),
+    discount_type TEXT NOT NULL CHECK (
+        discount_type IN ('percentage', 'fixed_amount')
+    ),
+    discount_value DECIMAL(12, 2) NOT NULL CHECK (
+        discount_value >= 0
+        AND (discount_type <> 'percentage' OR discount_value <= 100)
+    ),
+    discount_amount DECIMAL(12, 2) NOT NULL CHECK (
+        discount_amount >= 0 AND discount_amount <= gross_subtotal
+    ),
+    net_total DECIMAL(12, 2) NOT NULL CHECK (
+        net_total >= 0 AND net_total = gross_subtotal - discount_amount
+    ),
+    applied_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reversed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reversed_at TEXT,
+    reversal_reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS voucher_redemption_allocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    redemption_id INTEGER NOT NULL REFERENCES voucher_redemptions(id) ON DELETE CASCADE,
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE RESTRICT,
+    stay_date TEXT NOT NULL,
+    gross_amount DECIMAL(12, 2) NOT NULL CHECK (gross_amount >= 0),
+    discount_amount DECIMAL(12, 2) NOT NULL CHECK (
+        discount_amount >= 0 AND discount_amount <= gross_amount
+    ),
+    net_amount DECIMAL(12, 2) NOT NULL CHECK (
+        net_amount >= 0 AND net_amount = gross_amount - discount_amount
+    ),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (redemption_id, stay_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_promotions_public_window
+    ON promotions (status, is_public, claim_starts_at, claim_ends_at);
+CREATE INDEX IF NOT EXISTS idx_promotion_room_types_room_type
+    ON promotion_room_types (room_type_id, promotion_id);
+CREATE INDEX IF NOT EXISTS idx_vouchers_guest_status
+    ON vouchers (guest_id, status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_vouchers_promotion_guest
+    ON vouchers (promotion_id, guest_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_active_voucher
+    ON voucher_redemptions (voucher_id)
+    WHERE status = 'applied';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_active_booking
+    ON voucher_redemptions (booking_id)
+    WHERE status = 'applied';
+CREATE INDEX IF NOT EXISTS idx_voucher_redemptions_guest_applied
+    ON voucher_redemptions (guest_id, applied_at DESC);
+CREATE INDEX IF NOT EXISTS idx_voucher_redemption_allocations_booking_date
+    ON voucher_redemption_allocations (booking_id, stay_date);
+
+CREATE TRIGGER IF NOT EXISTS update_promotions_updated_at
+AFTER UPDATE ON promotions
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE promotions
+    SET updated_at = datetime('now')
+    WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_vouchers_updated_at
+AFTER UPDATE ON vouchers
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE vouchers
+    SET updated_at = datetime('now')
+    WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_voucher_redemptions_updated_at
+AFTER UPDATE ON voucher_redemptions
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE voucher_redemptions
+    SET updated_at = datetime('now')
+    WHERE id = NEW.id;
+END;
