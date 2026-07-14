@@ -8,9 +8,9 @@ use axum::{
 use std::net::SocketAddr;
 
 use super::models::{
-    ClaimPromotionInput, GuestPromotionListResponse, Promotion, PromotionActionInput, PromotionInput,
-    PromotionListQuery, PromotionListResponse, Voucher, VoucherIssueInput, VoucherListResponse,
-    VoucherRevokeInput,
+    ClaimPromotionInput, GuestPromotionListResponse, Promotion, PromotionActionInput,
+    PromotionInput, PromotionListQuery, PromotionListResponse, Voucher, VoucherIssueInput,
+    VoucherListResponse, VoucherRevokeInput,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -81,7 +81,9 @@ pub async fn list_guest_vouchers_handler(
     Query(query): Query<PromotionListQuery>,
 ) -> Result<Json<VoucherListResponse>, ApiError> {
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
-    Ok(Json(service::list_guest_vouchers(&pool, guest_id, query).await?))
+    Ok(Json(
+        service::list_guest_vouchers(&pool, guest_id, query).await?,
+    ))
 }
 
 pub async fn list_admin_promotions_handler(
@@ -99,7 +101,9 @@ pub async fn get_admin_promotion_handler(
     Path(promotion_id): Path<i64>,
 ) -> Result<Json<Promotion>, ApiError> {
     require_permission_helper(&pool, &headers, "promotions:read").await?;
-    Ok(Json(service::get_admin_promotion(&pool, promotion_id).await?))
+    Ok(Json(
+        service::get_admin_promotion(&pool, promotion_id).await?,
+    ))
 }
 
 pub async fn create_admin_promotion_handler(

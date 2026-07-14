@@ -1,16 +1,9 @@
 import AddIcon from '@mui/icons-material/Add';
-import ArchiveIcon from '@mui/icons-material/Archive';
-import BlockIcon from '@mui/icons-material/Block';
-import EditIcon from '@mui/icons-material/Edit';
-import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import {
   Alert,
   Box,
   Button,
-  Chip,
-  CircularProgress,
   Container,
   FormControl,
   IconButton,
@@ -20,13 +13,6 @@ import {
   Select,
   Stack,
   Tab,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TablePagination,
-  TableRow,
   Tabs,
   TextField,
   Tooltip,
@@ -54,32 +40,12 @@ import type {
   VoucherIssueInput,
   VoucherStatus,
 } from '../types';
-import { formatPromotionDate, formatPromotionDiscount } from '../utils';
+import { PromotionAdminTable } from '../components/PromotionAdminTable';
 import { PromotionEditorDialog } from '../components/PromotionEditorDialog';
+import { VoucherAdminTable } from '../components/VoucherAdminTable';
 import { VoucherIssueDialog } from '../components/VoucherIssueDialog';
 
 type WorkspaceTab = 'promotions' | 'vouchers';
-
-const promotionStatusColor = {
-  draft: 'default',
-  published: 'success',
-  paused: 'warning',
-  archived: 'default',
-} as const;
-
-const voucherStatusColor = {
-  available: 'success',
-  redeemed: 'default',
-  revoked: 'error',
-} as const;
-
-function LoadingTable() {
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-      <CircularProgress />
-    </Box>
-  );
-}
 
 export default function PromotionManagementPage() {
   const { hasPermission } = useAuth();
@@ -367,217 +333,38 @@ export default function PromotionManagementPage() {
           </Stack>
 
           {tab === 'promotions' ? (
-            promotionsQuery.isLoading ? (
-              <LoadingTable />
-            ) : (
-              <>
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Promotion</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Discount</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Claims</TableCell>
-                        <TableCell>Public</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {(promotionsQuery.data?.items ?? []).map((promotion) => (
-                        <TableRow key={promotion.id} hover>
-                          <TableCell>
-                            <Typography variant="body2" fontWeight={600}>
-                              {promotion.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {promotion.slug}
-                            </Typography>
-                          </TableCell>
-                          <TableCell sx={{ textTransform: 'capitalize' }}>
-                            {promotion.promotion_kind}
-                          </TableCell>
-                          <TableCell>{formatPromotionDiscount(promotion)}</TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={PROMOTION_STATUS_LABELS[promotion.status] ?? promotion.status}
-                              color={promotionStatusColor[promotion.status] ?? 'default'}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {promotion.claimed_count}
-                            {promotion.claim_limit ? ` / ${promotion.claim_limit}` : ''}
-                          </TableCell>
-                          <TableCell>{promotion.is_public ? 'Yes' : 'No'}</TableCell>
-                          <TableCell align="right">
-                            {canManagePromotions ? (
-                              <Stack direction="row" justifyContent="flex-end" spacing={0.25}>
-                                <Tooltip title="Edit">
-                                  <IconButton size="small" onClick={() => openEdit(promotion)}>
-                                    <EditIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                {promotion.status === 'draft' || promotion.status === 'paused' ? (
-                                  <Tooltip title="Publish">
-                                    <IconButton
-                                      size="small"
-                                      color="success"
-                                      disabled={transitionMutation.isPending}
-                                      onClick={() => transitionPromotion(promotion, 'publish')}
-                                    >
-                                      <PlayCircleOutlineIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                ) : null}
-                                {promotion.status === 'published' ? (
-                                  <Tooltip title="Pause">
-                                    <IconButton
-                                      size="small"
-                                      color="warning"
-                                      disabled={transitionMutation.isPending}
-                                      onClick={() => transitionPromotion(promotion, 'pause')}
-                                    >
-                                      <PauseCircleOutlineIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                ) : null}
-                                {promotion.status !== 'archived' ? (
-                                  <Tooltip title="Archive">
-                                    <IconButton
-                                      size="small"
-                                      disabled={transitionMutation.isPending}
-                                      onClick={() => transitionPromotion(promotion, 'archive')}
-                                    >
-                                      <ArchiveIcon fontSize="small" />
-                                    </IconButton>
-                                  </Tooltip>
-                                ) : null}
-                              </Stack>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                Read only
-                              </Typography>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {(promotionsQuery.data?.items ?? []).length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                            No promotions found.
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-                <TablePagination
-                  component="div"
-                  count={promotionsQuery.data?.total ?? 0}
-                  page={promotionPage}
-                  rowsPerPage={promotionPageSize}
-                  rowsPerPageOptions={[10, 25, 50]}
-                  onPageChange={(_, page) => setPromotionPage(page)}
-                  onRowsPerPageChange={(event) => {
-                    setPromotionPageSize(Number(event.target.value));
-                    setPromotionPage(0);
-                  }}
-                />
-              </>
-            )
-          ) : vouchersQuery.isLoading ? (
-            <LoadingTable />
+            <PromotionAdminTable
+              promotions={promotionsQuery.data?.items ?? []}
+              total={promotionsQuery.data?.total ?? 0}
+              page={promotionPage}
+              pageSize={promotionPageSize}
+              isLoading={promotionsQuery.isLoading}
+              canManage={canManagePromotions}
+              isTransitioning={transitionMutation.isPending}
+              onEdit={openEdit}
+              onTransition={transitionPromotion}
+              onPageChange={setPromotionPage}
+              onPageSizeChange={(pageSize) => {
+                setPromotionPageSize(pageSize);
+                setPromotionPage(0);
+              }}
+            />
           ) : (
-            <>
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Voucher</TableCell>
-                      <TableCell>Promotion</TableCell>
-                      <TableCell>Guest</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Expires</TableCell>
-                      <TableCell>Source</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {(vouchersQuery.data?.items ?? []).map((voucher) => {
-                      const displayCode = voucher.code_masked ?? voucher.code ?? `#${voucher.id}`;
-                      const isExpired = Boolean(
-                        voucher.status === 'available' &&
-                          voucher.expires_at &&
-                          new Date(voucher.expires_at).getTime() < Date.now()
-                      );
-                      return (
-                        <TableRow key={voucher.id} hover>
-                          <TableCell sx={{ fontFamily: 'monospace' }}>{displayCode}</TableCell>
-                          <TableCell>{voucher.promotion_name}</TableCell>
-                          <TableCell>{voucher.guest_name ?? voucher.guest_id ?? '—'}</TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={
-                                isExpired
-                                  ? 'Expired'
-                                  : VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status
-                              }
-                              color={
-                                isExpired
-                                  ? 'warning'
-                                  : voucherStatusColor[voucher.status] ?? 'default'
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>{formatPromotionDate(voucher.expires_at) ?? 'No expiry'}</TableCell>
-                          <TableCell>{voucher.source}</TableCell>
-                          <TableCell align="right">
-                            {canManageVouchers && voucher.status === 'available' && !isExpired ? (
-                              <Tooltip title="Revoke voucher">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  disabled={revokeMutation.isPending}
-                                  onClick={() => revokeVoucher(voucher.id, displayCode)}
-                                >
-                                  <BlockIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            ) : (
-                              <Typography variant="caption" color="text.secondary">
-                                —
-                              </Typography>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {(vouchersQuery.data?.items ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                          No vouchers found.
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-              <TablePagination
-                component="div"
-                count={vouchersQuery.data?.total ?? 0}
-                page={voucherPage}
-                rowsPerPage={voucherPageSize}
-                rowsPerPageOptions={[10, 25, 50]}
-                onPageChange={(_, page) => setVoucherPage(page)}
-                onRowsPerPageChange={(event) => {
-                  setVoucherPageSize(Number(event.target.value));
-                  setVoucherPage(0);
-                }}
-              />
-            </>
+            <VoucherAdminTable
+              vouchers={vouchersQuery.data?.items ?? []}
+              total={vouchersQuery.data?.total ?? 0}
+              page={voucherPage}
+              pageSize={voucherPageSize}
+              isLoading={vouchersQuery.isLoading}
+              canManage={canManageVouchers}
+              isRevoking={revokeMutation.isPending}
+              onRevoke={revokeVoucher}
+              onPageChange={setVoucherPage}
+              onPageSizeChange={(pageSize) => {
+                setVoucherPageSize(pageSize);
+                setVoucherPage(0);
+              }}
+            />
           )}
         </Paper>
       </Stack>
