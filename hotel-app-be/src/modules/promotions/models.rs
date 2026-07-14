@@ -60,6 +60,7 @@ pub struct GuestPromotionListResponse {
 pub struct Voucher {
     pub id: i64,
     pub promotion_id: i64,
+    pub guest_id: i64,
     pub promotion_name: String,
     pub promotion_slug: String,
     /// The owning portal guest is allowed to see the full code. Staff lists

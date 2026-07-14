@@ -16,7 +16,6 @@ export const PROMOTION_STATUS_LABELS: Record<PromotionStatus, string> = {
 export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
   available: 'Available',
   redeemed: 'Redeemed',
-  expired: 'Expired',
   revoked: 'Revoked',
 };
 

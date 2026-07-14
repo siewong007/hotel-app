@@ -29,6 +29,7 @@ import {
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { usePortalSession } from '../api/usePortalSession';
 import { PortalSupportTab } from './PortalSupportTab';
+import { PromotionCatalog, VoucherWallet } from '../../promotions';
 import { parseLocalDate } from '../../../utils/date';
 import type {
   GuestPortalBenefitsResponse,
@@ -112,7 +113,9 @@ export const PortalDashboardPage: React.FC = () => {
           <Tab label="Transactions" id="portal-tab-1" aria-controls="portal-tabpanel-1" />
           <Tab label="Membership" id="portal-tab-2" aria-controls="portal-tabpanel-2" />
           <Tab label="Benefits" id="portal-tab-3" aria-controls="portal-tabpanel-3" />
-          <Tab label="Support & Help" id="portal-tab-4" aria-controls="portal-tabpanel-4" />
+          <Tab label="Deals" id="portal-tab-4" aria-controls="portal-tabpanel-4" />
+          <Tab label="My Vouchers" id="portal-tab-5" aria-controls="portal-tabpanel-5" />
+          <Tab label="Support & Help" id="portal-tab-6" aria-controls="portal-tabpanel-6" />
         </Tabs>
 
         <TabPanel value={activeTab} index={0}>
@@ -128,6 +131,12 @@ export const PortalDashboardPage: React.FC = () => {
           <BenefitsTab token={token} />
         </TabPanel>
         <TabPanel value={activeTab} index={4}>
+          <PromotionCatalog token={token} />
+        </TabPanel>
+        <TabPanel value={activeTab} index={5}>
+          <VoucherWallet token={token} />
+        </TabPanel>
+        <TabPanel value={activeTab} index={6}>
           <PortalSupportTab token={token} />
         </TabPanel>
       </Paper>

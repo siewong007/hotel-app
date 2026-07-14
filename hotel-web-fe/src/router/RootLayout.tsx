@@ -12,8 +12,10 @@ export const RootLayout: React.FC = () => {
   const location = useLocation();
   const pathname = location.pathname;
   const isGuestPortal = pathname === '/portal' || pathname.startsWith('/portal/');
+  const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
+  const isConsumerRoute = isGuestPortal || isOffersPage;
   const isTimelinePage = pathname.startsWith('/timeline');
-  const boardSkinActive = isAuthenticated && !isTimelinePage;
+  const boardSkinActive = isAuthenticated && !isTimelinePage && !isConsumerRoute;
   const appBarSkinActive = isAuthenticated;
 
   useEffect(() => {
@@ -23,12 +25,11 @@ export const RootLayout: React.FC = () => {
     };
   }, [boardSkinActive]);
 
-  // The guest portal uses its own short-lived guest token. It must neither
-  // wait for nor inherit the staff account shell when both sessions happen to
-  // exist in the same browser.
-  if (isGuestPortal) {
+  // Consumer routes must neither wait for nor inherit the staff account shell
+  // when a staff session also exists in the same browser.
+  if (isConsumerRoute) {
     return (
-      <ErrorBoundary title="Guest Portal Error">
+      <ErrorBoundary title="Guest Experience Error">
         <Suspense fallback={<LoadingFallback />}>
           <Outlet />
         </Suspense>

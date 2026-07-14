@@ -21,7 +21,6 @@ interface VoucherCardProps {
 const statusColor = {
   available: 'success',
   redeemed: 'default',
-  expired: 'warning',
   revoked: 'error',
 } as const;
 
@@ -29,6 +28,11 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
   const [copied, setCopied] = useState(false);
   const displayCode = voucher.code ?? voucher.code_masked ?? 'Code unavailable';
   const expiresAt = formatPromotionDate(voucher.expires_at);
+  const isExpired = Boolean(
+    voucher.status === 'available' &&
+      voucher.expires_at &&
+      new Date(voucher.expires_at).getTime() < Date.now()
+  );
 
   const copyCode = async () => {
     if (!voucher.code || !navigator.clipboard) return;
@@ -48,8 +52,8 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             <Typography variant="h6">{voucher.promotion_name}</Typography>
           </Box>
           <Chip
-            label={VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status}
-            color={statusColor[voucher.status] ?? 'default'}
+            label={isExpired ? 'Expired' : VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status}
+            color={isExpired ? 'warning' : statusColor[voucher.status] ?? 'default'}
             size="small"
           />
         </Stack>
