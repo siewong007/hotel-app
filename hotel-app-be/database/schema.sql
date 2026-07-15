@@ -6389,3 +6389,12 @@ DROP TRIGGER IF EXISTS update_voucher_redemptions_updated_at ON voucher_redempti
 CREATE TRIGGER update_voucher_redemptions_updated_at
     BEFORE UPDATE ON voucher_redemptions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- 042_vouchers_promotion_guest_uniqueness.sql
+-- ============================================================================
+-- Guest claim creation uses ON CONFLICT (promotion_id, guest_id) so the pair
+-- must be backed by an exact unique index in both database engines.
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_promotion_guest
+    ON vouchers (promotion_id, guest_id);

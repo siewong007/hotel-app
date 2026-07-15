@@ -67,12 +67,9 @@ fn ensure_guest_claimable(promotion: &Promotion) -> Result<(), ApiError> {
     if promotion.status != "published" || !promotion.is_public {
         return Err(ApiError::NotFound("Promotion not found".to_string()));
     }
-    if promotion.promotion_kind != "voucher" {
-        return Err(ApiError::BadRequest(
-            "This deal is applied when an eligible booking is quoted and cannot be saved as a voucher"
-                .to_string(),
-        ));
-    }
+    // `promotion_kind` is a campaign/display category. Every claim creates a
+    // guest-bound voucher so both advertised deals and voucher campaigns share
+    // the same safe redemption workflow.
     promotion_is_within_claim_window(promotion)
 }
 
@@ -80,11 +77,6 @@ fn ensure_admin_issueable(promotion: &Promotion) -> Result<(), ApiError> {
     if promotion.status != "published" {
         return Err(ApiError::Conflict(
             "Only published promotions can issue vouchers".to_string(),
-        ));
-    }
-    if promotion.promotion_kind != "voucher" {
-        return Err(ApiError::BadRequest(
-            "Only voucher promotions can issue vouchers".to_string(),
         ));
     }
     promotion_is_within_claim_window(promotion)
@@ -149,12 +141,8 @@ pub async fn list_guest_promotions(
     let public = list_public_promotions(pool, query).await?;
     let mut items = Vec::with_capacity(public.items.len());
     for promotion in public.items {
-        let has_voucher = if promotion.promotion_kind == "voucher" {
-            PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?
-        } else {
-            false
-        };
-        let can_claim = promotion.promotion_kind == "voucher" && !has_voucher;
+        let has_voucher = PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?;
+        let can_claim = !has_voucher;
         items.push(GuestPromotion {
             promotion,
             can_claim,
@@ -194,6 +182,17 @@ pub async fn claim_guest_promotion(
     user_agent: Option<String>,
 ) -> Result<Voucher, ApiError> {
     request_id_is_valid(input.client_request_id.as_deref())?;
+
+    // A repeated claim is an idempotent read, even after the campaign reaches
+    // its overall capacity or closes. The unique promotion/guest constraint
+    // makes this safe without consuming an additional claim.
+    if let Some(voucher) =
+        PromotionRepository::find_voucher_by_promotion_guest(pool, promotion_id, guest_id, true)
+            .await?
+    {
+        return Ok(voucher);
+    }
+
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let promotion = PromotionRepository::find_by_id_tx(&mut tx, promotion_id)
         .await?

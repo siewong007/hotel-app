@@ -15,6 +15,7 @@ import {
   TextField,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { formatLocalDate } from '../../../utils/date';
 import {
   DISCOUNT_TYPE_OPTIONS,
   EMPTY_PROMOTION_INPUT,
@@ -58,8 +59,10 @@ function toLocalDateTime(value?: string | null): string {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 16);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+  const time = [date.getHours(), date.getMinutes()]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
+  return `${formatLocalDate(date)}T${time}`;
 }
 
 function toIsoDateTime(value: string): string | null {

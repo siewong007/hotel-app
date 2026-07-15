@@ -203,9 +203,9 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
         ));
     }
     let per_guest_limit = input.per_guest_limit.unwrap_or(1);
-    if per_guest_limit < 1 {
+    if per_guest_limit != 1 {
         return Err(ApiError::BadRequest(
-            "Per-guest limit must be at least one".to_string(),
+            "Per-guest limit is currently limited to one voucher per promotion".to_string(),
         ));
     }
     if input
@@ -304,6 +304,35 @@ mod tests {
             room_type_ids: None,
             expected_version: None,
         };
+        assert!(validate_promotion_input(input).is_err());
+    }
+
+    #[test]
+    fn rejects_per_guest_limits_that_the_voucher_constraint_cannot_honor() {
+        let input = PromotionInput {
+            slug: "welcome-deal".to_string(),
+            name: "Welcome deal".to_string(),
+            description: None,
+            terms: None,
+            promotion_kind: "voucher".to_string(),
+            discount_type: "percentage".to_string(),
+            discount_value: 10.0,
+            max_discount_amount: None,
+            currency: Some("USD".to_string()),
+            claim_starts_at: None,
+            claim_ends_at: None,
+            stay_starts_on: None,
+            stay_ends_on: None,
+            min_nights: None,
+            max_nights: None,
+            min_subtotal: None,
+            claim_limit: None,
+            per_guest_limit: Some(2),
+            is_public: None,
+            room_type_ids: None,
+            expected_version: None,
+        };
+
         assert!(validate_promotion_input(input).is_err());
     }
 }

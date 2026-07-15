@@ -306,7 +306,7 @@ mod sqlite_resource_tests {
     fn schema_resource_has_strictly_ordered_legacy_versions() {
         let sections = sqlite_schema_sections(SQLITE_SCHEMA).expect("parse SQLite schema sections");
         let versions: Vec<i64> = sections.iter().map(|section| section.version).collect();
-        assert_eq!(versions, (1..=26).collect::<Vec<_>>());
+        assert_eq!(versions, (1..=28).collect::<Vec<_>>());
     }
 
     #[tokio::test]
@@ -325,7 +325,15 @@ mod sqlite_resource_tests {
                 .fetch_one(&pool)
                 .await
                 .expect("count applied versions");
-        assert_eq!(applied_versions, 26);
+        assert_eq!(applied_versions, 28);
+
+        let daily_rates_type: Option<String> = sqlx::query_scalar(
+            "SELECT type FROM pragma_table_info('bookings') WHERE name = 'daily_rates'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .expect("inspect bookings.daily_rates");
+        assert_eq!(daily_rates_type.as_deref(), Some("TEXT"));
 
         let seeded_rewards: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM loyalty_rewards WHERE name IN ('Late checkout', 'Room upgrade request', 'Dining credit')",
@@ -354,7 +362,7 @@ mod sqlite_resource_tests {
             WITH RECURSIVE versions(version) AS (
                 VALUES (1)
                 UNION ALL
-                SELECT version + 1 FROM versions WHERE version < 26
+                SELECT version + 1 FROM versions WHERE version < 28
             )
             INSERT INTO _sqlx_migrations (version, description, installed_on, success)
             SELECT version, 'legacy migration', datetime('now'), 1 FROM versions;
@@ -373,7 +381,7 @@ mod sqlite_resource_tests {
                 .fetch_one(&pool)
                 .await
                 .expect("count imported versions");
-        assert_eq!(imported_versions, 26);
+        assert_eq!(imported_versions, 28);
     }
 }
 

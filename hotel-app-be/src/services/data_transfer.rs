@@ -23,6 +23,8 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "corporate_account_contacts",
     "email_templates",
     "guests",
+    "promotions",
+    "vouchers",
     "guest_documents",
     "guest_notes",
     "guest_preferences",
@@ -40,11 +42,14 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "reward_catalog",
     "room_status_transitions",
     "room_types",
+    "promotion_room_types",
     "guest_complimentary_credits",
     "room_rates",
     "room_type_amenities",
     "rooms",
     "bookings",
+    "voucher_redemptions",
+    "voucher_redemption_allocations",
     "booking_guests",
     "booking_history",
     "booking_modifications",
@@ -73,7 +78,11 @@ const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
 
 /// Tables keyed by a composite primary key (no serial `id`): excluded from
 /// sequence resets, and exported with an explicit key order.
-const COMPOSITE_PK_TABLES: &[&str] = &["room_type_amenities", "room_status_transitions"];
+const COMPOSITE_PK_TABLES: &[&str] = &[
+    "room_type_amenities",
+    "room_status_transitions",
+    "promotion_room_types",
+];
 
 const TABLES_WITH_TRIGGERS: &[&str] = &[
     "bookings",
@@ -123,6 +132,16 @@ const OVERWRITE_DELETE_DEPENDENCIES: &[(&str, &str)] = &[
     ("bookings", "guests"),
     ("bookings", "rooms"),
     ("bookings", "booking_channels"),
+    ("promotion_room_types", "promotions"),
+    ("promotion_room_types", "room_types"),
+    ("vouchers", "promotions"),
+    ("vouchers", "guests"),
+    ("voucher_redemptions", "vouchers"),
+    ("voucher_redemptions", "promotions"),
+    ("voucher_redemptions", "bookings"),
+    ("voucher_redemptions", "guests"),
+    ("voucher_redemption_allocations", "voucher_redemptions"),
+    ("voucher_redemption_allocations", "bookings"),
     ("booking_guests", "bookings"),
     ("booking_modifications", "bookings"),
     ("booking_history", "bookings"),
@@ -208,6 +227,12 @@ pub async fn export_booking_data(pool: &DbPool) -> Result<BookingDataExport, Api
         user_guests: export_table(pool, "user_guests").await?,
         room_types: export_table(pool, "room_types").await?,
         rooms: export_table(pool, "rooms").await?,
+        promotions: export_table(pool, "promotions").await?,
+        promotion_room_types: export_table(pool, "promotion_room_types").await?,
+        vouchers: export_table(pool, "vouchers").await?,
+        voucher_redemptions: export_table(pool, "voucher_redemptions").await?,
+        voucher_redemption_allocations: export_table(pool, "voucher_redemption_allocations")
+            .await?,
 
         // ----- Extended full-backup tables -----
         system_settings: export_table(pool, "system_settings").await?,
@@ -282,6 +307,8 @@ pub async fn import_booking_data(
         ),
         ("email_templates", &data.email_templates),
         ("guests", &data.guests),
+        ("promotions", &data.promotions),
+        ("vouchers", &data.vouchers),
         ("guest_documents", &data.guest_documents),
         ("guest_notes", &data.guest_notes),
         ("guest_preferences", &data.guest_preferences),
@@ -299,6 +326,7 @@ pub async fn import_booking_data(
         ("reward_catalog", &data.reward_catalog),
         ("room_status_transitions", &data.room_status_transitions),
         ("room_types", &data.room_types),
+        ("promotion_room_types", &data.promotion_room_types),
         (
             "guest_complimentary_credits",
             &data.guest_complimentary_credits,
@@ -307,6 +335,11 @@ pub async fn import_booking_data(
         ("room_type_amenities", &data.room_type_amenities),
         ("rooms", &data.rooms),
         ("bookings", &data.bookings),
+        ("voucher_redemptions", &data.voucher_redemptions),
+        (
+            "voucher_redemption_allocations",
+            &data.voucher_redemption_allocations,
+        ),
         ("booking_guests", &data.booking_guests),
         ("booking_history", &data.booking_history),
         ("booking_modifications", &data.booking_modifications),
@@ -763,7 +796,7 @@ mod tests {
             "TABLE_INSERT_ORDER must not contain duplicates"
         );
         // The full-backup set the API exports/imports.
-        assert_eq!(TABLE_INSERT_ORDER.len(), 51);
+        assert_eq!(TABLE_INSERT_ORDER.len(), 56);
         // Introspection list and the canonical order must stay in lock-step.
         assert_eq!(ALL_IMPORT_TABLES, TABLE_INSERT_ORDER);
     }
@@ -783,6 +816,30 @@ mod tests {
             assert!(
                 !sequence_reset.contains(table),
                 "{table} has no serial id and must be skipped on sequence reset"
+            );
+        }
+    }
+
+    #[test]
+    fn promotion_tables_follow_foreign_key_safe_insert_order() {
+        let position = |table: &str| {
+            TABLE_INSERT_ORDER
+                .iter()
+                .position(|candidate| *candidate == table)
+                .unwrap_or_else(|| panic!("{table} should be transferable"))
+        };
+
+        for (parent, child) in [
+            ("promotions", "vouchers"),
+            ("promotions", "promotion_room_types"),
+            ("room_types", "promotion_room_types"),
+            ("bookings", "voucher_redemptions"),
+            ("vouchers", "voucher_redemptions"),
+            ("voucher_redemptions", "voucher_redemption_allocations"),
+        ] {
+            assert!(
+                position(parent) < position(child),
+                "{parent} must be inserted before {child}"
             );
         }
     }
@@ -848,6 +905,24 @@ mod tests {
         assert!(selected.contains("loyalty_memberships"));
         assert!(selected.contains("points_transactions"));
         assert!(!selected.contains("payments"));
+    }
+
+    #[test]
+    fn overwrite_clear_expands_through_promotion_dependents() {
+        let mut selected = HashSet::from(["promotions".to_string()]);
+
+        expand_overwrite_clear_tables(&mut selected);
+
+        for table in [
+            "promotions",
+            "promotion_room_types",
+            "vouchers",
+            "voucher_redemptions",
+            "voucher_redemption_allocations",
+        ] {
+            assert!(selected.contains(table), "{table} should be cleared");
+        }
+        assert!(!selected.contains("bookings"));
     }
 
     #[test]
