@@ -1,5 +1,9 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react';
+import type { PropsWithChildren } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { queryKeys } from '../../../api/queryKeys';
+import { portalSessionScope } from '../../promotions/utils';
 import { getPortalToken, setPortalToken } from './portalTokenStore';
 
 const navigate = vi.fn();
@@ -10,6 +14,20 @@ vi.mock('../../../router', () => ({
 
 import { usePortalSession } from './usePortalSession';
 
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+}
+
+function createQueryClientWrapper(queryClient: QueryClient) {
+  return function QueryClientWrapper({ children }: PropsWithChildren) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  };
+}
+
 describe('usePortalSession', () => {
   beforeEach(() => {
     navigate.mockReset();
@@ -18,8 +36,11 @@ describe('usePortalSession', () => {
 
   it('exposes a valid guest portal session', () => {
     setPortalToken('guest-token', '2999-01-01T00:00:00Z');
+    const queryClient = createQueryClient();
 
-    const { result } = renderHook(() => usePortalSession());
+    const { result } = renderHook(() => usePortalSession(), {
+      wrapper: createQueryClientWrapper(queryClient),
+    });
 
     expect(result.current.token).toBe('guest-token');
     expect(result.current.isAuthenticated).toBe(true);
@@ -27,8 +48,11 @@ describe('usePortalSession', () => {
 
   it('does not authenticate an expired stored portal token', () => {
     setPortalToken('expired-token', '2000-01-01T00:00:00Z');
+    const queryClient = createQueryClient();
 
-    const { result } = renderHook(() => usePortalSession());
+    const { result } = renderHook(() => usePortalSession(), {
+      wrapper: createQueryClientWrapper(queryClient),
+    });
 
     expect(result.current.token).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
@@ -37,11 +61,19 @@ describe('usePortalSession', () => {
 
   it('clears the guest token and returns to portal sign-in on logout', () => {
     setPortalToken('guest-token', '2999-01-01T00:00:00Z');
-    const { result } = renderHook(() => usePortalSession());
+    const queryClient = createQueryClient();
+    const sessionScope = portalSessionScope('guest-token');
+    const portalCatalogKey = queryKeys.promotions.portalCatalog(sessionScope);
+    queryClient.setQueryData(portalCatalogKey, { items: [] });
+
+    const { result } = renderHook(() => usePortalSession(), {
+      wrapper: createQueryClientWrapper(queryClient),
+    });
 
     act(() => result.current.logout());
 
     expect(getPortalToken()).toBeNull();
+    expect(queryClient.getQueryData(portalCatalogKey)).toBeUndefined();
     expect(navigate).toHaveBeenCalledWith('/portal/login', { replace: true });
   });
 });

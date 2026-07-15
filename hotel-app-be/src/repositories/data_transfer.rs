@@ -24,6 +24,8 @@ const KNOWN_TABLES: &[&str] = &[
     "corporate_account_contacts",
     "email_templates",
     "guests",
+    "promotions",
+    "vouchers",
     "guest_documents",
     "guest_notes",
     "guest_preferences",
@@ -41,11 +43,14 @@ const KNOWN_TABLES: &[&str] = &[
     "reward_catalog",
     "room_status_transitions",
     "room_types",
+    "promotion_room_types",
     "guest_complimentary_credits",
     "room_rates",
     "room_type_amenities",
     "rooms",
     "bookings",
+    "voucher_redemptions",
+    "voucher_redemption_allocations",
     "booking_guests",
     "booking_history",
     "booking_modifications",
@@ -109,6 +114,7 @@ impl DataTransferRepository {
         let order_by = match table {
             "room_type_amenities" => "room_type_id, amenity_id",
             "room_status_transitions" => "from_status, to_status",
+            "promotion_room_types" => "promotion_id, room_type_id",
             _ => "id",
         };
         Self::export_query(
@@ -626,6 +632,21 @@ mod tests {
         assert_eq!(prepared.values.get("id"), Some(&json!(1)));
         assert!(!prepared.values.contains_key("nights"));
         assert!(!prepared.values.contains_key("unknown"));
+    }
+
+    #[test]
+    fn promotion_tables_are_allowed_by_the_dynamic_sql_whitelist() {
+        for table in [
+            "promotions",
+            "promotion_room_types",
+            "vouchers",
+            "voucher_redemptions",
+            "voucher_redemption_allocations",
+        ] {
+            assert!(ensure_known_table(table).is_ok(), "{table} should be known");
+        }
+
+        assert!(ensure_known_table("promotion_secrets").is_err());
     }
 
     #[test]

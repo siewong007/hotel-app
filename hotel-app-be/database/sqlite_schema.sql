@@ -1776,3 +1776,17 @@ BEGIN
     SET updated_at = datetime('now')
     WHERE id = NEW.id;
 END;
+
+
+-- @migration 27 vouchers_promotion_guest_uniqueness
+-- Required by voucher claim INSERT ... ON CONFLICT (promotion_id, guest_id).
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_promotion_guest
+    ON vouchers (promotion_id, guest_id);
+
+
+-- @migration 28 bookings_daily_rates
+-- PostgreSQL stores per-night booking-rate overrides as JSONB. SQLite binds the
+-- same JSON payload as text, so this forward-only addition keeps both database
+-- modes aligned for booking creation, editing, night audit, and promotions.
+ALTER TABLE bookings ADD COLUMN daily_rates TEXT;

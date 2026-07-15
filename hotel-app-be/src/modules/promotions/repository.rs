@@ -5,7 +5,7 @@ use sqlx::{Row, query, query_scalar};
 
 use super::models::{Promotion, Voucher};
 use super::validation::PromotionDraft;
-use crate::core::db::{DbPool, DbRow, DbTransaction};
+use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers::{get_bool, get_decimal, get_opt_decimal};
 
@@ -413,8 +413,8 @@ impl PromotionRepository {
         .bind(&draft.terms)
         .bind(&draft.promotion_kind)
         .bind(&draft.discount_type)
-        .bind(draft.discount_value)
-        .bind(draft.max_discount_amount)
+        .bind(decimal_to_db(draft.discount_value))
+        .bind(opt_decimal_to_db(draft.max_discount_amount))
         .bind(&draft.currency)
         .bind(draft.claim_starts_at)
         .bind(draft.claim_ends_at)
@@ -422,7 +422,7 @@ impl PromotionRepository {
         .bind(draft.stay_ends_on)
         .bind(draft.min_nights)
         .bind(draft.max_nights)
-        .bind(draft.min_subtotal)
+        .bind(opt_decimal_to_db(draft.min_subtotal))
         .bind(draft.claim_limit)
         .bind(draft.per_guest_limit)
         .bind(draft.is_public)
@@ -476,8 +476,8 @@ impl PromotionRepository {
         .bind(&draft.terms)
         .bind(&draft.promotion_kind)
         .bind(&draft.discount_type)
-        .bind(draft.discount_value)
-        .bind(draft.max_discount_amount)
+        .bind(decimal_to_db(draft.discount_value))
+        .bind(opt_decimal_to_db(draft.max_discount_amount))
         .bind(&draft.currency)
         .bind(draft.claim_starts_at)
         .bind(draft.claim_ends_at)
@@ -485,7 +485,7 @@ impl PromotionRepository {
         .bind(draft.stay_ends_on)
         .bind(draft.min_nights)
         .bind(draft.max_nights)
-        .bind(draft.min_subtotal)
+        .bind(opt_decimal_to_db(draft.min_subtotal))
         .bind(draft.claim_limit)
         .bind(draft.per_guest_limit)
         .bind(draft.is_public)
@@ -560,8 +560,8 @@ impl PromotionRepository {
         guest_id: i64,
     ) -> Result<bool, ApiError> {
         query_scalar(crate::sql_query!(
-            postgres: "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = $1 AND guest_id = $2 AND status <> 'revoked')",
-            sqlite: "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = ?1 AND guest_id = ?2 AND status <> 'revoked')"
+            postgres: "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = $1 AND guest_id = $2)",
+            sqlite: "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = ?1 AND guest_id = ?2)"
         ))
         .bind(promotion_id)
         .bind(guest_id)

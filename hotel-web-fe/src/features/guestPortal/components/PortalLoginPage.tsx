@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '../../../router';
 import {
   Container,
@@ -19,6 +20,7 @@ type LookupMode = 'booking_number' | 'member_number';
 
 export const PortalLoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<LookupMode>('booking_number');
   const [email, setEmail] = useState('');
   const [identifier, setIdentifier] = useState('');
@@ -52,6 +54,9 @@ export const PortalLoginPage: React.FC = () => {
           : { member_number: identifier.trim() }),
       });
 
+      // Voucher-wallet queries are guest-scoped. Drop any previous portal
+      // session cache before this browser tab becomes a different guest.
+      queryClient.removeQueries({ queryKey: ['promotions', 'portal'] });
       setPortalToken(response.token, response.expires_at);
       navigate('/portal', { replace: true });
     } catch {
