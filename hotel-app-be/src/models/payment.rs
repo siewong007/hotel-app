@@ -81,6 +81,19 @@ pub struct PaymentBookingStay {
     pub check_out: chrono::NaiveDateTime,
 }
 
+#[derive(Debug, Clone, FromRow)]
+pub struct PaidOnlineBookingRoomAssignment {
+    pub booking_id: i64,
+    pub booking_number: String,
+    pub guest_id: i64,
+    pub guest_name: String,
+    pub guest_email: String,
+    pub room_number: String,
+    pub room_type_name: String,
+    pub check_in_date: NaiveDate,
+    pub check_out_date: NaiveDate,
+}
+
 #[derive(Debug, Clone)]
 pub struct PaymentRoomPricing {
     pub base_price: Decimal,

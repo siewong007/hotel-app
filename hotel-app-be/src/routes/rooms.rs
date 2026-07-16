@@ -8,10 +8,12 @@ use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
 use axum::{
-    Router,
+    Extension, Router,
     extract::{Path, Query, State},
-    http::HeaderMap,
-    response::Json,
+    http::{HeaderMap, Method, Request},
+    middleware,
+    middleware::Next,
+    response::{Json, Response},
     routing::{delete, get, patch, post, put},
 };
 
@@ -48,6 +50,26 @@ pub fn routes() -> Router<DbPool> {
         .route("/rooms/occupancy/by-type", get(get_occupancy_by_room_type))
         .route("/rooms/with-occupancy", get(get_rooms_with_occupancy))
         .route("/rooms/{id}/occupancy", get(get_room_occupancy))
+        .route_layer(middleware::from_fn(publish_inventory_changes))
+}
+
+async fn publish_inventory_changes(
+    Extension(hub): Extension<crate::modules::guest_booking::availability::AvailabilityHub>,
+    request: Request<axum::body::Body>,
+    next: Next,
+) -> Response {
+    let is_mutation = matches!(
+        *request.method(),
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    );
+    let response = next.run(request).await;
+    if is_mutation && response.status().is_success() {
+        hub.publish(
+            crate::modules::guest_booking::availability::AvailabilityEvent::room_inventory_changed(
+            ),
+        );
+    }
+    response
 }
 
 async fn get_rooms(

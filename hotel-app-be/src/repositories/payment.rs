@@ -5,9 +5,9 @@ use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
-    Invoice, InvoiceBookingDetails, Payment, PaymentBookingStay, PaymentEntryRow, PaymentRequest,
-    PaymentRoomPricing, PaymentSummary, PaymentWorkflowSummaryRow, RecordPaymentRequest,
-    UpdatePaymentRequest,
+    Invoice, InvoiceBookingDetails, PaidOnlineBookingRoomAssignment, Payment, PaymentBookingStay,
+    PaymentEntryRow, PaymentRequest, PaymentRoomPricing, PaymentSummary, PaymentWorkflowSummaryRow,
+    RecordPaymentRequest, UpdatePaymentRequest,
 };
 use rust_decimal::Decimal;
 use sqlx::Row;
@@ -15,6 +15,56 @@ use sqlx::Row;
 pub struct PaymentRepository;
 
 impl PaymentRepository {
+    pub async fn paid_online_booking_room_assignment(
+        pool: &DbPool,
+        booking_id: i64,
+    ) -> Result<Option<PaidOnlineBookingRoomAssignment>, ApiError> {
+        sqlx::query_as(crate::sql_query!(
+            postgres: r#"
+                SELECT b.id AS booking_id, b.booking_number, b.guest_id,
+                       COALESCE(NULLIF(g.full_name, ''), 'Guest') AS guest_name,
+                       g.email AS guest_email, r.room_number,
+                       rt.name AS room_type_name, b.check_in_date, b.check_out_date
+                FROM bookings b
+                JOIN guests g ON g.id = b.guest_id
+                JOIN rooms r ON r.id = b.room_id
+                JOIN room_types rt ON rt.id = r.room_type_id
+                WHERE b.id = $1
+                  AND b.portal_request_id IS NOT NULL
+                  AND b.payment_status = 'paid'
+                  AND g.email IS NOT NULL AND TRIM(g.email) <> ''
+                  AND EXISTS (
+                      SELECT 1 FROM payments p
+                      WHERE p.booking_id = b.id AND p.status = 'completed'
+                        AND p.payment_method IN ('card', 'duitnow', 'online_banking')
+                  )
+            "#,
+            sqlite: r#"
+                SELECT b.id AS booking_id, b.booking_number, b.guest_id,
+                       COALESCE(NULLIF(g.full_name, ''), 'Guest') AS guest_name,
+                       g.email AS guest_email, r.room_number,
+                       rt.name AS room_type_name, b.check_in_date, b.check_out_date
+                FROM bookings b
+                JOIN guests g ON g.id = b.guest_id
+                JOIN rooms r ON r.id = b.room_id
+                JOIN room_types rt ON rt.id = r.room_type_id
+                WHERE b.id = ?1
+                  AND b.portal_request_id IS NOT NULL
+                  AND b.payment_status = 'paid'
+                  AND g.email IS NOT NULL AND TRIM(g.email) <> ''
+                  AND EXISTS (
+                      SELECT 1 FROM payments p
+                      WHERE p.booking_id = b.id AND p.status = 'completed'
+                        AND p.payment_method IN ('card', 'duitnow', 'online_banking')
+                  )
+            "#
+        ))
+        .bind(booking_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
     pub async fn recompute_booking_payment_status(
         pool: &DbPool,
         booking_id: i64,

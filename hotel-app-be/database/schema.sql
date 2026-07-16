@@ -6574,3 +6574,17 @@ ALTER TABLE email_deliveries
         (kind = 'campaign' AND campaign_id IS NOT NULL)
         OR (kind IN ('birthday_voucher', 'booking_confirmation') AND campaign_id IS NULL)
     );
+
+-- Daily channel allocation: online guests can only see inventory released
+-- after the configured walk-in reserve for that room type and stay night.
+CREATE TABLE IF NOT EXISTS online_inventory_allocations (
+    room_type_id BIGINT NOT NULL REFERENCES room_types(id) ON DELETE CASCADE,
+    stay_date DATE NOT NULL,
+    walk_in_reserved_rooms INTEGER NOT NULL DEFAULT 0 CHECK (walk_in_reserved_rooms >= 0),
+    online_booking_enabled BOOLEAN NOT NULL DEFAULT true,
+    updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_type_id, stay_date)
+);
+CREATE INDEX IF NOT EXISTS idx_online_inventory_allocations_date
+    ON online_inventory_allocations (stay_date, room_type_id);

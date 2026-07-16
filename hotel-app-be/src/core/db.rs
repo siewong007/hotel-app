@@ -306,7 +306,7 @@ mod sqlite_resource_tests {
     fn schema_resource_has_strictly_ordered_legacy_versions() {
         let sections = sqlite_schema_sections(SQLITE_SCHEMA).expect("parse SQLite schema sections");
         let versions: Vec<i64> = sections.iter().map(|section| section.version).collect();
-        assert_eq!(versions, (1..=32).collect::<Vec<_>>());
+        assert_eq!(versions, (1..=33).collect::<Vec<_>>());
     }
 
     #[tokio::test]
@@ -325,7 +325,7 @@ mod sqlite_resource_tests {
                 .fetch_one(&pool)
                 .await
                 .expect("count applied versions");
-        assert_eq!(applied_versions, 32);
+        assert_eq!(applied_versions, 33);
 
         let daily_rates_type: Option<String> = sqlx::query_scalar(
             "SELECT type FROM pragma_table_info('bookings') WHERE name = 'daily_rates'",
@@ -392,8 +392,8 @@ mod sqlite_resource_tests {
                 .await
                 .expect("count imported versions");
         assert_eq!(
-            imported_versions, 32,
-            "28 imported + sections 29 through 32 applied"
+            imported_versions, 33,
+            "28 imported + sections 29 through 33 applied"
         );
 
         let source_reference: Option<String> = sqlx::query_scalar(
