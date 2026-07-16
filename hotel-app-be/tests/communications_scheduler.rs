@@ -4,21 +4,27 @@ mod common;
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_tests {
-    use hotel_app_be::core::settings_cache;
+    use std::{sync::Once, time::Duration};
+
+    use hotel_app_be::core::{config, settings_cache};
     use hotel_app_be::modules::communications::repository::CommunicationsRepository as Repo;
     use hotel_app_be::modules::communications::scheduler;
     use hotel_app_be::modules::communications::transport::Transport;
     use hotel_app_be::modules::communications::worker;
     use sqlx::Row;
 
+    static INIT: Once = Once::new();
+
     fn ensure_env() {
-        // tokens::sign_unsubscribe_token reads JWT_SECRET via core::config.
-        unsafe {
-            std::env::set_var(
-                "JWT_SECRET",
-                "communications_test_secret_0123456789abcdef",
-            );
-        }
+        INIT.call_once(|| {
+            // Unsubscribe tokens use the process-global application config.
+            // This integration-test binary owns its singleton, so initialize
+            // it once before a scheduler-generated footer signs a token.
+            unsafe {
+                std::env::set_var("JWT_SECRET", "communications_test_secret_0123456789abcdef");
+            }
+            config::init_from_env().expect("test configuration should initialize");
+        });
     }
 
     async fn seed_subscribed_guest(pool: &sqlx::SqlitePool, id: i64, topic: &str, email: &str) {
@@ -69,12 +75,11 @@ mod sqlite_tests {
         let expanded = scheduler::tick_campaigns(&pool).await.unwrap();
         assert_eq!(expanded, 2, "only subscribed guests are enqueued");
 
-        let campaign = sqlx::query(
-            "SELECT status, total_recipients FROM email_campaigns WHERE id = 91",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let campaign =
+            sqlx::query("SELECT status, total_recipients FROM email_campaigns WHERE id = 91")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(campaign.get::<String, _>("status"), "running");
         assert_eq!(campaign.get::<i64, _>("total_recipients"), 2);
 
@@ -103,14 +108,14 @@ mod sqlite_tests {
 
         // Worker drains the outbox end-to-end and completes the campaign.
         let (transport, fake) = Transport::fake();
-        worker::tick(&pool, &transport, "w-sched", 10).await.unwrap();
+        worker::tick(&pool, &transport, "w-sched", 10)
+            .await
+            .unwrap();
         assert_eq!(fake.sent.lock().unwrap().len(), 2);
-        let campaign = sqlx::query(
-            "SELECT status, sent_count FROM email_campaigns WHERE id = 91",
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let campaign = sqlx::query("SELECT status, sent_count FROM email_campaigns WHERE id = 91")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(campaign.get::<String, _>("status"), "completed");
         assert_eq!(campaign.get::<i64, _>("sent_count"), 2);
     }
@@ -128,11 +133,10 @@ mod sqlite_tests {
         .await
         .unwrap();
         assert_eq!(scheduler::tick_campaigns(&pool).await.unwrap(), 0);
-        let status: String =
-            sqlx::query_scalar("SELECT status FROM email_campaigns WHERE id = 92")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let status: String = sqlx::query_scalar("SELECT status FROM email_campaigns WHERE id = 92")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(status, "completed");
     }
 
@@ -143,13 +147,15 @@ mod sqlite_tests {
             ("birthday_voucher_expiry_days", "30"),
             ("hotel_name", "Testotel"),
         ] {
-            sqlx::query("INSERT INTO system_settings (key, value) VALUES (?1, ?2) \
-                         ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-                .bind(key)
-                .bind(value)
-                .execute(pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "INSERT INTO system_settings (key, value) VALUES (?1, ?2) \
+                         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            )
+            .bind(key)
+            .bind(value)
+            .execute(pool)
+            .await
+            .unwrap();
         }
         sqlx::query(
             "INSERT INTO promotions (id, slug, name, status, promotion_kind, discount_type, discount_value) \
@@ -190,7 +196,9 @@ mod sqlite_tests {
         seed_birthday_guest(&pool, 9201, "bday@example.com").await;
 
         let mut last_run = None;
-        let issued = scheduler::tick_birthdays(&pool, &mut last_run).await.unwrap();
+        let issued = scheduler::tick_birthdays(&pool, &mut last_run)
+            .await
+            .unwrap();
         assert_eq!(issued, 1);
 
         let voucher = sqlx::query(
@@ -201,9 +209,11 @@ mod sqlite_tests {
         .unwrap();
         assert!(voucher.get::<String, _>("code").starts_with("BDY"));
         assert_eq!(voucher.get::<String, _>("source"), "admin_issue");
-        assert!(voucher
-            .get::<String, _>("source_reference")
-            .starts_with("birthday:"));
+        assert!(
+            voucher
+                .get::<String, _>("source_reference")
+                .starts_with("birthday:")
+        );
         assert_eq!(voucher.get::<String, _>("status"), "available");
 
         let delivery = sqlx::query(
@@ -216,7 +226,11 @@ mod sqlite_tests {
         assert_eq!(delivery.get::<String, _>("status"), "queued");
         assert!(delivery.get::<Option<i64>, _>("voucher_id").is_some());
         assert!(delivery.get::<String, _>("body_html").contains("BDY"));
-        assert!(delivery.get::<String, _>("body_html").contains("/unsubscribe/"));
+        assert!(
+            delivery
+                .get::<String, _>("body_html")
+                .contains("/unsubscribe/")
+        );
 
         // Audit exists but never leaks the voucher code.
         let audit: String = sqlx::query_scalar(
@@ -225,17 +239,24 @@ mod sqlite_tests {
         .fetch_one(&pool)
         .await
         .unwrap();
-        assert!(!audit.contains("BDY"), "voucher code must not reach audit logs");
+        assert!(
+            !audit.contains("BDY"),
+            "voucher code must not reach audit logs"
+        );
 
         // Same-day guard.
         assert_eq!(
-            scheduler::tick_birthdays(&pool, &mut last_run).await.unwrap(),
+            scheduler::tick_birthdays(&pool, &mut last_run)
+                .await
+                .unwrap(),
             0
         );
         // Cross-restart rerun: annual uniqueness prevents double issuance.
         let mut fresh_run = None;
         assert_eq!(
-            scheduler::tick_birthdays(&pool, &mut fresh_run).await.unwrap(),
+            scheduler::tick_birthdays(&pool, &mut fresh_run)
+                .await
+                .unwrap(),
             0
         );
         let vouchers: i64 =
@@ -247,7 +268,8 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
-    async fn birthday_job_skips_unpublished_promotion_and_prior_promotion_conflict() {
+    async fn birthday_job_skips_unpublished_promotion_and_does_not_loop_on_prior_promotion_voucher()
+    {
         ensure_env();
         settings_cache::invalidate_all();
         let pool = common_pool().await;
@@ -257,7 +279,9 @@ mod sqlite_tests {
         // Unpublished promotion → nothing issued.
         let mut last_run = None;
         assert_eq!(
-            scheduler::tick_birthdays(&pool, &mut last_run).await.unwrap(),
+            scheduler::tick_birthdays(&pool, &mut last_run)
+                .await
+                .unwrap(),
             0
         );
 
@@ -276,10 +300,14 @@ mod sqlite_tests {
         .await
         .unwrap();
         let mut fresh_run = None;
-        assert_eq!(
-            scheduler::tick_birthdays(&pool, &mut fresh_run).await.unwrap(),
-            0
-        );
+        let issued = tokio::time::timeout(
+            Duration::from_secs(2),
+            scheduler::tick_birthdays(&pool, &mut fresh_run),
+        )
+        .await
+        .expect("prior-year promotion voucher must not leave a birthday target eligible")
+        .unwrap();
+        assert_eq!(issued, 0);
         let deliveries: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM email_deliveries WHERE guest_id = 9301")
                 .fetch_one(&pool)
@@ -308,13 +336,13 @@ mod sqlite_tests {
         .await
         .unwrap();
 
-        let hits = Repo::birthday_targets(&pool, 2, 28, 2, 29, "birthday:2099", 10)
+        let hits = Repo::birthday_targets(&pool, 2, 28, 2, 29, "birthday:2099", 95, 10)
             .await
             .unwrap();
         assert_eq!(hits.len(), 1, "Feb-29 DOB matches the fallback pair");
         assert_eq!(hits[0].id, 9401);
 
-        let misses = Repo::birthday_targets(&pool, 7, 15, 7, 15, "birthday:2099", 10)
+        let misses = Repo::birthday_targets(&pool, 7, 15, 7, 15, "birthday:2099", 95, 10)
             .await
             .unwrap();
         assert!(misses.is_empty());

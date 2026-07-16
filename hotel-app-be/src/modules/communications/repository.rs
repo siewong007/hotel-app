@@ -922,9 +922,12 @@ impl CommunicationsRepository {
     }
 
     /// Guests whose birthday (month, day) matches either provided pair, are
-    /// eligible for the birthday topic, and have no voucher issued for
-    /// `source_reference` yet. The second pair covers the Feb-29→Feb-28
-    /// policy; pass the same pair twice when unused.
+    /// eligible for the birthday topic, and have neither a voucher issued for
+    /// `source_reference` nor a voucher from `promotion_id`. The latter guard
+    /// keeps a prior-year promotion voucher from being selected repeatedly
+    /// when the voucher insert's `(promotion_id, guest_id)` uniqueness guard
+    /// rejects it. The second pair covers the Feb-29→Feb-28 policy; pass the
+    /// same pair twice when unused.
     #[allow(clippy::too_many_arguments)]
     pub async fn birthday_targets(
         pool: &DbPool,
@@ -933,6 +936,7 @@ impl CommunicationsRepository {
         month2: i32,
         day2: i32,
         source_reference: &str,
+        promotion_id: i64,
         limit: i64,
     ) -> Result<Vec<AudienceGuest>, ApiError> {
         let rows = query(crate::sql_query!(
@@ -952,8 +956,10 @@ impl CommunicationsRepository {
                                   WHERE es.email = LOWER(g.email))
                   AND NOT EXISTS (SELECT 1 FROM vouchers v
                                   WHERE v.guest_id = g.id AND v.source_reference = $5)
+                  AND NOT EXISTS (SELECT 1 FROM vouchers v
+                                  WHERE v.guest_id = g.id AND v.promotion_id = $6)
                 ORDER BY g.id
-                LIMIT $6
+                LIMIT $7
             "#,
             sqlite: r#"
                 SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
@@ -971,8 +977,10 @@ impl CommunicationsRepository {
                                   WHERE es.email = LOWER(g.email))
                   AND NOT EXISTS (SELECT 1 FROM vouchers v
                                   WHERE v.guest_id = g.id AND v.source_reference = ?5)
+                  AND NOT EXISTS (SELECT 1 FROM vouchers v
+                                  WHERE v.guest_id = g.id AND v.promotion_id = ?6)
                 ORDER BY g.id
-                LIMIT ?6
+                LIMIT ?7
             "#
         ))
         .bind(month1)
@@ -980,6 +988,7 @@ impl CommunicationsRepository {
         .bind(month2)
         .bind(day2)
         .bind(source_reference)
+        .bind(promotion_id)
         .bind(limit)
         .fetch_all(pool)
         .await

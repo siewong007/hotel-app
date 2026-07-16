@@ -36,7 +36,11 @@ pub struct SmtpConfig {
 impl SmtpConfig {
     /// None when SMTP_HOST or SMTP_FROM_EMAIL is unset/blank.
     pub fn from_env() -> Option<Self> {
-        let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+        Self::from_values(|key| std::env::var(key).ok())
+    }
+
+    fn from_values(get: impl Fn(&str) -> Option<String>) -> Option<Self> {
+        let env = |key: &str| get(key).filter(|value| !value.trim().is_empty());
         Some(Self {
             host: env("SMTP_HOST")?,
             port: env("SMTP_PORT").and_then(|v| v.parse().ok()).unwrap_or(587),
@@ -151,5 +155,32 @@ impl Transport {
                 Ok(response.message().next().map(ToOwned::to_owned))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SmtpConfig;
+
+    #[test]
+    fn smtp_config_requires_host_and_sender_identity() {
+        let config = |host: Option<&str>, from_email: Option<&str>| {
+            SmtpConfig::from_values(|key| match key {
+                "SMTP_HOST" => host.map(str::to_owned),
+                "SMTP_FROM_EMAIL" => from_email.map(str::to_owned),
+                _ => None,
+            })
+        };
+
+        assert!(config(None, Some("sender@example.com")).is_none());
+        assert!(config(Some("smtp.example.com"), None).is_none());
+        assert!(config(Some("   "), Some("sender@example.com")).is_none());
+
+        let configured = config(Some("smtp.example.com"), Some("sender@example.com"))
+            .expect("host and sender identity configure SMTP");
+        assert_eq!(configured.host, "smtp.example.com");
+        assert_eq!(configured.from_email, "sender@example.com");
+        assert_eq!(configured.port, 587);
+        assert_eq!(configured.security, "starttls");
     }
 }

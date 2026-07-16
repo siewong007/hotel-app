@@ -34,12 +34,14 @@ import { Route as EkycRouteImport } from './routes/ekyc'
 import { Route as DataTransferRouteImport } from './routes/data-transfer'
 import { Route as ComplimentaryRouteImport } from './routes/complimentary'
 import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
+import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal/index'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
+import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
 import { Route as PortalLoginRouteImport } from './routes/portal/login'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
@@ -170,6 +172,11 @@ const CompanyLedgerRoute = CompanyLedgerRouteImport.update({
   path: '/company-ledger',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CommunicationsRoute = CommunicationsRouteImport.update({
+  id: '/communications',
+  path: '/communications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookingsRoute = BookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
@@ -200,6 +207,11 @@ const GuestCheckinIndexRoute = GuestCheckinIndexRouteImport.update({
   path: '/guest-checkin/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UnsubscribeTokenRoute = UnsubscribeTokenRouteImport.update({
+  id: '/unsubscribe/$token',
+  path: '/unsubscribe/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalLoginRoute = PortalLoginRouteImport.update({
   id: '/portal/login',
   path: '/portal/login',
@@ -226,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complimentary': typeof ComplimentaryRoute
   '/data-transfer': typeof DataTransferRoute
@@ -255,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
   '/portal/login': typeof PortalLoginRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
   '/portal/': typeof PortalIndexRoute
 }
@@ -263,6 +277,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complimentary': typeof ComplimentaryRoute
   '/data-transfer': typeof DataTransferRoute
@@ -292,6 +307,7 @@ export interface FileRoutesByTo {
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
   '/portal/login': typeof PortalLoginRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin': typeof GuestCheckinIndexRoute
   '/portal': typeof PortalIndexRoute
 }
@@ -301,6 +317,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complimentary': typeof ComplimentaryRoute
   '/data-transfer': typeof DataTransferRoute
@@ -330,6 +347,7 @@ export interface FileRoutesById {
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
   '/portal/login': typeof PortalLoginRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
   '/portal/': typeof PortalIndexRoute
 }
@@ -340,6 +358,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/audit-log'
     | '/bookings'
+    | '/communications'
     | '/company-ledger'
     | '/complimentary'
     | '/data-transfer'
@@ -369,6 +388,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
     | '/portal/login'
+    | '/unsubscribe/$token'
     | '/guest-checkin/'
     | '/portal/'
   fileRoutesByTo: FileRoutesByTo
@@ -377,6 +397,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/audit-log'
     | '/bookings'
+    | '/communications'
     | '/company-ledger'
     | '/complimentary'
     | '/data-transfer'
@@ -406,6 +427,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
     | '/portal/login'
+    | '/unsubscribe/$token'
     | '/guest-checkin'
     | '/portal'
   id:
@@ -414,6 +436,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/audit-log'
     | '/bookings'
+    | '/communications'
     | '/company-ledger'
     | '/complimentary'
     | '/data-transfer'
@@ -443,6 +466,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
     | '/portal/login'
+    | '/unsubscribe/$token'
     | '/guest-checkin/'
     | '/portal/'
   fileRoutesById: FileRoutesById
@@ -452,6 +476,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRoute
+  CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
   ComplimentaryRoute: typeof ComplimentaryRoute
   DataTransferRoute: typeof DataTransferRoute
@@ -481,6 +506,7 @@ export interface RootRouteChildren {
   GuestCheckinFormRoute: typeof GuestCheckinFormRoute
   GuestCheckinVerifyRoute: typeof GuestCheckinVerifyRoute
   PortalLoginRoute: typeof PortalLoginRoute
+  UnsubscribeTokenRoute: typeof UnsubscribeTokenRoute
   GuestCheckinIndexRoute: typeof GuestCheckinIndexRoute
   PortalIndexRoute: typeof PortalIndexRoute
 }
@@ -662,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompanyLedgerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/communications': {
+      id: '/communications'
+      path: '/communications'
+      fullPath: '/communications'
+      preLoaderRoute: typeof CommunicationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bookings': {
       id: '/bookings'
       path: '/bookings'
@@ -704,6 +737,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestCheckinIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/unsubscribe/$token': {
+      id: '/unsubscribe/$token'
+      path: '/unsubscribe/$token'
+      fullPath: '/unsubscribe/$token'
+      preLoaderRoute: typeof UnsubscribeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/login': {
       id: '/portal/login'
       path: '/portal/login'
@@ -740,6 +780,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRoute,
+  CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,
   ComplimentaryRoute: ComplimentaryRoute,
   DataTransferRoute: DataTransferRoute,
@@ -769,6 +810,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCheckinFormRoute: GuestCheckinFormRoute,
   GuestCheckinVerifyRoute: GuestCheckinVerifyRoute,
   PortalLoginRoute: PortalLoginRoute,
+  UnsubscribeTokenRoute: UnsubscribeTokenRoute,
   GuestCheckinIndexRoute: GuestCheckinIndexRoute,
   PortalIndexRoute: PortalIndexRoute,
 }

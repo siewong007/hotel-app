@@ -20,10 +20,7 @@ mod sqlite_tests {
     use hotel_app_be::routes::create_router;
     use serde_json::{Value, json};
     use sha2::{Digest, Sha256};
-    use std::{
-        net::SocketAddr,
-        sync::Once,
-    };
+    use std::{net::SocketAddr, sync::Once};
     use tower::ServiceExt;
 
     static INIT: Once = Once::new();
@@ -33,10 +30,7 @@ mod sqlite_tests {
             // The configuration singleton is per integration-test binary. Set
             // the JWT secret before the router or test token generator reads it.
             unsafe {
-                std::env::set_var(
-                    "JWT_SECRET",
-                    "support-routes-test-secret-key-32-chars",
-                );
+                std::env::set_var("JWT_SECRET", "support-routes-test-secret-key-32-chars");
             }
             config::init_from_env().expect("test configuration should initialize");
         });
@@ -176,8 +170,8 @@ mod sqlite_tests {
             .unwrap();
         assert_eq!(foreign_detail.status(), StatusCode::NOT_FOUND);
 
-        let admin_token = AuthService::generate_jwt(1, "admin".to_string(), vec!["admin".to_string()])
-            .unwrap();
+        let admin_token =
+            AuthService::generate_jwt(1, "admin".to_string(), vec!["admin".to_string()]).unwrap();
         let staff_list = app
             .clone()
             .oneshot(request(
@@ -190,11 +184,13 @@ mod sqlite_tests {
             .unwrap();
         assert_eq!(staff_list.status(), StatusCode::OK);
         let staff_list_body = json_body(staff_list).await;
-        assert!(staff_list_body["items"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|conversation| conversation["id"] == conversation_id));
+        assert!(
+            staff_list_body["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|conversation| conversation["id"] == conversation_id)
+        );
 
         let agents = app
             .clone()
