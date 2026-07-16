@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from '../../../router';
-import { useAuth } from '../../../auth/AuthContext';
+import { Navigate, useNavigate } from '../../../router';
 import {
   Box,
   Container,
@@ -29,8 +28,7 @@ import {
   Stack,
 } from '@mui/material';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
-import { usePortalSession } from '../api/usePortalSession';
-import { setPortalToken } from '../api/portalTokenStore';
+import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { PortalSupportTab } from './PortalSupportTab';
 import { PromotionCatalog, VoucherWallet } from '../../promotions';
 import PortalNotificationPreferences from '../../communications/components/PortalNotificationPreferences';
@@ -80,56 +78,48 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 export const PortalDashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { token: storedToken, logout } = usePortalSession();
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const {
+    token,
+    status: sessionStatus,
+    error: sessionError,
+    canRetry,
+    needsLogin,
+    retry,
+    restartSignIn,
+    signOut,
+  } = usePortalSessionBootstrap();
   const [activeTab, setActiveTab] = useState(0);
-  const [bootstrapToken, setBootstrapToken] = useState<string | null>(null);
-  const [isBootstrapping, setIsBootstrapping] = useState(false);
-  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
-  const token = storedToken ?? bootstrapToken;
 
-  useEffect(() => {
-    if (token || isLoading) {
-      return;
-    }
-
-    if (!isAuthenticated || user?.user_type !== 'guest') {
-      navigate('/login?account=guest', { replace: true });
-      return;
-    }
-
-    let cancelled = false;
-    setIsBootstrapping(true);
-    setBootstrapError(null);
-    void GuestPortalDashboardService.createSession()
-      .then((session) => {
-        if (cancelled) return;
-        setPortalToken(session.token, session.expires_at);
-        setBootstrapToken(session.token);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setBootstrapError('We could not open your guest portal. Please try again.');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsBootstrapping(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isLoading, navigate, token, user?.user_type]);
+  if (needsLogin) {
+    return <Navigate to="/login?account=guest" replace />;
+  }
 
   if (!token) {
     return (
       <Container maxWidth="sm" sx={{ mt: 8 }}>
-        {bootstrapError ? (
-          <Alert severity="error">{bootstrapError}</Alert>
+        {sessionError ? (
+          <Alert
+            severity="error"
+            action={(
+              <Button
+                color="inherit"
+                size="small"
+                onClick={canRetry ? retry : restartSignIn}
+              >
+                {canRetry ? 'Retry' : 'Sign in again'}
+              </Button>
+            )}
+          >
+            {sessionError}
+          </Alert>
         ) : (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
             <CircularProgress size={24} />
-            <Typography>{isBootstrapping ? 'Opening your guest portal…' : 'Checking your guest session…'}</Typography>
+            <Typography>
+              {sessionStatus === 'checking-account'
+                ? 'Checking your account session…'
+                : 'Opening your guest portal…'}
+            </Typography>
           </Box>
         )}
       </Container>
@@ -147,7 +137,7 @@ export const PortalDashboardPage: React.FC = () => {
             <Button variant="contained" onClick={() => navigate('/portal/book')}>
               Book a Room
             </Button>
-            <Button variant="outlined" onClick={logout}>
+            <Button variant="outlined" onClick={signOut}>
               Sign Out
             </Button>
           </Stack>

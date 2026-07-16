@@ -25,6 +25,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { PromotionsApi } from '../../promotions/api/promotionsApi';
 import { CommunicationsApi } from '../api';
 import type {
   CampaignInput,
@@ -73,6 +74,16 @@ function CampaignDialog({
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [form, setForm] = useState<CampaignInput>(initial);
+  const promotions = useQuery({
+    queryKey: ['communications', 'campaign-promotion-options'],
+    queryFn: () =>
+      PromotionsApi.listAdmin({
+        page: 1,
+        page_size: 100,
+        status: 'published',
+      }),
+    enabled: open && form.campaign_type === 'promotion',
+  });
   const save = useMutation({
     mutationFn: (input: CampaignInput) =>
       campaignId === null
@@ -103,7 +114,10 @@ function CampaignDialog({
             label="Type"
             value={form.campaign_type}
             onChange={(e) =>
-              set({ campaign_type: e.target.value as CampaignInput['campaign_type'] })
+              set({
+                campaign_type: e.target.value as CampaignInput['campaign_type'],
+                promotion_id: null,
+              })
             }
           >
             <MenuItem value="announcement">Announcement</MenuItem>
@@ -111,14 +125,36 @@ function CampaignDialog({
           </TextField>
           {form.campaign_type === 'promotion' && (
             <TextField
-              label="Promotion ID"
-              type="number"
+              select
+              label="Published promotion"
               value={form.promotion_id ?? ''}
               onChange={(e) =>
                 set({ promotion_id: e.target.value ? Number(e.target.value) : null })
               }
-              helperText="The published promotion this campaign advertises"
-            />
+              helperText={
+                promotions.isError
+                  ? 'Published promotions could not be loaded'
+                  : 'Choose the offer this campaign advertises'
+              }
+              disabled={promotions.isLoading || promotions.isError}
+              required
+            >
+              {promotions.isLoading ? (
+                <MenuItem value="" disabled>
+                  Loading promotions…
+                </MenuItem>
+              ) : null}
+              {!promotions.isLoading && (promotions.data?.items.length ?? 0) === 0 ? (
+                <MenuItem value="" disabled>
+                  No published promotions available
+                </MenuItem>
+              ) : null}
+              {(promotions.data?.items ?? []).map((promotion) => (
+                <MenuItem key={promotion.id} value={promotion.id}>
+                  {promotion.name}
+                </MenuItem>
+              ))}
+            </TextField>
           )}
           <TextField
             label="Subject"
@@ -140,7 +176,11 @@ function CampaignDialog({
         <Button onClick={onClose}>Close</Button>
         <Button
           variant="contained"
-          disabled={save.isPending}
+          disabled={
+            save.isPending ||
+            (form.campaign_type === 'promotion' &&
+              (form.promotion_id == null || promotions.isLoading || promotions.isError))
+          }
           onClick={() => {
             setError(null);
             save.mutate(form);

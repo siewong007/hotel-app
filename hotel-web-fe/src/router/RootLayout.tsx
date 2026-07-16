@@ -6,6 +6,7 @@ import { NavigationTabs } from '../components/layout/NavigationTabs';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
+import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
 
 export const RootLayout: React.FC = () => {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
@@ -13,9 +14,11 @@ export const RootLayout: React.FC = () => {
   const pathname = location.pathname;
   const isGuestPortal = pathname === '/portal' || pathname.startsWith('/portal/');
   const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
-  const isConsumerRoute = isGuestPortal || isOffersPage;
+  const isGuestModelHome =
+    pathname === '/' && isAuthenticated && user?.user_type === 'guest';
   const isTimelinePage = pathname.startsWith('/timeline');
-  const boardSkinActive = isAuthenticated && !isTimelinePage && !isConsumerRoute;
+  const boardSkinActive =
+    isAuthenticated && !isTimelinePage && !isGuestPortal && !isOffersPage && !isGuestModelHome;
   const appBarSkinActive = isAuthenticated;
 
   useEffect(() => {
@@ -25,9 +28,23 @@ export const RootLayout: React.FC = () => {
     };
   }, [boardSkinActive]);
 
-  // Consumer routes must neither wait for nor inherit the staff account shell
-  // when a staff session also exists in the same browser.
-  if (isConsumerRoute) {
+  // Portal pages share the Salim Inn guest experience instead of inheriting
+  // the operational staff navigation.
+  if (isGuestPortal) {
+    return (
+      <GuestPortalShell>
+        <ErrorBoundary title="Guest Experience Error">
+          <Suspense fallback={<LoadingFallback />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
+      </GuestPortalShell>
+    );
+  }
+
+  // Public consumer pages and the signed-in guest's model home remain outside
+  // the operational staff shell.
+  if (isOffersPage || isGuestModelHome) {
     return (
       <ErrorBoundary title="Guest Experience Error">
         <Suspense fallback={<LoadingFallback />}>

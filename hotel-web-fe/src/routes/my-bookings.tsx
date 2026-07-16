@@ -1,6 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { useAuth } from '../auth/AuthContext';
+import { Navigate } from '../router';
 import { RouteById } from '../router/renderRouteFromRegistry';
 
+export function MyBookingsRoute() {
+  const { user } = useAuth();
+  if (user?.user_type === 'guest') {
+    return <Navigate to="/portal" replace />;
+  }
+  return <RouteById id="my-bookings" />;
+}
+
 export const Route = createFileRoute('/my-bookings')({
-  component: () => <RouteById id="my-bookings" />,
+  component: MyBookingsRoute,
 });

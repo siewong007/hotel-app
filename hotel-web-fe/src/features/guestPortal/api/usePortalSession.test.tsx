@@ -59,7 +59,7 @@ describe('usePortalSession', () => {
     expect(getPortalToken()).toBeNull();
   });
 
-  it('clears the guest token and returns to portal sign-in on logout', () => {
+  it('clears the guest token and returns to the Salim Inn model on logout', () => {
     setPortalToken('guest-token', '2999-01-01T00:00:00Z');
     const queryClient = createQueryClient();
     const sessionScope = portalSessionScope('guest-token');
@@ -83,6 +83,6 @@ describe('usePortalSession', () => {
     expect(getPortalToken()).toBeNull();
     expect(queryClient.getQueryData(portalCatalogKey)).toBeUndefined();
     expect(queryClient.getQueryData(portalVoucherKey)).toBeUndefined();
-    expect(navigate).toHaveBeenCalledWith('/login?account=guest', { replace: true });
+    expect(navigate).toHaveBeenCalledWith('/', { replace: true });
   });
 });

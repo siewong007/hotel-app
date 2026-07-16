@@ -34,6 +34,14 @@ type RefreshTokenResponse = {
 
 let refreshPromise: Promise<RefreshTokenResponse | null> | null = null;
 
+function requestOriginPrefix(): string {
+  if (typeof window === 'undefined') {
+    return 'http://localhost/';
+  }
+
+  return new URL('/', window.location.href).toString();
+}
+
 function isAuthEndpoint(url: string): boolean {
   const pathname = new URL(
     url,
@@ -145,6 +153,11 @@ async function createRequestWithUrl(request: Request, url: string): Promise<Requ
 
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
+  // Resolve service paths from the application root. Without this, a relative
+  // path requested from `/portal/book` becomes `/portal/<service-path>` before
+  // the API hook can add `/api`, producing routes such as
+  // `/api/portal/guest-portal/...`.
+  prefixUrl: requestOriginPrefix(),
   timeout: 30000, // 30 second timeout
   // Send the HttpOnly refresh cookie on auth requests (same-origin in prod and
   // through the Vite dev proxy). Regular API calls still authenticate via the

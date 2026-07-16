@@ -52,7 +52,10 @@ function withPageParams(params?: PortalPageParams): URLSearchParams | undefined 
 
 export class GuestPortalDashboardService {
   static async createSession(): Promise<GuestPortalLoginResponse> {
-    return await api.post('guest-portal/session').json();
+    // A portal session is needed before any guest page can render. Fail quickly
+    // enough to offer recovery controls instead of leaving the experience on an
+    // indefinite loading screen when the local backend is unavailable.
+    return await api.post('guest-portal/session', { timeout: 10_000 }).json();
   }
 
   static async me(token?: string): Promise<GuestPortalMeResponse> {

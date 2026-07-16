@@ -23,7 +23,7 @@ export function usePortalSession() {
       });
     }
     clearPortalToken();
-    navigate('/login?account=guest', { replace: true });
+    navigate('/', { replace: true });
   }, [navigate, queryClient, token]);
 
   return { token, isAuthenticated: Boolean(token), logout };

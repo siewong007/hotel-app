@@ -29,13 +29,10 @@ import {
   Typography,
 } from '@mui/material';
 
-import { useAuth } from '../../../auth/AuthContext';
-import { useNavigate } from '../../../router';
+import { Navigate, useNavigate } from '../../../router';
 import { PortalPromotionsApi } from '../../promotions/api/portalPromotionsApi';
 import type { Voucher } from '../../promotions/types';
-import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
-import { setPortalToken } from '../api/portalTokenStore';
-import { usePortalSession } from '../api/usePortalSession';
+import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { GuestBookingApi } from './api';
 import type {
   AvailabilityEvent,
@@ -73,13 +70,37 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+function voucherStayEligibilityKey(
+  voucherId: number,
+  roomTypeId: number,
+  search: GuestBookingSearch,
+): string {
+  return [
+    voucherId,
+    roomTypeId,
+    search.check_in_date,
+    search.check_out_date,
+    search.adults,
+    search.children,
+  ].join(':');
+}
+
+function isVoucherEligibilityError(error: unknown): boolean {
+  return error instanceof Error
+    && error.message.toLowerCase().includes('voucher is not eligible');
+}
+
 const PortalBookingPage: React.FC = () => {
   const navigate = useNavigate();
-  const { token: storedToken } = usePortalSession();
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const [bootstrapToken, setBootstrapToken] = useState<string | null>(null);
-  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
-  const token = storedToken ?? bootstrapToken;
+  const {
+    token,
+    status: sessionStatus,
+    error: sessionError,
+    canRetry,
+    needsLogin,
+    retry,
+    restartSignIn,
+  } = usePortalSessionBootstrap();
 
   const [search, setSearch] = useState<GuestBookingSearch>({
     check_in_date: inputDate(1),
@@ -92,6 +113,9 @@ const PortalBookingPage: React.FC = () => {
   const [quote, setQuote] = useState<GuestBookingQuote | null>(null);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [voucherId, setVoucherId] = useState<number | ''>('');
+  const [ineligibleVoucherKeys, setIneligibleVoucherKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [specialRequests, setSpecialRequests] = useState('');
   const [cleaningPreference, setCleaningPreference] = useState(false);
   const [requestId, setRequestId] = useState(newRequestId);
@@ -101,29 +125,6 @@ const PortalBookingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availabilityLost, setAvailabilityLost] = useState(false);
-
-  useEffect(() => {
-    if (token || isLoading) return;
-    if (!isAuthenticated || user?.user_type !== 'guest') {
-      navigate('/login?account=guest', { replace: true });
-      return;
-    }
-    let cancelled = false;
-    void GuestPortalDashboardService.createSession()
-      .then((session) => {
-        if (cancelled) return;
-        setPortalToken(session.token, session.expires_at);
-        setBootstrapToken(session.token);
-      })
-      .catch((sessionError: unknown) => {
-        if (!cancelled) {
-          setBootstrapError(errorMessage(sessionError, 'Unable to open the guest portal.'));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isLoading, navigate, token, user?.user_type]);
 
   useEffect(() => {
     if (!token) return;
@@ -173,6 +174,11 @@ const PortalBookingPage: React.FC = () => {
   }, [search, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
+    const eligibilityKey = nextVoucherId === '' || !selectedOffer
+      ? null
+      : voucherStayEligibilityKey(nextVoucherId, selectedOffer.room_type_id, search);
+    if (eligibilityKey && ineligibleVoucherKeys.has(eligibilityKey)) return;
+
     setVoucherId(nextVoucherId);
     if (!token || !selectedOffer) return;
     setIsQuoting(true);
@@ -185,12 +191,15 @@ const PortalBookingPage: React.FC = () => {
       }, token));
       setRequestId(newRequestId());
     } catch (quoteError) {
+      if (eligibilityKey && isVoucherEligibilityError(quoteError)) {
+        setIneligibleVoucherKeys((current) => new Set(current).add(eligibilityKey));
+      }
       setVoucherId('');
       setError(errorMessage(quoteError, 'This voucher cannot be applied to the selected stay.'));
     } finally {
       setIsQuoting(false);
     }
-  }, [search, selectedOffer, token]);
+  }, [ineligibleVoucherKeys, search, selectedOffer, token]);
 
   const submitBooking = useCallback(async () => {
     if (!token || !quote) return;
@@ -262,14 +271,35 @@ const PortalBookingPage: React.FC = () => {
     [voucherId, vouchers],
   );
 
+  if (needsLogin) {
+    return <Navigate to="/login?account=guest" replace />;
+  }
+
   if (!token) {
     return (
       <Container maxWidth="sm" sx={{ mt: 8 }}>
-        {bootstrapError
-          ? <Alert severity="error">{bootstrapError}</Alert>
+        {sessionError
+          ? <Alert
+              severity="error"
+              action={(
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={canRetry ? retry : restartSignIn}
+                >
+                  {canRetry ? 'Retry' : 'Sign in again'}
+                </Button>
+              )}
+            >
+              {sessionError}
+            </Alert>
           : <Stack direction="row" justifyContent="center" spacing={2}>
               <CircularProgress size={24} />
-              <Typography>Opening your guest portal…</Typography>
+              <Typography>
+                {sessionStatus === 'checking-account'
+                  ? 'Checking your account session…'
+                  : 'Opening your guest portal…'}
+              </Typography>
             </Stack>}
       </Container>
     );
@@ -460,11 +490,25 @@ const PortalBookingPage: React.FC = () => {
                     }}
                   >
                     <MenuItem value="">No voucher</MenuItem>
-                    {vouchers.map((voucher) => (
-                      <MenuItem key={voucher.id} value={voucher.id}>
-                        {voucher.promotion_name} ({voucher.code ?? voucher.code_masked})
-                      </MenuItem>
-                    ))}
+                    {vouchers.map((voucher) => {
+                      const isIneligible = ineligibleVoucherKeys.has(
+                        voucherStayEligibilityKey(
+                          voucher.id,
+                          selectedOffer.room_type_id,
+                          search,
+                        ),
+                      );
+                      return (
+                        <MenuItem
+                          key={voucher.id}
+                          value={voucher.id}
+                          disabled={isIneligible}
+                        >
+                          {voucher.promotion_name} ({voucher.code ?? voucher.code_masked})
+                          {isIneligible ? ' — Not eligible for this stay' : ''}
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
                 {selectedVoucher && quote.voucher_name && (

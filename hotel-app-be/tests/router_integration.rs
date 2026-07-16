@@ -258,6 +258,48 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn authenticated_guest_can_create_a_portal_session_in_sqlite() {
+        let pool = common::setup_test_db().await;
+        let user_id = 920_004;
+        let guest_id = 930_004;
+        insert_guest(&pool, guest_id).await;
+        insert_user_with_role(&pool, user_id, "router_portal_guest", 6).await;
+        sqlx::query("UPDATE users SET user_type = 'guest', guest_id = ?1 WHERE id = ?2")
+            .bind(guest_id)
+            .bind(user_id)
+            .execute(&pool)
+            .await
+            .expect("guest account should link to its guest profile");
+
+        let base_url = spawn_app(pool).await;
+        let token = AuthService::generate_jwt(
+            user_id,
+            "router_portal_guest".to_string(),
+            vec!["guest".to_string()],
+        )
+        .expect("jwt should generate");
+
+        let response = reqwest::Client::new()
+            .post(format!("{base_url}/api/guest-portal/session"))
+            .bearer_auth(token)
+            .send()
+            .await
+            .expect("guest portal session request should complete");
+
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        let body: Value = response
+            .json()
+            .await
+            .expect("guest portal session should return JSON");
+        assert!(
+            body["token"]
+                .as_str()
+                .is_some_and(|value| !value.is_empty())
+        );
+        assert_eq!(body["guest"]["full_name"], "Promotion Route Guest");
+    }
+
+    #[tokio::test]
     async fn public_promotion_catalogue_is_available_without_auth_and_hides_drafts() {
         let pool = common::setup_test_db().await;
         let published =
