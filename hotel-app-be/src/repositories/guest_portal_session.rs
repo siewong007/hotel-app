@@ -6,6 +6,7 @@
 
 use chrono::{DateTime, Utc};
 use sqlx::Row;
+use std::collections::HashSet;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -162,7 +163,7 @@ impl GuestPortalSessionRepository {
     ) -> Result<GuestPortalGuestView, ApiError> {
         let sql = format!(
             "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
-                    address_line1, city, state_province, postal_code, country \
+                    address_line_1 AS address_line1, city, state AS state_province, postal_code, country \
              FROM guests WHERE id = {}",
             param!(1)
         );
@@ -388,18 +389,31 @@ impl GuestPortalSessionRepository {
             .await
             .map_err(|e| ApiError::Database(format!("Reward lookup failed: {}", e)))?;
 
+        let mut displayed_rewards = HashSet::new();
         Ok(rows
             .iter()
-            .map(|row| {
+            .filter_map(|row| {
                 let points_required: i32 = row.try_get("points_cost").unwrap_or_default();
-                GuestPortalReward {
-                    id: row.try_get("id").unwrap_or_default(),
-                    name: row.try_get("name").unwrap_or_default(),
-                    description: row.try_get("description").ok(),
-                    category: row.try_get("category").unwrap_or_default(),
+                let name: String = row.try_get("name").unwrap_or_default();
+                let description: Option<String> = row.try_get("description").ok();
+                let category: String = row.try_get("category").unwrap_or_default();
+                let reward_key = (
+                    name.clone(),
+                    description.clone(),
+                    category.clone(),
                     points_required,
-                    affordable: points_balance >= points_required,
-                }
+                );
+
+                displayed_rewards
+                    .insert(reward_key)
+                    .then_some(GuestPortalReward {
+                        id: row.try_get("id").unwrap_or_default(),
+                        name,
+                        description,
+                        category,
+                        points_required,
+                        affordable: points_balance >= points_required,
+                    })
             })
             .collect())
     }

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '../../../router';
+import { useAuth } from '../../../auth/AuthContext';
 import {
   Box,
   Container,
@@ -28,6 +29,7 @@ import {
 } from '@mui/material';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { usePortalSession } from '../api/usePortalSession';
+import { setPortalToken } from '../api/portalTokenStore';
 import { PortalSupportTab } from './PortalSupportTab';
 import { PromotionCatalog, VoucherWallet } from '../../promotions';
 import PortalNotificationPreferences from '../../communications/components/PortalNotificationPreferences';
@@ -77,17 +79,60 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 export const PortalDashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { token, isAuthenticated, logout } = usePortalSession();
+  const { token: storedToken, logout } = usePortalSession();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
+  const [bootstrapToken, setBootstrapToken] = useState<string | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
+  const token = storedToken ?? bootstrapToken;
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login?account=guest', { replace: true });
+    if (token || isLoading) {
+      return;
     }
-  }, [isAuthenticated, navigate]);
 
-  if (!isAuthenticated || !token) {
-    return null;
+    if (!isAuthenticated || user?.user_type !== 'guest') {
+      navigate('/login?account=guest', { replace: true });
+      return;
+    }
+
+    let cancelled = false;
+    setIsBootstrapping(true);
+    setBootstrapError(null);
+    void GuestPortalDashboardService.createSession()
+      .then((session) => {
+        if (cancelled) return;
+        setPortalToken(session.token, session.expires_at);
+        setBootstrapToken(session.token);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBootstrapError('We could not open your guest portal. Please try again.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsBootstrapping(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoading, navigate, token, user?.user_type]);
+
+  if (!token) {
+    return (
+      <Container maxWidth="sm" sx={{ mt: 8 }}>
+        {bootstrapError ? (
+          <Alert severity="error">{bootstrapError}</Alert>
+        ) : (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2 }}>
+            <CircularProgress size={24} />
+            <Typography>{isBootstrapping ? 'Opening your guest portal…' : 'Checking your guest session…'}</Typography>
+          </Box>
+        )}
+      </Container>
+    );
   }
 
   return (
