@@ -158,6 +158,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(ledgers::routes())
         .merge(crate::modules::loyalty::routes::routes())
         .merge(crate::modules::promotions::routes::routes())
+        .merge(crate::modules::communications::routes::routes())
         .merge(rbac::routes())
         .merge(profile::routes())
         .merge(analytics::routes())

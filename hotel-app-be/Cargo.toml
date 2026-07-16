@@ -44,6 +44,8 @@ simplelog = "0.12"
 dirs = "5"
 log = "0.4"
 sha2 = "0.10"
+hmac = "0.12"
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "pool", "tokio1", "tokio1-rustls-tls"] }
 rand = "0.9"
 regex = "1.11"
 ring = "0.17"

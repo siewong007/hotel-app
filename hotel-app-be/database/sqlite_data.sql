@@ -1204,3 +1204,50 @@ ON CONFLICT(route_id) DO UPDATE SET
     is_navigation = excluded.is_navigation,
     is_system_policy = excluded.is_system_policy,
     updated_at = datetime('now');
+
+-- Communications RBAC: permissions, admin/super_admin grant, navigation route.
+INSERT INTO permissions (name, resource, action, description, is_system_permission)
+VALUES
+    ('communications:read', 'communications', 'read', 'View communications campaigns, templates, and delivery status', 1),
+    ('communications:compose', 'communications', 'compose', 'Draft and edit email campaigns and templates', 1),
+    ('communications:send', 'communications', 'send', 'Schedule, test-send, and send email campaigns', 1),
+    ('communications:manage', 'communications', 'manage', 'Full communications management including automation and suppressions', 1),
+    ('navigation_communications:read', 'navigation:communications', 'read', 'Show Communications navigation', 1)
+ON CONFLICT(name) DO UPDATE SET
+    resource = excluded.resource,
+    action = excluded.action,
+    description = excluded.description,
+    is_system_permission = excluded.is_system_permission;
+
+INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name IN ('super_admin', 'admin')
+  AND p.name IN (
+      'communications:read', 'communications:compose', 'communications:send',
+      'communications:manage', 'navigation_communications:read'
+  );
+
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation,
+    is_system_policy
+)
+VALUES (
+    'communications', '/communications', 'Communications', 'admin', '["communications:read"]', '[]', '[]',
+    '["navigation_communications:read","communications:read"]', '[]', '["guest"]', 1, 1
+)
+ON CONFLICT(route_id) DO UPDATE SET
+    path = excluded.path,
+    nav_label = excluded.nav_label,
+    nav_group = excluded.nav_group,
+    required_permissions = excluded.required_permissions,
+    required_roles = excluded.required_roles,
+    excluded_roles = excluded.excluded_roles,
+    nav_permissions = excluded.nav_permissions,
+    nav_roles = excluded.nav_roles,
+    nav_excluded_roles = excluded.nav_excluded_roles,
+    is_navigation = excluded.is_navigation,
+    is_system_policy = excluded.is_system_policy,
+    updated_at = datetime('now');

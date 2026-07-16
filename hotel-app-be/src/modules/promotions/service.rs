@@ -141,7 +141,8 @@ pub async fn list_guest_promotions(
     let public = list_public_promotions(pool, query).await?;
     let mut items = Vec::with_capacity(public.items.len());
     for promotion in public.items {
-        let has_voucher = PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?;
+        let has_voucher =
+            PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?;
         let can_claim = !has_voucher;
         items.push(GuestPromotion {
             promotion,
