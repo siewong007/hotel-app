@@ -53,7 +53,7 @@ mod sqlite_tests {
             claim_ends_at: None,
             stay_starts_on: None,
             stay_ends_on: None,
-            min_nights: Some(1),
+            min_nights: None,
             max_nights: None,
             min_subtotal: Some(0.0),
             claim_limit,

@@ -26,6 +26,7 @@ const invoices = ['invoices'] as const;
 const housekeeping = ['housekeeping'] as const;
 const maintenance = ['maintenance'] as const;
 const promotions = ['promotions'] as const;
+const adminPromotionLists = [...promotions, 'admin', 'list'] as const;
 
 const paramsOrEmpty = <T extends KeyParams | AuditLogQuery | undefined>(params: T) => params ?? {};
 
@@ -83,7 +84,8 @@ export const queryKeys = {
       [...promotions, 'portal', sessionScope, 'catalog', params ?? {}] as const,
     portalVouchers: (sessionScope: string, params?: unknown) =>
       [...promotions, 'portal', sessionScope, 'vouchers', params ?? {}] as const,
-    adminList: (params?: unknown) => [...promotions, 'admin', 'list', params ?? {}] as const,
+    adminLists: () => adminPromotionLists,
+    adminList: (params?: unknown) => [...adminPromotionLists, params ?? {}] as const,
     adminVouchers: (params?: unknown) =>
       [...promotions, 'admin', 'vouchers', params ?? {}] as const,
   },

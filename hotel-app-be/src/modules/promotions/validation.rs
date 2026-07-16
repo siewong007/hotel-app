@@ -180,19 +180,15 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
     let min_subtotal = input
         .min_subtotal
         .map(|value| decimal_from_f64(value, "minimum subtotal"))
-        .transpose()?;
-    if min_subtotal.is_some_and(|value| value < Decimal::ZERO) {
+        .transpose()?
+        .unwrap_or(Decimal::ZERO);
+    if min_subtotal < Decimal::ZERO {
         return Err(ApiError::BadRequest(
             "Minimum subtotal cannot be negative".to_string(),
         ));
     }
-    if input.min_nights.is_some_and(|value| value < 1)
-        || input.max_nights.is_some_and(|value| value < 1)
-        || input
-            .min_nights
-            .zip(input.max_nights)
-            .is_some_and(|(min, max)| min > max)
-    {
+    let min_nights = input.min_nights.unwrap_or(1);
+    if min_nights < 1 || input.max_nights.is_some_and(|value| value < min_nights) {
         return Err(ApiError::BadRequest(
             "Invalid minimum or maximum stay length".to_string(),
         ));
@@ -253,9 +249,9 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
         claim_ends_at: input.claim_ends_at,
         stay_starts_on: input.stay_starts_on,
         stay_ends_on: input.stay_ends_on,
-        min_nights: input.min_nights,
+        min_nights: Some(min_nights),
         max_nights: input.max_nights,
-        min_subtotal,
+        min_subtotal: Some(min_subtotal),
         claim_limit: input.claim_limit,
         per_guest_limit,
         is_public: input.is_public.unwrap_or(false),
@@ -334,5 +330,36 @@ mod tests {
         };
 
         assert!(validate_promotion_input(input).is_err());
+    }
+
+    #[test]
+    fn defaults_an_omitted_minimum_stay_to_one_night() {
+        let input = PromotionInput {
+            slug: "one-night-default".to_string(),
+            name: "One night default".to_string(),
+            description: None,
+            terms: None,
+            promotion_kind: "deal".to_string(),
+            discount_type: "percentage".to_string(),
+            discount_value: 10.0,
+            max_discount_amount: None,
+            currency: Some("USD".to_string()),
+            claim_starts_at: None,
+            claim_ends_at: None,
+            stay_starts_on: None,
+            stay_ends_on: None,
+            min_nights: None,
+            max_nights: None,
+            min_subtotal: None,
+            claim_limit: None,
+            per_guest_limit: None,
+            is_public: Some(true),
+            room_type_ids: None,
+            expected_version: None,
+        };
+
+        let draft = validate_promotion_input(input).unwrap();
+        assert_eq!(draft.min_nights, Some(1));
+        assert_eq!(draft.min_subtotal, Some(Decimal::ZERO));
     }
 }
