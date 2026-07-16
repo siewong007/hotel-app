@@ -11,22 +11,14 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
-    GuestPortalLoginRequest, GuestPortalLoginResponse, GuestPortalMeResponse,
-    GuestPortalMembershipResponse, GuestPortalPage, GuestPortalTransaction,
-    GuestPortalVerifyRequest, GuestPortalVerifyResponse, PreCheckInUpdateRequest,
+    GuestPortalLoginResponse, GuestPortalMeResponse, GuestPortalMembershipResponse,
+    GuestPortalPage, GuestPortalTransaction, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
+    PreCheckInUpdateRequest,
 };
 use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
-
-/// Generic message returned for any guest-portal login failure. Never reveal
-/// whether the email, booking number, or member number exists.
-const LOGIN_FAILURE: &str = "Unable to sign in. Please check your details and try again.";
-
-fn login_failure() -> ApiError {
-    ApiError::Unauthorized(LOGIN_FAILURE.to_string())
-}
 
 /// Generate a 256-bit random token as a hex string.
 fn generate_session_token() -> String {
@@ -40,10 +32,6 @@ fn hash_session_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())
-}
-
-fn non_empty(value: &Option<String>) -> Option<&str> {
-    value.as_deref().map(str::trim).filter(|s| !s.is_empty())
 }
 
 const VERIFY_BOOKING_FAILURE: &str =
@@ -191,32 +179,17 @@ async fn portal_response(
 
 const SESSION_TTL_HOURS: i64 = 24;
 
-/// Authenticate a guest by email + (booking number OR member number), issue a
-/// bearer session, and return the token (once) plus a guest-safe profile view.
-pub async fn guest_portal_login(
+/// Issue a guest-scoped portal session after regular account authentication.
+pub async fn create_authenticated_guest_portal_session(
     pool: &DbPool,
-    request: GuestPortalLoginRequest,
+    user_id: i64,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<GuestPortalLoginResponse, ApiError> {
-    let email = request.email.trim();
-    if email.is_empty() {
-        return Err(login_failure());
-    }
-    let booking_number = non_empty(&request.booking_number);
-    let member_number = non_empty(&request.member_number);
-    if booking_number.is_none() && member_number.is_none() {
-        return Err(login_failure());
-    }
-
-    let guest_id = GuestPortalSessionRepository::find_login_guest_id(
-        pool,
-        email,
-        booking_number,
-        member_number,
-    )
-    .await?
-    .ok_or_else(login_failure)?;
+    let guest_id =
+        GuestPortalSessionRepository::find_guest_id_for_authenticated_user(pool, user_id)
+            .await?
+            .ok_or_else(|| ApiError::Forbidden("Guest account required".to_string()))?;
 
     let token = generate_session_token();
     let token_hash = hash_session_token(&token);
@@ -227,7 +200,7 @@ pub async fn guest_portal_login(
 
     AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "guest_portal.login",
         "guest",
         Some(guest_id),

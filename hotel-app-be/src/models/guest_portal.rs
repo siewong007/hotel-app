@@ -106,18 +106,7 @@ pub struct GuestPortalBookingResponse {
 // Guest portal session login + guest-scoped read views
 // ============================================================================
 
-/// Login request for the self-service guest portal. Requires an email plus at
-/// least one of booking_number / member_number (validated in the service).
-#[derive(Debug, Deserialize)]
-pub struct GuestPortalLoginRequest {
-    pub email: String,
-    #[serde(default)]
-    pub booking_number: Option<String>,
-    #[serde(default)]
-    pub member_number: Option<String>,
-}
-
-/// Successful login response. The raw token is returned exactly once here; it is
+/// Successful portal session response. The raw token is returned exactly once; it is
 /// never persisted (only its SHA-256 hash is stored) and never serialized again.
 #[derive(Debug, Serialize)]
 pub struct GuestPortalLoginResponse {

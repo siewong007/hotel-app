@@ -82,7 +82,7 @@ export const PortalDashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/portal/login', { replace: true });
+      navigate('/login?account=guest', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 

@@ -178,10 +178,6 @@ pub struct RateLimiters {
     pub guest_portal_verify: RateLimiter,
     /// Guest portal verification: 5 attempts per 15 minutes per booking number
     pub guest_portal_booking: KeyedRateLimiter,
-    /// Guest portal login: 10 attempts per 5 minutes per IP
-    pub guest_portal_login: RateLimiter,
-    /// Guest portal login: 5 attempts per 15 minutes per identifier (email)
-    pub guest_portal_login_id: KeyedRateLimiter,
     /// Guest portal token-gated MUTATIONS (pre-checkin submit, auto-checkin):
     /// 5 attempts per 15 minutes per token (mirrors guest_portal_booking's keying)
     pub guest_portal_token: KeyedRateLimiter,
@@ -215,8 +211,6 @@ impl RateLimiters {
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
-            guest_portal_login: RateLimiter::new(RateLimitConfig::new(10, 300)),
-            guest_portal_login_id: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),

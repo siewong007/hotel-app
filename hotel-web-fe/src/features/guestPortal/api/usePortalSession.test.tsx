@@ -83,6 +83,6 @@ describe('usePortalSession', () => {
     expect(getPortalToken()).toBeNull();
     expect(queryClient.getQueryData(portalCatalogKey)).toBeUndefined();
     expect(queryClient.getQueryData(portalVoucherKey)).toBeUndefined();
-    expect(navigate).toHaveBeenCalledWith('/portal/login', { replace: true });
+    expect(navigate).toHaveBeenCalledWith('/login?account=guest', { replace: true });
   });
 });

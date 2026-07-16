@@ -48,7 +48,7 @@ const RegisterPage: React.FC = () => {
     }
 
     if (redirectCountdown === 0) {
-      navigate('/login?account=guest&method=password', { replace: true });
+      navigate('/login?account=guest', { replace: true });
       return;
     }
 

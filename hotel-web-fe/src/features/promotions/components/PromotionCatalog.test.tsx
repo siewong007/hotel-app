@@ -127,7 +127,7 @@ describe('PromotionCatalog', () => {
       false
     );
     fireEvent.click(screen.getByRole('button', { name: 'Sign in to claim' }));
-    expect(navigate).toHaveBeenCalledWith('/portal/login');
+    expect(navigate).toHaveBeenCalledWith('/login?account=guest');
   });
 
   it('claims an eligible portal promotion and confirms the issued voucher code', async () => {

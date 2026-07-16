@@ -22,7 +22,6 @@ import { getPortalToken } from './portalTokenStore';
 import type {
   GuestPortalBenefitsResponse,
   GuestPortalBookingSummary,
-  GuestPortalLoginRequest,
   GuestPortalLoginResponse,
   GuestPortalMeResponse,
   GuestPortalMembershipResponse,
@@ -52,8 +51,8 @@ function withPageParams(params?: PortalPageParams): URLSearchParams | undefined 
 }
 
 export class GuestPortalDashboardService {
-  static async login(request: GuestPortalLoginRequest): Promise<GuestPortalLoginResponse> {
-    return await api.post('guest-portal/login', { json: request }).json();
+  static async createSession(): Promise<GuestPortalLoginResponse> {
+    return await api.post('guest-portal/session').json();
   }
 
   static async me(token?: string): Promise<GuestPortalMeResponse> {
