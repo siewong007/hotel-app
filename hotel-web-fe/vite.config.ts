@@ -19,7 +19,10 @@ const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
 export default defineConfig(({ mode, command }) => {
   const isTauri = TAURI_MODES.has(mode);
   const isProductionBuild = command === 'build' && mode !== 'development';
-  const proxy = Object.fromEntries(PROXY_PREFIXES.map((path) => [path, BACKEND_TARGET]));
+  const proxy = Object.fromEntries(PROXY_PREFIXES.map((path) => [
+    path,
+    { target: BACKEND_TARGET, ws: path === '/api' || path === '/ws' },
+  ]));
 
   return {
     plugins: [

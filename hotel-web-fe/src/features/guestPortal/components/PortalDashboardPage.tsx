@@ -26,6 +26,7 @@ import {
   Alert,
   CircularProgress,
   Button,
+  Stack,
 } from '@mui/material';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { usePortalSession } from '../api/usePortalSession';
@@ -138,13 +139,18 @@ export const PortalDashboardPage: React.FC = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 6 }}>
       <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 2 }}>
           <Typography variant="h4" component="h1">
             My Account
           </Typography>
-          <Button variant="outlined" onClick={logout}>
-            Sign Out
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Button variant="contained" onClick={() => navigate('/portal/book')}>
+              Book a Room
+            </Button>
+            <Button variant="outlined" onClick={logout}>
+              Sign Out
+            </Button>
+          </Stack>
         </Box>
 
         <Tabs

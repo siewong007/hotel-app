@@ -6545,3 +6545,32 @@ DROP TRIGGER IF EXISTS update_email_deliveries_updated_at ON email_deliveries;
 CREATE TRIGGER update_email_deliveries_updated_at
     BEFORE UPDATE ON email_deliveries
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- Guest portal direct booking
+-- ============================================================================
+
+ALTER TABLE bookings
+    ADD COLUMN IF NOT EXISTS portal_request_id VARCHAR(128);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_guest_portal_request
+    ON bookings (guest_id, portal_request_id)
+    WHERE portal_request_id IS NOT NULL;
+
+ALTER TABLE email_deliveries
+    DROP CONSTRAINT IF EXISTS email_deliveries_kind_check;
+ALTER TABLE email_deliveries
+    DROP CONSTRAINT IF EXISTS email_deliveries_topic_check;
+ALTER TABLE email_deliveries
+    DROP CONSTRAINT IF EXISTS email_deliveries_kind_campaign_link;
+ALTER TABLE email_deliveries
+    ADD CONSTRAINT email_deliveries_kind_check
+    CHECK (kind IN ('campaign', 'birthday_voucher', 'booking_confirmation'));
+ALTER TABLE email_deliveries
+    ADD CONSTRAINT email_deliveries_topic_check
+    CHECK (topic IN ('announcement', 'promotion', 'birthday_voucher', 'booking_confirmation'));
+ALTER TABLE email_deliveries
+    ADD CONSTRAINT email_deliveries_kind_campaign_link CHECK (
+        (kind = 'campaign' AND campaign_id IS NOT NULL)
+        OR (kind IN ('birthday_voucher', 'booking_confirmation') AND campaign_id IS NULL)
+    );

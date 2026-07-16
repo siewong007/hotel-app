@@ -19,7 +19,7 @@ postgres = ["sqlx/postgres"]
 
 [dependencies]
 tokio = { version = "1.51", features = ["full"] }
-axum = { version = "0.8", features = ["macros", "multipart"] }
+axum = { version = "0.8", features = ["macros", "multipart", "ws"] }
 axum-extra = { version = "0.10", features = ["cookie"] }
 # `time` is used to set the refresh-cookie Max-Age; version pinned to match the
 # `cookie` crate re-exported by axum-extra (avoids a duplicate `time` in the tree).
