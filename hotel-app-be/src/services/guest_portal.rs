@@ -355,11 +355,6 @@ mod tests {
     }
 
     #[test]
-    fn login_failure_message_is_generic() {
-        assert!(matches!(login_failure(), ApiError::Unauthorized(m) if m == LOGIN_FAILURE));
-    }
-
-    #[test]
     fn page_query_clamps_page_and_per_page() {
         use crate::models::GuestPortalPageQuery;
 

@@ -55,11 +55,8 @@ pub async fn serve_socket(mut socket: WebSocket, hub: AvailabilityHub) {
             }
             message = socket.recv() => {
                 match message {
-                    Some(Ok(Message::Ping(payload))) => {
-                        if socket.send(Message::Pong(payload)).await.is_err() {
-                            break;
-                        }
-                    }
+                    Some(Ok(Message::Ping(payload)))
+                        if socket.send(Message::Pong(payload.clone())).await.is_err() => break,
                     Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                     _ => {}
                 }

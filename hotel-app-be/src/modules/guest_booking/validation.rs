@@ -41,10 +41,8 @@ pub fn validate_stay(
     }
     let adults = adults.unwrap_or(1);
     let children = children.unwrap_or(0);
-    if adults < 1 || adults > 20 || !(0..=20).contains(&children) {
-        return Err(ApiError::BadRequest(
-            "Invalid guest occupancy".to_string(),
-        ));
+    if !(1..=20).contains(&adults) || !(0..=20).contains(&children) {
+        return Err(ApiError::BadRequest("Invalid guest occupancy".to_string()));
     }
     Ok(ValidatedStay {
         check_in_date,
