@@ -137,11 +137,15 @@ pub fn validate_campaign_input(input: CampaignInput) -> Result<CampaignDraft, Ap
             "Unsupported campaign type".to_string(),
         ));
     }
-    if campaign_type == "promotion" && input.promotion_id.is_none() {
-        return Err(ApiError::BadRequest(
-            "Promotion campaigns require a promotion_id".to_string(),
-        ));
-    }
+    let promotion_id = match (campaign_type.as_str(), input.promotion_id) {
+        ("promotion", Some(promotion_id)) if promotion_id > 0 => Some(promotion_id),
+        ("promotion", _) => {
+            return Err(ApiError::BadRequest(
+                "Promotion campaigns require a valid promotion".to_string(),
+            ));
+        }
+        _ => None,
+    };
     Ok(CampaignDraft {
         name: sanitize_required_text(&input.name, "name", 1, 160)?,
         topic: campaign_type.clone(),
@@ -150,7 +154,7 @@ pub fn validate_campaign_input(input: CampaignInput) -> Result<CampaignDraft, Ap
         body_html: validate_body(&input.body_html, "body_html")?,
         body_text: sanitize_optional_text(input.body_text, "body_text", MAX_BODY_CHARS)?,
         template_id: input.template_id,
-        promotion_id: input.promotion_id,
+        promotion_id,
     })
 }
 
@@ -248,6 +252,39 @@ pub fn render_template(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn campaign_input(campaign_type: &str, promotion_id: Option<i64>) -> CampaignInput {
+        CampaignInput {
+            name: "Guest update".to_string(),
+            campaign_type: campaign_type.to_string(),
+            subject: "Your upcoming stay".to_string(),
+            body_html: "<p>Welcome</p>".to_string(),
+            body_text: None,
+            template_id: None,
+            promotion_id,
+        }
+    }
+
+    #[test]
+    fn announcement_discards_an_irrelevant_promotion_id() {
+        let draft = validate_campaign_input(campaign_input("announcement", Some(999))).unwrap();
+
+        assert_eq!(draft.campaign_type, "announcement");
+        assert_eq!(draft.promotion_id, None);
+    }
+
+    #[test]
+    fn promotion_requires_a_positive_promotion_id() {
+        for promotion_id in [None, Some(0), Some(-1)] {
+            assert!(validate_campaign_input(campaign_input("promotion", promotion_id)).is_err());
+        }
+        assert_eq!(
+            validate_campaign_input(campaign_input("promotion", Some(4)))
+                .unwrap()
+                .promotion_id,
+            Some(4)
+        );
+    }
 
     #[test]
     fn render_substitutes_and_escapes() {

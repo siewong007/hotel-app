@@ -107,7 +107,9 @@ fn summary_from_row(row: &DbRow) -> SupportConversationSummary {
         queue: row.get("assigned_team"),
         assigned_to_user_id: optional(row, "assigned_to_user_id"),
         assigned_to_name: optional(row, "assigned_to_name"),
-        escalation_level: row.get("escalation_level"),
+        // PostgreSQL stores this bounded level as SMALLINT; the API exposes
+        // an i32, so convert after decoding its native database width.
+        escalation_level: i32::from(row.get::<i16, _>("escalation_level")),
         escalated_at: optional(row, "escalated_at"),
         first_response_due_at,
         resolution_due_at,
@@ -120,7 +122,10 @@ fn summary_from_row(row: &DbRow) -> SupportConversationSummary {
         unread_count: 0,
         is_sla_at_risk,
         is_sla_breached,
-        version: row.get("version"),
+        // PostgreSQL stores the optimistic-lock version as INTEGER while the
+        // API model uses i64. Decode the database type first so a valid
+        // support conversation can never abort the request task at runtime.
+        version: i64::from(row.get::<i32, _>("version")),
     }
 }
 
@@ -482,7 +487,7 @@ FROM support_conversations
                     closed_at: optional(row, "closed_at"),
                     resolution_summary: optional(row, "resolution_summary"),
                     can_reopen: row.get("can_reopen"),
-                    version: row.get("version"),
+                    version: i64::from(row.get::<i32, _>("version")),
                 })
                 .collect(),
         ))

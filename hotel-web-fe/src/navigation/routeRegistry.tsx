@@ -89,7 +89,7 @@ const CommunicationsPage = lazyRoute(() => import('../features/communications/pa
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/OnlineInventoryPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
-  { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'unauth' },
+  { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'public' },
   { id: 'login', path: '/login', component: LoginPage, animationType: 'fade', visibility: 'unauth' },
   { id: 'register', path: '/register', component: RegisterPage, animationType: 'fade', visibility: 'unauth' },
   { id: 'verify-email', path: '/verify-email', component: EmailVerificationPage, animationType: 'fade', visibility: 'unauth' },

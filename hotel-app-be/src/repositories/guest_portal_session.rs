@@ -161,11 +161,19 @@ impl GuestPortalSessionRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<GuestPortalGuestView, ApiError> {
-        let sql = format!(
-            "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
-                    address_line_1 AS address_line1, city, state AS state_province, postal_code, country \
-             FROM guests WHERE id = {}",
-            param!(1)
+        let sql = sql_query!(
+            postgres: format!(
+                "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
+                        address_line_1 AS address_line1, city, state AS state_province, postal_code, country \
+                 FROM guests WHERE id = {}",
+                param!(1)
+            ),
+            sqlite: format!(
+                "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
+                        address_line1, city, state_province, postal_code, country \
+                 FROM guests WHERE id = {}",
+                param!(1)
+            )
         );
         let row = sqlx::query(&sql)
             .bind(guest_id)
