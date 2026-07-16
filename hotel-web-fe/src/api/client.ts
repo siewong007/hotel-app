@@ -33,6 +33,10 @@ type RefreshTokenResponse = {
 };
 
 let refreshPromise: Promise<RefreshTokenResponse | null> | null = null;
+// The initial auth check gates the entire application shell. Keep its failure
+// bounded so an unreachable local API or a stale Safari connection cannot
+// leave the page on its loading screen for the normal request timeout.
+const REFRESH_TIMEOUT_MS = 10_000;
 
 function requestOriginPrefix(): string {
   if (typeof window === 'undefined') {
@@ -87,7 +91,7 @@ export async function refreshAccessToken(): Promise<RefreshTokenResponse | null>
   if (!refreshPromise) {
     refreshPromise = ky.post(apiUrl('auth/refresh'), {
       credentials: 'include',
-      timeout: 30000,
+      timeout: REFRESH_TIMEOUT_MS,
     })
       .json<RefreshTokenResponse>()
       .then(tokens => {
@@ -166,7 +170,13 @@ export const api = ky.create({
   retry: {
     limit: 2,
     methods: ['get'],
-    statusCodes: [408, 413, 429, 500, 502, 503, 504]
+    statusCodes: [408, 413, 429, 500, 502, 503, 504],
+    // Ky uses this list to prefer the server-provided Retry-After delay over
+    // its exponential fallback. Cap it so a malformed response cannot stall
+    // the interface indefinitely.
+    afterStatusCodes: [413, 429, 503],
+    maxRetryAfter: 30_000,
+    jitter: true,
   },
   hooks: {
     beforeRequest: [

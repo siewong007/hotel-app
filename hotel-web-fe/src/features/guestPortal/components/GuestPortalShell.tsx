@@ -11,7 +11,7 @@ const GOLD = '#d9b572';
 
 export function GuestPortalShell({ children }: GuestPortalShellProps) {
   const location = useLocation();
-  const isBooking = location.pathname === '/portal/book';
+  const isBooking = new URLSearchParams(location.search).get('view') === 'booking';
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5efe4' }}>
@@ -28,6 +28,8 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
             minHeight: { xs: 70, sm: 82 },
             px: { xs: 2, sm: 4 },
             gap: 2,
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
+            py: { xs: 1, sm: 0 },
           }}
         >
           <Box
@@ -45,7 +47,7 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
               component="img"
               src="/salim-inn/salim-inn-logo.svg"
               alt="Salim Inn"
-              sx={{ display: 'block', width: { xs: 150, sm: 220 }, height: 'auto' }}
+              sx={{ display: 'block', width: { xs: 126, sm: 220 }, height: 'auto' }}
             />
           </Box>
 
@@ -53,7 +55,9 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
             direction="row"
             spacing={1}
             sx={{
-              ml: 'auto',
+              ml: { xs: 0, sm: 'auto' },
+              width: { xs: '100%', sm: 'auto' },
+              justifyContent: { xs: 'flex-end', sm: 'initial' },
               alignItems: 'center',
               '& .MuiButton-root': {
                 whiteSpace: 'nowrap',
@@ -63,12 +67,12 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
               },
             }}
           >
-            <Button component={Link} to="/" sx={{ color: 'rgba(255,255,255,0.78)' }}>
+            <Button component={Link} to="/" sx={{ color: 'rgba(255,255,255,0.78)', display: { xs: 'none', sm: 'inline-flex' } }}>
               Explore
             </Button>
             <Button
               component={Link}
-              to="/portal"
+              to="/guest-portal"
               variant={isBooking ? 'text' : 'outlined'}
               sx={{
                 color: 'white',
@@ -80,7 +84,7 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
             </Button>
             <Button
               component={Link}
-              to="/portal/book"
+              to="/guest-portal?view=booking"
               variant="contained"
               sx={{
                 bgcolor: GOLD,

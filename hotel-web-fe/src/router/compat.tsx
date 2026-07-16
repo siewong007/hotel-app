@@ -40,7 +40,18 @@ export function useNavigate(): CompatNavigateFn {
         router.history.go(to);
         return;
       }
-      tsNavigate({ to, replace: options?.replace });
+
+      // TanStack Router expects the route pathname and search object
+      // separately. Passing `/login?account=guest` as `to` makes it look for a
+      // literal route with a question mark, which falls through to the index
+      // page instead of opening the intended screen.
+      const target = new URL(to, window.location.origin);
+      tsNavigate({
+        to: target.pathname as any,
+        search: Object.fromEntries(target.searchParams.entries()) as any,
+        hash: target.hash.replace(/^#/, ''),
+        replace: options?.replace,
+      });
     },
     [tsNavigate, router]
   );

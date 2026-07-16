@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use super::models::{
     ClaimPromotionInput, GuestPromotion, GuestPromotionListResponse, Promotion, PromotionInput,
-    PromotionListQuery, PromotionListResponse, Voucher, VoucherIssueInput, VoucherListResponse,
-    VoucherRevokeInput,
+    PromotionListQuery, PromotionListResponse, PublicPromotion, PublicPromotionListResponse,
+    Voucher, VoucherIssueInput, VoucherListResponse, VoucherRevokeInput,
 };
 use super::repository::PromotionRepository;
 use super::validation;
@@ -115,21 +115,22 @@ async fn updated_promotion(pool: &DbPool, promotion_id: i64) -> Result<Promotion
 pub async fn list_public_promotions(
     pool: &DbPool,
     query: PromotionListQuery,
-) -> Result<PromotionListResponse, ApiError> {
+) -> Result<PublicPromotionListResponse, ApiError> {
     let (page, page_size, offset) = pagination(&query);
     let (total, items) = PromotionRepository::list_public(pool, page_size, offset).await?;
-    Ok(PromotionListResponse {
-        items,
+    Ok(PublicPromotionListResponse {
+        items: items.into_iter().map(PublicPromotion::from).collect(),
         total,
         page,
         page_size,
     })
 }
 
-pub async fn get_public_promotion(pool: &DbPool, slug: &str) -> Result<Promotion, ApiError> {
+pub async fn get_public_promotion(pool: &DbPool, slug: &str) -> Result<PublicPromotion, ApiError> {
     let slug = validation::normalize_slug(slug)?;
     PromotionRepository::find_public_by_slug(pool, &slug)
         .await?
+        .map(PublicPromotion::from)
         .ok_or_else(|| ApiError::NotFound("Promotion not found".to_string()))
 }
 

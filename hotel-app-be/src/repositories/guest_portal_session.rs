@@ -21,6 +21,20 @@ use crate::{core::sql_compat::current_timestamp, param};
 pub struct GuestPortalSessionRepository;
 
 impl GuestPortalSessionRepository {
+    /// Revoke a portal session by its hashed bearer token.
+    pub async fn delete_session(pool: &DbPool, token_hash: &str) -> Result<(), ApiError> {
+        let sql = format!(
+            "DELETE FROM guest_portal_sessions WHERE token_hash = {}",
+            param!(1)
+        );
+        sqlx::query(&sql)
+            .bind(token_hash)
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to revoke guest session: {}", e)))?;
+        Ok(())
+    }
+
     /// Resolve the guest profile linked to an active guest user account.
     pub async fn find_guest_id_for_authenticated_user(
         pool: &DbPool,

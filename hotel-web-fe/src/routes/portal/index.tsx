@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { RouteById } from '../../router/renderRouteFromRegistry';
+import { Navigate } from '../../router';
 
 export const Route = createFileRoute('/portal/')({
-  component: () => <RouteById id="portal-dashboard" />,
+  component: () => <Navigate to="/guest-portal" replace />,
 });

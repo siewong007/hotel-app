@@ -17,7 +17,7 @@ const DashboardRouter: React.FC = () => {
     // The portal establishes its own short-lived session from the authenticated
     // guest account before rendering guest-only features.
     if (!isAdminOrSuper && !isExec && !isEmployee) {
-      navigate('/portal', { replace: true });
+      navigate('/guest-portal', { replace: true });
     }
   }, [isAdminOrSuper, isExec, isEmployee, navigate]);
 

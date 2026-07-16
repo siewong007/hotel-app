@@ -77,13 +77,25 @@ describe('usePortalSessionBootstrap', () => {
     );
   });
 
-  it('redirects a non-guest account instead of leaving a checking spinner', () => {
+  it('flags a signed-in staff account so pages can send it to the admin portal', () => {
     mocks.auth.user = { user_type: 'admin' };
 
     const { result } = renderHook(() => usePortalSessionBootstrap());
 
+    expect(result.current.isStaffAccount).toBe(true);
+    expect(result.current.needsLogin).toBe(false);
+    expect(mocks.createSession).not.toHaveBeenCalled();
+  });
+
+  it('does not restore a portal token without a signed-in guest account', () => {
+    mocks.auth.isAuthenticated = false;
+    mocks.auth.user = { user_type: 'guest' };
+    mocks.portalToken = 'stale-portal-token';
+
+    const { result } = renderHook(() => usePortalSessionBootstrap());
+
+    expect(result.current.token).toBeNull();
     expect(result.current.needsLogin).toBe(true);
-    expect(result.current.status).toBe('opening-portal');
     expect(mocks.createSession).not.toHaveBeenCalled();
   });
 

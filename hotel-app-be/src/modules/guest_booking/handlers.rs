@@ -26,21 +26,40 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+async fn require_read_capacity(limiters: &RateLimiters, guest_id: i64) -> Result<(), ApiError> {
+    let (allowed, retry_after) = limiters
+        .guest_portal_token_read
+        .check_with_retry(format!("guest:{guest_id}"))
+        .await;
+    if allowed {
+        Ok(())
+    } else {
+        Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many portal requests. Please try again in {retry_after} seconds."),
+            retry_after,
+        ))
+    }
+}
+
 pub async fn search_handler(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Query(query): Query<BookingSearchQuery>,
 ) -> Result<Json<Vec<GuestBookingOffer>>, ApiError> {
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    require_read_capacity(&limiters, guest_id).await?;
     Ok(Json(service::search(&pool, guest_id, query).await?))
 }
 
 pub async fn quote_handler(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(request): Json<BookingQuoteRequest>,
 ) -> Result<Json<GuestBookingQuote>, ApiError> {
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    require_read_capacity(&limiters, guest_id).await?;
     Ok(Json(service::quote(&pool, guest_id, request).await?))
 }
 
@@ -138,12 +157,14 @@ fn websocket_token(headers: &HeaderMap) -> Option<&str> {
 pub async fn availability_socket_handler(
     State(pool): State<DbPool>,
     Extension(hub): Extension<AvailabilityHub>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     websocket: WebSocketUpgrade,
 ) -> Result<Response, ApiError> {
     let token = websocket_token(&headers)
         .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
-    guest_portal::require_guest_session_token(token, &pool).await?;
+    let guest_id = guest_portal::require_guest_session_token(token, &pool).await?;
+    require_read_capacity(&limiters, guest_id).await?;
     Ok(websocket
         .protocols(["hotel-guest-availability"])
         .on_upgrade(move |socket| serve_socket(socket, hub)))

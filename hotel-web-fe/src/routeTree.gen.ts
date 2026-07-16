@@ -29,6 +29,7 @@ import { Route as LoyaltyRouteImport } from './routes/loyalty'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
 import { Route as HelpRouteImport } from './routes/help'
+import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as GuestConfigRouteImport } from './routes/guest-config'
 import { Route as EkycAdminRouteImport } from './routes/ekyc-admin'
 import { Route as EkycRouteImport } from './routes/ekyc'
@@ -38,6 +39,7 @@ import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
 import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
+import { Route as AdminPortalRouteImport } from './routes/admin-portal'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal/index'
@@ -148,6 +150,11 @@ const HelpRoute = HelpRouteImport.update({
   path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestPortalRoute = GuestPortalRouteImport.update({
+  id: '/guest-portal',
+  path: '/guest-portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuestConfigRoute = GuestConfigRouteImport.update({
   id: '/guest-config',
   path: '/guest-config',
@@ -191,6 +198,11 @@ const BookingsRoute = BookingsRouteImport.update({
 const AuditLogRoute = AuditLogRouteImport.update({
   id: '/audit-log',
   path: '/audit-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPortalRoute = AdminPortalRouteImport.update({
+  id: '/admin-portal',
+  path: '/admin-portal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SplatRoute = SplatRouteImport.update({
@@ -242,6 +254,7 @@ const GuestCheckinConfirmRoute = GuestCheckinConfirmRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
   '/communications': typeof CommunicationsRoute
@@ -251,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/ekyc': typeof EkycRoute
   '/ekyc-admin': typeof EkycAdminRoute
   '/guest-config': typeof GuestConfigRoute
+  '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRoute
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
@@ -282,6 +296,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
   '/communications': typeof CommunicationsRoute
@@ -291,6 +306,7 @@ export interface FileRoutesByTo {
   '/ekyc': typeof EkycRoute
   '/ekyc-admin': typeof EkycAdminRoute
   '/guest-config': typeof GuestConfigRoute
+  '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRoute
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
@@ -323,6 +339,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
   '/communications': typeof CommunicationsRoute
@@ -332,6 +349,7 @@ export interface FileRoutesById {
   '/ekyc': typeof EkycRoute
   '/ekyc-admin': typeof EkycAdminRoute
   '/guest-config': typeof GuestConfigRoute
+  '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRoute
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
@@ -365,6 +383,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/admin-portal'
     | '/audit-log'
     | '/bookings'
     | '/communications'
@@ -374,6 +393,7 @@ export interface FileRouteTypes {
     | '/ekyc'
     | '/ekyc-admin'
     | '/guest-config'
+    | '/guest-portal'
     | '/help'
     | '/housekeeping'
     | '/login'
@@ -405,6 +425,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/admin-portal'
     | '/audit-log'
     | '/bookings'
     | '/communications'
@@ -414,6 +435,7 @@ export interface FileRouteTypes {
     | '/ekyc'
     | '/ekyc-admin'
     | '/guest-config'
+    | '/guest-portal'
     | '/help'
     | '/housekeeping'
     | '/login'
@@ -445,6 +467,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$'
+    | '/admin-portal'
     | '/audit-log'
     | '/bookings'
     | '/communications'
@@ -454,6 +477,7 @@ export interface FileRouteTypes {
     | '/ekyc'
     | '/ekyc-admin'
     | '/guest-config'
+    | '/guest-portal'
     | '/help'
     | '/housekeeping'
     | '/login'
@@ -486,6 +510,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  AdminPortalRoute: typeof AdminPortalRoute
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRoute
   CommunicationsRoute: typeof CommunicationsRoute
@@ -495,6 +520,7 @@ export interface RootRouteChildren {
   EkycRoute: typeof EkycRoute
   EkycAdminRoute: typeof EkycAdminRoute
   GuestConfigRoute: typeof GuestConfigRoute
+  GuestPortalRoute: typeof GuestPortalRoute
   HelpRoute: typeof HelpRoute
   HousekeepingRoute: typeof HousekeepingRoute
   LoginRoute: typeof LoginRoute
@@ -666,6 +692,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guest-portal': {
+      id: '/guest-portal'
+      path: '/guest-portal'
+      fullPath: '/guest-portal'
+      preLoaderRoute: typeof GuestPortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guest-config': {
       id: '/guest-config'
       path: '/guest-config'
@@ -727,6 +760,13 @@ declare module '@tanstack/react-router' {
       path: '/audit-log'
       fullPath: '/audit-log'
       preLoaderRoute: typeof AuditLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-portal': {
+      id: '/admin-portal'
+      path: '/admin-portal'
+      fullPath: '/admin-portal'
+      preLoaderRoute: typeof AdminPortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$': {
@@ -798,6 +838,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  AdminPortalRoute: AdminPortalRoute,
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRoute,
   CommunicationsRoute: CommunicationsRoute,
@@ -807,6 +848,7 @@ const rootRouteChildren: RootRouteChildren = {
   EkycRoute: EkycRoute,
   EkycAdminRoute: EkycAdminRoute,
   GuestConfigRoute: GuestConfigRoute,
+  GuestPortalRoute: GuestPortalRoute,
   HelpRoute: HelpRoute,
   HousekeepingRoute: HousekeepingRoute,
   LoginRoute: LoginRoute,

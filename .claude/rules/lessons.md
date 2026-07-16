@@ -157,3 +157,9 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 - Wrong: treating the schema append as done after live-apply verification; also the legacy-import test replays the WHOLE schema file then seeds a 1..=28 ledger, so any new section containing a non-idempotent statement (ALTER TABLE ADD COLUMN) fails on replay.
 - Right: after adding `@migration N`, update core/db.rs tests: the 1..=N version-list assert, the applied-count assert, AND rebuild the legacy-import fixture from sections ≤ the old max (filter `sqlite_schema_sections`) so newer sections apply on adoption instead of replaying.
 - Rule: any sqlite_schema.sql `@migration` addition MUST be followed by `cargo test --lib --features sqlite --no-default-features` and updating the three sqlite_resource_tests expectations — grep `1..=` and `applied_versions,` in src/core/db.rs.
+
+## 2026-07-17 — Workflow subagents at top-tier model died on the monthly spend limit; cost-tiering fixed it
+- Trigger: guest-portal review workflow, 8 agents inheriting the main-loop model (fable) all failed with "You've hit your monthly spend limit" after burning ~713k tokens with zero results returned
+- Wrong: launching a wide fan-out with every agent on the session's (top-tier) model; no early abort when the first agent failed
+- Right: relaunch with explicit tiers — haiku for mechanical evidence-gathering reviewers, one opus adjudicator for judgment, sonnet for targeted re-checks — completed 10/10 agents (~1.8M tokens, mostly haiku/sonnet) and the opus adjudicator caught haiku hallucinations (fabricated evidence details) while confirming 20/21 findings; a 1-call haiku "canary" agent at the workflow start makes the spend-limit failure mode cost ~nothing
+- Rule: in Workflow scripts, always set model explicitly per stage (haiku=gather, opus/sonnet=judge) instead of inheriting the session model, and open with a trivial haiku canary agent that aborts the run if it returns null

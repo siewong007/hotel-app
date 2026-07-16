@@ -1,14 +1,11 @@
-export type IndexExperience = 'salim-inn-model' | 'staff-dashboard';
+export type IndexExperience = 'salim-inn-model';
 
 /**
- * The public model is the home experience for signed-out visitors and guests.
- * Only authenticated staff accounts enter the operational dashboard at `/`.
+ * The index route ("/") always shows the public Salim Inn experience — signed
+ * in or not. A signed-in visitor keeps their session on the index page; its
+ * header links send guest accounts to /guest-portal and staff accounts to
+ * /admin-portal (see salim-inn/index.html's `?account=` handling).
  */
-export function resolveIndexExperience(
-  isAuthenticated: boolean,
-  userType: 'admin' | 'guest' | undefined,
-): IndexExperience {
-  return isAuthenticated && userType !== 'guest'
-    ? 'staff-dashboard'
-    : 'salim-inn-model';
+export function resolveIndexExperience(): IndexExperience {
+  return 'salim-inn-model';
 }

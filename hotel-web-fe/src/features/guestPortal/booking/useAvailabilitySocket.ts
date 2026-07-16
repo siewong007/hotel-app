@@ -16,6 +16,7 @@ export function useAvailabilitySocket(
     let socket: WebSocket | null = null;
     let reconnectTimer: number | undefined;
     let stopped = false;
+    let reconnectAttempts = 0;
 
     const connect = () => {
       if (stopped) return;
@@ -24,6 +25,7 @@ export function useAvailabilitySocket(
         token,
       ]);
       socket.onmessage = (message) => {
+        reconnectAttempts = 0;
         try {
           const event = JSON.parse(String(message.data)) as AvailabilityEvent;
           if (event.event_type === 'availability_changed') {
@@ -35,7 +37,10 @@ export function useAvailabilitySocket(
       };
       socket.onclose = () => {
         if (!stopped) {
-          reconnectTimer = window.setTimeout(connect, 2000);
+          const backoffMs = Math.min(30_000, 1_000 * 2 ** reconnectAttempts);
+          const jitterMs = Math.floor(Math.random() * 500);
+          reconnectAttempts += 1;
+          reconnectTimer = window.setTimeout(connect, backoffMs + jitterMs);
         }
       };
     };
