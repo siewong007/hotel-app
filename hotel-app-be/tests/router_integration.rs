@@ -384,6 +384,102 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn guest_booking_retry_returns_the_original_booking_without_duplicate_side_effects() {
+        let pool = common::setup_test_db().await;
+        let guest_id = 920_103;
+        insert_guest(&pool, guest_id).await;
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status, is_active)
+             VALUES (920103, 'PORTAL-103', 1, 'available', 1)",
+        )
+        .execute(&pool)
+        .await
+        .expect("test room should be inserted");
+        let portal_token = create_guest_portal_token(&pool, guest_id).await;
+        let base_url = spawn_app(pool.clone()).await;
+        let client = reqwest::Client::new();
+        let check_in = (Utc::now().date_naive() + Duration::days(10)).to_string();
+        let check_out = (Utc::now().date_naive() + Duration::days(12)).to_string();
+
+        let quote_response = client
+            .post(format!("{base_url}/api/guest-portal/me/booking-quote"))
+            .bearer_auth(&portal_token)
+            .json(&serde_json::json!({
+                "room_type_id": 1,
+                "check_in_date": check_in.clone(),
+                "check_out_date": check_out.clone(),
+                "adults": 1,
+                "children": 0
+            }))
+            .send()
+            .await
+            .expect("quote request should complete");
+        assert_eq!(quote_response.status(), reqwest::StatusCode::OK);
+        let quote: Value = quote_response.json().await.expect("quote should be JSON");
+
+        let create_body = serde_json::json!({
+            "client_request_id": "portal-retry-920103",
+            "room_type_id": 1,
+            "check_in_date": check_in,
+            "check_out_date": check_out,
+            "adults": 1,
+            "children": 0,
+            "expected_total": quote["total_amount"],
+            "special_requests": "Quiet room, please",
+            "cleaning_preference": false
+        });
+        let first_response = client
+            .post(format!("{base_url}/api/guest-portal/me/bookings"))
+            .bearer_auth(&portal_token)
+            .json(&create_body)
+            .send()
+            .await
+            .expect("first create request should complete");
+        assert_eq!(first_response.status(), reqwest::StatusCode::OK);
+        let first: Value = first_response
+            .json()
+            .await
+            .expect("first confirmation should be JSON");
+
+        let retry_response = client
+            .post(format!("{base_url}/api/guest-portal/me/bookings"))
+            .bearer_auth(&portal_token)
+            .json(&create_body)
+            .send()
+            .await
+            .expect("retry create request should complete");
+        assert_eq!(retry_response.status(), reqwest::StatusCode::OK);
+        let retry: Value = retry_response
+            .json()
+            .await
+            .expect("retry confirmation should be JSON");
+
+        assert_eq!(retry["booking_id"], first["booking_id"]);
+        assert_eq!(retry["booking_number"], first["booking_number"]);
+        let booking_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM bookings
+             WHERE guest_id = ?1 AND portal_request_id = 'portal-retry-920103'",
+        )
+        .bind(guest_id)
+        .fetch_one(&pool)
+        .await
+        .expect("booking count should load");
+        assert_eq!(booking_count, 1);
+        let confirmation_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM email_deliveries
+             WHERE idempotency_key = ?1",
+        )
+        .bind(format!(
+            "booking-confirmation:{}",
+            first["booking_id"].as_i64().expect("numeric booking id")
+        ))
+        .fetch_one(&pool)
+        .await
+        .expect("confirmation count should load");
+        assert_eq!(confirmation_count, 1);
+    }
+
+    #[tokio::test]
     async fn admin_promotion_and_voucher_routes_require_their_permissions() {
         let pool = common::setup_test_db().await;
         let user_id = 920_102;

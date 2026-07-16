@@ -42,6 +42,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal/index'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
 import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
+import { Route as PortalBookRouteImport } from './routes/portal/book'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
@@ -211,6 +212,11 @@ const UnsubscribeTokenRoute = UnsubscribeTokenRouteImport.update({
   path: '/unsubscribe/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalBookRoute = PortalBookRouteImport.update({
+  id: '/portal/book',
+  path: '/portal/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
   id: '/guest-checkin/verify',
   path: '/guest-checkin/verify',
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
   '/portal/': typeof PortalIndexRoute
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin': typeof GuestCheckinIndexRoute
   '/portal': typeof PortalIndexRoute
@@ -338,6 +346,7 @@ export interface FileRoutesById {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
   '/portal/': typeof PortalIndexRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin/'
     | '/portal/'
@@ -416,6 +426,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin'
     | '/portal'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin/'
     | '/portal/'
@@ -493,6 +505,7 @@ export interface RootRouteChildren {
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
   GuestCheckinFormRoute: typeof GuestCheckinFormRoute
   GuestCheckinVerifyRoute: typeof GuestCheckinVerifyRoute
+  PortalBookRoute: typeof PortalBookRoute
   UnsubscribeTokenRoute: typeof UnsubscribeTokenRoute
   GuestCheckinIndexRoute: typeof GuestCheckinIndexRoute
   PortalIndexRoute: typeof PortalIndexRoute
@@ -731,6 +744,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UnsubscribeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal/book': {
+      id: '/portal/book'
+      path: '/portal/book'
+      fullPath: '/portal/book'
+      preLoaderRoute: typeof PortalBookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guest-checkin/verify': {
       id: '/guest-checkin/verify'
       path: '/guest-checkin/verify'
@@ -789,6 +809,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,
   GuestCheckinFormRoute: GuestCheckinFormRoute,
   GuestCheckinVerifyRoute: GuestCheckinVerifyRoute,
+  PortalBookRoute: PortalBookRoute,
   UnsubscribeTokenRoute: UnsubscribeTokenRoute,
   GuestCheckinIndexRoute: GuestCheckinIndexRoute,
   PortalIndexRoute: PortalIndexRoute,

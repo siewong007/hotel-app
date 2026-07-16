@@ -192,6 +192,10 @@ pub struct RateLimiters {
     pub guest_portal_support_mutation: KeyedRateLimiter,
     /// Shared ceiling for guest support mutations from one origin IP.
     pub guest_portal_support_mutation_ip: RateLimiter,
+    /// Authenticated direct-booking submissions, keyed by guest.
+    pub guest_portal_booking_create: KeyedRateLimiter,
+    /// Shared ceiling for direct-booking submissions from one origin IP.
+    pub guest_portal_booking_create_ip: RateLimiter,
     /// General API: 200 per minute per IP (lenient - normal usage)
     #[allow(dead_code)]
     pub api: RateLimiter,
@@ -215,6 +219,8 @@ impl RateLimiters {
             guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
+            guest_portal_booking_create: KeyedRateLimiter::new(RateLimitConfig::new(10, 900)),
+            guest_portal_booking_create_ip: RateLimiter::new(RateLimitConfig::new(30, 900)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }

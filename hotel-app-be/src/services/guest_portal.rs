@@ -228,6 +228,13 @@ pub async fn require_guest_session(headers: &HeaderMap, pool: &DbPool) -> Result
         .filter(|t| !t.is_empty())
         .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
 
+    require_guest_session_token(token, pool).await
+}
+
+/// Resolve a raw portal token for transports that cannot set an Authorization
+/// header, such as the browser WebSocket API. The token is still supplied in a
+/// header (`Sec-WebSocket-Protocol`), never in the URL.
+pub async fn require_guest_session_token(token: &str, pool: &DbPool) -> Result<i64, ApiError> {
     let token_hash = hash_session_token(token);
     GuestPortalSessionRepository::touch_session_guest_id(pool, &token_hash)
         .await?

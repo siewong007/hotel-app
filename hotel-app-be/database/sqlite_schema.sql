@@ -1999,3 +1999,158 @@ CREATE INDEX IF NOT EXISTS idx_passkeys_user_id
     WHERE is_active = 1;
 CREATE INDEX IF NOT EXISTS idx_passkey_challenges_expires
     ON passkey_challenges (expires_at);
+
+-- @migration 31 guest_portal_direct_booking
+ALTER TABLE bookings ADD COLUMN portal_request_id TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_guest_portal_request
+    ON bookings (guest_id, portal_request_id)
+    WHERE portal_request_id IS NOT NULL;
+
+-- SQLite cannot alter CHECK constraints in place. Rebuild the outbox so
+-- transactional booking confirmations can use the same durable worker.
+DROP TRIGGER IF EXISTS update_email_deliveries_updated_at;
+DROP INDEX IF EXISTS idx_email_deliveries_claim;
+DROP INDEX IF EXISTS idx_email_deliveries_campaign;
+DROP INDEX IF EXISTS idx_email_deliveries_guest;
+
+CREATE TABLE email_deliveries_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER REFERENCES email_campaigns(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (
+        kind IN ('campaign', 'birthday_voucher', 'booking_confirmation')
+    ),
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    topic TEXT NOT NULL CHECK (
+        topic IN ('announcement', 'promotion', 'birthday_voucher', 'booking_confirmation')
+    ),
+    recipient_email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    body_text TEXT,
+    voucher_id INTEGER REFERENCES vouchers(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'queued' CHECK (
+        status IN ('queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled')
+    ),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+    lease_owner TEXT,
+    lease_expires_at TEXT,
+    provider_message_id TEXT,
+    idempotency_key TEXT NOT NULL,
+    last_error TEXT,
+    sent_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT email_deliveries_attempts_valid CHECK (attempts >= 0 AND max_attempts >= 1),
+    CONSTRAINT email_deliveries_kind_campaign_link CHECK (
+        (kind = 'campaign' AND campaign_id IS NOT NULL)
+        OR (kind IN ('birthday_voucher', 'booking_confirmation') AND campaign_id IS NULL)
+    ),
+    CONSTRAINT uq_email_deliveries_idempotency UNIQUE (idempotency_key)
+);
+
+INSERT INTO email_deliveries_new (
+    id, campaign_id, kind, guest_id, topic, recipient_email, subject,
+    body_html, body_text, voucher_id, status, attempts, max_attempts,
+    next_attempt_at, lease_owner, lease_expires_at, provider_message_id,
+    idempotency_key, last_error, sent_at, created_at, updated_at
+)
+SELECT
+    id, campaign_id, kind, guest_id, topic, recipient_email, subject,
+    body_html, body_text, voucher_id, status, attempts, max_attempts,
+    next_attempt_at, lease_owner, lease_expires_at, provider_message_id,
+    idempotency_key, last_error, sent_at, created_at, updated_at
+FROM email_deliveries;
+
+DROP TABLE email_deliveries;
+ALTER TABLE email_deliveries_new RENAME TO email_deliveries;
+
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_claim
+    ON email_deliveries (status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_campaign
+    ON email_deliveries (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_guest
+    ON email_deliveries (guest_id, created_at);
+
+CREATE TRIGGER IF NOT EXISTS update_email_deliveries_updated_at
+AFTER UPDATE ON email_deliveries
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE email_deliveries SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+-- @migration 32 guest_booking_rate_parity
+-- Direct guest booking quotes use the same room type presentation and rate
+-- plan resources in online PostgreSQL and offline SQLite modes.
+ALTER TABLE room_types ADD COLUMN images TEXT;
+ALTER TABLE room_types ADD COLUMN features TEXT;
+ALTER TABLE bookings ADD COLUMN currency TEXT NOT NULL DEFAULT 'MYR';
+
+CREATE TABLE IF NOT EXISTS rate_plans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE NOT NULL,
+    code TEXT UNIQUE NOT NULL,
+    description TEXT,
+    plan_type TEXT DEFAULT 'standard' CHECK (
+        plan_type IN ('standard', 'seasonal', 'promotional', 'corporate', 'group', 'package')
+    ),
+    adjustment_type TEXT DEFAULT 'percentage' CHECK (
+        adjustment_type IN ('percentage', 'fixed', 'override')
+    ),
+    adjustment_value REAL,
+    valid_from TEXT,
+    valid_to TEXT,
+    applies_monday INTEGER DEFAULT 1,
+    applies_tuesday INTEGER DEFAULT 1,
+    applies_wednesday INTEGER DEFAULT 1,
+    applies_thursday INTEGER DEFAULT 1,
+    applies_friday INTEGER DEFAULT 1,
+    applies_saturday INTEGER DEFAULT 1,
+    applies_sunday INTEGER DEFAULT 1,
+    min_nights INTEGER DEFAULT 1,
+    max_nights INTEGER,
+    min_advance_booking INTEGER DEFAULT 0,
+    max_advance_booking INTEGER,
+    blackout_dates TEXT,
+    is_active INTEGER DEFAULT 1,
+    priority INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    created_by INTEGER REFERENCES users(id),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS room_rates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rate_plan_id INTEGER NOT NULL REFERENCES rate_plans(id) ON DELETE CASCADE,
+    room_type_id INTEGER NOT NULL REFERENCES room_types(id) ON DELETE CASCADE,
+    price REAL NOT NULL,
+    effective_from TEXT NOT NULL,
+    effective_to TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE (rate_plan_id, room_type_id, effective_from)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_plans_dates
+    ON rate_plans (valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_rate_plans_active
+    ON rate_plans (is_active)
+    WHERE is_active = 1;
+CREATE INDEX IF NOT EXISTS idx_rate_plans_type
+    ON rate_plans (plan_type);
+CREATE INDEX IF NOT EXISTS idx_room_rates_plan
+    ON room_rates (rate_plan_id);
+CREATE INDEX IF NOT EXISTS idx_room_rates_type
+    ON room_rates (room_type_id);
+CREATE INDEX IF NOT EXISTS idx_room_rates_dates
+    ON room_rates (effective_from, effective_to);
+
+CREATE TRIGGER IF NOT EXISTS update_rate_plans_updated_at
+AFTER UPDATE ON rate_plans
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE rate_plans SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
