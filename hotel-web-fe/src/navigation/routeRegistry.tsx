@@ -85,6 +85,7 @@ const HousekeepingPage = lazyRoute(() => import('../features/housekeeping'));
 const SupportManagementPage = lazyRoute(() => import('../features/support'));
 const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPage'));
 const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
+const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'unauth' },
@@ -332,6 +333,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: LocalOfferIcon,
     breadcrumbLabel: 'Promotions & Vouchers',
     navLabel: 'Promotions',
+    navGroup: 'admin',
+    accessControlled: true,
+  },
+  {
+    id: 'communications',
+    path: '/communications',
+    component: CommunicationsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: EventNoteIcon,
+    breadcrumbLabel: 'Communications',
+    navLabel: 'Communications',
     navGroup: 'admin',
     accessControlled: true,
   },

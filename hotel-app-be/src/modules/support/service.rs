@@ -337,6 +337,7 @@ pub async fn send_staff_message(
     let current = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
+    let is_manager = can_manage(pool, actor_id).await?;
     if let Some(client_message_id) = request.client_message_id.as_deref()
         && SupportRepository::client_message_exists(
             pool,
@@ -346,6 +347,10 @@ pub async fn send_staff_message(
         )
         .await?
     {
+        // A retry must not become a backdoor to the full staff detail after
+        // the conversation was handed to someone else. A manager can always
+        // inspect it; everyone else must still be the current assignee.
+        ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
         return staff_detail(pool, conversation_id).await;
     }
     if current.summary.status == "closed" || current.summary.status == "resolved" {
@@ -353,7 +358,6 @@ pub async fn send_staff_message(
             "Reopen this conversation before sending another reply".to_string(),
         ));
     }
-    let is_manager = can_manage(pool, actor_id).await?;
     if let Some(assignee) = current.summary.assigned_to_user_id {
         ensure_owner_or_manager(Some(assignee), actor_id, is_manager)?;
     }
@@ -433,9 +437,16 @@ pub async fn apply_staff_action(
     let current = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
+    let is_manager = can_manage(pool, actor_id).await?;
     if let Some(key) = input.client_action_id.as_deref()
         && SupportRepository::action_key_exists(pool, conversation_id, actor_id, key).await?
     {
+        // These actions are normally restricted to the assigned staff member
+        // (or a manager). Preserve idempotency for an authorized retry without
+        // exposing staff detail after a reassignment.
+        if matches!(action.as_str(), "release" | "resolve" | "add_internal_note") {
+            ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
+        }
         return staff_detail(pool, conversation_id).await;
     }
     let expected_version = input.expected_version.ok_or_else(|| {
@@ -447,7 +458,6 @@ pub async fn apply_staff_action(
         ));
     }
 
-    let is_manager = can_manage(pool, actor_id).await?;
     let reason = validation::sanitize_optional_reason(input.reason)?;
     let mut mutation = ConversationMutation::from(&current);
     mutation.expected_version = Some(expected_version);
