@@ -231,9 +231,17 @@ pub async fn tick_birthdays(
 
     let mut issued = 0;
     loop {
-        let targets =
-            Repo::birthday_targets(pool, m1, d1, m2, d2, &source_reference, EXPANSION_BATCH)
-                .await?;
+        let targets = Repo::birthday_targets(
+            pool,
+            m1,
+            d1,
+            m2,
+            d2,
+            &source_reference,
+            promotion_id,
+            EXPANSION_BATCH,
+        )
+        .await?;
         if targets.is_empty() {
             break;
         }

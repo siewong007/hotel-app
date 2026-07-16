@@ -34,6 +34,14 @@ fn status_check_blocks(sql: &str) -> Vec<String> {
     blocks
 }
 
+fn is_communications_lifecycle_status(block: &str) -> bool {
+    // Campaigns and individual deliveries can be deliberately stopped. Their
+    // `cancelled` terminal state is not one of the legacy reservation/payment
+    // values this regression guard is designed to remove.
+    block.contains("'draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed'")
+        || block.contains("'queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled'")
+}
+
 #[test]
 fn active_postgres_status_constraints_do_not_accept_cancelled() {
     let blocks = status_check_blocks(POSTGRES_SCHEMA);
@@ -44,7 +52,8 @@ fn active_postgres_status_constraints_do_not_accept_cancelled() {
 
     for block in blocks {
         assert!(
-            !block.contains("cancelled") && !block.contains("comp_cancelled"),
+            is_communications_lifecycle_status(&block)
+                || (!block.contains("cancelled") && !block.contains("comp_cancelled")),
             "active status constraint still accepts legacy cancelled status:\n{block}"
         );
     }

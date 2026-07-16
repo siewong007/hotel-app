@@ -22,7 +22,7 @@ use super::models::{
 };
 use super::repository::CommunicationsRepository as Repo;
 use super::tokens;
-use super::transport::{OutgoingEmail, Transport};
+use super::transport::{OutgoingEmail, SmtpConfig, Transport};
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -37,7 +37,9 @@ fn normalize_page(page: Option<i64>, page_size: Option<i64>) -> (i64, i64) {
 }
 
 fn email_transport_configured() -> bool {
-    std::env::var("SMTP_HOST").is_ok_and(|v| !v.trim().is_empty())
+    // Keep scheduling readiness in lockstep with Transport::from_env(): a
+    // host alone is insufficient because a sender address is mandatory.
+    SmtpConfig::from_env().is_some()
 }
 
 async fn require_campaign(pool: &DbPool, id: i64) -> Result<EmailCampaign, ApiError> {

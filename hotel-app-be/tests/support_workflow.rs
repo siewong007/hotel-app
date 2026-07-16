@@ -693,7 +693,10 @@ mod sqlite_tests {
             .await
             .unwrap();
         assert!(!disabled_list.enabled);
-        assert_eq!(disabled_list.total, 1, "existing conversations remain readable");
+        assert_eq!(
+            disabled_list.total, 1,
+            "existing conversations remain readable"
+        );
 
         let disabled_intake = service::create_guest_conversation(
             &pool,
@@ -735,16 +738,10 @@ mod sqlite_tests {
         let mut resolve = action("resolve", claimed.conversation.summary.version);
         resolve.resolution_code = Some("maintenance_dispatched".to_string());
         resolve.resolution_summary = Some("Engineering has been notified.".to_string());
-        let resolved = service::apply_staff_action(
-            &pool,
-            1,
-            created.conversation.id,
-            resolve,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let resolved =
+            service::apply_staff_action(&pool, 1, created.conversation.id, resolve, None, None)
+                .await
+                .unwrap();
 
         let guest_reply = service::send_guest_message(
             &pool,
@@ -773,7 +770,8 @@ mod sqlite_tests {
 
         let mut resolve_again = action("resolve", guest_reply.conversation.version);
         resolve_again.resolution_code = Some("maintenance_rechecked".to_string());
-        resolve_again.resolution_summary = Some("Engineering completed a follow-up check.".to_string());
+        resolve_again.resolution_summary =
+            Some("Engineering completed a follow-up check.".to_string());
         let resolved_again = service::apply_staff_action(
             &pool,
             1,
@@ -785,15 +783,10 @@ mod sqlite_tests {
         .await
         .unwrap();
         assert_eq!(resolved_again.conversation.summary.status, "resolved");
-        let explicitly_reopened = service::reopen_guest_conversation(
-            &pool,
-            9852,
-            created.conversation.id,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let explicitly_reopened =
+            service::reopen_guest_conversation(&pool, 9852, created.conversation.id, None, None)
+                .await
+                .unwrap();
         assert_eq!(explicitly_reopened.conversation.status, "waiting_for_staff");
         assert_eq!(
             service::get_staff_conversation(&pool, created.conversation.id)
@@ -803,18 +796,12 @@ mod sqlite_tests {
                 .reopen_count,
             2
         );
-        let reopen_replay = service::reopen_guest_conversation(
-            &pool,
-            9852,
-            created.conversation.id,
-            None,
-            None,
-        )
-        .await
-        .unwrap();
+        let reopen_replay =
+            service::reopen_guest_conversation(&pool, 9852, created.conversation.id, None, None)
+                .await
+                .unwrap();
         assert_eq!(
-            reopen_replay.conversation.version,
-            explicitly_reopened.conversation.version,
+            reopen_replay.conversation.version, explicitly_reopened.conversation.version,
             "an already-open conversation is a safe reopen retry"
         );
 
@@ -839,7 +826,8 @@ mod sqlite_tests {
         .unwrap();
         let mut expired_resolve = action("resolve", expired_claim.conversation.summary.version);
         expired_resolve.resolution_code = Some("completed".to_string());
-        expired_resolve.resolution_summary = Some("The original request has been completed.".to_string());
+        expired_resolve.resolution_summary =
+            Some("The original request has been completed.".to_string());
         let expired_resolved = service::apply_staff_action(
             &pool,
             1,
@@ -862,15 +850,10 @@ mod sqlite_tests {
             .await
             .unwrap();
         assert!(!expired_detail.conversation.can_reopen);
-        let expired_reopen = service::reopen_guest_conversation(
-            &pool,
-            9852,
-            expired.conversation.id,
-            None,
-            None,
-        )
-        .await
-        .unwrap_err();
+        let expired_reopen =
+            service::reopen_guest_conversation(&pool, 9852, expired.conversation.id, None, None)
+                .await
+                .unwrap_err();
         assert!(matches!(expired_reopen, ApiError::Conflict(_)));
         let expired_message = service::send_guest_message(
             &pool,
@@ -899,7 +882,7 @@ mod sqlite_tests {
             9854,
             "support_writer_9854",
             true,
-            &["support:write", "support:assign"],
+            &["support:read", "support:write", "support:assign"],
         )
         .await;
         seed_staff_member(
@@ -951,10 +934,24 @@ mod sqlite_tests {
         .await
         .unwrap();
         assert_eq!(
-            claim_replay.conversation.summary.version,
-            claimed.conversation.summary.version,
+            claim_replay.conversation.summary.version, claimed.conversation.summary.version,
             "replaying an action key must not apply the claim twice"
         );
+        let mut mismatched_action_key = action("escalate", claimed.conversation.summary.version);
+        mismatched_action_key.client_action_id =
+            Some(format!("claim-{}", created.conversation.version));
+        mismatched_action_key.reason = Some("This must not reuse a claim key.".to_string());
+        let mismatched_action_key_error = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            mismatched_action_key,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(mismatched_action_key_error, ApiError::Conflict(_)));
 
         let released = service::apply_staff_action(
             &pool,
@@ -1039,8 +1036,11 @@ mod sqlite_tests {
         )
         .await
         .unwrap();
-        assert_eq!(released_by_writer.conversation.summary.assigned_to_user_id, None);
-        let release_replay_after_handoff = service::apply_staff_action(
+        assert_eq!(
+            released_by_writer.conversation.summary.assigned_to_user_id,
+            None
+        );
+        let release_replay = service::apply_staff_action(
             &pool,
             9854,
             created.conversation.id,
@@ -1049,13 +1049,15 @@ mod sqlite_tests {
             None,
         )
         .await
-        .unwrap_err();
-        assert!(matches!(release_replay_after_handoff, ApiError::Conflict(_)));
-
-        let mut assign_replacement = action(
-            "assign",
+        .unwrap();
+        assert_eq!(
+            release_replay.conversation.summary.version,
             released_by_writer.conversation.summary.version,
+            "a lost response to a successful release must still replay idempotently"
         );
+
+        let mut assign_replacement =
+            action("assign", released_by_writer.conversation.summary.version);
         assign_replacement.assignee_id = Some(9855);
         let reassigned = service::apply_staff_action(
             &pool,
@@ -1067,6 +1069,22 @@ mod sqlite_tests {
         )
         .await
         .unwrap();
+        let cross_staff_message_key = service::send_staff_message(
+            &pool,
+            9855,
+            created.conversation.id,
+            SupportMessageRequest {
+                message: "I am reviewing this for you now.".to_string(),
+                client_message_id: Some("staff-reply-9854".to_string()),
+                expected_version: Some(reassigned.conversation.summary.version),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(cross_staff_message_key, ApiError::Conflict(_)));
+
         let replay_after_reassignment = service::send_staff_message(
             &pool,
             9854,
@@ -1080,8 +1098,12 @@ mod sqlite_tests {
             None,
         )
         .await
-        .unwrap_err();
-        assert!(matches!(replay_after_reassignment, ApiError::Forbidden(_)));
+        .unwrap();
+        assert_eq!(
+            replay_after_reassignment.conversation.summary.version,
+            reassigned.conversation.summary.version,
+            "a read-capable author may retry after a handoff without duplicating the message"
+        );
 
         let note_replay_after_reassignment = service::apply_staff_action(
             &pool,
@@ -1092,8 +1114,12 @@ mod sqlite_tests {
             None,
         )
         .await
-        .unwrap_err();
-        assert!(matches!(note_replay_after_reassignment, ApiError::Forbidden(_)));
+        .unwrap();
+        assert_eq!(
+            note_replay_after_reassignment.conversation.summary.version,
+            reassigned.conversation.summary.version,
+            "a read-capable author may retry an internal note without duplicating it"
+        );
 
         let no_reason = service::apply_staff_action(
             &pool,
@@ -1109,10 +1135,7 @@ mod sqlite_tests {
 
         let mut escalated = reassigned;
         for expected_level in 1..=4 {
-            let mut escalation = action(
-                "escalate",
-                escalated.conversation.summary.version,
-            );
+            let mut escalation = action("escalate", escalated.conversation.summary.version);
             escalation.reason = Some(format!("Escalation step {expected_level}"));
             escalated = service::apply_staff_action(
                 &pool,
@@ -1164,17 +1187,73 @@ mod sqlite_tests {
 
         let mut priority = action("set_priority", escalated.conversation.summary.version);
         priority.priority = Some("high".to_string());
-        let reprioritized = service::apply_staff_action(
+        let reprioritized =
+            service::apply_staff_action(&pool, 1, created.conversation.id, priority, None, None)
+                .await
+                .unwrap();
+        assert_eq!(reprioritized.conversation.summary.priority, "high");
+    }
+
+    #[tokio::test]
+    async fn action_only_replays_cannot_be_used_as_staff_detail_reads_after_a_handoff() {
+        let _test_lock = begin_support_workflow_test().await;
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 9858, "support-action-only@example.com").await;
+        seed_staff_member(
             &pool,
-            1,
-            created.conversation.id,
-            priority,
+            9859,
+            "support_dispatch_only_9859",
+            true,
+            &["support:assign"],
+        )
+        .await;
+        seed_staff_member(
+            &pool,
+            9860,
+            "support_reader_9860",
+            true,
+            &["support:read", "support:write"],
+        )
+        .await;
+
+        let created = service::create_guest_conversation(
+            &pool,
+            9858,
+            create_request("create-9858-action-only"),
             None,
             None,
         )
         .await
         .unwrap();
-        assert_eq!(reprioritized.conversation.summary.priority, "high");
+        let claim_request = action("claim", created.conversation.version);
+        let claimed = service::apply_staff_action(
+            &pool,
+            9859,
+            created.conversation.id,
+            claim_request.clone(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let mut handoff = action("assign", claimed.conversation.summary.version);
+        handoff.assignee_id = Some(9860);
+        service::apply_staff_action(&pool, 1, created.conversation.id, handoff, None, None)
+            .await
+            .unwrap();
+
+        let replay_after_handoff = service::apply_staff_action(
+            &pool,
+            9859,
+            created.conversation.id,
+            claim_request,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(replay_after_handoff, ApiError::Forbidden(_)));
     }
 
     #[tokio::test]

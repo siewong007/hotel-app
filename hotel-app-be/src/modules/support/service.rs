@@ -337,27 +337,37 @@ pub async fn send_staff_message(
     let current = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
-    let is_manager = can_manage(pool, actor_id).await?;
-    if let Some(client_message_id) = request.client_message_id.as_deref()
-        && SupportRepository::client_message_exists(
+    if let Some(client_message_id) = request.client_message_id.as_deref() {
+        match SupportRepository::staff_client_message_belongs_to_actor(
             pool,
             conversation_id,
-            "staff",
+            actor_id,
             client_message_id,
         )
         .await?
-    {
-        // A retry must not become a backdoor to the full staff detail after
-        // the conversation was handed to someone else. A manager can always
-        // inspect it; everyone else must still be the current assignee.
-        ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
-        return staff_detail(pool, conversation_id).await;
+        {
+            Some(true) => {
+                // A message retry returns the full staff detail. Require the
+                // same read access that is needed to inspect that detail so a
+                // write-only account cannot use a known retry key as a read
+                // endpoint after assignment changes.
+                check_permission(pool, actor_id, "support:read").await?;
+                return staff_detail(pool, conversation_id).await;
+            }
+            Some(false) => {
+                return Err(ApiError::Conflict(
+                    "This message idempotency key belongs to another staff member".to_string(),
+                ));
+            }
+            None => {}
+        }
     }
     if current.summary.status == "closed" || current.summary.status == "resolved" {
         return Err(ApiError::Conflict(
             "Reopen this conversation before sending another reply".to_string(),
         ));
     }
+    let is_manager = can_manage(pool, actor_id).await?;
     if let Some(assignee) = current.summary.assigned_to_user_id {
         ensure_owner_or_manager(Some(assignee), actor_id, is_manager)?;
     }
@@ -437,17 +447,25 @@ pub async fn apply_staff_action(
     let current = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
-    let is_manager = can_manage(pool, actor_id).await?;
-    if let Some(key) = input.client_action_id.as_deref()
-        && SupportRepository::action_key_exists(pool, conversation_id, actor_id, key).await?
-    {
-        // These actions are normally restricted to the assigned staff member
-        // (or a manager). Preserve idempotency for an authorized retry without
-        // exposing staff detail after a reassignment.
-        if matches!(action.as_str(), "release" | "resolve" | "add_internal_note") {
-            ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
+    if let Some(key) = input.client_action_id.as_deref() {
+        if let Some(stored_action) =
+            SupportRepository::find_action_key_action(pool, conversation_id, actor_id, key).await?
+        {
+            if stored_action != action {
+                return Err(ApiError::Conflict(
+                    "This action idempotency key was already used for a different action"
+                        .to_string(),
+                ));
+            }
+
+            // As with message retries, returning the current full detail is
+            // only safe for a staff member who can normally read it. This
+            // preserves a lost-response retry (including release) for the UI
+            // while preventing an action-only account from turning a stale
+            // key into a detail read after a handoff.
+            check_permission(pool, actor_id, "support:read").await?;
+            return staff_detail(pool, conversation_id).await;
         }
-        return staff_detail(pool, conversation_id).await;
     }
     let expected_version = input.expected_version.ok_or_else(|| {
         ApiError::BadRequest("A conversation version is required for support actions".to_string())
@@ -458,6 +476,7 @@ pub async fn apply_staff_action(
         ));
     }
 
+    let is_manager = can_manage(pool, actor_id).await?;
     let reason = validation::sanitize_optional_reason(input.reason)?;
     let mut mutation = ConversationMutation::from(&current);
     mutation.expected_version = Some(expected_version);
@@ -855,10 +874,10 @@ pub async fn send_guest_message(
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
     if let Some(client_message_id) = request.client_message_id.as_deref()
-        && SupportRepository::client_message_exists(
+        && SupportRepository::guest_client_message_exists(
             pool,
             conversation_id,
-            "guest",
+            guest_id,
             client_message_id,
         )
         .await?
