@@ -306,7 +306,7 @@ mod sqlite_resource_tests {
     fn schema_resource_has_strictly_ordered_legacy_versions() {
         let sections = sqlite_schema_sections(SQLITE_SCHEMA).expect("parse SQLite schema sections");
         let versions: Vec<i64> = sections.iter().map(|section| section.version).collect();
-        assert_eq!(versions, (1..=28).collect::<Vec<_>>());
+        assert_eq!(versions, (1..=29).collect::<Vec<_>>());
     }
 
     #[tokio::test]
@@ -325,7 +325,7 @@ mod sqlite_resource_tests {
                 .fetch_one(&pool)
                 .await
                 .expect("count applied versions");
-        assert_eq!(applied_versions, 28);
+        assert_eq!(applied_versions, 29);
 
         let daily_rates_type: Option<String> = sqlx::query_scalar(
             "SELECT type FROM pragma_table_info('bookings') WHERE name = 'daily_rates'",
@@ -347,7 +347,17 @@ mod sqlite_resource_tests {
     #[tokio::test]
     async fn successful_legacy_sqlx_versions_are_imported_without_schema_replay() {
         let pool = memory_pool().await;
-        sqlx::raw_sql(SQLITE_SCHEMA)
+        // A legacy database contains only the sections that existed when the
+        // SQLx ledger was in use (1..=28); later sections (29+) must apply on
+        // adoption without replaying the imported ones.
+        let sections = sqlite_schema_sections(SQLITE_SCHEMA).expect("parse SQLite schema sections");
+        let legacy_sql: String = sections
+            .iter()
+            .filter(|section| section.version <= 28)
+            .map(|section| section.sql.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+        sqlx::raw_sql(&legacy_sql)
             .execute(&pool)
             .await
             .expect("create schema representing an existing database");
@@ -381,7 +391,19 @@ mod sqlite_resource_tests {
                 .fetch_one(&pool)
                 .await
                 .expect("count imported versions");
-        assert_eq!(imported_versions, 28);
+        assert_eq!(imported_versions, 29, "28 imported + section 29 applied");
+
+        let source_reference: Option<String> = sqlx::query_scalar(
+            "SELECT name FROM pragma_table_info('vouchers') WHERE name = 'source_reference'",
+        )
+        .fetch_optional(&pool)
+        .await
+        .expect("inspect vouchers.source_reference");
+        assert_eq!(
+            source_reference.as_deref(),
+            Some("source_reference"),
+            "adoption must apply pending section 29"
+        );
     }
 }
 

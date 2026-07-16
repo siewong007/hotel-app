@@ -1790,3 +1790,175 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_promotion_guest
 -- same JSON payload as text, so this forward-only addition keeps both database
 -- modes aligned for booking creation, editing, night audit, and promotions.
 ALTER TABLE bookings ADD COLUMN daily_rates TEXT;
+
+
+-- @migration 29 communications
+-- Server-owned communications domain mirrored from Postgres section 043:
+-- per-topic subscriptions, append-only consent history, campaigns, a durable
+-- delivery outbox, global suppressions, SQLite parity for email_templates, and
+-- vouchers.source_reference for birthday auto-issuance (partial unique index).
+
+CREATE TABLE IF NOT EXISTS email_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    body_text TEXT,
+    variables TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS notification_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL DEFAULT 'email' CHECK (channel IN ('email')),
+    topic TEXT NOT NULL CHECK (topic IN ('announcement', 'promotion', 'birthday_voucher')),
+    subscribed INTEGER NOT NULL DEFAULT 0 CHECK (subscribed IN (0, 1)),
+    source TEXT,
+    policy_version TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT uq_notification_subscriptions_guest_channel_topic UNIQUE (guest_id, channel, topic)
+);
+
+CREATE TABLE IF NOT EXISTS notification_consent_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL DEFAULT 'email',
+    topic TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('opt_in', 'opt_out')),
+    source TEXT NOT NULL,
+    policy_version TEXT,
+    actor_type TEXT NOT NULL DEFAULT 'guest' CHECK (actor_type IN ('guest', 'staff', 'system')),
+    actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS email_campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    campaign_type TEXT NOT NULL CHECK (campaign_type IN ('announcement', 'promotion')),
+    topic TEXT NOT NULL CHECK (topic IN ('announcement', 'promotion')),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (
+        status IN ('draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed')
+    ),
+    subject TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    body_text TEXT,
+    template_id INTEGER REFERENCES email_templates(id) ON DELETE SET NULL,
+    promotion_id INTEGER REFERENCES promotions(id) ON DELETE RESTRICT,
+    scheduled_at TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    cancelled_at TEXT,
+    total_recipients INTEGER NOT NULL DEFAULT 0,
+    sent_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    cancelled_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT email_campaigns_subject_not_blank CHECK (length(trim(subject)) > 0),
+    CONSTRAINT email_campaigns_promotion_required CHECK (
+        campaign_type <> 'promotion' OR promotion_id IS NOT NULL
+    )
+);
+
+CREATE TABLE IF NOT EXISTS email_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER REFERENCES email_campaigns(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('campaign', 'birthday_voucher')),
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    topic TEXT NOT NULL CHECK (topic IN ('announcement', 'promotion', 'birthday_voucher')),
+    recipient_email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body_html TEXT NOT NULL,
+    body_text TEXT,
+    voucher_id INTEGER REFERENCES vouchers(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'queued' CHECK (
+        status IN ('queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled')
+    ),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+    lease_owner TEXT,
+    lease_expires_at TEXT,
+    provider_message_id TEXT,
+    idempotency_key TEXT NOT NULL,
+    last_error TEXT,
+    sent_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT email_deliveries_attempts_valid CHECK (attempts >= 0 AND max_attempts >= 1),
+    CONSTRAINT email_deliveries_kind_campaign_link CHECK (
+        (kind = 'campaign' AND campaign_id IS NOT NULL)
+        OR (kind = 'birthday_voucher' AND campaign_id IS NULL)
+    ),
+    CONSTRAINT uq_email_deliveries_idempotency UNIQUE (idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS email_suppressions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    reason TEXT NOT NULL CHECK (reason IN ('unsubscribe', 'bounce', 'complaint', 'manual')),
+    source TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CONSTRAINT email_suppressions_email_lower CHECK (email = lower(email))
+);
+
+ALTER TABLE vouchers ADD COLUMN source_reference TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_notification_subscriptions_topic
+    ON notification_subscriptions (channel, topic, subscribed);
+CREATE INDEX IF NOT EXISTS idx_notification_consent_events_guest
+    ON notification_consent_events (guest_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_email_campaigns_status
+    ON email_campaigns (status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_claim
+    ON email_deliveries (status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_campaign
+    ON email_deliveries (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_guest
+    ON email_deliveries (guest_id, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_source_reference
+    ON vouchers (guest_id, source_reference)
+    WHERE source_reference IS NOT NULL;
+
+CREATE TRIGGER IF NOT EXISTS update_notification_subscriptions_updated_at
+AFTER UPDATE ON notification_subscriptions
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE notification_subscriptions SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_email_templates_updated_at
+AFTER UPDATE ON email_templates
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE email_templates SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_email_campaigns_updated_at
+AFTER UPDATE ON email_campaigns
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE email_campaigns SET updated_at = datetime('now') WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS update_email_deliveries_updated_at
+AFTER UPDATE ON email_deliveries
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE email_deliveries SET updated_at = datetime('now') WHERE id = NEW.id;
+END;

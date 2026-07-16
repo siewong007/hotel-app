@@ -272,6 +272,19 @@ mod sqlite_tests {
         seed_guest(&pool, 99721, "promotion-deal-owner@example.com").await;
         let promotion = create_published_deal_promotion(&pool, "summer-deal-voucher").await;
 
+        // An omitted claim limit is unlimited; retain this assertion because a
+        // NULL-to-zero mapping here would silently turn every deal into a
+        // zero-capacity campaign.
+        let stored_limit: Option<i64> =
+            sqlx::query_scalar("SELECT claim_limit FROM promotions WHERE id = ?1")
+                .bind(promotion.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(stored_limit, None);
+        assert_eq!(promotion.claim_limit, None);
+        assert_eq!(promotion.claimed_count, 0);
+
         let catalogue = service::list_guest_promotions(&pool, 99721, query())
             .await
             .unwrap();

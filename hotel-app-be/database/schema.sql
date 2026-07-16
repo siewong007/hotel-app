@@ -150,7 +150,8 @@ CREATE TABLE IF NOT EXISTS permissions (
         'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
-        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+        'compose', 'send'
     ))
 );
 
@@ -2532,7 +2533,8 @@ ALTER TABLE permissions ADD CONSTRAINT valid_action
         'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
-        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+        'compose', 'send'
     ));
 
 INSERT INTO roles (name, display_name, description, is_system_role, priority) VALUES
@@ -4424,7 +4426,8 @@ ALTER TABLE permissions ADD CONSTRAINT valid_action
         'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
-        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+        'compose', 'send'
     ));
 
 INSERT INTO permissions (name, resource, action, description, is_system_permission)
@@ -4922,7 +4925,8 @@ ALTER TABLE permissions ADD CONSTRAINT valid_action
         'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
-        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+        'compose', 'send'
     ));
 
 CREATE TABLE IF NOT EXISTS route_access_policies (
@@ -6398,3 +6402,146 @@ CREATE TRIGGER update_voucher_redemptions_updated_at
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_promotion_guest
     ON vouchers (promotion_id, guest_id);
+
+-- ============================================================================
+-- 043_communications.sql
+-- ============================================================================
+-- Server-owned communications domain: per-topic subscriptions, append-only
+-- consent history, email campaigns, a durable delivery outbox, and global
+-- suppressions. Also adds vouchers.source_reference for birthday auto-issuance
+-- (one voucher per guest per birthday year, enforced by a partial unique index).
+
+CREATE TABLE IF NOT EXISTS notification_subscriptions (
+    id BIGSERIAL PRIMARY KEY,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    channel VARCHAR(16) NOT NULL DEFAULT 'email' CHECK (channel IN ('email')),
+    topic VARCHAR(32) NOT NULL CHECK (topic IN ('announcement', 'promotion', 'birthday_voucher')),
+    subscribed BOOLEAN NOT NULL DEFAULT false,
+    source VARCHAR(32),
+    policy_version VARCHAR(32),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_notification_subscriptions_guest_channel_topic UNIQUE (guest_id, channel, topic)
+);
+
+CREATE TABLE IF NOT EXISTS notification_consent_events (
+    id BIGSERIAL PRIMARY KEY,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    channel VARCHAR(16) NOT NULL DEFAULT 'email',
+    topic VARCHAR(32) NOT NULL,
+    action VARCHAR(8) NOT NULL CHECK (action IN ('opt_in', 'opt_out')),
+    source VARCHAR(32) NOT NULL,
+    policy_version VARCHAR(32),
+    actor_type VARCHAR(8) NOT NULL DEFAULT 'guest' CHECK (actor_type IN ('guest', 'staff', 'system')),
+    actor_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    ip_address VARCHAR(64),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS email_campaigns (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(160) NOT NULL,
+    campaign_type VARCHAR(16) NOT NULL CHECK (campaign_type IN ('announcement', 'promotion')),
+    topic VARCHAR(32) NOT NULL CHECK (topic IN ('announcement', 'promotion')),
+    status VARCHAR(16) NOT NULL DEFAULT 'draft' CHECK (
+        status IN ('draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed')
+    ),
+    subject VARCHAR(255) NOT NULL,
+    body_html TEXT NOT NULL,
+    body_text TEXT,
+    template_id BIGINT REFERENCES email_templates(id) ON DELETE SET NULL,
+    promotion_id BIGINT REFERENCES promotions(id) ON DELETE RESTRICT,
+    scheduled_at TIMESTAMP WITH TIME ZONE,
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    total_recipients INTEGER NOT NULL DEFAULT 0,
+    sent_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    cancelled_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT email_campaigns_subject_not_blank CHECK (length(trim(subject)) > 0),
+    CONSTRAINT email_campaigns_promotion_required CHECK (
+        campaign_type <> 'promotion' OR promotion_id IS NOT NULL
+    )
+);
+
+CREATE TABLE IF NOT EXISTS email_deliveries (
+    id BIGSERIAL PRIMARY KEY,
+    campaign_id BIGINT REFERENCES email_campaigns(id) ON DELETE CASCADE,
+    kind VARCHAR(20) NOT NULL CHECK (kind IN ('campaign', 'birthday_voucher')),
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    topic VARCHAR(32) NOT NULL CHECK (topic IN ('announcement', 'promotion', 'birthday_voucher')),
+    recipient_email VARCHAR(255) NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    body_html TEXT NOT NULL,
+    body_text TEXT,
+    voucher_id BIGINT REFERENCES vouchers(id) ON DELETE SET NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'queued' CHECK (
+        status IN ('queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled')
+    ),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 5,
+    next_attempt_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    lease_owner VARCHAR(64),
+    lease_expires_at TIMESTAMP WITH TIME ZONE,
+    provider_message_id VARCHAR(255),
+    idempotency_key VARCHAR(160) NOT NULL,
+    last_error TEXT,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT email_deliveries_attempts_valid CHECK (attempts >= 0 AND max_attempts >= 1),
+    CONSTRAINT email_deliveries_kind_campaign_link CHECK (
+        (kind = 'campaign' AND campaign_id IS NOT NULL)
+        OR (kind = 'birthday_voucher' AND campaign_id IS NULL)
+    ),
+    CONSTRAINT uq_email_deliveries_idempotency UNIQUE (idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS email_suppressions (
+    id BIGSERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    reason VARCHAR(16) NOT NULL CHECK (reason IN ('unsubscribe', 'bounce', 'complaint', 'manual')),
+    source VARCHAR(64),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT email_suppressions_email_lower CHECK (email = lower(email))
+);
+
+ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
+
+CREATE INDEX IF NOT EXISTS idx_notification_subscriptions_topic
+    ON notification_subscriptions (channel, topic, subscribed);
+CREATE INDEX IF NOT EXISTS idx_notification_consent_events_guest
+    ON notification_consent_events (guest_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_email_campaigns_status
+    ON email_campaigns (status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_claim
+    ON email_deliveries (status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_campaign
+    ON email_deliveries (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_email_deliveries_guest
+    ON email_deliveries (guest_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_source_reference
+    ON vouchers (guest_id, source_reference)
+    WHERE source_reference IS NOT NULL;
+
+DROP TRIGGER IF EXISTS update_notification_subscriptions_updated_at ON notification_subscriptions;
+CREATE TRIGGER update_notification_subscriptions_updated_at
+    BEFORE UPDATE ON notification_subscriptions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_email_campaigns_updated_at ON email_campaigns;
+CREATE TRIGGER update_email_campaigns_updated_at
+    BEFORE UPDATE ON email_campaigns
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_email_deliveries_updated_at ON email_deliveries;
+CREATE TRIGGER update_email_deliveries_updated_at
+    BEFORE UPDATE ON email_deliveries
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

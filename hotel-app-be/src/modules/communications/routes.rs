@@ -1,0 +1,76 @@
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
+
+use super::handlers;
+use crate::core::db::DbPool;
+
+pub fn routes() -> Router<DbPool> {
+    Router::new()
+        .route(
+            "/admin/communications/campaigns",
+            get(handlers::list_campaigns_handler).post(handlers::create_campaign_handler),
+        )
+        .route(
+            "/admin/communications/campaigns/{id}",
+            get(handlers::get_campaign_handler).put(handlers::update_campaign_handler),
+        )
+        .route(
+            "/admin/communications/campaigns/{id}/preview",
+            post(handlers::preview_campaign_handler),
+        )
+        .route(
+            "/admin/communications/campaigns/{id}/test-send",
+            post(handlers::test_send_campaign_handler),
+        )
+        .route(
+            "/admin/communications/campaigns/{id}/schedule",
+            post(handlers::schedule_campaign_handler),
+        )
+        .route(
+            "/admin/communications/campaigns/{id}/cancel",
+            post(handlers::cancel_campaign_handler),
+        )
+        .route(
+            "/admin/communications/campaigns/{id}/deliveries",
+            get(handlers::list_campaign_deliveries_handler),
+        )
+        .route(
+            "/admin/communications/templates",
+            get(handlers::list_templates_handler).post(handlers::create_template_handler),
+        )
+        .route(
+            "/admin/communications/templates/{id}",
+            put(handlers::update_template_handler),
+        )
+        .route(
+            "/admin/communications/templates/{id}/deactivate",
+            post(handlers::deactivate_template_handler),
+        )
+        .route(
+            "/admin/communications/audience",
+            get(handlers::audience_count_handler),
+        )
+        .route(
+            "/admin/communications/suppressions",
+            get(handlers::list_suppressions_handler).post(handlers::add_suppression_handler),
+        )
+        .route(
+            "/admin/communications/suppressions/{email}",
+            delete(handlers::remove_suppression_handler),
+        )
+        .route(
+            "/admin/communications/guests/{guest_id}/consent",
+            get(handlers::guest_consent_status_handler)
+                .post(handlers::record_staff_consent_handler),
+        )
+        .route(
+            "/guest-portal/me/notification-preferences",
+            get(handlers::get_my_preferences_handler).put(handlers::update_my_preferences_handler),
+        )
+        .route(
+            "/communications/unsubscribe/{token}",
+            get(handlers::unsubscribe_view_handler).post(handlers::unsubscribe_apply_handler),
+        )
+}

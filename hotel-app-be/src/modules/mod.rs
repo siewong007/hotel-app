@@ -1,3 +1,4 @@
+pub mod communications;
 pub mod ekyc;
 pub mod loyalty;
 pub mod promotions;
