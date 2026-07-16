@@ -20,58 +20,20 @@ use crate::{core::sql_compat::current_timestamp, param};
 pub struct GuestPortalSessionRepository;
 
 impl GuestPortalSessionRepository {
-    /// Find a guest whose email matches (case-insensitive) AND who either owns a
-    /// booking with `booking_number` (any status) or holds a loyalty membership
-    /// with `member_number`. Returns the guest id, or None if nothing matches.
-    pub async fn find_login_guest_id(
+    /// Resolve the guest profile linked to an active guest user account.
+    pub async fn find_guest_id_for_authenticated_user(
         pool: &DbPool,
-        email: &str,
-        booking_number: Option<&str>,
-        member_number: Option<&str>,
+        user_id: i64,
     ) -> Result<Option<i64>, ApiError> {
-        let email_norm = email.trim().to_lowercase();
-
-        if let Some(booking_number) = booking_number {
-            let sql = format!(
-                "SELECT g.id FROM guests g \
-                 JOIN bookings b ON b.guest_id = g.id \
-                 WHERE LOWER(g.email) = {} AND b.booking_number = {} LIMIT 1",
-                param!(1),
-                param!(2)
-            );
-            let row = sqlx::query(&sql)
-                .bind(&email_norm)
-                .bind(booking_number.trim())
-                .fetch_optional(pool)
-                .await
-                .map_err(|e| ApiError::Database(format!("Login lookup failed: {}", e)))?;
-            if let Some(row) = row {
-                let id: i64 = row.try_get("id").unwrap_or_default();
-                return Ok(Some(id));
-            }
-        }
-
-        if let Some(member_number) = member_number {
-            let sql = format!(
-                "SELECT g.id FROM guests g \
-                 JOIN loyalty_members m ON m.guest_id = g.id \
-                 WHERE LOWER(g.email) = {} AND m.member_number = {} LIMIT 1",
-                param!(1),
-                param!(2)
-            );
-            let row = sqlx::query(&sql)
-                .bind(&email_norm)
-                .bind(member_number.trim())
-                .fetch_optional(pool)
-                .await
-                .map_err(|e| ApiError::Database(format!("Login lookup failed: {}", e)))?;
-            if let Some(row) = row {
-                let id: i64 = row.try_get("id").unwrap_or_default();
-                return Ok(Some(id));
-            }
-        }
-
-        Ok(None)
+        let sql = sql_query!(
+            postgres: "SELECT guest_id FROM users WHERE id = $1 AND user_type::text = 'guest' AND guest_id IS NOT NULL AND is_active = true",
+            sqlite: "SELECT guest_id FROM users WHERE id = ?1 AND user_type = 'guest' AND guest_id IS NOT NULL AND is_active = 1"
+        );
+        sqlx::query_scalar(sql)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Guest account lookup failed: {}", e)))
     }
 
     /// Insert a new portal session storing only the token hash.

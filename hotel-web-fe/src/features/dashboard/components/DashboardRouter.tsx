@@ -14,7 +14,9 @@ const DashboardRouter: React.FC = () => {
   const isEmployee = hasRole('receptionist') || hasRole('employee');
 
   useEffect(() => {
-    // Redirect guests (who have none of the expected roles) to their bookings page
+    // A pre-existing guest account session does not include the separate
+    // short-lived portal token, so keep this fallback on My Bookings. The
+    // Guest login flow creates that token before opening the portal.
     if (!isAdminOrSuper && !isExec && !isEmployee) {
       navigate('/my-bookings', { replace: true });
     }

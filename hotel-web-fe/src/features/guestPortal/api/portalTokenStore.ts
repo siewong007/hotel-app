@@ -2,7 +2,7 @@
  * Guest portal session-token storage.
  *
  * The guest portal is an entirely separate, unauthenticated-by-staff-account
- * flow: a hotel guest logs in with email + booking/member number and gets a
+ * flow: a hotel guest authenticates with their regular account and gets a
  * short-lived bearer token scoped to `/api/guest-portal/me*` endpoints only.
  * That token must never be confused with the staff access token
  * (`src/auth/tokenStore.ts`, kept in memory) or written to the staff

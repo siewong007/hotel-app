@@ -21,12 +21,6 @@ export interface GuestPortalGuest {
   [key: string]: unknown;
 }
 
-export interface GuestPortalLoginRequest {
-  email: string;
-  booking_number?: string;
-  member_number?: string;
-}
-
 export interface GuestPortalLoginResponse {
   token: string;
   expires_at: string;

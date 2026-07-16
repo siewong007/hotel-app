@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
 import {
   Box,
@@ -28,19 +29,17 @@ import { useAuth } from '../../../auth/AuthContext';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 import { LoadingSpinner } from '../../../components';
+import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDashboard.service';
+import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
 
 type UserType = 'guest' | 'admin' | null;
-type LoginMethod = 'password' | 'passkey' | null;
 
 const LoginPage: React.FC = () => {
   const hotelSettings = getHotelSettings();
   const [searchParams] = useSearchParams();
-  const isGuestPasswordLogin = searchParams.get('account') === 'guest'
-    && searchParams.get('method') === 'password';
   const [userType, setUserType] = useState<UserType>(() =>
     searchParams.get('account') === 'guest' ? 'guest' : null
   );
-  const [loginMethod, setLoginMethod] = useState<LoginMethod>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -54,6 +53,26 @@ const LoginPage: React.FC = () => {
   const [usernameSubmitted, setUsernameSubmitted] = useState(false);
   const { login, loginWithPasskey, registerPasskey } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const completeSignIn = async () => {
+    if (userType !== 'guest') {
+      navigate('/');
+      return;
+    }
+
+    const portalSession = await GuestPortalDashboardService.createSession();
+    queryClient.removeQueries({ queryKey: ['promotions', 'portal'] });
+    setPortalToken(portalSession.token, portalSession.expires_at);
+    navigate('/portal', { replace: true });
+  };
+
+  const handleFirstLoginPromptClose = () => {
+    setShowFirstLoginPrompt(false);
+    void completeSignIn().catch((err: Error) => {
+      setError(err.message || 'Unable to open the guest portal. Please try again.');
+    });
+  };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +85,7 @@ const LoginPage: React.FC = () => {
         setShowFirstLoginPrompt(true);
         setLoading(false);
       } else {
-        navigate('/');
+        await completeSignIn();
       }
     } catch (err: any) {
       const errorMessage = err.message || 'Login failed';
@@ -108,7 +127,7 @@ const LoginPage: React.FC = () => {
         setShowFirstLoginPrompt(true);
         setLoading(false);
       } else {
-        navigate('/');
+        await completeSignIn();
       }
     } catch (err: any) {
       setError(err.message || 'Passkey login failed');
@@ -159,11 +178,6 @@ const LoginPage: React.FC = () => {
     setUsernameSubmitted(true);
     setError('');
 
-    if (isGuestPasswordLogin) {
-      setShowPasswordField(true);
-      return;
-    }
-
     // Attempt passkey authentication first
     await attemptPasskeyAuth();
   };
@@ -193,7 +207,7 @@ const LoginPage: React.FC = () => {
       if (isFirstLogin) {
         setShowFirstLoginPrompt(true);
       } else {
-        navigate('/');
+        await completeSignIn();
       }
     } catch (err: any) {
       // Passkey failed or not available - show password field
@@ -229,7 +243,7 @@ const LoginPage: React.FC = () => {
       <FirstLoginPasskeyPrompt
         open={true}
         username={username}
-        onClose={() => navigate('/')}
+        onClose={handleFirstLoginPromptClose}
       />
     );
   }
@@ -550,7 +564,7 @@ const LoginPage: React.FC = () => {
               </Fade>
             )}
 
-            {/* Gmail-Style Login Form */}
+            {/* Shared account login form */}
             {userType && (
               <Slide direction="left" in timeout={400}>
                 <Box>
@@ -585,7 +599,9 @@ const LoginPage: React.FC = () => {
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                       {passkeyCheckInProgress
                         ? 'Checking for passkey'
-                        : userType === 'guest' ? 'Guest Account' : 'Admin Account'}
+                        : userType === 'guest'
+                          ? 'Guest Account'
+                          : 'Admin Account'}
                     </Typography>
                   </Box>
 
@@ -758,9 +774,7 @@ const LoginPage: React.FC = () => {
 
                             <Box sx={{ textAlign: 'center' }}>
                               <Typography variant="caption" color="text.secondary">
-                                {isGuestPasswordLogin
-                                  ? 'Sign in with your registered username and password.'
-                                  : 'Passkey not available. Using password instead.'}
+                                Passkey not available. Using password instead.
                               </Typography>
                             </Box>
                           </form>

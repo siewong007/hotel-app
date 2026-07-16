@@ -1,6 +1,6 @@
 //! Guest portal routes
 //!
-//! Public routes for guest self-service features.
+//! Guest self-service routes.
 
 use super::extract_client_ip;
 use crate::core::db::DbPool;
@@ -19,16 +19,16 @@ use std::net::SocketAddr;
 
 /// Create guest portal routes.
 ///
-/// The pre-check-in routes are unauthenticated (path-token gated). The `/login`
-/// route is rate-limited and public; the `/me/*` routes require a valid guest
-/// bearer session (enforced inside their handlers).
+/// The pre-check-in routes are unauthenticated (path-token gated). Guest portal
+/// sessions are created only after normal account authentication; the `/me/*`
+/// routes require a valid guest bearer session.
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/guest-portal/verify", post(verify_booking))
         .route("/guest-portal/booking/{token}", get(get_booking))
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
         .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
-        .route("/guest-portal/login", post(login))
+        .route("/guest-portal/session", post(create_session))
         .route("/guest-portal/me", get(handlers::guest_portal::get_me))
         .route(
             "/guest-portal/me/bookings",
@@ -48,53 +48,21 @@ pub fn routes() -> Router<DbPool> {
         )
 }
 
-async fn login(
+async fn create_session(
     State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(input): Json<models::GuestPortalLoginRequest>,
 ) -> Result<Json<models::GuestPortalLoginResponse>, ApiError> {
+    let user_id = crate::core::middleware::require_auth(&headers).await?;
     let ip = extract_client_ip(&headers, peer_addr);
-    let (allowed, retry_after) = limiters.guest_portal_login.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!(
-                "Too many sign-in attempts. Please try again in {} seconds.",
-                retry_after
-            ),
-            retry_after,
-        ));
-    }
-
-    let identifier = input.email.trim().to_lowercase();
-    let identifier = if identifier.is_empty() {
-        "<empty>".to_string()
-    } else {
-        identifier
-    };
-    let (allowed, retry_after) = limiters
-        .guest_portal_login_id
-        .check_with_retry(identifier)
-        .await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!(
-                "Too many sign-in attempts for this account. Please try again in {} seconds.",
-                retry_after
-            ),
-            retry_after,
-        ));
-    }
-
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string);
 
-    let response = crate::services::guest_portal::guest_portal_login(
+    let response = crate::services::guest_portal::create_authenticated_guest_portal_session(
         &pool,
-        input,
+        user_id,
         Some(ip.to_string()),
         user_agent,
     )
