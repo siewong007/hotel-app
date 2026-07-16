@@ -32,7 +32,7 @@ const PROMOTION_COLUMNS: &str = r#"
     p.claimed_count,
     p.per_guest_limit,
     p.is_public,
-    p.version,
+    CAST(p.version AS BIGINT) AS version,
     p.created_by,
     p.updated_by,
     p.created_at,
@@ -254,8 +254,8 @@ impl PromotionRepository {
             postgres: r#"
                 SELECT COUNT(*)
                 FROM promotions p
-                WHERE ($1 IS NULL OR p.status = $1)
-                  AND ($2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
+                WHERE ($1::text IS NULL OR p.status = $1)
+                  AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
             "#,
             sqlite: r#"
                 SELECT COUNT(*)
@@ -274,8 +274,8 @@ impl PromotionRepository {
                 postgres: r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
-                    WHERE ($1 IS NULL OR p.status = $1)
-                      AND ($2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
+                    WHERE ($1::text IS NULL OR p.status = $1)
+                      AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
                     ORDER BY p.updated_at DESC
                     LIMIT $3 OFFSET $4
                 "#,
@@ -454,7 +454,7 @@ impl PromotionRepository {
                     claim_limit = $17, per_guest_limit = $18, is_public = $19,
                     updated_by = $20, updated_at = CURRENT_TIMESTAMP, version = version + 1
                 WHERE id = $21
-                  AND ($22 IS NULL OR version = $22)
+                  AND ($22::integer IS NULL OR version = $22)
                   AND status IN ('draft', 'paused')
                 RETURNING id
             "#,
@@ -538,7 +538,7 @@ impl PromotionRepository {
             postgres: r#"
                 UPDATE promotions
                 SET status = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP, version = version + 1
-                WHERE id = $3 AND ($4 IS NULL OR version = $4)
+                WHERE id = $3 AND ($4::integer IS NULL OR version = $4)
                 RETURNING id
             "#,
             sqlite: r#"
@@ -630,8 +630,8 @@ impl PromotionRepository {
             postgres: r#"
                 SELECT COUNT(*) FROM vouchers v
                 JOIN promotions p ON p.id = v.promotion_id
-                WHERE ($1 IS NULL OR v.status = $1)
-                  AND ($2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) LIKE '%' || LOWER($2) || '%')
+                WHERE ($1::text IS NULL OR v.status = $1)
+                  AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) LIKE '%' || LOWER($2) || '%')
             "#,
             sqlite: r#"
                 SELECT COUNT(*) FROM vouchers v
@@ -650,8 +650,8 @@ impl PromotionRepository {
                 postgres: r#"
                     SELECT {VOUCHER_COLUMNS}
                     FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
-                    WHERE ($1 IS NULL OR v.status = $1)
-                      AND ($2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) LIKE '%' || LOWER($2) || '%')
+                    WHERE ($1::text IS NULL OR v.status = $1)
+                      AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) LIKE '%' || LOWER($2) || '%')
                     ORDER BY v.created_at DESC LIMIT $3 OFFSET $4
                 "#,
                 sqlite: r#"

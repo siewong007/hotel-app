@@ -3,14 +3,31 @@ import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { PromotionsApi } from '../api/promotionsApi';
 import type {
+  Promotion,
   PromotionInput,
   PromotionLifecycleAction,
+  PromotionListResponse,
   PromotionListParams,
   PromotionUpdateInput,
   VoucherIssueInput,
   VoucherListParams,
   VoucherRevokeInput,
 } from '../types';
+
+function replacePromotionInAdminLists(
+  current: PromotionListResponse | undefined,
+  updated: Promotion
+): PromotionListResponse | undefined {
+  if (!current?.items.some((promotion) => promotion.id === updated.id)) {
+    return current;
+  }
+  return {
+    ...current,
+    items: current.items.map((promotion) =>
+      promotion.id === updated.id ? updated : promotion
+    ),
+  };
+}
 
 export function useAdminPromotions(params: PromotionListParams, enabled = true) {
   return useQuery({
@@ -41,7 +58,11 @@ export function useUpdatePromotion() {
       promotionId: number;
       input: PromotionUpdateInput;
     }) => PromotionsApi.update(promotionId, input),
-    onSuccess: async () => {
+    onSuccess: async (updatedPromotion) => {
+      queryClient.setQueriesData<PromotionListResponse>(
+        { queryKey: queryKeys.promotions.adminLists() },
+        (current) => replacePromotionInAdminLists(current, updatedPromotion)
+      );
       await queryClient.invalidateQueries({ queryKey: queryKeys.promotions.all });
     },
   });
@@ -62,7 +83,11 @@ export function usePromotionTransition() {
       PromotionsApi.transition(promotionId, action, {
         expected_version: expectedVersion,
       }),
-    onSuccess: async () => {
+    onSuccess: async (updatedPromotion) => {
+      queryClient.setQueriesData<PromotionListResponse>(
+        { queryKey: queryKeys.promotions.adminLists() },
+        (current) => replacePromotionInAdminLists(current, updatedPromotion)
+      );
       await queryClient.invalidateQueries({ queryKey: queryKeys.promotions.all });
     },
   });
