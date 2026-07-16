@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { resolve } from 'node:path';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
@@ -35,6 +36,10 @@ export default defineConfig(({ mode, command }) => {
       }),
       react(),
       babel({
+        // The React Compiler only needs application source. Keeping standalone
+        // JavaScript experiences out of this pass avoids Babel's 500 KB code
+        // generator fallback without changing how Vite serves or bundles them.
+        include: /[/\\]src[/\\].*\.[jt]sx?$/,
         presets: [reactCompilerPreset()],
       }),
     ],
@@ -54,13 +59,21 @@ export default defineConfig(({ mode, command }) => {
     },
     build: {
       // Targets supported by the Tauri webview on all platforms
-      target: isTauri ? ['es2021', 'chrome105', 'safari13'] : 'es2020',
+      // Safari reports unsupported syntax in an ES module as a generic module
+      // import failure. Keep the web and desktop bundles compatible with the
+      // oldest supported WebKit runtime instead of leaving web builds at the
+      // broader ES2020 target.
+      target: isTauri ? ['es2021', 'chrome105', 'safari13'] : ['es2020', 'safari13'],
       // Source maps help debug Tauri debug builds; off for production web bundles
       sourcemap: isTauri ? 'inline' : false,
       // Mark @tauri-apps/api/* as external in all builds. The desktop runtime code
       // accesses window.__TAURI_INTERNALS__ directly instead of importing the npm
       // package, so these externals are only a safety net against accidental imports.
       rolldownOptions: {
+        input: {
+          app: resolve(__dirname, 'index.html'),
+          salimInn: resolve(__dirname, 'salim-inn/index.html'),
+        },
         external: (id: string) => id === '@tauri-apps/api' || id.startsWith('@tauri-apps/api/'),
         // Strip console/debugger statements from production output only; dev
         // server and dev builds keep them for debugging. This project's default

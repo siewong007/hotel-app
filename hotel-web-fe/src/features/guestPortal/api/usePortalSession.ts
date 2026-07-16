@@ -4,6 +4,7 @@ import { queryKeys } from '../../../api/queryKeys';
 import { useNavigate } from '../../../router';
 import { portalSessionScope } from '../../promotions/utils';
 import { clearPortalToken, getValidPortalToken } from './portalTokenStore';
+import { GuestPortalDashboardService } from './guestPortalDashboard.service';
 
 /**
  * Minimal guest-portal session state. Deliberately not a React Context: the
@@ -18,6 +19,9 @@ export function usePortalSession() {
 
   const logout = useCallback(() => {
     if (token) {
+      void GuestPortalDashboardService.logout(token).catch(() => {
+        // Local cleanup still protects the current device if the network is unavailable.
+      });
       queryClient.removeQueries({
         queryKey: queryKeys.promotions.portal(portalSessionScope(token)),
       });

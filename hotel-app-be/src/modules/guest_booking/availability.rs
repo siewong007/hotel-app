@@ -64,7 +64,10 @@ pub async fn serve_socket(mut socket: WebSocket, hub: AvailabilityHub) {
                             break;
                         }
                     }
-                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        log::warn!("guest availability websocket lagged; skipped {skipped} events");
+                        continue;
+                    }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
             }

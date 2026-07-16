@@ -98,6 +98,7 @@ const PortalBookingPage: React.FC = () => {
     error: sessionError,
     canRetry,
     needsLogin,
+    isStaffAccount,
     retry,
     restartSignIn,
   } = usePortalSessionBootstrap();
@@ -271,6 +272,11 @@ const PortalBookingPage: React.FC = () => {
     [voucherId, vouchers],
   );
 
+  // Staff accounts belong in the admin portal, not the guest portal.
+  if (isStaffAccount) {
+    return <Navigate to="/admin-portal" replace />;
+  }
+
   if (needsLogin) {
     return <Navigate to="/login?account=guest" replace />;
   }
@@ -324,7 +330,7 @@ const PortalBookingPage: React.FC = () => {
           <Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>
             Your room is reserved. Payment is due at the hotel.
           </Alert>
-          <Button sx={{ mt: 3 }} variant="contained" onClick={() => navigate('/portal')}>
+          <Button sx={{ mt: 3 }} variant="contained" onClick={() => navigate('/guest-portal')}>
             View my bookings
           </Button>
         </Paper>
@@ -334,7 +340,7 @@ const PortalBookingPage: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/portal')} sx={{ mb: 2 }}>
+      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>
         Back to my account
       </Button>
       <Typography variant="h3" component="h1">Book a room</Typography>

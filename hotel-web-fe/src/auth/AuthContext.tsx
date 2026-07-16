@@ -255,17 +255,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         shouldPromptPasskey: false, // Will update below if needed
       });
 
-      // Check if user has any passkeys (non-blocking, won't affect login success)
-      // This is a best-effort check - if it fails, we just won't show the passkey prompt
-      try {
-        const hasPasskeys = await checkPasskeys();
-        if (!hasPasskeys) {
-          setAuthState(prev => ({ ...prev, shouldPromptPasskey: true }));
-        }
-      } catch (error) {
-        console.warn('Failed to check passkeys, skipping passkey prompt:', error);
-        // Don't fail login if passkey check fails
-      }
+      // Do not make navigation after a successful password login depend on a
+      // follow-up passkey lookup. Safari can keep that request pending while
+      // restoring its cookie/session state, which previously made a completed
+      // login appear to hang. This is only a best-effort prompt decision.
+      void checkPasskeys()
+        .then(hasPasskeys => {
+          if (!hasPasskeys) {
+            setAuthState(prev => ({ ...prev, shouldPromptPasskey: true }));
+          }
+        })
+        .catch(error => {
+          console.warn('Failed to check passkeys, skipping passkey prompt:', error);
+        });
 
       return is_first_login;
     } catch (error: any) {

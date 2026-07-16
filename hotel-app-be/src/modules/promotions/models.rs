@@ -33,6 +33,71 @@ pub struct Promotion {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Promotion fields safe to expose to guests and public catalogue visitors.
+/// Staff actor identifiers deliberately remain on [`Promotion`].
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicPromotion {
+    pub id: i64,
+    pub slug: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub terms: Option<String>,
+    pub status: String,
+    pub promotion_kind: String,
+    pub discount_type: String,
+    pub discount_value: f64,
+    pub max_discount_amount: Option<f64>,
+    pub currency: String,
+    pub claim_starts_at: Option<DateTime<Utc>>,
+    pub claim_ends_at: Option<DateTime<Utc>>,
+    pub stay_starts_on: Option<NaiveDate>,
+    pub stay_ends_on: Option<NaiveDate>,
+    pub min_nights: Option<i32>,
+    pub max_nights: Option<i32>,
+    pub min_subtotal: Option<f64>,
+    pub claim_limit: Option<i64>,
+    pub claimed_count: i64,
+    pub per_guest_limit: i32,
+    pub is_public: bool,
+    pub room_type_ids: Vec<i64>,
+    pub version: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<Promotion> for PublicPromotion {
+    fn from(value: Promotion) -> Self {
+        Self {
+            id: value.id,
+            slug: value.slug,
+            name: value.name,
+            description: value.description,
+            terms: value.terms,
+            status: value.status,
+            promotion_kind: value.promotion_kind,
+            discount_type: value.discount_type,
+            discount_value: value.discount_value,
+            max_discount_amount: value.max_discount_amount,
+            currency: value.currency,
+            claim_starts_at: value.claim_starts_at,
+            claim_ends_at: value.claim_ends_at,
+            stay_starts_on: value.stay_starts_on,
+            stay_ends_on: value.stay_ends_on,
+            min_nights: value.min_nights,
+            max_nights: value.max_nights,
+            min_subtotal: value.min_subtotal,
+            claim_limit: value.claim_limit,
+            claimed_count: value.claimed_count,
+            per_guest_limit: value.per_guest_limit,
+            is_public: value.is_public,
+            room_type_ids: value.room_type_ids,
+            version: value.version,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct PromotionListResponse {
     pub items: Vec<Promotion>,
@@ -42,8 +107,16 @@ pub struct PromotionListResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct PublicPromotionListResponse {
+    pub items: Vec<PublicPromotion>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct GuestPromotion {
-    pub promotion: Promotion,
+    pub promotion: PublicPromotion,
     pub can_claim: bool,
     pub has_voucher: bool,
 }

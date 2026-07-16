@@ -7,6 +7,7 @@ import {
 import SaveIcon from '@mui/icons-material/Save';
 
 import { api } from '../../api/client';
+import { formatLocalDate } from '../../utils/date';
 
 interface Allocation {
   room_type_id: number;
@@ -19,7 +20,7 @@ interface Allocation {
   online_available_rooms: number;
 }
 
-const dateInput = () => new Date().toISOString().slice(0, 10);
+const dateInput = () => formatLocalDate();
 
 const OnlineInventoryPage: React.FC = () => {
   const [stayDate, setStayDate] = useState(dateInput);

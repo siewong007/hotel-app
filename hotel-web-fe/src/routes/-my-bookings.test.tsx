@@ -23,7 +23,7 @@ vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (definition: unknown) => definition,
 }));
 
-import { MyBookingsRoute } from './my-bookings';
+import { MyBookingsRoute } from '../features/bookings/components/MyBookingsRoute';
 
 describe('MyBookingsRoute', () => {
   beforeEach(() => {
@@ -32,9 +32,9 @@ describe('MyBookingsRoute', () => {
 
   afterEach(cleanup);
 
-  it('sends guest accounts to the dedicated portal', () => {
+  it('sends guest accounts to the guest portal', () => {
     render(<MyBookingsRoute />);
-    expect(screen.getByText('Redirect to /portal')).toBeTruthy();
+    expect(screen.getByText('Redirect to /guest-portal')).toBeTruthy();
   });
 
   it('keeps the legacy page available to non-guest accounts', () => {

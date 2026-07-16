@@ -6,6 +6,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{Booking, Guest, GuestUpdateInput};
+use crate::param;
 
 const BOOKING_SELECT: &str = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, created_at, updated_at FROM bookings";
 
@@ -17,8 +18,9 @@ impl GuestPortalRepository {
         booking_number: &str,
     ) -> Result<Option<Booking>, ApiError> {
         let row = sqlx::query(&format!(
-            "{} WHERE booking_number = $1 AND status IN ('confirmed', 'pending')",
-            BOOKING_SELECT
+            "{} WHERE booking_number = {} AND status IN ('confirmed', 'pending')",
+            BOOKING_SELECT,
+            param!(1)
         ))
         .bind(booking_number)
         .fetch_optional(pool)
@@ -31,16 +33,20 @@ impl GuestPortalRepository {
         pool: &DbPool,
         token: &str,
     ) -> Result<Option<Booking>, ApiError> {
-        let row = sqlx::query(&format!("{} WHERE pre_checkin_token = $1", BOOKING_SELECT))
-            .bind(token)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))?;
+        let row = sqlx::query(&format!(
+            "{} WHERE pre_checkin_token = {}",
+            BOOKING_SELECT,
+            param!(1)
+        ))
+        .bind(token)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))?;
         Ok(row.as_ref().map(row_mappers::row_to_booking))
     }
 
     pub async fn find_booking_by_id(pool: &DbPool, booking_id: i64) -> Result<Booking, ApiError> {
-        let row = sqlx::query(&format!("{} WHERE id = $1", BOOKING_SELECT))
+        let row = sqlx::query(&format!("{} WHERE id = {}", BOOKING_SELECT, param!(1)))
             .bind(booking_id)
             .fetch_one(pool)
             .await
@@ -94,20 +100,19 @@ impl GuestPortalRepository {
         token: &str,
         expires_at: DateTime<Utc>,
     ) -> Result<(), ApiError> {
-        sqlx::query(
-            r#"
-            UPDATE bookings
-            SET pre_checkin_token = $1,
-                pre_checkin_token_expires_at = $2
-            WHERE id = $3
-            "#,
-        )
-        .bind(token)
-        .bind(expires_at)
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(format!("Failed to update token: {}", e)))?;
+        let sql = format!(
+            "UPDATE bookings SET pre_checkin_token = {}, pre_checkin_token_expires_at = {} WHERE id = {}",
+            param!(1),
+            param!(2),
+            param!(3)
+        );
+        sqlx::query(&sql)
+            .bind(token)
+            .bind(expires_at)
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to update token: {}", e)))?;
 
         Ok(())
     }
@@ -190,9 +195,9 @@ impl GuestPortalRepository {
         }
 
         let query = format!(
-            "UPDATE guests SET {} WHERE id = ${}",
+            "UPDATE guests SET {} WHERE id = {}",
             query_parts.join(", "),
-            values.len() + 1
+            parameter(values.len() + 1)
         );
 
         let mut sqlx_query = sqlx::query(&query);
@@ -219,22 +224,30 @@ impl GuestPortalRepository {
         let mut values = Vec::new();
 
         if let Some(market_code) = market_code {
-            updates.push(format!("market_code = ${}", values.len() + 1));
+            updates.push(format!("market_code = {}", parameter(values.len() + 1)));
             values.push(market_code);
         }
         if let Some(special_requests) = special_requests {
-            updates.push(format!("special_requests = ${}", values.len() + 1));
+            updates.push(format!(
+                "special_requests = {}",
+                parameter(values.len() + 1)
+            ));
             values.push(special_requests);
         }
 
         updates.push("pre_checkin_completed = true".to_string());
-        updates.push(format!("pre_checkin_completed_at = ${}", values.len() + 1));
+        updates.push(format!(
+            "pre_checkin_completed_at = {}",
+            parameter(values.len() + 1)
+        ));
         values.push(completed_at);
+        updates.push("pre_checkin_token = NULL".to_string());
+        updates.push("pre_checkin_token_expires_at = NULL".to_string());
 
         let query = format!(
-            "UPDATE bookings SET {} WHERE id = ${}",
+            "UPDATE bookings SET {} WHERE id = {}",
             updates.join(", "),
-            values.len() + 1
+            parameter(values.len() + 1)
         );
 
         let mut sqlx_query = sqlx::query(&query);
@@ -258,7 +271,11 @@ fn push_update(
     value: &Option<String>,
 ) {
     if let Some(value) = value {
-        query_parts.push(format!("{} = ${}", column, values.len() + 1));
+        query_parts.push(format!("{} = {}", column, parameter(values.len() + 1)));
         values.push(value.clone());
     }
+}
+
+fn parameter(index: usize) -> String {
+    format!("{}{}", crate::sql_query!(postgres: "$", sqlite: "?"), index)
 }

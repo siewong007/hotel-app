@@ -9,8 +9,9 @@ use std::net::SocketAddr;
 
 use super::models::{
     ClaimPromotionInput, GuestPromotionListResponse, Promotion, PromotionActionInput,
-    PromotionInput, PromotionListQuery, PromotionListResponse, Voucher, VoucherIssueInput,
-    VoucherListResponse, VoucherRevokeInput,
+    PromotionInput, PromotionListQuery, PromotionListResponse, PublicPromotion,
+    PublicPromotionListResponse, Voucher, VoucherIssueInput, VoucherListResponse,
+    VoucherRevokeInput,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -32,23 +33,26 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
 pub async fn list_public_promotions_handler(
     State(pool): State<DbPool>,
     Query(query): Query<PromotionListQuery>,
-) -> Result<Json<PromotionListResponse>, ApiError> {
+) -> Result<Json<PublicPromotionListResponse>, ApiError> {
     Ok(Json(service::list_public_promotions(&pool, query).await?))
 }
 
 pub async fn get_public_promotion_handler(
     State(pool): State<DbPool>,
     Path(slug): Path<String>,
-) -> Result<Json<Promotion>, ApiError> {
+) -> Result<Json<PublicPromotion>, ApiError> {
     Ok(Json(service::get_public_promotion(&pool, &slug).await?))
 }
 
 pub async fn list_guest_promotions_handler(
     State(pool): State<DbPool>,
+    axum::extract::Extension(limiters): axum::extract::Extension<
+        crate::core::rate_limiter::RateLimiters,
+    >,
     headers: HeaderMap,
     Query(query): Query<PromotionListQuery>,
 ) -> Result<Json<GuestPromotionListResponse>, ApiError> {
-    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    let guest_id = guest_portal::require_guest_session_for_read(&headers, &pool, &limiters).await?;
     Ok(Json(
         service::list_guest_promotions(&pool, guest_id, query).await?,
     ))
@@ -77,10 +81,13 @@ pub async fn claim_guest_promotion_handler(
 
 pub async fn list_guest_vouchers_handler(
     State(pool): State<DbPool>,
+    axum::extract::Extension(limiters): axum::extract::Extension<
+        crate::core::rate_limiter::RateLimiters,
+    >,
     headers: HeaderMap,
     Query(query): Query<PromotionListQuery>,
 ) -> Result<Json<VoucherListResponse>, ApiError> {
-    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    let guest_id = guest_portal::require_guest_session_for_read(&headers, &pool, &limiters).await?;
     Ok(Json(
         service::list_guest_vouchers(&pool, guest_id, query).await?,
     ))

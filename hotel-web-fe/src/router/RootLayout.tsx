@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from 'react';
 import { AppBar, Box, Container } from '@mui/material';
-import { Outlet, useLocation } from '@tanstack/react-router';
+import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
 import { useAuth } from '../auth/AuthContext';
 import { NavigationTabs } from '../components/layout/NavigationTabs';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
@@ -12,10 +12,10 @@ export const RootLayout: React.FC = () => {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
   const location = useLocation();
   const pathname = location.pathname;
-  const isGuestPortal = pathname === '/portal' || pathname.startsWith('/portal/');
+  const isGuestPortal = pathname === '/guest-portal';
+  const isAdminPortal = pathname === '/admin-portal';
   const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
-  const isGuestModelHome =
-    pathname === '/' && isAuthenticated && user?.user_type === 'guest';
+  const isGuestModelHome = isGuestPortal;
   const isTimelinePage = pathname.startsWith('/timeline');
   const boardSkinActive =
     isAuthenticated && !isTimelinePage && !isGuestPortal && !isOffersPage && !isGuestModelHome;
@@ -31,6 +31,19 @@ export const RootLayout: React.FC = () => {
   // Portal pages share the Salim Inn guest experience instead of inheriting
   // the operational staff navigation.
   if (isGuestPortal) {
+    if (isLoading) return <LoadingFallback />;
+
+    // A portal bearer token is only a short-lived companion to a signed-in
+    // guest account. Do not render portal routes while the account state is
+    // unknown, signed out, or belongs to an operational user.
+    if (!isAuthenticated) {
+      return <Navigate to="/login" search={{ account: 'guest' } as any} replace />;
+    }
+
+    if (user?.user_type !== 'guest') {
+      return <Navigate to="/" replace />;
+    }
+
     return (
       <GuestPortalShell>
         <ErrorBoundary title="Guest Experience Error">
@@ -40,6 +53,12 @@ export const RootLayout: React.FC = () => {
         </ErrorBoundary>
       </GuestPortalShell>
     );
+  }
+
+  if (isAdminPortal) {
+    if (isLoading) return <LoadingFallback />;
+    if (!isAuthenticated) return <Navigate to="/login" search={{ account: 'admin' } as any} replace />;
+    if (user?.user_type === 'guest') return <Navigate to={'/guest-portal' as any} replace />;
   }
 
   // Public consumer pages and the signed-in guest's model home remain outside

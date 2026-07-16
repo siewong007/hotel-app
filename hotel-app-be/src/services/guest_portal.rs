@@ -5,10 +5,10 @@ use chrono::{Duration, Utc};
 use rand::Rng;
 use regex::Regex;
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::rate_limiter::RateLimiters;
 use crate::models::{
     Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
     GuestPortalLoginResponse, GuestPortalMeResponse, GuestPortalMembershipResponse,
@@ -76,9 +76,20 @@ pub async fn verify_guest_booking(
         ));
     }
 
-    let token = Uuid::new_v4().to_string();
+    let token = generate_session_token();
     let expires_at = Utc::now() + Duration::hours(48);
     GuestPortalRepository::update_precheckin_token(pool, booking.id, &token, expires_at).await?;
+    AuditLog::log_event(
+        pool,
+        None,
+        "guest_portal.precheckin_token_issued",
+        "booking",
+        Some(booking.id),
+        Some(serde_json::json!({"guest_id": booking.guest_id})),
+        None,
+        None,
+    )
+    .await?;
 
     Ok(GuestPortalVerifyResponse {
         token,
@@ -115,6 +126,18 @@ pub async fn submit_precheckin_update(
     )
     .await?;
 
+    AuditLog::log_event(
+        pool,
+        None,
+        "guest_portal.precheckin_submitted",
+        "booking",
+        Some(booking.id),
+        Some(serde_json::json!({"guest_id": booking.guest_id})),
+        None,
+        None,
+    )
+    .await?;
+
     let updated_booking = GuestPortalRepository::find_booking_by_id(pool, booking.id).await?;
 
     portal_response(pool, updated_booking).await
@@ -125,7 +148,19 @@ pub async fn auto_checkin_by_token(
     token: &str,
 ) -> Result<crate::models::AutoCheckinResponse, ApiError> {
     let booking = require_valid_token(pool, token).await?;
-    auto_checkin::auto_checkin_for_guest_portal(pool, booking.id).await
+    let response = auto_checkin::auto_checkin_for_guest_portal(pool, booking.id).await?;
+    AuditLog::log_event(
+        pool,
+        None,
+        "guest_portal.auto_checkin",
+        "booking",
+        Some(booking.id),
+        Some(serde_json::json!({"guest_id": booking.guest_id})),
+        None,
+        None,
+    )
+    .await?;
+    Ok(response)
 }
 
 async fn require_valid_token(pool: &DbPool, token: &str) -> Result<Booking, ApiError> {
@@ -229,6 +264,52 @@ pub async fn require_guest_session(headers: &HeaderMap, pool: &DbPool) -> Result
         .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
 
     require_guest_session_token(token, pool).await
+}
+
+/// Resolve a guest session and apply the shared per-session read budget.
+pub async fn require_guest_session_for_read(
+    headers: &HeaderMap,
+    pool: &DbPool,
+    limiters: &RateLimiters,
+) -> Result<i64, ApiError> {
+    let guest_id = require_guest_session(headers, pool).await?;
+    let (allowed, retry_after) = limiters
+        .guest_portal_token_read
+        .check_with_retry(format!("guest:{guest_id}"))
+        .await;
+    if allowed {
+        Ok(guest_id)
+    } else {
+        Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many portal requests. Please try again in {retry_after} seconds."),
+            retry_after,
+        ))
+    }
+}
+
+/// Revoke the current guest portal session.
+pub async fn logout_guest_session(headers: &HeaderMap, pool: &DbPool) -> Result<(), ApiError> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
+    let guest_id = require_guest_session_token(token, pool).await?;
+    let token_hash = hash_session_token(token);
+    GuestPortalSessionRepository::delete_session(pool, &token_hash).await?;
+    AuditLog::log_event(
+        pool,
+        None,
+        "guest_portal.logout",
+        "guest",
+        Some(guest_id),
+        None,
+        None,
+        None,
+    )
+    .await
 }
 
 /// Resolve a raw portal token for transports that cannot set an Authorization

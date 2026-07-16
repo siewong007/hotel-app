@@ -29,6 +29,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
         .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
         .route("/guest-portal/session", post(create_session))
+        .route("/guest-portal/logout", post(handlers::guest_portal::logout))
         .route("/guest-portal/me", get(handlers::guest_portal::get_me))
         .route(
             "/guest-portal/me/bookings",

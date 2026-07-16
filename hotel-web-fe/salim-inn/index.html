@@ -19,19 +19,27 @@
 </style>
 </head>
 <body>
-<header class="topbar"><a class="brand" href="#top" aria-label="Salim Inn home"><img class="brand-logo" src="./salim-inn-logo.svg" alt="Salim Inn — Cozy, Clean, Affordable Comfort" /></a><div class="top-actions"><a class="pill sign-in" id="accountAction" href="/login?account=guest" target="_top">Sign in</a><a class="pill pill--gold" id="bookingAction" href="/register" target="_top">Book stay</a><button class="pill map-control" id="mapToggle">Map alignment: on</button><button class="pill" id="playButton">Play journey</button></div></header>
+<header class="topbar"><a class="brand" href="#top" aria-label="Salim Inn home"><img class="brand-logo" src="/salim-inn/salim-inn-logo.svg" alt="Salim Inn — Cozy, Clean, Affordable Comfort" /></a><div class="top-actions"><a class="pill sign-in" id="accountAction" href="/login?account=guest" target="_top">Sign in</a><a class="pill pill--gold" id="bookingAction" href="/register" target="_top">Book stay</a><button class="pill map-control" id="mapToggle">Map alignment: on</button><button class="pill" id="playButton">Play journey</button></div></header>
 <main id="top">
 <section class="experience"><div class="stage"><canvas id="webgl"></canvas><div class="transition-flare" id="transitionFlare"></div><div class="map-proof"><i></i><span>Map crop defines every footprint · hotel frontage faces outward</span></div><div class="hero-copy" id="heroCopy"><p class="kicker">MAP-LOCKED THREE.JS RECONSTRUCTION</p><h1>The map stays fixed.<br>The building <em>fits it.</em></h1><p>The Farley model extrudes building footprints from the supplied map crop. The outward-facing three-shop row is now arranged correctly: two cafe.cafe shop lots on the left and Salim Inn in the rightmost shop, with guest parking directly in front of the hotel frontage.</p><div class="location-line"><i></i><span>Outward-facing frontage · guest parking · three-storey datum</span></div></div><div class="phase-panel"><button class="phase is-active"><span>01</span><strong>Map authority</strong></button><button class="phase"><span>02</span><strong>Footprint fit</strong></button><button class="phase"><span>03</span><strong>Road arrival</strong></button><button class="phase"><span>04</span><strong>Reception</strong></button><button class="phase"><span>05</span><strong>Room above</strong></button></div><div class="readout"><div class="readout-index" id="stageIndex">01</div><div class="readout-copy"><small id="stageKicker">Geographic authority</small><h2 id="stageTitle">The supplied map is the coordinate frame</h2><p id="stageBody">The map crop remains beneath the model so every footprint, road-facing edge and parking position can be checked visually.</p></div></div><div class="coordinates">Farley Commercial Centre · Sibu</div><div class="scroll-cue"><span>Scroll the route</span><i></i></div><div class="hotspot-layer"><button class="hotspot" id="hotelHotspot"><span class="hotspot-dot"></span><span class="hotspot-label">Salim Inn · outward-facing frontage</span></button><button class="hotspot" id="parkingHotspot"><span class="hotspot-dot"></span><span class="hotspot-label">Guest parking in front</span></button></div><div class="info-card" id="infoCard"><button id="closeInfo">×</button><small id="infoKicker"></small><h3 id="infoTitle"></h3><p id="infoBody"></p></div><div class="progress"><span id="progressBar"></span></div></div></section>
 <section class="after"><div class="after-grid"><div><p class="kicker">THE CORRECTED SPATIAL LOGIC</p><h2>Footprint first.<br><em>Facade faces outward.</em></h2></div><p>The revised reconstruction uses the supplied Google Maps view as a fixed coordinate system. The row now contains exactly three outward-facing shop lots: cafe.cafe, cafe.cafe and Salim Inn from left to right. The frontage follows the mapped footprint and Salim Inn opens onto guest parking beside the perimeter road.</p></div><div class="benefits"><article class="benefit"><small>01 · DIRECT MAP EXTRUSION</small><h3>Buildings rise from their actual map shapes</h3><p>Detected beige and grey footprints are extruded in place instead of being replaced by invented rectangular city blocks.</p></article><article class="benefit"><small>02 · ONE HEIGHT DATUM</small><h3>All modeled buildings remain three storeys</h3><p>A shared floor height keeps Farley coherent and prevents Salim Inn from appearing artificially larger than its neighbours.</p></article><article class="benefit"><small>03 · REAL ARRIVAL LOGIC</small><h3>Outward-facing frontage and guest parking</h3><p>The arrival camera approaches from the outer perimeter road, crosses the guest parking zone and enters the ground-floor reception before moving to the room above.</p></article></div><div class="cta"><h3>Your Sibu stay,<br>connected to Farley.</h3><a href="mailto:reservation@saliminn.com">Enquire directly</a></div></section>
 </main>
 <script>
-if (new URLSearchParams(window.location.search).get('guest') === '1') {
+const account = new URLSearchParams(window.location.search).get('account');
+if (account === 'guest') {
   const accountAction = document.getElementById('accountAction');
   const bookingAction = document.getElementById('bookingAction');
   accountAction.textContent = 'My stay';
-  accountAction.href = '/portal';
+  accountAction.href = '/guest-portal';
   bookingAction.textContent = 'Book another stay';
-  bookingAction.href = '/portal/book';
+  bookingAction.href = '/guest-portal?view=booking';
+} else if (account === 'admin') {
+  const accountAction = document.getElementById('accountAction');
+  const bookingAction = document.getElementById('bookingAction');
+  accountAction.textContent = 'Admin portal';
+  accountAction.href = '/admin-portal';
+  bookingAction.textContent = 'Admin portal';
+  bookingAction.href = '/admin-portal';
 }
 </script>
 <script type="module" src="./salim-inn.js"></script>

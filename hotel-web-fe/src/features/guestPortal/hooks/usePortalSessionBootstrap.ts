@@ -19,6 +19,8 @@ export interface PortalSessionBootstrap {
   error: string | null;
   canRetry: boolean;
   needsLogin: boolean;
+  /** Signed in, but with a staff account — the guest portal is not theirs. */
+  isStaffAccount: boolean;
   retry: () => void;
   restartSignIn: () => void;
   signOut: () => void;
@@ -42,9 +44,12 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
   const [didAccountCheckTimeOut, setDidAccountCheckTimeOut] = useState(false);
-  const token = storedToken ?? bootstrapToken;
   const isGuestAccount = isAuthenticated && user?.user_type === 'guest';
-  const needsLogin = !token && !isLoading && !isGuestAccount;
+  // A stored portal token must never grant access on its own after the normal
+  // account session has ended. The route shell also enforces this invariant.
+  const token = isGuestAccount ? storedToken ?? bootstrapToken : null;
+  const isStaffAccount = !isLoading && isAuthenticated && !isGuestAccount;
+  const needsLogin = !token && !isLoading && !isAuthenticated;
 
   useEffect(() => {
     if (token || !isLoading) {
@@ -105,6 +110,7 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
         error: null,
         canRetry: false,
         needsLogin: false,
+        isStaffAccount: false,
         retry,
         restartSignIn,
         signOut,
@@ -118,6 +124,7 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
         error: 'We could not confirm your account session. Please sign in again.',
         canRetry: false,
         needsLogin: false,
+        isStaffAccount,
         retry,
         restartSignIn,
         signOut,
@@ -131,6 +138,7 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
         error: bootstrapError,
         canRetry: true,
         needsLogin: false,
+        isStaffAccount,
         retry,
         restartSignIn,
         signOut,
@@ -143,6 +151,7 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
       error: null,
       canRetry: false,
       needsLogin,
+      isStaffAccount,
       retry,
       restartSignIn,
       signOut,
@@ -151,6 +160,7 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
     bootstrapError,
     didAccountCheckTimeOut,
     isLoading,
+    isStaffAccount,
     needsLogin,
     restartSignIn,
     retry,

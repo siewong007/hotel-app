@@ -26,6 +26,7 @@ import {
   AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
+import { storage } from '../../../utils/storage';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 import { LoadingSpinner } from '../../../components';
@@ -62,15 +63,26 @@ const LoginPage: React.FC = () => {
   }, [searchParams]);
 
   const completeSignIn = async () => {
-    if (userType !== 'guest') {
-      navigate('/');
-      return;
+    // Route by the authenticated account's actual type, not the login tab the
+    // user picked — a guest signing in from the admin tab must still get the
+    // guest experience, and vice versa.
+    const account = storage.getItem<{ user_type?: 'admin' | 'guest' }>('user')?.user_type;
+
+    if (account === 'guest') {
+      // Pre-warm the portal session so the landing page's guest links open
+      // instantly. Best-effort: portal entry bootstraps its own session.
+      try {
+        const portalSession = await GuestPortalDashboardService.createSession();
+        queryClient.removeQueries({ queryKey: ['promotions', 'portal'] });
+        setPortalToken(portalSession.token, portalSession.expires_at);
+      } catch {
+        // usePortalSessionBootstrap re-creates the session on portal entry.
+      }
     }
 
-    const portalSession = await GuestPortalDashboardService.createSession();
-    queryClient.removeQueries({ queryKey: ['promotions', 'portal'] });
-    setPortalToken(portalSession.token, portalSession.expires_at);
-    navigate('/portal', { replace: true });
+    // Everyone returns to the index page signed in; its header links point
+    // guests at /guest-portal and staff at /admin-portal.
+    navigate('/', { replace: true });
   };
 
   const handleFirstLoginPromptClose = () => {

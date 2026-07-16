@@ -84,11 +84,17 @@ export const PortalDashboardPage: React.FC = () => {
     error: sessionError,
     canRetry,
     needsLogin,
+    isStaffAccount,
     retry,
     restartSignIn,
     signOut,
   } = usePortalSessionBootstrap();
   const [activeTab, setActiveTab] = useState(0);
+
+  // Staff accounts belong in the admin portal, not the guest portal.
+  if (isStaffAccount) {
+    return <Navigate to="/admin-portal" replace />;
+  }
 
   if (needsLogin) {
     return <Navigate to="/login?account=guest" replace />;
@@ -127,17 +133,17 @@ export const PortalDashboardPage: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 6 }}>
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, sm: 4 }, mb: 6, px: { xs: 1.5, sm: 3 } }}>
       <Paper elevation={2} sx={{ p: { xs: 2, sm: 3 } }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2, mb: 2 }}>
           <Typography variant="h4" component="h1">
             My Account
           </Typography>
-          <Stack direction="row" spacing={1}>
-            <Button variant="contained" onClick={() => navigate('/portal/book')}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+            <Button variant="contained" onClick={() => navigate('/guest-portal?view=booking')} sx={{ width: { xs: '100%', sm: 'auto' } }}>
               Book a Room
             </Button>
-            <Button variant="outlined" onClick={signOut}>
+            <Button variant="outlined" onClick={signOut} sx={{ width: { xs: '100%', sm: 'auto' } }}>
               Sign Out
             </Button>
           </Stack>
@@ -232,7 +238,7 @@ const BookingsTab: React.FC<{ token: string }> = ({ token }) => {
   }
 
   return (
-    <TableContainer>
+    <TableContainer sx={{ overflowX: 'auto' }}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -315,7 +321,7 @@ const TransactionsTab: React.FC<{ token: string }> = ({ token }) => {
   }
 
   return (
-    <TableContainer>
+    <TableContainer sx={{ overflowX: 'auto' }}>
       <Table size="small">
         <TableHead>
           <TableRow>

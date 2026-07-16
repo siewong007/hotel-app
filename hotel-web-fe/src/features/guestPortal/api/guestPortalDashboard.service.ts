@@ -58,6 +58,10 @@ export class GuestPortalDashboardService {
     return await api.post('guest-portal/session', { timeout: 10_000 }).json();
   }
 
+  static async logout(token?: string): Promise<void> {
+    await api.post('guest-portal/logout', { headers: authHeaders(token) });
+  }
+
   static async me(token?: string): Promise<GuestPortalMeResponse> {
     return await api
       .get('guest-portal/me', { headers: authHeaders(token) })

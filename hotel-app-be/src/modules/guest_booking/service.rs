@@ -185,11 +185,13 @@ pub async fn search(
     query: BookingSearchQuery,
 ) -> Result<Vec<GuestBookingOffer>, ApiError> {
     let stay = validate_stay(
+        pool,
         &query.check_in_date,
         &query.check_out_date,
         query.adults,
         query.children,
-    )?;
+    )
+    .await?;
     let room_types = Repository::list_inventory(
         pool,
         stay.check_in_date,
@@ -239,11 +241,13 @@ pub async fn quote(
     request: BookingQuoteRequest,
 ) -> Result<GuestBookingQuote, ApiError> {
     let stay = validate_stay(
+        pool,
         &request.check_in_date,
         &request.check_out_date,
         request.adults,
         request.children,
-    )?;
+    )
+    .await?;
     let room_type = Repository::find_inventory(
         pool,
         request.room_type_id,

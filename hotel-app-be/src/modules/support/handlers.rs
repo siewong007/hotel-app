@@ -145,10 +145,11 @@ pub async fn apply_staff_action_handler(
 
 pub async fn list_guest_conversations_handler(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Query(query): Query<GuestSupportListQuery>,
 ) -> Result<Json<GuestSupportConversationListResponse>, ApiError> {
-    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    let guest_id = guest_portal::require_guest_session_for_read(&headers, &pool, &limiters).await?;
     Ok(Json(
         service::list_guest_conversations(&pool, guest_id, query.page, query.page_size).await?,
     ))
@@ -177,10 +178,11 @@ pub async fn create_guest_conversation_handler(
 
 pub async fn get_guest_conversation_handler(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Path(conversation_id): Path<i64>,
 ) -> Result<Json<GuestSupportConversationDetail>, ApiError> {
-    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    let guest_id = guest_portal::require_guest_session_for_read(&headers, &pool, &limiters).await?;
     Ok(Json(
         service::get_guest_conversation(&pool, guest_id, conversation_id).await?,
     ))

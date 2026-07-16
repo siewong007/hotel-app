@@ -29,8 +29,8 @@
     "web-vitals": "^4.2.4"
   },
   "scripts": {
-    "start": "vite",
-    "start:tauri": "vite --mode tauri --host 127.0.0.1 --strictPort",
+    "start": "vite --strictPort",
+    "start:tauri": "vite --mode tauri --host 0.0.0.0 --strictPort",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --quiet",
