@@ -1962,3 +1962,40 @@ WHEN NEW.updated_at = OLD.updated_at
 BEGIN
     UPDATE email_deliveries SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
+
+-- @migration 30 passkeys
+-- SQLite equivalents of the WebAuthn credential and challenge tables. These
+-- are required even for password-only accounts so passkey lookup can return a
+-- normal "no passkey" response rather than a database failure.
+CREATE TABLE IF NOT EXISTS passkeys (
+    id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id BLOB NOT NULL UNIQUE,
+    public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT,
+    device_type TEXT,
+    device_name TEXT,
+    aaguid TEXT,
+    backup_eligible INTEGER NOT NULL DEFAULT 0,
+    backup_state INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS passkey_challenges (
+    id TEXT PRIMARY KEY NOT NULL DEFAULT (lower(hex(randomblob(16)))),
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    challenge BLOB NOT NULL,
+    challenge_type TEXT NOT NULL CHECK (challenge_type IN ('registration', 'authentication')),
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    used_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_passkeys_user_id
+    ON passkeys (user_id)
+    WHERE is_active = 1;
+CREATE INDEX IF NOT EXISTS idx_passkey_challenges_expires
+    ON passkey_challenges (expires_at);

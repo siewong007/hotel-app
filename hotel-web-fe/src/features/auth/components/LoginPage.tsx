@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
 import {
@@ -37,9 +37,10 @@ type UserType = 'guest' | 'admin' | null;
 const LoginPage: React.FC = () => {
   const hotelSettings = getHotelSettings();
   const [searchParams] = useSearchParams();
-  const [userType, setUserType] = useState<UserType>(() =>
-    searchParams.get('account') === 'guest' ? 'guest' : null
-  );
+  const [userType, setUserType] = useState<UserType>(() => {
+    const account = searchParams.get('account');
+    return account === 'guest' || account === 'admin' ? account : null;
+  });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -54,6 +55,11 @@ const LoginPage: React.FC = () => {
   const { login, loginWithPasskey, registerPasskey } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const account = searchParams.get('account');
+    setUserType(account === 'guest' || account === 'admin' ? account : null);
+  }, [searchParams]);
 
   const completeSignIn = async () => {
     if (userType !== 'guest') {
@@ -156,7 +162,7 @@ const LoginPage: React.FC = () => {
   };
 
   const handleBackToUserType = () => {
-    setUserType(null);
+    navigate('/login', { replace: true });
     setError('');
     setUsername('');
     setPassword('');
@@ -465,7 +471,7 @@ const LoginPage: React.FC = () => {
               <Fade in timeout={600}>
                 <Box>
                   <Card
-                    onClick={() => setUserType('guest')}
+                    onClick={() => navigate('/login?account=guest')}
                     sx={{
                       mb: 3,
                       cursor: 'pointer',
@@ -502,7 +508,7 @@ const LoginPage: React.FC = () => {
                   </Card>
 
                   <Card
-                    onClick={() => setUserType('admin')}
+                    onClick={() => navigate('/login?account=admin')}
                     sx={{
                       cursor: 'pointer',
                       transition: 'all 0.3s',
@@ -657,6 +663,24 @@ const LoginPage: React.FC = () => {
                         disabled={!username || username.length < 3}
                       >
                         Next
+                      </Button>
+                      <Button
+                        type="button"
+                        fullWidth
+                        variant="outlined"
+                        startIcon={<FingerprintIcon />}
+                        onClick={handlePasskeyLogin}
+                        disabled={!username || username.length < 3 || loading}
+                        sx={{
+                          borderColor: 'var(--hotel-primary)',
+                          color: 'var(--hotel-primary)',
+                          '&:hover': {
+                            borderColor: 'var(--hotel-primary-dark)',
+                            backgroundColor: 'var(--hotel-muted-bg)',
+                          },
+                        }}
+                      >
+                        Sign in with passkey
                       </Button>
                     </form>
                   )}

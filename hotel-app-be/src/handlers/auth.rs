@@ -15,12 +15,19 @@ pub const REFRESH_COOKIE: &str = "refresh_token";
 /// keep the cookie lifetime in lockstep so the browser drops it when it expires.
 const REFRESH_COOKIE_MAX_AGE_DAYS: i64 = 30;
 
+/// Local development and the desktop sidecar use HTTP loopback URLs. Browsers
+/// do not send `Secure` cookies over those URLs, so only require the flag for
+/// deployed web servers. Production web deployments must terminate TLS.
+fn refresh_cookie_is_secure() -> bool {
+    !cfg!(debug_assertions) && !crate::core::config::get().desktop_mode
+}
+
 /// Builds the refresh-token cookie: `HttpOnly`, `Secure`, `SameSite=Strict`,
 /// scoped to `/api/auth` so it is only ever sent to the auth endpoints.
 pub(crate) fn build_refresh_cookie(token: String) -> Cookie<'static> {
     Cookie::build((REFRESH_COOKIE, token))
         .http_only(true)
-        .secure(true)
+        .secure(refresh_cookie_is_secure())
         .same_site(SameSite::Strict)
         .path("/api/auth")
         .max_age(time::Duration::days(REFRESH_COOKIE_MAX_AGE_DAYS))
@@ -32,7 +39,7 @@ pub(crate) fn build_refresh_cookie(token: String) -> Cookie<'static> {
 fn clear_refresh_cookie() -> Cookie<'static> {
     Cookie::build((REFRESH_COOKIE, ""))
         .http_only(true)
-        .secure(true)
+        .secure(refresh_cookie_is_secure())
         .same_site(SameSite::Strict)
         .path("/api/auth")
         .max_age(time::Duration::seconds(0))

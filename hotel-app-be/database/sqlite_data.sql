@@ -793,6 +793,50 @@ ON CONFLICT(route_id) DO UPDATE SET
     is_navigation = excluded.is_navigation,
     updated_at = datetime('now');
 
+-- Guest portal demo account. This provides an account-linked guest profile so
+-- the self-service portal can issue its scoped session after normal login.
+-- Development credentials: demo.guest / GuestDemo123!
+INSERT OR IGNORE INTO guests (guest_code, first_name, last_name, full_name, email)
+VALUES ('DEMO-0001', 'Demo', 'Guest', 'Demo Guest', 'demo.guest@hotel.local');
+
+INSERT OR IGNORE INTO users (
+    uuid, username, email, password_hash, full_name, user_type, guest_id,
+    is_active, is_verified
+)
+VALUES (
+    'd3e0d3e0-0001-4a11-9b22-000000000001',
+    'demo.guest',
+    'demo.guest@hotel.local',
+    '$2b$12$k9XfzLh81QUDXe4CC5807OAl7MD5rArpIISgvZSyNOM9cYWLcRBia',
+    'Demo Guest',
+    'guest',
+    (SELECT id FROM guests WHERE email = 'demo.guest@hotel.local' LIMIT 1),
+    1,
+    1
+);
+
+INSERT OR IGNORE INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+FROM users u
+CROSS JOIN roles r
+WHERE u.username = 'demo.guest' AND r.name = 'guest';
+
+-- Repair guest accounts created before guest profiles were linked to users.
+UPDATE users
+SET guest_id = (
+    SELECT g.id
+    FROM guests g
+    WHERE LOWER(g.email) = LOWER(users.email)
+    LIMIT 1
+)
+WHERE user_type = 'guest'
+  AND guest_id IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM guests g
+      WHERE LOWER(g.email) = LOWER(users.email)
+  );
+
 
 -- Source migration 010: guest_ekyc_auto_checkin
 UPDATE ekyc_verifications
@@ -1209,8 +1253,8 @@ ON CONFLICT(route_id) DO UPDATE SET
 INSERT INTO permissions (name, resource, action, description, is_system_permission)
 VALUES
     ('communications:read', 'communications', 'read', 'View communications campaigns, templates, and delivery status', 1),
-    ('communications:compose', 'communications', 'compose', 'Draft and edit email campaigns and templates', 1),
-    ('communications:send', 'communications', 'send', 'Schedule, test-send, and send email campaigns', 1),
+    ('communications:compose', 'communications', 'write', 'Draft and edit email campaigns and templates', 1),
+    ('communications:send', 'communications', 'execute', 'Schedule, test-send, and send email campaigns', 1),
     ('communications:manage', 'communications', 'manage', 'Full communications management including automation and suppressions', 1),
     ('navigation_communications:read', 'navigation:communications', 'read', 'Show Communications navigation', 1)
 ON CONFLICT(name) DO UPDATE SET
