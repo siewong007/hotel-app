@@ -647,6 +647,605 @@ mod sqlite_tests {
         assert!(reopened.conversation.summary.resolution_due_at.is_some());
     }
 
+    #[tokio::test]
+    async fn guest_intake_honors_runtime_enablement_and_category_configuration() {
+        let _test_lock = begin_support_workflow_test().await;
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 9851, "support-settings@example.com").await;
+
+        set_support_setting(
+            &pool,
+            "support_categories",
+            r#"["billing","not-a-category","BILLING"]"#,
+        )
+        .await;
+
+        let list = service::list_guest_conversations(&pool, 9851, None, None)
+            .await
+            .unwrap();
+        assert!(list.enabled);
+        assert_eq!(list.categories, vec!["billing"]);
+
+        let unavailable_category = service::create_guest_conversation(
+            &pool,
+            9851,
+            create_request("create-9851-stay"),
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(unavailable_category, ApiError::BadRequest(_)));
+
+        let created = service::create_guest_conversation(
+            &pool,
+            9851,
+            create_request_for_category(" BILLING ", "create-9851-billing"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(created.conversation.category, "billing");
+
+        set_support_setting(&pool, "support_enabled", "false").await;
+        let disabled_list = service::list_guest_conversations(&pool, 9851, None, None)
+            .await
+            .unwrap();
+        assert!(!disabled_list.enabled);
+        assert_eq!(disabled_list.total, 1, "existing conversations remain readable");
+
+        let disabled_intake = service::create_guest_conversation(
+            &pool,
+            9851,
+            create_request_for_category("billing", "create-9851-disabled"),
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(disabled_intake, ApiError::Forbidden(_)));
+    }
+
+    #[tokio::test]
+    async fn guest_reopen_paths_enforce_the_window_and_reset_resolution_state() {
+        let _test_lock = begin_support_workflow_test().await;
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 9852, "support-reopen@example.com").await;
+
+        let created = service::create_guest_conversation(
+            &pool,
+            9852,
+            create_request("create-9852-reopen"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let claimed = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            action("claim", created.conversation.version),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let mut resolve = action("resolve", claimed.conversation.summary.version);
+        resolve.resolution_code = Some("maintenance_dispatched".to_string());
+        resolve.resolution_summary = Some("Engineering has been notified.".to_string());
+        let resolved = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            resolve,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let guest_reply = service::send_guest_message(
+            &pool,
+            9852,
+            created.conversation.id,
+            GuestSupportMessageRequest {
+                message: "The issue has returned.".to_string(),
+                client_message_id: Some("guest-reopen-message-9852".to_string()),
+                expected_version: Some(resolved.conversation.summary.version),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(guest_reply.conversation.status, "waiting_for_staff");
+        assert!(guest_reply.conversation.resolution_summary.is_none());
+        assert_eq!(
+            service::get_staff_conversation(&pool, created.conversation.id)
+                .await
+                .unwrap()
+                .conversation
+                .reopen_count,
+            1
+        );
+
+        let mut resolve_again = action("resolve", guest_reply.conversation.version);
+        resolve_again.resolution_code = Some("maintenance_rechecked".to_string());
+        resolve_again.resolution_summary = Some("Engineering completed a follow-up check.".to_string());
+        let resolved_again = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            resolve_again,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(resolved_again.conversation.summary.status, "resolved");
+        let explicitly_reopened = service::reopen_guest_conversation(
+            &pool,
+            9852,
+            created.conversation.id,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(explicitly_reopened.conversation.status, "waiting_for_staff");
+        assert_eq!(
+            service::get_staff_conversation(&pool, created.conversation.id)
+                .await
+                .unwrap()
+                .conversation
+                .reopen_count,
+            2
+        );
+        let reopen_replay = service::reopen_guest_conversation(
+            &pool,
+            9852,
+            created.conversation.id,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            reopen_replay.conversation.version,
+            explicitly_reopened.conversation.version,
+            "an already-open conversation is a safe reopen retry"
+        );
+
+        let expired = service::create_guest_conversation(
+            &pool,
+            9852,
+            create_request("create-9852-expired-reopen"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let expired_claim = service::apply_staff_action(
+            &pool,
+            1,
+            expired.conversation.id,
+            action("claim", expired.conversation.version),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let mut expired_resolve = action("resolve", expired_claim.conversation.summary.version);
+        expired_resolve.resolution_code = Some("completed".to_string());
+        expired_resolve.resolution_summary = Some("The original request has been completed.".to_string());
+        let expired_resolved = service::apply_staff_action(
+            &pool,
+            1,
+            expired.conversation.id,
+            expired_resolve,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        sqlx::query(
+            "UPDATE support_conversations SET resolved_at = datetime('now', '-8 days') WHERE id = ?1",
+        )
+        .bind(expired.conversation.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let expired_detail = service::get_guest_conversation(&pool, 9852, expired.conversation.id)
+            .await
+            .unwrap();
+        assert!(!expired_detail.conversation.can_reopen);
+        let expired_reopen = service::reopen_guest_conversation(
+            &pool,
+            9852,
+            expired.conversation.id,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(expired_reopen, ApiError::Conflict(_)));
+        let expired_message = service::send_guest_message(
+            &pool,
+            9852,
+            expired.conversation.id,
+            GuestSupportMessageRequest {
+                message: "Please reopen this old request.".to_string(),
+                client_message_id: Some("guest-expired-reopen-message".to_string()),
+                expected_version: Some(expired_resolved.conversation.summary.version),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(expired_message, ApiError::Conflict(_)));
+    }
+
+    #[tokio::test]
+    async fn staff_workflow_covers_replies_actions_ownership_and_idempotency() {
+        let _test_lock = begin_support_workflow_test().await;
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 9853, "support-staff-workflow@example.com").await;
+        seed_staff_member(
+            &pool,
+            9854,
+            "support_writer_9854",
+            true,
+            &["support:write", "support:assign"],
+        )
+        .await;
+        seed_staff_member(
+            &pool,
+            9855,
+            "support_replacement_9855",
+            true,
+            &["support:read", "support:write"],
+        )
+        .await;
+        seed_staff_member(
+            &pool,
+            9856,
+            "support_escalator_9856",
+            true,
+            &["support:escalate"],
+        )
+        .await;
+
+        let created = service::create_guest_conversation(
+            &pool,
+            9853,
+            create_request("create-9853-staff-workflow"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let claim_request = action("claim", created.conversation.version);
+        let claimed = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            claim_request.clone(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let claim_replay = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            claim_request,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            claim_replay.conversation.summary.version,
+            claimed.conversation.summary.version,
+            "replaying an action key must not apply the claim twice"
+        );
+
+        let released = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            action("release", claimed.conversation.summary.version),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(released.conversation.summary.assigned_to_user_id, None);
+
+        let staff_reply_request = SupportMessageRequest {
+            message: "I am reviewing this for you now.".to_string(),
+            client_message_id: Some("staff-reply-9854".to_string()),
+            expected_version: Some(released.conversation.summary.version),
+        };
+        let replied = service::send_staff_message(
+            &pool,
+            9854,
+            created.conversation.id,
+            staff_reply_request,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(replied.conversation.summary.status, "waiting_for_guest");
+        assert_eq!(replied.conversation.summary.assigned_to_user_id, Some(9854));
+        assert!(replied.conversation.summary.first_response_at.is_some());
+        let reply_replay = service::send_staff_message(
+            &pool,
+            9854,
+            created.conversation.id,
+            SupportMessageRequest {
+                message: "I am reviewing this for you now.".to_string(),
+                client_message_id: Some("staff-reply-9854".to_string()),
+                expected_version: Some(released.conversation.summary.version),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(reply_replay.messages.len(), replied.messages.len());
+        assert_eq!(
+            reply_replay.conversation.summary.version,
+            replied.conversation.summary.version
+        );
+
+        let mut note_request = action("add_internal_note", replied.conversation.summary.version);
+        note_request.reason = Some("Guest prefers a quiet follow-up call.".to_string());
+        let noted = service::apply_staff_action(
+            &pool,
+            9854,
+            created.conversation.id,
+            note_request.clone(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let internal_note = noted
+            .events
+            .iter()
+            .find(|event| event.event_type == "internal_note")
+            .expect("internal note event should be recorded");
+        assert_eq!(
+            internal_note.body.as_deref(),
+            Some("Guest prefers a quiet follow-up call.")
+        );
+
+        let release_request = action("release", noted.conversation.summary.version);
+        let released_by_writer = service::apply_staff_action(
+            &pool,
+            9854,
+            created.conversation.id,
+            release_request.clone(),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(released_by_writer.conversation.summary.assigned_to_user_id, None);
+        let release_replay_after_handoff = service::apply_staff_action(
+            &pool,
+            9854,
+            created.conversation.id,
+            release_request,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(release_replay_after_handoff, ApiError::Conflict(_)));
+
+        let mut assign_replacement = action(
+            "assign",
+            released_by_writer.conversation.summary.version,
+        );
+        assign_replacement.assignee_id = Some(9855);
+        let reassigned = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            assign_replacement,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let replay_after_reassignment = service::send_staff_message(
+            &pool,
+            9854,
+            created.conversation.id,
+            SupportMessageRequest {
+                message: "I am reviewing this for you now.".to_string(),
+                client_message_id: Some("staff-reply-9854".to_string()),
+                expected_version: Some(released.conversation.summary.version),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(replay_after_reassignment, ApiError::Forbidden(_)));
+
+        let note_replay_after_reassignment = service::apply_staff_action(
+            &pool,
+            9854,
+            created.conversation.id,
+            note_request,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(note_replay_after_reassignment, ApiError::Forbidden(_)));
+
+        let no_reason = service::apply_staff_action(
+            &pool,
+            9856,
+            created.conversation.id,
+            action("escalate", reassigned.conversation.summary.version),
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(no_reason, ApiError::BadRequest(_)));
+
+        let mut escalated = reassigned;
+        for expected_level in 1..=4 {
+            let mut escalation = action(
+                "escalate",
+                escalated.conversation.summary.version,
+            );
+            escalation.reason = Some(format!("Escalation step {expected_level}"));
+            escalated = service::apply_staff_action(
+                &pool,
+                9856,
+                created.conversation.id,
+                escalation,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                escalated.conversation.summary.escalation_level,
+                expected_level.min(3)
+            );
+            assert_eq!(escalated.conversation.summary.assigned_to_user_id, None);
+            assert_eq!(escalated.conversation.summary.queue, "duty_manager");
+        }
+
+        let mut missing_version = action("set_priority", escalated.conversation.summary.version);
+        missing_version.expected_version = None;
+        missing_version.priority = Some("high".to_string());
+        let missing_version_error = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            missing_version,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(missing_version_error, ApiError::BadRequest(_)));
+
+        let mut stale_priority = action("set_priority", created.conversation.version);
+        stale_priority.priority = Some("high".to_string());
+        stale_priority.client_action_id = Some("stale-priority-9853".to_string());
+        let stale_priority_error = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            stale_priority,
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(stale_priority_error, ApiError::Conflict(_)));
+
+        let mut priority = action("set_priority", escalated.conversation.summary.version);
+        priority.priority = Some("high".to_string());
+        let reprioritized = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            priority,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(reprioritized.conversation.summary.priority, "high");
+    }
+
+    #[tokio::test]
+    async fn guest_message_payloads_are_an_explicit_safe_allow_list() {
+        let _test_lock = begin_support_workflow_test().await;
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 9857, "support-message-shape@example.com").await;
+        let created = service::create_guest_conversation(
+            &pool,
+            9857,
+            create_request("create-9857-message-shape"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let claimed = service::apply_staff_action(
+            &pool,
+            1,
+            created.conversation.id,
+            action("claim", created.conversation.version),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let staff_detail = service::send_staff_message(
+            &pool,
+            1,
+            created.conversation.id,
+            SupportMessageRequest {
+                message: "A staff-only identity must remain in the internal queue.".to_string(),
+                client_message_id: Some("staff-message-shape".to_string()),
+                expected_version: Some(claimed.conversation.summary.version),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(
+            staff_detail
+                .messages
+                .iter()
+                .any(|message| message.author_user_id == Some(1)),
+            "staff responses retain internal author linkage"
+        );
+
+        let guest_detail = service::get_guest_conversation(&pool, 9857, created.conversation.id)
+            .await
+            .unwrap();
+        let payload = serde_json::to_value(guest_detail).unwrap();
+        let staff_message = payload["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|message| message["author_type"] == "staff")
+            .unwrap()
+            .as_object()
+            .unwrap();
+        let mut fields = staff_message.keys().cloned().collect::<Vec<_>>();
+        fields.sort();
+        assert_eq!(fields, vec!["author_type", "body", "created_at", "id"]);
+        for forbidden_field in ["author_user_id", "author_guest_id", "author_name"] {
+            assert!(
+                !staff_message.contains_key(forbidden_field),
+                "guest messages must not expose {forbidden_field}"
+            );
+        }
+    }
+
     #[test]
     fn support_validation_and_database_contracts_stay_aligned() {
         let max_code = "r".repeat(validation::MAX_RESOLUTION_CODE_CHARS);

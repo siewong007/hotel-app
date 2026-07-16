@@ -685,23 +685,60 @@ RETURNING id
             .map_err(ApiError::from)
     }
 
-    pub async fn client_message_exists(
+    pub async fn guest_client_message_exists(
         pool: &DbPool,
         conversation_id: i64,
-        author_type: &str,
+        guest_id: i64,
         client_message_id: &str,
     ) -> Result<bool, ApiError> {
         let sql = sql_query!(
-            postgres: "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = $1 AND author_type = $2 AND client_message_id = $3)",
-            sqlite: "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = ?1 AND author_type = ?2 AND client_message_id = ?3)"
+            postgres: "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = $1 AND author_type = 'guest' AND author_guest_id = $2 AND client_message_id = $3)",
+            sqlite: "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = ?1 AND author_type = 'guest' AND author_guest_id = ?2 AND client_message_id = ?3)"
         );
         sqlx::query_scalar(sql)
             .bind(conversation_id)
-            .bind(author_type)
+            .bind(guest_id)
             .bind(client_message_id)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)
+    }
+
+    /// Return whether a staff client-message key belongs to the requesting
+    /// staff member. A key owned by another user is deliberately distinct from
+    /// a retry, even though the historical unique index is conversation-wide.
+    pub async fn staff_client_message_belongs_to_actor(
+        pool: &DbPool,
+        conversation_id: i64,
+        actor_user_id: i64,
+        client_message_id: &str,
+    ) -> Result<Option<bool>, ApiError> {
+        let sql = sql_query!(
+            postgres: r#"
+SELECT CASE WHEN author_user_id = $2 THEN 1 ELSE 0 END
+FROM support_messages
+WHERE conversation_id = $1
+  AND author_type = 'staff'
+  AND client_message_id = $3
+LIMIT 1
+"#,
+            sqlite: r#"
+SELECT CASE WHEN author_user_id = ?2 THEN 1 ELSE 0 END
+FROM support_messages
+WHERE conversation_id = ?1
+  AND author_type = 'staff'
+  AND client_message_id = ?3
+LIMIT 1
+"#
+        );
+        let result = sqlx::query_scalar::<_, i64>(sql)
+            .bind(conversation_id)
+            .bind(actor_user_id)
+            .bind(client_message_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(result.map(|belongs_to_actor| belongs_to_actor == 1))
     }
 
     pub async fn find_guest_request_conversation(
@@ -875,21 +912,21 @@ WHERE id = ?1 AND (?16 IS NULL OR version = ?16)
         Ok(result.rows_affected() == 1)
     }
 
-    pub async fn action_key_exists(
+    pub async fn find_action_key_action(
         pool: &DbPool,
         conversation_id: i64,
         actor_user_id: i64,
         key: &str,
-    ) -> Result<bool, ApiError> {
+    ) -> Result<Option<String>, ApiError> {
         let sql = sql_query!(
-            postgres: "SELECT EXISTS (SELECT 1 FROM support_action_idempotency_keys WHERE conversation_id = $1 AND actor_user_id = $2 AND idempotency_key = $3)",
-            sqlite: "SELECT EXISTS (SELECT 1 FROM support_action_idempotency_keys WHERE conversation_id = ?1 AND actor_user_id = ?2 AND idempotency_key = ?3)"
+            postgres: "SELECT action FROM support_action_idempotency_keys WHERE conversation_id = $1 AND actor_user_id = $2 AND idempotency_key = $3",
+            sqlite: "SELECT action FROM support_action_idempotency_keys WHERE conversation_id = ?1 AND actor_user_id = ?2 AND idempotency_key = ?3"
         );
         sqlx::query_scalar(sql)
             .bind(conversation_id)
             .bind(actor_user_id)
             .bind(key)
-            .fetch_one(pool)
+            .fetch_optional(pool)
             .await
             .map_err(ApiError::from)
     }

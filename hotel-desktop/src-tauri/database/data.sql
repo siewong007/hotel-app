@@ -127,6 +127,11 @@ VALUES
     ('permissions:update'),
     ('promotions:manage'),
     ('promotions:read'),
+    ('communications:read'),
+    ('communications:compose'),
+    ('communications:send'),
+    ('communications:manage'),
+    ('navigation_communications:read'),
     ('reports:execute'),
     ('reports:read'),
     ('reviews:create'),
@@ -261,6 +266,7 @@ INSERT INTO expected_route_access_policies (route_id)
 VALUES
     ('audit-log'),
     ('bookings'),
+    ('communications'),
     ('company-ledger'),
     ('complimentary'),
     ('dashboard'),
@@ -340,7 +346,8 @@ SELECT
             'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
             'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
             'override', 'export', 'download', 'reveal', 'request_resubmission',
-            'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+            'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+            'compose', 'send'
         ) THEN 'Invalid action' END
     ),
     to_jsonb(p)
@@ -356,7 +363,8 @@ WHERE p.is_system_permission IS TRUE
           'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
           'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
           'override', 'export', 'download', 'reveal', 'request_resubmission',
-          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+          'compose', 'send'
       )
   );
 
@@ -372,7 +380,8 @@ WHERE p.is_system_permission IS TRUE
           'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
           'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
           'override', 'export', 'download', 'reveal', 'request_resubmission',
-          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+          'compose', 'send'
       )
   );
 
@@ -471,7 +480,8 @@ ALTER TABLE permissions ADD CONSTRAINT valid_action
         'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
-        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+        'compose', 'send'
     ));
 
 INSERT INTO permissions (name, resource, action, description, is_system_permission) VALUES
@@ -510,6 +520,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('vouchers:read', 'vouchers', 'read', 'View issued vouchers and redemptions', true),
 ('vouchers:manage', 'vouchers', 'manage', 'Issue, revoke, and manage vouchers', true),
 ('navigation_promotions:read', 'navigation:promotions', 'read', 'Show Promotions navigation', true),
+('communications:read', 'communications', 'read', 'View communications campaigns, templates, and delivery status', true),
+('communications:compose', 'communications', 'compose', 'Draft and edit email campaigns and templates', true),
+('communications:send', 'communications', 'send', 'Schedule, test-send, and send email campaigns', true),
+('communications:manage', 'communications', 'manage', 'Full communications management including automation and suppressions', true),
+('navigation_communications:read', 'navigation:communications', 'read', 'Show Communications navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -780,6 +795,48 @@ VALUES (
     '[]'::jsonb,
     '[]'::jsonb,
     '["navigation_promotions:read","promotions:read"]'::jsonb,
+    '[]'::jsonb,
+    '["guest"]'::jsonb,
+    true,
+    true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    required_roles = EXCLUDED.required_roles,
+    excluded_roles = EXCLUDED.excluded_roles,
+    nav_permissions = EXCLUDED.nav_permissions,
+    nav_roles = EXCLUDED.nav_roles,
+    nav_excluded_roles = EXCLUDED.nav_excluded_roles,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO route_access_policies (
+    route_id,
+    path,
+    nav_label,
+    nav_group,
+    required_permissions,
+    required_roles,
+    excluded_roles,
+    nav_permissions,
+    nav_roles,
+    nav_excluded_roles,
+    is_navigation,
+    is_system_policy
+)
+VALUES (
+    'communications',
+    '/communications',
+    'Communications',
+    'admin',
+    '["communications:read"]'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '["navigation_communications:read","communications:read"]'::jsonb,
     '[]'::jsonb,
     '["guest"]'::jsonb,
     true,
@@ -1295,7 +1352,8 @@ BEGIN
                   'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
                   'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
                   'override', 'export', 'download', 'reveal', 'request_resubmission',
-                  'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+                  'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
+                  'compose', 'send'
               )
           )
         UNION ALL
