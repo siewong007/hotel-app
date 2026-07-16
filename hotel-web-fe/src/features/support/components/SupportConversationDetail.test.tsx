@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SupportConversation, SupportConversationDetailResponse } from '../types';
+import type { SupportAgent, SupportConversation, SupportConversationDetailResponse } from '../types';
 
 const { newSupportClientId } = vi.hoisted(() => ({
   newSupportClientId: vi.fn(),
@@ -70,6 +70,7 @@ function renderDetail({
   canAssign = false,
   canEscalate = false,
   canManage = false,
+  agents = [],
   onAction = vi.fn().mockResolvedValue(undefined),
   onSendMessage = vi.fn().mockResolvedValue(undefined),
 }: Partial<React.ComponentProps<typeof SupportConversationDetail>> = {}) {
@@ -77,7 +78,7 @@ function renderDetail({
     <SupportConversationDetail
       detail={detail}
       isLoading={false}
-      agents={[]}
+      agents={agents}
       currentUserId={currentUserId}
       canWrite={canWrite}
       canAssign={canAssign}
@@ -198,5 +199,105 @@ describe('SupportConversationDetail permissions and actions', () => {
     ]);
     expect(newSupportClientId).toHaveBeenCalledTimes(1);
   });
-});
 
+  it('adds an internal note as a staff-only action with optimistic-concurrency metadata', async () => {
+    const onAction = vi.fn().mockResolvedValue(undefined);
+    const onSendMessage = vi.fn().mockResolvedValue(undefined);
+    renderDetail({ onAction, onSendMessage });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Internal note' }));
+    fireEvent.change(screen.getByLabelText('Internal note'), {
+      target: { value: '  Guest requested a quiet room.  ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add internal note' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+      action: 'add_internal_note',
+      reason: 'Guest requested a quiet room.',
+      expected_version: 3,
+      client_action_id: 'support-client-id',
+    }));
+    expect(onSendMessage).not.toHaveBeenCalled();
+    expect(screen.getByText(/only visible to hotel staff/i)).toBeDefined();
+  });
+
+  it('assigns a conversation with the selected staff member and an optional handoff note', async () => {
+    const onAction = vi.fn().mockResolvedValue(undefined);
+    const agents: SupportAgent[] = [
+      { id: 11, name: 'Mina Lee', is_available: true },
+      { id: 12, name: 'Unavailable agent', is_available: false },
+    ];
+    renderDetail({ canAssign: true, agents, onAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assign' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: 'Assignee' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Mina Lee' }));
+    fireEvent.change(within(dialog).getByLabelText('Handoff note (optional)'), {
+      target: { value: 'Please follow up before check-in.' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Assign' }));
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+      action: 'assign',
+      assignee_id: 11,
+      reason: 'Please follow up before check-in.',
+      expected_version: 3,
+      client_action_id: 'support-client-id',
+    }));
+  });
+
+  it('requires a guest-visible code and summary before resolving a conversation', async () => {
+    const onAction = vi.fn().mockResolvedValue(undefined);
+    renderDetail({ onAction });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve' }));
+    const dialog = screen.getByRole('dialog');
+    const resolveButton = within(dialog).getByRole('button', { name: 'Resolve' }) as HTMLButtonElement;
+    expect(resolveButton.disabled).toBe(true);
+
+    fireEvent.change(within(dialog).getByPlaceholderText('For example: request_completed'), {
+      target: { value: 'request_completed' },
+    });
+    fireEvent.change(within(dialog).getAllByRole('textbox')[1], {
+      target: { value: 'Fresh towels will arrive within ten minutes.' },
+    });
+    expect(resolveButton.disabled).toBe(false);
+    fireEvent.click(resolveButton);
+
+    await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+      action: 'resolve',
+      resolution_code: 'request_completed',
+      resolution_summary: 'Fresh towels will arrive within ten minutes.',
+      expected_version: 3,
+      client_action_id: 'support-client-id',
+    }));
+  });
+
+  it.each(['resolved', 'closed'] as const)(
+    'allows a manager to reopen a %s conversation with the current version',
+    async (status) => {
+      const onAction = vi.fn().mockResolvedValue(undefined);
+      renderDetail({
+        detail: buildDetail({ status }),
+        canManage: true,
+        onAction,
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reopen' }));
+      const dialog = screen.getByRole('dialog');
+      fireEvent.change(within(dialog).getByLabelText('Reopen reason (optional)'), {
+        target: { value: 'The guest has sent new information.' },
+      });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Reopen' }));
+
+      await waitFor(() => expect(onAction).toHaveBeenCalledWith({
+        action: 'reopen',
+        reason: 'The guest has sent new information.',
+        expected_version: 3,
+        client_action_id: 'support-client-id',
+      }));
+      expect(screen.queryByRole('button', { name: 'Send reply' })).toBeNull();
+    },
+  );
+});

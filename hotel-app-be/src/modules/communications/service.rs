@@ -720,11 +720,6 @@ pub async fn guest_consent_status(
 // Public unsubscribe
 // ----------------------------------------------------------------------
 
-#[allow(dead_code)] // TODO(phase4): embedded in outgoing email footers
-pub fn unsubscribe_token_for(guest_id: i64) -> Result<String, ApiError> {
-    tokens::sign_unsubscribe_token(guest_id)
-}
-
 fn guest_id_from_token(token: &str) -> Result<i64, ApiError> {
     tokens::verify_unsubscribe_token(token)
         .ok_or_else(|| ApiError::NotFound("Invalid unsubscribe link".to_string()))

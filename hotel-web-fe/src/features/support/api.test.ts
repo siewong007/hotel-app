@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const get = vi.fn();
 const post = vi.fn();
@@ -14,7 +14,8 @@ vi.mock('../../api/client', async () => {
   };
 });
 
-import { SupportService } from './api';
+import { APIError } from '../../api/client';
+import { newSupportClientId, SupportService } from './api';
 import type { SupportActionPayload, SupportMessagePayload } from './types';
 
 function mockJsonResponse(payload: unknown) {
@@ -25,6 +26,10 @@ describe('SupportService', () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('forwards populated queue filters and omits empty values', async () => {
@@ -98,5 +103,38 @@ describe('SupportService', () => {
 
     expect(post).toHaveBeenCalledWith('support/conversations/42/actions', { json: payload });
   });
-});
 
+  it('turns unexpected transport failures into a user-safe queue error', async () => {
+    get.mockImplementation(() => {
+      throw new Error('socket closed');
+    });
+
+    await expect(SupportService.listConversations({ queue: 'mine' })).rejects.toMatchObject({
+      name: 'APIError',
+      message: 'Unable to load the support queue',
+    });
+  });
+
+  it('preserves structured API errors so callers retain status and conflict details', async () => {
+    const conflict = new APIError('This conversation has changed', 409, { current_version: 5 });
+    post.mockImplementation(() => {
+      throw conflict;
+    });
+
+    await expect(SupportService.sendMessage(42, {
+      message: 'A reply',
+      expected_version: 4,
+      client_message_id: 'reply-42',
+    })).rejects.toBe(conflict);
+  });
+
+  it('uses a UUID when the platform provides one and falls back to a unique support id otherwise', () => {
+    const randomUUID = vi.fn(() => 'support-uuid');
+    vi.stubGlobal('crypto', { randomUUID });
+    expect(newSupportClientId()).toBe('support-uuid');
+    expect(randomUUID).toHaveBeenCalledOnce();
+
+    vi.stubGlobal('crypto', undefined);
+    expect(newSupportClientId()).toMatch(/^support-\d+-[a-f0-9]+$/);
+  });
+});

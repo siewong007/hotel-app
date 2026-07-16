@@ -192,6 +192,10 @@ async fn main() {
     // absent; otherwise leases due outbox rows and sends with retry/backoff.
     modules::communications::worker::spawn(pool.clone());
 
+    // Start the communications scheduler: due-campaign fan-out into the
+    // outbox and the daily birthday-voucher job (opt-in via settings).
+    modules::communications::scheduler::spawn(pool.clone());
+
     // Create router with all routes and middleware
     let app = create_router(pool);
 

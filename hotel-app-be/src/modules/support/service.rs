@@ -713,7 +713,11 @@ pub async fn get_guest_conversation(
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
     let window_days = reopen_window_days(pool).await;
-    let messages = SupportRepository::list_messages(pool, conversation_id).await?;
+    let messages = SupportRepository::list_messages(pool, conversation_id)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
     Ok(GuestSupportConversationDetail {
         conversation: guest_view(&conversation, window_days),
         messages,

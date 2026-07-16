@@ -7,7 +7,7 @@ mod sqlite_tests {
     use crate::common;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::modules::promotions::models::{
-        ClaimPromotionInput, PromotionInput, PromotionListQuery,
+        ClaimPromotionInput, PromotionInput, PromotionListQuery, VoucherRevokeInput,
     };
     use hotel_app_be::modules::promotions::service;
 
@@ -101,6 +101,56 @@ mod sqlite_tests {
         service::publish_admin_promotion(pool, 1, draft.id, Some(draft.version), None, None)
             .await
             .unwrap()
+    }
+
+    #[tokio::test]
+    async fn admin_lifecycle_publishes_a_valid_campaign_and_rejects_unenforceable_limits() {
+        let pool = common::setup_test_db().await;
+
+        let mut invalid_input = promotion_input("invalid-per-guest-limit", Some(3), "voucher");
+        invalid_input.per_guest_limit = Some(2);
+        let invalid_error = service::create_admin_promotion(&pool, 1, invalid_input, None, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            invalid_error,
+            ApiError::BadRequest(message)
+                if message == "Per-guest limit is currently limited to one voucher per promotion"
+        ));
+        assert_eq!(
+            service::list_admin_promotions(&pool, query())
+                .await
+                .unwrap()
+                .total,
+            0
+        );
+
+        let draft = service::create_admin_promotion(
+            &pool,
+            1,
+            promotion_input("admin-published-voucher", Some(3), "voucher"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(draft.status, "draft");
+        assert_eq!(draft.promotion_kind, "voucher");
+        assert_eq!(draft.claim_limit, Some(3));
+        assert_eq!(draft.claimed_count, 0);
+        assert_eq!(draft.version, 1);
+
+        let published =
+            service::publish_admin_promotion(&pool, 1, draft.id, Some(draft.version), None, None)
+                .await
+                .unwrap();
+        assert_eq!(published.status, "published");
+        assert_eq!(published.version, draft.version + 1);
+
+        let public = service::list_public_promotions(&pool, query())
+            .await
+            .unwrap();
+        assert!(public.items.iter().any(|item| item.id == published.id));
     }
 
     #[tokio::test]
@@ -264,6 +314,91 @@ mod sqlite_tests {
             .await
             .unwrap();
         assert_eq!(other_wallet.total, 0);
+    }
+
+    #[tokio::test]
+    async fn revoked_voucher_remains_visible_to_its_guest_but_staff_never_receives_its_code() {
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 99716, "promotion-revocation-owner@example.com").await;
+        let promotion =
+            create_published_voucher_promotion(&pool, "revocable-voucher", Some(2)).await;
+
+        let claimed = service::claim_guest_promotion(
+            &pool,
+            99716,
+            promotion.id,
+            ClaimPromotionInput {
+                client_request_id: Some("promotion-revocation-claim".to_string()),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let raw_code = claimed.code.clone().expect("guest claims receive a code");
+
+        let revoked = service::revoke_admin_voucher(
+            &pool,
+            1,
+            claimed.id,
+            VoucherRevokeInput {
+                reason: Some("Campaign withdrawn".to_string()),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(revoked.status, "revoked");
+        assert_eq!(revoked.code, None);
+        assert_eq!(revoked.code_masked, claimed.code_masked);
+        assert!(revoked.revoked_at.is_some());
+
+        let wallet = service::list_guest_vouchers(&pool, 99716, query())
+            .await
+            .unwrap();
+        let guest_view = wallet
+            .items
+            .iter()
+            .find(|voucher| voucher.id == claimed.id)
+            .expect("revoked voucher remains in its owner’s history");
+        assert_eq!(guest_view.status, "revoked");
+        assert_eq!(guest_view.code.as_deref(), Some(raw_code.as_str()));
+        assert_eq!(guest_view.code_masked, claimed.code_masked);
+        assert!(guest_view.revoked_at.is_some());
+
+        let staff = service::list_admin_vouchers(&pool, query()).await.unwrap();
+        let staff_view = staff
+            .items
+            .iter()
+            .find(|voucher| voucher.id == claimed.id)
+            .expect("staff can see voucher state without receiving the raw code");
+        assert_eq!(staff_view.status, "revoked");
+        assert_eq!(staff_view.code, None);
+        assert_eq!(staff_view.code_masked, claimed.code_masked);
+
+        let stored: (String, Option<i64>, Option<String>) = sqlx::query_as(
+            "SELECT status, revoked_by, revocation_reason FROM vouchers WHERE id = ?1",
+        )
+        .bind(claimed.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(stored.0, "revoked");
+        assert_eq!(stored.1, Some(1));
+        assert_eq!(stored.2.as_deref(), Some("Campaign withdrawn"));
+
+        let repeated_revoke = service::revoke_admin_voucher(
+            &pool,
+            1,
+            claimed.id,
+            VoucherRevokeInput { reason: None },
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(repeated_revoke, ApiError::Conflict(_)));
     }
 
     #[tokio::test]
