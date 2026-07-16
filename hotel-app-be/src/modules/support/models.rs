@@ -61,6 +61,30 @@ pub struct SupportMessage {
     pub created_at: DateTime<Utc>,
 }
 
+/// Message shape exposed through guest-portal support endpoints.
+///
+/// Keep this separate from `SupportMessage`: staff identity and guest identity
+/// fields are useful in the internal queue, but must never cross the guest
+/// portal boundary.
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestSupportMessage {
+    pub id: i64,
+    pub author_type: String,
+    pub body: String,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<SupportMessage> for GuestSupportMessage {
+    fn from(message: SupportMessage) -> Self {
+        Self {
+            id: message.id,
+            author_type: message.author_type,
+            body: message.body,
+            created_at: message.created_at,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SupportEvent {
     pub id: i64,
@@ -174,7 +198,7 @@ pub struct GuestSupportConversation {
 #[derive(Debug, Serialize)]
 pub struct GuestSupportConversationDetail {
     pub conversation: GuestSupportConversation,
-    pub messages: Vec<SupportMessage>,
+    pub messages: Vec<GuestSupportMessage>,
 }
 
 #[derive(Debug, Serialize)]

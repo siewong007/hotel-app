@@ -78,7 +78,8 @@ describe('SupportConversationList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /go to previous page/i }));
     fireEvent.click(screen.getByRole('button', { name: /go to next page/i }));
-    fireEvent.change(screen.getByRole('combobox', { name: /per page/i }), { target: { value: '50' } });
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /per page/i }));
+    fireEvent.click(screen.getByRole('option', { name: '50' }));
 
     expect(props.onPageChange).toHaveBeenNthCalledWith(1, 1);
     expect(props.onPageChange).toHaveBeenNthCalledWith(2, 3);

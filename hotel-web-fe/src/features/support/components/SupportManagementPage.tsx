@@ -129,7 +129,11 @@ export default function SupportManagementPage() {
           </Box>
           <Tooltip title="Refresh the queue">
             <span>
-              <IconButton onClick={refresh} disabled={queueQuery.isFetching || detailQuery.isFetching}>
+              <IconButton
+                aria-label="Refresh the queue"
+                onClick={refresh}
+                disabled={queueQuery.isFetching || detailQuery.isFetching}
+              >
                 <RefreshIcon />
               </IconButton>
             </span>

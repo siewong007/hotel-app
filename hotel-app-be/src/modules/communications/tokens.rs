@@ -21,7 +21,6 @@ fn mac_for(payload: &[u8]) -> Result<HmacSha256, ApiError> {
     Ok(mac)
 }
 
-#[allow(dead_code)] // TODO(phase4): called when rendering outgoing email footers
 pub fn sign_unsubscribe_token(guest_id: i64) -> Result<String, ApiError> {
     let payload = guest_id.to_string();
     let mac = mac_for(payload.as_bytes())?;

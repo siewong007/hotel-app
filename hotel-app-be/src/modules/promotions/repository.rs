@@ -68,10 +68,7 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
             .try_get::<Option<String>, _>("description")
             .ok()
             .flatten(),
-        terms: row
-            .try_get::<Option<String>, _>("terms")
-            .ok()
-            .flatten(),
+        terms: row.try_get::<Option<String>, _>("terms").ok().flatten(),
         status: row.try_get("status").unwrap_or_default(),
         promotion_kind: row.try_get("promotion_kind").unwrap_or_default(),
         discount_type: row.try_get("discount_type").unwrap_or_default(),
@@ -99,23 +96,14 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
         min_nights: row.try_get::<Option<i32>, _>("min_nights").ok().flatten(),
         max_nights: row.try_get::<Option<i32>, _>("max_nights").ok().flatten(),
         min_subtotal: get_opt_decimal(row, "min_subtotal").map(decimal_to_f64),
-        claim_limit: row
-            .try_get::<Option<i64>, _>("claim_limit")
-            .ok()
-            .flatten(),
+        claim_limit: row.try_get::<Option<i64>, _>("claim_limit").ok().flatten(),
         claimed_count: row.try_get("claimed_count").unwrap_or_default(),
         per_guest_limit: row.try_get("per_guest_limit").unwrap_or(1),
         is_public: get_bool(row, "is_public"),
         room_type_ids,
         version: row.try_get("version").unwrap_or(1),
-        created_by: row
-            .try_get::<Option<i64>, _>("created_by")
-            .ok()
-            .flatten(),
-        updated_by: row
-            .try_get::<Option<i64>, _>("updated_by")
-            .ok()
-            .flatten(),
+        created_by: row.try_get::<Option<i64>, _>("created_by").ok().flatten(),
+        updated_by: row.try_get::<Option<i64>, _>("updated_by").ok().flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
     }

@@ -7,12 +7,27 @@ mod sqlite_tests {
     use crate::common;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::core::rate_limiter::RateLimiters;
+    use hotel_app_be::core::{rbac_cache, settings_cache};
     use hotel_app_be::modules::support::models::{
         CreateGuestSupportConversationRequest, GuestSupportMessageRequest, SupportActionInput,
         SupportListQuery, SupportMessageRequest,
     };
     use hotel_app_be::modules::support::{service, validation};
     use std::net::{IpAddr, Ipv4Addr};
+    use std::sync::LazyLock;
+
+    // Settings and RBAC caches are process-global while every test uses an
+    // isolated in-memory database. Serialize database-backed support tests so
+    // a setting loaded from one database cannot bleed into another test.
+    static SUPPORT_WORKFLOW_TEST_LOCK: LazyLock<tokio::sync::Mutex<()>> =
+        LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+    async fn begin_support_workflow_test() -> tokio::sync::MutexGuard<'static, ()> {
+        let guard = SUPPORT_WORKFLOW_TEST_LOCK.lock().await;
+        settings_cache::invalidate_all();
+        rbac_cache::invalidate_all();
+        guard
+    }
 
     async fn seed_guest(pool: &sqlx::SqlitePool, guest_id: i64, email: &str) {
         sqlx::query(
@@ -35,6 +50,28 @@ mod sqlite_tests {
             booking_id: None,
             client_request_id: client_request_id.to_string(),
         }
+    }
+
+    fn create_request_for_category(
+        category: &str,
+        client_request_id: &str,
+    ) -> CreateGuestSupportConversationRequest {
+        CreateGuestSupportConversationRequest {
+            category: category.to_string(),
+            message: "The room air conditioning needs attention.".to_string(),
+            booking_id: None,
+            client_request_id: client_request_id.to_string(),
+        }
+    }
+
+    async fn set_support_setting(pool: &sqlx::SqlitePool, key: &str, value: &str) {
+        sqlx::query("UPDATE system_settings SET value = ?1 WHERE key = ?2")
+            .bind(value)
+            .bind(key)
+            .execute(pool)
+            .await
+            .unwrap();
+        settings_cache::invalidate_key(key);
     }
 
     fn action(action: &str, expected_version: i64) -> SupportActionInput {
@@ -110,6 +147,7 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn guest_creation_is_idempotent_and_scoped_to_its_owner() {
+        let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
         seed_guest(&pool, 9801, "support-owner@example.com").await;
         seed_guest(&pool, 9802, "support-other@example.com").await;
@@ -166,6 +204,7 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn write_only_staff_cannot_auto_claim_an_unassigned_conversation() {
+        let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
         seed_guest(&pool, 9811, "support-write@example.com").await;
         let created = service::create_guest_conversation(
@@ -218,6 +257,7 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn guest_messages_are_owner_scoped_versioned_and_idempotent() {
+        let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
         seed_guest(&pool, 9831, "support-message-owner@example.com").await;
         seed_guest(&pool, 9832, "support-message-other@example.com").await;
@@ -357,6 +397,7 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn assignment_requires_an_active_support_capable_agent_and_priority_rebases_sla() {
+        let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
         seed_guest(&pool, 9841, "support-assignment@example.com").await;
         seed_staff_member(
@@ -510,6 +551,7 @@ mod sqlite_tests {
 
     #[tokio::test]
     async fn resolve_sets_first_response_and_shares_the_resolution_with_the_guest() {
+        let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
         seed_guest(&pool, 9821, "support-resolution@example.com").await;
         let created = service::create_guest_conversation(

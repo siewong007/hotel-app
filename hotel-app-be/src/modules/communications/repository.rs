@@ -760,7 +760,6 @@ impl CommunicationsRepository {
 
     /// Enqueues one delivery. Returns `None` when a row with the same
     /// idempotency key already exists (duplicate suppressed).
-    #[allow(dead_code)] // TODO(phase5): campaign scheduler + birthday job enqueue here
     #[allow(clippy::too_many_arguments)]
     pub async fn insert_delivery_tx(
         tx: &mut DbTransaction<'_>,

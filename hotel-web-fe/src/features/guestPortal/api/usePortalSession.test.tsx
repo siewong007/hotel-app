@@ -63,8 +63,16 @@ describe('usePortalSession', () => {
     setPortalToken('guest-token', '2999-01-01T00:00:00Z');
     const queryClient = createQueryClient();
     const sessionScope = portalSessionScope('guest-token');
-    const portalCatalogKey = queryKeys.promotions.portalCatalog(sessionScope);
+    const portalCatalogKey = queryKeys.promotions.portalCatalog(sessionScope, {
+      page: 1,
+      page_size: 50,
+    });
+    const portalVoucherKey = queryKeys.promotions.portalVouchers(sessionScope, {
+      page: 1,
+      page_size: 50,
+    });
     queryClient.setQueryData(portalCatalogKey, { items: [] });
+    queryClient.setQueryData(portalVoucherKey, { items: [] });
 
     const { result } = renderHook(() => usePortalSession(), {
       wrapper: createQueryClientWrapper(queryClient),
@@ -74,6 +82,7 @@ describe('usePortalSession', () => {
 
     expect(getPortalToken()).toBeNull();
     expect(queryClient.getQueryData(portalCatalogKey)).toBeUndefined();
+    expect(queryClient.getQueryData(portalVoucherKey)).toBeUndefined();
     expect(navigate).toHaveBeenCalledWith('/portal/login', { replace: true });
   });
 });
