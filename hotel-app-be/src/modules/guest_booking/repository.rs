@@ -69,10 +69,7 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
 pub struct GuestBookingRepository;
 
 impl GuestBookingRepository {
-    pub async fn guest_contact(
-        pool: &DbPool,
-        guest_id: i64,
-    ) -> Result<GuestContact, ApiError> {
+    pub async fn guest_contact(pool: &DbPool, guest_id: i64) -> Result<GuestContact, ApiError> {
         let row = sqlx::query(sql_query!(
             postgres: r#"
                 SELECT g.full_name, g.email,
@@ -185,9 +182,7 @@ impl GuestBookingRepository {
             .await?
             .into_iter()
             .find(|room_type| room_type.id == room_type_id)
-            .ok_or_else(|| {
-                ApiError::Conflict("This room type is no longer available".to_string())
-            })
+            .ok_or_else(|| ApiError::Conflict("This room type is no longer available".to_string()))
     }
 
     pub async fn applicable_rate(
@@ -425,9 +420,7 @@ impl GuestBookingRepository {
             .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)?
-            .ok_or_else(|| {
-                ApiError::Conflict("The selected room type was just booked".to_string())
-            })
+            .ok_or_else(|| ApiError::Conflict("The selected room type was just booked".to_string()))
     }
 
     pub async fn insert_booking_tx(
@@ -490,6 +483,7 @@ impl GuestBookingRepository {
         .map_err(ApiError::from)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn redeem_voucher_tx(
         tx: &mut DbTransaction<'_>,
         voucher: &VoucherPricing,

@@ -447,25 +447,23 @@ pub async fn apply_staff_action(
     let current = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
-    if let Some(key) = input.client_action_id.as_deref() {
-        if let Some(stored_action) =
+    if let Some(key) = input.client_action_id.as_deref()
+        && let Some(stored_action) =
             SupportRepository::find_action_key_action(pool, conversation_id, actor_id, key).await?
-        {
-            if stored_action != action {
-                return Err(ApiError::Conflict(
-                    "This action idempotency key was already used for a different action"
-                        .to_string(),
-                ));
-            }
-
-            // As with message retries, returning the current full detail is
-            // only safe for a staff member who can normally read it. This
-            // preserves a lost-response retry (including release) for the UI
-            // while preventing an action-only account from turning a stale
-            // key into a detail read after a handoff.
-            check_permission(pool, actor_id, "support:read").await?;
-            return staff_detail(pool, conversation_id).await;
+    {
+        if stored_action != action {
+            return Err(ApiError::Conflict(
+                "This action idempotency key was already used for a different action".to_string(),
+            ));
         }
+
+        // As with message retries, returning the current full detail is
+        // only safe for a staff member who can normally read it. This
+        // preserves a lost-response retry (including release) for the UI
+        // while preventing an action-only account from turning a stale
+        // key into a detail read after a handoff.
+        check_permission(pool, actor_id, "support:read").await?;
+        return staff_detail(pool, conversation_id).await;
     }
     let expected_version = input.expected_version.ok_or_else(|| {
         ApiError::BadRequest("A conversation version is required for support actions".to_string())

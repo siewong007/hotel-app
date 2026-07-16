@@ -6,8 +6,8 @@ use uuid::Uuid;
 use super::availability::{AvailabilityEvent, AvailabilityHub};
 use super::models::{
     BookingInsert, BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest,
-    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, NightlyRate,
-    RoomTypeInventory, VoucherPricing,
+    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, NightlyRate, RoomTypeInventory,
+    VoucherPricing,
 };
 use super::repository::GuestBookingRepository as Repository;
 use super::validation::{ValidatedStay, validate_client_request_id, validate_stay};
@@ -294,11 +294,13 @@ pub async fn create(
         .first()
         .map(|rate| rate.amount)
         .ok_or_else(|| ApiError::BadRequest("A booking requires at least one night".to_string()))?;
-    let daily_rates = json!(quote
-        .nightly_rates
-        .iter()
-        .map(|rate| (rate.date.to_string(), rate.amount))
-        .collect::<std::collections::BTreeMap<_, _>>());
+    let daily_rates = json!(
+        quote
+            .nightly_rates
+            .iter()
+            .map(|rate| (rate.date.to_string(), rate.amount))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    );
     let booking_number =
         crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
 
@@ -392,7 +394,11 @@ pub async fn create(
     )
     .await?;
 
-    if let Some(email) = contact.email.as_deref().filter(|value| !value.trim().is_empty()) {
+    if let Some(email) = contact
+        .email
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+    {
         let subject = format!("Booking confirmation {booking_number}");
         let body_html = format!(
             "<p>Dear {},</p><p>Your reservation <strong>{}</strong> is confirmed.</p>\
