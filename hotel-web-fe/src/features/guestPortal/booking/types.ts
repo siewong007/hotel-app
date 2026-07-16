@@ -79,8 +79,9 @@ export interface GuestBookingConfirmation {
 export interface AvailabilityEvent {
   event_id: string;
   event_type: 'availability_changed';
-  room_type_id: number;
-  check_in_date: string;
-  check_out_date: string;
-  remaining_rooms: number;
+  reason: 'booking_created' | 'online_inventory_changed' | 'room_inventory_changed';
+  room_type_id: number | null;
+  check_in_date: string | null;
+  check_out_date: string | null;
+  remaining_rooms: number | null;
 }

@@ -45,7 +45,7 @@ import type {
   GuestBookingSearch,
 } from './types';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
-import { stayOverlapsAvailabilityEvent } from './utils';
+import { shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent } from './utils';
 
 function inputDate(daysFromToday: number): string {
   const date = new Date();
@@ -236,14 +236,15 @@ const PortalBookingPage: React.FC = () => {
 
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;
-    setOffers((current) => current.map((offer) => (
-      offer.room_type_id === event.room_type_id
-        ? { ...offer, available_rooms: event.remaining_rooms }
-        : offer
-    )));
+    if (event.room_type_id !== null && event.remaining_rooms !== null) {
+      setOffers((current) => current.map((offer) => (
+        offer.room_type_id === event.room_type_id
+          ? { ...offer, available_rooms: event.remaining_rooms ?? offer.available_rooms }
+          : offer
+      )));
+    }
     if (
-      event.remaining_rooms === 0
-      && selectedOffer?.room_type_id === event.room_type_id
+      shouldInterruptSelectedOffer(event, search, selectedOffer?.room_type_id ?? null)
       && !isSubmitting
       && !confirmation
     ) {
@@ -545,11 +546,12 @@ const PortalBookingPage: React.FC = () => {
       )}
 
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}>
-        <DialogTitle>This room was just booked</DialogTitle>
+        <DialogTitle>Room availability changed</DialogTitle>
         <DialogContent>
           <Typography>
-            Another guest took the last room of this type while you were reviewing your booking.
-            We refreshed the available options for you.
+            This room or its online availability changed while you were reviewing your booking.
+            We refreshed the options and cleared the previous quote so you can review the latest
+            availability before confirming.
           </Typography>
         </DialogContent>
         <DialogActions>

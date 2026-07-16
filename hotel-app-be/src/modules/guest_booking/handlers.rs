@@ -10,7 +10,8 @@ use axum::{
 use super::availability::{AvailabilityHub, serve_socket};
 use super::models::{
     BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest, GuestBookingConfirmation,
-    GuestBookingOffer, GuestBookingQuote,
+    GuestBookingOffer, GuestBookingQuote, OnlineInventoryAllocation, OnlineInventoryQuery,
+    UpdateOnlineInventoryRequest,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -41,6 +42,40 @@ pub async fn quote_handler(
 ) -> Result<Json<GuestBookingQuote>, ApiError> {
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
     Ok(Json(service::quote(&pool, guest_id, request).await?))
+}
+
+pub async fn list_online_inventory_handler(
+    State(pool): State<DbPool>,
+    Query(query): Query<OnlineInventoryQuery>,
+) -> Result<Json<Vec<OnlineInventoryAllocation>>, ApiError> {
+    Ok(Json(service::list_online_inventory(&pool, query).await?))
+}
+
+pub async fn update_online_inventory_handler(
+    State(pool): State<DbPool>,
+    Extension(actor_id): Extension<i64>,
+    Extension(hub): Extension<AvailabilityHub>,
+    axum::extract::Path((room_type_id, stay_date)): axum::extract::Path<(i64, String)>,
+    Json(request): Json<UpdateOnlineInventoryRequest>,
+) -> Result<Json<OnlineInventoryAllocation>, ApiError> {
+    let allocation =
+        service::update_online_inventory(&pool, room_type_id, &stay_date, request, actor_id)
+            .await?;
+    hub.publish(super::availability::AvailabilityEvent {
+        event_id: uuid::Uuid::new_v4().to_string(),
+        event_type: "availability_changed",
+        reason: "online_inventory_changed",
+        room_type_id: Some(room_type_id),
+        check_in_date: Some(allocation.stay_date),
+        check_out_date: Some(
+            allocation
+                .stay_date
+                .succ_opt()
+                .ok_or_else(|| ApiError::BadRequest("Invalid stay date".to_string()))?,
+        ),
+        remaining_rooms: Some(allocation.online_available_rooms),
+    });
+    Ok(Json(allocation))
 }
 
 pub async fn create_booking_handler(

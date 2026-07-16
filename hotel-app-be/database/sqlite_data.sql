@@ -793,6 +793,24 @@ ON CONFLICT(route_id) DO UPDATE SET
     is_navigation = excluded.is_navigation,
     updated_at = datetime('now');
 
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation
+)
+VALUES (
+    'online-inventory', '/online-inventory', 'Online Inventory', 'operations',
+    '["rooms:update","rooms:manage"]', '[]', '[]',
+    '["rooms:update","rooms:manage"]', '[]', '[]', 1
+)
+ON CONFLICT(route_id) DO UPDATE SET
+    path = excluded.path,
+    nav_label = excluded.nav_label,
+    nav_group = excluded.nav_group,
+    required_permissions = excluded.required_permissions,
+    nav_permissions = excluded.nav_permissions,
+    is_navigation = excluded.is_navigation,
+    updated_at = datetime('now');
+
 -- Guest portal demo account. This provides an account-linked guest profile so
 -- the self-service portal can issue its scoped session after normal login.
 -- Development credentials: demo.guest / GuestDemo123!

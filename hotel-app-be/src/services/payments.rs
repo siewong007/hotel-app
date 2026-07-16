@@ -5,9 +5,78 @@ use crate::models::{
     Invoice, InvoicePreview, Payment, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
     RecordPaymentRequest, UpdatePaymentRequest,
 };
+use crate::modules::communications::repository::CommunicationsRepository;
+use crate::modules::communications::validation::html_escape;
 use crate::repositories::payment::PaymentRepository;
 use crate::services::audit::AuditLog;
 use rust_decimal::Decimal;
+
+pub async fn queue_paid_online_booking_room_assignment(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    let Some(assignment) =
+        PaymentRepository::paid_online_booking_room_assignment(pool, booking_id).await?
+    else {
+        return Ok(());
+    };
+
+    let subject = format!(
+        "Room {} assigned for booking {}",
+        assignment.room_number, assignment.booking_number
+    );
+    let body_html = format!(
+        "<p>Dear {},</p>\
+         <p>Your online payment is confirmed and your room has been assigned.</p>\
+         <p><strong>Booking:</strong> {}<br>\
+         <strong>Room:</strong> {} ({})<br>\
+         <strong>Stay:</strong> {} to {}</p>\
+         <p>You can also view these details in your guest portal.</p>",
+        html_escape(&assignment.guest_name),
+        html_escape(&assignment.booking_number),
+        html_escape(&assignment.room_number),
+        html_escape(&assignment.room_type_name),
+        assignment.check_in_date,
+        assignment.check_out_date,
+    );
+    let body_text = format!(
+        "Your online payment is confirmed and your room has been assigned.\n\
+         Booking: {}\nRoom: {} ({})\nStay: {} to {}",
+        assignment.booking_number,
+        assignment.room_number,
+        assignment.room_type_name,
+        assignment.check_in_date,
+        assignment.check_out_date,
+    );
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    CommunicationsRepository::insert_delivery_tx(
+        &mut tx,
+        None,
+        "booking_confirmation",
+        assignment.guest_id,
+        "booking_confirmation",
+        &assignment.guest_email,
+        &subject,
+        &body_html,
+        Some(&body_text),
+        None,
+        &format!("online-room-assignment:{}", assignment.booking_id),
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(())
+}
+
+async fn try_queue_paid_online_booking_room_assignment(pool: &DbPool, booking_id: i64) {
+    if let Err(error) = queue_paid_online_booking_room_assignment(pool, booking_id).await {
+        log::error!(
+            "Failed to queue room assignment notification for booking {}: {}",
+            booking_id,
+            error
+        );
+    }
+}
 
 pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
     PaymentRepository::recompute_booking_payment_status(pool, booking_id).await
@@ -66,6 +135,8 @@ pub async fn create_payment(
         payment_gateway,
     )
     .await?;
+    recompute_payment_status(pool, payment.booking_id).await?;
+    try_queue_paid_online_booking_room_assignment(pool, payment.booking_id).await;
 
     if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
         pool,
@@ -166,6 +237,7 @@ pub async fn record_payment(
     let booking_id = row.booking_id;
     let payment_id = row.id;
     tx.commit().await.map_err(ApiError::from)?;
+    try_queue_paid_online_booking_room_assignment(pool, booking_id).await;
 
     if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
         pool,
@@ -443,6 +515,7 @@ pub async fn update_payment(
 ) -> Result<serde_json::Value, ApiError> {
     let row = PaymentRepository::update_payment(pool, payment_id, &request).await?;
     recompute_payment_status(pool, row.booking_id).await?;
+    try_queue_paid_online_booking_room_assignment(pool, row.booking_id).await;
     if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
         pool,
         row.booking_id,

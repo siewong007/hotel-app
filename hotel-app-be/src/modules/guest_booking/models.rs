@@ -11,6 +11,29 @@ pub struct BookingSearchQuery {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct OnlineInventoryQuery {
+    pub stay_date: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateOnlineInventoryRequest {
+    pub walk_in_reserved_rooms: i32,
+    pub online_booking_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OnlineInventoryAllocation {
+    pub room_type_id: i64,
+    pub room_type_code: String,
+    pub room_type_name: String,
+    pub stay_date: NaiveDate,
+    pub physical_available_rooms: i64,
+    pub walk_in_reserved_rooms: i32,
+    pub online_booking_enabled: bool,
+    pub online_available_rooms: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct BookingQuoteRequest {
     pub room_type_id: i64,
     pub check_in_date: String,

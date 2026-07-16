@@ -7,10 +7,25 @@ use tokio::sync::broadcast;
 pub struct AvailabilityEvent {
     pub event_id: String,
     pub event_type: &'static str,
-    pub room_type_id: i64,
-    pub check_in_date: NaiveDate,
-    pub check_out_date: NaiveDate,
-    pub remaining_rooms: i64,
+    pub reason: &'static str,
+    pub room_type_id: Option<i64>,
+    pub check_in_date: Option<NaiveDate>,
+    pub check_out_date: Option<NaiveDate>,
+    pub remaining_rooms: Option<i64>,
+}
+
+impl AvailabilityEvent {
+    pub fn room_inventory_changed() -> Self {
+        Self {
+            event_id: uuid::Uuid::new_v4().to_string(),
+            event_type: "availability_changed",
+            reason: "room_inventory_changed",
+            room_type_id: None,
+            check_in_date: None,
+            check_out_date: None,
+            remaining_rooms: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

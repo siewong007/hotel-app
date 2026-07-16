@@ -86,6 +86,7 @@ const SupportManagementPage = lazyRoute(() => import('../features/support'));
 const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPage'));
 const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
+const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/OnlineInventoryPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'unauth' },
@@ -158,6 +159,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Room Management',
     navLabel: 'Rooms',
     navGroup: 'main',
+    accessControlled: true,
+  },
+  {
+    id: 'online-inventory',
+    path: '/online-inventory',
+    component: OnlineInventoryPage,
+    animationType: 'slide',
+    visibility: 'auth',
+    icon: MeetingRoomIcon,
+    breadcrumbLabel: 'Online Inventory Control',
+    navLabel: 'Online Inventory',
+    navGroup: 'operations',
     accessControlled: true,
   },
   {
@@ -390,6 +403,12 @@ export function preloadRoute(pathname: string) {
 
 export function canAccessNavigationRoute(route: AppRouteDefinition, access: AccessChecker) {
   const policy = access.getRoutePolicy(route.id);
+  // New system pages can be deployed before an existing session has refreshed
+  // its database-backed route policies. Keep the page available to the same
+  // permission that protects its API during that short transition.
+  if (!policy && route.id === 'online-inventory') {
+    return access.hasPermission('rooms:update') || access.hasPermission('rooms:manage');
+  }
   if (route.accessControlled && !policy) {
     return false;
   }

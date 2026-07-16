@@ -2154,3 +2154,16 @@ WHEN NEW.updated_at = OLD.updated_at
 BEGIN
     UPDATE rate_plans SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
+
+-- @migration 33 online_inventory_allocations
+CREATE TABLE IF NOT EXISTS online_inventory_allocations (
+    room_type_id INTEGER NOT NULL REFERENCES room_types(id) ON DELETE CASCADE,
+    stay_date TEXT NOT NULL,
+    walk_in_reserved_rooms INTEGER NOT NULL DEFAULT 0 CHECK (walk_in_reserved_rooms >= 0),
+    online_booking_enabled INTEGER NOT NULL DEFAULT 1,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (room_type_id, stay_date)
+);
+CREATE INDEX IF NOT EXISTS idx_online_inventory_allocations_date
+    ON online_inventory_allocations (stay_date, room_type_id);

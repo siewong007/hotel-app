@@ -6,8 +6,9 @@ use uuid::Uuid;
 use super::availability::{AvailabilityEvent, AvailabilityHub};
 use super::models::{
     BookingInsert, BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest,
-    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, NightlyRate, RoomTypeInventory,
-    VoucherPricing,
+    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, NightlyRate,
+    OnlineInventoryAllocation, OnlineInventoryQuery, RoomTypeInventory,
+    UpdateOnlineInventoryRequest, VoucherPricing,
 };
 use super::repository::GuestBookingRepository as Repository;
 use super::validation::{ValidatedStay, validate_client_request_id, validate_stay};
@@ -158,6 +159,26 @@ async fn quote_for_inventory(
     })
 }
 
+async fn apply_online_allocation(
+    pool: &DbPool,
+    mut room_type: RoomTypeInventory,
+    stay: ValidatedStay,
+) -> Result<RoomTypeInventory, ApiError> {
+    let (walk_in_reserved_rooms, online_booking_enabled) = Repository::online_allocation_for_stay(
+        pool,
+        room_type.id,
+        stay.check_in_date,
+        stay.check_out_date,
+    )
+    .await?;
+    room_type.available_rooms = if online_booking_enabled {
+        (room_type.available_rooms - walk_in_reserved_rooms).max(0)
+    } else {
+        0
+    };
+    Ok(room_type)
+}
+
 pub async fn search(
     pool: &DbPool,
     guest_id: i64,
@@ -178,6 +199,10 @@ pub async fn search(
     .await?;
     let mut offers = Vec::with_capacity(room_types.len());
     for room_type in room_types {
+        let room_type = apply_online_allocation(pool, room_type, stay).await?;
+        if room_type.available_rooms == 0 {
+            continue;
+        }
         let images = room_type.images.clone();
         let features = room_type.features.clone();
         let description = room_type.description.clone();
@@ -227,7 +252,52 @@ pub async fn quote(
         stay.adults + stay.children,
     )
     .await?;
+    let room_type = apply_online_allocation(pool, room_type, stay).await?;
+    if room_type.available_rooms == 0 {
+        return Err(ApiError::Conflict(
+            "This room type is reserved for walk-in guests or unavailable online".to_string(),
+        ));
+    }
     quote_for_inventory(pool, guest_id, room_type, stay, request.voucher_id).await
+}
+
+pub async fn list_online_inventory(
+    pool: &DbPool,
+    query: OnlineInventoryQuery,
+) -> Result<Vec<OnlineInventoryAllocation>, ApiError> {
+    let stay_date = NaiveDate::parse_from_str(query.stay_date.trim(), "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid stay date. Use YYYY-MM-DD".to_string()))?;
+    Repository::list_online_inventory(pool, stay_date).await
+}
+
+pub async fn update_online_inventory(
+    pool: &DbPool,
+    room_type_id: i64,
+    stay_date: &str,
+    request: UpdateOnlineInventoryRequest,
+    actor_id: i64,
+) -> Result<OnlineInventoryAllocation, ApiError> {
+    if request.walk_in_reserved_rooms < 0 {
+        return Err(ApiError::BadRequest(
+            "Walk-in reserve cannot be negative".to_string(),
+        ));
+    }
+    let stay_date = NaiveDate::parse_from_str(stay_date.trim(), "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid stay date. Use YYYY-MM-DD".to_string()))?;
+    Repository::upsert_online_inventory(
+        pool,
+        room_type_id,
+        stay_date,
+        request.walk_in_reserved_rooms,
+        request.online_booking_enabled,
+        actor_id,
+    )
+    .await?;
+    Repository::list_online_inventory(pool, stay_date)
+        .await?
+        .into_iter()
+        .find(|allocation| allocation.room_type_id == room_type_id)
+        .ok_or_else(|| ApiError::NotFound("Room type not found".to_string()))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -305,6 +375,13 @@ pub async fn create(
         crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    Repository::ensure_online_room_available_tx(
+        &mut tx,
+        request.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+    )
+    .await?;
     let room_id = Repository::allocate_room_tx(
         &mut tx,
         request.room_type_id,
@@ -439,10 +516,11 @@ pub async fn create(
     hub.publish(AvailabilityEvent {
         event_id: Uuid::new_v4().to_string(),
         event_type: "availability_changed",
-        room_type_id: request.room_type_id,
-        check_in_date: quote.check_in_date,
-        check_out_date: quote.check_out_date,
-        remaining_rooms,
+        reason: "booking_created",
+        room_type_id: Some(request.room_type_id),
+        check_in_date: Some(quote.check_in_date),
+        check_out_date: Some(quote.check_out_date),
+        remaining_rooms: Some(remaining_rooms),
     });
     Ok(confirmation)
 }

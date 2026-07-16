@@ -30,6 +30,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   const policy = routeId ? getRoutePolicy(routeId) : undefined;
   if (requiresPolicy && !policy) {
+    if (routeId === 'online-inventory' && (hasPermission('rooms:update') || hasPermission('rooms:manage'))) {
+      return <>{children}</>;
+    }
     return <Navigate to="/" replace />;
   }
 

@@ -3,7 +3,8 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 
 use super::models::{
-    BookingInsert, GuestBookingConfirmation, GuestContact, RoomTypeInventory, VoucherPricing,
+    BookingInsert, GuestBookingConfirmation, GuestContact, OnlineInventoryAllocation,
+    RoomTypeInventory, VoucherPricing,
 };
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
@@ -69,6 +70,182 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
 pub struct GuestBookingRepository;
 
 impl GuestBookingRepository {
+    pub async fn online_allocation_for_stay(
+        pool: &DbPool,
+        room_type_id: i64,
+        check_in: NaiveDate,
+        check_out: NaiveDate,
+    ) -> Result<(i64, bool), ApiError> {
+        let row = sqlx::query(sql_query!(
+            postgres: "SELECT COALESCE(MAX(walk_in_reserved_rooms), 0)::bigint AS reserved, COALESCE(BOOL_AND(online_booking_enabled), true) AS enabled FROM online_inventory_allocations WHERE room_type_id = $1 AND stay_date >= $2 AND stay_date < $3",
+            sqlite: "SELECT COALESCE(MAX(walk_in_reserved_rooms), 0) AS reserved, COALESCE(MIN(online_booking_enabled), 1) AS enabled FROM online_inventory_allocations WHERE room_type_id = ?1 AND stay_date >= ?2 AND stay_date < ?3"
+        ))
+        .bind(room_type_id)
+        .bind(check_in)
+        .bind(check_out)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok((
+            row.try_get("reserved").unwrap_or_default(),
+            row.try_get("enabled").unwrap_or(true),
+        ))
+    }
+
+    pub async fn list_online_inventory(
+        pool: &DbPool,
+        stay_date: NaiveDate,
+    ) -> Result<Vec<OnlineInventoryAllocation>, ApiError> {
+        let next_date = stay_date
+            .succ_opt()
+            .ok_or_else(|| ApiError::BadRequest("Invalid stay date".to_string()))?;
+        let rows = sqlx::query(sql_query!(
+            postgres: r#"
+                SELECT rt.id AS room_type_id, rt.code AS room_type_code, rt.name AS room_type_name,
+                       COUNT(r.id)::bigint AS physical_available_rooms,
+                       COALESCE(a.walk_in_reserved_rooms, 0) AS walk_in_reserved_rooms,
+                       COALESCE(a.online_booking_enabled, true) AS online_booking_enabled
+                FROM room_types rt
+                LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = true
+                  AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
+                  AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id
+                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+                    AND b.check_in_date < $2 AND b.check_out_date > $1)
+                LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = $1
+                WHERE rt.is_active = true
+                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled
+                ORDER BY rt.name
+            "#,
+            sqlite: r#"
+                SELECT rt.id AS room_type_id, rt.code AS room_type_code, rt.name AS room_type_name,
+                       COUNT(r.id) AS physical_available_rooms,
+                       COALESCE(a.walk_in_reserved_rooms, 0) AS walk_in_reserved_rooms,
+                       COALESCE(a.online_booking_enabled, 1) AS online_booking_enabled
+                FROM room_types rt
+                LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = 1
+                  AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
+                  AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id
+                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+                    AND b.check_in_date < ?2 AND b.check_out_date > ?1)
+                LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = ?1
+                WHERE rt.is_active = 1
+                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled
+                ORDER BY rt.name
+            "#
+        ))
+        .bind(stay_date)
+        .bind(next_date)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let physical: i64 = row.try_get("physical_available_rooms").unwrap_or_default();
+                let reserved: i32 = row.try_get("walk_in_reserved_rooms").unwrap_or_default();
+                let enabled: bool = row.try_get("online_booking_enabled").unwrap_or(true);
+                OnlineInventoryAllocation {
+                    room_type_id: row.try_get("room_type_id").unwrap_or_default(),
+                    room_type_code: row.try_get("room_type_code").unwrap_or_default(),
+                    room_type_name: row.try_get("room_type_name").unwrap_or_default(),
+                    stay_date,
+                    physical_available_rooms: physical,
+                    walk_in_reserved_rooms: reserved,
+                    online_booking_enabled: enabled,
+                    online_available_rooms: if enabled {
+                        (physical - i64::from(reserved)).max(0)
+                    } else {
+                        0
+                    },
+                }
+            })
+            .collect())
+    }
+
+    pub async fn upsert_online_inventory(
+        pool: &DbPool,
+        room_type_id: i64,
+        stay_date: NaiveDate,
+        reserved: i32,
+        enabled: bool,
+        updated_by: i64,
+    ) -> Result<(), ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        Self::lock_room_type_tx(&mut tx, room_type_id).await?;
+        sqlx::query(sql_query!(
+            postgres: "INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, updated_by) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = EXCLUDED.walk_in_reserved_rooms, online_booking_enabled = EXCLUDED.online_booking_enabled, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP",
+            sqlite: "INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, updated_by) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = excluded.walk_in_reserved_rooms, online_booking_enabled = excluded.online_booking_enabled, updated_by = excluded.updated_by, updated_at = datetime('now')"
+        ))
+        .bind(room_type_id).bind(stay_date).bind(reserved).bind(enabled).bind(updated_by)
+        .execute(&mut *tx).await.map_err(ApiError::from)?;
+        tx.commit().await.map_err(ApiError::from)?;
+        Ok(())
+    }
+
+    async fn lock_room_type_tx(
+        tx: &mut DbTransaction<'_>,
+        room_type_id: i64,
+    ) -> Result<(), ApiError> {
+        let id = sqlx::query_scalar::<_, i64>(sql_query!(
+            postgres: "SELECT id FROM room_types WHERE id = $1 FOR UPDATE",
+            sqlite: "SELECT id FROM room_types WHERE id = ?1"
+        ))
+        .bind(room_type_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        id.ok_or_else(|| ApiError::NotFound("Room type not found".to_string()))?;
+        Ok(())
+    }
+
+    pub async fn ensure_online_room_available_tx(
+        tx: &mut DbTransaction<'_>,
+        room_type_id: i64,
+        check_in: NaiveDate,
+        check_out: NaiveDate,
+    ) -> Result<(), ApiError> {
+        Self::lock_room_type_tx(tx, room_type_id).await?;
+        let allocation = sqlx::query(sql_query!(
+            postgres: "SELECT COALESCE(MAX(walk_in_reserved_rooms), 0)::bigint AS reserved, COALESCE(BOOL_AND(online_booking_enabled), true) AS enabled FROM online_inventory_allocations WHERE room_type_id = $1 AND stay_date >= $2 AND stay_date < $3",
+            sqlite: "SELECT COALESCE(MAX(walk_in_reserved_rooms), 0) AS reserved, COALESCE(MIN(online_booking_enabled), 1) AS enabled FROM online_inventory_allocations WHERE room_type_id = ?1 AND stay_date >= ?2 AND stay_date < ?3"
+        ))
+        .bind(room_type_id)
+        .bind(check_in)
+        .bind(check_out)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        let reserved: i64 = allocation.try_get("reserved").unwrap_or_default();
+        let enabled: bool = allocation.try_get("enabled").unwrap_or(true);
+        if !enabled {
+            return Err(ApiError::Conflict(
+                "Online booking was closed for one or more selected dates. Please review the refreshed availability."
+                    .to_string(),
+            ));
+        }
+
+        let available: i64 = sqlx::query_scalar(&sql_query!(
+            postgres: format!(
+                "SELECT COUNT(*)::bigint FROM rooms r WHERE r.room_type_id = $1 AND r.is_active = true AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order') AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id AND b.status IN ({ACTIVE_BOOKING_STATUSES}) AND b.check_in_date < $3 AND b.check_out_date > $2)"
+            ),
+            sqlite: format!(
+                "SELECT COUNT(*) FROM rooms r WHERE r.room_type_id = ?1 AND r.is_active = 1 AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order') AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id AND b.status IN ({ACTIVE_BOOKING_STATUSES}) AND b.check_in_date < ?3 AND b.check_out_date > ?2)"
+            )
+        ))
+        .bind(room_type_id)
+        .bind(check_in)
+        .bind(check_out)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        if available <= reserved {
+            return Err(ApiError::Conflict(
+                "Online room availability changed. Please review the refreshed options before confirming."
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
     pub async fn guest_contact(pool: &DbPool, guest_id: i64) -> Result<GuestContact, ApiError> {
         let row = sqlx::query(sql_query!(
             postgres: r#"

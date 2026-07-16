@@ -279,6 +279,7 @@ VALUES
     ('loyalty'),
     ('my-bookings'),
     ('night-audit'),
+    ('online-inventory'),
     ('profile'),
     ('promotions'),
     ('rbac'),
@@ -1475,5 +1476,24 @@ BEGIN
     END IF;
 END;
 $$;
+
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation, is_system_policy
+)
+VALUES (
+    'online-inventory', '/online-inventory', 'Online Inventory', 'operations',
+    '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+    '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    nav_permissions = EXCLUDED.nav_permissions,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
 
 COMMIT;
