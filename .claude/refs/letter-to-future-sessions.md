@@ -1,5 +1,7 @@
 # Letter to Future Sessions
 
+Note (2026-07-17): the enhancement docs this letter references (architecture-enhancements.md, enhancement-backlog.md) were deleted; open items now live in docs/ongoing-dev.md.
+
 Written 2026-07-05 by the Fable 5 session that built the `.claude/rules/` +
 `.claude/refs/` system. Read this once when onboarding; it is not a rulebook —
 the rules live in `.claude/rules/`. This file is on-demand by design.

@@ -44,11 +44,10 @@ partitioning. `scripts/check-schema-drift.mjs` therefore remains a review
 report for known engine differences; new domain changes must align both engines
 or document an intentional exception instead of copying PostgreSQL DDL blindly.
 
-The only historical upgrade supported here is the important PostgreSQL 18.4
-database: first take and verify a logical backup, restore it into a PostgreSQL
-19 Beta 2 cluster, then execute `postgres/upgrade/pg18_4_to_v1.sql`, followed
-once by `postgres/data.sql` and `postgres/seed.sql`. Do not use that script for
-other databases.
+`postgres/upgrade/pg18_4_to_v1.sql` is legacy — kept only because
+`tests/status_vocabulary.rs`, the `db-upgrade-pg18_4-to-v1` Make target, and
+desktop recovery messaging reference it. New deployments start at V1 on
+PostgreSQL 19; do not use that script for anything else.
 
 ## PostgreSQL 19 Beta 2 optimization
 
@@ -68,6 +67,6 @@ PostgreSQL 19 Beta 2 is prerelease software for testing, not production.
 
 The Docker entrypoint and desktop resource bundle use the same V1 sequence:
 baseline, data, then seed, only for a new empty database. The desktop launcher
-does not alter a non-empty, unversioned database; the controlled PostgreSQL
-18.4 upgrade remains a manual, backup-first operation. Optimization scripts are
+does not alter a non-empty, unversioned database; recovering one is a manual,
+backup-first operation. Optimization scripts are
 never bundled or applied automatically.

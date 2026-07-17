@@ -146,6 +146,32 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 - Right: cargo check does not compile tests/ targets; integration tests calling service functions directly break invisibly until cargo test (or cargo check --tests) runs
 - Rule: after changing ANY pub fn signature in hotel-app-be, grep hotel-app-be/tests/ for the fn name AND run cargo test (or at minimum cargo check --tests) before claiming done — cargo check alone is insufficient even with all feature flags
 
+## 2026-07-12 — booking/ledger refs described a dead two-layer architecture
+- Trigger: 13-agent scan (independent verifier confirmed) found
+  `.claude/refs/booking-workflow.md` and `ledger-workflow.md` still described
+  business logic as living in `handlers/bookings.rs`/`handlers/ledgers.rs` at
+  anchors like `create_booking_handler:537`. Re-grepping showed those handler
+  files are now 264 and 129 lines of thin wrappers; the real logic moved to
+  `repositories/bookings/lifecycle.rs` (4259 lines) and `repositories/ledger.rs`
+  (2335 lines) at a prior refactor whose commit wasn't cross-checked against refs.
+- Wrong: trusting refs written 2026-07-05 without re-verifying anchors before an
+  agent used them to navigate — `create_booking_handler` was grepped at
+  lifecycle.rs:1183, not bookings.rs:537 (off by >600 lines and a different file).
+- Right: also found a three-layer nuance worth preserving — `services/bookings.rs`
+  holds real logic (`void_booking:51`, `manual_checkin:153`, permission/ownership
+  checks beyond route-level RBAC) while `services/ledgers.rs` is pure 1-line
+  passthrough to `repositories::ledger`. The two domains diverged in whether the
+  service layer does anything; a rewritten ref must say so explicitly rather than
+  assuming symmetry between domains that look structurally similar.
+- Rule: refs describing "where logic lives" rot silently when a refactor moves
+  logic between layers without touching the ref (nothing forces that link). Any
+  session doing a large repository-layer refactor should grep
+  `.claude/refs/*.md` for the old file's name and flag stale refs in the same
+  commit, not leave it for a future scan to discover. Rewrote both refs in
+  this pass; every anchor re-verified via direct grep same-session, not
+  reused from the scan report's claims.
+  (Salvaged 2026-07-17 from the uncommitted unruffled-hellman worktree.)
+
 ## 2026-07-15 — data.sql has a self-validating bootstrap transaction; adding a system permission/route/action touches ~6 lists, not 1
 - Trigger: Phase 2 of the communications build added 5 `communications:*` permissions, a `/communications` nav route, and two new actions (`compose`,`send`). Appending them after data.sql's `COMMIT` (the "obvious" idempotent spot) failed, then a cascade of DIFFERENT bootstrap-validation `RAISE EXCEPTION`s fired on each fix. Only a real `postgres:19beta1` docker apply (twice, for idempotency) surfaced them — `cargo check` compiles the SQL as an opaque `include_str!` and catches NONE of this.
 - Wrong: (a) append-after-`COMMIT` — data.sql wraps lines ~14–1425 in one `BEGIN…COMMIT` with an in-txn validation DO block (~1300–1420) that `RAISE`s if any `expected_route_access_policies` row lacks a matching `route_access_policies` row, so the route MUST be inserted inside the txn. (b) Assuming ONE action allowlist — `valid_action` is defined FIVE times: an inline CHECK in the permissions CREATE TABLE + three idempotent `ALTER…DROP/ADD CONSTRAINT` re-assertions in schema.sql, PLUS a copy in data.sql, PLUS the quarantine/delete reconciliation (3 sub-copies) AND a final "invalid system-owned records remain" counter — a new action must be added to ALL of them or the DB re-apply aborts. (c) Not registering perms in `expected_system_permissions` (data.sql ~line 45) — a `DELETE FROM permissions WHERE is_system_permission AND NOT EXISTS (in expected_system_permissions)` silently removes them before the route-permission-reference validation then reports them "unknown".

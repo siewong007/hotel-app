@@ -15,11 +15,11 @@ every session, so keep those lean). Do not add content here without removing som
 | Changing `.claude/` files, or after any failure/correction | `.claude/rules/maintenance.md` (+ append `lessons.md`) |
 | Working on bookings | `.claude/refs/booking-workflow.md` |
 | Working on ledgers / city ledger / invoicing | `.claude/refs/ledger-workflow.md` |
-| Desktop/Tauri build, packaging, or roadmap | `.claude/refs/architecture-enhancements.md`, `hotel-desktop/BUILD_SPEED.md`, `hotel-desktop/UPDATER.md` |
-| Deployment / ADRs | `docs/guides/deployment.md`, `docs/architecture/ADRS.md` |
+| Desktop/Tauri build or packaging | `hotel-desktop/BUILD_SPEED.md`, `hotel-desktop/UPDATER.md` |
+| Architecture overview / deployment / ADRs | `docs/architecture/architecture-flow.md`, `docs/guides/deployment.md`, `docs/architecture/ADRS.md` |
 | Onboarding context from the 2026-07-05 Fable session | `.claude/refs/letter-to-future-sessions.md` |
 | Using Codex (OpenAI) for second opinions / cross-vendor review | `.claude/refs/codex-collab.md` |
-| Picking the next improvement / tech-debt work | `.claude/refs/enhancement-backlog.md` |
+| Picking the next improvement / tech-debt work | `docs/ongoing-dev.md` |
 
 Line anchors cited in refs rot as code moves — verify with Grep before relying on them.
 This volume path contains a trailing space ("…EXTERNAL SSD ") — always quote paths in shell.
@@ -72,7 +72,8 @@ broken `tauri build` is NOT caught by CI.
 ## Architecture essentials
 
 Backend request flow: `routes/<domain>.rs` → auth middleware → `handlers/<domain>.rs`
-→ `repositories/` or inline SQL → `models/`. Key modules:
+→ (some domains) `services/<domain>.rs` for cross-cutting checks/logic →
+`repositories/` or inline SQL → `models/`. Key modules:
 - `routes/mod.rs::create_router` — ALL domain routers must be `.merge()`d here; wires CORS, rate limits, security headers.
 - `core/auth.rs` + `core/middleware.rs` — `require_auth(&headers)`; `check_permission(pool, user_id, "<resource>:<action>")`; `<resource>:manage` implies all actions of that resource.
 - `core/db.rs` — pool creation; on PostgreSQL sets per-connection timezone from `system_settings.timezone`; cross-DB value helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
@@ -89,8 +90,8 @@ corresponding V1 baseline, data, and seed scripts and applies them once only to
 a new empty database. There is no SQLite legacy migration. Schema changes must
 touch BOTH database paths.
 Note: `hotel-desktop` does NOT use the sqlite feature (it ships embedded PostgreSQL);
-sqlite serves the standalone lightweight server mode and CI. Keep-or-kill decision
-pending — see `.claude/refs/architecture-enhancements.md` item 3.
+sqlite serves the standalone lightweight server mode and CI. Removal decided
+2026-07-08, execution pending — see `docs/ongoing-dev.md` (plan in `.claude/reports/`).
 
 Frontend:
 - `src/features/<domain>/` feature modules; `src/api/*.service.ts` one per backend domain.

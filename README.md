@@ -122,7 +122,7 @@ hotel-app/
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
-│   │   ├── postgres/             # V1 baseline, one-time data/seed, PG18.4 upgrade, PG19 tuning
+│   │   ├── postgres/             # V1 baseline, one-time data/seed, PG19 tuning
 │   │   └── sqlite/               # V1 baseline and one-time data/seed
 │   └── tests/                    # Focused backend tests
 ├── hotel-web-fe/                 # React frontend
@@ -145,105 +145,24 @@ hotel-app/
 
 ## 🚀 Installation
 
-### Prerequisites
-
-| Tool | Recommended version | Notes |
-| --- | --- | --- |
-| Rust | 1.95.0 | The repository includes `rust-toolchain.toml`. |
-| Node.js | 22 LTS recommended | Required by desktop helper scripts. |
-| Bun | 1.3.14 | Package manager for frontend and desktop projects. |
-| PostgreSQL | 19 Beta 2 | Required for the default backend feature. PostgreSQL 19 is pre-release and intended for testing until general availability. |
-
-### Clone
+### Docker Compose Quick Start
 
 ```bash
 git clone https://github.com/siewong007/hotel-app.git
 cd hotel-app
-```
-
-### Backend API
-
-```bash
-cd hotel-app-be
 cp .env.example .env
-```
+# Edit .env — at minimum set JWT_SECRET and POSTGRES_PASSWORD
 
-Update `hotel-app-be/.env` with a local `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters.
-
-Initialize a new PostgreSQL database before starting the default backend. Run this sequence once, in order:
-
-```bash
-psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-psql "$DATABASE_URL" -f database/postgres/data.sql
-psql "$DATABASE_URL" -f database/postgres/seed.sql
-```
-
-For SQLite, the backend embeds and applies the equivalent V1 baseline, data, and
-seed scripts only when it opens a new empty database. Existing V1 databases do
-not rerun data or seed scripts. There is no SQLite legacy-migration path.
-SQLx migrations are not part of either setup flow.
-
-Start the API:
-
-```bash
-cargo run
-```
-
-The backend listens on `http://localhost:3030` by default. Health check:
-
-```bash
+docker compose up -d
+docker compose ps
 curl http://localhost:3030/health
 ```
 
-### SQLite Mode
+Services: frontend at `http://localhost:80`, backend API at `http://localhost:3030`, PostgreSQL at `localhost:5432`. An opt-in PostgreSQL 19 tuning profile is available via `make docker-up-pg19-tuned`.
 
-SQLite mode is useful for local experimentation and offline-oriented builds. A
-new empty database is initialized automatically at first startup.
-
-```bash
-cd hotel-app-be
-DATABASE_PATH=./hotel_data.db JWT_SECRET=change_me_to_a_32_character_secret cargo run --features sqlite --no-default-features
-```
-
-### Frontend
-
-```bash
-cd hotel-web-fe
-bun install
-bun run start
-```
-
-The frontend runs at `http://localhost:3000`. In development, Vite proxies configured API prefixes to `http://127.0.0.1:3030`.
-
-For a production-style frontend build:
-
-```bash
-bun run build
-```
-
-### Desktop App
-
-```bash
-cd hotel-desktop
-bun install
-bun run desktop:prepare
-bun run dev
-```
-
-For a desktop build:
-
-```bash
-bun run build
-```
-
-`desktop:prepare` is cache-aware and runs in this order: synchronize database resources, build the frontend bundle when inputs changed, build the backend sidecar when inputs changed, and copy the sidecar only when the binary changed. Production builds use the release backend sidecar; `bun run build:fast` and `bun run build:debug` use a debug backend sidecar for quicker local verification. Use `bun run build:no-bundle` to skip installer packaging, and `bun run desktop:prepare:force` when you need to rebuild every prepared artifact. See `hotel-desktop/BUILD_SPEED.md` for the full command matrix.
+For production deployment (Docker + Caddy HTTPS, manual deployment, Oracle Cloud, desktop distribution), see the [Deployment Guide](docs/guides/deployment.md). For local development setup — prerequisites, per-project install, running the backend/frontend/desktop directly, SQLite mode — see [CONTRIBUTING.md](CONTRIBUTING.md#getting-started).
 
 ## Environment Variables
-
-Create project-specific `.env` files from the samples:
-
-- Root quick reference: `.env.example`
-- Backend full reference: `hotel-app-be/.env.example`
 
 | Variable | Used by | Required | Description |
 | --- | --- | --- | --- |
@@ -252,78 +171,17 @@ Create project-specific `.env` files from the samples:
 | `JWT_SECRET` | Backend/Desktop sidecar | Yes | JWT signing secret; use at least 32 characters. |
 | `BACKEND_PORT` | Backend/Desktop | No | API port, default `3030`. |
 | `ALLOWED_ORIGINS` | Backend | No | Comma-separated CORS origins. |
-| `TRUST_PROXY_HEADERS` | Backend | No | Set `true` only behind a trusted proxy. |
-| `SKIP_EMAIL_VERIFICATION` | Backend | No | Development/desktop convenience flag. |
-| `PASSKEY_RP_ID` | Backend | No | Relying party ID for passkey flows, default `localhost`. |
-| `RUST_LOG` | Backend/Desktop | No | Logging level such as `info` or `debug`. |
-| `HOTEL_LOG_DIR` | Backend | No | Override application log directory. |
 | `VITE_API_URL` | Frontend | Production builds | API base URL when not using the Vite proxy. |
-| `VITE_APP_TARGET` | Frontend/Desktop | No | Set by desktop-oriented builds to select runtime behavior. |
 
-Never commit real `.env` files or local credentials.
+Never commit real `.env` files or local credentials. Full variable reference: [hotel-app-be/.env.example](hotel-app-be/.env.example) and the [Deployment Guide](docs/guides/deployment.md#environment-configuration).
 
 ## Deployment Security Notes
 
-- Run hosted web deployments behind a TLS-terminating reverse proxy and set `TRUST_PROXY_HEADERS=true` only when that proxy overwrites forwarded IP headers.
-- Treat the backend as single-instance until the in-memory rate limiter and RBAC/settings caches are moved to shared infrastructure.
-- The desktop app uses a generated local PostgreSQL password stored under the app data directory. Keep that directory private to the local OS user and exclude it from broad sync/backup tools.
-
-## Usage Examples
-
-### Check API Health
-
-```bash
-curl http://localhost:3030/health
-```
-
-Expected response:
-
-```json
-{
-  "status": "ok"
-}
-```
-
-### Login
-
-The bootstrap hash is intentionally not a usable shared password. Set the
-administrator password first:
-
-```bash
-cd hotel-app-be
-cargo run --bin fix_password -- admin '<strong-password>'
-```
-
-```bash
-curl -X POST http://localhost:3030/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"<strong-password>"}'
-```
-
-### List Rooms
-
-```bash
-curl http://localhost:3030/rooms \
-  -H "Authorization: Bearer <access-token>"
-```
-
-### Create a Booking
-
-```bash
-curl -X POST http://localhost:3030/bookings \
-  -H "Authorization: Bearer <access-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "guest_id": 1,
-    "room_id": 101,
-    "check_in_date": "2026-06-15",
-    "check_out_date": "2026-06-18"
-  }'
-```
-
-Request and response shapes may evolve with the backend models. Use the route modules and DTOs in `hotel-app-be/src/models/` as the source of truth when integrating new clients.
+See [SECURITY.md](SECURITY.md) and the [Deployment Guide's Security Checklist](docs/guides/deployment.md#security-checklist) before exposing this application beyond local development.
 
 ## 📡 API Endpoint Documentation
+
+Representative endpoints are listed below; request/response shapes are documented in the route modules and DTOs under `hotel-app-be/src/models/`, the source of truth when integrating new clients. Health-check request examples are in the [Deployment Guide](docs/guides/deployment.md).
 
 | Domain | Representative endpoints | Purpose |
 | --- | --- | --- |
@@ -350,27 +208,6 @@ Request and response shapes may evolve with the backend models. Use the route mo
 | Data transfer | `GET /data-transfer/export`, `POST /data-transfer/import` | Admin-only booking data export/import. |
 
 Most operational endpoints require a bearer token and, in many cases, a specific RBAC permission.
-
-## 🖼️ Screenshots and Demo
-
-The repository is ready for visual assets, but screenshots are not currently committed. Recommended placeholders:
-
-| Asset | Suggested file | Purpose |
-| --- | --- | --- |
-| Login screen | `docs/screenshots/login.png` | Show authentication entry point. |
-| Dashboard | `docs/screenshots/dashboard.png` | Show summary metrics and navigation. |
-| Booking timeline | `docs/screenshots/timeline.png` | Show reservation planning workflow. |
-| Room management | `docs/screenshots/rooms.png` | Show status, occupancy, and room operations. |
-| Guest profile | `docs/screenshots/guests.png` | Show guest administration. |
-| Reports | `docs/screenshots/reports.png` | Show analytics/reporting interface. |
-| Desktop status | `docs/screenshots/desktop-status.png` | Show bundled service status in the desktop app. |
-
-Suggested demo media:
-
-- A short GIF of creating a booking and checking in a guest.
-- A short video of room status changes and the reservation timeline.
-- A desktop demo showing Tauri startup, backend readiness, and database service status.
-- A report-generation demo that exports or previews report data.
 
 ## Repository Appearance Suggestions
 
@@ -432,57 +269,7 @@ Logo/banner idea:
 
 ## Contributing
 
-Contributions are welcome for bug fixes, documentation improvements, tests, and focused feature work. Please read the comprehensive [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
-
-Quick verification commands:
-
-```bash
-# All projects
-make check-all
-make test-all
-make lint-all
-
-# Or per project:
-cd hotel-app-be
-cargo fmt
-cargo check --all-features
-cargo clippy --all-features -- -D warnings
-cargo test --all-features
-```
-
-```bash
-cd hotel-web-fe
-bun run typecheck
-bun run lint
-bun run test -- --run
-bun run build
-```
-
-```bash
-cd hotel-desktop/src-tauri
-cargo fmt
-cargo check
-```
-
-### Docker Compose Quick Start
-
-```bash
-# Start full stack
-make docker-up
-
-# View logs
-make docker-logs
-
-# Stop
-make docker-down
-```
-
-Use the opt-in PostgreSQL 19 development profile when collecting benchmark
-plans or testing the speculative tuning:
-
-```bash
-make docker-up-pg19-tuned
-```
+Contributions are welcome for bug fixes, documentation improvements, tests, and focused feature work. Please read the comprehensive [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, including its [Development Commands](CONTRIBUTING.md#development-commands) reference for per-project verification commands.
 
 ### Oracle Cloud Always Free
 
@@ -503,10 +290,11 @@ environment is for development and benchmarking only.
 
 ## Additional Documentation
 
+- [Architecture Flow](docs/architecture/architecture-flow.md) — Request flow through backend and frontend layers
 - [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
 - [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions
+- [Database Lifecycle](hotel-app-be/database/README.md) — Schema, migrations, and seed data workflow
 - [OCI Always Free Terraform](infra/terraform/oci/README.md) — Free-tier-shaped development environment
-- [Screenshots](docs/screenshots/README.md) — Application screenshots (placeholder)
 
 ## License
 

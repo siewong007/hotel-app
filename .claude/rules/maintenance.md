@@ -21,7 +21,7 @@ Who may change what, where lessons go, and when to clean up.
 - `.claude/rules/model-dispatch.md` routing table and escalation semantics.
 - `.claude/rules/judgment-rubrics.md` rule semantics.
 - `AGENTS.md` (Codex-oriented; owned by the user's other tooling).
-- `.github/workflows/ci.yml`, `database/schema.sql` structure, anything under
+- `.github/workflows/ci.yml`, `hotel-app-be/database/` baseline SQL structure, anything under
   `hotel-desktop/src-tauri/pgsql/`.
 - Deleting any file the agent did not create this session.
 

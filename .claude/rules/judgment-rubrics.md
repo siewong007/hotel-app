@@ -12,7 +12,7 @@ Upgrade when ANY of these is true:
   invoices, tax), booking state machine.
 - You have failed the same subtask twice with different approaches.
 - The fix requires holding >3 files' invariants in your head at once
-  (e.g. bookings.rs + ledgers.rs + schema.sql + a frontend page).
+  (e.g. bookings.rs + ledgers.rs + the V1 baseline SQL + a frontend page).
 - You are about to write "probably" or "should work" about a correctness claim.
 
 Do NOT upgrade for: volume (many files, mechanical pattern — that's a spec + haiku
@@ -31,7 +31,7 @@ A task is complete ONLY when all of these hold:
 2. Backend touched → `cargo check --all-features` passes (clippy for CI-ready).
    Frontend touched → `npm run typecheck && npm run lint && npm run test` pass.
 3. Cross-cutting checklist from `00-diagnosis.md` Leak #3 walked item-by-item.
-4. Schema touched → BOTH `database/schema.sql` and `database/sqlite_schema.sql` updated; matching rerunnable SQLite data goes in `database/sqlite_data.sql`.
+4. Schema touched → BOTH `database/postgres/` and `database/sqlite/` V1 resources updated (see `hotel-app-be/database/README.md`).
 5. The user-visible summary states what was verified and HOW ("clippy clean, 42
    tests pass"), not "should be fine".
 
@@ -46,7 +46,7 @@ A task is complete ONLY when all of these hold:
 
 Ask when ANY of these is true (and only these — otherwise proceed):
 - Destructive or hard-to-reverse: deleting data/files you didn't create, force
-  pushes, dropping columns, rewriting `database/schema.sql` structure, changing
+  pushes, dropping columns, rewriting the V1 baseline SQL structure, changing
   `.github/workflows/ci.yml` semantics.
 - Two legitimate designs with different business behavior (e.g. "should voiding a
   booking also void its city-ledger row?") — that is a hotel-operations decision,
