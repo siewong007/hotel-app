@@ -5,8 +5,8 @@ Every rule here is executable — no judgment required.
 
 ## Leak #1: Reading large files whole (biggest token leak)
 
-The hot files in this repo are huge. `hotel-app-be/src/handlers/bookings.rs` and
-`handlers/ledgers.rs` are multi-thousand-line files; `database/schema.sql` is large;
+The hot files in this repo are huge. `hotel-app-be/src/repositories/bookings/lifecycle.rs`
+(~4.3k lines) and `repositories/ledger.rs` (~2.3k; handlers are thin wrappers now) are the worst; `database/postgres/migrations/0001_v1_baseline.sql` is large;
 so are `BookingsPage.tsx` and `CustomerLedgerPage.tsx`. Reading one of these whole
 can burn 30–60k tokens in a single call.
 
@@ -15,7 +15,7 @@ can burn 30–60k tokens in a single call.
 2. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
    function name first to get a line number, then Read ±80 lines around it.
 3. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
-   (e.g. `create_booking_handler` at bookings.rs:537). Start from those, but verify
+   (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:1181). Start from those, but verify
    with Grep — anchors rot as code moves.
 4. If you need a broad sweep ("where is X handled across the repo"), delegate to an
    Explore subagent (see `model-dispatch.md`) instead of reading files yourself.
@@ -34,9 +34,9 @@ behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silentl
 1. Placeholders: use `param!(1)`, `param!(2)` — never literal `$1` or `?1`.
 2. Time: use `sql_compat::current_timestamp()` / `current_date()` — never `NOW()` / `CURRENT_DATE`.
 3. DB-divergent values: use `core/db.rs` helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
-4. Schema changes: edit `database/schema.sql` (Postgres, idempotent) AND append a
-   matching numbered section to `database/sqlite_schema.sql`; put rerunnable
-   SQLite seeds/backfills in `database/sqlite_data.sql`. One path without the other = incomplete task.
+4. Schema changes: update BOTH `hotel-app-be/database/postgres/` AND
+   `hotel-app-be/database/sqlite/` V1 resources (lifecycle:
+   `hotel-app-be/database/README.md`). One engine without the other = incomplete task.
 5. Before claiming done: `cargo check --all-features` MUST pass. This is the minimum
    bar; `cargo clippy --all-features -- -D warnings` is what CI actually runs.
 
@@ -54,7 +54,7 @@ symptom is "it compiles but the endpoint 404s in dev" or "lint fails on CI only"
 3. New top-level API prefix added to the proxy list in `hotel-web-fe/vite.config.ts`,
    or the dev server won't forward it (production works, dev mysteriously fails).
 4. Frontend calls go through `src/api/client.ts` (`ky` instance) — never `fetch`.
-5. New page routes added in `App.tsx` inside the `Suspense` + `ErrorBoundary` wrappers, lazy-loaded.
+5. New page routes added in `src/routes/*.tsx` AND the lazy registry `src/navigation/routeRegistry.tsx` (not App.tsx).
 6. Dates: never `toISOString().split(...)` / `.slice(...)` — ESLint `no-restricted-syntax`
    bans it and CI fails. Use helpers in `hotel-web-fe/src/utils/date.ts`.
 7. Mutating handlers call `services/audit.rs`; free-text input goes through `utils/sanitization.rs::Sanitizer`.

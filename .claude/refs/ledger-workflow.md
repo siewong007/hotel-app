@@ -1,24 +1,32 @@
 # Ledger Workflow (reference)
 
-Extracted from CLAUDE.md on 2026-07-05. Line anchors were valid then — verify with
-Grep before relying on them (`grep -n "fn <name>" hotel-app-be/src/handlers/ledgers.rs`).
+Rewritten 2026-07-12 (13-agent scan, independent verifier confirmed). Line anchors
+verified by direct grep against this worktree on that date — verify again with
+`grep -n "fn <name>" hotel-app-be/src/repositories/ledger.rs` before relying on
+them; anchors rot as code moves.
 
-**Routes** (`hotel-app-be/src/routes/ledgers.rs`) — gated by ledger-specific RBAC permissions: `ledgers:read` for list/detail/summary/payment reads, `ledgers:create` for ledger/payment creation, `ledgers:update` for edits/payment-date changes, `ledgers:void` for voids/reversals, and `ledgers:manage` for destructive deletes. As with other RBAC resources, `ledgers:manage` implies all ledger actions.
+**Architecture** (unlike bookings, the service layer here does nothing):
+- `routes/ledgers.rs` — RBAC gate (`require_permission_helper` with `LEDGERS_READ`/`CREATE`/`UPDATE`/`VOID`/`MANAGE` consts) + dispatch to `handlers::ledgers::*`.
+- `handlers/ledgers.rs` (134 lines) — thin wrappers, call straight into `services::ledgers`.
+- `services/ledgers.rs` — sanitizes free-text input and threads `user_id` for audit logging (added 2026-07-12), then delegates into `repositories::ledger as repo`; domain logic still lives in the repository layer (contrast `services/bookings.rs`, which holds permission/ownership logic — see `booking-workflow.md`).
+- `repositories/ledger.rs` (2335 lines) — where all ledger business logic actually lives. Every mutating function is duplicated as a cfg-gated pair: `#[cfg(all(feature = "sqlite", not(feature = "postgres")))]` variant first (lower line number), `#[cfg(any(feature = "postgres", not(feature = "sqlite")))]` variant second — anchors below cite the PostgreSQL (second/higher-line) variant unless noted.
+
+**Routes** (`hotel-app-be/src/routes/ledgers.rs`) — `ledgers:read` for list/detail/summary/payment reads, `ledgers:create` for ledger/payment creation, `ledgers:update` for edits/payment-date changes, `ledgers:void` for both void AND reversal endpoints, `ledgers:manage` for destructive deletes. `ledgers:manage` implies all ledger actions (RBAC convention repo-wide).
 
 **Data model** (`models/ledger.rs`):
 - `customer_ledgers` — company info, `description`, `expense_type`, `amount`, `paid_amount`, `balance_due` (DB-derived), `status` ∈ {pending, partial, paid, overdue, cancelled}, `due_date`, `invoice_number`, optional `booking_id`/`guest_id`, accounting fields (`folio_type`, `transaction_type`, `post_type`, `is_reversal`, `original_transaction_id`, `void_at/by/reason`).
 - `customer_ledger_payments` — running payment history per ledger.
 
-Key handlers in `handlers/ledgers.rs`:
+Key logic in `repositories/ledger.rs` (PostgreSQL variant line cited; SQLite variant is the paired function immediately above at a lower line number):
 
-- **`create_customer_ledger_handler`** (ledgers.rs:479) — resolves `due_date` (caller → company `payment_terms_days` → 30-day fallback from posting date/today), allocates next `invoice_number` via `services::invoice_numbers::next_invoice_number`, inserts with status `pending`.
-- **`create_ledger_payment_handler`** (ledgers.rs:1188) — validates positive amount + non-cancelled ledger, inserts payment row, updates ledger's `paid_amount` + `payment_method`/`payment_reference`, recomputes status: `paid_amount ≥ amount` → `paid`, > 0 → `partial`, else `pending`.
-- **`update_ledger_payment_handler`** (ledgers.rs:1801) — patches payment date and re-syncs ledger's `payment_date` to `MAX(payments.payment_date)`.
-- **`void_ledger_handler`** (ledgers.rs:1479) — stamps `void_at/by/reason` + status `cancelled`. Refuses if already voided.
-- **`create_ledger_reversal_handler`** (ledgers.rs:1640) — inserts a sibling row with `is_reversal=TRUE`, `original_transaction_id` back-pointer, opposite `transaction_type` (debit↔credit), description prefixed `REVERSAL:`, status `paid`. Refuses to reverse a reversal.
+- **`create_customer_ledger`** (ledger.rs:583) — resolves `due_date`: caller's value → else the named company's `payment_terms_days` (looked up by `company_name`) → else `default_payment_terms_days` (settings-cache helper, ledger.rs:36). Allocates `invoice_number` via `services::invoice_numbers::next_invoice_number`, inserts with hardcoded status `'pending'` and `paid_amount=0`.
+- **`create_ledger_payment`** (ledger.rs:1354) — validates positive amount + non-cancelled ledger, inserts payment row, recomputes `paid_amount` and status: `new_total_paid ≥ total_amount` → `paid`, `> 0` → `partial`, else `pending` (ledger.rs:1420-1427).
+- **`update_ledger_payment`** (ledger.rs:2058) — always applies `payment_date`; `payment_amount`/`payment_method`/`payment_reference`/`notes` applied only when provided; re-syncs ledger's `paid_amount`/`status`/`payment_date` from the resulting payment set.
+- **`void_ledger`** (ledger.rs:1657) — refuses if `void_at`/voided flag is already set (ledger.rs:1673: `"Ledger is already voided"`); stamps void fields + status `cancelled`.
+- **`create_ledger_reversal`** (ledger.rs:1814) — refuses to reverse a reversal (`original.is_reversal` check, ledger.rs:1830); inserts a sibling row with opposite `transaction_type` (debit↔credit, ledger.rs:1837), `original_transaction_id` back-pointer, description prefixed `"REVERSAL: "`, status hardcoded `'paid'`.
 
-**Booking → Ledger integration**: When a company-billed booking transitions to `checked_out`/`completed`, the backend calls `auto_post_company_ledger` to insert a `room_charge` row with `folio_type='city_ledger'`, `transaction_type='debit'`, `due_date = today + payment_terms_days`. Subsequent edits to the booking total propagate as a *delta* to that ledger row's `amount` (bookings.rs:1531) — preserving extras, skipping cancelled/over-paid rows.
+**Booking → Ledger integration**: When a booking with company billing transitions to `checked_out`/`completed`, `repositories/bookings/lifecycle.rs`'s `auto_post_company_ledger` (lifecycle.rs:687) inserts a `room_charge` row with `folio_type='city_ledger'`, `transaction_type='debit'` — see `booking-workflow.md` for the full call chain and idempotency mechanism (pre-check + unique-index backstop, not application-level locking). Subsequent booking-total edits propagate as a *delta* to that ledger row's `amount` (lifecycle.rs:2375-2414) — preserving extras, restricted to `pending`/`partial` `room_charge` rows.
 
-**The backend is the sole authority for company ledger rows**: company room charges are created only by `auto_post_company_ledger` on the `checked_out`/`completed` transition. The frontend (`CustomerLedgerPage.handleConfirmCompanyCheckout`) just submits the checkout (`updateBooking({status:'checked_out'})`) and renders the result — it does **not** compute amounts, allocate invoice numbers, or insert ledger rows. Duplicate/concurrent postings are made impossible by the partial unique index `uq_customer_ledgers_booking_room_charge` (PostgreSQL: `database/schema.sql`; SQLite: `database/sqlite_schema.sql` section 5), not by an application-level check.
+**The backend is the sole authority for company ledger rows**: room charges are created only by `auto_post_company_ledger` on the `checked_out`/`completed` transition. The frontend's shared checkout flow (`hotel-web-fe/src/features/invoices/hooks/useCheckoutFlow.ts`, used by both `BookingsPage` and `CustomerLedgerPage`) just submits `updateBooking({status:'checked_out'})` and renders the result — it does **not** compute amounts, allocate invoice numbers, or insert ledger rows. Duplicate postings are guarded by the `auto_post_company_ledger` pre-check with the partial unique index `uq_customer_ledgers_booking_room_charge` (PostgreSQL: `database/postgres/migrations/0001_v1_baseline.sql`; SQLite: `database/sqlite/migrations/0001_v1_baseline.sql`) as the structural backstop.
 
-**Frontend**: `hotel-web-fe/src/api/ledger.service.ts` wraps endpoints; `features/admin/hooks/useLedgers.ts` mirrors `useBookings` (server pagination, debounced search, request-id guard); `features/admin/hooks/useLedgerData.ts` is the older non-paginated variant — `CustomerLedgerPage.tsx` uses `useLedgers`.
+**Frontend**: `hotel-web-fe/src/api/ledger.service.ts` (`LedgerService`) wraps endpoints; `features/admin/hooks/useLedgers.ts` exports two hooks — `useLedgers()` (non-paginated, used by `CustomerLedgerPage.tsx`) and `useLedgersPage()` (paginated, `placeholderData: keepPreviousData`). The older `useLedgerData.ts` non-paginated variant referenced by a prior version of this doc no longer exists in the tree — `useLedgers` is now the only hook `CustomerLedgerPage.tsx` (2265 lines) imports.

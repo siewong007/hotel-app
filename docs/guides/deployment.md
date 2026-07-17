@@ -18,62 +18,41 @@ This guide covers deploying the hotel management system in various environments.
 
 ## Quick Start (Docker Compose)
 
-The fastest way to get the full stack running:
-
 ```bash
-# Clone the repository
 git clone https://github.com/siewong007/hotel-app.git
 cd hotel-app
-
-# Copy and configure environment
 cp .env.example .env
 # Edit .env — at minimum set JWT_SECRET and POSTGRES_PASSWORD
-
-# Start all services
 docker compose up -d
-
-# Check service health
 docker compose ps
 curl http://localhost:3030/health
 ```
 
-The services will be available at:
-- **Frontend:** http://localhost:80
-- **Backend API:** http://localhost:3030
-- **PostgreSQL:** localhost:5432
+Available at: **Frontend** http://localhost:80, **Backend API** http://localhost:3030, **PostgreSQL** localhost:5432.
 
 ---
 
 ## Oracle Cloud Always Free Development
 
-The Terraform configuration in `infra/terraform/oci/environments/dev` provisions a low-cost
-development environment on one Oracle Ampere A1 Flex VM. The VM runs the
-existing Docker Compose stack, so there is no paid managed PostgreSQL service.
-Its defaults use a conservative 2 OCPU and 12 GB of memory; check the limits
-shown in your tenancy before increasing either value.
+`infra/terraform/oci/environments/dev` provisions a low-cost dev environment
+on one Oracle Ampere A1 Flex VM (2 OCPU / 12 GB defaults — check your tenancy
+limits before raising either) running the existing Docker Compose stack, so
+there is no paid managed PostgreSQL service. This is a development/preview
+topology only: VM, database, and app share one failure domain; Always Free
+capacity has no production SLA and can be unavailable or reclaimed; PostgreSQL
+19 Beta 2 is not supported for production data.
 
-This design is intentionally a development/preview topology:
-
-- The VM, database, and application share one failure domain.
-- Always Free capacity can be unavailable in a selected availability domain.
-- Always Free services have no production SLA, and idle instances can be reclaimed.
-- PostgreSQL 19 Beta 2 is not supported for production data.
-
-Create an OCI Vault secret for each required application secret, configure the
-example variable file, and then preview the infrastructure before applying it:
+Create an OCI Vault secret for each required application secret, then:
 
 ```bash
 cd infra/terraform/oci/environments/dev
 cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
+terraform init && terraform plan && terraform apply
 ```
 
-Do not put OCI API keys, database passwords, JWT secrets, or Terraform state in
-Git. The directory includes an Object Storage backend example for teams that
-need remote state; use the backend approach compatible with the Terraform
-version installed in your environment.
+Never commit OCI API keys, database passwords, JWT secrets, or Terraform
+state — the directory includes an Object Storage backend example for teams
+that need remote state.
 
 Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm), [Terraform provider](https://docs.oracle.com/en-us/iaas/Content/dev/terraform/home.htm), and [Object Storage state](https://docs.oracle.com/en-us/iaas/Content/dev/terraform/object-storage-state.htm).
 
@@ -99,30 +78,9 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 
 ### Architecture
 
-```
-                         ┌─────────────┐
-                         │   CDN/CDN   │
-                         │  (optional) │
-                         └──────┬──────┘
-                                │
-                         ┌──────▼──────┐
-                         │   Reverse   │
-                         │   Proxy     │
-                         │ (TLS term.) │
-                         └──────┬──────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                 │
-       ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐
-       │  Backend    │  │  Frontend   │  │  Monitoring │
-       │  Instance   │  │ (static)    │  │ (optional)  │
-       └──────┬──────┘  └─────────────┘  └─────────────┘
-              │
-       ┌──────▼──────┐
-       │ PostgreSQL  │
-       │  (Primary)  │
-       └─────────────┘
-```
+An optional CDN and a TLS-terminating reverse proxy sit in front of the
+backend and static frontend; the backend is the only component that talks to
+PostgreSQL, and monitoring is an optional sidecar off the reverse proxy.
 
 ### Docker + Caddy HTTPS (recommended)
 
@@ -137,63 +95,42 @@ the frontend SPA. Same-origin serving is required for the
 `SameSite=Strict` refresh cookie to work — do **not** split the API onto a
 separate subdomain.
 
-Prerequisites: a DNS A/AAAA record for your domain pointing at the server,
-and ports 80 + 443 reachable from the internet.
+Prerequisites: a DNS A/AAAA record for your domain, and ports 80+443 reachable from the internet.
 
 ```bash
-# .env — in addition to the Quick Start values
+# Add to .env, in addition to the Quick Start values:
 DOMAIN=hotel.example.com
 ACME_EMAIL=you@example.com
 TRUST_PROXY_HEADERS=true                  # rate limiter reads X-Forwarded-For from Caddy
 ALLOWED_ORIGINS=https://hotel.example.com
 VITE_API_URL=https://hotel.example.com    # build arg — changing it requires --build
-
-# Start (rebuild needed the first time and whenever VITE_API_URL changes)
-docker compose --profile https up -d --build
+docker compose --profile https up -d --build   # rebuild needed first time & whenever VITE_API_URL changes
 ```
 
 Notes:
-- The backend, frontend, and postgres ports are bound to `127.0.0.1` on the
-  host; only Caddy (80/443) is publicly reachable.
-- Certificates and ACME account state persist in the `caddy_data` volume.
-  Deleting it forces re-issuance and can hit Let's Encrypt rate limits.
-- For a local smoke test without a domain, leave `DOMAIN` unset (defaults to
-  `localhost`) — Caddy self-signs a local certificate; use `curl -k`.
-
-The manual Nginx instructions below remain the non-Docker alternative.
+- Backend, frontend, and postgres ports bind to `127.0.0.1`; only Caddy (80/443) is public.
+- Certs/ACME state persist in the `caddy_data` volume — deleting it forces re-issuance (rate-limit risk); no domain yet? leave `DOMAIN` unset (defaults to `localhost`) — Caddy self-signs, use `curl -k`.
+- The manual Nginx instructions below remain the non-Docker alternative.
 
 ### Manual Deployment
 
 #### 1. Database Setup
 
 ```bash
-# Create database and user
 sudo -u postgres psql -c "CREATE USER hotel_admin WITH PASSWORD 'strong_password';"
 sudo -u postgres psql -c "CREATE DATABASE hotel_management OWNER hotel_admin;"
-
-# Initialize a new V1 database once, in order
-PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
-PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/postgres/data.sql
-PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/postgres/seed.sql
 ```
 
-Run these initialization files only for a new empty database. Existing V1
-databases must not rerun `data.sql` or `seed.sql`. PostgreSQL 19 Beta 2 is a
-prerelease testing target, not a production recommendation. For the one
-important PostgreSQL 18.4 database, take and verify a logical backup, restore
-it into PostgreSQL 19 Beta 2, then run
-`hotel-app-be/database/postgres/upgrade/pg18_4_to_v1.sql` followed once by the
-same `data.sql` and `seed.sql` files. No SQLite legacy migration is supported.
+Then run the V1 init sequence from [Database Setup](#database-setup) below
+(baseline → data → seed, once only), prefixing each with
+`PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f`.
+No SQLite legacy migration is supported.
 
 #### 2. Backend Deployment
 
 ```bash
 cd hotel-app-be
-
-# Build release binary
 cargo build --release
-
-# Run with production configuration
 DATABASE_URL=postgres://hotel_admin:strong_password@localhost:5432/hotel_management \
   JWT_SECRET="your-32-char-min-secret" \
   BACKEND_PORT=3030 \
@@ -208,7 +145,6 @@ Recommended to run as a systemd service:
 [Unit]
 Description=Hotel Management Backend
 After=network.target postgresql.service
-
 [Service]
 Type=simple
 User=hotel
@@ -217,82 +153,40 @@ EnvironmentFile=/opt/hotel-app/backend/.env
 ExecStart=/opt/hotel-app/backend/hotel-app-be
 Restart=always
 RestartSec=5
-
 [Install]
 WantedBy=multi-user.target
 ```
 
-#### 3. Frontend Deployment
+#### 3. Frontend Deployment + Reverse Proxy
 
 ```bash
 cd hotel-web-fe
-
-# Build for production
 VITE_API_URL=https://your-api-domain.com bun run build
-
-# Deploy the dist/ directory to your web server
-# Example with Nginx:
-cp -r dist/* /var/www/hotel-frontend/
+cp -r dist/* /var/www/hotel-frontend/   # or your web server's document root
 ```
 
-Example Nginx configuration:
-
-```nginx
-server {
-    listen 80;
-    server_name your-frontend-domain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name your-frontend-domain.com;
-
-    ssl_certificate /etc/letsencrypt/live/your-frontend-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-frontend-domain.com/privkey.pem;
-
-    root /var/www/hotel-frontend;
-    index index.html;
-
-    # SPA fallback
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-
-    # Gzip
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
-}
-```
-
-#### 4. Reverse Proxy for Backend API
+Each host needs its own SSL `server{}` block. The frontend host serves
+`dist/` with an HTTP→HTTPS redirect, an SPA fallback
+(`try_files $uri $uri/ /index.html`), the same security headers listed under
+[Security Checklist](#security-checklist), and gzip for text/JS/JSON assets.
+The backend host reverse-proxies to the Rust process and additionally needs
+WebSocket upgrade headers and longer timeouts (night audit can run long), as
+in this representative config:
 
 ```nginx
 server {
     listen 443 ssl;
     server_name api.your-domain.com;
-
     ssl_certificate /etc/letsencrypt/live/api.your-domain.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/api.your-domain.com/privkey.pem;
-
     location / {
         proxy_pass http://127.0.0.1:3030;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-
-        # Increase timeouts for long-running operations like night audit
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
     }
@@ -301,12 +195,7 @@ server {
 
 ### Docker Swarm / Kubernetes
 
-For orchestrating with Docker Swarm:
-
-```bash
-# Deploy as a stack
-docker stack deploy -c docker-compose.yml hotel-app
-```
+Docker Swarm: `docker stack deploy -c docker-compose.yml hotel-app`.
 
 For Kubernetes, create the following resources:
 - `Deployment` for backend (with health checks)
@@ -319,49 +208,28 @@ For Kubernetes, create the following resources:
 
 ## Desktop App Distribution
 
-### Prerequisites
+### Prerequisites and Build
 
 ```bash
 cd hotel-desktop
 bun install
 bun run desktop:prepare
-```
-
-### Building for Distribution
-
-```bash
-# Production build (creates .dmg on macOS, .msi on Windows, .AppImage on Linux)
-bun run build
-```
-
-The built installer will be in `src-tauri/target/release/bundle/`.
-
-### Build Variants
-
-```bash
-# Fast local verification build, no installer packaging
-bun run build:fast
-
-# Release binary build, no installer packaging
-bun run build:no-bundle
-
-# Debug build (faster, larger binary)
-bun run build:debug
-
-# Windows-only single-installer builds
-bun run build:nsis
-bun run build:msi
-
-# Platform-specific (run on target platform)
-bun run build  # macOS DMG
-# For Windows/Linux, cross-compile from CI
+bun run build   # installer: .dmg on macOS, .msi on Windows, .AppImage on Linux — in src-tauri/target/release/bundle/
 ```
 
 `desktop:prepare` is cache-aware: it syncs database resources, builds the frontend bundle, builds the backend sidecar, and copies the sidecar in that order, skipping each artifact when its inputs are unchanged. Production builds use the release backend sidecar; `build:fast` and `build:debug` use the debug sidecar. Use `bun run desktop:prepare:force` to rebuild every prepared artifact.
 
-### Desktop Configuration
+### Build Variants
 
-Key environment variables for desktop mode:
+| Command | Produces |
+|---|---|
+| `bun run build:fast` | Fast local verification build, no installer packaging |
+| `bun run build:no-bundle` | Release binary, no installer packaging |
+| `bun run build:debug` | Debug build (faster, larger binary) |
+| `bun run build:nsis` / `build:msi` | Windows-only single-installer builds |
+| `bun run build` | Platform-specific installer, run on the target platform (macOS DMG locally; cross-compile Windows/Linux from CI) |
+
+### Desktop Configuration
 
 ```bash
 HOTEL_DESKTOP_MODE=true        # Enables desktop-specific behavior
@@ -375,36 +243,26 @@ HOTEL_LOG_DIR=./logs           # Log directory
 
 ## Environment Configuration
 
-### Required Variables
+### Required and Security Variables
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@host:5432/db` |
-| `JWT_SECRET` | Token signing key (≥32 chars) | `your-random-secret-at-least-32-characters` |
-| `ALLOWED_ORIGINS` | CORS allowed origins | `https://app.domain.com,http://localhost:3000` |
-
-### Important Security Variables
-
-| Variable | Default | Recommendation |
-|----------|---------|----------------|
-| `TRUST_PROXY_HEADERS` | `false` | Only `true` behind a trusted reverse proxy |
-| `SKIP_EMAIL_VERIFICATION` | (unset) | `false` in production; `true` for desktop |
-| `ENVIRONMENT` | `production` | Set in `.env` for the target environment |
+| Variable | Type | Default / Example | Purpose |
+|----------|------|--------------------|---------|
+| `DATABASE_URL` | Required | `postgres://user:pass@host:5432/db` | PostgreSQL connection string |
+| `JWT_SECRET` | Required | `your-random-secret-at-least-32-characters` | Token signing key (≥32 chars) |
+| `ALLOWED_ORIGINS` | Required | `https://app.domain.com,http://localhost:3000` | CORS allowed origins |
+| `TRUST_PROXY_HEADERS` | Security | `false` | Only `true` behind a trusted reverse proxy |
+| `SKIP_EMAIL_VERIFICATION` | Security | (unset) | `false` in production; `true` for desktop |
+| `ENVIRONMENT` | Security | `production` | Set in `.env` for the target environment |
 
 ### Performance Tuning
 
 ```bash
-# Connection pool
 DATABASE_MAX_CONNECTIONS=20
 DATABASE_ACQUIRE_TIMEOUT_SECS=30
-
-# Cache TTLs
 RBAC_CACHE_TTL_SECS=30
 SETTINGS_CACHE_TTL_SECS=30
-
-# Logging
-RUST_LOG=info                # Use 'warn' for quieter logs
-DATABASE_SLOW_STATEMENT_MS=500  # Log slow queries
+RUST_LOG=info                   # 'warn' for quieter logs
+DATABASE_SLOW_STATEMENT_MS=500  # log slow queries
 ```
 
 ---
@@ -414,15 +272,14 @@ DATABASE_SLOW_STATEMENT_MS=500  # Log slow queries
 ### PostgreSQL Setup
 
 ```bash
-# From scratch
 createdb hotel_management
-psql -d hotel_management -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
-psql -d hotel_management -f hotel-app-be/database/postgres/data.sql
-psql -d hotel_management -f hotel-app-be/database/postgres/seed.sql
-
-# Verify
-psql -d hotel_management -c "\dt"  # Should show all tables
+psql -d hotel_management -c "\dt"  # Verify: should show all tables after init
 ```
+
+For the full V1 init order (baseline → data → seed, once only on a new empty
+database), see
+[`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md) —
+it is the canonical database lifecycle reference.
 
 ### SQLite Setup (Desktop/Offline)
 
@@ -480,10 +337,7 @@ Content-Security-Policy: default-src 'self'; ...
 Referrer-Policy: strict-origin-when-cross-origin
 ```
 
-Verify with:
-```bash
-curl -I https://your-api-domain.com/health
-```
+Verify with `curl -I https://your-api-domain.com/health`.
 
 ---
 
@@ -492,11 +346,8 @@ curl -I https://your-api-domain.com/health
 ### Health Check Endpoints
 
 ```bash
-# Basic health (no auth required)
-curl http://localhost:3030/health
-
-# WebSocket status (no auth required)
-curl http://localhost:3030/ws/status
+curl http://localhost:3030/health      # no auth required
+curl http://localhost:3030/ws/status   # no auth required
 ```
 
 ### Logging
@@ -508,19 +359,12 @@ Backend logs are written to:
 
 ### Metrics (Optional)
 
-For production monitoring, consider:
-1. **Prometheus** — metrics collection (configurable in `docker-compose.yml`)
-2. **Grafana** — dashboards (admin password configurable)
-3. **Health checks** — built-in endpoints for load balancer probes
-
-### Integration with Monitoring Tools
+Scrape the backend with Prometheus (enable in `docker-compose.yml`) and chart it in Grafana, alongside the health endpoints above:
 
 ```yaml
-# Prometheus scrape config example
 scrape_configs:
   - job_name: hotel-backend
-    static_configs:
-      - targets: ['localhost:3030']
+    static_configs: [{ targets: ['localhost:3030'] }]
 ```
 
 ---
@@ -530,11 +374,8 @@ scrape_configs:
 ### PostgreSQL Backup
 
 ```bash
-# Daily backup (cron: 0 2 * * *)
-pg_dump -h localhost -U hotel_admin hotel_management > /backups/hotel_$(date +%Y%m%d).sql
-
-# Restore
-psql -h localhost -U hotel_admin hotel_management < /backups/hotel_20250101.sql
+pg_dump -h localhost -U hotel_admin hotel_management > /backups/hotel_$(date +%Y%m%d).sql   # cron: 0 2 * * *
+psql -h localhost -U hotel_admin hotel_management < /backups/hotel_20250101.sql              # restore
 ```
 
 ### Desktop Data Backup
@@ -542,25 +383,17 @@ psql -h localhost -U hotel_admin hotel_management < /backups/hotel_20250101.sql
 For desktop mode, back up the SQLite database file and the PostgreSQL data directory:
 
 ```bash
-# SQLite
-cp ./hotel_data.db ./backups/hotel_data_$(date +%Y%m%d).db
-
-# PostgreSQL (desktop mode)
-cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)
+cp ./hotel_data.db ./backups/hotel_data_$(date +%Y%m%d).db      # SQLite
+cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)   # PostgreSQL (desktop mode)
 ```
 
 ### Backup via Docker
 
-`docker-compose.yml` does not include a scheduled/automated backup service today — backups are manual only. Run `pg_dump` on demand, or schedule the same command externally (e.g. host cron):
+`docker-compose.yml` has no scheduled backup service — backups are manual, run on demand or scheduled externally (e.g. host cron):
 
 ```bash
-# Manual backup
-docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql
-```
-
-```bash
-# Example: schedule it yourself with host cron (daily at 02:00)
-0 2 * * * docker exec hotel-db pg_dump -U hotel_admin hotel_management > /backups/hotel_$(date +\%Y\%m\%d).sql
+docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql   # manual
+0 2 * * * docker exec hotel-db pg_dump -U hotel_admin hotel_management > /backups/hotel_$(date +\%Y\%m\%d).sql   # host cron, daily 02:00
 ```
 
 ### Log Rotation
@@ -583,54 +416,24 @@ The backend writes one append-only file per calendar day (`backend-YYYY-MM-DD.lo
 ## Troubleshooting
 
 ### Backend won't start
-
-**Symptoms:**
-- `FATAL: Database connection failed`
-- `FATAL: Invalid JWT configuration`
-
-**Solutions:**
-1. Verify `DATABASE_URL` is correct and PostgreSQL is running
-2. Ensure `JWT_SECRET` is at least 32 characters
-3. Check PostgreSQL firewall settings
-4. Verify `.env` file is present in `hotel-app-be/`
+- **Symptom:** `FATAL: Database connection failed` or `Invalid JWT configuration`.
+- **Cause:** wrong/unreachable `DATABASE_URL`, `JWT_SECRET` under 32 chars, or missing `.env`.
+- **Fix:** verify `DATABASE_URL` and that PostgreSQL is reachable (check its firewall), set a ≥32-char `JWT_SECRET`, confirm `.env` exists in `hotel-app-be/`.
 
 ### CORS errors
-
-**Symptoms:**
-- Browser console shows CORS-related errors
-- API requests blocked by browser
-
-**Solutions:**
-1. Check `ALLOWED_ORIGINS` includes the frontend origin
-2. Verify the frontend URL is not using `http` when backend expects `https`
-3. For development, use the Vite proxy (configured in `vite.config.ts`)
+- **Symptom:** browser console shows CORS errors; requests blocked.
+- **Cause:** frontend origin missing from `ALLOWED_ORIGINS`, or an http/https scheme mismatch.
+- **Fix:** add the origin to `ALLOWED_ORIGINS`; in development, go through the Vite proxy instead of calling the backend directly.
 
 ### Desktop app issues
-
-**Symptoms:**
-- Backend sidecar not starting
-- PostgreSQL not initializing
-- Port already in use
-
-**Solutions:**
-1. Check logs in app data directory (`~/Library/Application Support/HotelApp/logs/` on macOS)
-2. Verify no other process is using the backend port
-3. Ensure all system dependencies are installed
-4. Re-run `bun run desktop:prepare:force`
+- **Symptom:** sidecar won't start, PostgreSQL won't initialize, or "port already in use".
+- **Cause:** stale prepared artifacts, a port conflict, or a missing system dependency.
+- **Fix:** check logs under `~/Library/Application Support/HotelApp/logs/` (macOS), free the backend port, then re-run `bun run desktop:prepare:force`.
 
 ### Performance issues
-
-**Symptoms:**
-- Slow API responses
-- High database CPU usage
-- Timeout errors
-
-**Solutions:**
-1. Check `DATABASE_SLOW_STATEMENT_MS` logs for slow queries
-2. Verify connection pool settings (`DATABASE_MAX_CONNECTIONS`)
-3. Monitor PostgreSQL `pg_stat_activity` for long-running queries
-4. Consider adding database indexes for frequently queried columns
-5. Scale backend replicas behind a load balancer
+- **Symptom:** slow API responses, high database CPU, or timeouts.
+- **Cause:** unindexed queries, an undersized connection pool, or one backend instance under load.
+- **Fix:** check `DATABASE_SLOW_STATEMENT_MS` logs and `pg_stat_activity`, tune `DATABASE_MAX_CONNECTIONS`, add indexes, or scale backend replicas behind a load balancer.
 
 ### Common Error Codes
 

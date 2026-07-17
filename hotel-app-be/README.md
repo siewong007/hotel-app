@@ -34,79 +34,22 @@ Supports direct integration with Claude Desktop, Cursor, and more.
 
 ---
 
-### 🚀 MCP Servers — Not Implemented
+### 🚀 MCP Servers
 
-This README previously documented two Model Context Protocol (MCP) servers
-(`mcp-server/analytics-server/`, `mcp-server/hotel-search-server/`) as a
-quick-start feature. **Neither directory exists in this repository** — there
-is no MCP server code, no `/analytics/occupancy`/`/analytics/bookings`/
-`/analytics/benchmark` REST endpoints, and no Claude Desktop config to wire
-up. Treat this as aspirational/removed, not a working quick-start. If MCP
-tooling for this backend is built in the future, restore a section here
-pointing at the real implementation.
+MCP servers (analytics, hotel-search): planned only — no `mcp-server/` directory exists yet.
 
 ### 🖥️ Rebuild the Desktop App
 
-Run these commands from the repository root to rebuild the Tauri desktop application:
+See `../hotel-desktop/BUILD_SPEED.md` for comprehensive build and development instructions.
+
+### 🛑 Stop Previous Processes
+
+Stop interactive processes with `Ctrl+C`. Kill lingering ports on macOS:
 
 ```bash
-cd hotel-desktop
-bun install
-bun run desktop:prepare
-bun run build
+kill $(lsof -ti tcp:3000)  # frontend
+kill $(lsof -ti tcp:3030)  # backend
+kill $(lsof -ti tcp:3031)  # alternate backend
 ```
 
-`desktop:prepare` refreshes the desktop bundle before Tauri builds it:
-
-- syncs the PostgreSQL V1 baseline plus its one-time data and seed scripts into `hotel-desktop/src-tauri/database/postgres/`, skipping unchanged copies
-- builds the React frontend in `hotel-web-fe` only when frontend inputs changed
-- builds the backend sidecar from `hotel-app-be` only when backend inputs changed; production builds use release, while `build:fast` and `build:debug` use debug
-- copies the backend sidecar into `hotel-desktop/src-tauri/binaries/` with the target-triple filename Tauri expects, skipping unchanged copies
-
-For a debug desktop build:
-
-```bash
-cd hotel-desktop
-bun run desktop:prepare
-bun run build:debug
-```
-
-For the fastest local verification build:
-
-```bash
-cd hotel-desktop
-bun run build:fast
-```
-
-For local desktop development:
-
-```bash
-cd hotel-desktop
-bun run desktop:prepare
-bun run dev
-```
-
-`bun run build` already invokes `desktop:prepare` through Tauri's `beforeBuildCommand`, but running it manually first is useful when diagnosing build failures.
-
-### 🛑 Stop Previous FE/BE Startup
-
-If the frontend or backend is running in a terminal tab, stop it with:
-
-```bash
-Ctrl+C
-```
-
-If a detached or leftover process is still holding a port on macOS, stop it by port:
-
-```bash
-kill $(lsof -ti tcp:3000)  # frontend Vite server
-kill $(lsof -ti tcp:3030)  # backend API default port
-kill $(lsof -ti tcp:3031)  # alternate backend port, if used
-```
-
-For a desktop-app startup, close the Tauri app first. If bundled desktop PostgreSQL is still running, stop it with:
-
-```bash
-cd hotel-desktop/src-tauri
-./pgsql/bin/pg_ctl stop -D "$HOME/Library/Application Support/HotelApp/pgdata" -m fast
-```
+To stop desktop PostgreSQL: `cd hotel-desktop/src-tauri && ./pgsql/bin/pg_ctl stop -D "$HOME/Library/Application Support/HotelApp/pgdata" -m fast`

@@ -19,35 +19,9 @@ By participating in this project, you agree to abide by the [Code of Conduct](CO
 
 ## Getting Started
 
-### Prerequisites
-
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Rust | 1.95.0+ | Backend development (toolchain file included) |
-| Node.js | 22 LTS | Desktop helper scripts |
-| Bun | 1.3.14 | Frontend and desktop package management |
-| PostgreSQL | 16+ | Production database |
-| Docker | Latest | Containerized development |
-
 ### Initial Setup
 
-```bash
-# Clone the repository
-git clone https://github.com/siewong007/hotel-app.git
-cd hotel-app
-
-# Install all dependencies
-make setup-all
-
-# Or install individually:
-make setup-be     # Backend only (cargo fetch)
-make setup-fe     # Frontend only (bun install)
-make setup-desktop # Desktop only (bun install + cargo fetch)
-
-# Set up environment
-cp hotel-app-be/.env.example hotel-app-be/.env
-# Edit .env with your DATABASE_URL and JWT_SECRET
-```
+See [README.md](README.md#quick-start) for installation instructions and `hotel-app-be/.env.example` for environment configuration.
 
 ### Development Commands
 
@@ -110,34 +84,7 @@ make docker-up
 
 ## Project Structure
 
-The repository is a three-project monorepo:
-
-```text
-hotel-app/
-├── hotel-app-be/          # Rust backend API
-│   ├── src/
-│   │   ├── core/          # Auth, DB pool, errors, middleware, rate limiting
-│   │   ├── handlers/      # HTTP handler functions
-│   │   ├── models/        # DTOs and domain models
-│   │   ├── modules/       # Domain modules (settings)
-│   │   ├── repositories/  # SQL persistence
-│   │   ├── routes/        # Route registration by domain
-│   │   ├── services/      # Business logic
-│   │   └── utils/         # Helpers and validation
-│   ├── database/          # Schema, migrations, seed data
-│   └── tests/             # Integration tests
-├── hotel-web-fe/          # React frontend
-│   └── src/
-│       ├── api/           # ky-based API services
-│       ├── auth/          # Auth context and guards
-│       ├── components/    # Shared UI components
-│       ├── features/      # Domain feature modules
-│       ├── routes/        # TanStack file routes
-│       └── utils/         # Shared utilities
-└── hotel-desktop/         # Tauri desktop app
-    └── src-tauri/         # Rust commands, PostgreSQL lifecycle
-```
-
+Project layout: see [README.md](README.md#project-structure) for the monorepo structure and module descriptions.
 ## Coding Standards
 
 ### Backend (Rust)
@@ -290,20 +237,13 @@ docs: update deployment guide with Docker Compose
 ## Documentation
 
 - **README.md** — Project overview, features, installation
-- **ARCHITECTURE.md** — System architecture and design decisions
+- **docs/architecture/architecture-flow.md** — One-page system flow
 - **docs/guides/deployment.md** — Deployment guide
 - **docs/architecture/ADRS.md** — Architecture Decision Records
-- **docs/screenshots/** — Application screenshots
 - **Inline documentation** — Rust docstrings (`///`) and TypeScript JSDoc
 
-When adding a new feature:
+When adding a new feature (in your commits):
 1. Update `README.md` with the feature description
 2. Add API endpoint documentation if applicable
 3. Update or add Architecture Decision Records for significant decisions
 4. Add inline documentation for new functions and types
-
-## Getting Help
-
-- Open an issue for bugs, feature requests, or questions
-- Check existing issues and pull requests before creating new ones
-- Provide as much context as possible (logs, screenshots, reproduction steps)

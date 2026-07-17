@@ -4,7 +4,7 @@ name: Desktop Build
 # PostgreSQL provisioning + sidecar + bundling) is far too slow for the normal
 # CI loop. This workflow exists to catch resource-glob/capability/sidecar
 # packaging regressions that `ci.yml`'s placeholder-resource `cargo check`
-# cannot — see .claude/refs/architecture-enhancements.md enhancement #1.
+# cannot — see docs/ongoing-dev.md (desktop CI packaging item).
 on:
   workflow_dispatch:
     inputs:

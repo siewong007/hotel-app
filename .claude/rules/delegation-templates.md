@@ -30,8 +30,8 @@ contains a trailing space after "SSD". Always double-quote paths in shell comman
 > CONTEXT YOU MUST READ FIRST: .claude/rules/00-diagnosis.md (all three leak
 > checklists apply), plus {specific files with line anchors}.
 > SPEC: {exact behavior, inputs/outputs, edge cases. If SQL is involved: must use
-> param!/sql_compat helpers and update BOTH database/schema.sql and
-> database/sqlite_schema.sql (plus sqlite_data.sql for seeds/backfills)}.
+> param!/sql_compat helpers and update BOTH database/postgres/ and
+> database/sqlite/ V1 resources (see hotel-app-be/database/README.md)}.
 > DO NOT: {out-of-scope things, e.g. "refactor surrounding code, touch CI config"}.
 > ACCEPTANCE CRITERIA: (1) {behavioral check, e.g. "POST /x returns 201 and row
 > appears"}; (2) `cargo check --all-features` exits 0 [backend] and/or
