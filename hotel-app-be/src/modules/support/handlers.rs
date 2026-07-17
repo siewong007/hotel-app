@@ -2,11 +2,13 @@
 
 use axum::{
     Json,
-    extract::{ConnectInfo, Extension, Path, Query, State},
+    extract::{ConnectInfo, Extension, Path, Query, State, WebSocketUpgrade},
     http::HeaderMap,
+    response::Response,
 };
 use std::net::SocketAddr;
 
+use super::hub::{SupportHub, serve_socket};
 use super::models::{
     CreateGuestSupportConversationRequest, GuestSupportConversationDetail,
     GuestSupportConversationListResponse, GuestSupportMessageRequest, SupportActionRequest,
@@ -103,6 +105,7 @@ pub async fn list_support_agents_handler(
 
 pub async fn send_staff_message_handler(
     State(pool): State<DbPool>,
+    Extension(hub): Extension<SupportHub>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(conversation_id): Path<i64>,
@@ -112,6 +115,7 @@ pub async fn send_staff_message_handler(
     Ok(Json(
         service::send_staff_message(
             &pool,
+            &hub,
             actor_id,
             conversation_id,
             request,
@@ -124,6 +128,7 @@ pub async fn send_staff_message_handler(
 
 pub async fn apply_staff_action_handler(
     State(pool): State<DbPool>,
+    Extension(hub): Extension<SupportHub>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(conversation_id): Path<i64>,
@@ -133,6 +138,7 @@ pub async fn apply_staff_action_handler(
     Ok(Json(
         service::apply_staff_action(
             &pool,
+            &hub,
             actor_id,
             conversation_id,
             request.into(),
@@ -158,6 +164,7 @@ pub async fn list_guest_conversations_handler(
 pub async fn create_guest_conversation_handler(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    Extension(hub): Extension<SupportHub>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(request): Json<CreateGuestSupportConversationRequest>,
@@ -167,6 +174,7 @@ pub async fn create_guest_conversation_handler(
     Ok(Json(
         service::create_guest_conversation(
             &pool,
+            &hub,
             guest_id,
             request,
             client_ip(&headers, peer_addr),
@@ -191,6 +199,7 @@ pub async fn get_guest_conversation_handler(
 pub async fn send_guest_message_handler(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    Extension(hub): Extension<SupportHub>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(conversation_id): Path<i64>,
@@ -201,6 +210,7 @@ pub async fn send_guest_message_handler(
     Ok(Json(
         service::send_guest_message(
             &pool,
+            &hub,
             guest_id,
             conversation_id,
             request,
@@ -214,6 +224,7 @@ pub async fn send_guest_message_handler(
 pub async fn reopen_guest_conversation_handler(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    Extension(hub): Extension<SupportHub>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(conversation_id): Path<i64>,
@@ -223,6 +234,7 @@ pub async fn reopen_guest_conversation_handler(
     Ok(Json(
         service::reopen_guest_conversation(
             &pool,
+            &hub,
             guest_id,
             conversation_id,
             client_ip(&headers, peer_addr),
@@ -230,4 +242,57 @@ pub async fn reopen_guest_conversation_handler(
         )
         .await?,
     ))
+}
+
+fn websocket_token(headers: &HeaderMap) -> Option<&str> {
+    headers
+        .get(axum::http::header::SEC_WEBSOCKET_PROTOCOL)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .find(|protocol| *protocol != "hotel-guest-support" && !protocol.is_empty())
+        })
+}
+
+pub async fn guest_support_socket_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<SupportHub>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    websocket: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    let token = websocket_token(&headers)
+        .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
+    let guest_id = guest_portal::require_guest_session_token(token, &pool).await?;
+    let (allowed, retry_after) = limiters
+        .guest_portal_token_read
+        .check_with_retry(format!("guest:{guest_id}"))
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many portal requests. Please try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
+    Ok(websocket
+        .protocols(["hotel-guest-support"])
+        .on_upgrade(move |socket| serve_socket(socket, hub, guest_id)))
+}
+
+#[cfg(test)]
+mod websocket_tests {
+    use super::*;
+    use axum::http::HeaderValue;
+
+    #[test]
+    fn websocket_token_comes_from_subprotocol_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::SEC_WEBSOCKET_PROTOCOL,
+            HeaderValue::from_static("hotel-guest-support, abc123"),
+        );
+        assert_eq!(websocket_token(&headers), Some("abc123"));
+    }
 }

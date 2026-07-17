@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AvailabilityEvent, GuestBookingSearch } from './types';
-import { shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent } from './utils';
+import {
+  shouldInterruptSelectedOffer,
+  stayOverlapsAvailabilityEvent,
+  validateGuestBookingSearch,
+} from './utils';
 
 const search: GuestBookingSearch = {
   check_in_date: '2026-08-10',
@@ -55,5 +59,50 @@ describe('stayOverlapsAvailabilityEvent', () => {
       remaining_rooms: 2,
     };
     expect(shouldInterruptSelectedOffer(decreasedEvent, search, 1)).toBe(true);
+  });
+});
+
+describe('validateGuestBookingSearch', () => {
+  const today = new Date(2026, 6, 17, 9);
+
+  it('accepts a stay within the allowed booking horizon', () => {
+    expect(validateGuestBookingSearch(search, today)).toBeNull();
+  });
+
+  it('rejects invalid dates, stay lengths, guest counts, and the booking horizon', () => {
+    expect(validateGuestBookingSearch({ ...search, check_in_date: '2026-07-16' }, today))
+      .toBe('Check-in must be today or later.');
+    expect(validateGuestBookingSearch({ ...search, check_out_date: '2026-08-10' }, today))
+      .toBe('Check-out must be later than check-in.');
+    expect(validateGuestBookingSearch({ ...search, check_out_date: '2026-09-12' }, today))
+      .toBe('Stays must be between 1 and 30 nights.');
+    expect(validateGuestBookingSearch({ ...search, check_in_date: '2026-10-18', check_out_date: '2026-10-19' }, today))
+      .toBe('Choose a check-in date within the next three calendar months.');
+    expect(validateGuestBookingSearch({ ...search, adults: 21 }, today))
+      .toBe('Adults must be between 1 and 20.');
+    expect(validateGuestBookingSearch({ ...search, children: -1 }, today))
+      .toBe('Children must be between 0 and 20.');
+  });
+
+  it('allows a valid stay to end after the check-in horizon', () => {
+    expect(validateGuestBookingSearch({
+      ...search,
+      check_in_date: '2026-10-17',
+      check_out_date: '2026-10-30',
+    }, today)).toBeNull();
+  });
+
+  it('clamps the three-month horizon to the last valid day of the target month', () => {
+    const januaryThirtyFirst = new Date(2026, 0, 31, 9);
+    expect(validateGuestBookingSearch({
+      ...search,
+      check_in_date: '2026-04-30',
+      check_out_date: '2026-05-01',
+    }, januaryThirtyFirst)).toBeNull();
+    expect(validateGuestBookingSearch({
+      ...search,
+      check_in_date: '2026-05-01',
+      check_out_date: '2026-05-02',
+    }, januaryThirtyFirst)).toBe('Choose a check-in date within the next three calendar months.');
   });
 });

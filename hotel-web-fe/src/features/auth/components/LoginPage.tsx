@@ -377,6 +377,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <Box
+      className="auth-page auth-page--signin"
       sx={{
         minHeight: '100vh',
         display: 'flex',
@@ -401,9 +402,10 @@ const LoginPage: React.FC = () => {
         },
       }}
     >
-      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container className="auth-container" maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in timeout={800}>
           <Paper
+            className="auth-card"
             elevation={12}
             sx={{
               p: { xs: 4, sm: 6 },
@@ -417,7 +419,7 @@ const LoginPage: React.FC = () => {
             }}
           >
             {/* Header - Modern Bold Typography */}
-            <Box sx={{ textAlign: 'left', mb: 5 }}>
+            <Box className="auth-heading" sx={{ textAlign: 'left', mb: 5 }}>
               <Typography
                 variant="h1"
                 sx={{
@@ -433,7 +435,7 @@ const LoginPage: React.FC = () => {
                   backgroundClip: 'text',
                 }}
               >
-                HOTEL
+                Welcome
               </Typography>
               <Box sx={{
                 width: '60px',
@@ -462,8 +464,8 @@ const LoginPage: React.FC = () => {
                   letterSpacing: '0.02em',
                 }}
               >
-                {!userType && 'Select your account type'}
-                {userType && `Sign in as ${userType === 'guest' ? 'Guest' : 'Admin'}`}
+                {!userType && 'Choose how you use Salim Inn'}
+                {userType && `Continue to your ${userType === 'guest' ? 'guest stay' : 'staff workspace'}`}
               </Typography>
             </Box>
 
@@ -500,6 +502,7 @@ const LoginPage: React.FC = () => {
               <Fade in timeout={600}>
                 <Box>
                   <Card
+                    className="auth-choice-card"
                     onClick={() => navigate('/login?account=guest')}
                     sx={{
                       mb: 3,
@@ -526,10 +529,10 @@ const LoginPage: React.FC = () => {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                           <Typography variant="h5" fontWeight={700} gutterBottom color="var(--hotel-accent-text)">
-                            Guest
+                            Guest stay
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Book rooms, manage reservations, and enjoy rewards
+                            View bookings, plan your stay, and access member rewards
                           </Typography>
                         </Box>
                       </Box>
@@ -537,6 +540,7 @@ const LoginPage: React.FC = () => {
                   </Card>
 
                   <Card
+                    className="auth-choice-card"
                     onClick={() => navigate('/login?account=admin')}
                     sx={{
                       cursor: 'pointer',
@@ -562,10 +566,10 @@ const LoginPage: React.FC = () => {
                         </Box>
                         <Box sx={{ flex: 1 }}>
                           <Typography variant="h5" fontWeight={700} gutterBottom color="var(--hotel-accent-text)">
-                            Admin
+                            Hotel staff
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Manage hotel operations, guests, and analytics
+                            Access operations, guest services, and performance insights
                           </Typography>
                         </Box>
                       </Box>

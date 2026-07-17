@@ -20,6 +20,69 @@ html, body, #root {
   height: 100%;
 }
 
+/* Public account experience — shared across sign in and registration. */
+.auth-page {
+  isolation: isolate;
+  padding: max(24px, env(safe-area-inset-top)) 0 max(24px, env(safe-area-inset-bottom));
+}
+
+.auth-page::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(105deg, rgba(5, 24, 18, .94) 0%, rgba(11, 45, 34, .82) 44%, rgba(11, 45, 34, .22) 100%),
+    radial-gradient(circle at 82% 18%, rgba(217, 181, 114, .25), transparent 30%);
+}
+
+.auth-container { max-width: 560px !important; }
+
+.auth-card {
+  position: relative;
+  border-radius: 28px !important;
+  background: rgba(255, 253, 247, .97) !important;
+  border: 1px solid rgba(255, 255, 255, .72) !important;
+  box-shadow: 0 32px 90px rgba(0, 0, 0, .28) !important;
+}
+
+.auth-card::before {
+  content: 'SALIM INN  ·  SIBU';
+  display: block;
+  margin-bottom: 28px;
+  color: #315b4b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .2em;
+}
+
+.auth-heading h1 {
+  font-family: Georgia, 'Times New Roman', serif !important;
+  font-weight: 400 !important;
+  letter-spacing: -.055em !important;
+  text-transform: none !important;
+  color: #102a21 !important;
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.auth-heading > div { border-radius: 999px; }
+.auth-choice-card { border-radius: 18px !important; border: 1px solid rgba(18, 58, 46, .12) !important; box-shadow: none !important; }
+.auth-choice-card:focus-within { outline: 3px solid rgba(32, 114, 87, .28); outline-offset: 2px; }
+
+.auth-card .MuiOutlinedInput-root { border-radius: 12px; background: rgba(255,255,255,.72); }
+.auth-card .MuiButton-root { min-height: 44px; border-radius: 12px; text-transform: none; }
+.auth-card .MuiButton-contained { box-shadow: 0 10px 24px rgba(31, 91, 69, .2); }
+.auth-card :focus-visible { outline: 3px solid rgba(32, 114, 87, .32); outline-offset: 2px; }
+
+@media (max-width: 600px) {
+  .auth-page { align-items: flex-start !important; padding-inline: 8px; }
+  .auth-card { border-radius: 22px !important; padding: 28px 22px !important; }
+  .auth-heading { margin-bottom: 28px !important; }
+  .auth-heading h1 { font-size: 3.25rem !important; }
+}
+
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;

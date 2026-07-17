@@ -6,6 +6,7 @@
 //! disclose assignments, SLA state, or internal notes.
 
 pub mod handlers;
+pub mod hub;
 pub mod models;
 pub mod repository;
 pub mod routes;

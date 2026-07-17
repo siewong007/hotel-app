@@ -1,4 +1,5 @@
 import { api } from '../../../api/client';
+import { apiUrl } from '../../../desktop/runtimeApi';
 import { getPortalToken } from './portalTokenStore';
 import type {
   CreatePortalSupportConversationRequest,
@@ -9,6 +10,12 @@ import type {
 } from '../support/types';
 
 const SUPPORT_PATH = 'guest-portal/me/support/conversations';
+
+export function guestSupportWebSocketUrl(): string {
+  const httpUrl = new URL(apiUrl('guest-portal/me/support/socket'), window.location.origin);
+  httpUrl.protocol = httpUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  return httpUrl.toString();
+}
 
 function authHeaders(token?: string): Record<string, string> {
   const guestToken = token ?? getPortalToken();

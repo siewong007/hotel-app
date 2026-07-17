@@ -10,6 +10,7 @@ use super::models::{
     GuestSupportMessageRequest, SupportActionInput, SupportConversationDetail,
     SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
 };
+use super::hub::{SupportEvent, SupportHub};
 use super::repository::{ConversationMutation, NewConversation, SupportRepository};
 use super::validation;
 use crate::core::db::DbPool;
@@ -322,6 +323,7 @@ pub async fn list_support_agents(
 
 pub async fn send_staff_message(
     pool: &DbPool,
+    hub: &SupportHub,
     actor_id: i64,
     conversation_id: i64,
     request: SupportMessageRequest,
@@ -418,6 +420,10 @@ pub async fn send_staff_message(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(
+        current.summary.guest_id,
+        conversation_id,
+    ));
 
     let _ = AuditLog::log_event(
         pool,
@@ -435,6 +441,7 @@ pub async fn send_staff_message(
 
 pub async fn apply_staff_action(
     pool: &DbPool,
+    hub: &SupportHub,
     actor_id: i64,
     conversation_id: i64,
     input: SupportActionInput,
@@ -690,6 +697,10 @@ pub async fn apply_staff_action(
         .await?;
     }
     transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(
+        current.summary.guest_id,
+        conversation_id,
+    ));
 
     let _ = AuditLog::log_event(
         pool,
@@ -753,6 +764,7 @@ pub async fn get_guest_conversation(
 
 pub async fn create_guest_conversation(
     pool: &DbPool,
+    hub: &SupportHub,
     guest_id: i64,
     request: CreateGuestSupportConversationRequest,
     ip_address: Option<String>,
@@ -840,6 +852,7 @@ pub async fn create_guest_conversation(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(guest_id, conversation_id));
 
     let _ = AuditLog::log_event(
         pool,
@@ -857,6 +870,7 @@ pub async fn create_guest_conversation(
 
 pub async fn send_guest_message(
     pool: &DbPool,
+    hub: &SupportHub,
     guest_id: i64,
     conversation_id: i64,
     request: GuestSupportMessageRequest,
@@ -953,6 +967,7 @@ pub async fn send_guest_message(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(guest_id, conversation_id));
 
     let _ = AuditLog::log_event(
         pool,
@@ -970,6 +985,7 @@ pub async fn send_guest_message(
 
 pub async fn reopen_guest_conversation(
     pool: &DbPool,
+    hub: &SupportHub,
     guest_id: i64,
     conversation_id: i64,
     ip_address: Option<String>,
@@ -1020,6 +1036,7 @@ pub async fn reopen_guest_conversation(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(guest_id, conversation_id));
 
     let _ = AuditLog::log_event(
         pool,

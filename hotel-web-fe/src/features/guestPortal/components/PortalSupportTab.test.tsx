@@ -16,6 +16,7 @@ vi.mock('../hooks/usePortalSupport', () => ({
   useCreatePortalSupportConversation: () => mocks.createMutation,
   usePortalSupportConversation: () => mocks.detailQuery,
   usePortalSupportConversations: () => mocks.listQuery,
+  usePortalSupportRealtime: () => {},
   useReopenPortalSupportConversation: () => mocks.reopenMutation,
   useSendPortalSupportMessage: () => mocks.sendMutation,
 }));
@@ -72,6 +73,16 @@ function setList(
 describe('PortalSupportTab', () => {
   beforeEach(() => {
     cleanup();
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation(() => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    });
     mocks.createMutation.mutateAsync.mockReset();
     mocks.reopenMutation.mutateAsync.mockReset();
     mocks.sendMutation.mutateAsync.mockReset();

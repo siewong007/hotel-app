@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { GuestPortalSupportService } from '../api/guestPortalSupport.service';
+import { useSupportSocket } from './useSupportSocket';
 import type {
   CreatePortalSupportConversationRequest,
   PortalSupportConversationDetail,
@@ -23,13 +24,18 @@ export function newPortalSupportClientId(): string {
   return `portal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+// The guest support websocket (wired via usePortalSupportRealtime) invalidates
+// these queries the moment a message or status change lands, so the interval
+// below is only a fallback in case the socket is down (e.g. a proxy that
+// blocks websocket upgrades) — it must stay far below the shared
+// guest_portal_token_read rate-limit budget (120 req / 15 min per guest).
 export function usePortalSupportConversations(token: string, enabled = true) {
   return useQuery({
     queryKey: supportQueryKeys.list(token),
     queryFn: () => GuestPortalSupportService.listConversations(token, { page: 1, page_size: 50 }),
     enabled: enabled && Boolean(token),
     staleTime: queryStaleTime.realtime,
-    refetchInterval: 15_000,
+    refetchInterval: 120_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
@@ -44,9 +50,21 @@ export function usePortalSupportConversation(
     queryFn: () => GuestPortalSupportService.getConversation(conversationId as PortalSupportConversationId, token),
     enabled: Boolean(token) && conversationId !== null,
     staleTime: queryStaleTime.realtime,
-    refetchInterval: 5_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Subscribes to the guest support websocket for the lifetime of the caller
+ * and invalidates the list/detail queries whenever a conversation changes,
+ * replacing the previous 5s/15s polling as the primary update mechanism.
+ */
+export function usePortalSupportRealtime(token: string): void {
+  const queryClient = useQueryClient();
+  useSupportSocket(token || null, () => {
+    void queryClient.invalidateQueries({ queryKey: supportKeyPrefix });
   });
 }
 

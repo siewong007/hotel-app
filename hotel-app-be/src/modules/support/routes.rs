@@ -47,4 +47,8 @@ pub fn routes() -> Router<DbPool> {
             "/guest-portal/me/support/conversations/{id}/reopen",
             post(handlers::reopen_guest_conversation_handler),
         )
+        .route(
+            "/guest-portal/me/support/socket",
+            get(handlers::guest_support_socket_handler),
+        )
 }
