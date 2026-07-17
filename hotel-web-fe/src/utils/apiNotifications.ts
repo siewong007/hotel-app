@@ -1,9 +1,19 @@
 export type ApiNotificationSeverity = 'success' | 'info' | 'warning' | 'error';
+export type ApiNotificationPriority = 'info' | 'warning' | 'critical';
 
 export interface ApiNotificationDetail {
   message: string;
   severity: ApiNotificationSeverity;
+  priority?: ApiNotificationPriority;
   statusCode?: number;
+}
+
+export function getNotificationPriority(
+  severity: ApiNotificationSeverity
+): ApiNotificationPriority {
+  if (severity === 'error') return 'critical';
+  if (severity === 'warning') return 'warning';
+  return 'info';
 }
 
 export const API_NOTIFICATION_EVENT = 'api:notification';

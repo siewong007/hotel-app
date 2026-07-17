@@ -5,16 +5,9 @@ import { AuthService } from '../api/auth.service';
 import { storage } from '../utils/storage';
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy } from '../types';
+import { normalizeAuthUser, type AuthUserShape } from './authUser';
 
-export interface User {
-  id: string | number;
-  username: string;
-  email: string;
-  full_name?: string;
-  user_type: 'admin' | 'guest';
-  guest_id?: number;
-  is_active: boolean;
-}
+export interface User extends AuthUserShape {}
 
 export interface AuthState {
   user: User | null;
@@ -80,6 +73,7 @@ const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
+  const pendingLogoutRef = React.useRef<Promise<void>>(Promise.resolve());
   const [authState, setAuthState] = useState<AuthState>({
     ...EMPTY_AUTH_STATE,
   });
@@ -116,11 +110,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // the current access snapshot before flipping isAuthenticated. The
         // `user` object is restored from the (non-sensitive) storage cache set
         // at login; the profile call doubles as a token-validity probe.
-        await AuthService.getUserProfile();
+        const profile = await AuthService.getUserProfile();
         const access = await AuthService.getAccessSnapshot();
-        const user = storage.getItem<User>('user');
+        const cachedUser = storage.getItem<User>('user');
+        const user = normalizeAuthUser({ ...cachedUser, ...profile }, access.roles);
 
         storage.setItems({
+          user,
           roles: access.roles,
           permissions: access.permissions,
           routePolicies: access.route_policies,
@@ -217,11 +213,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = useCallback(async (username: string, password: string, totpCode?: string): Promise<boolean> => {
     try {
+      // A user can sign back in before Safari finishes the previous logout
+      // request. Always let that request settle first so it cannot revoke the
+      // refresh cookie created by this new account session afterward.
+      await pendingLogoutRef.current;
+
       const data = await api.post('auth/login', {
         json: { username, password, totp_code: totpCode },
       }).json<AuthLoginResponse>();
 
-      const { access_token, user, roles, permissions, route_policies, is_first_login } = data;
+      const { access_token, user: responseUser, roles, permissions, route_policies, is_first_login } = data;
+      const user = normalizeAuthUser(responseUser, roles);
 
       // Access token goes to the in-memory store (never persisted). The refresh
       // token was set by the backend as an HttpOnly cookie and is invisible here.
@@ -296,9 +298,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Best-effort server-side revoke + cookie clear. The refresh token rides the
     // HttpOnly cookie (sent via `credentials: 'include'`), so no body is needed.
     // We don't await it: local state is cleared immediately regardless of result.
-    void api.post('auth/logout').catch(() => {
-      // Ignore network/401 errors; the local session is being torn down anyway.
-    });
+    pendingLogoutRef.current = api.post('auth/logout')
+      .then(() => undefined)
+      .catch(() => {
+        // Ignore network/401 errors; the local session is being torn down anyway.
+      });
     resetAuthState();
     clearStoredAuth();
     queryClient.clear();
@@ -455,6 +459,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const loginWithPasskey = useCallback(async (username: string): Promise<boolean> => {
     try {
+      await pendingLogoutRef.current;
+
       // Start passkey authentication
       const startResponse = await api.post('auth/passkey/login/start', {
         json: { username },
@@ -528,7 +534,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       }).json<AuthLoginResponse>();
 
-      const { access_token, user, roles, permissions, route_policies, is_first_login } = finishResponse;
+      const { access_token, user: responseUser, roles, permissions, route_policies, is_first_login } = finishResponse;
+      const user = normalizeAuthUser(responseUser, roles);
 
       // Access token to memory only; refresh token arrives as an HttpOnly cookie.
       setAccessToken(access_token);

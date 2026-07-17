@@ -25,22 +25,44 @@
 <section class="after"><div class="after-grid"><div><p class="kicker">THE CORRECTED SPATIAL LOGIC</p><h2>Footprint first.<br><em>Facade faces outward.</em></h2></div><p>The revised reconstruction uses the supplied Google Maps view as a fixed coordinate system. The row now contains exactly three outward-facing shop lots: cafe.cafe, cafe.cafe and Salim Inn from left to right. The frontage follows the mapped footprint and Salim Inn opens onto guest parking beside the perimeter road.</p></div><div class="benefits"><article class="benefit"><small>01 · DIRECT MAP EXTRUSION</small><h3>Buildings rise from their actual map shapes</h3><p>Detected beige and grey footprints are extruded in place instead of being replaced by invented rectangular city blocks.</p></article><article class="benefit"><small>02 · ONE HEIGHT DATUM</small><h3>All modeled buildings remain three storeys</h3><p>A shared floor height keeps Farley coherent and prevents Salim Inn from appearing artificially larger than its neighbours.</p></article><article class="benefit"><small>03 · REAL ARRIVAL LOGIC</small><h3>Outward-facing frontage and guest parking</h3><p>The arrival camera approaches from the outer perimeter road, crosses the guest parking zone and enters the ground-floor reception before moving to the room above.</p></article></div><div class="cta"><h3>Your Sibu stay,<br>connected to Farley.</h3><a href="mailto:reservation@saliminn.com">Enquire directly</a></div></section>
 </main>
 <script>
-const account = new URLSearchParams(window.location.search).get('account');
-if (account === 'guest') {
-  const accountAction = document.getElementById('accountAction');
-  const bookingAction = document.getElementById('bookingAction');
-  accountAction.textContent = 'My stay';
-  accountAction.href = '/guest-portal';
-  bookingAction.textContent = 'Book another stay';
-  bookingAction.href = '/guest-portal?view=booking';
-} else if (account === 'admin') {
-  const accountAction = document.getElementById('accountAction');
-  const bookingAction = document.getElementById('bookingAction');
-  accountAction.textContent = 'Admin portal';
-  accountAction.href = '/admin-portal';
-  bookingAction.textContent = 'Admin portal';
-  bookingAction.href = '/admin-portal';
+function getCurrentAccount() {
+  try {
+    const storedUser = JSON.parse(window.localStorage.getItem('user') || 'null');
+    return storedUser?.user_type === 'guest'
+      ? 'guest'
+      : storedUser ? 'admin' : null;
+  } catch {
+    // Private browsing may deny storage; the React landing handoff supplies
+    // the account query as a fallback for that case only.
+    return new URLSearchParams(window.location.search).get('account');
+  }
 }
+
+function updateAccountActions() {
+  const accountAction = document.getElementById('accountAction');
+  const bookingAction = document.getElementById('bookingAction');
+  const account = getCurrentAccount();
+
+  bookingAction.hidden = false;
+  if (account === 'guest') {
+    accountAction.textContent = 'My account';
+    accountAction.href = '/guest-portal';
+    bookingAction.textContent = 'Book another stay';
+    bookingAction.href = '/guest-portal?view=booking';
+  } else if (account === 'admin') {
+    accountAction.textContent = 'Admin console';
+    accountAction.href = '/admin-portal';
+    bookingAction.hidden = true;
+  } else {
+    accountAction.textContent = 'Sign in';
+    accountAction.href = '/login?account=guest';
+    bookingAction.textContent = 'Book stay';
+    bookingAction.href = '/register';
+  }
+}
+
+updateAccountActions();
+window.addEventListener('pageshow', updateAccountActions);
 </script>
 <script type="module" src="./salim-inn.js"></script>
 </body></html>

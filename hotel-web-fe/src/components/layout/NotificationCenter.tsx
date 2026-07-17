@@ -33,6 +33,12 @@ const SEVERITY_META: Record<
   success: { color: '#2e7d32', Icon: CheckCircleOutlineIcon },
 };
 
+const PRIORITY_LABEL = {
+  info: 'Info',
+  warning: 'Warning',
+  critical: 'Critical',
+} as const;
+
 function formatRelativeTime(timestamp: number): string {
   const diffMs = Date.now() - timestamp;
   const diffSec = Math.round(diffMs / 1000);
@@ -149,7 +155,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg =
                       {item.message}
                     </Typography>
                     <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.25 }}>
-                      {formatRelativeTime(item.timestamp)}
+                      {PRIORITY_LABEL[item.priority]} priority · {formatRelativeTime(item.timestamp)}
                     </Typography>
                   </Box>
                   <IconButton

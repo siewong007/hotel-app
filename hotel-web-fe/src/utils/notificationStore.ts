@@ -1,11 +1,17 @@
 import { useCallback, useSyncExternalStore } from 'react';
-import type { ApiNotificationDetail, ApiNotificationSeverity } from './apiNotifications';
+import {
+  getNotificationPriority,
+  type ApiNotificationDetail,
+  type ApiNotificationPriority,
+  type ApiNotificationSeverity,
+} from './apiNotifications';
 import { storage } from './storage';
 
 export interface NotificationItem {
   id: number;
   message: string;
   severity: ApiNotificationSeverity;
+  priority: ApiNotificationPriority;
   statusCode?: number;
   timestamp: number;
   read: boolean;
@@ -40,6 +46,7 @@ function isNotificationItem(value: unknown): value is NotificationItem {
     typeof item.id === 'number' &&
     typeof item.message === 'string' &&
     ['success', 'info', 'warning', 'error'].includes(item.severity ?? '') &&
+    (item.priority === undefined || ['info', 'warning', 'critical'].includes(item.priority)) &&
     typeof item.timestamp === 'number' &&
     typeof item.read === 'boolean'
   );
@@ -65,6 +72,10 @@ function getStoredHistory(): StoredNotificationHistory {
 
     const items = storedItems
       .filter(isNotificationItem)
+      .map((item) => ({
+        ...item,
+        priority: item.priority ?? getNotificationPriority(item.severity),
+      }))
       .filter((item) => item.timestamp >= cutoff)
       .slice(0, MAX_ITEMS);
     if (items.length > 0) history[scopeKey] = items;
@@ -127,6 +138,7 @@ export function recordNotification(
     id: Math.max(Date.now(), highestId + 1),
     message: detail.message,
     severity: detail.severity,
+    priority: detail.priority ?? getNotificationPriority(detail.severity),
     statusCode: detail.statusCode,
     timestamp: Date.now(),
     read: false,
