@@ -81,6 +81,7 @@ describe('notificationStore user scoping', () => {
     ]);
     const history = JSON.parse(localStorage.getItem('notificationHistory') ?? '{}');
     expect(history['user:2121'][0].message).toBe('Guest notification');
+    expect(history['user:2121'][0].priority).toBe('info');
   });
 
   it('removes notifications older than 90 days', () => {

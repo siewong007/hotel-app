@@ -4,6 +4,27 @@ import './index.css';
 import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
 
+const MODULE_RETRY_PARAM = 'module-retry';
+
+function retryStaleDevelopmentModule(error: unknown): boolean {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return false;
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (!/importing a module script failed|failed to fetch dynamically imported module/i.test(message)) {
+    return false;
+  }
+
+  const url = new URL(window.location.href);
+  if (url.searchParams.has(MODULE_RETRY_PARAM)) return false;
+
+  // Vite returns 504 "Outdated Optimize Dep" when Safari reuses an optimized
+  // dependency URL from before the dev server rebuilt its dependency cache.
+  // A one-time navigation with a fresh URL makes WebKit rebuild the module graph.
+  url.searchParams.set(MODULE_RETRY_PARAM, Date.now().toString());
+  window.location.replace(url);
+  return true;
+}
+
 async function bootstrap() {
   await initializeDesktopBackendUrl().catch((error) => {
     console.warn('Desktop backend URL initialization failed:', error);
@@ -18,10 +39,20 @@ async function bootstrap() {
   root.render(
     <App />
   );
+
+  const currentUrl = new URL(window.location.href);
+  if (currentUrl.searchParams.has(MODULE_RETRY_PARAM)) {
+    currentUrl.searchParams.delete(MODULE_RETRY_PARAM);
+    window.history.replaceState(window.history.state, '', currentUrl);
+  }
 }
 
 bootstrap().catch((error) => {
   console.error('Failed to bootstrap application:', error);
+
+  if (retryStaleDevelopmentModule(error)) {
+    return;
+  }
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement

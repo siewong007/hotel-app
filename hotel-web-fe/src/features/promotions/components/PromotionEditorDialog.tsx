@@ -15,6 +15,7 @@ import {
   TextField,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useAllRoomTypes } from '../../rooms/hooks';
 import { formatLocalDate } from '../../../utils/date';
 import {
   DISCOUNT_TYPE_OPTIONS,
@@ -52,7 +53,7 @@ interface EditorState {
   claimLimit: string;
   perGuestLimit: string;
   isPublic: boolean;
-  roomTypeIds: string;
+  roomTypeId: string;
 }
 
 function toLocalDateTime(value?: string | null): string {
@@ -101,7 +102,7 @@ function initialEditorState(promotion?: Promotion | null): EditorState {
     claimLimit: input.claim_limit == null ? '' : String(input.claim_limit),
     perGuestLimit: String(input.per_guest_limit),
     isPublic: input.is_public,
-    roomTypeIds: input.room_type_ids.join(', '),
+    roomTypeId: input.room_type_ids[0]?.toString() ?? '',
   };
 }
 
@@ -114,6 +115,7 @@ export function PromotionEditorDialog({
 }: PromotionEditorDialogProps) {
   const [form, setForm] = useState<EditorState>(() => initialEditorState(promotion));
   const [validationError, setValidationError] = useState<string | null>(null);
+  const roomTypesQuery = useAllRoomTypes(open);
 
   useEffect(() => {
     if (open) {
@@ -149,10 +151,7 @@ export function PromotionEditorDialog({
       return;
     }
 
-    const roomTypeIds = form.roomTypeIds
-      .split(',')
-      .map((value) => Number(value.trim()))
-      .filter((value) => Number.isInteger(value) && value > 0);
+    const roomTypeId = Number(form.roomTypeId);
 
     onSave({
       slug: form.slug.trim(),
@@ -174,7 +173,7 @@ export function PromotionEditorDialog({
       claim_limit: nullableNumber(form.claimLimit),
       per_guest_limit: perGuestLimit,
       is_public: form.isPublic,
-      room_type_ids: roomTypeIds,
+      room_type_ids: Number.isInteger(roomTypeId) && roomTypeId > 0 ? [roomTypeId] : [],
       expected_version: promotion?.version,
     });
   };
@@ -374,13 +373,22 @@ export function PromotionEditorDialog({
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              label="Eligible room type IDs"
-              helperText="Comma-separated; leave blank for all room types"
-              value={form.roomTypeIds}
-              onChange={(event) => setForm({ ...form, roomTypeIds: event.target.value })}
-              fullWidth
-            />
+            <FormControl fullWidth>
+              <InputLabel id="eligible-room-type-label">Eligible room type</InputLabel>
+              <Select
+                labelId="eligible-room-type-label"
+                label="Eligible room type"
+                value={form.roomTypeId}
+                onChange={(event) => setForm({ ...form, roomTypeId: event.target.value })}
+              >
+                <MenuItem value="">All room types</MenuItem>
+                {(roomTypesQuery.data ?? []).map((roomType) => (
+                  <MenuItem key={roomType.id} value={String(roomType.id)}>
+                    {roomType.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Grid>
           <Grid size={{ xs: 12 }}>
             <TextField

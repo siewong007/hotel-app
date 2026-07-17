@@ -35,6 +35,9 @@ import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
 
 type UserType = 'guest' | 'admin' | null;
 
+const isAppleWebKitBrowser = () =>
+  typeof navigator !== 'undefined' && navigator.vendor === 'Apple Computer, Inc.';
+
 const LoginPage: React.FC = () => {
   const hotelSettings = getHotelSettings();
   const [searchParams] = useSearchParams();
@@ -62,7 +65,7 @@ const LoginPage: React.FC = () => {
     setUserType(account === 'guest' || account === 'admin' ? account : null);
   }, [searchParams]);
 
-  const completeSignIn = async () => {
+  const completeSignIn = () => {
     // Route by the authenticated account's actual type, not the login tab the
     // user picked — a guest signing in from the admin tab must still get the
     // guest experience, and vice versa.
@@ -70,26 +73,30 @@ const LoginPage: React.FC = () => {
 
     if (account === 'guest') {
       // Pre-warm the portal session so the landing page's guest links open
-      // instantly. Best-effort: portal entry bootstraps its own session.
-      try {
-        const portalSession = await GuestPortalDashboardService.createSession();
-        queryClient.removeQueries({ queryKey: ['promotions', 'portal'] });
-        setPortalToken(portalSession.token, portalSession.expires_at);
-      } catch {
-        // usePortalSessionBootstrap re-creates the session on portal entry.
-      }
+      // instantly. This must remain fully best-effort: Safari can leave this
+      // follow-up request pending while it settles the new auth cookie, and a
+      // pending pre-warm must never make a successful sign-in appear frozen.
+      // Portal entry bootstraps its own session when this request fails or has
+      // not completed yet.
+      void GuestPortalDashboardService.createSession()
+        .then((portalSession) => {
+          queryClient.removeQueries({ queryKey: ['promotions', 'portal'] });
+          setPortalToken(portalSession.token, portalSession.expires_at);
+        })
+        .catch(() => {
+          // usePortalSessionBootstrap re-creates the session on portal entry.
+        });
     }
 
-    // Everyone returns to the index page signed in; its header links point
-    // guests at /guest-portal and staff at /admin-portal.
-    navigate('/', { replace: true });
+    // Enter the authenticated shell directly. Routing staff through the public
+    // model page discards the in-memory access token and can also revive a
+    // stale lazy-route module when they return to the app.
+    navigate(account === 'guest' ? '/guest-portal' : '/admin-portal', { replace: true });
   };
 
   const handleFirstLoginPromptClose = () => {
     setShowFirstLoginPrompt(false);
-    void completeSignIn().catch((err: Error) => {
-      setError(err.message || 'Unable to open the guest portal. Please try again.');
-    });
+    completeSignIn();
   };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -103,7 +110,7 @@ const LoginPage: React.FC = () => {
         setShowFirstLoginPrompt(true);
         setLoading(false);
       } else {
-        await completeSignIn();
+        completeSignIn();
       }
     } catch (err: any) {
       const errorMessage = err.message || 'Login failed';
@@ -145,7 +152,7 @@ const LoginPage: React.FC = () => {
         setShowFirstLoginPrompt(true);
         setLoading(false);
       } else {
-        await completeSignIn();
+        completeSignIn();
       }
     } catch (err: any) {
       setError(err.message || 'Passkey login failed');
@@ -196,6 +203,16 @@ const LoginPage: React.FC = () => {
     setUsernameSubmitted(true);
     setError('');
 
+    // Safari can leave an automatic WebAuthn request pending without showing
+    // a usable prompt, trapping password users on "Checking for passkey".
+    // Keep the explicit passkey button available, but make Next reliably open
+    // the password step in Apple WebKit browsers.
+    if (isAppleWebKitBrowser()) {
+      setPasskeyAttempted(true);
+      setShowPasswordField(true);
+      return;
+    }
+
     // Attempt passkey authentication first
     await attemptPasskeyAuth();
   };
@@ -225,7 +242,7 @@ const LoginPage: React.FC = () => {
       if (isFirstLogin) {
         setShowFirstLoginPrompt(true);
       } else {
-        await completeSignIn();
+        completeSignIn();
       }
     } catch (err: any) {
       // Passkey failed or not available - show password field
@@ -629,6 +646,8 @@ const LoginPage: React.FC = () => {
                       <TextField
                         fullWidth
                         label="Username or Email"
+                        name="username"
+                        autoComplete="username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
                         margin="normal"
@@ -760,6 +779,8 @@ const LoginPage: React.FC = () => {
                               fullWidth
                               label="Password"
                               type="password"
+                              name="password"
+                              autoComplete="current-password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
                               margin="normal"

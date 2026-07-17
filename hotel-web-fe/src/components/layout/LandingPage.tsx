@@ -3,7 +3,9 @@ import { useAuth } from '../../auth/AuthContext';
 
 const LandingPage: FC = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const account = isAuthenticated ? user?.user_type : undefined;
+  const account = isAuthenticated
+    ? user?.user_type === 'guest' ? 'guest' : 'admin'
+    : undefined;
   const landingUrl = `/salim-inn/index.html${account ? `?account=${account}` : ''}`;
 
   useEffect(() => {
