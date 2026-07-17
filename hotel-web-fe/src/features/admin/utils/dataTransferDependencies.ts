@@ -11,7 +11,7 @@
 //   * On OVERWRITE, deleting a parent cascades to (or orphans) children that
 //     are NOT part of the same operation → unselected data is destroyed.
 //
-// This module encodes the real foreign keys from `database/schema.sql`
+// This module encodes the real foreign keys from the PostgreSQL V1 baseline.
 // (verified against the CREATE TABLE / ALTER TABLE constraints) and derives:
 //   - forward closure  → auto-select the parents a selection depends on
 //   - reverse closure  → drop children when their parent is removed
@@ -94,7 +94,7 @@ export interface CategoryDef {
   fks: ForeignKey[];
 }
 
-// Mirrors database/schema.sql. `restrict` covers NO ACTION columns that block a
+// Mirrors the PostgreSQL V1 baseline. `restrict` covers NO ACTION columns that block a
 // parent delete until the referencing rows are gone.
 export const CATEGORY_DEFS: CategoryDef[] = [
   { id: 'room_types', name: 'Room Types', desc: 'Room type definitions, capacities, and base rates.', group: 'system', fks: [] },

@@ -49,6 +49,7 @@ export interface HotelSettings {
   totp_issuer_name: string; // Issuer shown in authenticator apps
   passkey_relying_party_name: string; // Display name shown by passkey authenticators
   support_enabled: boolean; // Whether guests can start support conversations in the portal
+  guest_booking_cancellation_enabled: boolean;
   support_categories: string[]; // Guest-selectable support intake categories
   support_first_response_low_minutes: number;
   support_first_response_normal_minutes: number;
@@ -91,6 +92,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   totp_issuer_name: 'Hotel Management System',
   passkey_relying_party_name: 'Hotel Management System',
   support_enabled: true,
+  guest_booking_cancellation_enabled: false,
   support_categories: ['booking', 'stay', 'billing', 'loyalty', 'technical', 'other'],
   support_first_response_low_minutes: 240,
   support_first_response_normal_minutes: 60,

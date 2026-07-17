@@ -110,6 +110,7 @@ mod sqlite_tests {
             claim_limit: None,
             per_guest_limit: Some(1),
             is_public: Some(true),
+            is_cancellable: None,
             room_type_ids: None,
             expected_version: None,
         }

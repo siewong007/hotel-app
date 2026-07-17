@@ -42,7 +42,9 @@ cargo check --all-features                    # minimum bar before claiming done
 cargo clippy --all-features -- -D warnings    # what CI actually runs
 cargo run                                     # PostgreSQL mode, port 3030
 cargo run --features sqlite --no-default-features   # SQLite mode (DATABASE_PATH, default ./hotel_data.db)
-psql "$DATABASE_URL" -f database/schema.sql -f database/data.sql   # apply schema + seed
+psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+psql "$DATABASE_URL" -f database/postgres/data.sql
+psql "$DATABASE_URL" -f database/postgres/seed.sql                 # one-time V1 initialization
 cargo test <name>                             # single test by substring
 cargo run --bin hash_password -- <password>   # helper bins in src/bin/
 ```
@@ -80,11 +82,12 @@ Backend request flow: `routes/<domain>.rs` → auth middleware → `handlers/<do
 
 Dual-database contract (full checklist: `.claude/rules/00-diagnosis.md` Leak #2):
 one DB per production build (default `postgres`); every SQL change must compile
-under `--all-features`. PostgreSQL schema = `database/schema.sql` + `data.sql`
-(idempotent; applied by docker-compose and desktop `run_migrations_if_needed`;
-no sqlx-migrate step). SQLite resources = `database/sqlite_schema.sql` +
-`sqlite_data.sql` (ordered schema sections plus rerunnable data, auto-run at
-startup by `create_pool`). Schema changes must touch BOTH database paths.
+under `--all-features`. PostgreSQL V1 = baseline migration, then `data.sql`,
+then `seed.sql`, exactly once for a new empty database; Docker and desktop use
+that same order and do not rerun it for existing V1 data. SQLite embeds the
+corresponding V1 baseline, data, and seed scripts and applies them once only to
+a new empty database. There is no SQLite legacy migration. Schema changes must
+touch BOTH database paths.
 Note: `hotel-desktop` does NOT use the sqlite feature (it ships embedded PostgreSQL);
 sqlite serves the standalone lightweight server mode and CI. Keep-or-kill decision
 pending — see `.claude/refs/architecture-enhancements.md` item 3.

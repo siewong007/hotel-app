@@ -32,11 +32,14 @@ export interface GuestPortalMeResponse {
 }
 
 export interface GuestPortalBookingSummary {
+  id: number;
   booking_number: string;
   check_in_date: string;
   check_out_date: string;
   status: string;
   total_amount: string | number;
+  can_cancel: boolean;
+  cancellation_unavailable_reason?: string | null;
 }
 
 export interface GuestPortalPagedResponse<T> {

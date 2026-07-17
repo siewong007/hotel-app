@@ -32,6 +32,7 @@ const PROMOTION_COLUMNS: &str = r#"
     p.claimed_count,
     p.per_guest_limit,
     p.is_public,
+    p.is_cancellable,
     CAST(p.version AS BIGINT) AS version,
     p.created_by,
     p.updated_by,
@@ -100,6 +101,7 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
         claimed_count: row.try_get("claimed_count").unwrap_or_default(),
         per_guest_limit: row.try_get("per_guest_limit").unwrap_or(1),
         is_public: get_bool(row, "is_public"),
+        is_cancellable: get_bool(row, "is_cancellable"),
         room_type_ids,
         version: row.try_get("version").unwrap_or(1),
         created_by: row.try_get::<Option<i64>, _>("created_by").ok().flatten(),
@@ -392,10 +394,10 @@ impl PromotionRepository {
                     slug, name, description, terms, promotion_kind, discount_type,
                     discount_value, max_discount_amount, currency, claim_starts_at,
                     claim_ends_at, stay_starts_on, stay_ends_on, min_nights, max_nights,
-                    min_subtotal, claim_limit, per_guest_limit, is_public, created_by, updated_by
+                    min_subtotal, claim_limit, per_guest_limit, is_public, is_cancellable, created_by, updated_by
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                    $15, $16, $17, $18, $19, $20, $21
+                    $15, $16, $17, $18, $19, $20, $21, $22
                 ) RETURNING id
             "#,
             sqlite: r#"
@@ -403,10 +405,10 @@ impl PromotionRepository {
                     slug, name, description, terms, promotion_kind, discount_type,
                     discount_value, max_discount_amount, currency, claim_starts_at,
                     claim_ends_at, stay_starts_on, stay_ends_on, min_nights, max_nights,
-                    min_subtotal, claim_limit, per_guest_limit, is_public, created_by, updated_by
+                    min_subtotal, claim_limit, per_guest_limit, is_public, is_cancellable, created_by, updated_by
                 ) VALUES (
                     ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-                    ?15, ?16, ?17, ?18, ?19, ?20, ?21
+                    ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22
                 ) RETURNING id
             "#
         ))
@@ -429,6 +431,7 @@ impl PromotionRepository {
         .bind(draft.claim_limit)
         .bind(draft.per_guest_limit)
         .bind(draft.is_public)
+        .bind(draft.is_cancellable)
         .bind(actor_id)
         .bind(actor_id)
         .fetch_one(&mut **tx)
@@ -452,9 +455,9 @@ impl PromotionRepository {
                     claim_ends_at = $11, stay_starts_on = $12, stay_ends_on = $13,
                     min_nights = $14, max_nights = $15, min_subtotal = $16,
                     claim_limit = $17, per_guest_limit = $18, is_public = $19,
-                    updated_by = $20, updated_at = CURRENT_TIMESTAMP, version = version + 1
-                WHERE id = $21
-                  AND ($22::integer IS NULL OR version = $22)
+                    is_cancellable = $20, updated_by = $21, updated_at = CURRENT_TIMESTAMP, version = version + 1
+                WHERE id = $22
+                  AND ($23::integer IS NULL OR version = $23)
                   AND status IN ('draft', 'paused')
                 RETURNING id
             "#,
@@ -466,9 +469,9 @@ impl PromotionRepository {
                     claim_ends_at = ?11, stay_starts_on = ?12, stay_ends_on = ?13,
                     min_nights = ?14, max_nights = ?15, min_subtotal = ?16,
                     claim_limit = ?17, per_guest_limit = ?18, is_public = ?19,
-                    updated_by = ?20, updated_at = datetime('now'), version = version + 1
-                WHERE id = ?21
-                  AND (?22 IS NULL OR version = ?22)
+                    is_cancellable = ?20, updated_by = ?21, updated_at = datetime('now'), version = version + 1
+                WHERE id = ?22
+                  AND (?23 IS NULL OR version = ?23)
                   AND status IN ('draft', 'paused')
                 RETURNING id
             "#
@@ -492,6 +495,7 @@ impl PromotionRepository {
         .bind(draft.claim_limit)
         .bind(draft.per_guest_limit)
         .bind(draft.is_public)
+        .bind(draft.is_cancellable)
         .bind(actor_id)
         .bind(promotion_id)
         .bind(expected_version)

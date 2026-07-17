@@ -25,6 +25,7 @@ export interface Promotion {
   claimed_count: number;
   per_guest_limit: number;
   is_public: boolean;
+  is_cancellable?: boolean;
   room_type_ids: number[];
   version: number;
   created_at: string;
@@ -80,6 +81,7 @@ export interface PromotionInput {
   claim_limit?: number | null;
   per_guest_limit: number;
   is_public: boolean;
+  is_cancellable?: boolean;
   room_type_ids: number[];
   expected_version?: number;
 }

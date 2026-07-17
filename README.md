@@ -18,7 +18,7 @@
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=111">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19%20Beta%201-4169E1?logo=postgresql&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19%20Beta%202-4169E1?logo=postgresql&logoColor=white">
 </p>
 
 ## 📌 Overview
@@ -122,10 +122,8 @@ hotel-app/
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
-│   │   ├── schema.sql            # PostgreSQL schema (idempotent, applied directly - no sqlx-migrate step)
-│   │   ├── data.sql              # PostgreSQL seed/system data (idempotent, rerunnable)
-│   │   ├── sqlite_schema.sql     # SQLite ordered schema sections (auto-run at startup)
-│   │   └── sqlite_data.sql       # SQLite seed/backfill data (idempotent, rerunnable)
+│   │   ├── postgres/             # V1 baseline, one-time data/seed, PG18.4 upgrade, PG19 tuning
+│   │   └── sqlite/               # V1 baseline and one-time data/seed
 │   └── tests/                    # Focused backend tests
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/
@@ -154,7 +152,7 @@ hotel-app/
 | Rust | 1.95.0 | The repository includes `rust-toolchain.toml`. |
 | Node.js | 22 LTS recommended | Required by desktop helper scripts. |
 | Bun | 1.3.14 | Package manager for frontend and desktop projects. |
-| PostgreSQL | 19 Beta 1 | Required for the default backend feature. PostgreSQL 19 is pre-release and intended for testing until general availability. |
+| PostgreSQL | 19 Beta 2 | Required for the default backend feature. PostgreSQL 19 is pre-release and intended for testing until general availability. |
 
 ### Clone
 
@@ -172,18 +170,18 @@ cp .env.example .env
 
 Update `hotel-app-be/.env` with a local `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters.
 
-Initialize PostgreSQL before starting the default backend. The authoritative PostgreSQL setup uses the idempotent SQL scripts in `hotel-app-be/database/`:
+Initialize a new PostgreSQL database before starting the default backend. Run this sequence once, in order:
 
 ```bash
-psql "$DATABASE_URL" -f database/schema.sql
-psql "$DATABASE_URL" -f database/data.sql
+psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+psql "$DATABASE_URL" -f database/postgres/data.sql
+psql "$DATABASE_URL" -f database/postgres/seed.sql
 ```
 
-The SQLite feature applies `database/sqlite_schema.sql` and then
-`database/sqlite_data.sql` at backend startup. The schema runner imports
-successful versions from legacy SQLx migration ledgers, applies only pending
-numbered sections transactionally, and reruns the guarded data resource.
-SQLx migrations are not part of either current database setup flow.
+For SQLite, the backend embeds and applies the equivalent V1 baseline, data, and
+seed scripts only when it opens a new empty database. Existing V1 databases do
+not rerun data or seed scripts. There is no SQLite legacy-migration path.
+SQLx migrations are not part of either setup flow.
 
 Start the API:
 
@@ -199,7 +197,8 @@ curl http://localhost:3030/health
 
 ### SQLite Mode
 
-SQLite mode is useful for local experimentation and offline-oriented builds. SQLite migrations are run by the backend at startup.
+SQLite mode is useful for local experimentation and offline-oriented builds. A
+new empty database is initialized automatically at first startup.
 
 ```bash
 cd hotel-app-be
@@ -287,10 +286,18 @@ Expected response:
 
 ### Login
 
+The bootstrap hash is intentionally not a usable shared password. Set the
+administrator password first:
+
+```bash
+cd hotel-app-be
+cargo run --bin fix_password -- admin '<strong-password>'
+```
+
 ```bash
 curl -X POST http://localhost:3030/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"change-me"}'
+  -d '{"username":"admin","password":"<strong-password>"}'
 ```
 
 ### List Rooms
@@ -392,7 +399,7 @@ Logo/banner idea:
 - ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
 - ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
-- ✅ **Two-file SQLite resources** — One ordered schema and one rerunnable data file
+- ✅ **SQLite V1 resources** — One immutable baseline plus one-time data and bootstrap seed files
 - ✅ **Project Makefile** — Convenience commands for all development workflows
 - ✅ **Frontend test suite** — Vitest + Testing Library component and utility tests
 - ✅ **Backend service tests** — Rate limiter, booking service, and core utility tests

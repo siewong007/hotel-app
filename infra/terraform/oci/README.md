@@ -45,7 +45,7 @@ There is no SLA, horizontal redundancy, managed database failover, or automatic 
 
 ## PostgreSQL 19 Beta boundary
 
-The repository's root Compose stack currently uses `postgres:19beta1`. This infrastructure preserves that choice only for development. Do not promote the VM or its database volume to production, and do not assume an in-place upgrade path from a beta database cluster.
+The repository's root Compose stack currently uses `postgres:19beta2`. This infrastructure preserves that choice only for development. Do not promote the VM or its database volume to production, and do not assume an in-place upgrade path from a beta database cluster.
 
 `enable_pg19_beta_tuning` is false by default. When enabled, cloud-init adds `docker-compose.pg19-tuning.yml` with conservative memory, WAL, checkpoint, and storage-cost settings sized for the default 12 GB VM. They are hypotheses, not universal improvements. Benchmark query latency, throughput, memory pressure, checkpoints, and recovery behavior before retaining them. Adjustments can be made through the non-secret `pre_compose_script` hook or by changing the tracked override in a reviewed change.
 
@@ -55,11 +55,9 @@ schema-level tuning script before the backend starts. The OCI override repeats
 the complete server command so Compose's command replacement keeps those PG19
 settings while adding the 12 GB VM sizing assumptions.
 
-The infrastructure override adds a one-shot `db-bootstrap` service that reruns
-the idempotent `hotel-app-be/database/schema.sql` and `data.sql` before the
-backend starts. PostgreSQL's entrypoint still initializes an empty volume, while
-the one-shot service keeps an existing development volume aligned on later
-boots.
+There is no per-boot database bootstrap service. PostgreSQL's entrypoint applies
+the V1 baseline, `data.sql`, and `seed.sql` once when it initializes a new empty
+volume. Existing V1 volumes are left unchanged on later boots.
 
 ## Prerequisites
 

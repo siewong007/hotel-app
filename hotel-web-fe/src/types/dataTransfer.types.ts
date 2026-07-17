@@ -13,7 +13,7 @@
 // Reusing them here would silently mistype the backup/restore payload — the
 // exact failure mode this file exists to prevent.
 //
-// Row shapes were verified against `hotel-app-be/database/schema.sql`
+// Row shapes were verified against the PostgreSQL V1 baseline schema.
 // (PostgreSQL; the production/default build per CLAUDE.md) as of 2026-07-12.
 // A handful of tables genuinely do match an existing domain type 1:1 and reuse
 // it (`Company`, `CustomerLedger`, `CustomerLedgerPayment`, `MaintenanceTicket`,
@@ -948,7 +948,7 @@ export interface BookingDataExport {
   night_audit_runs: DataTransferNightAuditRunRow[];
   night_audit_details: DataTransferNightAuditDetailRow[];
   // `customer_ledgers`/`customer_ledger_payments` match their ledger.types.ts
-  // counterparts column-for-column (verified against schema.sql).
+  // counterparts column-for-column (verified against the V1 baseline).
   customer_ledgers: CustomerLedger[];
   customer_ledger_payments: CustomerLedgerPayment[];
   room_changes: DataTransferRoomChangeRow[];

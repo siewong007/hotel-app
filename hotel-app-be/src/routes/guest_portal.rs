@@ -37,6 +37,10 @@ pub fn routes() -> Router<DbPool> {
                 .post(crate::modules::guest_booking::handlers::create_booking_handler),
         )
         .route(
+            "/guest-portal/me/bookings/{id}/cancel",
+            post(handlers::guest_portal::cancel_my_booking),
+        )
+        .route(
             "/guest-portal/me/transactions",
             get(handlers::guest_portal::get_my_transactions),
         )

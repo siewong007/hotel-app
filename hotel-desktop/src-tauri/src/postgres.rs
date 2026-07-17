@@ -36,7 +36,9 @@ const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
 const POSTGRES_PASSWORD_FILE: &str = "postgres-password.txt";
 const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "19";
-const CONFIGURED_POSTGRES_BUILD_IDENTITY: &str = "19beta1";
+const CONFIGURED_POSTGRES_BUILD_IDENTITY: &str = "19beta2";
+const POSTGRES_V1_CHECKSUM: &str =
+    "sha256:1149266ee7cc6ae8a0733098a15e1ee0377568eea3aed65254709afe992d1e1d";
 const POSTGRES_BUILD_IDENTITY_FILE: &str = ".hotel-postgres-build-identity";
 // Desktop builds released before the marker was introduced bundled 19beta1.
 // This one-time inference preserves those clusters while ensuring a later
@@ -1007,24 +1009,47 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
     Ok(())
 }
 
-/// Run database schema and data bootstrap scripts if needed
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DatabaseSetupState {
+    Fresh,
+    Unversioned,
+    V1,
+}
+
+/// Initialize an empty desktop database at V1.
+///
+/// `data.sql` and `seed.sql` are part of first initialization only. An existing
+/// V1 database is verified and left untouched on later starts.
 pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresError> {
-    // First ensure database exists
     create_database_if_needed(app_handle).await?;
-
-    let already_initialized = is_database_initialized(app_handle).await?;
-
-    // Always run schema and data scripts. They are idempotent and keep fresh
-    // desktop installs and existing databases on the same consolidated path.
     let resource_dir = clean_resource_dir(app_handle);
+    let setup_state = database_setup_state(app_handle).await?;
 
-    log::info!("Running database schema...");
-    run_sql_file(app_handle, &resource_dir.join("database/schema.sql")).await?;
+    match setup_state {
+        DatabaseSetupState::Fresh => {
+            log::info!("Initializing an empty desktop database with the V1 baseline...");
+            run_sql_file(
+                app_handle,
+                &resource_dir.join("database/postgres/migrations/0001_v1_baseline.sql"),
+            )
+            .await?;
 
-    log::info!("Running database data bootstrap...");
-    run_sql_file(app_handle, &resource_dir.join("database/data.sql")).await?;
+            log::info!("Installing V1 required/reference data...");
+            run_sql_file(app_handle, &resource_dir.join("database/postgres/data.sql")).await?;
 
-    if !already_initialized {
+            log::info!("Installing V1 bootstrap data...");
+            run_sql_file(app_handle, &resource_dir.join("database/postgres/seed.sql")).await?;
+        }
+        DatabaseSetupState::Unversioned => {
+            return Err(PostgresError::MigrationFailed(
+                "Refusing to modify a non-empty, unversioned PostgreSQL database automatically. Back up and restore the retained PostgreSQL 18.4 database into PostgreSQL 19, then run database/postgres/upgrade/pg18_4_to_v1.sql."
+                    .to_string(),
+            ));
+        }
+        DatabaseSetupState::V1 => {}
+    }
+
+    if setup_state == DatabaseSetupState::Fresh {
         randomize_seed_passwords(app_handle).await?;
     }
 
@@ -1706,53 +1731,54 @@ SELECT COUNT(*) FROM updated;
     Ok(())
 }
 
-/// Check if database has been initialized (check for users table)
-async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, PostgresError> {
-    let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
+async fn database_setup_state(app_handle: &AppHandle) -> Result<DatabaseSetupState, PostgresError> {
+    if has_v1_schema_revision(app_handle).await? {
+        return Ok(DatabaseSetupState::V1);
+    }
 
-    let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!(
-        "{}{}{}",
-        pgsql_bin.to_string_lossy(),
-        PATH_SEP,
-        current_path
-    );
+    let output = run_psql_scalar_sql(
+        app_handle,
+        "psql detect existing application objects",
+        "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class AS relation JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = relation.relnamespace WHERE namespace.nspname NOT IN ('pg_catalog', 'information_schema') AND relation.relkind IN ('r', 'p', 'v', 'm', 'S', 'f'));",
+    )
+    .await?;
 
-    let mut cmd = tokio::process::Command::new(&psql_path);
-    cmd.args([
-        "-h",
-        "localhost",
-        "-p",
-        &POSTGRES_PORT.to_string(),
-        "-U",
-        POSTGRES_USER,
-        "-d",
-        POSTGRES_DB,
-        "-tAc",
-        "SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1",
-    ])
-    .env("PGPASSWORD", read_or_create_postgres_password()?)
-    .env("PATH", &new_path)
-    .current_dir(&pgsql_bin)
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped());
+    if trimmed_lossy(&output.stdout) == "t" {
+        Ok(DatabaseSetupState::Unversioned)
+    } else {
+        Ok(DatabaseSetupState::Fresh)
+    }
+}
 
-    #[cfg(windows)]
-    cmd.creation_flags(CREATE_NO_WINDOW);
+async fn has_v1_schema_revision(app_handle: &AppHandle) -> Result<bool, PostgresError> {
+    let table_exists = run_psql_scalar_sql(
+        app_handle,
+        "psql check schema revision table",
+        "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'hotel_schema_revisions');",
+    )
+    .await?;
+    if trimmed_lossy(&table_exists.stdout) != "t" {
+        return Ok(false);
+    }
 
-    let output = cmd.output().await?;
-    if !output.status.success() {
-        let details = command_output_details("psql database initialization check", &output);
-        log::error!("Failed to check database initialization: {}", details);
+    let revision_checksum = run_psql_scalar_sql(
+        app_handle,
+        "psql check V1 schema revision",
+        "SELECT checksum FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 1;",
+    )
+    .await?;
+    let revision_checksum = trimmed_lossy(&revision_checksum.stdout);
+    if revision_checksum == "<empty>" {
+        return Ok(false);
+    }
+    if revision_checksum != POSTGRES_V1_CHECKSUM {
         return Err(PostgresError::MigrationFailed(format!(
-            "Failed to check database initialization: {}",
-            details
+            "PostgreSQL V1 checksum mismatch: database records {}, desktop expects {}",
+            revision_checksum, POSTGRES_V1_CHECKSUM
         )));
     }
 
-    let result = String::from_utf8_lossy(&output.stdout).trim().contains('1');
-    Ok(result)
+    Ok(true)
 }
 
 fn clean_resource_dir(app_handle: &AppHandle) -> PathBuf {
@@ -1795,7 +1821,6 @@ async fn run_sql_file(app_handle: &AppHandle, file_path: &Path) -> Result<(), Po
         .arg(POSTGRES_DB)
         .arg("-v")
         .arg("ON_ERROR_STOP=1")
-        .arg("--single-transaction")
         .arg("-f")
         .arg(file_path)
         .env("PGPASSWORD", read_or_create_postgres_password()?)
@@ -1949,9 +1974,9 @@ mod tests {
 
     #[test]
     fn accepts_matching_marked_cluster() {
-        let expected = build("19", "19beta1");
+        let expected = build("19", "19beta2");
         assert_eq!(
-            classify_pgdata_compatibility(Some("19"), Some("19beta1"), &expected),
+            classify_pgdata_compatibility(Some("19"), Some("19beta2"), &expected),
             DataDirectoryCompatibility::Compatible
         );
     }

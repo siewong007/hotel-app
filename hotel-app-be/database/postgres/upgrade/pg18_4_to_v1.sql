@@ -1,8 +1,9 @@
 -- ============================================================================
--- HOTEL APP SCHEMA
+-- HOTEL APP: POSTGRESQL 18.4 DATA UPGRADE TO SCHEMA V1
 -- ============================================================================
--- Consolidated PostgreSQL schema script. Run before data.sql.
--- Generated from the previous ordered migration set.
+-- One-time compatibility path for the single retained PostgreSQL 18.4
+-- database. First restore a verified 18.4 backup into PostgreSQL 19, then run
+-- this file. New/empty databases must use migrations/0001_v1_baseline.sql.
 -- ============================================================================
 
 \set ON_ERROR_STOP on
@@ -6245,6 +6246,7 @@ CREATE TABLE IF NOT EXISTS promotions (
     claimed_count INTEGER NOT NULL DEFAULT 0,
     per_guest_limit INTEGER NOT NULL DEFAULT 1,
     is_public BOOLEAN NOT NULL DEFAULT true,
+    is_cancellable BOOLEAN NOT NULL DEFAULT true,
     version INTEGER NOT NULL DEFAULT 1,
     created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
     updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -6545,3 +6547,106 @@ DROP TRIGGER IF EXISTS update_email_deliveries_updated_at ON email_deliveries;
 CREATE TRIGGER update_email_deliveries_updated_at
     BEFORE UPDATE ON email_deliveries
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- Guest portal direct booking
+-- ============================================================================
+
+ALTER TABLE bookings
+    ADD COLUMN IF NOT EXISTS portal_request_id VARCHAR(128);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_bookings_guest_portal_request
+    ON bookings (guest_id, portal_request_id)
+    WHERE portal_request_id IS NOT NULL;
+
+ALTER TABLE email_deliveries
+    DROP CONSTRAINT IF EXISTS email_deliveries_kind_check;
+ALTER TABLE email_deliveries
+    DROP CONSTRAINT IF EXISTS email_deliveries_topic_check;
+ALTER TABLE email_deliveries
+    DROP CONSTRAINT IF EXISTS email_deliveries_kind_campaign_link;
+ALTER TABLE email_deliveries
+    ADD CONSTRAINT email_deliveries_kind_check
+    CHECK (kind IN ('campaign', 'birthday_voucher', 'booking_confirmation'));
+ALTER TABLE email_deliveries
+    ADD CONSTRAINT email_deliveries_topic_check
+    CHECK (topic IN ('announcement', 'promotion', 'birthday_voucher', 'booking_confirmation'));
+ALTER TABLE email_deliveries
+    ADD CONSTRAINT email_deliveries_kind_campaign_link CHECK (
+        (kind = 'campaign' AND campaign_id IS NOT NULL)
+        OR (kind IN ('birthday_voucher', 'booking_confirmation') AND campaign_id IS NULL)
+    );
+
+-- Daily channel allocation: online guests can only see inventory released
+-- after the configured walk-in reserve for that room type and stay night.
+CREATE TABLE IF NOT EXISTS online_inventory_allocations (
+    room_type_id BIGINT NOT NULL REFERENCES room_types(id) ON DELETE CASCADE,
+    stay_date DATE NOT NULL,
+    walk_in_reserved_rooms INTEGER NOT NULL DEFAULT 0 CHECK (walk_in_reserved_rooms >= 0),
+    online_booking_enabled BOOLEAN NOT NULL DEFAULT true,
+    updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (room_type_id, stay_date)
+);
+CREATE INDEX IF NOT EXISTS idx_online_inventory_allocations_date
+    ON online_inventory_allocations (stay_date, room_type_id);
+
+-- 045_guest_booking_cancellation.sql
+ALTER TABLE promotions ADD COLUMN IF NOT EXISTS is_cancellable BOOLEAN NOT NULL DEFAULT true;
+INSERT INTO system_settings (key, value, value_type, category, description, is_public)
+VALUES ('guest_booking_cancellation_enabled', 'false', 'boolean', 'booking',
+        'Allow guests to cancel eligible bookings in the guest portal', false)
+ON CONFLICT (key) DO NOTHING;
+
+-- Record schema V1 only after the restored PostgreSQL 18.4 schema has fully
+-- converged and the critical PostgreSQL 19 objects are present.
+BEGIN;
+SELECT pg_advisory_xact_lock(hashtext('hotel_app_pg18_4_to_schema_v1'));
+
+CREATE TABLE IF NOT EXISTS public.hotel_schema_revisions (
+    generation integer NOT NULL CHECK (generation > 0),
+    version integer NOT NULL CHECK (version > 0),
+    name text NOT NULL,
+    checksum text NOT NULL,
+    applied_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    app_build text,
+    PRIMARY KEY (generation, version)
+);
+
+DO $$
+DECLARE
+    required_relation text;
+BEGIN
+    FOREACH required_relation IN ARRAY ARRAY[
+        'public.users',
+        'public.bookings',
+        'public.audit_logs',
+        'public.system_settings',
+        'public.online_inventory_allocations'
+    ] LOOP
+        IF to_regclass(required_relation) IS NULL THEN
+            RAISE EXCEPTION
+                'PostgreSQL 18.4 upgrade did not converge: required relation % is missing',
+                required_relation;
+        END IF;
+    END LOOP;
+
+    IF to_regprocedure('public.ensure_audit_logs_partition(date)') IS NULL THEN
+        RAISE EXCEPTION
+            'PostgreSQL 18.4 upgrade did not converge: audit partition function is missing';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'promotions'
+          AND column_name = 'is_cancellable'
+    ) THEN
+        RAISE EXCEPTION
+            'PostgreSQL 18.4 upgrade did not converge: promotions.is_cancellable is missing';
+    END IF;
+END;
+$$;
+
+COMMIT;

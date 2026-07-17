@@ -149,7 +149,7 @@ mod sqlite_tests {
     ///
     /// Root cause: `customer_ledgers.balance_due` is declared
     /// `DECIMAL(10,2) GENERATED ALWAYS AS (amount - paid_amount) STORED`
-    /// (database/sqlite_schema.sql section 21).
+    /// (`database/sqlite/migrations/0001_v1_baseline.sql`).
     /// Under SQLite type-affinity rules a `DECIMAL(...)` declared type gets
     /// NUMERIC affinity, not REAL affinity (REAL affinity requires the
     /// declared type to contain "REAL"/"FLOA"/"DOUB"). NUMERIC affinity

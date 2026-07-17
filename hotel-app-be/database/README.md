@@ -1,49 +1,60 @@
-# Hotel App Database
+# Hotel App Database Resources
 
-The active PostgreSQL database setup is intentionally small:
+Database resources are versioned by engine. V1 is the only active schema
+version for both PostgreSQL and SQLite.
 
 ```text
 database/
-├── schema.sql
-├── data.sql
-├── sqlite_schema.sql
-├── sqlite_data.sql
-├── pg19_speculative_tuning.sql
-├── pg19_speculative_tuning_rollback.sql
-└── pg19_benchmark.sql
+├── postgres/
+│   ├── migrations/0001_v1_baseline.sql
+│   ├── data.sql
+│   ├── seed.sql
+│   ├── upgrade/pg18_4_to_v1.sql
+│   └── optimization/pg19_beta2*.sql
+└── sqlite/
+    ├── migrations/0001_v1_baseline.sql
+    ├── data.sql
+    └── seed.sql
 ```
 
-## Scripts
+## V1 lifecycle
 
-- `schema.sql` creates or updates database objects. It is idempotent and contains the previous ordered schema history in one executable script.
-- `data.sql` loads and maintains required system data. It validates system-owned seed records, quarantines invalid/obsolete system records in `app.invalid_data_quarantine`, preserves user-created and transactional data, and can be rerun.
-- `sqlite_schema.sql` contains append-only, numbered SQLite DDL sections. The backend applies each pending section transactionally and records it in `hotel_schema_versions`.
-- `sqlite_data.sql` contains SQLite system seeds, policy updates, status normalization, and guarded legacy backfills. It runs after the schema is current and is safe to rerun.
-- `pg19_speculative_tuning.sql` applies opt-in physical storage, statistics, and autovacuum experiments after the base schema.
-- `pg19_speculative_tuning_rollback.sql` removes those experiments without rewriting existing values.
-- `pg19_benchmark.sql` captures live PostgreSQL 19 settings and representative `EXPLAIN` plans.
-
-PostgreSQL 19 is currently a beta development target. Do not point this schema
-or the speculative profile at a production database until PostgreSQL 19 reaches
-general availability and the upgrade has been rehearsed against a backup.
-
-## Local PostgreSQL
+For a new PostgreSQL database, execute these files once and in this exact
+order:
 
 ```bash
-psql "$DATABASE_URL" -f database/schema.sql
-psql "$DATABASE_URL" -f database/data.sql
+psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+psql "$DATABASE_URL" -f database/postgres/data.sql
+psql "$DATABASE_URL" -f database/postgres/seed.sql
 ```
 
-## Speculative PostgreSQL 19 profile
+`data.sql` creates required system and reference records. `seed.sql` creates
+fresh-install bootstrap records. Neither is a startup task and neither should
+be rerun against an existing V1 database.
 
-Run the full development stack with the server and schema experiments enabled:
+SQLite embeds the equivalent V1 baseline, data, and seed resources in the
+backend. They execute together only when a new empty SQLite database is first
+opened. Existing V1 SQLite databases are verified and left unchanged. There is
+no SQLite legacy migration or adoption flow.
 
-```bash
-make docker-up-pg19-tuned
-```
+V1 identifies the lifecycle version, not byte-for-byte engine parity. SQLite
+keeps the application's lightweight/offline table shapes where handlers use
+engine-specific SQL, while PostgreSQL keeps server-only operational models and
+partitioning. `scripts/check-schema-drift.mjs` therefore remains a review
+report for known engine differences; new domain changes must align both engines
+or document an intentional exception instead of copying PostgreSQL DDL blindly.
 
-For an existing PostgreSQL 19 development database, apply, measure, and roll
-back the schema-level profile explicitly:
+The only historical upgrade supported here is the important PostgreSQL 18.4
+database: first take and verify a logical backup, restore it into a PostgreSQL
+19 Beta 2 cluster, then execute `postgres/upgrade/pg18_4_to_v1.sql`, followed
+once by `postgres/data.sql` and `postgres/seed.sql`. Do not use that script for
+other databases.
+
+## PostgreSQL 19 Beta 2 optimization
+
+`postgres/optimization/pg19_beta2.sql` is an opt-in, benchmark-gated profile
+for physical storage, statistics, and autovacuum. Use its matching benchmark
+and rollback files to measure a development workload before retaining it:
 
 ```bash
 make db-pg19-tune DATABASE_URL="$DATABASE_URL"
@@ -51,35 +62,12 @@ make db-pg19-benchmark DATABASE_URL="$DATABASE_URL"
 make db-pg19-tune-rollback DATABASE_URL="$DATABASE_URL"
 ```
 
-The Compose override intentionally avoids fixed memory sizes so the same
-profile can be measured on a laptop or a small Oracle Ampere instance. Worker
-counts and concurrency can be overridden with the `PG19_*` environment values
-defined in `docker-compose.pg19-tuned.yml`.
+PostgreSQL 19 Beta 2 is prerelease software for testing, not production.
 
-## Docker
+## Docker and desktop
 
-The base `docker-compose.yml` mounts only these two files into the Postgres entrypoint:
-
-```text
-01_schema.sql
-02_data.sql
-```
-
-This keeps container initialization aligned with local/manual setup.
-
-`docker-compose.pg19-tuned.yml` is an explicit development override. Its
-one-shot tuner applies the opt-in SQL after the database is healthy and before
-the backend starts.
-
-## Desktop
-
-The desktop resource sync copies only `schema.sql` and `data.sql` into the Tauri bundle. The desktop PostgreSQL launcher runs `schema.sql` and then `data.sql` on startup. Speculative tuning is never bundled automatically.
-
-## SQLite
-
-SQLite resources are embedded in the backend binary and applied automatically by
-`create_pool`. Existing databases that used SQLx migrations are adopted by
-importing successful `_sqlx_migrations` versions into `hotel_schema_versions`;
-historical destructive sections are not replayed. Add future DDL as a new,
-strictly increasing `-- @migration <version> <name>` section and keep all
-rerunnable seed or backfill statements in `sqlite_data.sql`.
+The Docker entrypoint and desktop resource bundle use the same V1 sequence:
+baseline, data, then seed, only for a new empty database. The desktop launcher
+does not alter a non-empty, unversioned database; the controlled PostgreSQL
+18.4 upgrade remains a manual, backup-first operation. Optimization scripts are
+never bundled or applied automatically.

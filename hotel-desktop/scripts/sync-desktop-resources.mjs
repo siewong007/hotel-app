@@ -10,14 +10,19 @@ const repoRoot = resolve(desktopRoot, '..');
 
 const syncFiles = [
   {
-    label: 'database schema',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'schema.sql'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'schema.sql'),
+    label: 'PostgreSQL V1 baseline',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'migrations', '0001_v1_baseline.sql'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'migrations', '0001_v1_baseline.sql'),
   },
   {
-    label: 'database data',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'data.sql'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'data.sql'),
+    label: 'PostgreSQL V1 required data',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'data.sql'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'data.sql'),
+  },
+  {
+    label: 'PostgreSQL V1 bootstrap seed',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'seed.sql'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'seed.sql'),
   },
 ];
 

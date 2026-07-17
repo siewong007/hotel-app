@@ -58,7 +58,7 @@ bun run build
 
 `desktop:prepare` refreshes the desktop bundle before Tauri builds it:
 
-- syncs backend `database/schema.sql` and `database/data.sql` into `hotel-desktop/src-tauri/database/`, skipping unchanged copies
+- syncs the PostgreSQL V1 baseline plus its one-time data and seed scripts into `hotel-desktop/src-tauri/database/postgres/`, skipping unchanged copies
 - builds the React frontend in `hotel-web-fe` only when frontend inputs changed
 - builds the backend sidecar from `hotel-app-be` only when backend inputs changed; production builds use release, while `build:fast` and `build:debug` use debug
 - copies the backend sidecar into `hotel-desktop/src-tauri/binaries/` with the target-triple filename Tauri expects, skipping unchanged copies

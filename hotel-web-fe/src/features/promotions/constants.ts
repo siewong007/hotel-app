@@ -52,5 +52,6 @@ export const EMPTY_PROMOTION_INPUT: PromotionInput = {
   claim_limit: null,
   per_guest_limit: 1,
   is_public: true,
+  is_cancellable: true,
   room_type_ids: [],
 };

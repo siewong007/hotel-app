@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Usage: node hotel-app-be/scripts/check-schema-drift.mjs
-// Diffs database/schema.sql (PostgreSQL DDL) against the single
-// database/sqlite_schema.sql resource and reports, per table, any
+// Diffs the PostgreSQL and SQLite immutable V1 baselines and reports, per table, any
 // table or column that exists on only one side. Exit 0 = no divergence,
 // exit 1 = divergence found. This is a name-set diff via light regex/paren
 // scanning, not a real SQL parser — see LIMITATIONS at the bottom of this
@@ -13,8 +12,20 @@ import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BE_ROOT = path.resolve(__dirname, '..');
-const SCHEMA_SQL_PATH = path.join(BE_ROOT, 'database', 'schema.sql');
-const SQLITE_SCHEMA_SQL_PATH = path.join(BE_ROOT, 'database', 'sqlite_schema.sql');
+const SCHEMA_SQL_PATH = path.join(
+  BE_ROOT,
+  'database',
+  'postgres',
+  'migrations',
+  '0001_v1_baseline.sql',
+);
+const SQLITE_SCHEMA_SQL_PATH = path.join(
+  BE_ROOT,
+  'database',
+  'sqlite',
+  'migrations',
+  '0001_v1_baseline.sql',
+);
 
 const TABLE_CONSTRAINT_KEYWORDS =
   /^(PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|CONSTRAINT|EXCLUDE|LIKE)\b/i;
@@ -320,7 +331,7 @@ function diffAndReport(pgTables, sqliteTables) {
   const hasDivergence =
     pgOnlyTables.length > 0 || sqliteOnlyTables.length > 0 || columnDivergences.length > 0;
 
-  console.log('Schema drift check: database/schema.sql (PostgreSQL) vs database/sqlite_schema.sql (SQLite)');
+  console.log('Schema drift check: PostgreSQL V1 baseline vs SQLite V1 baseline');
   console.log('='.repeat(90));
   console.log(`PostgreSQL tables found: ${pgTables.size}`);
   console.log(`SQLite tables found:     ${sqliteTables.size}`);

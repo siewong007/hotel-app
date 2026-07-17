@@ -95,6 +95,20 @@ pub async fn get_my_bookings(
     ))
 }
 
+pub async fn cancel_my_booking(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Path(booking_id): Path<i64>,
+    Json(input): Json<crate::models::GuestBookingCancellationRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let guest_id =
+        guest_portal_service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
+    Ok(Json(
+        guest_portal_service::cancel_my_booking(&pool, guest_id, booking_id, input.reason).await?,
+    ))
+}
+
 /// GET /guest-portal/me/transactions
 pub async fn get_my_transactions(
     State(pool): State<DbPool>,

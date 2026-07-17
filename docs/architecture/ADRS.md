@@ -41,7 +41,7 @@ Each has its own build system, dependency management, and CI jobs. There is no r
 **Consequences:**
 - ✅ Offline/desktop mode works without PostgreSQL
 - ✅ Full PostgreSQL features in production deployment
-- ❌ Must maintain both PostgreSQL resources and `database/sqlite_schema.sql` / `sqlite_data.sql`
+- ❌ Must maintain aligned PostgreSQL and SQLite V1 baseline, data, and seed resources
 - ❌ Some SQL must be duplicated in the `sql_query!` macro
 - ❌ SQLite has limitations (no `FOR UPDATE`, different UUID handling)
 
@@ -199,16 +199,16 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 **Context:** The PostgreSQL schema was maintained differently from typical sqlx migration patterns, using raw SQL files.
 
-**Decision:** Use `database/schema.sql` and `database/data.sql` as the authoritative PostgreSQL source, applied via direct `psql -f` execution. Use `database/sqlite_schema.sql` and `database/sqlite_data.sql` as the authoritative SQLite source. At startup, SQLite imports successful legacy SQLx versions, transactionally applies pending numbered schema sections, then executes rerunnable seed and backfill data.
+**Decision:** Use a clean V1 baseline and one-time initialization resources for each engine. PostgreSQL applies `database/postgres/migrations/0001_v1_baseline.sql`, then `database/postgres/data.sql`, then `database/postgres/seed.sql` to a new empty database. SQLite embeds the equivalent V1 baseline, data, and seed resources and applies them transactionally only to a new empty database. Existing V1 databases are verified and left unchanged at startup. SQLite has no legacy migration path; the only supported historical upgrade is the controlled PostgreSQL 18.4 logical restore into PostgreSQL 19 Beta 2 followed by `postgres/upgrade/pg18_4_to_v1.sql` and the one-time data/seed sequence.
 
 **Consequences:**
 - ✅ Single source of truth for PostgreSQL schema
-- ✅ Idempotent application via IF NOT EXISTS / OR REPLACE
+- ✅ Explicit, repeatable initialization order for new databases
 - ✅ Compatible with Docker init scripts
-- ✅ Existing SQLite databases retain their applied-version history without replaying destructive legacy sections
+- ✅ Existing V1 databases avoid accidental seed or backfill rewrites at startup
 - ❌ Different from typical sqlx migration workflow
 - ❌ Must manually keep SQLite resources in sync with the PostgreSQL resources
-- ❌ No automated rollback path
+- ❌ PostgreSQL 19 Beta 2 remains a testing target until general availability
 
 ---
 

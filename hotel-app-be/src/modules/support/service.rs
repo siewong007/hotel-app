@@ -4,13 +4,13 @@ use chrono::{Duration, Utc};
 use serde_json::json;
 use uuid::Uuid;
 
+use super::hub::{SupportEvent, SupportHub};
 use super::models::{
     CreateGuestSupportConversationRequest, GuestSupportConversation,
     GuestSupportConversationDetail, GuestSupportConversationListResponse,
     GuestSupportMessageRequest, SupportActionInput, SupportConversationDetail,
     SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
 };
-use super::hub::{SupportEvent, SupportHub};
 use super::repository::{ConversationMutation, NewConversation, SupportRepository};
 use super::validation;
 use crate::core::db::DbPool;
@@ -852,7 +852,10 @@ pub async fn create_guest_conversation(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
-    hub.publish(SupportEvent::conversation_changed(guest_id, conversation_id));
+    hub.publish(SupportEvent::conversation_changed(
+        guest_id,
+        conversation_id,
+    ));
 
     let _ = AuditLog::log_event(
         pool,
@@ -967,7 +970,10 @@ pub async fn send_guest_message(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
-    hub.publish(SupportEvent::conversation_changed(guest_id, conversation_id));
+    hub.publish(SupportEvent::conversation_changed(
+        guest_id,
+        conversation_id,
+    ));
 
     let _ = AuditLog::log_event(
         pool,
@@ -1036,7 +1042,10 @@ pub async fn reopen_guest_conversation(
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
-    hub.publish(SupportEvent::conversation_changed(guest_id, conversation_id));
+    hub.publish(SupportEvent::conversation_changed(
+        guest_id,
+        conversation_id,
+    ));
 
     let _ = AuditLog::log_event(
         pool,
