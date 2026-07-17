@@ -1,138 +1,141 @@
 use super::config::DatabaseConfig;
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const SQLITE_SCHEMA: &str = include_str!("../../database/sqlite_schema.sql");
+const SQLITE_V1_BASELINE: &str =
+    include_str!("../../database/sqlite/migrations/0001_v1_baseline.sql");
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const SQLITE_DATA: &str = include_str!("../../database/sqlite_data.sql");
+const SQLITE_REQUIRED_DATA: &str = include_str!("../../database/sqlite/data.sql");
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+const SQLITE_FRESH_SEED: &str = include_str!("../../database/sqlite/seed.sql");
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+const SQLITE_V1_CHECKSUM: &str = "67f448d748de3600298fd75447b48098b966a5aba9305a030be3075f337031f1";
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-#[derive(Debug)]
-struct SqliteSchemaSection<'a> {
-    version: i64,
-    name: &'a str,
-    sql: String,
+fn sqlite_v1_checksum() -> String {
+    use sha2::{Digest, Sha256};
+
+    format!("{:x}", Sha256::digest(SQLITE_V1_BASELINE.as_bytes()))
 }
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn sqlite_schema_sections(schema: &str) -> Result<Vec<SqliteSchemaSection<'_>>, sqlx::Error> {
-    const MARKER: &str = "-- @migration ";
-    let mut sections = Vec::new();
-    let mut current: Option<SqliteSchemaSection<'_>> = None;
-
-    for line in schema.lines() {
-        if let Some(metadata) = line.strip_prefix(MARKER) {
-            if let Some(section) = current.take() {
-                sections.push(section);
-            }
-            let (version, name) = metadata.split_once(' ').ok_or_else(|| {
-                sqlx::Error::Protocol(format!("invalid SQLite schema marker: {line}"))
-            })?;
-            let version = version.parse::<i64>().map_err(|_| {
-                sqlx::Error::Protocol(format!("invalid SQLite schema version: {version}"))
-            })?;
-            if sections
-                .last()
-                .is_some_and(|section| section.version >= version)
-            {
-                return Err(sqlx::Error::Protocol(format!(
-                    "SQLite schema versions must be strictly increasing: {version}"
-                )));
-            }
-            current = Some(SqliteSchemaSection {
-                version,
-                name,
-                sql: String::new(),
-            });
-        } else if let Some(section) = current.as_mut() {
-            section.sql.push_str(line);
-            section.sql.push('\n');
-        }
-    }
-
-    if let Some(section) = current {
-        sections.push(section);
-    }
-    if sections.is_empty() {
-        return Err(sqlx::Error::Protocol(
-            "sqlite_schema.sql contains no migration sections".to_string(),
-        ));
-    }
-    Ok(sections)
-}
-
-/// Applies the two authoritative SQLite resources.
-///
-/// Successful versions from the former SQLx migration ledger are imported so
-/// existing databases continue at the next pending section instead of replaying
-/// historical table rewrites. Each new schema section is transactional. The
-/// data resource is intentionally rerunnable and executes only after the schema
-/// is current.
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn apply_sqlite_resources(pool: &sqlx::SqlitePool) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS hotel_schema_versions (
-            version INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-        "#,
+async fn sqlite_has_user_tables(pool: &sqlx::SqlitePool) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT IN ('hotel_schema_revisions', 'hotel_schema_versions', '_sqlx_migrations'))",
     )
-    .execute(pool)
-    .await?;
+    .fetch_one(pool)
+    .await
+}
 
-    let legacy_ledger_exists: bool = sqlx::query_scalar(
-        r#"
-        SELECT EXISTS (
-            SELECT 1
-            FROM sqlite_master
-            WHERE type = 'table' AND name = '_sqlx_migrations'
-        )
-        "#,
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+async fn sqlite_v1_invariants_hold(pool: &sqlx::SqlitePool) -> Result<bool, sqlx::Error> {
+    let cancellable: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM pragma_table_info('promotions') WHERE name = 'is_cancellable')",
     )
     .fetch_one(pool)
     .await?;
-    if legacy_ledger_exists {
-        sqlx::query(
-            r#"
-            INSERT OR IGNORE INTO hotel_schema_versions (version, name, applied_at)
-            SELECT version, description, COALESCE(installed_on, datetime('now'))
-            FROM _sqlx_migrations
-            WHERE success = 1
-            "#,
-        )
-        .execute(pool)
-        .await?;
-    }
+    let online_inventory: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'online_inventory_allocations')",
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(cancellable && online_inventory)
+}
 
-    for section in sqlite_schema_sections(SQLITE_SCHEMA)? {
-        let is_applied: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM hotel_schema_versions WHERE version = ?1)",
+/// Applies the immutable SQLite V1 baseline to a genuinely empty database.
+///
+/// SQLite has no pre-V1 production data to adopt. A non-empty, unversioned
+/// database is rejected instead of guessing how it was created or replaying
+/// obsolete development migrations over it.
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub async fn apply_sqlite_resources(pool: &sqlx::SqlitePool) -> Result<(), sqlx::Error> {
+    if sqlite_v1_checksum() != SQLITE_V1_CHECKSUM {
+        return Err(sqlx::Error::Protocol(
+            "SQLite V1 baseline checksum does not match the immutable release artifact".to_string(),
+        ));
+    }
+    let empty_database = !sqlite_has_user_tables(pool).await?;
+    let revision_table_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'hotel_schema_revisions')",
+    )
+    .fetch_one(pool)
+    .await?;
+    let recorded_checksum: Option<String> = if revision_table_exists {
+        sqlx::query_scalar(
+            "SELECT checksum FROM hotel_schema_revisions WHERE generation = 1 AND version = 1",
         )
-        .bind(section.version)
-        .fetch_one(pool)
-        .await?;
-        if is_applied {
-            continue;
+        .fetch_optional(pool)
+        .await?
+    } else {
+        None
+    };
+
+    if let Some(recorded_checksum) = recorded_checksum {
+        if recorded_checksum != SQLITE_V1_CHECKSUM {
+            return Err(sqlx::Error::Protocol(format!(
+                "SQLite V1 checksum mismatch: database records {recorded_checksum}, binary expects {SQLITE_V1_CHECKSUM}"
+            )));
+        }
+    } else {
+        if !empty_database {
+            return Err(sqlx::Error::Protocol(
+                "refusing to initialize a non-empty, unversioned SQLite database; recreate the development database from the V1 baseline"
+                    .to_string(),
+            ));
         }
 
         let mut transaction = pool.begin().await?;
-        sqlx::raw_sql(&section.sql)
+        sqlx::query(
+            r#"
+            CREATE TABLE hotel_schema_revisions (
+                generation INTEGER NOT NULL,
+                version INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                checksum TEXT NOT NULL,
+                applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (generation, version)
+            )
+            "#,
+        )
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::raw_sql(SQLITE_V1_BASELINE)
             .execute(&mut *transaction)
             .await?;
-        sqlx::query("INSERT INTO hotel_schema_versions (version, name) VALUES (?1, ?2)")
-            .bind(section.version)
-            .bind(section.name)
+
+        let cancellable: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pragma_table_info('promotions') WHERE name = 'is_cancellable')",
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        let online_inventory: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'online_inventory_allocations')",
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        if !cancellable || !online_inventory {
+            return Err(sqlx::Error::Protocol(
+                "SQLite V1 baseline did not satisfy required schema invariants".to_string(),
+            ));
+        }
+
+        sqlx::raw_sql(SQLITE_REQUIRED_DATA)
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::raw_sql(SQLITE_FRESH_SEED)
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::query("INSERT INTO hotel_schema_revisions (generation, version, name, checksum) VALUES (1, 1, 'v1_baseline', ?1)")
+            .bind(SQLITE_V1_CHECKSUM)
             .execute(&mut *transaction)
             .await?;
         transaction.commit().await?;
     }
 
-    let mut transaction = pool.begin().await?;
-    sqlx::raw_sql(SQLITE_DATA)
-        .execute(&mut *transaction)
-        .await?;
-    transaction.commit().await?;
+    if !sqlite_v1_invariants_hold(pool).await? {
+        return Err(sqlx::Error::Protocol(
+            "SQLite V1 schema invariants are not satisfied".to_string(),
+        ));
+    }
 
     Ok(())
 }
@@ -291,7 +294,7 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 
 #[cfg(all(test, feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_resource_tests {
-    use super::{SQLITE_SCHEMA, apply_sqlite_resources, sqlite_schema_sections};
+    use super::{SQLITE_V1_CHECKSUM, apply_sqlite_resources, sqlite_v1_checksum};
     use sqlx::sqlite::SqlitePoolOptions;
 
     async fn memory_pool() -> sqlx::SqlitePool {
@@ -303,29 +306,37 @@ mod sqlite_resource_tests {
     }
 
     #[test]
-    fn schema_resource_has_strictly_ordered_legacy_versions() {
-        let sections = sqlite_schema_sections(SQLITE_SCHEMA).expect("parse SQLite schema sections");
-        let versions: Vec<i64> = sections.iter().map(|section| section.version).collect();
-        assert_eq!(versions, (1..=33).collect::<Vec<_>>());
+    fn v1_baseline_checksum_is_immutable() {
+        assert_eq!(sqlite_v1_checksum(), SQLITE_V1_CHECKSUM);
     }
 
     #[tokio::test]
-    async fn resources_create_and_reseed_a_fresh_database_idempotently() {
+    async fn resources_initialize_once_without_overwriting_customized_data() {
         let pool = memory_pool().await;
 
         apply_sqlite_resources(&pool)
             .await
             .expect("apply resources to fresh database");
+
+        sqlx::query("UPDATE permissions SET description = 'custom ledger description' WHERE name = 'ledgers:read'")
+            .execute(&pool)
+            .await
+            .expect("customize required record");
+        sqlx::query("UPDATE users SET full_name = 'Custom administrator' WHERE username = 'admin'")
+            .execute(&pool)
+            .await
+            .expect("customize bootstrap record");
+
         apply_sqlite_resources(&pool)
             .await
-            .expect("reapply resources");
+            .expect("verify existing V1 database");
 
         let applied_versions: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM hotel_schema_versions")
+            sqlx::query_scalar("SELECT COUNT(*) FROM hotel_schema_revisions WHERE generation = 1")
                 .fetch_one(&pool)
                 .await
                 .expect("count applied versions");
-        assert_eq!(applied_versions, 33);
+        assert_eq!(applied_versions, 1);
 
         let daily_rates_type: Option<String> = sqlx::query_scalar(
             "SELECT type FROM pragma_table_info('bookings') WHERE name = 'daily_rates'",
@@ -342,78 +353,41 @@ mod sqlite_resource_tests {
         .await
         .expect("count seeded rewards");
         assert_eq!(seeded_rewards, 3);
+
+        let permission_description: String =
+            sqlx::query_scalar("SELECT description FROM permissions WHERE name = 'ledgers:read'")
+                .fetch_one(&pool)
+                .await
+                .expect("read customized required record");
+        assert_eq!(permission_description, "custom ledger description");
+
+        let admin_name: String =
+            sqlx::query_scalar("SELECT full_name FROM users WHERE username = 'admin'")
+                .fetch_one(&pool)
+                .await
+                .expect("read customized bootstrap record");
+        assert_eq!(admin_name, "Custom administrator");
     }
 
     #[tokio::test]
-    async fn successful_legacy_sqlx_versions_are_imported_without_schema_replay() {
+    async fn non_empty_unversioned_database_is_rejected() {
         let pool = memory_pool().await;
-        // A legacy database contains only the sections that existed when the
-        // SQLx ledger was in use (1..=28); later sections (29+) must apply on
-        // adoption without replaying the imported ones.
-        let sections = sqlite_schema_sections(SQLITE_SCHEMA).expect("parse SQLite schema sections");
-        let legacy_sql: String = sections
-            .iter()
-            .filter(|section| section.version <= 28)
-            .map(|section| section.sql.as_str())
-            .collect::<Vec<_>>()
-            .join("\n");
-        sqlx::raw_sql(&legacy_sql)
+        sqlx::query("CREATE TABLE unexpected_development_table (id INTEGER PRIMARY KEY)")
             .execute(&pool)
             .await
-            .expect("create schema representing an existing database");
-        sqlx::raw_sql(
-            r#"
-            CREATE TABLE _sqlx_migrations (
-                version INTEGER PRIMARY KEY,
-                description TEXT NOT NULL,
-                installed_on TEXT,
-                success INTEGER NOT NULL
-            );
-            WITH RECURSIVE versions(version) AS (
-                VALUES (1)
-                UNION ALL
-                SELECT version + 1 FROM versions WHERE version < 28
-            )
-            INSERT INTO _sqlx_migrations (version, description, installed_on, success)
-            SELECT version, 'legacy migration', datetime('now'), 1 FROM versions;
-            "#,
-        )
-        .execute(&pool)
-        .await
-        .expect("seed legacy SQLx migration ledger");
+            .expect("create unversioned table");
 
-        apply_sqlite_resources(&pool)
+        let error = apply_sqlite_resources(&pool)
             .await
-            .expect("adopt existing migrated database");
-
-        let imported_versions: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM hotel_schema_versions")
-                .fetch_one(&pool)
-                .await
-                .expect("count imported versions");
-        assert_eq!(
-            imported_versions, 33,
-            "28 imported + sections 29 through 33 applied"
-        );
-
-        let source_reference: Option<String> = sqlx::query_scalar(
-            "SELECT name FROM pragma_table_info('vouchers') WHERE name = 'source_reference'",
-        )
-        .fetch_optional(&pool)
-        .await
-        .expect("inspect vouchers.source_reference");
-        assert_eq!(
-            source_reference.as_deref(),
-            Some("source_reference"),
-            "adoption must apply pending sections beginning with section 29"
-        );
+            .expect_err("non-empty unversioned database must be rejected");
+        assert!(error.to_string().contains("non-empty, unversioned SQLite"));
     }
 }
 
 /// Helper to generate UUIDs for application-generated primary keys.
 ///
 /// Emits a time-ordered UUIDv7 to match the PostgreSQL `gen_uuidv7()` column
-/// defaults (migration 018) — v7's leading timestamp bits give much better
+/// defaults in the PostgreSQL V1 baseline — v7's leading timestamp bits give much better
 /// btree insert locality than the random v4 we used before, and SQLite (where
 /// the application generates the value) gets the same benefit. Use this for PK/UUID
 /// columns; for values that must stay unpredictable (tokens, the random tail

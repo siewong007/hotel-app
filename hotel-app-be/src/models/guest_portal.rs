@@ -124,11 +124,19 @@ pub struct GuestPortalMeResponse {
 /// One booking row in the guest's booking history.
 #[derive(Debug, Serialize)]
 pub struct GuestPortalBookingSummary {
+    pub id: i64,
     pub booking_number: String,
     pub check_in_date: NaiveDate,
     pub check_out_date: NaiveDate,
     pub status: String,
     pub total_amount: rust_decimal::Decimal,
+    pub can_cancel: bool,
+    pub cancellation_unavailable_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GuestBookingCancellationRequest {
+    pub reason: Option<String>,
 }
 
 /// Paginated list wrapper used by the guest history endpoints.

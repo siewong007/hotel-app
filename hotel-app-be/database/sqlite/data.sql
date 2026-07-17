@@ -1,11 +1,11 @@
 -- ============================================================================
--- HOTEL APP SQLITE DATA
+-- HOTEL APP SQLITE REQUIRED DATA
 -- ============================================================================
--- Rerunnable system seed, policy, normalization, and backfill statements.
--- Executed after all pending sqlite_schema.sql sections have succeeded.
+-- Required final-state reference, policy, RBAC, route, and setting records.
+-- Executed exactly once inside the initial SQLite V1 transaction.
 -- ============================================================================
 
--- Source migration 001: initial_schema
+-- Core roles, permissions, market codes, and rate codes.
 -- ============================================================================
 -- SEED DATA: ROLES
 -- ============================================================================
@@ -72,16 +72,6 @@ SELECT 3, id FROM permissions WHERE
     (resource = 'payments' AND action IN ('read', 'create'));
 
 -- ============================================================================
--- SEED DATA: ROOM TYPES
--- ============================================================================
-
-INSERT OR IGNORE INTO room_types (id, name, code, description, base_price, max_occupancy, bed_type, bed_count) VALUES
-(1, 'Standard Room', 'STD', 'Comfortable standard room', 150.00, 2, 'Queen', 1),
-(2, 'Deluxe Room', 'DLX', 'Spacious deluxe room with city view', 250.00, 2, 'King', 1),
-(3, 'Suite', 'STE', 'Luxury suite with separate living area', 450.00, 4, 'King', 1),
-(4, 'Family Room', 'FAM', 'Large room suitable for families', 350.00, 4, 'Queen', 2);
-
--- ============================================================================
 -- SEED DATA: MARKET CODES
 -- ============================================================================
 
@@ -103,20 +93,7 @@ INSERT OR IGNORE INTO rate_codes (code, name, description, discount_type, discou
 ('MEMB', 'Member Rate', 'Loyalty member rate', 'percentage', 10);
 
 -- ============================================================================
--- SEED DATA: DEFAULT ADMIN USER
--- Uses a non-recoverable placeholder password hash. Reset explicitly before login.
--- ============================================================================
-
-INSERT OR IGNORE INTO users (id, uuid, username, email, password_hash, full_name, user_type, is_active, is_verified, is_super_admin)
-VALUES (1, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin', 'admin@hotel.local',
-        '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',
-        'System Administrator', 'staff', 1, 1, 1);
-
-INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (1, 1);
-
--- Migration: 002_ledger_permissions.sql
--- ============================================================================
--- Migration: Add customer-ledger RBAC permissions
+-- CUSTOMER-LEDGER RBAC
 -- Description: Gate customer ledger reads, mutations, voids, and management.
 -- ============================================================================
 
@@ -153,9 +130,8 @@ CROSS JOIN permissions p
 WHERE r.name = 'receptionist'
 AND p.name IN ('ledgers:read', 'ledgers:create');
 
--- Migration: 003_business_runtime_settings.sql
 -- ============================================================================
--- SQLITE MIGRATION 003: BUSINESS RUNTIME SETTINGS
+-- BUSINESS RUNTIME SETTINGS
 -- ============================================================================
 -- Description: Add hotel-facing settings that replace hardcoded defaults.
 -- ============================================================================
@@ -187,9 +163,8 @@ VALUES
         0
     );
 
--- Migration: 004_ledger_role_grants.sql
 -- ============================================================================
--- Migration: Ensure core staff roles have customer-ledger permissions
+-- CUSTOMER-LEDGER ROLE GRANTS
 -- Description: Explicitly grant ledger access to Super Administrator,
 -- Administrator, Manager, and Receptionist roles.
 -- ============================================================================
@@ -214,11 +189,10 @@ CROSS JOIN permissions p
 WHERE r.name = 'receptionist'
 AND p.name IN ('ledgers:read', 'ledgers:create');
 
--- Migration: 005_frontdesk_runtime_settings.sql
 -- ============================================================================
--- SQLITE MIGRATION 005: FRONT DESK RUNTIME SETTINGS
+-- FRONT DESK RUNTIME SETTINGS
 -- ============================================================================
--- Description: Persist client-facing settings that were previously local only.
+-- Client-facing settings shared by front desk workflows.
 -- ============================================================================
 
 INSERT OR IGNORE INTO system_settings (key, value, value_type, category, description, is_sensitive)
@@ -272,9 +246,8 @@ VALUES
         0
     );
 
--- Migration: 006_analytics_role_grants.sql
 -- ============================================================================
--- SQLITE MIGRATION 006: ANALYTICS ROLE GRANTS
+-- ANALYTICS ROLE GRANTS
 -- ============================================================================
 -- Description: Ensure every operational user role except guest/staff can read analytics.
 -- ============================================================================
@@ -289,9 +262,8 @@ CROSS JOIN permissions p
 WHERE p.name = 'analytics:read'
   AND r.name NOT IN ('guest', 'staff');
 
--- Migration: 008_dynamic_rbac_permissions.sql
 -- ============================================================================
--- SQLITE MIGRATION 008: DYNAMIC RBAC PERMISSIONS
+-- DYNAMIC RBAC PERMISSIONS
 -- ============================================================================
 -- Description: Seed first-class access-control permissions used by RBAC routes.
 -- ============================================================================
@@ -436,11 +408,11 @@ VALUES
     ('my-bookings', '/my-bookings', 'My Bookings', 'main', '["bookings:read"]', '[]', '["super_admin","admin","manager","receptionist","staff"]', '["navigation_my_bookings:read","bookings:read"]', '[]', '["super_admin","admin","manager","receptionist","staff"]', 1),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]', '[]', '[]', '["navigation_room_management:read","rooms:read","rooms:manage"]', '[]', '["guest"]', 1),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]', '[]', '[]', '["navigation_reports:read","analytics:read","reports:execute"]', '[]', '[]', 1),
-    ('loyalty', '/loyalty', NULL, NULL, '["loyalty:read","loyalty:manage","analytics:read"]', '[]', '[]', '[]', '[]', '[]', 0),
+    ('loyalty', '/loyalty', 'Loyalty', 'admin', '["loyalty:read","loyalty:manage","analytics:read"]', '[]', '[]', '["navigation_loyalty:read","loyalty:read","loyalty:manage"]', '[]', '[]', 1),
     ('profile', '/profile', NULL, NULL, '[]', '[]', '[]', '[]', '[]', '[]', 0),
     ('help', '/help', NULL, NULL, '[]', '[]', '[]', '[]', '[]', '[]', 0),
     ('ekyc', '/ekyc', NULL, NULL, '[]', '[]', '[]', '[]', '[]', '[]', 0),
-    ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:manage"]', '[]', '[]', '["navigation_ekyc_admin:read","ekyc:manage"]', '[]', '[]', 1),
+    ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]', '[]', '[]', '["navigation_ekyc_admin:read","ekyc:read"]', '[]', '[]', 1),
     ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:write","rooms:manage"]', '[]', '[]', '["navigation_room_config:read","rooms:update","rooms:write","rooms:manage"]', '[]', '[]', 1),
     ('settings', '/settings', 'Settings', 'config', '["settings:read"]', '[]', '[]', '["navigation_settings:read","settings:read","settings:manage"]', '[]', '[]', 1),
     ('rbac', '/rbac', 'Access Control', 'config', '["roles:read","roles:manage","permissions:read","permissions:manage","users:read","users:manage"]', '[]', '[]', '["navigation_rbac:read","roles:read","roles:manage","permissions:read","permissions:manage","users:read","users:manage"]', '[]', '[]', 1),
@@ -451,9 +423,8 @@ VALUES
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]', '[]', '[]', '["navigation_data_transfer:read","settings:manage"]', '[]', '[]', 1)
 ON CONFLICT(route_id) DO NOTHING;
 
--- Migration: 011_ekyc_admin_workflow.sql
 -- ============================================================================
--- SQLITE MIGRATION 011: eKYC ADMIN WORKFLOW, AUDIT, AND RBAC
+-- eKYC ADMIN WORKFLOW, AUDIT, AND RBAC
 -- ============================================================================
 
 INSERT OR IGNORE INTO roles (name, display_name, description, is_system_role, priority) VALUES
@@ -480,7 +451,7 @@ INSERT OR IGNORE INTO permissions (name, resource, action, description, is_syste
 ('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', 1),
 ('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', 1),
 ('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', 1),
-('ekyc:verify', 'ekyc', 'verify', 'Legacy eKYC approve or reject permission', 1),
+('ekyc:verify', 'ekyc', 'verify', 'Approve or reject eKYC verifications', 1),
 ('navigation_ekyc_admin:read', 'navigation:ekyc-admin', 'read', 'Show eKYC Admin navigation', 1);
 
 INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
@@ -553,44 +524,9 @@ INSERT OR REPLACE INTO ekyc_reason_codes (code, label, category, requires_detail
 ('manual_override', 'Manual override', 'manual_override', 1, NULL, 1),
 ('other', 'Other', 'general', 1, NULL, 1);
 
-UPDATE route_access_policies
-SET required_permissions = '["ekyc:read"]',
-    nav_permissions = '["navigation_ekyc_admin:read","ekyc:read"]',
-    updated_at = datetime('now')
-WHERE route_id = 'ekyc-admin';
-
--- Migration: 016_void_status_names.sql
--- Normalize legacy "cancelled" status values to "void".
-
-UPDATE bookings
-SET status = 'comp_void'
-WHERE status = 'comp_cancelled';
-
-UPDATE bookings
-SET status = 'voided'
-WHERE status = 'cancelled';
-
-UPDATE bookings
-SET payment_status = 'void'
-WHERE payment_status = 'cancelled';
-
-UPDATE payments
-SET status = 'void'
-WHERE status = 'cancelled';
-
-UPDATE invoices
-SET status = 'void'
-WHERE status = 'cancelled';
-
-UPDATE ekyc_verifications
-SET status = 'void'
-WHERE status = 'cancelled';
-
-
--- Source migration 002: night_audit_auto_settings
+-- Automatic night audit settings.
 -- Automatic night audit scheduler settings (opt-in).
--- Mirrors the PostgreSQL seed in database/schema.sql. The in-process scheduler
--- reads these live; `night_shift_time` (seeded in 001) is reused as the trigger
+-- The in-process scheduler reads these live; `night_shift_time` is the trigger
 -- time. Note: night audit posting itself is PostgreSQL-only (stored procedure),
 -- so on SQLite these settings stay inert.
 
@@ -614,7 +550,7 @@ VALUES
     );
 
 
--- Source migration 003: channel_net_revenue
+-- Booking channels.
 INSERT OR IGNORE INTO booking_channels
     (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active)
 VALUES
@@ -632,9 +568,8 @@ VALUES
     ('Other OTA', 'ota', 'none', 0, 'per_booking', 1);
 
 
--- Source migration 007: report_font_size_setting
+-- Report font size.
 -- Report preview and print font size setting.
--- Mirrors the PostgreSQL seed in database/schema.sql.
 
 INSERT OR IGNORE INTO system_settings (key, value, value_type, category, description, is_sensitive)
 VALUES (
@@ -647,9 +582,8 @@ VALUES (
 );
 
 
--- Source migration 008: report_font_style_settings
+-- Report font styles.
 -- Report preview and print font style settings.
--- Mirrors the PostgreSQL seed in database/schema.sql.
 
 INSERT OR IGNORE INTO system_settings (key, value, value_type, category, description, is_sensitive)
 VALUES
@@ -703,7 +637,7 @@ VALUES
     );
 
 
--- Source migration 009: loyalty_program_portal
+-- Loyalty program and guest portal.
 INSERT INTO loyalty_tiers (code, name, sort_order, min_points, min_nights, min_spend, benefits)
 VALUES
     ('silver', 'Silver', 1, 0, 0, 0, '["Member rates","Points on eligible stays"]'),
@@ -718,6 +652,11 @@ ON CONFLICT(code) DO UPDATE SET
     benefits = excluded.benefits,
     is_active = 1,
     updated_at = datetime('now');
+
+INSERT OR IGNORE INTO system_settings
+    (key, value, value_type, category, description, is_sensitive)
+VALUES ('guest_booking_cancellation_enabled', 'false', 'boolean', 'booking',
+        'Allow guests to cancel eligible bookings in the guest portal', 0);
 
 INSERT INTO loyalty_program_rules (id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount)
 VALUES (1, 1, 'points', 24, 1, 1, 0)
@@ -765,14 +704,6 @@ CROSS JOIN permissions p
 WHERE r.name = 'guest'
   AND p.name IN ('navigation_my_rewards:read', 'rewards:read');
 
-UPDATE route_access_policies
-SET nav_label = 'Loyalty',
-    nav_group = 'admin',
-    nav_permissions = '["navigation_loyalty:read","loyalty:read","loyalty:manage"]',
-    is_navigation = 1,
-    updated_at = datetime('now')
-WHERE route_id = 'loyalty';
-
 INSERT INTO route_access_policies (
     route_id, path, nav_label, nav_group, required_permissions, required_roles,
     excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation
@@ -811,66 +742,7 @@ ON CONFLICT(route_id) DO UPDATE SET
     is_navigation = excluded.is_navigation,
     updated_at = datetime('now');
 
--- Guest portal demo account. This provides an account-linked guest profile so
--- the self-service portal can issue its scoped session after normal login.
--- Development credentials: demo.guest / GuestDemo123!
-INSERT OR IGNORE INTO guests (guest_code, first_name, last_name, full_name, email)
-VALUES ('DEMO-0001', 'Demo', 'Guest', 'Demo Guest', 'demo.guest@hotel.local');
-
-INSERT OR IGNORE INTO users (
-    uuid, username, email, password_hash, full_name, user_type, guest_id,
-    is_active, is_verified
-)
-VALUES (
-    'd3e0d3e0-0001-4a11-9b22-000000000001',
-    'demo.guest',
-    'demo.guest@hotel.local',
-    '$2b$12$k9XfzLh81QUDXe4CC5807OAl7MD5rArpIISgvZSyNOM9cYWLcRBia',
-    'Demo Guest',
-    'guest',
-    (SELECT id FROM guests WHERE email = 'demo.guest@hotel.local' LIMIT 1),
-    1,
-    1
-);
-
-INSERT OR IGNORE INTO user_roles (user_id, role_id)
-SELECT u.id, r.id
-FROM users u
-CROSS JOIN roles r
-WHERE u.username = 'demo.guest' AND r.name = 'guest';
-
--- Repair guest accounts created before guest profiles were linked to users.
-UPDATE users
-SET guest_id = (
-    SELECT g.id
-    FROM guests g
-    WHERE LOWER(g.email) = LOWER(users.email)
-    LIMIT 1
-)
-WHERE user_type = 'guest'
-  AND guest_id IS NULL
-  AND EXISTS (
-      SELECT 1
-      FROM guests g
-      WHERE LOWER(g.email) = LOWER(users.email)
-  );
-
-
--- Source migration 010: guest_ekyc_auto_checkin
-UPDATE ekyc_verifications
-SET guest_id = (
-    SELECT users.guest_id
-    FROM users
-    WHERE users.id = ekyc_verifications.user_id
-)
-WHERE guest_id IS NULL
-  AND EXISTS (
-      SELECT 1
-      FROM users
-      WHERE users.id = ekyc_verifications.user_id
-        AND users.guest_id IS NOT NULL
-  );
-
+-- Guest eKYC auto-check-in.
 INSERT OR IGNORE INTO system_settings (key, value, value_type, category, description, is_sensitive)
 VALUES (
     'auto_checkin_requires_ekyc',
@@ -881,110 +753,7 @@ VALUES (
     0
 );
 
--- Hide the operational/admin navigation entries (Timeline, Bookings, Rooms,
--- Complimentary Nights) from guests. The 001 seed uses ON CONFLICT DO NOTHING,
--- so this patches pre-existing rows by setting nav_excluded_roles to exclude
--- 'guest' (which short-circuits nav visibility regardless of the guest role's
--- permissions). My Bookings is intentionally left visible to guests.
-UPDATE route_access_policies
-SET nav_excluded_roles = '["guest"]',
-    updated_at = datetime('now')
-WHERE route_id IN ('timeline', 'bookings', 'room-management', 'complimentary')
-  AND nav_excluded_roles <> '["guest"]';
-
--- Revert any prior guest exclusion on My Bookings so guests retain access.
-UPDATE route_access_policies
-SET nav_excluded_roles = '["super_admin","admin","manager","receptionist","staff"]',
-    updated_at = datetime('now')
-WHERE route_id = 'my-bookings'
-  AND nav_excluded_roles <> '["super_admin","admin","manager","receptionist","staff"]';
-
-
--- Source migration 011: backfill_loyalty_members
--- Backfill portal loyalty members for SQLite databases that already had
--- guests marked as members before the portal loyalty tables existed.
-
-INSERT OR IGNORE INTO loyalty_members (guest_id, member_number, status, enrolled_at)
-SELECT
-    id,
-    printf('LP%08d', id),
-    'active',
-    COALESCE(created_at, datetime('now'))
-FROM guests
-WHERE deleted_at IS NULL
-  AND guest_type = 'member';
-
-INSERT OR IGNORE INTO loyalty_accounts (
-    member_id,
-    current_tier_id,
-    lifetime_points,
-    qualifying_points,
-    qualifying_nights,
-    qualifying_spend
-)
-SELECT
-    lm.id,
-    (
-        SELECT id
-        FROM loyalty_tiers
-        WHERE is_active = 1
-        ORDER BY sort_order, id
-        LIMIT 1
-    ),
-    COALESCE(g.loyalty_points, 0),
-    COALESCE(g.loyalty_points, 0),
-    COALESCE(g.total_stays, 0),
-    COALESCE(g.total_spent, 0)
-FROM loyalty_members lm
-JOIN guests g ON g.id = lm.guest_id
-WHERE g.deleted_at IS NULL
-  AND g.guest_type = 'member'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM loyalty_accounts existing
-      WHERE existing.member_id = lm.id
-  );
-
-INSERT INTO loyalty_transactions (
-    member_id,
-    account_id,
-    transaction_type,
-    points_delta,
-    available_delta,
-    balance_after,
-    source_type,
-    source_id,
-    description,
-    created_at
-)
-SELECT
-    lm.id,
-    la.id,
-    'adjusted',
-    COALESCE(g.loyalty_points, 0),
-    COALESCE(g.loyalty_points, 0),
-    COALESCE(g.loyalty_points, 0),
-    'legacy_guest_points',
-    g.id,
-    'Opening balance from guest loyalty points',
-    COALESCE(g.created_at, datetime('now'))
-FROM loyalty_members lm
-JOIN loyalty_accounts la ON la.member_id = lm.id
-JOIN guests g ON g.id = lm.guest_id
-WHERE g.deleted_at IS NULL
-  AND g.guest_type = 'member'
-  AND COALESCE(g.loyalty_points, 0) <> 0
-  AND NOT EXISTS (
-      SELECT 1
-      FROM loyalty_transactions existing
-      WHERE existing.member_id = lm.id
-        AND existing.source_type = 'legacy_guest_points'
-        AND existing.source_id = g.id
-        AND existing.transaction_type = 'adjusted'
-  );
-
-
--- Source migration 015: housekeeping_maintenance
+-- Housekeeping and maintenance RBAC.
 INSERT OR IGNORE INTO permissions (name, resource, action, description, is_system_permission) VALUES
 ('housekeeping:read', 'housekeeping', 'read', 'View housekeeping tasks and board', 1),
 ('housekeeping:create', 'housekeeping', 'create', 'Create housekeeping tasks', 1),
@@ -1048,11 +817,9 @@ ON CONFLICT(route_id) DO UPDATE SET
     updated_at = datetime('now');
 
 
--- Source migration 019: companies_rbac
+-- Corporate billing RBAC.
 -- Define companies:* RBAC permissions for corporate billing account management.
--- Mirrors the PostgreSQL seed in database/data.sql. Before this, routes/companies.rs
--- gated only with require_auth, so any authenticated user could create/edit/delete
--- corporate billing accounts. Grants mirror the customer-ledger role assignments:
+-- Grants match the customer-ledger role assignments:
 -- super_admin/admin/manager get full management, receptionist gets read+create.
 
 INSERT OR IGNORE INTO permissions (name, resource, action, description, is_system_permission) VALUES
@@ -1083,32 +850,16 @@ WHERE r.name = 'receptionist'
 AND p.name IN ('companies:read', 'companies:create');
 
 
--- Source migration 023: payments_refund_rbac
--- Restore front-desk checkout after the payments RBAC hardening (user
--- decision 2026-07-12). refund_deposit/revert_deposit_refund were gated on
--- payments:manage, and update/delete on payments:update/delete -- none of
--- which the receptionist role holds, breaking the routine checkout flow
--- (deposit refund, fixing a mis-keyed payment) in CheckoutInvoiceModal.
--- A dedicated payments:refund permission now gates refund/revert
--- (routes/payments.rs); receptionist additionally gets update/delete.
--- Manager needs no explicit refund grant at check time (payments:manage
--- implies all payments actions via rbac_cache::has_permission), but is
--- granted explicitly for visibility in role-permission listings.
-
--- payments:update / payments:delete were never defined in the SQLite seed
--- (001 only created read/create/manage for payments, unlike data.sql which
--- defines all five) -- define them here so the receptionist grant below can
--- bind and so payments:update/delete route gates work on SQLite at all.
+-- Payment update, deletion, and refund RBAC.
+-- Receptionists can correct or refund front-desk payments; managers and
+-- administrators retain the corresponding explicit grants for role listings.
 INSERT OR IGNORE INTO permissions (name, resource, action, description, is_system_permission) VALUES
 ('payments:update', 'payments', 'update', 'Update payments', 1),
 ('payments:delete', 'payments', 'delete', 'Delete payment records', 1),
 ('payments:refund', 'payments', 'refund', 'Refund and revert deposit payments', 1);
 
--- Mirror data.sql role coverage for the newly defined update/delete:
--- admin got a blanket all-permissions grant in 001 that predates these rows,
--- and manager's 001 grant was likewise a point-in-time filter, so both need
--- explicit grants here (payments:manage already implies these at check time
--- via rbac_cache, but explicit rows keep role listings accurate).
+-- Explicit update/delete grants keep role listings accurate even where
+-- payments:manage already implies the actions at authorization time.
 INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
@@ -1131,10 +882,8 @@ WHERE r.name = 'receptionist'
 AND p.name IN ('payments:update', 'payments:delete');
 
 
--- Source migration 024: support_workflow
+-- Guest support workflow.
 -- Guest support queue permissions, navigation policy, and runtime defaults.
--- Values are only inserted on first run so a property can tune SLAs without
--- having its choices reset on every desktop start.
 
 INSERT OR IGNORE INTO permissions (name, resource, action, description, is_system_permission) VALUES
 ('support:read', 'support', 'read', 'View guest support conversations', 1),
@@ -1215,7 +964,7 @@ ON CONFLICT(key) DO UPDATE SET
     updated_at = datetime('now');
 
 
--- Source migration 026: promotions_vouchers
+-- Promotions and vouchers.
 -- Promotions and vouchers use read/manage actions already accepted by the
 -- shared RBAC validator. Guest discovery and claims are session-scoped and do
 -- not require granting these administrative permissions to the guest role.

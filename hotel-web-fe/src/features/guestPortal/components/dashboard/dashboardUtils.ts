@@ -46,6 +46,7 @@ export function firstName(fullName: string | null | undefined): string {
 
 export function humanizePortalStatus(value: string | null | undefined): string {
   if (!value) return 'Status unavailable';
+  if (value.trim().toLowerCase() === 'voided') return 'Cancelled';
   return value
     .trim()
     .replace(/[_-]+/g, ' ')

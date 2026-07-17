@@ -31,6 +31,7 @@ pub struct PromotionDraft {
     pub claim_limit: Option<i64>,
     pub per_guest_limit: i32,
     pub is_public: bool,
+    pub is_cancellable: bool,
     pub room_type_ids: Vec<i64>,
 }
 
@@ -255,6 +256,7 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
         claim_limit: input.claim_limit,
         per_guest_limit,
         is_public: input.is_public.unwrap_or(false),
+        is_cancellable: input.is_cancellable.unwrap_or(true),
         room_type_ids,
     })
 }
@@ -297,6 +299,7 @@ mod tests {
             claim_limit: None,
             per_guest_limit: None,
             is_public: None,
+            is_cancellable: None,
             room_type_ids: None,
             expected_version: None,
         };
@@ -325,6 +328,7 @@ mod tests {
             claim_limit: None,
             per_guest_limit: Some(2),
             is_public: None,
+            is_cancellable: None,
             room_type_ids: None,
             expected_version: None,
         };
@@ -354,6 +358,7 @@ mod tests {
             claim_limit: None,
             per_guest_limit: None,
             is_public: Some(true),
+            is_cancellable: None,
             room_type_ids: None,
             expected_version: None,
         };

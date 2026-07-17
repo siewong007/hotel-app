@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:19beta1-alpine
+    image: postgres:19beta2-alpine
     container_name: hotel-app-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-hotel_admin}
@@ -12,8 +12,9 @@ services:
       # postgres:19 images require the mount at /var/lib/postgresql (data lives
       # in a version subdir) — mounting at .../data makes the container refuse to start
       - postgres_data:/var/lib/postgresql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./database/data.sql:/docker-entrypoint-initdb.d/02_data.sql:ro
+      - ./database/postgres/migrations/0001_v1_baseline.sql:/docker-entrypoint-initdb.d/01_v1_baseline.sql:ro
+      - ./database/postgres/data.sql:/docker-entrypoint-initdb.d/02_data.sql:ro
+      - ./database/postgres/seed.sql:/docker-entrypoint-initdb.d/03_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

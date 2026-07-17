@@ -1,8 +1,10 @@
 //! Regression tests for the persisted status vocabulary.
 
-const POSTGRES_SCHEMA: &str = include_str!("../database/schema.sql");
-const POSTGRES_DATA: &str = include_str!("../database/data.sql");
-const SQLITE_DATA: &str = include_str!("../database/sqlite_data.sql");
+const POSTGRES_SCHEMA: &str = include_str!("../database/postgres/migrations/0001_v1_baseline.sql");
+const POSTGRES_UPGRADE: &str = include_str!("../database/postgres/upgrade/pg18_4_to_v1.sql");
+const POSTGRES_DATA: &str = include_str!("../database/postgres/data.sql");
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+const POSTGRES_SEED: &str = include_str!("../database/postgres/seed.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
     let mut blocks = Vec::new();
@@ -38,8 +40,8 @@ fn is_communications_lifecycle_status(block: &str) -> bool {
     // Campaigns and individual deliveries can be deliberately stopped. Their
     // `cancelled` terminal state is not one of the legacy reservation/payment
     // values this regression guard is designed to remove.
-    block.contains("'draft', 'scheduled', 'running', 'completed', 'cancelled', 'failed'")
-        || block.contains("'queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled'")
+    block.contains("email_campaigns_status_check")
+        || block.contains("email_deliveries_status_check")
 }
 
 #[test]
@@ -70,7 +72,7 @@ fn legacy_cancelled_values_are_migrated_to_void_names() {
         "UPDATE ekyc_verifications SET status = 'void' WHERE status = 'cancelled'",
     ] {
         assert!(
-            POSTGRES_SCHEMA.contains(expected) || SQLITE_DATA.contains(expected),
+            POSTGRES_UPGRADE.contains(expected),
             "missing legacy status normalization: {expected}"
         );
     }
@@ -83,12 +85,12 @@ fn postgres_schema_requires_pg19_and_uses_native_uuidv7() {
         "schema must reject PostgreSQL versions older than 19"
     );
     assert!(
-        POSTGRES_SCHEMA.contains("AS 'SELECT pg_catalog.uuidv7()';"),
+        POSTGRES_SCHEMA.contains("AS $$SELECT pg_catalog.uuidv7()$$;"),
         "gen_uuidv7() must delegate to PostgreSQL 19's native UUIDv7 function"
     );
     assert!(
-        POSTGRES_SCHEMA.contains("ALTER COLUMN id SET DEFAULT gen_uuidv7()")
-            && POSTGRES_SCHEMA.contains("ALTER COLUMN uuid       SET DEFAULT gen_uuidv7()"),
+        POSTGRES_SCHEMA.contains("id uuid DEFAULT public.gen_uuidv7() NOT NULL")
+            && POSTGRES_SCHEMA.contains("uuid uuid DEFAULT public.gen_uuidv7() NOT NULL"),
         "UUID defaults must use the project's native UUIDv7 wrapper"
     );
 }
@@ -106,8 +108,10 @@ fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
         "partition split targets must remain in public when the function pins pg_catalog first"
     );
     assert!(
-        POSTGRES_SCHEMA.contains("CREATE INDEX IF NOT EXISTS idx_audit_logs_details_trgm")
-            && POSTGRES_SCHEMA.contains("ON audit_logs USING gin ((details::text) gin_trgm_ops)"),
+        POSTGRES_SCHEMA.contains("CREATE INDEX idx_audit_logs_details_trgm")
+            && POSTGRES_SCHEMA.contains(
+                "ON ONLY public.audit_logs USING gin (((details)::text) public.gin_trgm_ops)"
+            ),
         "audit detail substring search needs a matching trigram expression index"
     );
 
@@ -129,8 +133,8 @@ fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
         "idx_loyalty_members_number",
     ] {
         assert!(
-            POSTGRES_SCHEMA.contains(&format!("DROP INDEX IF EXISTS {index_name};")),
-            "schema must remove redundant index {index_name}"
+            POSTGRES_UPGRADE.contains(&format!("DROP INDEX IF EXISTS {index_name};")),
+            "PG18.4 upgrade must remove redundant index {index_name}"
         );
         assert!(
             !POSTGRES_SCHEMA.lines().any(|line| {
@@ -168,8 +172,8 @@ fn postgres_permission_constraint_accepts_seeded_refund_action() {
 
 #[cfg(all(feature = "postgres", not(feature = "sqlite")))]
 mod postgres_smoke {
-    use super::POSTGRES_SCHEMA;
-    use sqlx::{Connection, Executor, PgConnection, PgPool, Row};
+    use super::{POSTGRES_DATA, POSTGRES_SCHEMA, POSTGRES_SEED};
+    use sqlx::{Connection, Executor, PgConnection, PgPool};
 
     fn quote_ident(identifier: &str) -> String {
         format!("\"{}\"", identifier.replace('"', "\"\""))
@@ -190,46 +194,16 @@ mod postgres_smoke {
         Some((admin_url, temp_url, db_name))
     }
 
-    async fn seed_legacy_status_rows(pool: &PgPool) -> Result<(), sqlx::Error> {
-        sqlx::raw_sql(
-            r#"
-            ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
-            ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_payment_status_check;
-            ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
-            ALTER TABLE customer_ledgers DROP CONSTRAINT IF EXISTS valid_status;
-
-            INSERT INTO guests (id, full_name)
-            VALUES (970001, 'Legacy Status Guest');
-
-            INSERT INTO room_types (id, code, name, base_price)
-            VALUES (970101, 'LEG', 'Legacy Status Room', 100.00);
-
-            INSERT INTO rooms (id, room_number, room_type_id, status)
-            VALUES (970201, 'LEG-201', 970101, 'reserved');
-
-            INSERT INTO bookings (
-                id, booking_number, guest_id, room_id, check_in_date, check_out_date,
-                room_rate, subtotal, total_amount, status, payment_status
-            )
-            VALUES
-                (970301, 'BK-LEGACY-CANCELLED', 970001, 970201, CURRENT_DATE, CURRENT_DATE + 1, 100.00, 100.00, 100.00, 'cancelled', 'cancelled'),
-                (970302, 'BK-LEGACY-COMP-CANCELLED', 970001, 970201, CURRENT_DATE + 2, CURRENT_DATE + 3, 100.00, 100.00, 100.00, 'comp_cancelled', 'paid');
-
-            INSERT INTO payments (booking_id, amount, payment_method, status)
-            VALUES (970301, 100.00, 'cash', 'cancelled');
-
-            INSERT INTO customer_ledgers (company_name, description, expense_type, amount, status)
-            VALUES ('Legacy Co', 'Legacy status row', 'room_charge', 100.00, 'cancelled');
-            "#,
-        )
-        .execute(pool)
-        .await?;
-
-        Ok(())
+    fn psql_script_for_sqlx(script: &str) -> String {
+        script
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('\\'))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     #[tokio::test]
-    async fn postgres_schema_reruns_and_normalizes_legacy_cancelled_statuses() {
+    async fn postgres_v1_lifecycle_builds_the_final_schema() {
         if std::env::var("HOTEL_RUN_PG_SCHEMA_SMOKE").ok().as_deref() != Some("1") {
             eprintln!("skipping PostgreSQL schema smoke; set HOTEL_RUN_PG_SCHEMA_SMOKE=1");
             return;
@@ -263,59 +237,29 @@ mod postgres_smoke {
                 "schema smoke requires PostgreSQL 19+, got server_version_num={server_version_num}"
             );
 
-            // `sqlx::raw_sql` runs the script over the simple-query protocol, which
-            // (unlike `psql -f`) does not understand psql meta-commands such as
-            // `\set ON_ERROR_STOP on`. Strip backslash-command lines before sending.
-            let server_schema: String = POSTGRES_SCHEMA
-                .lines()
-                .filter(|line| !line.trim_start().starts_with('\\'))
-                .collect::<Vec<_>>()
-                .join("\n");
-            sqlx::raw_sql(&server_schema).execute(&pool).await?;
-            seed_legacy_status_rows(&pool).await?;
-            sqlx::raw_sql(&server_schema).execute(&pool).await?;
-
-            let booking_statuses: Vec<(String, Option<String>)> = sqlx::query_as(
-                "SELECT status, payment_status FROM bookings WHERE id IN (970301, 970302) ORDER BY id",
-            )
-            .fetch_all(&pool)
-            .await?;
-            assert_eq!(
-                booking_statuses,
-                vec![
-                    // Booking 970301's only payment is normalized to `void`, which
-                    // fires `sync_booking_payment_status` and recomputes the booking
-                    // to `unpaid` (no completed payments) — the legacy `cancelled`
-                    // value is gone, which is what this smoke test guards.
-                    ("voided".to_string(), Some("unpaid".to_string())),
-                    ("comp_void".to_string(), Some("paid".to_string())),
-                ]
-            );
-
-            let payment_status: String =
-                sqlx::query_scalar("SELECT status FROM payments WHERE booking_id = 970301")
-                    .fetch_one(&pool)
+            // The simple-query protocol does not understand psql meta-commands.
+            for script in [POSTGRES_SCHEMA, POSTGRES_DATA, POSTGRES_SEED] {
+                sqlx::raw_sql(&psql_script_for_sqlx(script))
+                    .execute(&pool)
                     .await?;
-            assert_eq!(payment_status, "void");
+            }
 
-            let ledger_status: String =
-                sqlx::query_scalar("SELECT status FROM customer_ledgers WHERE company_name = 'Legacy Co'")
-                    .fetch_one(&pool)
-                    .await?;
-            assert_eq!(ledger_status, "void");
-
-            let cancelled_constraints: i64 = sqlx::query(
-                r#"
-                SELECT COUNT(*) AS count
-                FROM pg_constraint
-                WHERE contype = 'c'
-                  AND pg_get_constraintdef(oid) ILIKE '%cancelled%'
-                "#,
+            let revision_checksum: String = sqlx::query_scalar(
+                "SELECT checksum FROM hotel_schema_revisions WHERE generation = 1 AND version = 1",
             )
             .fetch_one(&pool)
-            .await?
-            .get("count");
-            assert_eq!(cancelled_constraints, 0);
+            .await?;
+            assert_eq!(
+                revision_checksum,
+                "sha256:1149266ee7cc6ae8a0733098a15e1ee0377568eea3aed65254709afe992d1e1d"
+            );
+
+            let cancellable_column_exists: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'promotions' AND column_name = 'is_cancellable')",
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert!(cancellable_column_exists);
 
             let redundant_indexes: i64 = sqlx::query_scalar(
                 r#"
@@ -405,6 +349,6 @@ mod postgres_smoke {
             .await
             .expect("drop disposable schema smoke database");
 
-        result.expect("schema should run twice and normalize legacy statuses");
+        result.expect("V1 migration, data, and seed should build the final schema");
     }
 }

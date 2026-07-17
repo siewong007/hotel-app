@@ -57,7 +57,7 @@ This design is intentionally a development/preview topology:
 - The VM, database, and application share one failure domain.
 - Always Free capacity can be unavailable in a selected availability domain.
 - Always Free services have no production SLA, and idle instances can be reclaimed.
-- PostgreSQL 19 Beta 1 is not supported for production data.
+- PostgreSQL 19 Beta 2 is not supported for production data.
 
 Create an OCI Vault secret for each required application secret, configure the
 example variable file, and then preview the infrastructure before applying it:
@@ -82,7 +82,7 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 ## Production Deployment
 
 > **PostgreSQL 19 status:** the repository currently targets PostgreSQL 19
-> Beta 1 for development. PostgreSQL identifies version 19 as a development
+> Beta 2 for development. PostgreSQL identifies version 19 as a development
 > release. Do not use this deployment path for production hotel data until 19
 > reaches general availability and backup/restore plus load tests pass.
 
@@ -93,7 +93,7 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
 | CPU | 2 cores | 4+ cores |
 | RAM | 4 GB | 8+ GB |
 | Disk | 20 GB | 50+ GB (SSD) |
-| PostgreSQL | 19 Beta 1 | 19 GA after validation |
+| PostgreSQL | 19 Beta 2 | 19 GA after validation |
 | Reverse Proxy | — | Nginx or Caddy |
 | TLS Certificate | — | Let's Encrypt |
 
@@ -171,10 +171,19 @@ The manual Nginx instructions below remain the non-Docker alternative.
 sudo -u postgres psql -c "CREATE USER hotel_admin WITH PASSWORD 'strong_password';"
 sudo -u postgres psql -c "CREATE DATABASE hotel_management OWNER hotel_admin;"
 
-# Apply schema and seed data
-PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/schema.sql
-PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/data.sql
+# Initialize a new V1 database once, in order
+PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
+PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/postgres/data.sql
+PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f hotel-app-be/database/postgres/seed.sql
 ```
+
+Run these initialization files only for a new empty database. Existing V1
+databases must not rerun `data.sql` or `seed.sql`. PostgreSQL 19 Beta 2 is a
+prerelease testing target, not a production recommendation. For the one
+important PostgreSQL 18.4 database, take and verify a logical backup, restore
+it into PostgreSQL 19 Beta 2, then run
+`hotel-app-be/database/postgres/upgrade/pg18_4_to_v1.sql` followed once by the
+same `data.sql` and `seed.sql` files. No SQLite legacy migration is supported.
 
 #### 2. Backend Deployment
 
@@ -407,8 +416,9 @@ DATABASE_SLOW_STATEMENT_MS=500  # Log slow queries
 ```bash
 # From scratch
 createdb hotel_management
-psql -d hotel_management -f hotel-app-be/database/schema.sql
-psql -d hotel_management -f hotel-app-be/database/data.sql
+psql -d hotel_management -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
+psql -d hotel_management -f hotel-app-be/database/postgres/data.sql
+psql -d hotel_management -f hotel-app-be/database/postgres/seed.sql
 
 # Verify
 psql -d hotel_management -c "\dt"  # Should show all tables
@@ -423,13 +433,14 @@ cd hotel-app-be
 DATABASE_PATH=./hotel_data.db JWT_SECRET="your-secret" cargo run --features sqlite --no-default-features
 ```
 
-Default admin credentials after seed (from `database/data.sql`):
+The bootstrap seed deliberately does not install a shared usable password.
+Set the administrator password before the first login:
 
-| Username | Password | Role |
-|----------|----------|------|
-| `admin` | `change-me` | Admin |
-
-> **Important:** Change the default password immediately after first login.
+```bash
+cd hotel-app-be
+DATABASE_URL="postgres://hotel_admin:strong_password@localhost:5432/hotel_management" \
+  cargo run --bin fix_password -- admin '<strong-admin-password>'
+```
 
 ---
 

@@ -335,9 +335,73 @@ pub async fn get_my_bookings(
     limit: i64,
     offset: i64,
 ) -> Result<GuestPortalPage<GuestPortalBookingSummary>, ApiError> {
-    let (items, total) =
+    let (mut items, total) =
         GuestPortalSessionRepository::list_bookings(pool, guest_id, limit, offset).await?;
+    let enabled = crate::core::settings_cache::get_string(
+        pool,
+        "guest_booking_cancellation_enabled",
+        "false",
+    )
+    .await
+        == "true";
+    let today = chrono::Utc::now().date_naive();
+    for booking in &mut items {
+        if booking.cancellation_unavailable_reason.is_none() {
+            booking.cancellation_unavailable_reason = if !enabled {
+                Some("Guest booking cancellation is disabled by the hotel.".to_string())
+            } else if !matches!(booking.status.as_str(), "pending" | "confirmed") {
+                Some("Only pending or confirmed bookings can be cancelled.".to_string())
+            } else if booking.check_in_date <= today {
+                Some(
+                    "This booking can no longer be cancelled because check-in has started."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+        }
+        booking.can_cancel = booking.cancellation_unavailable_reason.is_none();
+    }
     Ok(GuestPortalPage { items, total })
+}
+
+pub async fn cancel_my_booking(
+    pool: &DbPool,
+    guest_id: i64,
+    booking_id: i64,
+    reason: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = reason
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if reason
+        .as_ref()
+        .is_some_and(|value| value.chars().count() > 1_000)
+    {
+        return Err(ApiError::BadRequest(
+            "Cancellation reason must be 1,000 characters or fewer".to_string(),
+        ));
+    }
+    let (items, _) = get_my_bookings(pool, guest_id, 10_000, 0)
+        .await
+        .map(|page| (page.items, page.total))?;
+    let booking = items
+        .into_iter()
+        .find(|booking| booking.id == booking_id)
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+    if !booking.can_cancel {
+        return Err(ApiError::Conflict(
+            booking
+                .cancellation_unavailable_reason
+                .unwrap_or_else(|| "This booking cannot be cancelled.".to_string()),
+        ));
+    }
+    let user_id = GuestPortalSessionRepository::find_guest_user_id(pool, guest_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Forbidden("No active guest account is linked to this booking.".to_string())
+        })?;
+    crate::services::bookings::void_booking(pool, user_id, booking_id, reason).await
 }
 
 /// GET /guest-portal/me/transactions

@@ -84,11 +84,11 @@ Keep these existing global areas:
 
 - `core/` for infrastructure shared by all domains.
 - `services/audit.rs` for append-only audit logging.
-- `database/migrations/` for PostgreSQL migrations.
-- `database/sqlite_schema.sql` for ordered SQLite schema sections.
-- `database/sqlite_data.sql` for rerunnable SQLite seed and backfill data.
+- `database/postgres/migrations/0001_v1_baseline.sql` for the PostgreSQL V1 baseline.
+- `database/postgres/data.sql` and `database/postgres/seed.sql` for one-time PostgreSQL initialization data.
+- `database/sqlite/migrations/0001_v1_baseline.sql`, `database/sqlite/data.sql`, and `database/sqlite/seed.sql` for the embedded SQLite V1 lifecycle.
 
-When schema changes are made, keep PostgreSQL and SQLite resources aligned or clearly document why they intentionally differ. Append a new numbered section to `sqlite_schema.sql`; do not renumber historical sections.
+When schema changes are made, keep PostgreSQL and SQLite resources aligned or clearly document why they intentionally differ. V1 resources are clean baselines: do not reintroduce historical SQLite sections or startup seed/backfill reruns.
 
 ### Frontend
 
@@ -301,8 +301,9 @@ cargo clippy --all-features -- -D warnings
 cargo build --release
 cargo run
 cargo run --features sqlite --no-default-features
-psql "$DATABASE_URL" -f database/schema.sql
-psql "$DATABASE_URL" -f database/data.sql
+psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+psql "$DATABASE_URL" -f database/postgres/data.sql
+psql "$DATABASE_URL" -f database/postgres/seed.sql
 cargo test <name>
 ```
 

@@ -92,6 +92,13 @@ export class GuestPortalDashboardService {
       .json();
   }
 
+  static async cancelBooking(bookingId: number, reason: string, token?: string): Promise<void> {
+    await api.post(`guest-portal/me/bookings/${bookingId}/cancel`, {
+      headers: authHeaders(token),
+      json: { reason: reason.trim() || null },
+    });
+  }
+
   static async membership(token?: string): Promise<GuestPortalMembershipResponse> {
     return await api
       .get('guest-portal/me/membership', { headers: authHeaders(token) })

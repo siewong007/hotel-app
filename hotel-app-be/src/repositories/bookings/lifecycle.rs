@@ -350,11 +350,9 @@ pub async fn get_booking_timeline_handler(
             .unwrap_or(false);
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking_query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)";
+    let owns_booking_query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2 UNION SELECT 1 FROM users u WHERE u.id = ?1 AND u.guest_id = ?2)";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let owns_booking_query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)";
+    let owns_booking_query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2 UNION SELECT 1 FROM users u WHERE u.id = $1 AND u.guest_id = $2)";
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let owns_booking: bool = sqlx::query_scalar::<_, i32>(owns_booking_query)
@@ -3350,11 +3348,9 @@ pub async fn user_owns_booking(
     guest_id: i64,
 ) -> Result<bool, ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)";
+    let query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2 UNION SELECT 1 FROM users u WHERE u.id = ?1 AND u.guest_id = ?2)";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)";
+    let query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2 UNION SELECT 1 FROM users u WHERE u.id = $1 AND u.guest_id = $2)";
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let owns_booking = sqlx::query_scalar::<_, i32>(query)

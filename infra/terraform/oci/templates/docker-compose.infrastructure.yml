@@ -1,28 +1,4 @@
 services:
-  db-bootstrap:
-    image: postgres:19beta1
-    restart: "no"
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./hotel-app-be/database/schema.sql:/opt/hotel-app/schema.sql:ro
-      - ./hotel-app-be/database/data.sql:/opt/hotel-app/data.sql:ro
-    command:
-      - /bin/sh
-      - -ec
-      - >-
-        psql --host=postgres --username=${POSTGRES_USER:-hotel_admin}
-        --dbname=${POSTGRES_DB:-hotel_management} --set=ON_ERROR_STOP=1
-        --file=/opt/hotel-app/schema.sql &&
-        psql --host=postgres --username=${POSTGRES_USER:-hotel_admin}
-        --dbname=${POSTGRES_DB:-hotel_management} --set=ON_ERROR_STOP=1
-        --file=/opt/hotel-app/data.sql
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - hotel-network
-
   backend:
     environment:
       DATABASE_URL: ${DATABASE_URL}
@@ -31,9 +7,6 @@ services:
     volumes:
       - private_uploads:/app/private_uploads
       - public_uploads:/app/uploads/public
-    depends_on:
-      db-bootstrap:
-        condition: service_completed_successfully
 
 volumes:
   private_uploads:

@@ -13,17 +13,17 @@ import {
   Stack,
   Switch,
   TextField,
-} from '@mui/material';
-import { useEffect, useState } from 'react';
-import { useAllRoomTypes } from '../../rooms/hooks';
-import { formatLocalDate } from '../../../utils/date';
+} from "@mui/material";
+import { useEffect, useState } from "react";
+import { useAllRoomTypes } from "../../rooms/hooks";
+import { formatLocalDate } from "../../../utils/date";
 import {
   DISCOUNT_TYPE_OPTIONS,
   EMPTY_PROMOTION_INPUT,
   PROMOTION_KIND_OPTIONS,
-} from '../constants';
-import type { Promotion, PromotionInput } from '../types';
-import { discountValueLabel, slugifyPromotionName } from '../utils';
+} from "../constants";
+import type { Promotion, PromotionInput } from "../types";
+import { discountValueLabel, slugifyPromotionName } from "../utils";
 
 interface PromotionEditorDialogProps {
   open: boolean;
@@ -38,8 +38,8 @@ interface EditorState {
   name: string;
   description: string;
   terms: string;
-  promotionKind: PromotionInput['promotion_kind'];
-  discountType: PromotionInput['discount_type'];
+  promotionKind: PromotionInput["promotion_kind"];
+  discountType: PromotionInput["discount_type"];
   discountValue: string;
   maxDiscountAmount: string;
   currency: string;
@@ -53,16 +53,17 @@ interface EditorState {
   claimLimit: string;
   perGuestLimit: string;
   isPublic: boolean;
+  isCancellable: boolean;
   roomTypeId: string;
 }
 
 function toLocalDateTime(value?: string | null): string {
-  if (!value) return '';
+  if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value.slice(0, 16);
   const time = [date.getHours(), date.getMinutes()]
-    .map((part) => String(part).padStart(2, '0'))
-    .join(':');
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
   return `${formatLocalDate(date)}T${time}`;
 }
 
@@ -82,27 +83,29 @@ function initialEditorState(promotion?: Promotion | null): EditorState {
   return {
     slug: input.slug,
     name: input.name,
-    description: input.description ?? '',
-    terms: input.terms ?? '',
+    description: input.description ?? "",
+    terms: input.terms ?? "",
     promotionKind: input.promotion_kind,
     discountType: input.discount_type,
     discountValue: String(input.discount_value),
     maxDiscountAmount:
-      input.max_discount_amount === null || input.max_discount_amount === undefined
-        ? ''
+      input.max_discount_amount === null ||
+      input.max_discount_amount === undefined
+        ? ""
         : String(input.max_discount_amount),
     currency: input.currency,
     claimStartsAt: toLocalDateTime(input.claim_starts_at),
     claimEndsAt: toLocalDateTime(input.claim_ends_at),
-    stayStartsOn: input.stay_starts_on?.slice(0, 10) ?? '',
-    stayEndsOn: input.stay_ends_on?.slice(0, 10) ?? '',
-    minNights: input.min_nights == null ? '' : String(input.min_nights),
-    maxNights: input.max_nights == null ? '' : String(input.max_nights),
-    minSubtotal: input.min_subtotal == null ? '' : String(input.min_subtotal),
-    claimLimit: input.claim_limit == null ? '' : String(input.claim_limit),
+    stayStartsOn: input.stay_starts_on?.slice(0, 10) ?? "",
+    stayEndsOn: input.stay_ends_on?.slice(0, 10) ?? "",
+    minNights: input.min_nights == null ? "" : String(input.min_nights),
+    maxNights: input.max_nights == null ? "" : String(input.max_nights),
+    minSubtotal: input.min_subtotal == null ? "" : String(input.min_subtotal),
+    claimLimit: input.claim_limit == null ? "" : String(input.claim_limit),
     perGuestLimit: String(input.per_guest_limit),
     isPublic: input.is_public,
-    roomTypeId: input.room_type_ids[0]?.toString() ?? '',
+    isCancellable: input.is_cancellable ?? true,
+    roomTypeId: input.room_type_ids[0]?.toString() ?? "",
   };
 }
 
@@ -113,7 +116,9 @@ export function PromotionEditorDialog({
   onClose,
   onSave,
 }: PromotionEditorDialogProps) {
-  const [form, setForm] = useState<EditorState>(() => initialEditorState(promotion));
+  const [form, setForm] = useState<EditorState>(() =>
+    initialEditorState(promotion),
+  );
   const [validationError, setValidationError] = useState<string | null>(null);
   const roomTypesQuery = useAllRoomTypes(open);
 
@@ -129,7 +134,8 @@ export function PromotionEditorDialog({
       ...current,
       name,
       slug:
-        current.slug === '' || current.slug === slugifyPromotionName(current.name)
+        current.slug === "" ||
+        current.slug === slugifyPromotionName(current.name)
           ? slugifyPromotionName(name)
           : current.slug,
     }));
@@ -139,15 +145,15 @@ export function PromotionEditorDialog({
     const discountValue = Number(form.discountValue);
     const perGuestLimit = Number(form.perGuestLimit);
     if (!form.name.trim() || !form.slug.trim()) {
-      setValidationError('Name and offer code are required.');
+      setValidationError("Name and offer code are required.");
       return;
     }
     if (!Number.isFinite(discountValue) || discountValue <= 0) {
-      setValidationError('Discount value must be greater than zero.');
+      setValidationError("Discount value must be greater than zero.");
       return;
     }
     if (!Number.isInteger(perGuestLimit) || perGuestLimit < 1) {
-      setValidationError('Per-guest limit must be at least one.');
+      setValidationError("Per-guest limit must be at least one.");
       return;
     }
 
@@ -162,7 +168,7 @@ export function PromotionEditorDialog({
       discount_type: form.discountType,
       discount_value: discountValue,
       max_discount_amount: nullableNumber(form.maxDiscountAmount),
-      currency: form.currency.trim().toUpperCase() || 'USD',
+      currency: form.currency.trim().toUpperCase() || "USD",
       claim_starts_at: toIsoDateTime(form.claimStartsAt),
       claim_ends_at: toIsoDateTime(form.claimEndsAt),
       stay_starts_on: form.stayStartsOn || null,
@@ -173,14 +179,23 @@ export function PromotionEditorDialog({
       claim_limit: nullableNumber(form.claimLimit),
       per_guest_limit: perGuestLimit,
       is_public: form.isPublic,
-      room_type_ids: Number.isInteger(roomTypeId) && roomTypeId > 0 ? [roomTypeId] : [],
+      is_cancellable: form.isCancellable,
+      room_type_ids:
+        Number.isInteger(roomTypeId) && roomTypeId > 0 ? [roomTypeId] : [],
       expected_version: promotion?.version,
     });
   };
 
   return (
-    <Dialog open={open} onClose={isSaving ? undefined : onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{promotion ? 'Edit promotion' : 'Create promotion'}</DialogTitle>
+    <Dialog
+      open={open}
+      onClose={isSaving ? undefined : onClose}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>
+        {promotion ? "Edit promotion" : "Create promotion"}
+      </DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2} sx={{ pt: 0.5 }}>
           <Grid size={{ xs: 12, sm: 7 }}>
@@ -198,7 +213,9 @@ export function PromotionEditorDialog({
               label="Offer code"
               helperText="A short URL-safe identifier"
               value={form.slug}
-              onChange={(event) => setForm({ ...form, slug: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, slug: event.target.value })
+              }
               required
               fullWidth
             />
@@ -207,7 +224,9 @@ export function PromotionEditorDialog({
             <TextField
               label="Description"
               value={form.description}
-              onChange={(event) => setForm({ ...form, description: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, description: event.target.value })
+              }
               multiline
               minRows={2}
               fullWidth
@@ -221,7 +240,11 @@ export function PromotionEditorDialog({
                 label="Offer type"
                 value={form.promotionKind}
                 onChange={(event) =>
-                  setForm({ ...form, promotionKind: event.target.value as EditorState['promotionKind'] })
+                  setForm({
+                    ...form,
+                    promotionKind: event.target
+                      .value as EditorState["promotionKind"],
+                  })
                 }
               >
                 {PROMOTION_KIND_OPTIONS.map((option) => (
@@ -240,7 +263,11 @@ export function PromotionEditorDialog({
                 label="Discount type"
                 value={form.discountType}
                 onChange={(event) =>
-                  setForm({ ...form, discountType: event.target.value as EditorState['discountType'] })
+                  setForm({
+                    ...form,
+                    discountType: event.target
+                      .value as EditorState["discountType"],
+                  })
                 }
               >
                 {DISCOUNT_TYPE_OPTIONS.map((option) => (
@@ -256,7 +283,9 @@ export function PromotionEditorDialog({
               label={discountValueLabel(form.discountType)}
               type="number"
               value={form.discountValue}
-              onChange={(event) => setForm({ ...form, discountValue: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, discountValue: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               required
               fullWidth
@@ -267,7 +296,9 @@ export function PromotionEditorDialog({
               label="Maximum discount"
               type="number"
               value={form.maxDiscountAmount}
-              onChange={(event) => setForm({ ...form, maxDiscountAmount: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, maxDiscountAmount: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               fullWidth
             />
@@ -276,7 +307,9 @@ export function PromotionEditorDialog({
             <TextField
               label="Currency"
               value={form.currency}
-              onChange={(event) => setForm({ ...form, currency: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, currency: event.target.value })
+              }
               slotProps={{ htmlInput: { maxLength: 3 } }}
               fullWidth
             />
@@ -286,7 +319,9 @@ export function PromotionEditorDialog({
               label="Claim starts"
               type="datetime-local"
               value={form.claimStartsAt}
-              onChange={(event) => setForm({ ...form, claimStartsAt: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, claimStartsAt: event.target.value })
+              }
               slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
@@ -296,7 +331,9 @@ export function PromotionEditorDialog({
               label="Claim ends"
               type="datetime-local"
               value={form.claimEndsAt}
-              onChange={(event) => setForm({ ...form, claimEndsAt: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, claimEndsAt: event.target.value })
+              }
               slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
@@ -306,7 +343,9 @@ export function PromotionEditorDialog({
               label="Eligible stay starts"
               type="date"
               value={form.stayStartsOn}
-              onChange={(event) => setForm({ ...form, stayStartsOn: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, stayStartsOn: event.target.value })
+              }
               slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
@@ -316,7 +355,9 @@ export function PromotionEditorDialog({
               label="Eligible stay ends"
               type="date"
               value={form.stayEndsOn}
-              onChange={(event) => setForm({ ...form, stayEndsOn: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, stayEndsOn: event.target.value })
+              }
               slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             />
@@ -326,7 +367,9 @@ export function PromotionEditorDialog({
               label="Minimum nights"
               type="number"
               value={form.minNights}
-              onChange={(event) => setForm({ ...form, minNights: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, minNights: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 1, step: 1 } }}
               fullWidth
             />
@@ -336,7 +379,9 @@ export function PromotionEditorDialog({
               label="Maximum nights"
               type="number"
               value={form.maxNights}
-              onChange={(event) => setForm({ ...form, maxNights: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, maxNights: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 1, step: 1 } }}
               fullWidth
             />
@@ -346,7 +391,9 @@ export function PromotionEditorDialog({
               label="Total claim limit"
               type="number"
               value={form.claimLimit}
-              onChange={(event) => setForm({ ...form, claimLimit: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, claimLimit: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 1, step: 1 } }}
               fullWidth
             />
@@ -356,7 +403,9 @@ export function PromotionEditorDialog({
               label="Per-guest limit"
               type="number"
               value={form.perGuestLimit}
-              onChange={(event) => setForm({ ...form, perGuestLimit: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, perGuestLimit: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 1, step: 1 } }}
               required
               fullWidth
@@ -367,19 +416,25 @@ export function PromotionEditorDialog({
               label="Minimum booking subtotal"
               type="number"
               value={form.minSubtotal}
-              onChange={(event) => setForm({ ...form, minSubtotal: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, minSubtotal: event.target.value })
+              }
               slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
               fullWidth
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
-              <InputLabel id="eligible-room-type-label">Eligible room type</InputLabel>
+              <InputLabel id="eligible-room-type-label">
+                Eligible room type
+              </InputLabel>
               <Select
                 labelId="eligible-room-type-label"
                 label="Eligible room type"
                 value={form.roomTypeId}
-                onChange={(event) => setForm({ ...form, roomTypeId: event.target.value })}
+                onChange={(event) =>
+                  setForm({ ...form, roomTypeId: event.target.value })
+                }
               >
                 <MenuItem value="">All room types</MenuItem>
                 {(roomTypesQuery.data ?? []).map((roomType) => (
@@ -394,7 +449,9 @@ export function PromotionEditorDialog({
             <TextField
               label="Terms and conditions"
               value={form.terms}
-              onChange={(event) => setForm({ ...form, terms: event.target.value })}
+              onChange={(event) =>
+                setForm({ ...form, terms: event.target.value })
+              }
               multiline
               minRows={2}
               fullWidth
@@ -404,8 +461,23 @@ export function PromotionEditorDialog({
             <FormControlLabel
               control={
                 <Switch
+                  checked={form.isCancellable}
+                  onChange={(event) =>
+                    setForm({ ...form, isCancellable: event.target.checked })
+                  }
+                />
+              }
+              label="Bookings using this offer can be cancelled by the guest"
+            />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <FormControlLabel
+              control={
+                <Switch
                   checked={form.isPublic}
-                  onChange={(event) => setForm({ ...form, isPublic: event.target.checked })}
+                  onChange={(event) =>
+                    setForm({ ...form, isPublic: event.target.checked })
+                  }
                 />
               }
               label="Show in the public offers catalog"
@@ -413,7 +485,7 @@ export function PromotionEditorDialog({
           </Grid>
         </Grid>
         {validationError ? (
-          <Stack sx={{ color: 'error.main', mt: 2 }}>{validationError}</Stack>
+          <Stack sx={{ color: "error.main", mt: 2 }}>{validationError}</Stack>
         ) : null}
       </DialogContent>
       <DialogActions>
@@ -421,7 +493,7 @@ export function PromotionEditorDialog({
           Cancel
         </Button>
         <Button variant="contained" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? 'Saving…' : promotion ? 'Save changes' : 'Create draft'}
+          {isSaving ? "Saving…" : promotion ? "Save changes" : "Create draft"}
         </Button>
       </DialogActions>
     </Dialog>

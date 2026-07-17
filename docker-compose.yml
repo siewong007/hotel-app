@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:19beta1
+    image: postgres:19beta2
     container_name: hotel-db
     restart: unless-stopped
     ports:
@@ -11,8 +11,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-hotel_management}
     volumes:
       - postgres19_data:/var/lib/postgresql
-      - ./hotel-app-be/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./hotel-app-be/database/data.sql:/docker-entrypoint-initdb.d/02-data.sql
+      - ./hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql:/docker-entrypoint-initdb.d/01-v1-baseline.sql:ro
+      - ./hotel-app-be/database/postgres/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+      - ./hotel-app-be/database/postgres/seed.sql:/docker-entrypoint-initdb.d/03-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hotel_admin} -d ${POSTGRES_DB:-hotel_management}"]
       interval: 10s

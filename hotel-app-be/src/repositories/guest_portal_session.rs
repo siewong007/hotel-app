@@ -132,9 +132,12 @@ impl GuestPortalSessionRepository {
             .unwrap_or_default();
 
         let sql = format!(
-            "SELECT booking_number, check_in_date, check_out_date, status, total_amount \
-             FROM bookings WHERE guest_id = {} \
-             ORDER BY check_in_date DESC, id DESC LIMIT {} OFFSET {}",
+            "SELECT b.id, b.booking_number, b.check_in_date, b.check_out_date, b.status, b.total_amount, \
+                    EXISTS(SELECT 1 FROM voucher_redemptions vr JOIN promotions p ON p.id = vr.promotion_id \
+                           WHERE vr.booking_id = b.id AND vr.status = 'applied' AND p.is_cancellable = {}) AS has_non_cancellable_voucher \
+             FROM bookings b WHERE b.guest_id = {} \
+             ORDER BY b.check_in_date DESC, b.id DESC LIMIT {} OFFSET {}",
+            false,
             param!(1),
             param!(2),
             param!(3)
@@ -150,6 +153,7 @@ impl GuestPortalSessionRepository {
         let items = rows
             .iter()
             .map(|row| GuestPortalBookingSummary {
+                id: row.try_get("id").unwrap_or_default(),
                 booking_number: row.try_get("booking_number").unwrap_or_default(),
                 check_in_date: row
                     .try_get("check_in_date")
@@ -159,10 +163,30 @@ impl GuestPortalSessionRepository {
                     .unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
                 status: row.try_get("status").unwrap_or_default(),
                 total_amount: row_mappers::get_decimal(row, "total_amount"),
+                can_cancel: false,
+                cancellation_unavailable_reason: if row
+                    .try_get::<bool, _>("has_non_cancellable_voucher")
+                    .unwrap_or(false)
+                {
+                    Some("This booking uses a non-cancellable voucher.".to_string())
+                } else {
+                    None
+                },
             })
             .collect();
 
         Ok((items, total))
+    }
+
+    pub async fn find_guest_user_id(pool: &DbPool, guest_id: i64) -> Result<Option<i64>, ApiError> {
+        sqlx::query_scalar(sql_query!(
+            postgres: "SELECT id FROM users WHERE guest_id = $1 AND user_type::text = 'guest' AND is_active = true ORDER BY id LIMIT 1",
+            sqlite: "SELECT id FROM users WHERE guest_id = ?1 AND user_type = 'guest' AND is_active = 1 ORDER BY id LIMIT 1"
+        ))
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
     }
 
     /// Payments (via the guest's bookings) UNION invoices billed to the guest,

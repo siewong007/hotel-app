@@ -41,6 +41,7 @@ const DB_SETTING_KEYS = [
   'totp_issuer_name',
   'passkey_relying_party_name',
   'support_enabled',
+  'guest_booking_cancellation_enabled',
   'support_categories',
   'support_first_response_low_minutes',
   'support_first_response_normal_minutes',
@@ -165,6 +166,9 @@ const mergeSystemSettings = (
     passkey_relying_party_name:
       values.get('passkey_relying_party_name') ?? localSettings.passkey_relying_party_name,
     support_enabled: parseBooleanSetting(values.get('support_enabled'), localSettings.support_enabled),
+    guest_booking_cancellation_enabled: parseBooleanSetting(
+      values.get('guest_booking_cancellation_enabled'), localSettings.guest_booking_cancellation_enabled
+    ),
     support_categories: parseStringListSetting(
       values.get('support_categories'),
       localSettings.support_categories

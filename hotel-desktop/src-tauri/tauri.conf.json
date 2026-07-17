@@ -48,8 +48,9 @@
       "pgsql/bin/**/*",
       "pgsql/lib/**/*",
       "pgsql/share/**/*",
-      "database/schema.sql",
-      "database/data.sql"
+      "database/postgres/migrations/0001_v1_baseline.sql",
+      "database/postgres/data.sql",
+      "database/postgres/seed.sql"
     ],
     "createUpdaterArtifacts": false,
     "windows": {

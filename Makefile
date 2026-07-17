@@ -133,22 +133,28 @@ docker-logs: ## View Docker logs
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
-db-setup: ## Set up PostgreSQL database (requires DATABASE_URL)
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/schema.sql
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/data.sql
+db-setup: ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/data.sql
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/seed.sql
+
+db-upgrade-pg18_4-to-v1: ## Upgrade the retained PG18.4 logical restore to V1 on PG19 Beta 2
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/upgrade/pg18_4_to_v1.sql
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/data.sql
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/seed.sql
 
 db-reset: ## Reset and re-create PostgreSQL database
 	psql "$(DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	$(MAKE) db-setup
 
-db-pg19-tune: ## Apply opt-in PostgreSQL 19 physical/planner tuning
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/pg19_speculative_tuning.sql
+db-pg19-tune: ## Apply opt-in PostgreSQL 19 Beta 2 physical/planner tuning
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2.sql
 
-db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 schema tuning
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/pg19_speculative_tuning_rollback.sql
+db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 Beta 2 schema tuning
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2_rollback.sql
 
-db-pg19-benchmark: ## Collect PostgreSQL 19 settings and representative query plans
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/pg19_benchmark.sql
+db-pg19-benchmark: ## Collect PostgreSQL 19 Beta 2 settings and representative query plans
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2_benchmark.sql
 
 # ─── Desktop Preparation ──────────────────────────────────────────────────────
 

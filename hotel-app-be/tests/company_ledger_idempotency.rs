@@ -11,7 +11,7 @@
 //! and has a different column set than PostgreSQL (no `amount`/`is_reversal`),
 //! so these tests assert the index behaviour using the columns SQLite actually
 //! has. The same guarantee is enforced in PostgreSQL by the matching index in
-//! `database/schema.sql`.
+//! `database/postgres/migrations/0001_v1_baseline.sql`.
 
 mod common;
 

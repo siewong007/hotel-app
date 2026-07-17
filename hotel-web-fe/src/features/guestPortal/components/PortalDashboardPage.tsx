@@ -97,7 +97,19 @@ const AuthenticatedDashboard: React.FC<{
             </Button>
           </Stack>
           </Box>
-          <Box component="nav" aria-label="Guest portal sections" sx={{ display: 'flex', gap: 0.5, overflowX: 'auto', mt: 3, pb: 0.5 }}>
+          <Box
+            component="nav"
+            aria-label="Guest portal sections"
+            sx={{
+              display: 'flex',
+              gap: 0.5,
+              overflowX: 'auto',
+              mt: 3,
+              pb: 0.5,
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': { display: 'none' },
+            }}
+          >
             {[
               ['overview', 'Overview', CalendarMonthOutlinedIcon], ['stays', 'My stays', CalendarMonthOutlinedIcon], ['payments', 'Payments', CreditCardOutlinedIcon], ['rewards', 'Rewards', DiamondOutlinedIcon], ['offers', 'Offers', LocalOfferOutlinedIcon], ['vouchers', 'Vouchers', ConfirmationNumberOutlinedIcon], ['support', 'Support', SupportAgentOutlinedIcon], ['preferences', 'Preferences', TuneOutlinedIcon],
             ].map(([value, label, Icon]) => { const isActive = activeSection === value; const SectionIcon = Icon as typeof CalendarMonthOutlinedIcon; return <Button key={value as string} startIcon={<SectionIcon />} onClick={() => changeSection(value as PortalSection)} aria-current={isActive ? 'page' : undefined} sx={{ flexShrink: 0, color: isActive ? '#06110e' : 'text.secondary', bgcolor: isActive ? 'rgba(217,181,114,.35)' : 'transparent', fontWeight: isActive ? 700 : 500, '&:hover': { bgcolor: 'rgba(217,181,114,.22)' } }}>{label as string}</Button>; })}

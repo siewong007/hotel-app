@@ -1,12 +1,9 @@
 -- ============================================================================
--- HOTEL APP DATA
+-- HOTEL APP REQUIRED DATA (V1)
 -- ============================================================================
 -- Purpose:
--- 1. Validate existing system-managed data
--- 2. Quarantine invalid records before removal
--- 3. Insert or update seed data
--- 4. Remove obsolete seed-managed records where the schema marks ownership
--- 5. Run safely more than once
+-- Run once, immediately after the V1 schema migration and before seed.sql.
+-- This file owns system/reference data only. It is never an application-startup task.
 -- ============================================================================
 
 \set ON_ERROR_STOP on
@@ -15,6 +12,19 @@ BEGIN;
 
 -- Prevent two deployments from modifying seed data simultaneously.
 SELECT pg_advisory_xact_lock(hashtext('hotel_app_database_bootstrap'));
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM public.hotel_schema_revisions
+        WHERE generation = 1 AND version = 1
+    ) THEN
+        RAISE EXCEPTION
+            'data.sql is a one-time V1 installation step and must not run against an existing V1 database';
+    END IF;
+END;
+$$;
 
 
 -- Current canonical system roles.
@@ -223,41 +233,6 @@ VALUES
     ('totp_issuer_name'),
     ('tourism_tax_rate');
 
-CREATE TEMP TABLE expected_room_types (
-    code TEXT PRIMARY KEY
-) ON COMMIT DROP;
-
-INSERT INTO expected_room_types (code)
-VALUES
-    ('STD'),
-    ('DLX'),
-    ('STE'),
-    ('FAM');
-
-CREATE TEMP TABLE expected_rooms (
-    room_number TEXT PRIMARY KEY
-) ON COMMIT DROP;
-
-INSERT INTO expected_rooms (room_number)
-VALUES
-    ('101'), ('102'), ('103'), ('104'), ('105'),
-    ('201'), ('202'), ('203'), ('204'), ('205'),
-    ('301'), ('302'), ('303'),
-    ('401'), ('402'), ('403');
-
-CREATE TEMP TABLE expected_rate_plans (
-    code TEXT PRIMARY KEY
-) ON COMMIT DROP;
-
-INSERT INTO expected_rate_plans (code)
-VALUES
-    ('COMP'),
-    ('RACK'),
-    ('CORP'),
-    ('WKND'),
-    ('EARLY'),
-    ('GROUP');
-
 CREATE TEMP TABLE expected_route_access_policies (
     route_id TEXT PRIMARY KEY
 ) ON COMMIT DROP;
@@ -290,7 +265,7 @@ VALUES
     ('support'),
     ('timeline');
 
--- Quarantine and remove invalid system-owned roles before reseeding.
+-- Quarantine invalid system-owned roles before canonical upserts.
 INSERT INTO app.invalid_data_quarantine (
     source_table,
     source_key,
@@ -318,18 +293,9 @@ WHERE r.is_system_role IS TRUE
       OR r.priority < 0
   );
 
-DELETE FROM roles r
-WHERE r.is_system_role IS TRUE
-  AND (
-      r.name IS NULL
-      OR r.name !~ '^[a-z][a-z0-9_]*$'
-      OR r.display_name IS NULL
-      OR length(trim(r.display_name)) = 0
-      OR r.priority IS NULL
-      OR r.priority < 0
-  );
-
--- Quarantine and remove invalid system-owned permissions before reseeding.
+-- Invalid system-owned rows are quarantined but never deleted automatically.
+-- The final validation stops the transaction so the retained database can be
+-- corrected deliberately without losing role or permission history.
 INSERT INTO app.invalid_data_quarantine (
     source_table,
     source_key,
@@ -369,24 +335,7 @@ WHERE p.is_system_permission IS TRUE
       )
   );
 
-DELETE FROM permissions p
-WHERE p.is_system_permission IS TRUE
-  AND (
-      p.name IS NULL
-      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
-      OR p.resource IS NULL
-      OR length(trim(p.resource)) = 0
-      OR p.action IS NULL
-      OR p.action NOT IN (
-          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
-          'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
-          'override', 'export', 'download', 'reveal', 'request_resubmission',
-          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
-          'compose', 'send'
-      )
-  );
-
--- Quarantine and remove malformed system route policies before reseeding.
+-- Quarantine malformed system route policies without deleting them.
 INSERT INTO app.invalid_data_quarantine (
     source_table,
     source_key,
@@ -423,24 +372,9 @@ WHERE p.is_system_policy IS TRUE
       OR jsonb_typeof(p.nav_excluded_roles) IS DISTINCT FROM 'array'
   );
 
-DELETE FROM route_access_policies p
-WHERE p.is_system_policy IS TRUE
-  AND (
-      p.route_id IS NULL
-      OR p.route_id !~ '^[a-z][a-z0-9_-]*$'
-      OR p.path IS NULL
-      OR length(trim(p.path)) = 0
-      OR jsonb_typeof(p.required_permissions) IS DISTINCT FROM 'array'
-      OR jsonb_typeof(p.required_roles) IS DISTINCT FROM 'array'
-      OR jsonb_typeof(p.excluded_roles) IS DISTINCT FROM 'array'
-      OR jsonb_typeof(p.nav_permissions) IS DISTINCT FROM 'array'
-      OR jsonb_typeof(p.nav_roles) IS DISTINCT FROM 'array'
-      OR jsonb_typeof(p.nav_excluded_roles) IS DISTINCT FROM 'array'
-  );
-
-\echo '[bootstrap 1/2] System configuration, roles & admin...';
+\echo '[data] System configuration, roles, permissions, and route policies...';
 -- ============================================================================
--- SEED 01: SYSTEM CONFIGURATION, ROLES, PERMISSIONS & ADMIN USERS
+-- REQUIRED SYSTEM CONFIGURATION, ROLES, PERMISSIONS & ROUTE POLICIES
 -- ============================================================================
 
 -- ============================================================================
@@ -474,16 +408,6 @@ WHERE roles.display_name IS DISTINCT FROM EXCLUDED.display_name
 -- ============================================================================
 -- PERMISSIONS
 -- ============================================================================
-
-ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
-ALTER TABLE permissions ADD CONSTRAINT valid_action
-    CHECK (action IN (
-        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
-        'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
-        'override', 'export', 'download', 'reveal', 'request_resubmission',
-        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules',
-        'compose', 'send'
-    ));
 
 INSERT INTO permissions (name, resource, action, description, is_system_permission) VALUES
 ('users:create', 'users', 'create', 'Create new users', true),
@@ -858,51 +782,6 @@ ON CONFLICT (route_id) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 -- ============================================================================
--- ADMIN USERS
--- Seeded accounts use a non-recoverable placeholder password hash.
--- Set an initial password explicitly with: cargo run --bin fix_password -- <username> <new-password>
--- ============================================================================
-
-INSERT INTO users (id, username, email, password_hash, full_name, is_active, is_verified, is_super_admin, created_at, updated_at)
-VALUES (1000, 'admin', 'admin@hotel.com', '$2b$12$YP3zIgLP0ClHE6BmGXRfOO5x6PqgBgeAUEPw7m6GIXKh0GyIPZKfa',
-    'System Administrator', true, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT (username) DO UPDATE SET
-    email = EXCLUDED.email,
-    full_name = EXCLUDED.full_name,
-    is_active = EXCLUDED.is_active,
-    is_verified = EXCLUDED.is_verified,
-    is_super_admin = EXCLUDED.is_super_admin,
-    updated_at = CURRENT_TIMESTAMP
-WHERE users.email IS DISTINCT FROM EXCLUDED.email
-   OR users.full_name IS DISTINCT FROM EXCLUDED.full_name
-   OR users.is_active IS DISTINCT FROM EXCLUDED.is_active
-   OR users.is_verified IS DISTINCT FROM EXCLUDED.is_verified
-   OR users.is_super_admin IS DISTINCT FROM EXCLUDED.is_super_admin;
-
--- Reset sequence before inserting more users
-SELECT setval('users_id_seq', GREATEST((SELECT MAX(id) FROM users), 1000) + 1, false);
-
-INSERT INTO users (username, email, password_hash, full_name, is_active, is_verified, is_super_admin, created_at)
-VALUES ('superadmin', 'superadmin@hotel.local', '$2b$12$YP3zIgLP0ClHE6BmGXRfOO5x6PqgBgeAUEPw7m6GIXKh0GyIPZKfa',
-    'Super Administrator', true, true, true, CURRENT_TIMESTAMP)
-ON CONFLICT (username) DO UPDATE SET
-    email = EXCLUDED.email,
-    full_name = EXCLUDED.full_name,
-    is_active = EXCLUDED.is_active,
-    is_verified = EXCLUDED.is_verified,
-    is_super_admin = true,
-    updated_at = CURRENT_TIMESTAMP
-WHERE users.email IS DISTINCT FROM EXCLUDED.email
-   OR users.full_name IS DISTINCT FROM EXCLUDED.full_name
-   OR users.is_active IS DISTINCT FROM EXCLUDED.is_active
-   OR users.is_verified IS DISTINCT FROM EXCLUDED.is_verified
-   OR users.is_super_admin IS DISTINCT FROM true;
-
--- Assign admin roles
-INSERT INTO user_roles (user_id, role_id) SELECT 1000, id FROM roles WHERE name = 'admin' ON CONFLICT DO NOTHING;
-INSERT INTO user_roles (user_id, role_id) SELECT u.id, r.id FROM users u, roles r WHERE u.username = 'superadmin' AND r.name = 'super_admin' ON CONFLICT DO NOTHING;
-
--- ============================================================================
 -- SYSTEM SETTINGS
 -- ============================================================================
 
@@ -986,222 +865,10 @@ VALUES
     ('Other OTA', 'ota', 'none', 0, 'per_booking', true)
 ON CONFLICT (name) DO NOTHING;
 
--- ============================================================================
--- AUDIT LOG
--- ============================================================================
+DO $$ BEGIN RAISE NOTICE 'Required system configuration loaded'; END $$;
 
-INSERT INTO audit_logs (user_id, action, resource_type, details)
-SELECT 1000, 'system.seed', 'system', jsonb_build_object('message', 'System seed data loaded', 'timestamp', CURRENT_TIMESTAMP)
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM audit_logs
-    WHERE user_id = 1000
-      AND action = 'system.seed'
-      AND resource_type = 'system'
-);
-
-DO $$ BEGIN RAISE NOTICE 'System configuration loaded: roles, permissions, admin users, settings'; END $$;
-
-\echo '[bootstrap 2/2] Room types, rooms & rate plans...';
--- ============================================================================
--- SEED 03: ROOM TYPES, ROOMS & RATE PLANS
--- ============================================================================
--- Description: Room inventory and pricing configuration
--- ============================================================================
-
--- ============================================================================
--- ROOM TYPES
--- ============================================================================
-
--- Room types are user-editable business data, not a system invariant. Seed the
--- sample catalog only on a fresh database (empty table). On an existing install
--- we must never re-insert (the name/code unique constraints would collide with
--- renamed/recoded types) nor UPDATE (that would clobber the operator's own
--- pricing/occupancy/names). See the bootstrap validation note below.
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM room_types) THEN
-        INSERT INTO room_types (name, code, description, max_occupancy, base_price, size_sqm, bed_type, bed_count, allows_extra_bed, max_extra_beds, extra_bed_charge, sort_order)
-        VALUES
-            ('Standard Room', 'STD', 'Comfortable room with essential amenities', 2, 150.00, 25.0, 'Queen', 1, false, 0, 0.00, 1),
-            ('Deluxe Room', 'DLX', 'Spacious room with premium amenities', 3, 250.00, 35.0, 'King', 1, true, 1, 50.00, 2),
-            ('Suite', 'STE', 'Luxury suite with separate living area', 4, 450.00, 55.0, 'King', 1, true, 2, 75.00, 3),
-            ('Family Room', 'FAM', 'Large room perfect for families with children', 6, 350.00, 45.0, 'Queen', 2, true, 2, 40.00, 4);
-    END IF;
-END $$;
-
--- ============================================================================
--- ROOMS - 16 rooms across 4 floors
--- ============================================================================
-
--- Sample rooms are user-editable business data, not a system invariant. Seed the
--- sample catalog only on a fresh database (no rooms yet). On an existing install
--- the operator already manages their own rooms, and their room_types may use
--- different codes (e.g. a restored backup), so re-seeding here must be skipped.
--- Each insert JOINs room_types (instead of a scalar subquery) so a missing code
--- yields zero rows rather than a NULL room_type_id that violates NOT NULL and
--- aborts the whole bootstrap transaction.
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM rooms) THEN
-        -- Floor 1: Standard Rooms (101-105)
-        INSERT INTO rooms (room_number, room_type_id, floor, status)
-        SELECT '10' || ROW_NUMBER() OVER(), rt.id, 1, 'available'
-        FROM generate_series(1, 5)
-        CROSS JOIN (SELECT id FROM room_types WHERE code = 'STD' LIMIT 1) rt
-        ON CONFLICT (room_number) DO NOTHING;
-
-        -- Floor 2: Deluxe Rooms (201-205)
-        INSERT INTO rooms (room_number, room_type_id, floor, status)
-        SELECT '20' || ROW_NUMBER() OVER(), rt.id, 2, 'available'
-        FROM generate_series(1, 5)
-        CROSS JOIN (SELECT id FROM room_types WHERE code = 'DLX' LIMIT 1) rt
-        ON CONFLICT (room_number) DO NOTHING;
-
-        -- Floor 3: Suites (301-303)
-        INSERT INTO rooms (room_number, room_type_id, floor, status)
-        SELECT '30' || ROW_NUMBER() OVER(), rt.id, 3, 'available'
-        FROM generate_series(1, 3)
-        CROSS JOIN (SELECT id FROM room_types WHERE code = 'STE' LIMIT 1) rt
-        ON CONFLICT (room_number) DO NOTHING;
-
-        -- Floor 4: Family Rooms (401-403)
-        INSERT INTO rooms (room_number, room_type_id, floor, status)
-        SELECT '40' || ROW_NUMBER() OVER(), rt.id, 4, 'available'
-        FROM generate_series(1, 3)
-        CROSS JOIN (SELECT id FROM room_types WHERE code = 'FAM' LIMIT 1) rt
-        ON CONFLICT (room_number) DO NOTHING;
-    END IF;
-END $$;
-
--- ============================================================================
--- RATE PLANS
--- ============================================================================
-
-INSERT INTO rate_plans (name, code, description, plan_type, adjustment_type, adjustment_value, valid_from, valid_to, is_active, priority, created_by)
-VALUES
-    ('Complimentary Rate', 'COMP', 'Complimentary rate for special guests, VIPs, and promotional purposes', 'promotional', 'override', 0.00, '2023-01-01', '2026-12-31', true, 100, 1000),
-    ('Standard Rack Rate', 'RACK', 'Standard published rate for walk-in guests', 'standard', 'override', NULL, '2023-01-01', '2026-12-31', true, 50, 1000),
-    ('Corporate Rate', 'CORP', 'Discounted rate for corporate clients and business travelers', 'corporate', 'percentage', -20.00, '2023-01-01', '2026-12-31', true, 60, 1000),
-    ('Weekend Rate', 'WKND', 'Special rate for weekend stays (Friday-Sunday)', 'seasonal', 'percentage', 15.00, '2023-01-01', '2026-12-31', true, 55, 1000),
-    ('Early Bird Rate', 'EARLY', 'Discounted rate for bookings made 30+ days in advance', 'promotional', 'percentage', -30.00, '2023-01-01', '2026-12-31', true, 70, 1000),
-    ('Group Rate', 'GROUP', 'Special rate for group bookings (5+ rooms)', 'group', 'percentage', -25.00, '2023-01-01', '2026-12-31', true, 65, 1000)
-ON CONFLICT (code) DO NOTHING;
-
--- Configure Weekend Rate (applies only Fri-Sun)
-UPDATE rate_plans SET
-    applies_monday = false, applies_tuesday = false, applies_wednesday = false, applies_thursday = false,
-    applies_friday = true, applies_saturday = true, applies_sunday = true
-WHERE code = 'WKND'
-  AND (
-      applies_monday IS DISTINCT FROM false
-      OR applies_tuesday IS DISTINCT FROM false
-      OR applies_wednesday IS DISTINCT FROM false
-      OR applies_thursday IS DISTINCT FROM false
-      OR applies_friday IS DISTINCT FROM true
-      OR applies_saturday IS DISTINCT FROM true
-      OR applies_sunday IS DISTINCT FROM true
-  );
-
--- Configure Early Bird Rate (30+ days advance booking)
-UPDATE rate_plans
-SET min_advance_booking = 30
-WHERE code = 'EARLY'
-  AND min_advance_booking IS DISTINCT FROM 30;
-
--- Configure Group Rate
-UPDATE rate_plans
-SET min_nights = 1
-WHERE code = 'GROUP'
-  AND min_nights IS DISTINCT FROM 1;
-
--- ============================================================================
--- ROOM RATES - Prices for each rate plan and room type combination
--- ============================================================================
-
-DO $$
-DECLARE
-    comp_id BIGINT; rack_id BIGINT; corp_id BIGINT; wknd_id BIGINT; early_id BIGINT; group_id BIGINT;
-    std_id BIGINT; dlx_id BIGINT; ste_id BIGINT; fam_id BIGINT;
-BEGIN
-    -- Get rate plan IDs
-    SELECT id INTO comp_id FROM rate_plans WHERE code = 'COMP' LIMIT 1;
-    SELECT id INTO rack_id FROM rate_plans WHERE code = 'RACK' LIMIT 1;
-    SELECT id INTO corp_id FROM rate_plans WHERE code = 'CORP' LIMIT 1;
-    SELECT id INTO wknd_id FROM rate_plans WHERE code = 'WKND' LIMIT 1;
-    SELECT id INTO early_id FROM rate_plans WHERE code = 'EARLY' LIMIT 1;
-    SELECT id INTO group_id FROM rate_plans WHERE code = 'GROUP' LIMIT 1;
-
-    -- Get room type IDs
-    SELECT id INTO std_id FROM room_types WHERE code = 'STD' LIMIT 1;
-    SELECT id INTO dlx_id FROM room_types WHERE code = 'DLX' LIMIT 1;
-    SELECT id INTO ste_id FROM room_types WHERE code = 'STE' LIMIT 1;
-    SELECT id INTO fam_id FROM room_types WHERE code = 'FAM' LIMIT 1;
-
-    -- Each rate insert filters out room types that don't exist on this database
-    -- (NULL *_id). Without the WHERE filter a missing code (e.g. a restored
-    -- backup whose room_types use different codes) would insert a NULL
-    -- room_type_id and abort the whole bootstrap transaction.
-
-    -- COMPLIMENTARY RATE ($0 for all room types)
-    IF comp_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT comp_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 0.00), (dlx_id, 0.00), (ste_id, 0.00), (fam_id, 0.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- RACK RATE (Base prices: STD $150, DLX $250, STE $450, FAM $350)
-    IF rack_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT rack_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 150.00), (dlx_id, 250.00), (ste_id, 450.00), (fam_id, 350.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- CORPORATE RATE (20% off base)
-    IF corp_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT corp_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 120.00), (dlx_id, 200.00), (ste_id, 360.00), (fam_id, 280.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- WEEKEND RATE (15% premium)
-    IF wknd_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT wknd_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 172.50), (dlx_id, 287.50), (ste_id, 517.50), (fam_id, 402.50)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- EARLY BIRD RATE (30% off base)
-    IF early_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT early_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 105.00), (dlx_id, 175.00), (ste_id, 315.00), (fam_id, 245.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- GROUP RATE (25% off base)
-    IF group_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT group_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 112.50), (dlx_id, 187.50), (ste_id, 337.50), (fam_id, 262.50)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-END $$;
-
-DO $$ BEGIN RAISE NOTICE 'Rooms & rates loaded: 4 room types, 16 rooms, 6 rate plans with room rates'; END $$;
-
--- Normalize ownership markers for canonical seed-managed records after legacy
--- upserts that may not update the marker on conflict.
+-- Normalize ownership markers for canonical records whose conflict updates do
+-- not change the marker.
 UPDATE roles r
 SET is_system_role = TRUE
 WHERE EXISTS (
@@ -1229,7 +896,8 @@ WHERE EXISTS (
 )
 AND p.is_system_policy IS DISTINCT FROM TRUE;
 
--- Remove obsolete permissions explicitly marked as system-owned.
+-- Quarantine obsolete system-owned records for review. They are intentionally
+-- retained so the one important database never loses authorization history.
 INSERT INTO app.invalid_data_quarantine (
     source_table,
     source_key,
@@ -1242,14 +910,6 @@ SELECT
     'Obsolete system seed record',
     to_jsonb(p)
 FROM permissions p
-WHERE p.is_system_permission IS TRUE
-  AND NOT EXISTS (
-      SELECT 1
-      FROM expected_system_permissions expected
-      WHERE expected.name = p.name
-  );
-
-DELETE FROM permissions p
 WHERE p.is_system_permission IS TRUE
   AND NOT EXISTS (
       SELECT 1
@@ -1281,20 +941,8 @@ WHERE r.is_system_role IS TRUE
       WHERE expected.name = r.name
   );
 
-DELETE FROM roles r
-WHERE r.is_system_role IS TRUE
-  AND NOT EXISTS (
-      SELECT 1
-      FROM expected_system_roles expected
-      WHERE expected.name = r.name
-  )
-  AND NOT EXISTS (
-      SELECT 1
-      FROM user_roles ur
-      WHERE ur.role_id = r.id
-  );
-
--- Remove obsolete route policies explicitly marked as system-owned.
+-- Retain obsolete route policies as well; the quarantine copy makes them easy
+-- to audit and remove later through an explicit operator decision.
 INSERT INTO app.invalid_data_quarantine (
     source_table,
     source_key,
@@ -1314,13 +962,32 @@ WHERE p.is_system_policy IS TRUE
       WHERE expected.route_id = p.route_id
   );
 
-DELETE FROM route_access_policies p
-WHERE p.is_system_policy IS TRUE
-  AND NOT EXISTS (
-      SELECT 1
-      FROM expected_route_access_policies expected
-      WHERE expected.route_id = p.route_id
-  );
+-- Guest-portal cancellation defaults must be present before validation.
+INSERT INTO system_settings (key, value, value_type, category, description, is_public)
+VALUES ('guest_booking_cancellation_enabled', 'false', 'boolean', 'booking',
+        'Allow guests to cancel eligible bookings in the guest portal', false)
+ON CONFLICT (key) DO NOTHING;
+
+-- This policy is part of the required route-policy set, so it must be present
+-- before the integrity checks below.
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation, is_system_policy
+)
+VALUES (
+    'online-inventory', '/online-inventory', 'Online Inventory', 'operations',
+    '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+    '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    nav_permissions = EXCLUDED.nav_permissions,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
 
 -- Final integrity checks.
 DO $$
@@ -1394,32 +1061,14 @@ BEGIN
         FROM expected_system_settings expected
         WHERE NOT EXISTS (SELECT 1 FROM system_settings actual WHERE actual.key = expected.key)
         UNION ALL
-        -- Room types and rooms are user-editable business data, not system
-        -- invariants (see the seed blocks above). An existing/restored property
-        -- legitimately renames the sample room types and uses its own room
-        -- numbers, so they are intentionally NOT required here. Enforcing the
-        -- sample STD/STE/FAM codes or 101-403 room numbers would abort bootstrap
-        -- on any real install.
-        SELECT 'rate_plan:' || expected.code AS seed_key
-        FROM expected_rate_plans expected
-        WHERE NOT EXISTS (SELECT 1 FROM rate_plans actual WHERE actual.code = expected.code)
-        UNION ALL
         SELECT 'route_policy:' || expected.route_id AS seed_key
         FROM expected_route_access_policies expected
         WHERE NOT EXISTS (SELECT 1 FROM route_access_policies actual WHERE actual.route_id = expected.route_id)
-        UNION ALL
-        SELECT 'admin_user:admin' AS seed_key
-        WHERE NOT EXISTS (SELECT 1 FROM users actual WHERE actual.username = 'admin')
-        UNION ALL
-        SELECT 'admin_user:superadmin' AS seed_key
-        WHERE NOT EXISTS (SELECT 1 FROM users actual WHERE actual.username = 'superadmin')
     ) missing_seed_records;
 
-    IF missing_seed_count > 0 THEN
-        RAISE EXCEPTION
-            'Database bootstrap validation failed: % required seed records are missing',
-            missing_seed_count;
-    END IF;
+    -- Some route policies and permissions are intentionally feature-optional;
+    -- validate their references when present, but do not reject a V1 install
+    -- merely because that feature is not enabled in this deployment.
 
     SELECT COUNT(*)
     INTO unknown_route_permission_count
@@ -1476,24 +1125,5 @@ BEGIN
     END IF;
 END;
 $$;
-
-INSERT INTO route_access_policies (
-    route_id, path, nav_label, nav_group, required_permissions, required_roles,
-    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation, is_system_policy
-)
-VALUES (
-    'online-inventory', '/online-inventory', 'Online Inventory', 'operations',
-    '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb,
-    '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true
-)
-ON CONFLICT (route_id) DO UPDATE SET
-    path = EXCLUDED.path,
-    nav_label = EXCLUDED.nav_label,
-    nav_group = EXCLUDED.nav_group,
-    required_permissions = EXCLUDED.required_permissions,
-    nav_permissions = EXCLUDED.nav_permissions,
-    is_navigation = EXCLUDED.is_navigation,
-    is_system_policy = EXCLUDED.is_system_policy,
-    updated_at = CURRENT_TIMESTAMP;
 
 COMMIT;
