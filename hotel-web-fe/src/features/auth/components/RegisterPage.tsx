@@ -154,6 +154,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <Box
+      className="auth-page auth-page--register"
       sx={{
         minHeight: '100vh',
         display: 'flex',
@@ -178,9 +179,10 @@ const RegisterPage: React.FC = () => {
         },
       }}
     >
-      <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
+      <Container className="auth-container" maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in timeout={800}>
           <Paper
+            className="auth-card"
             elevation={0}
             sx={{
               p: { xs: 4, sm: 6 },
@@ -194,7 +196,7 @@ const RegisterPage: React.FC = () => {
             }}
           >
             {/* Header - Modern Bold Typography */}
-            <Box sx={{ textAlign: 'left', mb: 5 }}>
+            <Box className="auth-heading" sx={{ textAlign: 'left', mb: 5 }}>
               <Typography
                 variant="h1"
                 sx={{
@@ -211,7 +213,7 @@ const RegisterPage: React.FC = () => {
                   backgroundClip: 'text',
                 }}
               >
-                HOTEL
+                Join us
               </Typography>
               <Box sx={{
                 width: '60px',
@@ -240,7 +242,7 @@ const RegisterPage: React.FC = () => {
                   letterSpacing: '0.02em',
                 }}
               >
-                Create your account to get started
+                Save your details for a smoother stay
               </Typography>
             </Box>
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AddCommentOutlinedIcon from '@mui/icons-material/AddCommentOutlined';
+import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
@@ -21,12 +22,15 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import type { ChipProps } from '@mui/material';
 import {
   useCreatePortalSupportConversation,
   usePortalSupportConversation,
   usePortalSupportConversations,
+  usePortalSupportRealtime,
   useReopenPortalSupportConversation,
   useSendPortalSupportMessage,
   newPortalSupportClientId,
@@ -148,11 +152,18 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
   };
 
   return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      fullWidth
+      maxWidth="sm"
+      aria-describedby="support-conversation-safety-note"
+      PaperProps={{ sx: { borderRadius: 3 } }}
+    >
       <Box component="form" onSubmit={handleSubmit}>
-        <DialogTitle>Contact hotel support</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
+        <DialogTitle sx={{ pb: 1 }}>Contact hotel support</DialogTitle>
+        <DialogContent sx={{ pt: '12px !important' }}>
+          <Alert id="support-conversation-safety-note" severity="warning" sx={{ mb: 3 }}>
             This chat is not monitored for emergencies. If you are in immediate danger, contact local emergency services or the hotel front desk now.
           </Alert>
 
@@ -189,9 +200,9 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
             disabled={isSubmitting}
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleClose} disabled={isSubmitting}>Cancel</Button>
-          <Button type="submit" variant="contained" disabled={isSubmitting} startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+          <Button onClick={handleClose} disabled={isSubmitting} sx={{ minHeight: 44 }}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={isSubmitting} sx={{ minHeight: 44 }} startIcon={isSubmitting ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
             Send message
           </Button>
         </DialogActions>
@@ -212,7 +223,7 @@ function ConversationListItem({
   const title = conversation.subject?.trim() || supportCategoryLabel(conversation.category);
 
   return (
-    <ListItemButton selected={selected} onClick={onSelect} alignItems="flex-start" sx={{ py: 1.5 }}>
+    <ListItemButton selected={selected} onClick={onSelect} alignItems="flex-start" sx={{ minHeight: 76, py: 1.5, px: 2, transition: 'background-color 160ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
       <ListItemText
         primary={title}
         secondary={
@@ -284,6 +295,9 @@ function ConversationDetail({
   isSending,
   onReopen,
   isReopening,
+  onBack,
+  onNewConversation,
+  canStartConversation,
 }: {
   detail: PortalSupportConversationDetail | undefined;
   isLoading: boolean;
@@ -293,6 +307,9 @@ function ConversationDetail({
   isSending: boolean;
   onReopen: () => Promise<void>;
   isReopening: boolean;
+  onBack: () => void;
+  onNewConversation: () => void;
+  canStartConversation: boolean;
 }) {
   const [message, setMessage] = useState('');
   const [clientMessageId, setClientMessageId] = useState(() => newPortalSupportClientId());
@@ -304,31 +321,51 @@ function ConversationDetail({
     setSendError(null);
   }, [detail?.conversation.id]);
 
+  const mobileNavigation = (
+    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ display: { xs: 'flex', md: 'none' }, px: 1, py: 0.5, borderBottom: 1, borderColor: 'divider' }}>
+      <Button startIcon={<ArrowBackOutlinedIcon />} onClick={onBack} sx={{ minHeight: 44 }}>
+        Back to conversations
+      </Button>
+      <Button onClick={onNewConversation} disabled={!canStartConversation} sx={{ minHeight: 44 }}>
+        New
+      </Button>
+    </Stack>
+  );
+
   if (isLoading) {
     return (
-      <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 320 }}>
-        <CircularProgress />
+      <Box>
+        {mobileNavigation}
+        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 320 }}>
+          <CircularProgress />
+        </Box>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error" action={<Button color="inherit" size="small" onClick={onRetry}>Retry</Button>}>
-          {getErrorMessage(error, 'We could not load this conversation.')}
-        </Alert>
+      <Box>
+        {mobileNavigation}
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error" action={<Button color="inherit" size="small" onClick={onRetry}>Retry</Button>}>
+            {getErrorMessage(error, 'We could not load this conversation.')}
+          </Alert>
+        </Box>
       </Box>
     );
   }
 
   if (!detail) {
     return (
-      <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 320, textAlign: 'center', p: 3 }}>
-        <Box>
-          <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 42, mb: 1 }} />
-          <Typography variant="h6">Select a conversation</Typography>
-          <Typography color="text.secondary">Choose a support conversation to read or reply.</Typography>
+      <Box>
+        {mobileNavigation}
+        <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 320, textAlign: 'center', p: 3 }}>
+          <Box>
+            <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 42, mb: 1 }} />
+            <Typography variant="h6">Select a conversation</Typography>
+            <Typography color="text.secondary">Choose a support conversation to read or reply.</Typography>
+          </Box>
         </Box>
       </Box>
     );
@@ -363,8 +400,9 @@ function ConversationDetail({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: { xs: 430, md: 500 } }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: { xs: 'calc(100dvh - 172px)', md: 540 }, bgcolor: '#fffdf9' }}>
       <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ mx: { xs: -1, md: 0 }, mt: { xs: -1.5, md: 0 }, mb: { xs: 1, md: 0 } }}>{mobileNavigation}</Box>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }}>
           <Box>
             <Typography variant="h6">{conversation.subject?.trim() || supportCategoryLabel(conversation.category)}</Typography>
@@ -376,7 +414,7 @@ function ConversationDetail({
         </Stack>
       </Box>
 
-      <Box role="log" aria-live="polite" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: 'background.default' }}>
+      <Box role="log" aria-live="polite" aria-label="Conversation messages" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: '#f8f5ef' }}>
         {conversation.resolution_summary ? (
           <Alert severity="success" sx={{ mb: 2 }}>
             <Typography variant="subtitle2">Resolution</Typography>
@@ -387,7 +425,7 @@ function ConversationDetail({
       </Box>
 
       <Divider />
-      <Box sx={{ p: { xs: 2, md: 3 } }}>
+      <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#fffdf9', position: { xs: 'sticky', md: 'static' }, bottom: 0, pb: { xs: 'max(16px, env(safe-area-inset-bottom))', md: 3 }, boxShadow: { xs: '0 -8px 24px rgba(6,17,14,.08)', md: 'none' } }}>
         {sendError && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
 
         {canReply && (
@@ -405,7 +443,7 @@ function ConversationDetail({
               disabled={isSending}
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5 }}>
-              <Button type="submit" variant="contained" disabled={isSending || !message.trim()} startIcon={isSending ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
+              <Button type="submit" variant="contained" disabled={isSending || !message.trim()} sx={{ minHeight: 44 }} startIcon={isSending ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
                 Send reply
               </Button>
             </Box>
@@ -416,7 +454,7 @@ function ConversationDetail({
           <Alert
             severity="success"
             action={
-              <Button color="inherit" size="small" onClick={handleReopen} disabled={isReopening} startIcon={isReopening ? <CircularProgress size={16} color="inherit" /> : <ReplayOutlinedIcon />}>
+              <Button color="inherit" size="small" onClick={handleReopen} disabled={isReopening} sx={{ minHeight: 44 }} startIcon={isReopening ? <CircularProgress size={16} color="inherit" /> : <ReplayOutlinedIcon />}>
                 Reopen
               </Button>
             }
@@ -440,6 +478,10 @@ function ConversationDetail({
 export function PortalSupportTab({ token }: { token: string }) {
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<PortalSupportConversationId | null>(null);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const theme = useTheme();
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
+  usePortalSupportRealtime(token);
   const conversationsQuery = usePortalSupportConversations(token);
   const createConversation = useCreatePortalSupportConversation(token);
   const reopenConversation = useReopenPortalSupportConversation(token);
@@ -471,6 +513,7 @@ export function PortalSupportTab({ token }: { token: string }) {
   const handleCreate = async (request: CreatePortalSupportConversationRequest) => {
     const detail = await createConversation.mutateAsync(request);
     setSelectedConversationId(detail.conversation.id);
+    setMobileDetailOpen(true);
     setNewConversationOpen(false);
   };
 
@@ -478,16 +521,17 @@ export function PortalSupportTab({ token }: { token: string }) {
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mb: 2 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mb: 3 }}>
         <Box>
-          <Typography variant="h5">Support &amp; Help</Typography>
-          <Typography variant="body2" color="text.secondary">Message the hotel team about your stay or account.</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#06110e' }}>Message the hotel team</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Ask about your stay or account and keep every response together.</Typography>
         </Box>
         <Button
           variant="contained"
           startIcon={<AddCommentOutlinedIcon />}
           onClick={() => setNewConversationOpen(true)}
           disabled={!isSupportEnabled}
+          sx={{ minHeight: 44, alignSelf: { xs: 'stretch', sm: 'auto' } }}
         >
           New conversation
         </Button>
@@ -499,7 +543,7 @@ export function PortalSupportTab({ token }: { token: string }) {
         </Alert>
       ) : null}
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
+      <Alert severity="warning" sx={{ mb: 3 }}>
         For an emergency, contact local emergency services or the hotel front desk. Support chat is not monitored for emergencies.
       </Alert>
 
@@ -517,8 +561,9 @@ export function PortalSupportTab({ token }: { token: string }) {
           <Button variant="contained" onClick={() => setNewConversationOpen(true)} disabled={!isSupportEnabled}>Contact support</Button>
         </Paper>
       ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(260px, 34%) 1fr' }, gap: 2, alignItems: 'stretch' }}>
-          <Paper variant="outlined" sx={{ maxHeight: { md: 600 }, overflowY: 'auto' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(280px, 34%) 1fr' }, gap: { xs: 0, md: 2 }, alignItems: 'stretch' }}>
+          <Paper variant="outlined" sx={{ display: isDesktop || !mobileDetailOpen ? 'block' : 'none', maxHeight: { md: 640 }, overflowY: 'auto', borderRadius: { xs: 2, md: 3 }, borderColor: 'rgba(6,17,14,.14)', boxShadow: { md: '0 8px 24px rgba(6,17,14,.05)' } }}>
+            <Box sx={{ px: 2, pt: 2, pb: 1 }}><Typography variant="overline" sx={{ color: '#8d6b30', fontWeight: 700, letterSpacing: '.1em' }}>Conversations</Typography></Box>
             <List disablePadding aria-label="Support conversations">
               {items.map((conversation, index) => (
                 <Box key={String(conversation.id)}>
@@ -526,14 +571,14 @@ export function PortalSupportTab({ token }: { token: string }) {
                   <ConversationListItem
                     conversation={conversation}
                     selected={sameConversationId(selectedConversationId, conversation.id)}
-                    onSelect={() => setSelectedConversationId(conversation.id)}
+                    onSelect={() => { setSelectedConversationId(conversation.id); setMobileDetailOpen(true); }}
                   />
                 </Box>
               ))}
             </List>
           </Paper>
 
-          <Paper variant="outlined" sx={{ overflow: 'hidden' }}>
+          <Paper variant="outlined" sx={{ display: isDesktop || mobileDetailOpen ? 'block' : 'none', overflow: 'hidden', borderRadius: { xs: 2, md: 3 }, borderColor: 'rgba(6,17,14,.14)', boxShadow: { md: '0 8px 24px rgba(6,17,14,.05)' }, transition: 'opacity 180ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
             <ConversationDetail
               detail={detail}
               isLoading={detailQuery.isLoading}
@@ -554,6 +599,9 @@ export function PortalSupportTab({ token }: { token: string }) {
                 await reopenConversation.mutateAsync(selectedConversationId);
               }}
               isReopening={reopenConversation.isPending}
+              onBack={() => setMobileDetailOpen(false)}
+              onNewConversation={() => setNewConversationOpen(true)}
+              canStartConversation={isSupportEnabled}
             />
           </Paper>
         </Box>

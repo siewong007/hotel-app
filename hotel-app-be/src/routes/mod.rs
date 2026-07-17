@@ -140,6 +140,7 @@ pub fn create_router(pool: DbPool) -> Router {
     // Initialize rate limiters
     let rate_limiters = RateLimiters::new();
     let availability_hub = crate::modules::guest_booking::availability::AvailabilityHub::default();
+    let support_hub = crate::modules::support::hub::SupportHub::default();
 
     // All domain routes live under the `/api` prefix so that frontend
     // navigation paths (e.g. `/bookings/123`) never collide with the API and
@@ -187,7 +188,8 @@ pub fn create_router(pool: DbPool) -> Router {
         .nest("/api", api_routes)
         .with_state(pool)
         .layer(axum::Extension(rate_limiters))
-        .layer(axum::Extension(availability_hub));
+        .layer(axum::Extension(availability_hub))
+        .layer(axum::Extension(support_hub));
 
     // Add middleware layers
     app.layer(

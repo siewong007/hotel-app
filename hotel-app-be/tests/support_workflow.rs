@@ -12,6 +12,7 @@ mod sqlite_tests {
         CreateGuestSupportConversationRequest, GuestSupportMessageRequest, SupportActionInput,
         SupportListQuery, SupportMessageRequest,
     };
+    use hotel_app_be::modules::support::hub::SupportHub;
     use hotel_app_be::modules::support::{service, validation};
     use std::net::{IpAddr, Ipv4Addr};
     use std::sync::LazyLock;
@@ -149,11 +150,12 @@ mod sqlite_tests {
     async fn guest_creation_is_idempotent_and_scoped_to_its_owner() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9801, "support-owner@example.com").await;
         seed_guest(&pool, 9802, "support-other@example.com").await;
 
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9801,
             create_request("create-9801-a"),
             None,
@@ -162,7 +164,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let replay = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9801,
             create_request("create-9801-a"),
             None,
@@ -206,9 +208,10 @@ mod sqlite_tests {
     async fn write_only_staff_cannot_auto_claim_an_unassigned_conversation() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9811, "support-write@example.com").await;
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9811,
             create_request("create-9811-a"),
             None,
@@ -220,7 +223,7 @@ mod sqlite_tests {
         seed_staff_member(&pool, 9812, "support_writer_9812", true, &["support:write"]).await;
 
         let missing_version = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             9812,
             created.conversation.id,
             SupportMessageRequest {
@@ -236,7 +239,7 @@ mod sqlite_tests {
         assert!(matches!(missing_version, ApiError::BadRequest(_)));
 
         let without_assignment_permission = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             9812,
             created.conversation.id,
             SupportMessageRequest {
@@ -259,10 +262,11 @@ mod sqlite_tests {
     async fn guest_messages_are_owner_scoped_versioned_and_idempotent() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9831, "support-message-owner@example.com").await;
         seed_guest(&pool, 9832, "support-message-other@example.com").await;
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9831,
             create_request("create-9831-a"),
             None,
@@ -272,7 +276,7 @@ mod sqlite_tests {
         .unwrap();
 
         let missing_version = service::send_guest_message(
-            &pool,
+            &pool, &hub,
             9831,
             created.conversation.id,
             GuestSupportMessageRequest {
@@ -288,7 +292,7 @@ mod sqlite_tests {
         assert!(matches!(missing_version, ApiError::BadRequest(_)));
 
         let other_guest = service::send_guest_message(
-            &pool,
+            &pool, &hub,
             9832,
             created.conversation.id,
             GuestSupportMessageRequest {
@@ -309,14 +313,14 @@ mod sqlite_tests {
             expected_version: Some(created.conversation.version),
         };
         let replied =
-            service::send_guest_message(&pool, 9831, created.conversation.id, request, None, None)
+            service::send_guest_message(&pool, &hub, 9831, created.conversation.id, request, None, None)
                 .await
                 .unwrap();
         assert_eq!(replied.messages.len(), 2);
         assert_eq!(replied.conversation.status, "waiting_for_staff");
 
         let replay = service::send_guest_message(
-            &pool,
+            &pool, &hub,
             9831,
             created.conversation.id,
             GuestSupportMessageRequest {
@@ -333,7 +337,7 @@ mod sqlite_tests {
         assert_eq!(replay.conversation.version, replied.conversation.version);
 
         let stale_version = service::send_guest_message(
-            &pool,
+            &pool, &hub,
             9831,
             created.conversation.id,
             GuestSupportMessageRequest {
@@ -399,6 +403,7 @@ mod sqlite_tests {
     async fn assignment_requires_an_active_support_capable_agent_and_priority_rebases_sla() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9841, "support-assignment@example.com").await;
         seed_staff_member(
             &pool,
@@ -431,7 +436,7 @@ mod sqlite_tests {
         assert!(!agents.iter().any(|agent| agent.id == 9844));
 
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9841,
             create_request("create-9841-a"),
             None,
@@ -443,7 +448,7 @@ mod sqlite_tests {
         let mut write_only_assignment = action("assign", created.conversation.version);
         write_only_assignment.assignee_id = Some(9842);
         let write_only_error = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             write_only_assignment,
@@ -457,7 +462,7 @@ mod sqlite_tests {
         let mut inactive_assignment = action("assign", created.conversation.version);
         inactive_assignment.assignee_id = Some(9844);
         let inactive_error = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             inactive_assignment,
@@ -471,7 +476,7 @@ mod sqlite_tests {
         let mut assign_agent = action("assign", created.conversation.version);
         assign_agent.assignee_id = Some(9843);
         let assigned = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             assign_agent,
@@ -488,7 +493,7 @@ mod sqlite_tests {
         let mut agent_priority = action("set_priority", assigned.conversation.summary.version);
         agent_priority.priority = Some("urgent".to_string());
         let missing_manage_permission = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9843,
             created.conversation.id,
             agent_priority,
@@ -502,7 +507,7 @@ mod sqlite_tests {
         let mut priority_action = action("set_priority", assigned.conversation.summary.version);
         priority_action.priority = Some("urgent".to_string());
         let reprioritized = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             priority_action,
@@ -553,9 +558,10 @@ mod sqlite_tests {
     async fn resolve_sets_first_response_and_shares_the_resolution_with_the_guest() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9821, "support-resolution@example.com").await;
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9821,
             create_request("create-9821-a"),
             None,
@@ -565,7 +571,7 @@ mod sqlite_tests {
         .unwrap();
 
         let claimed = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             action("claim", created.conversation.version),
@@ -580,7 +586,7 @@ mod sqlite_tests {
         resolved_action.resolution_summary =
             Some("Engineering has been asked to inspect the air conditioning.".to_string());
         let resolved = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             resolved_action,
@@ -602,7 +608,7 @@ mod sqlite_tests {
         );
 
         let archived_claim = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             action("claim", resolved.conversation.summary.version),
@@ -616,7 +622,7 @@ mod sqlite_tests {
         let mut close_action = action("close", resolved.conversation.summary.version);
         close_action.reason = Some("The guest confirmed the room is comfortable now.".to_string());
         let closed = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             close_action,
@@ -631,7 +637,7 @@ mod sqlite_tests {
         let mut reopen_action = action("reopen", closed.conversation.summary.version);
         reopen_action.reason = Some("The guest called back with a follow-up question.".to_string());
         let reopened = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             reopen_action,
@@ -651,6 +657,7 @@ mod sqlite_tests {
     async fn guest_intake_honors_runtime_enablement_and_category_configuration() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9851, "support-settings@example.com").await;
 
         set_support_setting(
@@ -667,7 +674,7 @@ mod sqlite_tests {
         assert_eq!(list.categories, vec!["billing"]);
 
         let unavailable_category = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9851,
             create_request("create-9851-stay"),
             None,
@@ -678,7 +685,7 @@ mod sqlite_tests {
         assert!(matches!(unavailable_category, ApiError::BadRequest(_)));
 
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9851,
             create_request_for_category(" BILLING ", "create-9851-billing"),
             None,
@@ -699,7 +706,7 @@ mod sqlite_tests {
         );
 
         let disabled_intake = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9851,
             create_request_for_category("billing", "create-9851-disabled"),
             None,
@@ -714,10 +721,11 @@ mod sqlite_tests {
     async fn guest_reopen_paths_enforce_the_window_and_reset_resolution_state() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9852, "support-reopen@example.com").await;
 
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9852,
             create_request("create-9852-reopen"),
             None,
@@ -726,7 +734,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let claimed = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             action("claim", created.conversation.version),
@@ -739,12 +747,12 @@ mod sqlite_tests {
         resolve.resolution_code = Some("maintenance_dispatched".to_string());
         resolve.resolution_summary = Some("Engineering has been notified.".to_string());
         let resolved =
-            service::apply_staff_action(&pool, 1, created.conversation.id, resolve, None, None)
+            service::apply_staff_action(&pool, &hub, 1, created.conversation.id, resolve, None, None)
                 .await
                 .unwrap();
 
         let guest_reply = service::send_guest_message(
-            &pool,
+            &pool, &hub,
             9852,
             created.conversation.id,
             GuestSupportMessageRequest {
@@ -773,7 +781,7 @@ mod sqlite_tests {
         resolve_again.resolution_summary =
             Some("Engineering completed a follow-up check.".to_string());
         let resolved_again = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             resolve_again,
@@ -784,7 +792,7 @@ mod sqlite_tests {
         .unwrap();
         assert_eq!(resolved_again.conversation.summary.status, "resolved");
         let explicitly_reopened =
-            service::reopen_guest_conversation(&pool, 9852, created.conversation.id, None, None)
+            service::reopen_guest_conversation(&pool, &hub, 9852, created.conversation.id, None, None)
                 .await
                 .unwrap();
         assert_eq!(explicitly_reopened.conversation.status, "waiting_for_staff");
@@ -797,7 +805,7 @@ mod sqlite_tests {
             2
         );
         let reopen_replay =
-            service::reopen_guest_conversation(&pool, 9852, created.conversation.id, None, None)
+            service::reopen_guest_conversation(&pool, &hub, 9852, created.conversation.id, None, None)
                 .await
                 .unwrap();
         assert_eq!(
@@ -806,7 +814,7 @@ mod sqlite_tests {
         );
 
         let expired = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9852,
             create_request("create-9852-expired-reopen"),
             None,
@@ -815,7 +823,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let expired_claim = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             expired.conversation.id,
             action("claim", expired.conversation.version),
@@ -829,7 +837,7 @@ mod sqlite_tests {
         expired_resolve.resolution_summary =
             Some("The original request has been completed.".to_string());
         let expired_resolved = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             expired.conversation.id,
             expired_resolve,
@@ -851,12 +859,12 @@ mod sqlite_tests {
             .unwrap();
         assert!(!expired_detail.conversation.can_reopen);
         let expired_reopen =
-            service::reopen_guest_conversation(&pool, 9852, expired.conversation.id, None, None)
+            service::reopen_guest_conversation(&pool, &hub, 9852, expired.conversation.id, None, None)
                 .await
                 .unwrap_err();
         assert!(matches!(expired_reopen, ApiError::Conflict(_)));
         let expired_message = service::send_guest_message(
-            &pool,
+            &pool, &hub,
             9852,
             expired.conversation.id,
             GuestSupportMessageRequest {
@@ -876,6 +884,7 @@ mod sqlite_tests {
     async fn staff_workflow_covers_replies_actions_ownership_and_idempotency() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9853, "support-staff-workflow@example.com").await;
         seed_staff_member(
             &pool,
@@ -903,7 +912,7 @@ mod sqlite_tests {
         .await;
 
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9853,
             create_request("create-9853-staff-workflow"),
             None,
@@ -914,7 +923,7 @@ mod sqlite_tests {
 
         let claim_request = action("claim", created.conversation.version);
         let claimed = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             claim_request.clone(),
@@ -924,7 +933,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let claim_replay = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             claim_request,
@@ -942,7 +951,7 @@ mod sqlite_tests {
             Some(format!("claim-{}", created.conversation.version));
         mismatched_action_key.reason = Some("This must not reuse a claim key.".to_string());
         let mismatched_action_key_error = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             mismatched_action_key,
@@ -954,7 +963,7 @@ mod sqlite_tests {
         assert!(matches!(mismatched_action_key_error, ApiError::Conflict(_)));
 
         let released = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             action("release", claimed.conversation.summary.version),
@@ -971,7 +980,7 @@ mod sqlite_tests {
             expected_version: Some(released.conversation.summary.version),
         };
         let replied = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             staff_reply_request,
@@ -984,7 +993,7 @@ mod sqlite_tests {
         assert_eq!(replied.conversation.summary.assigned_to_user_id, Some(9854));
         assert!(replied.conversation.summary.first_response_at.is_some());
         let reply_replay = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             SupportMessageRequest {
@@ -1006,7 +1015,7 @@ mod sqlite_tests {
         let mut note_request = action("add_internal_note", replied.conversation.summary.version);
         note_request.reason = Some("Guest prefers a quiet follow-up call.".to_string());
         let noted = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             note_request.clone(),
@@ -1027,7 +1036,7 @@ mod sqlite_tests {
 
         let release_request = action("release", noted.conversation.summary.version);
         let released_by_writer = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             release_request.clone(),
@@ -1041,7 +1050,7 @@ mod sqlite_tests {
             None
         );
         let release_replay = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             release_request,
@@ -1060,7 +1069,7 @@ mod sqlite_tests {
             action("assign", released_by_writer.conversation.summary.version);
         assign_replacement.assignee_id = Some(9855);
         let reassigned = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             assign_replacement,
@@ -1070,7 +1079,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let cross_staff_message_key = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             9855,
             created.conversation.id,
             SupportMessageRequest {
@@ -1086,7 +1095,7 @@ mod sqlite_tests {
         assert!(matches!(cross_staff_message_key, ApiError::Conflict(_)));
 
         let replay_after_reassignment = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             SupportMessageRequest {
@@ -1106,7 +1115,7 @@ mod sqlite_tests {
         );
 
         let note_replay_after_reassignment = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9854,
             created.conversation.id,
             note_request,
@@ -1122,7 +1131,7 @@ mod sqlite_tests {
         );
 
         let no_reason = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9856,
             created.conversation.id,
             action("escalate", reassigned.conversation.summary.version),
@@ -1138,7 +1147,7 @@ mod sqlite_tests {
             let mut escalation = action("escalate", escalated.conversation.summary.version);
             escalation.reason = Some(format!("Escalation step {expected_level}"));
             escalated = service::apply_staff_action(
-                &pool,
+                &pool, &hub,
                 9856,
                 created.conversation.id,
                 escalation,
@@ -1159,7 +1168,7 @@ mod sqlite_tests {
         missing_version.expected_version = None;
         missing_version.priority = Some("high".to_string());
         let missing_version_error = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             missing_version,
@@ -1174,7 +1183,7 @@ mod sqlite_tests {
         stale_priority.priority = Some("high".to_string());
         stale_priority.client_action_id = Some("stale-priority-9853".to_string());
         let stale_priority_error = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             stale_priority,
@@ -1188,7 +1197,7 @@ mod sqlite_tests {
         let mut priority = action("set_priority", escalated.conversation.summary.version);
         priority.priority = Some("high".to_string());
         let reprioritized =
-            service::apply_staff_action(&pool, 1, created.conversation.id, priority, None, None)
+            service::apply_staff_action(&pool, &hub, 1, created.conversation.id, priority, None, None)
                 .await
                 .unwrap();
         assert_eq!(reprioritized.conversation.summary.priority, "high");
@@ -1198,6 +1207,7 @@ mod sqlite_tests {
     async fn action_only_replays_cannot_be_used_as_staff_detail_reads_after_a_handoff() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9858, "support-action-only@example.com").await;
         seed_staff_member(
             &pool,
@@ -1217,7 +1227,7 @@ mod sqlite_tests {
         .await;
 
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9858,
             create_request("create-9858-action-only"),
             None,
@@ -1227,7 +1237,7 @@ mod sqlite_tests {
         .unwrap();
         let claim_request = action("claim", created.conversation.version);
         let claimed = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9859,
             created.conversation.id,
             claim_request.clone(),
@@ -1239,12 +1249,12 @@ mod sqlite_tests {
 
         let mut handoff = action("assign", claimed.conversation.summary.version);
         handoff.assignee_id = Some(9860);
-        service::apply_staff_action(&pool, 1, created.conversation.id, handoff, None, None)
+        service::apply_staff_action(&pool, &hub, 1, created.conversation.id, handoff, None, None)
             .await
             .unwrap();
 
         let replay_after_handoff = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             9859,
             created.conversation.id,
             claim_request,
@@ -1260,9 +1270,10 @@ mod sqlite_tests {
     async fn guest_message_payloads_are_an_explicit_safe_allow_list() {
         let _test_lock = begin_support_workflow_test().await;
         let pool = common::setup_test_db().await;
+        let hub = SupportHub::default();
         seed_guest(&pool, 9857, "support-message-shape@example.com").await;
         let created = service::create_guest_conversation(
-            &pool,
+            &pool, &hub,
             9857,
             create_request("create-9857-message-shape"),
             None,
@@ -1271,7 +1282,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let claimed = service::apply_staff_action(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             action("claim", created.conversation.version),
@@ -1281,7 +1292,7 @@ mod sqlite_tests {
         .await
         .unwrap();
         let staff_detail = service::send_staff_message(
-            &pool,
+            &pool, &hub,
             1,
             created.conversation.id,
             SupportMessageRequest {

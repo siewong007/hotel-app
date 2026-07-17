@@ -25,7 +25,7 @@ const initialPreferences = {
   ],
 };
 
-function renderPreferences() {
+function renderPreferences(token = 'guest-token') {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, refetchOnWindowFocus: false },
@@ -35,16 +35,17 @@ function renderPreferences() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  return { queryClient, ...render(<PortalNotificationPreferences />, { wrapper }) };
+  return { queryClient, ...render(<PortalNotificationPreferences token={token} />, { wrapper }) };
 }
 
 function switchForTopic(label: string): HTMLInputElement {
-  const row = screen.getByText(label).parentElement;
-  const toggle = row?.querySelector('input[role="switch"]');
-  if (!(toggle instanceof HTMLInputElement)) {
-    throw new Error(`No switch rendered for ${label}`);
-  }
-  return toggle;
+  const topic = {
+    'Hotel announcements': 'announcement',
+    'Promotions and offers': 'promotion',
+    'Birthday voucher': 'birthday_voucher',
+  }[label];
+  if (!topic) throw new Error(`Unknown notification topic: ${label}`);
+  return screen.getByRole('switch', { name: `toggle ${topic} emails` }) as HTMLInputElement;
 }
 
 describe('PortalNotificationPreferences', () => {
@@ -76,7 +77,7 @@ describe('PortalNotificationPreferences', () => {
     await waitFor(() =>
       expect(mocks.updatePreferences).toHaveBeenCalledWith({
         subscriptions: [{ topic: 'promotion', subscribed: true }],
-      })
+      }, 'guest-token')
     );
     await waitFor(() => expect((promotionToggle as HTMLInputElement).checked).toBe(true));
   });
@@ -93,5 +94,16 @@ describe('PortalNotificationPreferences', () => {
 
     await waitFor(() => expect(screen.getByText('Unable to save email preferences')).toBeTruthy());
     expect((announcementToggle as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('shows a retry action instead of a blank panel when preferences cannot load', async () => {
+    mocks.getPreferences.mockRejectedValue(new Error('Preferences are unavailable'));
+
+    renderPreferences();
+
+    expect(await screen.findByText('Preferences are unavailable')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(mocks.getPreferences).toHaveBeenCalledTimes(2));
+    expect(mocks.getPreferences).toHaveBeenLastCalledWith('guest-token');
   });
 });

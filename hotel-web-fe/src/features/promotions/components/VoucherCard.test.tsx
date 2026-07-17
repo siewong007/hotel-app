@@ -48,6 +48,7 @@ describe('VoucherCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /copy code/i }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('SUMMER-2026'));
+    expect(screen.getByText('Voucher code copied to clipboard.')).toBeTruthy();
   });
 
   it('uses the masked code without a copy control when the raw code is unavailable', () => {

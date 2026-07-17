@@ -124,6 +124,44 @@ Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Co
        └─────────────┘
 ```
 
+### Docker + Caddy HTTPS (recommended)
+
+The repository ships a TLS entry point as a `caddy` service in
+`docker-compose.yml` (enabled via the `https` profile) configured by
+[`deploy/Caddyfile`](../../deploy/Caddyfile). Caddy obtains and renews
+Let's Encrypt certificates automatically, redirects HTTP→HTTPS, and serves
+the whole app on **one domain**: the API prefixes (`/api`, `/uploads`,
+`/health`, `/ws` — the same list as `PROXY_PREFIXES` in
+`hotel-web-fe/vite.config.ts`) are proxied to the backend, everything else to
+the frontend SPA. Same-origin serving is required for the
+`SameSite=Strict` refresh cookie to work — do **not** split the API onto a
+separate subdomain.
+
+Prerequisites: a DNS A/AAAA record for your domain pointing at the server,
+and ports 80 + 443 reachable from the internet.
+
+```bash
+# .env — in addition to the Quick Start values
+DOMAIN=hotel.example.com
+ACME_EMAIL=you@example.com
+TRUST_PROXY_HEADERS=true                  # rate limiter reads X-Forwarded-For from Caddy
+ALLOWED_ORIGINS=https://hotel.example.com
+VITE_API_URL=https://hotel.example.com    # build arg — changing it requires --build
+
+# Start (rebuild needed the first time and whenever VITE_API_URL changes)
+docker compose --profile https up -d --build
+```
+
+Notes:
+- The backend, frontend, and postgres ports are bound to `127.0.0.1` on the
+  host; only Caddy (80/443) is publicly reachable.
+- Certificates and ACME account state persist in the `caddy_data` volume.
+  Deleting it forces re-issuance and can hit Let's Encrypt rate limits.
+- For a local smoke test without a domain, leave `DOMAIN` unset (defaults to
+  `localhost`) — Caddy self-signs a local certificate; use `curl -k`.
+
+The manual Nginx instructions below remain the non-Docker alternative.
+
 ### Manual Deployment
 
 #### 1. Database Setup
@@ -403,7 +441,7 @@ Default admin credentials after seed (from `database/data.sql`):
 - [ ] Generate a strong JWT secret (`openssl rand -base64 48`)
 - [ ] Verify `ALLOWED_ORIGINS` only contains trusted domains
 - [ ] Set `TRUST_PROXY_HEADERS=false` unless behind a trusted proxy
-- [ ] Enable TLS via reverse proxy
+- [ ] Enable TLS via reverse proxy (Docker: `--profile https` Caddy service; see [Docker + Caddy HTTPS](#docker--caddy-https-recommended))
 - [ ] Review Content Security Policy in backend response headers
 - [ ] Verify rate limiting is configured appropriately
 - [ ] Ensure database firewall only allows backend IP access

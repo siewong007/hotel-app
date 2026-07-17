@@ -42,14 +42,14 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
   };
 
   return (
-    <Card variant="outlined" sx={{ height: '100%' }}>
-      <CardContent>
+    <Card variant="outlined" sx={{ height: '100%', borderColor: 'rgba(6,17,14,.14)', borderRadius: 3, transition: 'transform 180ms ease, box-shadow 180ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 10px 24px rgba(6,17,14,.08)' } }}>
+      <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1}>
           <Box>
             <Typography variant="overline" color="text.secondary">
               Voucher
             </Typography>
-            <Typography variant="h6">{voucher.promotion_name}</Typography>
+            <Typography variant="h6" sx={{ color: '#06110e', fontWeight: 700 }}>{voucher.promotion_name}</Typography>
           </Box>
           <Chip
             label={isExpired ? 'Expired' : VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status}
@@ -62,8 +62,9 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
           sx={{
             mt: 2,
             p: 1.5,
-            borderRadius: 1,
-            bgcolor: 'action.hover',
+            borderRadius: 2,
+            bgcolor: 'rgba(217,181,114,.16)',
+            border: '1px dashed rgba(141,107,48,.4)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -74,14 +75,17 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
           </Typography>
           {voucher.code ? (
             <Tooltip title={copied ? 'Copied' : 'Copy code'}>
-              <IconButton size="small" onClick={() => void copyCode()}>
+              <IconButton aria-label={copied ? 'Voucher code copied' : 'Copy code'} onClick={() => void copyCode()} sx={{ minWidth: 44, minHeight: 44 }}>
                 <ContentCopyIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           ) : null}
         </Box>
+        <Box role="status" aria-live="polite" aria-atomic="true" sx={{ minHeight: 20, mt: 0.75 }}>
+          {copied ? <Typography variant="caption" sx={{ color: '#25633a', fontWeight: 600 }}>Voucher code copied to clipboard.</Typography> : null}
+        </Box>
 
-        <Stack spacing={0.5} sx={{ mt: 2 }}>
+        <Stack spacing={0.5} sx={{ mt: 1.25 }}>
           {expiresAt ? (
             <Typography variant="caption" color="text.secondary">
               Expires {expiresAt}

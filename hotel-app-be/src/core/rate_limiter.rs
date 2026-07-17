@@ -181,11 +181,12 @@ pub struct RateLimiters {
     /// Guest portal token-gated MUTATIONS (pre-checkin submit, auto-checkin):
     /// 5 attempts per 15 minutes per token (mirrors guest_portal_booking's keying)
     pub guest_portal_token: KeyedRateLimiter,
-    /// Guest portal token-gated READS (get booking): 30 per 15 minutes per
-    /// token. The portal page fetches the booking on every load/refetch, so a
-    /// legitimate guest revisiting their link would exhaust a 5/15min budget
-    /// mid pre-check-in; reads are not a brute-force surface (the token is
-    /// already known), so throttle only scripted hammering.
+    /// Guest portal token-gated READS (get booking, dashboard tabs, support
+    /// conversations, socket handshakes): 120 per 15 minutes per token. This
+    /// budget is now shared across ~11 read endpoints plus the guest support
+    /// websocket handshake (one hit at connect, then free). Reads are not a
+    /// brute-force surface (the token is already known), so throttle only
+    /// scripted hammering, not normal multi-tab/multi-page browsing.
     pub guest_portal_token_read: KeyedRateLimiter,
     /// Authenticated guest support mutations: enough headroom for a real chat
     /// while preventing a compromised portal session from flooding the queue.
@@ -216,7 +217,7 @@ impl RateLimiters {
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
-            guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
+            guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(120, 900)),
             guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
             guest_portal_booking_create: KeyedRateLimiter::new(RateLimitConfig::new(10, 900)),
