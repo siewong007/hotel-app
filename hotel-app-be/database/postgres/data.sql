@@ -989,6 +989,53 @@ ON CONFLICT (route_id) DO UPDATE SET
     is_system_policy = EXCLUDED.is_system_policy,
     updated_at = CURRENT_TIMESTAMP;
 
+-- Backfill the remaining system route policies. Postgres previously shipped only
+-- the five module policies above, so every other accessControlled tab in the
+-- frontend (see hotel-web-fe routeRegistry.tsx / canAccessNavigationRoute) was
+-- hidden: that function returns false when an accessControlled route has no
+-- matching policy. admin and super_admin hold every permission referenced below,
+-- so they see all navigation tabs; other roles remain gated per permission.
+-- SQLite already seeds this full set (database/sqlite/data.sql); this brings
+-- Postgres to parity using only permissions that exist in the Postgres seed.
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation, is_system_policy
+)
+VALUES
+    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('guest-config', '/guest-config', 'Guests', 'main', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('my-bookings', '/my-bookings', 'My Bookings', 'main', '["bookings:read"]'::jsonb, '[]'::jsonb, '["super_admin","admin","manager","receptionist","staff"]'::jsonb, '["bookings:read"]'::jsonb, '[]'::jsonb, '["super_admin","admin","manager","receptionist","staff"]'::jsonb, true, true),
+    ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('settings', '/settings', 'Settings', 'config', '["settings:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('rbac', '/rbac', 'Access Control', 'config', '["roles:read","roles:manage","permissions:manage","users:read","users:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["roles:read","roles:manage","permissions:manage","users:read","users:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('night-audit', '/night-audit', 'Night Audit', 'admin', '["night_audit:read","night_audit:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["night_audit:read","night_audit:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('audit-log', '/audit-log', 'Audit Log', 'admin', '["audit:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["audit:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('loyalty', '/loyalty', 'Loyalty', 'admin', '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
+    ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
+    ('help', '/help', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
+    ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    required_roles = EXCLUDED.required_roles,
+    excluded_roles = EXCLUDED.excluded_roles,
+    nav_permissions = EXCLUDED.nav_permissions,
+    nav_roles = EXCLUDED.nav_roles,
+    nav_excluded_roles = EXCLUDED.nav_excluded_roles,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
+
 -- Final integrity checks.
 DO $$
 DECLARE
