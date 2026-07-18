@@ -12,6 +12,8 @@ name: Deploy production
 # first use: SHA256:EvysNdkRZEdS5wOyNFI+lZs2dH589gW9ycQGAiVImsE.
 
 on:
+  # Intentionally no workflow_dispatch: production revisions must enter through
+  # a successful push-triggered CI run, never through an untested manual path.
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -201,6 +203,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The images can take a long time to build. Recheck after upload and
+          # immediately before touching production so a CI run that became
+          # stale after the gate cannot deploy an older master revision.
+          latest_sha=$(git ls-remote --exit-code \
+            "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/master | awk '{print $1}')
+          [[ "$latest_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$DEPLOY_SHA" != "$latest_sha" ]]; then
+            echo "Refusing stale deployment $DEPLOY_SHA; master is now $latest_sha." >&2
+            exit 1
+          fi
+
           ssh \
             -i "$RUNNER_TEMP/lightsail-key" \
             -o BatchMode=yes \
@@ -212,8 +225,8 @@ jobs:
             -o "UserKnownHostsFile=$RUNNER_TEMP/lightsail-known-hosts" \
             "$VPS_USER@$VPS_HOST" \
             "set -euo pipefail
+             trap 'rm -f /tmp/saliminn-$DEPLOY_SHA.tar.gz.part /tmp/saliminn-$DEPLOY_SHA.tar.gz' EXIT
              mv /tmp/saliminn-$DEPLOY_SHA.tar.gz.part /tmp/saliminn-$DEPLOY_SHA.tar.gz
-             trap 'rm -f /tmp/saliminn-$DEPLOY_SHA.tar.gz' EXIT
              sudo rm -rf -- /opt/saliminn/releases/$DEPLOY_SHA.incoming
              sudo install -d -m 0750 /opt/saliminn/releases/$DEPLOY_SHA.incoming
              sudo tar -xzf /tmp/saliminn-$DEPLOY_SHA.tar.gz -C /opt/saliminn/releases/$DEPLOY_SHA.incoming

@@ -311,16 +311,23 @@ ensure_initial_admin_password() {
     return 0
   fi
 
-  password=$(openssl rand -hex 20)
-  password_hash=$(htpasswd -bnBC 12 '' "$password" | tr -d ':\n')
+  password=$(openssl rand -hex 20) || return 1
+  password_hash=$(htpasswd -bnBC 12 '' "$password" | tr -d ':\n') || return 1
   password_hash=${password_hash/#\$2y\$/\$2b\$}
 
-  # Persist the credential before activating its hash. If the host stops after
-  # the database update, the generated plaintext must still be recoverable.
-  password_tmp=$(mktemp "$APP_DIR/.initial-admin-password.XXXXXX")
-  printf 'username=admin\npassword=%s\n' "$password" > "$password_tmp"
-  chmod 0600 "$password_tmp"
-  mv "$password_tmp" "$ADMIN_PASSWORD_FILE"
+  # Atomically publish and durably flush the credential before activating its
+  # hash. A power loss after the database update must not make the only usable
+  # initial-admin password unrecoverable.
+  password_tmp=$(mktemp "$APP_DIR/.initial-admin-password.XXXXXX") || return 1
+  if ! printf 'username=admin\npassword=%s\n' "$password" > "$password_tmp"; then
+    rm -f -- "$password_tmp"
+    return 1
+  fi
+  if ! chmod 0600 "$password_tmp" || ! mv "$password_tmp" "$ADMIN_PASSWORD_FILE"; then
+    rm -f -- "$password_tmp"
+    return 1
+  fi
+  sync --file-system "$APP_DIR" || return 1
 
   updated=$(docker exec saliminn-db \
     psql -U hotel_admin -d hotel_management --tuples-only --no-align \
