@@ -17,7 +17,9 @@ RUN bun ci
 COPY . .
 
 # Build arguments for environment variables
-ARG VITE_API_URL=http://localhost:3030
+# Empty by default: the browser uses its current origin and the public reverse
+# proxy forwards API paths. Set this only for an intentional API-origin override.
+ARG VITE_API_URL
 ARG VITE_ENVIRONMENT=production
 
 # Set environment variables for build

@@ -141,7 +141,7 @@ export async function getTauriEventApi(): Promise<TauriEventApi> {
 }
 
 export function setRuntimeApiBaseUrl(url: string): void {
-  const normalizedUrl = url.replace(/\/+$/, '');
+  const normalizedUrl = url.trim().replace(/\/+$/, '');
   runtimeApiBaseUrl = normalizedUrl;
 
   if (typeof window !== 'undefined') {
@@ -166,7 +166,11 @@ export function getApiBaseUrl(): string {
     return '';
   }
 
-  return import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'http://localhost:3030' : '');
+  // Web deployments default to same-origin requests at runtime. The reverse
+  // proxy can therefore serve the same build from any domain without baking a
+  // hostname into the bundle, while an explicit override remains available for
+  // deployments that intentionally host the API elsewhere.
+  return (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
 }
 
 // Domain API endpoints are served under `/api` on the backend so that frontend

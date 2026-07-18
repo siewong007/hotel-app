@@ -1,8 +1,10 @@
 name: Docker
 
+# Production deploys transfer images directly to Lightsail and do not use GHCR.
+# Keep this legacy publisher available only when someone intentionally runs it;
+# automatic pushes would duplicate builds and consume package/cache storage.
 on:
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 jobs:
   build-and-push:

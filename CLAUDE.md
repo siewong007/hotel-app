@@ -121,7 +121,8 @@ the backend as a permissive option but desktop does not use it.
 Required (see `hotel-app-be/.env.example`): `DATABASE_URL` (postgres) /
 `DATABASE_PATH` (sqlite), `JWT_SECRET` (≥32 chars), `BACKEND_PORT` (3030),
 `ALLOWED_ORIGINS` (comma-separated; `*` = permissive), `HOTEL_DESKTOP_MODE`,
-`VITE_API_URL` (prod FE only; dev uses the Vite proxy). Optional pool/cache tuning
+`VITE_API_URL` (optional build-time override; web defaults to dynamic same-origin
+routing and dev uses the Vite proxy). Optional pool/cache tuning
 vars are read in `core/db.rs::create_pool` and `core/rbac_cache.rs`.
 
 MCP servers (analytics-server, hotel-search-server): described in

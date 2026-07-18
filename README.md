@@ -171,7 +171,7 @@ For production deployment (Docker + Caddy HTTPS, manual deployment, Oracle Cloud
 | `JWT_SECRET` | Backend/Desktop sidecar | Yes | JWT signing secret; use at least 32 characters. |
 | `BACKEND_PORT` | Backend/Desktop | No | API port, default `3030`. |
 | `ALLOWED_ORIGINS` | Backend | No | Comma-separated CORS origins. |
-| `VITE_API_URL` | Frontend | Production builds | API base URL when not using the Vite proxy. |
+| `VITE_API_URL` | Frontend | No | Optional build-time API-origin override. Leave unset for dynamic same-origin routing. |
 
 Never commit real `.env` files or local credentials. Full variable reference: [hotel-app-be/.env.example](hotel-app-be/.env.example) and the [Deployment Guide](docs/guides/deployment.md#environment-configuration).
 
