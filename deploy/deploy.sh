@@ -362,6 +362,10 @@ configure_caddy() {
 saliminn.my {
     encode zstd gzip
 
+    # Force HTTPS on repeat visits (prevents SSL-strip downgrade). Set-if-missing
+    # so an upstream that also emits HSTS is not duplicated.
+    header ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
     @backend path /api /api/* /uploads /uploads/* /health /ws /ws/*
     handle @backend {
         reverse_proxy 127.0.0.1:3030
