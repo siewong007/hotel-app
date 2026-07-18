@@ -95,7 +95,7 @@ jobs:
         run: |
           psql postgres://postgres:postgres@localhost:5432/postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS hotel_workflow_test WITH (FORCE)"
           psql postgres://postgres:postgres@localhost:5432/postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE hotel_workflow_test"
-          psql postgres://postgres:postgres@localhost:5432/hotel_workflow_test -v ON_ERROR_STOP=1 -f database/schema.sql
+          psql postgres://postgres:postgres@localhost:5432/hotel_workflow_test -v ON_ERROR_STOP=1 -f database/postgres/migrations/0001_v1_baseline.sql
 
       - name: PostgreSQL booking workflow tests
         env:
@@ -177,13 +177,15 @@ jobs:
 
       - name: Apply PostgreSQL schema and seed data
         run: |
-          psql "$DATABASE_URL" -f database/schema.sql
-          psql "$DATABASE_URL" -f database/data.sql
+          psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+          psql "$DATABASE_URL" -f database/postgres/data.sql
+          psql "$DATABASE_URL" -f database/postgres/seed.sql
 
       - name: Reapply PostgreSQL schema and seed data to verify idempotency
         run: |
-          psql "$DATABASE_URL" -f database/schema.sql
-          psql "$DATABASE_URL" -f database/data.sql
+          psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+          psql "$DATABASE_URL" -f database/postgres/data.sql
+          psql "$DATABASE_URL" -f database/postgres/seed.sql
 
       - name: Run PostgreSQL tests
         run: cargo test --features postgres --no-default-features

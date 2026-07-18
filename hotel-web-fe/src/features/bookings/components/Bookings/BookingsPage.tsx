@@ -1393,7 +1393,7 @@ const BookingsPage: React.FC = () => {
         <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
           <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 200px 200px 200px 200px' }, gap: 1.25 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'minmax(0, 1.4fr) repeat(4, minmax(0, 1fr))' }, gap: 1.25 }}>
                 <TextField
                   fullWidth
                   size="medium"

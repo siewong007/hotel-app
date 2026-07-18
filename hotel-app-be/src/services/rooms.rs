@@ -58,11 +58,17 @@ WHERE from_status = ?1 AND to_status = ?2 AND is_allowed = 1
 "#
     );
 
-    sqlx::query_scalar(query)
+    // `requires_permission` is a nullable column: an allowed transition may
+    // require no special permission (NULL). Decode the scalar as Option<String>
+    // so a present-but-NULL value doesn't error — fetch_optional only handles
+    // the no-row case, not a NULL column within a returned row. Then flatten
+    // (no row) and (row with NULL) both into None.
+    sqlx::query_scalar::<_, Option<String>>(query)
         .bind(from_status)
         .bind(to_status)
         .fetch_optional(pool)
         .await
+        .map(Option::flatten)
         .map_err(|e| ApiError::Database(e.to_string()))
 }
 
