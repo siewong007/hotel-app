@@ -57,7 +57,9 @@ services:
       context: ./hotel-web-fe
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3030}
+        # Leave empty for runtime same-origin routing through Caddy. An explicit
+        # value remains available for deployments with a separate API origin.
+        VITE_API_URL: "${VITE_API_URL:-}"
     container_name: hotel-frontend
     restart: unless-stopped
     ports:

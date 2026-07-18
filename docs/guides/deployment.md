@@ -103,8 +103,8 @@ DOMAIN=hotel.example.com
 ACME_EMAIL=you@example.com
 TRUST_PROXY_HEADERS=true                  # rate limiter reads X-Forwarded-For from Caddy
 ALLOWED_ORIGINS=https://hotel.example.com
-VITE_API_URL=https://hotel.example.com    # build arg — changing it requires --build
-docker compose --profile https up -d --build   # rebuild needed first time & whenever VITE_API_URL changes
+VITE_API_URL=                             # empty = use DOMAIN dynamically at runtime
+docker compose --profile https up -d --build
 ```
 
 Notes:
@@ -161,25 +161,28 @@ WantedBy=multi-user.target
 
 ```bash
 cd hotel-web-fe
-VITE_API_URL=https://your-api-domain.com bun run build
+bun run build
 cp -r dist/* /var/www/hotel-frontend/   # or your web server's document root
 ```
 
-Each host needs its own SSL `server{}` block. The frontend host serves
-`dist/` with an HTTP→HTTPS redirect, an SPA fallback
-(`try_files $uri $uri/ /index.html`), the same security headers listed under
-[Security Checklist](#security-checklist), and gzip for text/JS/JSON assets.
-The backend host reverse-proxies to the Rust process and additionally needs
-WebSocket upgrade headers and longer timeouts (night audit can run long), as
-in this representative config:
+Leave `VITE_API_URL` unset so the browser uses the current public origin at
+runtime. Serve the SPA and reverse-proxy backend paths from the same HTTPS host;
+this also keeps the `SameSite=Strict` refresh cookie available. The SPA needs a
+fallback (`try_files $uri $uri/ /index.html`), while API and WebSocket paths need
+upgrade headers and longer timeouts (night audit can run long), as in this
+representative config:
 
 ```nginx
 server {
     listen 443 ssl;
-    server_name api.your-domain.com;
-    ssl_certificate /etc/letsencrypt/live/api.your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.your-domain.com/privkey.pem;
-    location / {
+    server_name hotel.your-domain.com;
+    ssl_certificate /etc/letsencrypt/live/hotel.your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/hotel.your-domain.com/privkey.pem;
+
+    root /var/www/hotel-frontend;
+    index index.html;
+
+    location ~ ^/(?:api|uploads|ws)(?:/|$)|^/health$ {
         proxy_pass http://127.0.0.1:3030;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -190,8 +193,15 @@ server {
         proxy_read_timeout 120s;
         proxy_send_timeout 120s;
     }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
 }
 ```
+
+Set `VITE_API_URL` only when intentionally targeting another API origin; because
+it is a build-time override, changing that value requires rebuilding the frontend.
 
 ### Docker Swarm / Kubernetes
 

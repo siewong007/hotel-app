@@ -1,0 +1,479 @@
+#!/usr/bin/env bash
+# Deploy saliminn.my on the live payroll Lightsail VPS.
+#
+# Usage (as root):
+#   deploy.sh <40-character-git-sha> <extracted-release-directory>
+#
+# The GitHub workflow builds linux/amd64 images and transfers them over SSH.
+# This script verifies and loads those images, preserves host-generated secrets
+# and application data, waits for every service to become healthy, and rolls the
+# application images back when a release fails. It never contacts ECR, S3, SSM,
+# Route53, or another billable deployment service.
+set -Eeuo pipefail
+umask 077
+
+readonly APP_DIR=/opt/saliminn
+readonly RELEASES_DIR="$APP_DIR/releases"
+readonly COMPOSE_FILE="$APP_DIR/docker-compose.prod.yml"
+readonly SECRETS_FILE="$APP_DIR/secrets.env"
+readonly CURRENT_TAG_FILE="$APP_DIR/current-tag"
+readonly ADMIN_PASSWORD_FILE="$APP_DIR/initial-admin-password"
+readonly ADMIN_PASSWORD_MARKER="$APP_DIR/admin-password-initialized"
+readonly BACKUP_DIR="$APP_DIR/backups"
+readonly LOCK_FILE="$APP_DIR/deploy.lock"
+readonly CADDY_FILE=/etc/caddy/Caddyfile
+readonly CADDY_SITE_FILE=/etc/caddy/saliminn.Caddyfile
+readonly POSTGRES_IMAGE=postgres:19beta2
+readonly COMPOSE_VERSION=v5.1.4
+readonly COMPOSE_SHA256=33b208d7e76639db742fae84b966cc01dacae58ca3fc4dabbc907045aefdf0c4
+
+TAG="${1:-}"
+RELEASE_DIR="${2:-}"
+COMPOSE_COMMAND=()
+
+log() {
+  printf '[saliminn-deploy] %s\n' "$*"
+}
+
+die() {
+  printf '[saliminn-deploy] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ $EUID -eq 0 ]] || die "run this script as root (sudo)"
+[[ "$TAG" =~ ^[0-9a-f]{40}$ ]] || die "image tag must be a 40-character lowercase Git commit SHA"
+[[ -n "$RELEASE_DIR" && -d "$RELEASE_DIR" ]] || die "release directory does not exist: $RELEASE_DIR"
+
+install -d -m 0750 "$APP_DIR" "$RELEASES_DIR"
+exec 9>"$LOCK_FILE"
+flock -n 9 || die "another saliminn deployment is already running"
+
+required_payload=(
+  deploy.sh
+  docker-compose.prod.yml
+  SHA256SUMS
+  images/backend.tar.gz
+  images/frontend.tar.gz
+  initdb/01-v1-baseline.sql
+  initdb/02-data.sql
+  initdb/03-seed.sql
+)
+for payload in "${required_payload[@]}"; do
+  [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
+done
+
+(
+  cd "$RELEASE_DIR"
+  sha256sum --check SHA256SUMS
+) || die "release checksum verification failed"
+
+ensure_host_runtime() {
+  [[ $(uname -m) == x86_64 ]] || die "this release targets the confirmed x86-64 Lightsail host"
+
+  local packages=()
+  command -v curl >/dev/null 2>&1 || packages+=(ca-certificates curl)
+  command -v docker >/dev/null 2>&1 || packages+=(docker.io)
+  command -v gzip >/dev/null 2>&1 || packages+=(gzip)
+  command -v htpasswd >/dev/null 2>&1 || packages+=(apache2-utils)
+  command -v logrotate >/dev/null 2>&1 || packages+=(logrotate)
+  command -v openssl >/dev/null 2>&1 || packages+=(openssl)
+
+  if (( ${#packages[@]} > 0 )); then
+    log "Installing the Docker runtime prerequisites (first deployment only)"
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
+  fi
+
+  systemctl enable --now docker
+
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE_COMMAND=(docker compose)
+  else
+    log "Installing the pinned Docker Compose plugin (first deployment only)"
+    local plugin_dir=/usr/local/lib/docker/cli-plugins
+    local plugin_tmp
+    install -d -m 0755 "$plugin_dir"
+    plugin_tmp=$(mktemp "$plugin_dir/docker-compose.XXXXXX")
+    curl --fail --silent --show-error --location \
+      "https://github.com/docker/compose/releases/download/$COMPOSE_VERSION/docker-compose-linux-x86_64" \
+      --output "$plugin_tmp"
+    printf '%s  %s\n' "$COMPOSE_SHA256" "$plugin_tmp" | sha256sum --check --status - \
+      || die "downloaded Docker Compose plugin failed checksum verification"
+    chmod 0755 "$plugin_tmp"
+    mv "$plugin_tmp" "$plugin_dir/docker-compose"
+    docker compose version >/dev/null 2>&1 || die "Docker Compose plugin installation failed"
+    COMPOSE_COMMAND=(docker compose)
+  fi
+
+  command -v caddy >/dev/null 2>&1 || die "host Caddy is missing; payroll currently depends on it, so install/repair it manually"
+  [[ -f "$CADDY_FILE" ]] || die "host Caddyfile is missing: $CADDY_FILE"
+}
+
+ensure_capacity() {
+  local available_kib
+  available_kib=$(df --output=avail -k "$APP_DIR" | tail -n 1 | tr -d ' ')
+  [[ "$available_kib" =~ ^[0-9]+$ ]] || die "could not determine free disk space"
+  (( available_kib >= 6291456 )) \
+    || die "at least 6 GiB of free disk is required for images, rollback, backup, and emergency swap"
+
+  local swap_kib
+  swap_kib=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo)
+  if (( swap_kib < 1048576 )); then
+    local swap_file=/var/lib/saliminn.swap
+    log "Adding 2 GiB of emergency swap because this shared VPS has less than 1 GiB configured"
+    if [[ ! -f "$swap_file" ]]; then
+      fallocate -l 2G "$swap_file"
+      chmod 0600 "$swap_file"
+      mkswap "$swap_file" >/dev/null
+    fi
+    swapon --show=NAME --noheadings | grep -Fxq "$swap_file" || swapon "$swap_file"
+    grep -Fq "$swap_file none swap sw 0 0" /etc/fstab \
+      || printf '%s none swap sw 0 0\n' "$swap_file" >> /etc/fstab
+  fi
+  printf 'vm.swappiness=10\n' > /etc/sysctl.d/99-saliminn-swap.conf
+  sysctl -q -w vm.swappiness=10
+}
+
+ensure_secrets() {
+  if [[ ! -f "$SECRETS_FILE" ]]; then
+    log "Generating persistent database and JWT secrets on the VPS"
+    local secrets_tmp
+    secrets_tmp=$(mktemp "$APP_DIR/.secrets.env.XXXXXX")
+    printf 'POSTGRES_PASSWORD=%s\nJWT_SECRET=%s\n' \
+      "$(openssl rand -hex 32)" \
+      "$(openssl rand -hex 48)" > "$secrets_tmp"
+    chmod 0600 "$secrets_tmp"
+    mv "$secrets_tmp" "$SECRETS_FILE"
+  fi
+
+  chmod 0600 "$SECRETS_FILE"
+  set -a
+  # This root-owned file is generated immediately above.
+  # shellcheck disable=SC1090
+  source "$SECRETS_FILE"
+  set +a
+
+  [[ "${POSTGRES_PASSWORD:-}" =~ ^[A-Za-z0-9._~-]{32,}$ ]] \
+    || die "POSTGRES_PASSWORD in $SECRETS_FILE must be at least 32 URL-safe characters"
+  local jwt_value=${JWT_SECRET:-}
+  (( ${#jwt_value} >= 32 )) || die "JWT_SECRET in $SECRETS_FILE must be at least 32 characters"
+}
+
+install_release_files() {
+  install -m 0644 "$RELEASE_DIR/docker-compose.prod.yml" "$COMPOSE_FILE"
+  install -m 0750 "$RELEASE_DIR/deploy.sh" "$APP_DIR/deploy.sh"
+  # The official PostgreSQL entrypoint processes these files as its non-root
+  # postgres user, so this read-only directory must be traversable by it.
+  install -d -m 0755 "$APP_DIR/initdb"
+  install -m 0644 "$RELEASE_DIR/initdb/01-v1-baseline.sql" "$APP_DIR/initdb/01-v1-baseline.sql"
+  install -m 0644 "$RELEASE_DIR/initdb/02-data.sql" "$APP_DIR/initdb/02-data.sql"
+  install -m 0644 "$RELEASE_DIR/initdb/03-seed.sql" "$APP_DIR/initdb/03-seed.sql"
+
+  # The backend image runs as uid/gid 1000. Bind-mounted application state must
+  # stay writable by that non-root user across container replacements.
+  install -d -m 0750 -o 1000 -g 1000 \
+    "$APP_DIR/data" \
+    "$APP_DIR/data/uploads" \
+    "$APP_DIR/data/uploads/public" \
+    "$APP_DIR/data/private_uploads" \
+    "$APP_DIR/data/private_uploads/ekyc" \
+    "$APP_DIR/logs"
+
+  cat > /etc/logrotate.d/saliminn <<'LOGROTATE'
+/opt/saliminn/logs/*.log {
+    daily
+    maxsize 10M
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}
+LOGROTATE
+  chmod 0644 /etc/logrotate.d/saliminn
+}
+
+load_release_images() {
+  log "Loading application images for $TAG"
+  gzip -dc "$RELEASE_DIR/images/backend.tar.gz" | docker load >/dev/null
+  gzip -dc "$RELEASE_DIR/images/frontend.tar.gz" | docker load >/dev/null
+  docker image inspect "saliminn-backend:$TAG" >/dev/null
+  docker image inspect "saliminn-frontend:$TAG" >/dev/null
+  [[ $(docker image inspect --format '{{.Architecture}}' "saliminn-backend:$TAG") == amd64 ]] \
+    || die "backend image architecture is not amd64"
+  [[ $(docker image inspect --format '{{.Architecture}}' "saliminn-frontend:$TAG") == amd64 ]] \
+    || die "frontend image architecture is not amd64"
+
+  if ! docker image inspect "$POSTGRES_IMAGE" >/dev/null 2>&1; then
+    log "Pulling $POSTGRES_IMAGE (first deployment only)"
+    docker pull "$POSTGRES_IMAGE" >/dev/null
+  fi
+}
+
+compose() {
+  "${COMPOSE_COMMAND[@]}" \
+    --project-name saliminn \
+    --file "$COMPOSE_FILE" \
+    "$@"
+}
+
+container_health() {
+  docker inspect \
+    --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+    "$1" 2>/dev/null || true
+}
+
+wait_for_healthy() {
+  local container=$1
+  local deadline=$((SECONDS + 240))
+  local status
+  while (( SECONDS < deadline )); do
+    status=$(container_health "$container")
+    case "$status" in
+      healthy)
+        log "$container is healthy"
+        return 0
+        ;;
+      exited|dead|unhealthy)
+        log "$container entered state: $status"
+        return 1
+        ;;
+    esac
+    sleep 3
+  done
+  log "$container did not become healthy before the timeout (last state: ${status:-missing})"
+  return 1
+}
+
+deploy_tag() {
+  local target_tag=$1
+  export IMAGE_TAG=$target_tag
+  compose config >/dev/null || return 1
+  compose up --detach --remove-orphans || return 1
+  wait_for_healthy saliminn-db || return 1
+  wait_for_healthy saliminn-backend || return 1
+  wait_for_healthy saliminn-frontend || return 1
+  curl -fsS http://127.0.0.1:3030/health >/dev/null || return 1
+  curl -fsS http://127.0.0.1:8081/health >/dev/null || return 1
+}
+
+show_diagnostics() {
+  compose ps >&2 || true
+  compose logs --no-color --tail 100 postgres backend frontend >&2 || true
+}
+
+backup_existing_database() {
+  [[ $(docker inspect --format '{{.State.Running}}' saliminn-db 2>/dev/null || true) == true ]] || return 0
+
+  install -d -m 0700 "$BACKUP_DIR"
+  local timestamp backup_tmp backup_path
+  timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+  backup_path="$BACKUP_DIR/predeploy-$timestamp.dump"
+  backup_tmp=$(mktemp "$BACKUP_DIR/.predeploy.XXXXXX")
+  log "Creating local pre-deploy database backup"
+  if docker exec saliminn-db \
+    pg_dump --format=custom --no-owner --no-acl -U hotel_admin hotel_management \
+    > "$backup_tmp"; then
+    chmod 0600 "$backup_tmp"
+    mv "$backup_tmp" "$backup_path"
+  else
+    rm -f "$backup_tmp"
+    die "database backup failed; refusing to deploy"
+  fi
+
+  local backups=() index
+  mapfile -t backups < <(
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name 'predeploy-*.dump' -printf '%T@ %p\n' \
+      | sort -nr \
+      | cut -d' ' -f2-
+  )
+  for ((index = 3; index < ${#backups[@]}; index++)); do
+    rm -f -- "${backups[$index]}"
+  done
+}
+
+ensure_initial_admin_password() {
+  local placeholder_hash current_hash password password_hash updated password_tmp
+  placeholder_hash="\$2b\$12\$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK"
+  current_hash=$(docker exec saliminn-db \
+    psql -U hotel_admin -d hotel_management --tuples-only --no-align \
+      --command "SELECT password_hash FROM users WHERE username = 'admin'" \
+    | tr -d '[:space:]')
+
+  [[ -n "$current_hash" ]] || return 1
+  if [[ "$current_hash" != "$placeholder_hash" ]]; then
+    if [[ ! -f "$ADMIN_PASSWORD_MARKER" ]]; then
+      log "Existing non-placeholder admin password was preserved"
+      printf 'existing admin password preserved at %s\n' "$(date -u +%FT%TZ)" > "$ADMIN_PASSWORD_MARKER"
+      chmod 0600 "$ADMIN_PASSWORD_MARKER"
+    fi
+    return 0
+  fi
+
+  password=$(openssl rand -hex 20)
+  password_hash=$(htpasswd -bnBC 12 '' "$password" | tr -d ':\n')
+  password_hash=${password_hash/#\$2y\$/\$2b\$}
+
+  # Persist the credential before activating its hash. If the host stops after
+  # the database update, the generated plaintext must still be recoverable.
+  password_tmp=$(mktemp "$APP_DIR/.initial-admin-password.XXXXXX")
+  printf 'username=admin\npassword=%s\n' "$password" > "$password_tmp"
+  chmod 0600 "$password_tmp"
+  mv "$password_tmp" "$ADMIN_PASSWORD_FILE"
+
+  updated=$(docker exec saliminn-db \
+    psql -U hotel_admin -d hotel_management --tuples-only --no-align \
+      --set=password_hash="$password_hash" <<'SQL'
+WITH changed AS (
+    UPDATE users
+       SET password_hash = :'password_hash', updated_at = CURRENT_TIMESTAMP
+     WHERE username = 'admin'
+     RETURNING 1
+)
+SELECT COUNT(*) FROM changed;
+SQL
+  )
+  [[ $(printf '%s' "$updated" | tr -d '[:space:]') == 1 ]] || return 1
+
+  printf 'generated at %s\n' "$(date -u +%FT%TZ)" > "$ADMIN_PASSWORD_MARKER"
+  chmod 0600 "$ADMIN_PASSWORD_MARKER"
+  log "A one-time admin credential was written to $ADMIN_PASSWORD_FILE (root-only)"
+}
+
+configure_caddy() {
+  local site_tmp main_backup site_backup=""
+  site_tmp=$(mktemp "$APP_DIR/.saliminn.Caddyfile.XXXXXX")
+  main_backup=$(mktemp "$APP_DIR/.Caddyfile.XXXXXX")
+  cp -p "$CADDY_FILE" "$main_backup"
+  if [[ -f "$CADDY_SITE_FILE" ]]; then
+    site_backup=$(mktemp "$APP_DIR/.saliminn.Caddyfile.previous.XXXXXX")
+    cp -p "$CADDY_SITE_FILE" "$site_backup"
+  fi
+
+  cat > "$site_tmp" <<'CADDY'
+saliminn.my {
+    encode zstd gzip
+
+    @backend path /api /api/* /uploads /uploads/* /health /ws /ws/*
+    handle @backend {
+        reverse_proxy 127.0.0.1:3030
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8081
+    }
+}
+
+www.saliminn.my {
+    redir https://saliminn.my{uri} permanent
+}
+CADDY
+
+  install -m 0644 "$site_tmp" "$CADDY_SITE_FILE"
+  if ! grep -Fqx "import $CADDY_SITE_FILE" "$CADDY_FILE"; then
+    printf '\n# Hotel application (managed by /opt/saliminn/deploy.sh)\nimport %s\n' \
+      "$CADDY_SITE_FILE" >> "$CADDY_FILE"
+  fi
+
+  if ! caddy validate --config "$CADDY_FILE"; then
+    cp -p "$main_backup" "$CADDY_FILE"
+    if [[ -n "$site_backup" ]]; then
+      cp -p "$site_backup" "$CADDY_SITE_FILE"
+    else
+      rm -f "$CADDY_SITE_FILE"
+    fi
+    rm -f "$site_tmp" "$main_backup"
+    [[ -z "$site_backup" ]] || rm -f "$site_backup"
+    return 1
+  fi
+
+  if ! systemctl reload caddy; then
+    cp -p "$main_backup" "$CADDY_FILE"
+    if [[ -n "$site_backup" ]]; then
+      cp -p "$site_backup" "$CADDY_SITE_FILE"
+    else
+      rm -f "$CADDY_SITE_FILE"
+    fi
+    systemctl reload caddy || true
+    rm -f "$site_tmp" "$main_backup"
+    [[ -z "$site_backup" ]] || rm -f "$site_backup"
+    return 1
+  fi
+
+  rm -f "$site_tmp" "$main_backup"
+  [[ -z "$site_backup" ]] || rm -f "$site_backup"
+}
+
+cleanup_old_releases() {
+  local keep_current=$1 keep_previous=$2 directory basename
+  for directory in "$RELEASES_DIR"/*; do
+    [[ -d "$directory" ]] || continue
+    basename=${directory##*/}
+    if [[ "$basename" != "$keep_current" && "$basename" != "$keep_previous" ]]; then
+      rm -rf -- "$directory"
+    fi
+  done
+}
+
+cleanup_old_images() {
+  local repository=$1 keep_current=$2 keep_previous=$3 image_tag
+  while IFS= read -r image_tag; do
+    [[ -n "$image_tag" && "$image_tag" != '<none>' ]] || continue
+    if [[ "$image_tag" != "$keep_current" && "$image_tag" != "$keep_previous" ]]; then
+      docker image rm "$repository:$image_tag" >/dev/null 2>&1 || true
+    fi
+  done < <(docker image ls "$repository" --format '{{.Tag}}')
+}
+
+ensure_host_runtime
+ensure_capacity
+ensure_secrets
+backup_existing_database
+install_release_files
+load_release_images
+
+previous_tag=""
+if [[ -s "$CURRENT_TAG_FILE" ]]; then
+  read -r previous_tag < "$CURRENT_TAG_FILE"
+  if [[ ! "$previous_tag" =~ ^[0-9a-f]{40}$ ]]; then
+    log "Ignoring malformed previous release marker"
+    previous_tag=""
+  fi
+fi
+
+log "Starting release $TAG"
+if deploy_tag "$TAG" && ensure_initial_admin_password && configure_caddy; then
+  printf '%s\n' "$TAG" > "$CURRENT_TAG_FILE"
+  chmod 0600 "$CURRENT_TAG_FILE"
+  cleanup_old_images saliminn-backend "$TAG" "$previous_tag"
+  cleanup_old_images saliminn-frontend "$TAG" "$previous_tag"
+  cleanup_old_releases "$TAG" "$previous_tag"
+  log "Release $TAG is healthy on localhost:3030 and localhost:8081"
+  log "Caddy is configured for https://saliminn.my"
+  exit 0
+fi
+
+log "Release $TAG failed; collecting diagnostics"
+export IMAGE_TAG=$TAG
+show_diagnostics
+
+if [[ -n "$previous_tag" ]] \
+  && docker image inspect "saliminn-backend:$previous_tag" >/dev/null 2>&1 \
+  && docker image inspect "saliminn-frontend:$previous_tag" >/dev/null 2>&1; then
+  log "Rolling application containers back to $previous_tag"
+  if [[ -f "$RELEASES_DIR/$previous_tag/docker-compose.prod.yml" ]]; then
+    install -m 0644 "$RELEASES_DIR/$previous_tag/docker-compose.prod.yml" "$COMPOSE_FILE"
+  fi
+  if deploy_tag "$previous_tag"; then
+    log "Rollback succeeded"
+  else
+    log "Rollback failed; manual intervention is required"
+    show_diagnostics
+  fi
+else
+  log "No complete previous release is available for automatic rollback"
+  compose stop backend frontend >/dev/null 2>&1 || true
+fi
+
+die "deployment failed"

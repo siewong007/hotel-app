@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:19beta1
+        image: postgres:19beta2
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -141,7 +141,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:19beta1
+        image: postgres:19beta2
         env:
           POSTGRES_DB: hotel_ci
           POSTGRES_USER: postgres
@@ -181,11 +181,24 @@ jobs:
           psql "$DATABASE_URL" -f database/postgres/data.sql
           psql "$DATABASE_URL" -f database/postgres/seed.sql
 
-      - name: Reapply PostgreSQL schema and seed data to verify idempotency
+      # The V1 baseline/data/seed set is intentionally one-shot. Reapplying it
+      # is an invalid lifecycle operation, so assert the completed installation
+      # and its core schema instead of expecting those files to be idempotent.
+      - name: Verify PostgreSQL V1 installation
         run: |
-          psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-          psql "$DATABASE_URL" -f database/postgres/data.sql
-          psql "$DATABASE_URL" -f database/postgres/seed.sql
+          test "$(psql "$DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+            "SELECT COUNT(*) FROM hotel_schema_revisions WHERE generation = 1 AND version = 1")" = "1"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          BEGIN
+              IF to_regclass('public.users') IS NULL
+                 OR to_regclass('public.bookings') IS NULL
+                 OR to_regclass('public.system_settings') IS NULL THEN
+                  RAISE EXCEPTION 'PostgreSQL V1 core schema is incomplete';
+              END IF;
+          END;
+          $$;
+          SQL
 
       - name: Run PostgreSQL tests
         run: cargo test --features postgres --no-default-features
