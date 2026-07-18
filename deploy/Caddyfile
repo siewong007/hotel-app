@@ -6,9 +6,14 @@
 {$DOMAIN} {
 	encode zstd gzip
 
-	# Backend already sends HSTS on API responses; '?' sets it only when absent
-	# (i.e. on frontend/static responses).
-	header ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	# HSTS. '?' sets the header only when absent. Parameterized so local HTTPS
+	# (DOMAIN=localhost in docker-compose.yml) can send max-age=0: an HSTS pin
+	# on the host "localhost" applies to EVERY port, force-upgrading the plain
+	# HTTP Vite dev server on :3000 to https and breaking it (notably in
+	# Safari). Unset (production/VPS) the default below preserves the original
+	# hardened value byte-for-byte. (Note: the backend does NOT send HSTS
+	# itself — verified 2026-07-19 — this edge header is the only source.)
+	header ?Strict-Transport-Security "{$HSTS_VALUE:max-age=31536000; includeSubDomains}"
 
 	# KEEP IN SYNC with PROXY_PREFIXES in hotel-web-fe/vite.config.ts
 	@backend path /api/* /uploads/* /health /ws /ws/*

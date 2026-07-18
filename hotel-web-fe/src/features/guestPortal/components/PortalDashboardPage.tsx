@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from '../../../router';
 import { Alert, Box, Button, Container, CircularProgress, Fade, Paper, Stack, Typography } from '@mui/material';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
@@ -10,6 +10,7 @@ import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { BookingsSection, EmbeddedSection, OverviewSection, PaymentsSection, RewardsSection } from './dashboard/PortalDashboardSections';
+import { PortalSupportWidget } from './PortalSupportWidget';
 import { parsePortalSection, type PortalSection } from './dashboard/dashboardUtils';
 
 export const PortalDashboardPage: React.FC = () => {
@@ -76,10 +77,25 @@ const AuthenticatedDashboard: React.FC<{
 }> = ({ token, navigate, signOut }) => {
   const location = useLocation();
   const activeSection = parsePortalSection(location.search);
+  const [supportOpen, setSupportOpen] = useState(false);
+  // Support is a floating panel rather than a page: any link to ?section=support
+  // (top nav "Help", mobile nav, deep links) opens the widget, and the page behind
+  // falls back to the overview instead of rendering the section inline.
+  const displaySection: PortalSection = activeSection === 'support' ? 'overview' : activeSection;
   const changeSection = (section: PortalSection) => {
     const params = new URLSearchParams(location.search);
     params.set('section', section);
     navigate(`/guest-portal?${params.toString()}`);
+  };
+
+  useEffect(() => {
+    if (activeSection === 'support') setSupportOpen(true);
+  }, [activeSection]);
+
+  const handleSupportOpenChange = (next: boolean) => {
+    setSupportOpen(next);
+    // Clear the support deep-link on close so the widget doesn't immediately reopen.
+    if (!next && activeSection === 'support') changeSection('overview');
   };
 
   return (
@@ -112,23 +128,24 @@ const AuthenticatedDashboard: React.FC<{
           >
             {[
               ['overview', 'Overview', CalendarMonthOutlinedIcon], ['stays', 'My stays', CalendarMonthOutlinedIcon], ['payments', 'Payments', CreditCardOutlinedIcon], ['rewards', 'Rewards', DiamondOutlinedIcon], ['offers', 'Offers', LocalOfferOutlinedIcon], ['vouchers', 'Vouchers', ConfirmationNumberOutlinedIcon], ['support', 'Support', SupportAgentOutlinedIcon], ['preferences', 'Preferences', TuneOutlinedIcon],
-            ].map(([value, label, Icon]) => { const isActive = activeSection === value; const SectionIcon = Icon as typeof CalendarMonthOutlinedIcon; return <Button key={value as string} startIcon={<SectionIcon />} onClick={() => changeSection(value as PortalSection)} aria-current={isActive ? 'page' : undefined} sx={{ flexShrink: 0, color: isActive ? '#06110e' : 'text.secondary', bgcolor: isActive ? 'rgba(217,181,114,.35)' : 'transparent', fontWeight: isActive ? 700 : 500, '&:hover': { bgcolor: 'rgba(217,181,114,.22)' } }}>{label as string}</Button>; })}
+            ].map(([value, label, Icon]) => { const isSupport = value === 'support'; const isActive = isSupport ? supportOpen : displaySection === value; const SectionIcon = Icon as typeof CalendarMonthOutlinedIcon; return <Button key={value as string} startIcon={<SectionIcon />} onClick={() => (isSupport ? setSupportOpen(true) : changeSection(value as PortalSection))} aria-current={isActive ? 'page' : undefined} sx={{ flexShrink: 0, color: isActive ? '#06110e' : 'text.secondary', bgcolor: isActive ? 'rgba(217,181,114,.35)' : 'transparent', fontWeight: isActive ? 700 : 500, '&:hover': { bgcolor: 'rgba(217,181,114,.22)' } }}>{label as string}</Button>; })}
           </Box>
         </Box>
-        <Fade in key={activeSection} timeout={220}><Box component="section" aria-live="polite" sx={{ p: { xs: 2.5, sm: 4 } }}>
-          {activeSection === 'overview' ? (
+        <Fade in key={displaySection} timeout={220}><Box component="section" aria-live="polite" sx={{ p: { xs: 2.5, sm: 4 } }}>
+          {displaySection === 'overview' ? (
             <OverviewSection
               token={token}
               onSectionChange={changeSection}
               onBook={() => navigate('/guest-portal?view=booking')}
             />
           ) : null}
-          {activeSection === 'stays' ? <BookingsSection token={token} /> : null}
-          {activeSection === 'payments' ? <PaymentsSection token={token} /> : null}
-          {activeSection === 'rewards' ? <RewardsSection token={token} /> : null}
-          {['offers', 'vouchers', 'support', 'preferences'].includes(activeSection) ? <EmbeddedSection section={activeSection} token={token} /> : null}
+          {displaySection === 'stays' ? <BookingsSection token={token} /> : null}
+          {displaySection === 'payments' ? <PaymentsSection token={token} /> : null}
+          {displaySection === 'rewards' ? <RewardsSection token={token} /> : null}
+          {['offers', 'vouchers', 'preferences'].includes(displaySection) ? <EmbeddedSection section={displaySection} token={token} /> : null}
         </Box></Fade>
       </Paper>
+      <PortalSupportWidget token={token} open={supportOpen} onOpenChange={handleSupportOpenChange} />
     </Container>
   );
 };
