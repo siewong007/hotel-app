@@ -329,7 +329,7 @@ ensure_initial_admin_password() {
   fi
   sync --file-system "$APP_DIR" || return 1
 
-  updated=$(docker exec saliminn-db \
+  updated=$(docker exec -i saliminn-db \
     psql -U hotel_admin -d hotel_management --tuples-only --no-align \
       --set=password_hash="$password_hash" <<'SQL'
 WITH changed AS (
