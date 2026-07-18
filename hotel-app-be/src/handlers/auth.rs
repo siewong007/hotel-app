@@ -22,13 +22,22 @@ fn refresh_cookie_is_secure() -> bool {
     !cfg!(debug_assertions) && !crate::core::config::get().desktop_mode
 }
 
-/// Builds the refresh-token cookie: `HttpOnly`, `Secure`, `SameSite=Strict`,
+/// Builds the refresh-token cookie: `HttpOnly`, `Secure`, `SameSite=Lax`,
 /// scoped to `/api/auth` so it is only ever sent to the auth endpoints.
+///
+/// `Lax` (not `Strict`): the SPA restores its session by POSTing to
+/// `/api/auth/refresh` on every full-page load. When that load is reached by a
+/// top-level link navigation (e.g. the Salim Inn landing page's "Admin console"
+/// link → `/admin-portal`), Safari/WebKit does not reliably attach a `Strict`
+/// cookie to the immediately-following same-site fetch, so the refresh returns
+/// 401 and the admin is bounced back to the landing/login page. `Lax` is sent on
+/// same-site requests in every browser while still withholding the cookie from
+/// cross-site POSTs, so CSRF protection on this POST endpoint is preserved.
 pub(crate) fn build_refresh_cookie(token: String) -> Cookie<'static> {
     Cookie::build((REFRESH_COOKIE, token))
         .http_only(true)
         .secure(refresh_cookie_is_secure())
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax)
         .path("/api/auth")
         .max_age(time::Duration::days(REFRESH_COOKIE_MAX_AGE_DAYS))
         .build()
@@ -40,7 +49,7 @@ fn clear_refresh_cookie() -> Cookie<'static> {
     Cookie::build((REFRESH_COOKIE, ""))
         .http_only(true)
         .secure(refresh_cookie_is_secure())
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax)
         .path("/api/auth")
         .max_age(time::Duration::seconds(0))
         .build()
