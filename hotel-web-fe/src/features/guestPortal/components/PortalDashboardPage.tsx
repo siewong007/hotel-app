@@ -89,7 +89,11 @@ const AuthenticatedDashboard: React.FC<{
   };
 
   useEffect(() => {
-    if (activeSection === 'support') setSupportOpen(true);
+    // Opening support is a deep-link (?section=support). Navigating to any other
+    // section (e.g. Payments) closes the panel, so it never stays stuck over the
+    // new page — which in Safari reads as a hang, especially on the full-screen
+    // mobile sheet.
+    setSupportOpen(activeSection === 'support');
   }, [activeSection]);
 
   const handleSupportOpenChange = (next: boolean) => {
