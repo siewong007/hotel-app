@@ -9,8 +9,8 @@ use chrono::NaiveDate;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    AuditDetailsResponse, ListAuditsQuery, NightAuditPreview, NightAuditResponse,
-    NightAuditRunWithUser, RunNightAuditRequest,
+    AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
+    NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
 };
 use crate::services::night_audit;
 use std::collections::HashMap;
@@ -43,7 +43,7 @@ pub async fn run_night_audit(
 pub async fn list_night_audits(
     State(pool): State<DbPool>,
     Query(params): Query<ListAuditsQuery>,
-) -> Result<Json<Vec<NightAuditRunWithUser>>, ApiError> {
+) -> Result<Json<NightAuditListResponse>, ApiError> {
     Ok(Json(night_audit::list(&pool, params).await?))
 }
 

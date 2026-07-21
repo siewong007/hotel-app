@@ -5,8 +5,8 @@ use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
 use crate::handlers::night_audit;
 use crate::models::{
-    AuditDetailsResponse, ListAuditsQuery, NightAuditPreview, NightAuditResponse,
-    NightAuditRunWithUser, RunNightAuditRequest,
+    AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
+    NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
 };
 use axum::{
     Json, Router,
@@ -48,7 +48,7 @@ async fn list_audits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<ListAuditsQuery>,
-) -> Result<Json<Vec<NightAuditRunWithUser>>, ApiError> {
+) -> Result<Json<NightAuditListResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "night_audit:read").await?;
     night_audit::list_night_audits(State(pool), query).await
 }

@@ -106,7 +106,8 @@ export const queryKeys = {
   nightAudit: {
     all: nightAudit,
     preview: (date: string) => [...nightAudit, 'preview', date] as const,
-    runs: (page: number, pageSize: number) => [...nightAudit, 'runs', page, pageSize] as const,
+    runs: (page: number, pageSize: number, year?: number, month?: number) =>
+      [...nightAudit, 'runs', page, pageSize, year ?? null, month ?? null] as const,
     detail: (id: string | number) => [...nightAudit, 'detail', String(id)] as const,
     details: (id: string | number) => [...nightAudit, 'details', String(id)] as const,
     bookingPosted: (bookingId: string | number) => [...nightAudit, 'booking-posted', String(bookingId)] as const,

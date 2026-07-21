@@ -81,6 +81,10 @@ pub struct RunNightAuditRequest {
 pub struct ListAuditsQuery {
     pub page: Option<i32>,
     pub page_size: Option<i32>,
+    /// Filter by year (e.g., 2026). If provided without month, shows all audits for that year.
+    pub year: Option<i32>,
+    /// Filter by month (1-12). If provided with year, shows all audits for that month/year.
+    pub month: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -88,6 +92,15 @@ pub struct NightAuditResponse {
     pub success: bool,
     pub audit_run: NightAuditRunWithUser,
     pub message: String,
+}
+
+/// Paginated audit-history list response.
+#[derive(Debug, Serialize)]
+pub struct NightAuditListResponse {
+    pub data: Vec<NightAuditRunWithUser>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
 }
 
 #[derive(Debug, Serialize)]

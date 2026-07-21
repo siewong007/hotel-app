@@ -50,6 +50,7 @@ export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
 export type {
   NightAuditPreview,
   NightAuditRun,
+  NightAuditListResponse,
   NightAuditResponse,
   UnpostedBooking,
   RoomSnapshot,

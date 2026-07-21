@@ -84,6 +84,7 @@ export type {
   JournalSection,
   NightAuditPreview,
   NightAuditRun,
+  NightAuditListResponse,
   NightAuditResponse,
   RunNightAuditRequest,
   BookingPostedStatus,

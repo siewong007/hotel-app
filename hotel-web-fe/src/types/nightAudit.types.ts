@@ -80,6 +80,13 @@ export interface NightAuditRun {
   booking_channel_breakdown: RevenueBreakdownItem[];
 }
 
+export interface NightAuditListResponse {
+  data: NightAuditRun[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface NightAuditResponse {
   success: boolean;
   audit_run: NightAuditRun;

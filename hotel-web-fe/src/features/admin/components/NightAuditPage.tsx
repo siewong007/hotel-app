@@ -7,6 +7,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Paper,
   Card,
@@ -195,12 +196,25 @@ const NightAuditPage: React.FC = () => {
   const [auditDate, setAuditDate] = useState(() => formatLocalDate());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Filter state for audit history
+  const [historyYear, setHistoryYear] = useState(() => new Date().getFullYear());
+  const [historyMonth, setHistoryMonth] = useState(() => new Date().getMonth() + 1);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyPageSize, setHistoryPageSize] = useState(25);
+
   const previewQuery = useNightAuditPreview(auditDate);
-  const historyQuery = useNightAuditRuns(1, 50);
+  const historyQuery = useNightAuditRuns({
+    page: historyPage + 1,
+    pageSize: historyPageSize,
+    year: historyYear,
+    month: historyMonth,
+  });
   const runAuditMutation = useRunNightAudit();
   const fetchAuditDetails = useNightAuditDetailsFetcher();
   const preview = previewQuery.data ?? null;
-  const auditHistory = historyQuery.data ?? [];
+  const auditHistory = historyQuery.data?.data ?? [];
+  const historyTotal = historyQuery.data?.total ?? 0;
   const loading = previewQuery.isPending || previewQuery.isFetching;
   const historyLoading = historyQuery.isPending;
   const running = runAuditMutation.isPending;
@@ -1040,220 +1054,287 @@ const NightAuditPage: React.FC = () => {
 
       {/* Tab 2: Audit History */}
       <TabPanel value={tabValue} index={1} idPrefix="night-audit" contentSx={{ pt: 2 }}>
+        {/* Year/Month Filter Controls */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+          <TextField
+            select
+            label="Year"
+            value={historyYear}
+            onChange={(e) => {
+              setHistoryYear(Number(e.target.value));
+              setHistoryPage(0);
+            }}
+            size="small"
+            sx={{ minWidth: 120 }}
+            SelectProps={{ native: true }}
+          >
+            {Array.from({ length: 6 }, (_, i) => {
+              const year = new Date().getFullYear() - i;
+              return (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              );
+            })}
+          </TextField>
+
+          <TextField
+            select
+            label="Month"
+            value={historyMonth}
+            onChange={(e) => {
+              setHistoryMonth(Number(e.target.value));
+              setHistoryPage(0);
+            }}
+            size="small"
+            sx={{ minWidth: 140 }}
+            SelectProps={{ native: true }}
+          >
+            {Array.from({ length: 12 }, (_, i) => (
+              <option key={i + 1} value={i + 1}>
+                {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
+              </option>
+            ))}
+          </TextField>
+
+          <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+            {historyTotal} audit{historyTotal === 1 ? '' : 's'} found
+          </Typography>
+        </Box>
+
         {historyLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
           </Box>
         ) : auditHistory.length > 0 ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {auditHistory.map((audit) => (
-              <Card key={audit.id} variant="outlined">
-                {/* Audit Header - Clickable */}
-                <CardContent
-                  sx={{
-                    cursor: 'pointer',
-                    '&:hover': { bgcolor: 'action.hover' },
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    py: 1.5,
-                  }}
-                  onClick={() => toggleRowExpansion(audit.id)}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <IconButton size="small">
-                      {expandedRows.has(audit.id) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                    </IconButton>
-                    <Box>
-                      <Typography variant="h6" component="span">
-                        {new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <TimeIcon fontSize="small" />
-                          {new Date(audit.run_at).toLocaleString()}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <PersonIcon fontSize="small" />
-                          {audit.run_by_username || 'System'}
-                        </Typography>
-                        {getStatusChip(audit.status)}
-                      </Box>
-                    </Box>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mr: 2 }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h5" color="primary">{audit.total_bookings_posted}</Typography>
-                      <Typography variant="caption" color="text.secondary">Bookings</Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h5" color="info.main">{Number(audit.occupancy_rate).toFixed(0)}%</Typography>
-                      <Typography variant="caption" color="text.secondary">Occupancy</Typography>
-                    </Box>
-                  </Box>
-                </CardContent>
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                  <TableCell sx={{ width: 48 }} />
+                  <TableCell sx={{ fontWeight: 600 }}>Audit Date</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Run At</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Run By</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Bookings</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">Occupancy</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {auditHistory.map((audit) => {
+                  const isExpanded = expandedRows.has(audit.id);
+                  return (
+                    <React.Fragment key={audit.id}>
+                      <TableRow
+                        hover
+                        onClick={() => toggleRowExpansion(audit.id)}
+                        sx={{ cursor: 'pointer', '& > .MuiTableCell-root': { borderBottom: isExpanded ? 'none' : undefined } }}
+                      >
+                        <TableCell>
+                          <IconButton size="small">
+                            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                          </IconButton>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <TimeIcon fontSize="small" />
+                            {new Date(audit.run_at).toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <PersonIcon fontSize="small" />
+                            {audit.run_by_username || 'System'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>{getStatusChip(audit.status)}</TableCell>
+                        <TableCell align="right">{audit.total_bookings_posted}</TableCell>
+                        <TableCell align="right">{Number(audit.occupancy_rate).toFixed(0)}%</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={7} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
+                          <Collapse in={isExpanded}>
+                            <Box sx={{ bgcolor: 'grey.50', p: 2 }}>
+                              <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+                                Night Audit Report - {new Date(audit.audit_date + 'T00:00:00').toLocaleDateString()}
+                              </Typography>
 
-                {/* Expanded Report Details */}
-                <Collapse in={expandedRows.has(audit.id)}>
-                  <Divider />
-                  <CardContent sx={{ bgcolor: 'grey.50' }}>
-                    <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
-                      Night Audit Report - {new Date(audit.audit_date + 'T00:00:00').toLocaleDateString()}
-                    </Typography>
+                              {/* Booking Statistics */}
+                              <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+                                Booking Statistics
+                              </Typography>
+                              <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid size={{ xs: 6, sm: 4 }}>
+                                  <Card variant="outlined">
+                                    <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
+                                      <Typography variant="h4" color="primary">{audit.total_bookings_posted}</Typography>
+                                      <Typography variant="body2" color="text.secondary">Bookings Posted</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 6, sm: 4 }}>
+                                  <Card variant="outlined">
+                                    <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
+                                      <Typography variant="h4" color="success.main">{audit.total_checkins}</Typography>
+                                      <Typography variant="body2" color="text.secondary">Check-ins</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 6, sm: 4 }}>
+                                  <Card variant="outlined">
+                                    <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
+                                      <Typography variant="h4" color="warning.main">{audit.total_checkouts}</Typography>
+                                      <Typography variant="body2" color="text.secondary">Check-outs</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                              </Grid>
 
-                    {/* Booking Statistics */}
-                    <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
-                      Booking Statistics
-                    </Typography>
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
-                      <Grid size={{ xs: 6, sm: 4 }}>
-                        <Card variant="outlined">
-                          <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                            <Typography variant="h4" color="primary">{audit.total_bookings_posted}</Typography>
-                            <Typography variant="body2" color="text.secondary">Bookings Posted</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 6, sm: 4 }}>
-                        <Card variant="outlined">
-                          <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                            <Typography variant="h4" color="success.main">{audit.total_checkins}</Typography>
-                            <Typography variant="body2" color="text.secondary">Check-ins</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 6, sm: 4 }}>
-                        <Card variant="outlined">
-                          <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                            <Typography variant="h4" color="warning.main">{audit.total_checkouts}</Typography>
-                            <Typography variant="body2" color="text.secondary">Check-outs</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
+                              {/* Room Snapshot */}
+                              <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+                                Room Snapshot at Audit Time
+                              </Typography>
+                              <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid size={{ xs: 4, sm: 2 }}>
+                                  <Card sx={{ bgcolor: 'success.light' }}>
+                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                      <Typography variant="h5">{audit.rooms_available}</Typography>
+                                      <Typography variant="caption">Available</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 4, sm: 2 }}>
+                                  <Card sx={{ bgcolor: 'error.light' }}>
+                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                      <Typography variant="h5">{audit.rooms_occupied}</Typography>
+                                      <Typography variant="caption">Occupied</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 4, sm: 2 }}>
+                                  <Card sx={{ bgcolor: 'info.light' }}>
+                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                      <Typography variant="h5">{audit.rooms_reserved}</Typography>
+                                      <Typography variant="caption">Reserved</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 4, sm: 2 }}>
+                                  <Card sx={{ bgcolor: 'warning.light' }}>
+                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                      <Typography variant="h5">{audit.rooms_maintenance}</Typography>
+                                      <Typography variant="caption">Maintenance</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 4, sm: 2 }}>
+                                  <Card sx={{ bgcolor: 'grey.300' }}>
+                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                      <Typography variant="h5">{audit.rooms_dirty}</Typography>
+                                      <Typography variant="caption">Dirty</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                                <Grid size={{ xs: 4, sm: 2 }}>
+                                  <Card variant="outlined">
+                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                      <Typography variant="h5" color="primary">{Number(audit.occupancy_rate).toFixed(1)}%</Typography>
+                                      <Typography variant="caption">Occupancy</Typography>
+                                    </CardContent>
+                                  </Card>
+                                </Grid>
+                              </Grid>
 
-                    {/* Room Snapshot */}
-                    <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
-                      Room Snapshot at Audit Time
-                    </Typography>
-                    <Grid container spacing={2} sx={{ mb: 3 }}>
-                      <Grid size={{ xs: 4, sm: 2 }}>
-                        <Card sx={{ bgcolor: 'success.light' }}>
-                          <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                            <Typography variant="h5">{audit.rooms_available}</Typography>
-                            <Typography variant="caption">Available</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 4, sm: 2 }}>
-                        <Card sx={{ bgcolor: 'error.light' }}>
-                          <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                            <Typography variant="h5">{audit.rooms_occupied}</Typography>
-                            <Typography variant="caption">Occupied</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 4, sm: 2 }}>
-                        <Card sx={{ bgcolor: 'info.light' }}>
-                          <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                            <Typography variant="h5">{audit.rooms_reserved}</Typography>
-                            <Typography variant="caption">Reserved</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 4, sm: 2 }}>
-                        <Card sx={{ bgcolor: 'warning.light' }}>
-                          <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                            <Typography variant="h5">{audit.rooms_maintenance}</Typography>
-                            <Typography variant="caption">Maintenance</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 4, sm: 2 }}>
-                        <Card sx={{ bgcolor: 'grey.300' }}>
-                          <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                            <Typography variant="h5">{audit.rooms_dirty}</Typography>
-                            <Typography variant="caption">Dirty</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid size={{ xs: 4, sm: 2 }}>
-                        <Card variant="outlined">
-                          <CardContent sx={{ textAlign: 'center', py: 1 }}>
-                            <Typography variant="h5" color="primary">{Number(audit.occupancy_rate).toFixed(1)}%</Typography>
-                            <Typography variant="caption">Occupancy</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                    </Grid>
+                              {/* Notes */}
+                              {audit.notes && (
+                                <Box sx={{ mb: 2 }}>
+                                  <Typography variant="subtitle2" sx={{ mb: 0.5, color: 'text.secondary' }}>
+                                    Notes
+                                  </Typography>
+                                  <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.paper' }}>
+                                    <Typography variant="body2">{audit.notes}</Typography>
+                                  </Paper>
+                                </Box>
+                              )}
 
-                    {/* Notes */}
-                    {audit.notes && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 0.5, color: 'text.secondary' }}>
-                          Notes
-                        </Typography>
-                        <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'background.paper' }}>
-                          <Typography variant="body2">{audit.notes}</Typography>
-                        </Paper>
-                      </Box>
-                    )}
+                              {/* Journal Sections */}
+                              {detailsLoading.has(audit.id) ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                                  <CircularProgress size={24} />
+                                  <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
+                                </Box>
+                              ) : auditDetails[audit.id]?.journal_sections && auditDetails[audit.id].journal_sections.length > 0 ? (
+                                <JournalSectionsDisplay sections={auditDetails[audit.id].journal_sections} />
+                              ) : null}
 
-                    {/* Journal Sections */}
-                    {detailsLoading.has(audit.id) ? (
-                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                        <CircularProgress size={24} />
-                        <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
-                      </Box>
-                    ) : auditDetails[audit.id]?.journal_sections && auditDetails[audit.id].journal_sections.length > 0 ? (
-                      <JournalSectionsDisplay sections={auditDetails[audit.id].journal_sections} />
-                    ) : null}
-
-                    {/* Audit Info & Export Buttons */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-                      <Box sx={{ display: 'flex', gap: 3, color: 'text.secondary', fontSize: '0.875rem' }}>
-                        <Typography variant="body2">
-                          <strong>Audit ID:</strong> #{audit.id}
-                        </Typography>
-                        <Typography variant="body2">
-                          <strong>Created:</strong> {new Date(audit.created_at).toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<PdfIcon />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            exportAuditToPDF(audit);
-                          }}
-                        >
-                          Export PDF
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<CsvIcon />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            exportAuditToCSV(audit);
-                          }}
-                        >
-                          Export CSV
-                        </Button>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Collapse>
-              </Card>
-            ))}
-          </Box>
+                              {/* Audit Info & Export Buttons */}
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                                <Box sx={{ display: 'flex', gap: 3, color: 'text.secondary', fontSize: '0.875rem' }}>
+                                  <Typography variant="body2">
+                                    <strong>Audit ID:</strong> #{audit.id}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    <strong>Created:</strong> {new Date(audit.created_at).toLocaleString()}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<PdfIcon />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      exportAuditToPDF(audit);
+                                    }}
+                                  >
+                                    Export PDF
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<CsvIcon />}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      exportAuditToCSV(audit);
+                                    }}
+                                  >
+                                    Export CSV
+                                  </Button>
+                                </Box>
+                              </Box>
+                            </Box>
+                          </Collapse>
+                        </TableCell>
+                      </TableRow>
+                    </React.Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <TablePagination
+              component="div"
+              count={historyTotal}
+              page={historyPage}
+              onPageChange={(_, newPage) => setHistoryPage(newPage)}
+              rowsPerPage={historyPageSize}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+              onRowsPerPageChange={(e) => {
+                setHistoryPageSize(parseInt(e.target.value, 10));
+                setHistoryPage(0);
+              }}
+              labelRowsPerPage="Audits per page"
+            />
+          </TableContainer>
         ) : (
           <Alert severity="info">No audit history available.</Alert>
         )}

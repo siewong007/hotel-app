@@ -1,8 +1,10 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
+import { toPaginationSearchParams } from '../utils/pagination';
 import type {
   AuditDetailsResponse,
   BookingPostedStatus,
+  NightAuditListResponse,
   NightAuditPreview,
   NightAuditResponse,
   NightAuditRun,
@@ -31,11 +33,24 @@ export class NightAuditService {
   }
 
   /**
-   * Get list of all night audit runs
+   * Get a page of night audit runs, optionally filtered by year and month
    */
-  static async listNightAudits(page: number = 1, pageSize: number = 30): Promise<NightAuditRun[]> {
+  static async listNightAudits(params: {
+    page?: number;
+    pageSize?: number;
+    year?: number;
+    month?: number;
+  } = {}): Promise<NightAuditListResponse> {
+    const pageParams = toPaginationSearchParams({ page: params.page, pageSize: params.pageSize });
+    const searchParams: Record<string, string> = {
+      page: String(pageParams.page),
+      page_size: String(pageParams.page_size),
+    };
+    if (params.year !== undefined) searchParams.year = String(params.year);
+    if (params.month !== undefined) searchParams.month = String(params.month);
+
     return await withRetry(
-      () => api.get(`night-audit?page=${page}&page_size=${pageSize}`).json<NightAuditRun[]>(),
+      () => api.get('night-audit', { searchParams }).json<NightAuditListResponse>(),
       { maxAttempts: 3, initialDelay: 1000 }
     );
   }
