@@ -212,11 +212,71 @@ pub async fn update_audit_notes(
     Ok(())
 }
 
+/// Resolves an optional year/month filter into a half-open `[from, to)` date
+/// range. Filtering with a date-range comparison (rather than
+/// `EXTRACT`/`strftime` on `audit_date`) keeps the query portable across
+/// PostgreSQL and SQLite without per-engine SQL branches.
+fn audit_date_bounds(
+    year: Option<i32>,
+    month: Option<i32>,
+) -> Result<(Option<NaiveDate>, Option<NaiveDate>), ApiError> {
+    let bad_filter = || ApiError::BadRequest("Invalid year/month filter".to_string());
+
+    match (year, month) {
+        (Some(y), Some(m)) => {
+            let from = NaiveDate::from_ymd_opt(y, m as u32, 1).ok_or_else(bad_filter)?;
+            let to = if m == 12 {
+                NaiveDate::from_ymd_opt(y + 1, 1, 1)
+            } else {
+                NaiveDate::from_ymd_opt(y, m as u32 + 1, 1)
+            }
+            .ok_or_else(bad_filter)?;
+            Ok((Some(from), Some(to)))
+        }
+        (Some(y), None) => {
+            let from = NaiveDate::from_ymd_opt(y, 1, 1).ok_or_else(bad_filter)?;
+            let to = NaiveDate::from_ymd_opt(y + 1, 1, 1).ok_or_else(bad_filter)?;
+            Ok((Some(from), Some(to)))
+        }
+        (None, _) => Ok((None, None)),
+    }
+}
+
+/// Total count of audit runs matching an optional year/month filter, for
+/// pagination metadata.
+pub async fn count_audit_runs(
+    pool: &DbPool,
+    year: Option<i32>,
+    month: Option<i32>,
+) -> Result<i64, ApiError> {
+    let (from_date, to_date) = audit_date_bounds(year, month)?;
+
+    sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*) FROM night_audit_runs
+        WHERE ($1 IS NULL OR audit_date >= $1)
+          AND ($2 IS NULL OR audit_date < $2)
+        "#,
+    )
+    .bind(from_date)
+    .bind(to_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| {
+        log::error!("Failed to count night audit runs: {}", e);
+        ApiError::Database(e.to_string())
+    })
+}
+
 pub async fn list_audit_runs(
     pool: &DbPool,
     page_size: i64,
     offset: i64,
+    year: Option<i32>,
+    month: Option<i32>,
 ) -> Result<Vec<NightAuditRunWithUser>, ApiError> {
+    let (from_date, to_date) = audit_date_bounds(year, month)?;
+
     let rows = sqlx::query(
         r#"
         SELECT
@@ -239,12 +299,16 @@ pub async fn list_audit_runs(
             nar.created_at
         FROM night_audit_runs nar
         LEFT JOIN users u ON nar.run_by = u.id
+        WHERE ($3 IS NULL OR nar.audit_date >= $3)
+          AND ($4 IS NULL OR nar.audit_date < $4)
         ORDER BY nar.audit_date DESC
         LIMIT $1 OFFSET $2
         "#,
     )
     .bind(page_size)
     .bind(offset)
+    .bind(from_date)
+    .bind(to_date)
     .fetch_all(pool)
     .await
     .map_err(|e| {

@@ -14,10 +14,22 @@ export function useNightAuditPreview(date: string, enabled = true) {
   });
 }
 
-export function useNightAuditRuns(page = 1, pageSize = 30, enabled = true) {
+export interface NightAuditListFilters {
+  page: number;
+  pageSize: number;
+  year?: number;
+  month?: number;
+}
+
+export function useNightAuditRuns(
+  filters: NightAuditListFilters = { page: 1, pageSize: 30 },
+  enabled = true
+) {
+  const { page, pageSize, year, month } = filters;
+
   return useQuery({
-    queryKey: queryKeys.nightAudit.runs(page, pageSize),
-    queryFn: () => NightAuditService.listNightAudits(page, pageSize),
+    queryKey: queryKeys.nightAudit.runs(page, pageSize, year, month),
+    queryFn: () => NightAuditService.listNightAudits({ page, pageSize, year, month }),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: queryStaleTime.short,

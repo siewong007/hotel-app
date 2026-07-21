@@ -5,8 +5,8 @@ use chrono::NaiveDate;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    AuditDetailsResponse, ListAuditsQuery, NightAuditPreview, NightAuditResponse,
-    NightAuditRunWithUser, RunNightAuditRequest,
+    AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
+    NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
 };
 use crate::repositories::night_audit as repo;
 use crate::services::audit::AuditLog;
@@ -113,7 +113,7 @@ pub async fn run_with_user(
 pub async fn list(
     pool: &DbPool,
     params: ListAuditsQuery,
-) -> Result<Vec<NightAuditRunWithUser>, ApiError> {
+) -> Result<NightAuditListResponse, ApiError> {
     let pagination = normalize_pagination(
         params.page.map(i64::from),
         params.page_size.map(i64::from),
@@ -121,7 +121,22 @@ pub async fn list(
         100,
     );
 
-    repo::list_audit_runs(pool, pagination.page_size, pagination.offset).await
+    let total = repo::count_audit_runs(pool, params.year, params.month).await?;
+    let data = repo::list_audit_runs(
+        pool,
+        pagination.page_size,
+        pagination.offset,
+        params.year,
+        params.month,
+    )
+    .await?;
+
+    Ok(NightAuditListResponse {
+        data,
+        total,
+        page: pagination.page,
+        page_size: pagination.page_size,
+    })
 }
 
 pub async fn get(pool: &DbPool, audit_id: i64) -> Result<NightAuditRunWithUser, ApiError> {
