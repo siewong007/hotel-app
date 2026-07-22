@@ -51,6 +51,16 @@ export function invalidateNightAuditDependencies(queryClient: QueryClient) {
   invalidate(queryClient, queryKeys.ledgers.all);
 }
 
+export function invalidatePaymentApprovalDependencies(queryClient: QueryClient) {
+  invalidate(queryClient, queryKeys.paymentApprovals.all);
+  invalidate(queryClient, queryKeys.bookings.all);
+  invalidate(queryClient, queryKeys.audit.all);
+  invalidate(queryClient, queryKeys.dashboard.all);
+  invalidate(queryClient, queryKeys.analytics.all);
+  invalidate(queryClient, queryKeys.invoices.all);
+  invalidate(queryClient, queryKeys.ledgers.all);
+}
+
 export function invalidateImportedData(queryClient: QueryClient) {
   invalidate(queryClient, queryKeys.bookings.all);
   invalidate(queryClient, queryKeys.guests.all);

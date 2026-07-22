@@ -52,6 +52,87 @@ pub fn routes() -> Router<DbPool> {
             "/guest-portal/me/benefits",
             get(handlers::guest_portal::get_my_benefits),
         )
+        // Public payment configuration (PayPal client id + bank details).
+        .route(
+            "/guest-portal/payment-config",
+            get(handlers::guest_portal::get_payment_config),
+        )
+        // Session-authenticated guest payments.
+        .route(
+            "/guest-portal/me/payments/bank-transfer",
+            post(handlers::guest_portal::session_bank_transfer),
+        )
+        .route(
+            "/guest-portal/me/payments/paypal/create-order",
+            post(handlers::guest_portal::session_paypal_create_order),
+        )
+        .route(
+            "/guest-portal/me/payments/paypal/capture",
+            post(handlers::guest_portal::session_paypal_capture),
+        )
+        // Unauthenticated token-based guest payments (rate limited per token).
+        .route(
+            "/guest-portal/booking/{token}/payments/bank-transfer",
+            post(token_bank_transfer),
+        )
+        .route(
+            "/guest-portal/booking/{token}/payments/paypal/create-order",
+            post(token_paypal_create_order),
+        )
+        .route(
+            "/guest-portal/booking/{token}/payments/paypal/capture",
+            post(token_paypal_capture),
+        )
+}
+
+/// Apply the shared per-token rate limit used by the other token routes,
+/// returning a `429` with `Retry-After` when exceeded.
+async fn check_token_rate_limit(
+    limiters: &RateLimiters,
+    token: &str,
+) -> Result<(), ApiError> {
+    let (allowed, retry_after) = limiters
+        .guest_portal_token
+        .check_with_retry(token.to_string())
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many payment attempts for this booking. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+    Ok(())
+}
+
+async fn token_bank_transfer(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    path: Path<String>,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    check_token_rate_limit(&limiters, &path.0).await?;
+    handlers::guest_portal::token_bank_transfer(State(pool), path).await
+}
+
+async fn token_paypal_create_order(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    path: Path<String>,
+) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
+    check_token_rate_limit(&limiters, &path.0).await?;
+    handlers::guest_portal::token_paypal_create_order(State(pool), path).await
+}
+
+async fn token_paypal_capture(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    path: Path<String>,
+    body: Json<models::PaypalCaptureRequest>,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    check_token_rate_limit(&limiters, &path.0).await?;
+    handlers::guest_portal::token_paypal_capture(State(pool), path, body).await
 }
 
 async fn create_session(

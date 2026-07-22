@@ -2,8 +2,9 @@ use crate::constants::PaymentMethod;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{
-    Invoice, InvoicePreview, Payment, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
-    RecordPaymentRequest, UpdatePaymentRequest,
+    Booking, GuestBankDetails, GuestPaymentConfig, Invoice, InvoicePreview, Payment,
+    PaymentActionResponse, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
+    PaypalCreateOrderResponse, PendingPaymentPage, RecordPaymentRequest, UpdatePaymentRequest,
 };
 use crate::modules::communications::repository::CommunicationsRepository;
 use crate::modules::communications::validation::html_escape;
@@ -184,6 +185,15 @@ pub async fn record_payment(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
+    // Whether this payment settles the booking's outstanding balance in full —
+    // if so, and the booking is still `pending` (a guest self-service booking
+    // awaiting payment), staff recording a desk payment (e.g. cash/card at
+    // walk-in check-in) must confirm it, the same as an approved bank-transfer
+    // claim or captured PayPal payment would. Without this, a guest who elects
+    // to pay in person instead of online would be stuck: the booking never
+    // leaves `pending` and check-in now requires `confirmed`.
+    let mut settles_balance_in_full = false;
+
     // A booking room-charge payment can never exceed the outstanding balance.
     // This also blocks recording any payment once the booking is fully settled
     // (balance is zero). Deposit/refund flows are intentionally exempt.
@@ -214,6 +224,7 @@ pub async fn record_payment(
                     "Payment amount cannot exceed the outstanding balance of {balance_due}"
                 )));
             }
+            settles_balance_in_full = amount + tolerance >= balance_due;
         }
     }
 
@@ -233,6 +244,23 @@ pub async fn record_payment(
     .await?;
 
     recompute_payment_status_tx(&mut tx, request.booking_id).await?;
+
+    if payment_type == "booking" && settles_balance_in_full {
+        let confirmed =
+            crate::repositories::bookings::confirm_booking_tx(&mut tx, request.booking_id).await?;
+        if confirmed {
+            crate::repositories::bookings::record_booking_history_tx(
+                &mut tx,
+                request.booking_id,
+                Some("pending"),
+                "confirmed",
+                Some(user_id),
+                Some("Payment recorded in full"),
+                serde_json::json!({ "payment_id": row.id }),
+            )
+            .await?;
+        }
+    }
 
     let booking_id = row.booking_id;
     let payment_id = row.id;
@@ -621,4 +649,436 @@ pub async fn ensure_invoice_for_booking_tx(
         .await?;
 
     Ok(invoice_number)
+}
+
+// ===========================================================================
+// Guest-portal payments: manual bank-transfer claims + PayPal + staff review
+// ===========================================================================
+
+/// Last-resort settlement currency. Only used when a booking's `currency` column
+/// is somehow absent/empty (Postgres allows NULL — the column is
+/// `varchar(3) DEFAULT 'USD'` with no NOT NULL constraint). The real currency is
+/// read from `booking.currency` (populated by the guest-portal `BOOKING_SELECT`).
+const DEFAULT_CURRENCY: &str = "USD";
+
+/// The booking's real settlement currency, falling back to [`DEFAULT_CURRENCY`]
+/// only when the column is NULL/empty. This threads `bookings.currency` through
+/// to the PayPal order amount and the recorded payment so non-USD bookings are
+/// charged and recorded in their own currency.
+fn booking_currency(booking: &Booking) -> &str {
+    match booking.currency.as_deref() {
+        Some(c) if !c.trim().is_empty() => c,
+        _ => DEFAULT_CURRENCY,
+    }
+}
+
+/// Public, unauthenticated payment configuration for the guest portal payment
+/// panel. The PayPal client id is public by design and only present when the
+/// integration is fully configured.
+pub fn guest_payment_config() -> GuestPaymentConfig {
+    let cfg = crate::core::config::get();
+    GuestPaymentConfig {
+        paypal_enabled: crate::services::paypal_client::is_enabled(),
+        paypal_client_id: cfg.paypal.public_client_id(),
+        bank_details: GuestBankDetails {
+            bank_name: cfg.bank_details.bank_name.clone(),
+            account_name: cfg.bank_details.account_name.clone(),
+            account_number: cfg.bank_details.account_number.clone(),
+        },
+    }
+}
+
+/// Guard: a guest may only initiate payment while the booking is still awaiting
+/// it (`status = 'pending'`). Anything else (already confirmed/checked-in,
+/// cancelled, voided) is a no-op the caller should reject.
+fn ensure_booking_awaiting_payment(booking: &Booking) -> Result<(), ApiError> {
+    if booking.status == "pending" {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest(
+            "This booking is not awaiting payment.".to_string(),
+        ))
+    }
+}
+
+/// Guard: reject a new guest payment attempt when the booking already has a
+/// `booking`-type payment that is pending, processing, or completed. Prevents
+/// duplicate claims / orders (and the resulting double approval) for one booking.
+async fn ensure_no_active_booking_payment(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    if PaymentRepository::has_active_or_completed_booking_payment(pool, booking_id).await? {
+        return Err(ApiError::Conflict(
+            "A payment for this booking is already pending or completed.".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Create a manual bank-transfer payment claim (no proof required). Inserts a
+/// `pending` payment for the full booking total; staff later approve/reject it.
+pub async fn create_bank_transfer_claim(
+    pool: &DbPool,
+    booking: &Booking,
+) -> Result<PaymentActionResponse, ApiError> {
+    ensure_booking_awaiting_payment(booking)?;
+    ensure_no_active_booking_payment(pool, booking.id).await?;
+
+    let currency = booking_currency(booking);
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let payment_id = PaymentRepository::insert_pending_payment_tx(
+        &mut tx,
+        booking.id,
+        booking.guest_id,
+        booking.total_amount,
+        currency,
+        &PaymentMethod::BankTransfer.to_string(),
+        None,
+        None,
+        Some("Guest-submitted bank transfer claim (pending staff review)"),
+        None,
+    )
+    .await?;
+
+    AuditLog::log_event_tx(
+        &mut tx,
+        None,
+        "payment_created",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({
+            "booking_id": booking.id,
+            "amount": booking.total_amount.to_string(),
+            "method": "bank_transfer",
+            "source": "guest_portal",
+        })),
+        None,
+        None,
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(PaymentActionResponse {
+        payment_id,
+        status: "pending".to_string(),
+        booking_status: Some(booking.status.clone()),
+    })
+}
+
+/// Create a PayPal order for a booking and return the order id + our internal
+/// payment id. Inserts a `pending` PayPal payment first (so the id can be
+/// embedded in PayPal's `custom_id`), then records the returned order id.
+pub async fn create_paypal_order(
+    pool: &DbPool,
+    booking: &Booking,
+) -> Result<PaypalCreateOrderResponse, ApiError> {
+    ensure_booking_awaiting_payment(booking)?;
+    ensure_no_active_booking_payment(pool, booking.id).await?;
+
+    let currency = booking_currency(booking);
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let payment_id = PaymentRepository::insert_pending_payment_tx(
+        &mut tx,
+        booking.id,
+        booking.guest_id,
+        booking.total_amount,
+        currency,
+        &PaymentMethod::Paypal.to_string(),
+        Some("paypal"),
+        None,
+        Some("PayPal order (awaiting capture)"),
+        None,
+    )
+    .await?;
+    AuditLog::log_event_tx(
+        &mut tx,
+        None,
+        "payment_created",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({
+            "booking_id": booking.id,
+            "amount": booking.total_amount.to_string(),
+            "method": "paypal",
+            "source": "guest_portal",
+        })),
+        None,
+        None,
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let custom_id = format!("{}:{}", booking.id, payment_id);
+    let order_id = crate::services::paypal_client::create_order(
+        booking.total_amount,
+        currency,
+        &custom_id,
+    )
+    .await?;
+
+    PaymentRepository::set_payment_gateway_order(pool, payment_id, &order_id).await?;
+
+    Ok(PaypalCreateOrderResponse {
+        order_id,
+        payment_id,
+    })
+}
+
+/// Capture a PayPal order and, on `COMPLETED`, complete the payment and confirm
+/// the booking atomically. `payment_id` must belong to `booking`.
+pub async fn capture_paypal_payment(
+    pool: &DbPool,
+    booking: &Booking,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<PaymentActionResponse, ApiError> {
+    // Validate the payment belongs to this booking before touching PayPal.
+    let review = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if review.booking_id != booking.id {
+        return Err(ApiError::Forbidden(
+            "Payment does not belong to this booking.".to_string(),
+        ));
+    }
+
+    let outcome = crate::services::paypal_client::capture_order(order_id).await?;
+    if outcome.status != "COMPLETED" {
+        return Err(ApiError::BadRequest(format!(
+            "PayPal payment was not completed (status: {}).",
+            outcome.status
+        )));
+    }
+
+    // custom_id is MANDATORY: PayPal must echo back exactly the
+    // "<booking_id>:<payment_id>" we set on the order. A missing or mismatched
+    // value means this capture cannot be trusted to settle this payment.
+    let expected_custom_id = format!("{}:{}", booking.id, payment_id);
+    match outcome.custom_id.as_deref() {
+        Some(custom_id) if custom_id == expected_custom_id => {}
+        other => {
+            log::error!(
+                "PayPal capture custom_id mismatch: expected {expected_custom_id}, got {other:?}"
+            );
+            return Err(ApiError::BadRequest(
+                "PayPal order does not match this booking.".to_string(),
+            ));
+        }
+    }
+
+    // Verify the money that actually moved matches the stored pending payment.
+    // A tampered or partial capture (wrong amount/currency) must never complete
+    // the booking: mark the payment `failed` and reject instead.
+    let expected_currency = booking_currency(booking);
+    if let Err(reason) = verify_captured_amount(&outcome, booking.total_amount, expected_currency) {
+        log::error!("PayPal capture amount/currency mismatch for payment {payment_id}: {reason}");
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        PaymentRepository::mark_payment_failed_tx(&mut tx, payment_id, &reason).await?;
+        tx.commit().await.map_err(ApiError::from)?;
+        return Err(ApiError::BadRequest(
+            "PayPal captured amount does not match the booking total.".to_string(),
+        ));
+    }
+
+    complete_and_confirm(pool, payment_id, booking.id, None, "payment_captured").await
+}
+
+/// Compare a PayPal capture's echoed amount/currency against what we expect for
+/// the booking. Uses a numeric (`Decimal`) comparison so legitimate string
+/// formatting differences (`"100"` vs `"100.00"`) do not trip the check.
+/// Returns `Err(reason)` describing the mismatch.
+fn verify_captured_amount(
+    outcome: &crate::services::paypal_client::PaypalCaptureOutcome,
+    expected_amount: Decimal,
+    expected_currency: &str,
+) -> Result<(), String> {
+    let captured_amount = outcome
+        .captured_amount
+        .as_deref()
+        .ok_or_else(|| "PayPal capture response did not include an amount.".to_string())?;
+    let captured_currency = outcome
+        .captured_currency
+        .as_deref()
+        .ok_or_else(|| "PayPal capture response did not include a currency.".to_string())?;
+
+    let parsed = Decimal::from_str_exact(captured_amount.trim())
+        .map_err(|_| format!("Unparseable captured amount '{captured_amount}'."))?;
+    if parsed != expected_amount {
+        return Err(format!(
+            "Captured amount {parsed} does not match expected {expected_amount}."
+        ));
+    }
+    if !captured_currency.eq_ignore_ascii_case(expected_currency) {
+        return Err(format!(
+            "Captured currency {captured_currency} does not match expected {expected_currency}."
+        ));
+    }
+    Ok(())
+}
+
+/// Staff action: approve a pending payment. Completes the payment AND confirms
+/// the booking in one transaction.
+pub async fn approve_payment(
+    pool: &DbPool,
+    actor_user_id: i64,
+    payment_id: i64,
+) -> Result<PaymentActionResponse, ApiError> {
+    let review = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if review.status != "pending" {
+        return Err(ApiError::BadRequest(
+            "Only pending payments can be approved.".to_string(),
+        ));
+    }
+
+    complete_and_confirm(
+        pool,
+        payment_id,
+        review.booking_id,
+        Some(actor_user_id),
+        "payment_approved",
+    )
+    .await
+}
+
+/// Shared completion path: CAS the payment to `completed`, confirm the booking
+/// (idempotently), record booking history, recompute the folio payment status,
+/// and audit — all in one transaction.
+async fn complete_and_confirm(
+    pool: &DbPool,
+    payment_id: i64,
+    booking_id: i64,
+    actor_user_id: Option<i64>,
+    audit_action: &str,
+) -> Result<PaymentActionResponse, ApiError> {
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+    // Defense in depth: even if a race slipped a second claim past the
+    // pre-insert guard, never complete a payment when the booking already has a
+    // DIFFERENT completed booking payment.
+    if PaymentRepository::has_other_completed_booking_payment_tx(&mut tx, booking_id, payment_id)
+        .await?
+    {
+        return Err(ApiError::Conflict(
+            "This booking already has a completed payment.".to_string(),
+        ));
+    }
+
+    let completed = PaymentRepository::mark_payment_completed_tx(&mut tx, payment_id, actor_user_id)
+        .await?;
+    if completed.is_none() {
+        return Err(ApiError::BadRequest(
+            "Payment is no longer pending.".to_string(),
+        ));
+    }
+
+    let confirmed =
+        crate::repositories::bookings::confirm_booking_tx(&mut tx, booking_id).await?;
+    if confirmed {
+        crate::repositories::bookings::record_booking_history_tx(
+            &mut tx,
+            booking_id,
+            Some("pending"),
+            "confirmed",
+            actor_user_id,
+            Some("Payment approved"),
+            serde_json::json!({ "payment_id": payment_id }),
+        )
+        .await?;
+    }
+
+    recompute_payment_status_tx(&mut tx, booking_id).await?;
+
+    AuditLog::log_event_tx(
+        &mut tx,
+        actor_user_id,
+        audit_action,
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({
+            "booking_id": booking_id,
+            "booking_confirmed": confirmed,
+        })),
+        None,
+        None,
+    )
+    .await?;
+
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(PaymentActionResponse {
+        payment_id,
+        status: "completed".to_string(),
+        booking_status: Some("confirmed".to_string()),
+    })
+}
+
+/// Staff action: reject a pending payment. The booking stays `pending`.
+pub async fn reject_payment(
+    pool: &DbPool,
+    actor_user_id: i64,
+    payment_id: i64,
+    reason: &str,
+) -> Result<PaymentActionResponse, ApiError> {
+    let reason = reason.trim();
+    if reason.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A rejection reason is required.".to_string(),
+        ));
+    }
+
+    let review = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if review.status != "pending" {
+        return Err(ApiError::BadRequest(
+            "Only pending payments can be rejected.".to_string(),
+        ));
+    }
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let rejected =
+        PaymentRepository::mark_payment_rejected_tx(&mut tx, payment_id, Some(actor_user_id), reason)
+            .await?;
+    if rejected.is_none() {
+        return Err(ApiError::BadRequest(
+            "Payment is no longer pending.".to_string(),
+        ));
+    }
+
+    AuditLog::log_event_tx(
+        &mut tx,
+        Some(actor_user_id),
+        "payment_rejected",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({
+            "booking_id": review.booking_id,
+            "reason": reason,
+        })),
+        None,
+        None,
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(PaymentActionResponse {
+        payment_id,
+        status: "void".to_string(),
+        booking_status: None,
+    })
+}
+
+/// Staff queue: paginated list of pending payment claims awaiting review.
+pub async fn list_pending_payments(
+    pool: &DbPool,
+    limit: i64,
+    offset: i64,
+) -> Result<PendingPaymentPage, ApiError> {
+    let limit = limit.clamp(1, 200);
+    let offset = offset.max(0);
+    let (items, total) = PaymentRepository::list_pending_payments(pool, limit, offset).await?;
+    Ok(PendingPaymentPage { items, total })
 }

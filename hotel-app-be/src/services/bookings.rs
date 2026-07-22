@@ -232,10 +232,17 @@ async fn checkin_booking_flow_for_booking(
 ) -> Result<(Booking, Option<DateTime<Utc>>), ApiError> {
     let booking_id = booking.id;
 
-    // State validation: only confirmed/pending bookings can be checked in.
-    // These are the only pre-arrival booking lifecycle states; `reserved`
-    // belongs to room status, not booking status (see `checkin_booking_tx`).
-    if booking.status != "confirmed" && booking.status != "pending" {
+    // State validation: only `confirmed` bookings can be checked in. A guest
+    // self-service booking starts `pending` and only becomes `confirmed` once
+    // its payment is approved/captured, so a `pending` booking is blocked with
+    // an explicit "payment required" reason (covers both the staff and
+    // auto-checkin paths, which both funnel through here).
+    if booking.status == "pending" {
+        return Err(ApiError::BadRequest(
+            "Payment required before check-in.".to_string(),
+        ));
+    }
+    if booking.status != "confirmed" {
         return Err(ApiError::BadRequest(format!(
             "Cannot check in booking with status: {}",
             booking.status

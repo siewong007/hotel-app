@@ -149,3 +149,117 @@ pub async fn get_my_benefits(
         guest_portal_service::get_my_benefits(&pool, guest_id).await?,
     ))
 }
+
+// ---------------------------------------------------------------------------
+// Guest payments (public config + session/token bank-transfer & PayPal)
+// ---------------------------------------------------------------------------
+
+/// GET /guest-portal/payment-config (public)
+pub async fn get_payment_config()
+-> Result<Json<crate::models::GuestPaymentConfig>, ApiError> {
+    Ok(Json(crate::services::payments::guest_payment_config()))
+}
+
+/// Per-guest rate limit for the authenticated payment-write routes. Keyed on
+/// `guest_id` (these are already authenticated, so IP keying is unnecessary).
+/// Mirrors the per-token payment limit used by the unauthenticated routes.
+async fn check_guest_payment_rate_limit(
+    limiters: &RateLimiters,
+    guest_id: i64,
+) -> Result<(), ApiError> {
+    let (allowed, retry_after) = limiters
+        .guest_portal_payment
+        .check_with_retry(guest_id.to_string())
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many payment attempts. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+    Ok(())
+}
+
+/// POST /guest-portal/me/payments/bank-transfer
+pub async fn session_bank_transfer(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Json(input): Json<crate::models::GuestBookingPaymentRequest>,
+) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    Ok(Json(
+        guest_portal_service::session_bank_transfer(&pool, guest_id, input.booking_id).await?,
+    ))
+}
+
+/// POST /guest-portal/me/payments/paypal/create-order
+pub async fn session_paypal_create_order(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Json(input): Json<crate::models::GuestBookingPaymentRequest>,
+) -> Result<Json<crate::models::PaypalCreateOrderResponse>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    Ok(Json(
+        guest_portal_service::session_create_paypal_order(&pool, guest_id, input.booking_id).await?,
+    ))
+}
+
+/// POST /guest-portal/me/payments/paypal/capture
+pub async fn session_paypal_capture(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Json(input): Json<crate::models::SessionPaypalCaptureRequest>,
+) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    Ok(Json(
+        guest_portal_service::session_capture_paypal(
+            &pool,
+            guest_id,
+            input.booking_id,
+            &input.order_id,
+            input.payment_id,
+        )
+        .await?,
+    ))
+}
+
+/// POST /guest-portal/booking/{token}/payments/bank-transfer
+pub async fn token_bank_transfer(
+    State(pool): State<DbPool>,
+    Path(token): Path<String>,
+) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    Ok(Json(
+        guest_portal_service::token_bank_transfer(&pool, &token).await?,
+    ))
+}
+
+/// POST /guest-portal/booking/{token}/payments/paypal/create-order
+pub async fn token_paypal_create_order(
+    State(pool): State<DbPool>,
+    Path(token): Path<String>,
+) -> Result<Json<crate::models::PaypalCreateOrderResponse>, ApiError> {
+    Ok(Json(
+        guest_portal_service::token_create_paypal_order(&pool, &token).await?,
+    ))
+}
+
+/// POST /guest-portal/booking/{token}/payments/paypal/capture
+pub async fn token_paypal_capture(
+    State(pool): State<DbPool>,
+    Path(token): Path<String>,
+    Json(input): Json<crate::models::PaypalCaptureRequest>,
+) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    Ok(Json(
+        guest_portal_service::token_capture_paypal(&pool, &token, &input.order_id, input.payment_id)
+            .await?,
+    ))
+}

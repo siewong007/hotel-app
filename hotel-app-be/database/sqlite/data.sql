@@ -41,6 +41,7 @@ INSERT OR IGNORE INTO permissions (name, resource, action, description, is_syste
 ('payments:read', 'payments', 'read', 'View payments', 1),
 ('payments:create', 'payments', 'create', 'Process payments', 1),
 ('payments:manage', 'payments', 'manage', 'Full payment management', 1),
+('payments:approve', 'payments', 'approve', 'Approve or reject pending payments', 1),
 ('reports:read', 'reports', 'read', 'View reports', 1),
 ('reports:manage', 'reports', 'manage', 'Full report access', 1),
 ('users:read', 'users', 'read', 'View users', 1),
@@ -345,6 +346,7 @@ VALUES
     ('navigation_rbac:read', 'navigation:rbac', 'read', 'Show Access Control navigation', 1),
     ('navigation_company_ledger:read', 'navigation:company-ledger', 'read', 'Show Company Ledger navigation', 1),
     ('navigation_night_audit:read', 'navigation:night-audit', 'read', 'Show Night Audit navigation', 1),
+    ('navigation_payment_approvals:read', 'navigation:payment-approvals', 'read', 'Show Payment Approvals navigation', 1),
     ('navigation_audit_log:read', 'navigation:audit-log', 'read', 'Show Audit Log navigation', 1),
     ('navigation_complimentary:read', 'navigation:complimentary', 'read', 'Show Complimentary Nights navigation', 1),
     ('navigation_data_transfer:read', 'navigation:data-transfer', 'read', 'Show Data Transfer navigation', 1)
@@ -375,6 +377,7 @@ AND p.name IN (
     'navigation_rbac:read',
     'navigation_company_ledger:read',
     'navigation_night_audit:read',
+    'navigation_payment_approvals:read',
     'navigation_audit_log:read',
     'navigation_complimentary:read',
     'navigation_data_transfer:read'
@@ -418,6 +421,7 @@ VALUES
     ('rbac', '/rbac', 'Access Control', 'config', '["roles:read","roles:manage","permissions:read","permissions:manage","users:read","users:manage"]', '[]', '[]', '["navigation_rbac:read","roles:read","roles:manage","permissions:read","permissions:manage","users:read","users:manage"]', '[]', '[]', 1),
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]', '[]', '[]', '["navigation_company_ledger:read","ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]', '[]', '[]', 1),
     ('night-audit', '/night-audit', 'Night Audit', 'admin', '["night_audit:read","night_audit:execute"]', '[]', '[]', '["navigation_night_audit:read","night_audit:read","night_audit:execute"]', '[]', '[]', 1),
+    ('payment-approvals', '/payment-approvals', 'Payment Approvals', 'admin', '["payments:approve","payments:read"]', '[]', '[]', '["navigation_payment_approvals:read","payments:approve","payments:read"]', '[]', '[]', 1),
     ('audit-log', '/audit-log', 'Audit Log', 'admin', '["audit:read"]', '[]', '[]', '["navigation_audit_log:read","audit:read"]', '[]', '[]', 1),
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]', '[]', '[]', '["navigation_complimentary:read","bookings:read","bookings:update"]', '[]', '["guest"]', 1),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]', '[]', '[]', '["navigation_data_transfer:read","settings:manage"]', '[]', '[]', 1)

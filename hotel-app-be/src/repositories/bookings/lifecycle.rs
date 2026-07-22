@@ -3826,10 +3826,14 @@ pub async fn apply_booking_field_update_tx(
 }
 
 /// Atomically transition a booking to `checked_in`, stamping the actual
-/// check-in timestamp. Guarded by `status IN ('confirmed','pending')` and
-/// requires exactly one affected row, so a concurrent check-in (or any other
-/// transition that already moved the row) collapses to a clean `BadRequest`
-/// instead of a double check-in. Returns the refreshed booking row.
+/// check-in timestamp. Guarded by `status = 'confirmed'` and requires exactly
+/// one affected row, so a concurrent check-in (or any other transition that
+/// already moved the row) collapses to a clean `BadRequest` instead of a double
+/// check-in. A `pending` booking (guest self-service, payment not yet
+/// approved/captured) is deliberately NOT check-in-eligible here — the caller
+/// (`services::bookings::checkin_booking_flow_for_booking`) rejects it earlier
+/// with a "payment required" reason; this guard is the last-line defense.
+/// Returns the refreshed booking row.
 pub async fn checkin_booking_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
@@ -3841,7 +3845,7 @@ pub async fn checkin_booking_tx(
             actual_check_in = datetime('now'),
             updated_at = datetime('now')
         WHERE id = ?1
-          AND status IN ('confirmed', 'pending')
+          AND status = 'confirmed'
     "#;
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_query = r#"
@@ -3850,7 +3854,7 @@ pub async fn checkin_booking_tx(
             actual_check_in = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
-          AND status IN ('confirmed', 'pending')
+          AND status = 'confirmed'
     "#;
 
     let result = sqlx::query(update_query)
@@ -3877,6 +3881,39 @@ pub async fn checkin_booking_tx(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(row_mappers::row_to_booking(&row))
+}
+
+/// Atomically transition a booking from `pending` to `confirmed`, used when a
+/// guest payment is approved/captured. Guarded by `status = 'pending'` so the
+/// call is idempotent: a booking that is already `confirmed` (or beyond)
+/// affects zero rows and returns `false` without error, letting the caller
+/// still complete the payment. Both `pending` and `confirmed` are inside the
+/// PostgreSQL room-overlap EXCLUDE constraint's status set, so this transition
+/// cannot trip it. Returns `true` when the row actually moved to `confirmed`.
+pub async fn confirm_booking_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<bool, ApiError> {
+    let update_query = crate::sql_query!(
+        postgres: r#"
+            UPDATE bookings
+            SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND status = 'pending'
+        "#,
+        sqlite: r#"
+            UPDATE bookings
+            SET status = 'confirmed', updated_at = datetime('now')
+            WHERE id = ?1 AND status = 'pending'
+        "#
+    );
+
+    let result = sqlx::query(update_query)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(result.rows_affected() == 1)
 }
 
 /// Record an optional payment captured during check-in.

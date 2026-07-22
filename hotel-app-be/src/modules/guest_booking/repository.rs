@@ -619,7 +619,7 @@ impl GuestBookingRepository {
                     special_requests, cleaning_preference, daily_rates, created_by
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
-                    $9, $10, 0, $11, $12, $13, 'confirmed', 'unpaid',
+                    $9, $10, 0, $11, $12, $13, 'pending', 'unpaid',
                     'website', $14, $15, $16, $17, $18
                 ) RETURNING id
             "#,
@@ -632,7 +632,7 @@ impl GuestBookingRepository {
                     special_requests, cleaning_preference, daily_rates, created_by
                 ) VALUES (
                     ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                    ?9, ?9, ?10, 0, ?11, ?12, ?13, 'confirmed', 'unpaid',
+                    ?9, ?9, ?10, 0, ?11, ?12, ?13, 'pending', 'unpaid',
                     'website', ?14, ?15, ?16, ?17, ?18
                 ) RETURNING id
             "#

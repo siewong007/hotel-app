@@ -25,6 +25,7 @@ pub mod night_audit;
 pub mod night_audit_scheduler;
 pub mod passkey;
 pub mod payments;
+pub mod paypal_client;
 pub mod profile;
 #[allow(dead_code)]
 pub mod promotion_pricing;

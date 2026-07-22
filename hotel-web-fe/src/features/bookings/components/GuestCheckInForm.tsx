@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import { HotelAPIService } from '../../../api';
 import { Booking, Guest, GuestUpdateRequest } from '../../../types';
+import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -171,6 +172,27 @@ export const GuestCheckInForm: React.FC = () => {
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
             {error}
           </Alert>
+        )}
+
+        {token && booking?.status === 'pending' && (
+          <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Complete your payment
+            </Typography>
+            {/*
+              The pre-arrival token endpoint (`GET /guest-portal/booking/:token`,
+              backed by GuestPortalBookingView) is a guest-safe subset that does
+              not include a total/amount field — it exposes only
+              id/booking_number/dates/status/adults/children/special_requests/
+              market_code/pre_checkin fields. There is no other unauthenticated
+              endpoint that returns the booking total for this token flow, so
+              `amount` is intentionally omitted here rather than guessed; the
+              panel still functions correctly because the backend derives the
+              charge from the booking server-side and never accepts an amount
+              from the client.
+            */}
+            <GuestPaymentPanel mode="token" token={token} />
+          </Paper>
         )}
 
         <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>

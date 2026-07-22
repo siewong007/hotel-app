@@ -11,6 +11,7 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
@@ -80,6 +81,7 @@ const CustomerLedgerPage = lazyRoute(() => import('../features/admin/components/
 const ComplimentaryManagementPage = lazyRoute(() => import('../features/admin/components/ComplimentaryManagementPage'));
 const AuditLogPage = lazyRoute(() => import('../features/admin/components/AuditLogPage'));
 const NightAuditPage = lazyRoute(() => import('../features/admin/components/NightAuditPage'));
+const PaymentApprovalsPage = lazyRoute(() => import('../features/admin/components/PaymentApprovalsPage'));
 const DataTransferPage = lazyRoute(() => import('../features/admin/components/DataTransferPage'));
 const HousekeepingPage = lazyRoute(() => import('../features/housekeeping'));
 const SupportManagementPage = lazyRoute(() => import('../features/support'));
@@ -298,6 +300,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: NightsStayIcon,
     breadcrumbLabel: 'Night Audit',
     navLabel: 'Night Audit',
+    navGroup: 'admin',
+    accessControlled: true,
+  },
+  {
+    id: 'payment-approvals',
+    path: '/payment-approvals',
+    component: PaymentApprovalsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: PaymentsIcon,
+    breadcrumbLabel: 'Payment Approvals',
+    navLabel: 'Payment Approvals',
     navGroup: 'admin',
     accessControlled: true,
   },

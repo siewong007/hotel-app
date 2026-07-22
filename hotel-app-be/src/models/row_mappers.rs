@@ -221,6 +221,8 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
         tax_amount: get_opt_decimal(row, "tax_amount"),
         discount_amount: get_opt_decimal(row, "discount_amount"),
         total_amount: get_decimal(row, "total_amount"),
+        // Not always selected; None when the query omits `currency`.
+        currency: row.try_get("currency").ok(),
         status: row.try_get("status").unwrap_or_default(),
         payment_status: row.try_get("payment_status").ok(),
         payment_method: row.try_get("payment_method").ok(),
@@ -265,25 +267,42 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
 
 use super::payment::{Invoice, KeycardDeposit, Payment};
 
+// Maps a `payments` row to the `Payment` model against the REAL columns of the
+// table. NOTE: `payments` stores only a single `amount`; there is no column for
+// the per-payment breakdown, so `subtotal`/`service_charge`/`tax_amount`/
+// `keycard_deposit` are always `Decimal::ZERO` here and `total_amount` carries
+// the stored `amount`. The `transaction_reference`/`notes` source column names
+// differ by database (postgres: `transaction_id`/`notes`; sqlite:
+// `reference_number`/`description`), so both are attempted. `bank_name`/
+// `account_reference` have no column in either schema and are always `None`.
 pub fn row_to_payment(row: &DbRow) -> Payment {
     Payment {
         id: row.try_get("id").unwrap_or_default(),
         booking_id: row.try_get("booking_id").unwrap_or_default(),
-        user_id: row.try_get("user_id").ok(),
+        user_id: row
+            .try_get("processed_by")
+            .ok()
+            .or_else(|| row.try_get("created_by").ok()),
         payment_method: row.try_get("payment_method").unwrap_or_default(),
-        payment_status: row.try_get("payment_status").unwrap_or_default(),
-        subtotal: get_decimal(row, "subtotal"),
-        service_charge: get_decimal(row, "service_charge"),
-        tax_amount: get_decimal(row, "tax_amount"),
-        keycard_deposit: get_decimal(row, "keycard_deposit"),
-        total_amount: get_decimal(row, "total_amount"),
-        transaction_reference: row.try_get("transaction_reference").ok(),
+        payment_status: row.try_get("status").unwrap_or_default(),
+        subtotal: Decimal::ZERO,
+        service_charge: Decimal::ZERO,
+        tax_amount: Decimal::ZERO,
+        keycard_deposit: Decimal::ZERO,
+        total_amount: get_decimal(row, "amount"),
+        transaction_reference: row
+            .try_get("transaction_id")
+            .ok()
+            .or_else(|| row.try_get("reference_number").ok()),
         payment_gateway: row.try_get("payment_gateway").ok(),
         card_last_four: row.try_get("card_last_four").ok(),
         card_brand: row.try_get("card_brand").ok(),
-        bank_name: row.try_get("bank_name").ok(),
-        account_reference: row.try_get("account_reference").ok(),
-        notes: row.try_get("notes").ok(),
+        bank_name: None,
+        account_reference: None,
+        notes: row
+            .try_get("notes")
+            .ok()
+            .or_else(|| row.try_get("description").ok()),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
     }
 }

@@ -27,6 +27,7 @@ const housekeeping = ['housekeeping'] as const;
 const maintenance = ['maintenance'] as const;
 const promotions = ['promotions'] as const;
 const adminPromotionLists = [...promotions, 'admin', 'list'] as const;
+const paymentApprovals = ['payment-approvals'] as const;
 
 const paramsOrEmpty = <T extends KeyParams | AuditLogQuery | undefined>(params: T) => params ?? {};
 
@@ -200,5 +201,10 @@ export const queryKeys = {
     all: invoices,
     preview: (bookingId: string | number) => [...invoices, 'preview', String(bookingId)] as const,
     payments: (bookingId: string | number) => [...invoices, 'payments', String(bookingId)] as const,
+  },
+  paymentApprovals: {
+    all: paymentApprovals,
+    pending: (page: number, perPage: number) =>
+      [...paymentApprovals, 'pending', page, perPage] as const,
   },
 } as const;

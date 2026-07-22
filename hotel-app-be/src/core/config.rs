@@ -25,6 +25,58 @@ pub struct AppConfig {
     pub settings_cache_ttl_secs: u64,
     pub skip_email_verification: bool,
     pub trust_proxy_headers: bool,
+    pub paypal: PaypalConfig,
+    pub bank_details: BankDetails,
+}
+
+/// PayPal REST API configuration. Scaffolded against PayPal's real sandbox API
+/// (`https://api-m.sandbox.paypal.com` by default). Disabled unless
+/// `PAYPAL_ENABLED=true` and both client id + secret are present; when disabled
+/// the PayPal endpoints return a clear 503 rather than fabricating a gateway.
+#[derive(Debug, Clone)]
+pub struct PaypalConfig {
+    pub enabled: bool,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub api_base: String,
+    /// Reserved for the follow-up webhook signature-verification work.
+    #[allow(dead_code)]
+    pub webhook_id: Option<String>,
+}
+
+impl PaypalConfig {
+    /// True only when the integration is turned on AND fully credentialed.
+    pub fn is_configured(&self) -> bool {
+        self.enabled
+            && self
+                .client_id
+                .as_deref()
+                .is_some_and(|v| !v.trim().is_empty())
+            && self
+                .client_secret
+                .as_deref()
+                .is_some_and(|v| !v.trim().is_empty())
+    }
+
+    /// The client id safe to expose to the browser (public by design), only
+    /// when the integration is actually configured.
+    pub fn public_client_id(&self) -> Option<String> {
+        if self.is_configured() {
+            self.client_id.clone()
+        } else {
+            None
+        }
+    }
+}
+
+/// Hotel bank-transfer display details shown to guests choosing the manual
+/// bank-transfer payment path. Sourced from env for this pass; a follow-up
+/// moves these into `system_settings` with an admin editor.
+#[derive(Debug, Clone)]
+pub struct BankDetails {
+    pub bank_name: Option<String>,
+    pub account_name: Option<String>,
+    pub account_number: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,6 +133,20 @@ impl AppConfig {
             settings_cache_ttl_secs: env_or_parse("SETTINGS_CACHE_TTL_SECS", 30)?,
             skip_email_verification: env_bool("SKIP_EMAIL_VERIFICATION", false)?,
             trust_proxy_headers: env_bool("TRUST_PROXY_HEADERS", false)?,
+            paypal: PaypalConfig {
+                enabled: env_bool("PAYPAL_ENABLED", false)?,
+                client_id: env_opt("PAYPAL_CLIENT_ID"),
+                client_secret: env_opt("PAYPAL_CLIENT_SECRET"),
+                api_base: env_or_string("PAYPAL_API_BASE", "https://api-m.sandbox.paypal.com")?
+                    .trim_end_matches('/')
+                    .to_string(),
+                webhook_id: env_opt("PAYPAL_WEBHOOK_ID"),
+            },
+            bank_details: BankDetails {
+                bank_name: env_opt("HOTEL_BANK_NAME"),
+                account_name: env_opt("HOTEL_BANK_ACCOUNT_NAME"),
+                account_number: env_opt("HOTEL_BANK_ACCOUNT_NUMBER"),
+            },
         })
     }
 }
@@ -184,6 +250,14 @@ fn env_present(key: &str) -> bool {
 
 fn required_env(key: &str) -> Result<String, String> {
     std::env::var(key).map_err(|_| format!("{key} must be set"))
+}
+
+/// Read an optional env var, treating empty/whitespace-only as absent.
+fn env_opt(key: &str) -> Option<String> {
+    std::env::var(key)
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn env_or_string(key: &str, default: &str) -> Result<String, String> {

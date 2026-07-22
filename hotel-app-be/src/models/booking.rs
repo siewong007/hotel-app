@@ -80,6 +80,10 @@ pub struct Booking {
     pub tax_amount: Option<Decimal>,
     pub discount_amount: Option<Decimal>,
     pub total_amount: Decimal,
+    /// Settlement currency (ISO 4217, e.g. "USD"/"MYR"). Sourced from the
+    /// `bookings.currency` column. `None` when a query does not select it (most
+    /// booking fetches don't need it); guest-portal payment paths do select it.
+    pub currency: Option<String>,
     pub status: String,
     pub payment_status: Option<String>,
     pub payment_method: Option<String>,
@@ -444,6 +448,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Booking {
                 let val = row.try_get("total_amount")?;
                 val
             },
+            // Not always selected; keep defensive so non-payment booking
+            // queries that omit `currency` still map cleanly.
+            currency: row.try_get("currency").ok().flatten(),
             status: row.try_get("status")?,
             payment_status: row.try_get("payment_status")?,
             payment_method: row.try_get("payment_method")?,
@@ -747,6 +754,7 @@ mod tests {
             tax_amount: None,
             discount_amount: None,
             total_amount: Decimal::ZERO,
+            currency: Some("USD".to_string()),
             status: "reserved".to_string(),
             payment_status: None,
             payment_method: None,

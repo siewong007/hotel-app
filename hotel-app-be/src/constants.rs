@@ -44,6 +44,7 @@ pub enum PaymentMethod {
     BankTransfer,
     Duitnow,
     OnlineBanking,
+    Paypal,
     Cheque,
     Other,
 }
@@ -56,6 +57,7 @@ impl std::fmt::Display for PaymentMethod {
             PaymentMethod::BankTransfer => write!(f, "bank_transfer"),
             PaymentMethod::Duitnow => write!(f, "duitnow"),
             PaymentMethod::OnlineBanking => write!(f, "online_banking"),
+            PaymentMethod::Paypal => write!(f, "paypal"),
             PaymentMethod::Cheque => write!(f, "cheque"),
             PaymentMethod::Other => write!(f, "other"),
         }

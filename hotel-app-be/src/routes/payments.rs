@@ -9,10 +9,10 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::HeaderMap,
     response::Json,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
 };
 
 const PAYMENTS_READ: &str = "payments:read";
@@ -23,6 +23,9 @@ const PAYMENTS_DELETE: &str = "payments:delete";
 // gate on a dedicated payments:refund (held by receptionist + manager) rather
 // than payments:manage; payments:manage still implies it via rbac_cache.
 const PAYMENTS_REFUND: &str = "payments:refund";
+// Guest-payment claim review (approve/reject). Held by manager/admin; any role
+// with payments:manage is auto-covered via rbac_cache.
+const PAYMENTS_APPROVE: &str = "payments:approve";
 
 /// Create payment routes
 pub fn routes() -> Router<DbPool> {
@@ -47,6 +50,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))
         .route("/payments", post(create_payment))
+        // Guest-payment claim review queue (staff)
+        .route("/admin/payments/pending", get(list_pending_payments))
+        .route("/admin/payments/{payment_id}/approve", put(approve_payment))
+        .route("/admin/payments/{payment_id}/reject", put(reject_payment))
         // Invoice routes
         .route("/invoices/preview/{booking_id}", get(get_invoice_preview))
         .route("/invoices/generate/{booking_id}", post(generate_invoice))
@@ -171,4 +178,33 @@ async fn delete_payment(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
     handlers::payments::delete_payment_handler(State(pool), Extension(user_id), path).await
+}
+
+async fn list_pending_payments(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    query: Query<models::PendingPaymentsQuery>,
+) -> Result<Json<models::PendingPaymentPage>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    handlers::payments::list_pending_payments_handler(State(pool), query).await
+}
+
+async fn approve_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
+    handlers::payments::approve_payment_handler(State(pool), Extension(user_id), path).await
+}
+
+async fn reject_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(body): Json<models::RejectPaymentRequest>,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
+    handlers::payments::reject_payment_handler(State(pool), Extension(user_id), path, Json(body))
+        .await
 }
