@@ -17,8 +17,11 @@ pub struct AppConfig {
     pub allowed_origins: AllowedOrigins,
     pub backend_port: u16,
     pub desktop_mode: bool,
+    pub environment: Environment,
     pub hotel_log_dir: Option<PathBuf>,
     pub jwt_secret: String,
+    pub jwt_issuer: String,
+    pub jwt_audience: String,
     pub passkey_rp_id: String,
     pub rbac_cache_ttl_secs: u64,
     pub rust_log: LogLevelConfig,
@@ -27,6 +30,32 @@ pub struct AppConfig {
     pub trust_proxy_headers: bool,
     pub paypal: PaypalConfig,
     pub bank_details: BankDetails,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Environment {
+    Development,
+    Staging,
+    Production,
+}
+
+impl Environment {
+    fn from_env() -> Result<Self, String> {
+        let value = std::env::var("APP_ENV")
+            .or_else(|_| std::env::var("ENVIRONMENT"))
+            .unwrap_or_else(|_| "development".to_string());
+
+        Self::from_env_value(&value)
+    }
+
+    fn from_env_value(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "development" | "dev" => Ok(Self::Development),
+            "staging" => Ok(Self::Staging),
+            "production" | "prod" => Ok(Self::Production),
+            _ => Err("APP_ENV must be development, staging, or production".to_string()),
+        }
+    }
 }
 
 /// PayPal REST API configuration. Scaffolded against PayPal's real sandbox API
@@ -117,7 +146,7 @@ impl AppConfig {
         let jwt_secret = required_env("JWT_SECRET")?;
         validate_jwt_secret(&jwt_secret)?;
 
-        Ok(Self {
+        let config = Self {
             database: DatabaseConfig::from_env()?,
             allowed_origins: parse_allowed_origins(&env_or_string(
                 "ALLOWED_ORIGINS",
@@ -125,8 +154,11 @@ impl AppConfig {
             )?)?,
             backend_port: env_or_parse("BACKEND_PORT", 3030)?,
             desktop_mode,
+            environment: Environment::from_env()?,
             hotel_log_dir: std::env::var("HOTEL_LOG_DIR").ok().map(PathBuf::from),
             jwt_secret,
+            jwt_issuer: env_or_string("JWT_ISSUER", "hotel-app-be")?,
+            jwt_audience: env_or_string("JWT_AUDIENCE", "hotel-web")?,
             passkey_rp_id: env_or_string("PASSKEY_RP_ID", "localhost")?,
             rbac_cache_ttl_secs: env_or_parse("RBAC_CACHE_TTL_SECS", 30)?,
             rust_log: LogLevelConfig::from_env_value(std::env::var("RUST_LOG").ok().as_deref()),
@@ -147,7 +179,39 @@ impl AppConfig {
                 account_name: env_opt("HOTEL_BANK_ACCOUNT_NAME"),
                 account_number: env_opt("HOTEL_BANK_ACCOUNT_NUMBER"),
             },
-        })
+        };
+        config.validate_security()?;
+        Ok(config)
+    }
+
+    fn validate_security(&self) -> Result<(), String> {
+        if self.desktop_mode || self.environment != Environment::Production {
+            return Ok(());
+        }
+
+        if matches!(self.allowed_origins, AllowedOrigins::Any) {
+            return Err("ALLOWED_ORIGINS must not be '*' in production".to_string());
+        }
+        if let AllowedOrigins::List(origins) = &self.allowed_origins {
+            for origin in origins {
+                let origin = origin
+                    .to_str()
+                    .map_err(|_| "ALLOWED_ORIGINS contains a non-text origin")?;
+                if !origin.starts_with("https://") || origin.contains("localhost") {
+                    return Err(
+                        "ALLOWED_ORIGINS must contain only non-localhost HTTPS origins in production"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+        if self.skip_email_verification {
+            return Err("SKIP_EMAIL_VERIFICATION must be false in production".to_string());
+        }
+        if self.passkey_rp_id == "localhost" {
+            return Err("PASSKEY_RP_ID must be a production domain in production".to_string());
+        }
+        Ok(())
     }
 }
 
@@ -315,7 +379,7 @@ fn parse_allowed_origins(value: &str) -> Result<AllowedOrigins, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AllowedOrigins, parse_allowed_origins, validate_jwt_secret};
+    use super::{AllowedOrigins, Environment, parse_allowed_origins, validate_jwt_secret};
 
     #[test]
     fn jwt_secret_validation_enforces_minimum_length() {
@@ -335,5 +399,22 @@ mod tests {
 
         let origins = parse_allowed_origins("http://localhost:3000,http://localhost:5173").unwrap();
         assert!(matches!(origins, AllowedOrigins::List(values) if values.len() == 2));
+    }
+
+    #[test]
+    fn environment_parses_supported_names() {
+        assert_eq!(
+            Environment::Development,
+            Environment::from_env_value("development").unwrap()
+        );
+        assert_eq!(
+            Environment::Staging,
+            Environment::from_env_value("staging").unwrap()
+        );
+        assert_eq!(
+            Environment::Production,
+            Environment::from_env_value("production").unwrap()
+        );
+        assert!(Environment::from_env_value("preview").is_err());
     }
 }

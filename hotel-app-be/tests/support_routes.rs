@@ -112,6 +112,23 @@ mod sqlite_tests {
         seed_guest_session(&pool, OWNER_ID, OWNER_TOKEN).await;
         seed_guest_session(&pool, OTHER_GUEST_ID, OTHER_TOKEN).await;
 
+        let session_id = AuthService::store_refresh_token(
+            &pool,
+            1,
+            "support-routes-admin-session",
+            30,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let admin_token = AuthService::generate_session_jwt(
+            1,
+            "admin".to_string(),
+            vec!["admin".to_string()],
+            session_id,
+        )
+        .unwrap();
         let app = create_router(pool);
         let unauthorized_staff = app
             .clone()
@@ -170,8 +187,6 @@ mod sqlite_tests {
             .unwrap();
         assert_eq!(foreign_detail.status(), StatusCode::NOT_FOUND);
 
-        let admin_token =
-            AuthService::generate_jwt(1, "admin".to_string(), vec!["admin".to_string()]).unwrap();
         let staff_list = app
             .clone()
             .oneshot(request(

@@ -299,8 +299,29 @@ pub async fn update_user(
         None => None,
     };
 
+    // Password resets must invalidate existing credentials before the new
+    // password can take effect. This is intentionally conservative: if the
+    // subsequent profile update fails, the target user must sign in again.
+    if password_hash.is_some() {
+        AuthService::revoke_all_user_tokens(pool, user_id)
+            .await
+            .map_err(|error| {
+                ApiError::Database(format!("Failed to revoke password-reset sessions: {error}"))
+            })?;
+    }
+
     let changed_fields = changed_user_fields(&existing, &input, password_hash.is_some());
     let user = RbacRepository::update_user(pool, user_id, &input, password_hash.as_deref()).await?;
+
+    if input.is_active == Some(false) {
+        AuthService::revoke_all_user_tokens(pool, user_id)
+            .await
+            .map_err(|error| {
+                ApiError::Database(format!(
+                    "Failed to revoke deactivated-user sessions: {error}"
+                ))
+            })?;
+    }
 
     let _ = AuditLog::log_event(
         pool,
@@ -329,6 +350,14 @@ pub async fn delete_user(pool: &DbPool, admin_user_id: i64, user_id: i64) -> Res
         return Err(ApiError::NotFound("User not found".to_string()));
     }
     ensure_actor_can_manage_user(pool, admin_user_id, user_id).await?;
+
+    // Revoke first so a failure to delete cannot leave a known-compromised
+    // session usable while the administrator retries the operation.
+    AuthService::revoke_all_user_tokens(pool, user_id)
+        .await
+        .map_err(|error| {
+            ApiError::Database(format!("Failed to revoke deleted-user sessions: {error}"))
+        })?;
 
     if !RbacRepository::soft_delete_user(pool, user_id).await? {
         return Err(ApiError::NotFound("User not found".to_string()));

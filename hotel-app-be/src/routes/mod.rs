@@ -96,7 +96,10 @@ async fn enforce_active_session(
         Err(error) => return error.into_response(),
     };
     let Some(session_id) = claims.sid else {
-        return next.run(request).await;
+        return crate::core::error::ApiError::Unauthorized(
+            "Session-bound authentication is required".to_string(),
+        )
+        .into_response();
     };
     let Ok(user_id) = claims.sub.parse::<i64>() else {
         return crate::core::error::ApiError::Unauthorized("Invalid user ID in token".to_string())

@@ -7,6 +7,27 @@ on:
     branches: [master]
 
 jobs:
+  security-gate:
+    name: Security — Secrets & Rust advisories
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel-app-be
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Scan committed history for secrets
+        uses: gitleaks/gitleaks-action@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Check Rust dependency advisories
+        run: cargo audit
+
   frontend:
     name: Frontend — Typecheck, Lint & Build
     runs-on: ubuntu-latest

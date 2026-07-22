@@ -5,6 +5,7 @@ mod common;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_tests {
     use crate::common;
+    use hotel_app_be::core::auth::AuthService;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::UserUpdateInput;
     use hotel_app_be::services::rbac;
@@ -21,6 +22,19 @@ mod sqlite_tests {
         .execute(pool)
         .await
         .unwrap();
+    }
+
+    async fn create_active_session(pool: &sqlx::SqlitePool, user_id: i64) -> String {
+        AuthService::store_refresh_token(
+            pool,
+            user_id,
+            &format!("rbac-session-{user_id}"),
+            30,
+            None,
+            None,
+        )
+        .await
+        .expect("test session should be created")
     }
 
     #[tokio::test]
@@ -107,9 +121,95 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn inactive_or_deleted_accounts_fail_active_session_validation() {
+        let pool = common::setup_test_db().await;
+        insert_target_user(&pool, 9105, "rbacinactive").await;
+        let inactive_session = create_active_session(&pool, 9105).await;
+
+        assert!(
+            AuthService::is_session_active(&pool, 9105, &inactive_session)
+                .await
+                .expect("session validation should succeed")
+        );
+
+        sqlx::query("UPDATE users SET is_active = 0 WHERE id = ?1")
+            .bind(9105)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        assert!(
+            !AuthService::is_session_active(&pool, 9105, &inactive_session)
+                .await
+                .expect("session validation should succeed")
+        );
+
+        insert_target_user(&pool, 9106, "rbacdeleted").await;
+        let deleted_session = create_active_session(&pool, 9106).await;
+        sqlx::query("UPDATE users SET deleted_at = datetime('now') WHERE id = ?1")
+            .bind(9106)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        assert!(
+            !AuthService::is_session_active(&pool, 9106, &deleted_session)
+                .await
+                .expect("session validation should succeed")
+        );
+    }
+
+    #[tokio::test]
+    async fn admin_deactivation_and_password_reset_revoke_existing_sessions() {
+        let pool = common::setup_test_db().await;
+        insert_target_user(&pool, 9107, "rbacdeactivate").await;
+        let deactivated_session = create_active_session(&pool, 9107).await;
+
+        rbac::update_user(
+            &pool,
+            1,
+            9107,
+            UserUpdateInput {
+                is_active: Some(false),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("admin should deactivate lower-priority user");
+
+        assert!(
+            !AuthService::is_session_active(&pool, 9107, &deactivated_session)
+                .await
+                .expect("session validation should succeed")
+        );
+
+        insert_target_user(&pool, 9108, "rbacreset").await;
+        let reset_session = create_active_session(&pool, 9108).await;
+
+        rbac::update_user(
+            &pool,
+            1,
+            9108,
+            UserUpdateInput {
+                password: Some("Sphinx7!Cedar".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("admin should reset lower-priority user password");
+
+        assert!(
+            !AuthService::is_session_active(&pool, 9108, &reset_session)
+                .await
+                .expect("session validation should succeed")
+        );
+    }
+
+    #[tokio::test]
     async fn admin_delete_user_soft_deletes_and_clears_roles() {
         let pool = common::setup_test_db().await;
         insert_target_user(&pool, 9104, "rbacdelete").await;
+        let deleted_session = create_active_session(&pool, 9104).await;
         rbac::replace_user_roles(
             &pool,
             1,
@@ -138,5 +238,10 @@ mod sqlite_tests {
 
         assert!(active_user.is_none());
         assert_eq!(role_count, 0);
+        assert!(
+            !AuthService::is_session_active(&pool, 9104, &deleted_session)
+                .await
+                .expect("session validation should succeed")
+        );
     }
 }

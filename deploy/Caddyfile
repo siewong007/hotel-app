@@ -14,6 +14,14 @@
 	# hardened value byte-for-byte. (Note: the backend does NOT send HSTS
 	# itself — verified 2026-07-19 — this edge header is the only source.)
 	header ?Strict-Transport-Security "{$HSTS_VALUE:max-age=31536000; includeSubDomains}"
+	header {
+		-Server
+		?Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+		?Referrer-Policy "strict-origin-when-cross-origin"
+		?Cross-Origin-Opener-Policy "same-origin"
+		?X-Content-Type-Options "nosniff"
+		?X-Frame-Options "DENY"
+	}
 
 	# KEEP IN SYNC with PROXY_PREFIXES in hotel-web-fe/vite.config.ts
 	@backend path /api/* /uploads/* /health /ws /ws/*
