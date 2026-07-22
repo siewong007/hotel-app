@@ -89,6 +89,26 @@ mod sqlite_tests {
             .unwrap();
     }
 
+    async fn staff_token(
+        pool: &sqlx::SqlitePool,
+        user_id: i64,
+        username: &str,
+        roles: Vec<String>,
+    ) -> String {
+        let session_id = AuthService::store_refresh_token(
+            pool,
+            user_id,
+            &format!("router-session-{user_id}-{username}"),
+            30,
+            None,
+            None,
+        )
+        .await
+        .expect("test session should be created");
+        AuthService::generate_session_jwt(user_id, username.to_string(), roles, session_id)
+            .expect("session JWT should generate")
+    }
+
     fn promotion_input(slug: &str, name: &str) -> PromotionInput {
         PromotionInput {
             slug: slug.to_string(),
@@ -194,14 +214,15 @@ mod sqlite_tests {
         // instead to exercise a genuine 403.
         let user_id = 920_002;
         insert_user_with_role(&pool, user_id, "router_test_housekeeper", 4).await;
-        let base_url = spawn_app(pool).await;
+        let base_url = spawn_app(pool.clone()).await;
 
-        let token = AuthService::generate_jwt(
+        let token = staff_token(
+            &pool,
             user_id,
-            "router_test_housekeeper".to_string(),
+            "router_test_housekeeper",
             vec!["housekeeping".to_string()],
         )
-        .expect("jwt should generate");
+        .await;
 
         let response = reqwest::Client::new()
             .get(format!("{base_url}/api/payments/booking/1"))
@@ -216,13 +237,12 @@ mod sqlite_tests {
     #[tokio::test]
     async fn authenticated_permitted_request_returns_200() {
         let pool = common::setup_test_db().await;
-        let base_url = spawn_app(pool).await;
+        let base_url = spawn_app(pool.clone()).await;
 
         // User id 1 is the default admin seeded by 001_initial_schema.sql
         // with role_id 1 (admin), which is granted every permission
         // including rooms:read.
-        let token = AuthService::generate_jwt(1, "admin".to_string(), vec!["admin".to_string()])
-            .expect("jwt should generate");
+        let token = staff_token(&pool, 1, "admin", vec!["admin".to_string()]).await;
 
         let response = reqwest::Client::new()
             .get(format!("{base_url}/api/rooms"))
@@ -235,18 +255,74 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn sessionless_staff_jwt_is_rejected_by_router_middleware() {
+        let pool = common::setup_test_db().await;
+        let base_url = spawn_app(pool).await;
+        let legacy_token =
+            AuthService::generate_jwt(1, "admin".to_string(), vec!["admin".to_string()])
+                .expect("legacy jwt should generate for rejection test");
+
+        let response = reqwest::Client::new()
+            .get(format!("{base_url}/api/rooms"))
+            .bearer_auth(legacy_token)
+            .send()
+            .await
+            .expect("request should complete");
+
+        assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn deactivated_staff_session_is_rejected_by_router_middleware() {
+        let pool = common::setup_test_db().await;
+        let base_url = spawn_app(pool.clone()).await;
+        let session_id = AuthService::store_refresh_token(
+            &pool,
+            1,
+            "deactivated-router-session",
+            30,
+            None,
+            None,
+        )
+        .await
+        .expect("test session should be created");
+        let token = AuthService::generate_session_jwt(
+            1,
+            "admin".to_string(),
+            vec!["admin".to_string()],
+            session_id,
+        )
+        .expect("session JWT should generate");
+
+        sqlx::query("UPDATE users SET is_active = 0 WHERE id = 1")
+            .execute(&pool)
+            .await
+            .expect("admin account should deactivate for the test");
+
+        let response = reqwest::Client::new()
+            .get(format!("{base_url}/api/rooms"))
+            .bearer_auth(token)
+            .send()
+            .await
+            .expect("request should complete");
+
+        assert_eq!(response.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn guest_request_to_global_search_returns_403() {
         let pool = common::setup_test_db().await;
         let user_id = 920_003;
         insert_user_with_role(&pool, user_id, "router_test_guest", 6).await;
-        let base_url = spawn_app(pool).await;
+        let base_url = spawn_app(pool.clone()).await;
 
-        let token = AuthService::generate_jwt(
+        let token = staff_token(
+            &pool,
             user_id,
-            "router_test_guest".to_string(),
+            "router_test_guest",
             vec!["guest".to_string()],
         )
-        .expect("jwt should generate");
+        .await;
 
         let response = reqwest::Client::new()
             .get(format!("{base_url}/api/search?q=room"))
@@ -272,13 +348,14 @@ mod sqlite_tests {
             .await
             .expect("guest account should link to its guest profile");
 
-        let base_url = spawn_app(pool).await;
-        let token = AuthService::generate_jwt(
+        let base_url = spawn_app(pool.clone()).await;
+        let token = staff_token(
+            &pool,
             user_id,
-            "router_portal_guest".to_string(),
+            "router_portal_guest",
             vec!["guest".to_string()],
         )
-        .expect("jwt should generate");
+        .await;
 
         let response = reqwest::Client::new()
             .post(format!("{base_url}/api/guest-portal/session"))
@@ -315,7 +392,7 @@ mod sqlite_tests {
         )
         .await
         .expect("test draft promotion should be created");
-        let base_url = spawn_app(pool).await;
+        let base_url = spawn_app(pool.clone()).await;
         let client = reqwest::Client::new();
 
         let catalogue = client
@@ -357,7 +434,7 @@ mod sqlite_tests {
             create_published_promotion(&pool, "router-guest-claim", "Router guest claim promotion")
                 .await;
         let portal_token = create_guest_portal_token(&pool, guest_id).await;
-        let base_url = spawn_app(pool).await;
+        let base_url = spawn_app(pool.clone()).await;
         let client = reqwest::Client::new();
         let claim_url = format!(
             "{base_url}/api/guest-portal/me/promotions/{}/claim",
@@ -398,9 +475,7 @@ mod sqlite_tests {
             .to_string();
         assert_eq!(guest_voucher["guest_id"], guest_id);
 
-        let admin_token =
-            AuthService::generate_jwt(1, "admin".to_string(), vec!["admin".to_string()])
-                .expect("admin jwt should generate");
+        let admin_token = staff_token(&pool, 1, "admin", vec!["admin".to_string()]).await;
         let staff_list = client
             .get(format!("{base_url}/api/admin/vouchers"))
             .bearer_auth(admin_token)
@@ -527,7 +602,7 @@ mod sqlite_tests {
         let pool = common::setup_test_db().await;
         let user_id = 920_102;
         insert_user_with_role(&pool, user_id, "router_promotion_housekeeper", 4).await;
-        let base_url = spawn_app(pool).await;
+        let base_url = spawn_app(pool.clone()).await;
         let client = reqwest::Client::new();
 
         for endpoint in ["admin/promotions", "admin/vouchers"] {
@@ -543,12 +618,13 @@ mod sqlite_tests {
             );
         }
 
-        let housekeeping_token = AuthService::generate_jwt(
+        let housekeeping_token = staff_token(
+            &pool,
             user_id,
-            "router_promotion_housekeeper".to_string(),
+            "router_promotion_housekeeper",
             vec!["housekeeping".to_string()],
         )
-        .expect("housekeeping jwt should generate");
+        .await;
         for endpoint in ["admin/promotions", "admin/vouchers"] {
             let forbidden = client
                 .get(format!("{base_url}/api/{endpoint}"))

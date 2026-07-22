@@ -16,6 +16,8 @@ use totp_rs::{Algorithm, Secret, TOTP};
 pub struct Claims {
     pub sub: String, // user_id
     pub username: String,
+    pub iss: String,
+    pub aud: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exp: Option<usize>,
     pub iat: usize,
@@ -67,6 +69,15 @@ fn access_token_expiration(now: chrono::DateTime<Utc>, desktop_mode: bool) -> Op
 
 fn jwt_validation(desktop_mode: bool) -> Validation {
     let mut validation = Validation::default();
+    let config = config::try_get();
+    let issuer = config
+        .map(|config| config.jwt_issuer.as_str())
+        .unwrap_or("hotel-app-be");
+    let audience = config
+        .map(|config| config.jwt_audience.as_str())
+        .unwrap_or("hotel-web");
+    validation.set_issuer(&[issuer]);
+    validation.set_audience(&[audience]);
     if desktop_mode {
         validation.validate_exp = false;
         validation.required_spec_claims.remove("exp");
@@ -131,6 +142,12 @@ impl AuthService {
         let claims = Claims {
             sub: user_id.to_string(),
             username,
+            iss: config::try_get()
+                .map(|config| config.jwt_issuer.clone())
+                .unwrap_or_else(|| "hotel-app-be".to_string()),
+            aud: config::try_get()
+                .map(|config| config.jwt_audience.clone())
+                .unwrap_or_else(|| "hotel-web".to_string()),
             exp,
             iat,
             roles,
@@ -156,6 +173,12 @@ impl AuthService {
         let claims = Claims {
             sub: user_id.to_string(),
             username,
+            iss: config::try_get()
+                .map(|config| config.jwt_issuer.clone())
+                .unwrap_or_else(|| "hotel-app-be".to_string()),
+            aud: config::try_get()
+                .map(|config| config.jwt_audience.clone())
+                .unwrap_or_else(|| "hotel-web".to_string()),
             exp,
             iat: now.timestamp() as usize,
             roles,
@@ -444,16 +467,28 @@ impl AuthService {
         let query = crate::sql_query!(
             postgres: r#"
                 SELECT EXISTS(
-                    SELECT 1 FROM refresh_tokens
-                    WHERE id = $1::uuid AND user_id = $2 AND expires_at > CURRENT_TIMESTAMP
-                      AND revoked_at IS NULL AND is_revoked = false
+                    SELECT 1
+                    FROM refresh_tokens AS session
+                    INNER JOIN users AS account ON account.id = session.user_id
+                    WHERE session.id = $1::uuid AND session.user_id = $2
+                      AND session.expires_at > CURRENT_TIMESTAMP
+                      AND session.revoked_at IS NULL AND session.is_revoked = false
+                      AND account.is_active = true
+                      AND account.is_locked = false
+                      AND account.deleted_at IS NULL
                 )
             "#,
             sqlite: r#"
                 SELECT EXISTS(
-                    SELECT 1 FROM refresh_tokens
-                    WHERE id = ?1 AND user_id = ?2 AND expires_at > datetime('now')
-                      AND revoked_at IS NULL AND is_revoked = 0
+                    SELECT 1
+                    FROM refresh_tokens AS session
+                    INNER JOIN users AS account ON account.id = session.user_id
+                    WHERE session.id = ?1 AND session.user_id = ?2
+                      AND session.expires_at > datetime('now')
+                      AND session.revoked_at IS NULL AND session.is_revoked = 0
+                      AND account.is_active = 1
+                      AND account.is_locked = 0
+                      AND account.deleted_at IS NULL
                 )
             "#
         );

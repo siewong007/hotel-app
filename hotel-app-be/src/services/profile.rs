@@ -119,7 +119,14 @@ pub async fn update_password(
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
-    UserRepository::update_password_hash(pool, user_id, &new_hash).await
+    UserRepository::update_password_hash(pool, user_id, &new_hash).await?;
+    AuthService::revoke_all_user_tokens(pool, user_id)
+        .await
+        .map_err(|error| {
+            ApiError::Database(format!(
+                "Failed to revoke password-change sessions: {error}"
+            ))
+        })
 }
 
 pub async fn list_sessions(

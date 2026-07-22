@@ -3,8 +3,9 @@ mod common;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_tests {
     use crate::common;
+    use hotel_app_be::core::auth::AuthService;
     use hotel_app_be::core::error::ApiError;
-    use hotel_app_be::models::UserProfileUpdate;
+    use hotel_app_be::models::{PasswordUpdateInput, UserProfileUpdate};
     use hotel_app_be::services::profile;
 
     async fn seed_guest_without_email(pool: &sqlx::SqlitePool) {
@@ -82,6 +83,48 @@ mod sqlite_tests {
 
         assert!(
             matches!(error, ApiError::BadRequest(message) if message.contains("already configured"))
+        );
+    }
+
+    #[tokio::test]
+    async fn password_change_revokes_all_existing_sessions() {
+        let pool = common::setup_test_db().await;
+        seed_guest_without_email(&pool).await;
+        let current_password = "Cedar7!Sphinx";
+        let current_hash = AuthService::hash_password(current_password)
+            .await
+            .expect("password hash should be created");
+        sqlx::query("UPDATE users SET password_hash = ?1 WHERE id = 9701")
+            .bind(current_hash)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let session_id = AuthService::store_refresh_token(
+            &pool,
+            9701,
+            "profile-password-session",
+            30,
+            None,
+            None,
+        )
+        .await
+        .expect("test session should be created");
+
+        profile::update_password(
+            &pool,
+            9701,
+            PasswordUpdateInput {
+                current_password: current_password.to_string(),
+                new_password: "Tamarind8!Quartz".to_string(),
+            },
+        )
+        .await
+        .expect("password change should succeed");
+
+        assert!(
+            !AuthService::is_session_active(&pool, 9701, &session_id)
+                .await
+                .expect("session validation should succeed")
         );
     }
 }

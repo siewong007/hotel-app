@@ -87,10 +87,7 @@ pub fn routes() -> Router<DbPool> {
 
 /// Apply the shared per-token rate limit used by the other token routes,
 /// returning a `429` with `Retry-After` when exceeded.
-async fn check_token_rate_limit(
-    limiters: &RateLimiters,
-    token: &str,
-) -> Result<(), ApiError> {
+async fn check_token_rate_limit(limiters: &RateLimiters, token: &str) -> Result<(), ApiError> {
     let (allowed, retry_after) = limiters
         .guest_portal_token
         .check_with_retry(token.to_string())

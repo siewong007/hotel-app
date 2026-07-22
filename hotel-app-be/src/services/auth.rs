@@ -82,13 +82,18 @@ pub async fn login(
         let should_lock = new_attempts >= max_attempts;
 
         if should_lock {
-            let _ = AuthRepository::lock_user_after_failure(
+            AuthRepository::lock_user_after_failure(
                 pool,
                 user.id,
                 new_attempts,
                 Utc::now() + Duration::minutes(30),
             )
-            .await;
+            .await?;
+            AuthService::revoke_all_user_tokens(pool, user.id)
+                .await
+                .map_err(|error| {
+                    ApiError::Database(format!("Failed to revoke locked-user sessions: {error}"))
+                })?;
 
             let _ = AuditLog::log_login_failure(
                 pool,
