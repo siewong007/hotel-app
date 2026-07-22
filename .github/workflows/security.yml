@@ -17,7 +17,7 @@ jobs:
     name: Secret scanning
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v2
@@ -34,7 +34,7 @@ jobs:
           - language: rust
             build-mode: manual
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.95.0
       - name: Install Rust build dependencies
         if: matrix.language == 'rust'
@@ -54,7 +54,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v4
 
   rust-advisories:
@@ -64,7 +64,7 @@ jobs:
       run:
         working-directory: hotel-app-be
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Check dependency advisories
