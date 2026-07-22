@@ -14,6 +14,20 @@ use sqlx::Row;
 
 pub struct PaymentRepository;
 
+#[derive(sqlx::FromRow)]
+struct GeneratedInvoiceBookingDetailsRow {
+    booking_id: i64,
+    guest_id: i64,
+    customer_name: String,
+    customer_email: Option<String>,
+    customer_phone: Option<String>,
+    check_in: chrono::NaiveDateTime,
+    check_out: chrono::NaiveDateTime,
+    room_id: i64,
+    room_number: String,
+    room_type: String,
+}
+
 impl PaymentRepository {
     pub async fn paid_online_booking_room_assignment(
         pool: &DbPool,
@@ -1031,22 +1045,12 @@ impl PaymentRepository {
             return Ok(existing);
         }
 
-        let booking_details: (
-            i64,
-            i64,
-            String,
-            Option<String>,
-            Option<String>,
-            chrono::NaiveDateTime,
-            chrono::NaiveDateTime,
-            i64,
-            String,
-            String,
-        ) = sqlx::query_as(
+        let booking_details: GeneratedInvoiceBookingDetailsRow = sqlx::query_as(
             r#"
-            SELECT b.id, b.guest_id, g.full_name, g.email, g.phone,
-                   b.check_in_date, b.check_out_date,
-                   r.id as room_id, r.room_number, rt.name as room_type
+            SELECT b.id AS booking_id, b.guest_id, g.full_name AS customer_name,
+                   g.email AS customer_email, g.phone AS customer_phone,
+                   b.check_in_date AS check_in, b.check_out_date AS check_out,
+                   r.id AS room_id, r.room_number, rt.name AS room_type
             FROM bookings b
             JOIN guests g ON b.guest_id = g.id
             JOIN rooms r ON b.room_id = r.id
@@ -1059,18 +1063,18 @@ impl PaymentRepository {
         .await
         .map_err(ApiError::from)?;
 
-        let (
-            _bid,
+        let GeneratedInvoiceBookingDetailsRow {
+            booking_id: _booking_id,
             guest_id,
             customer_name,
             customer_email,
-            _customer_phone,
+            customer_phone: _customer_phone,
             check_in,
             check_out,
             room_id,
             room_number,
             room_type,
-        ) = booking_details;
+        } = booking_details;
 
         // Whether a completed payment already exists — decides the invoice's
         // `status`/`paid_amount`. Uses the real `status` column, cfg-gated.

@@ -8,6 +8,11 @@ import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
 import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
 
+const ADMIN_APP_TITLE = 'Hotel ERP System';
+const GUEST_APP_TITLE = 'Salim Inn Sibu - Cozy stays at Farley';
+const ADMIN_FAVICON = '/favicon.ico';
+const GUEST_FAVICON = '/salim-inn/salim-inn-icon.svg';
+
 export const RootLayout: React.FC = () => {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
   const navigate = useNavigate();
@@ -16,6 +21,9 @@ export const RootLayout: React.FC = () => {
   const isGuestPortal = pathname === '/guest-portal';
   const isAdminPortal = pathname === '/admin-portal';
   const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
+  const account = (location.search as { account?: string }).account;
+  const isGuestLogin = pathname === '/login' && account === 'guest';
+  const isGuestExperience = isGuestPortal || isOffersPage || pathname === '/register' || isGuestLogin;
   const isGuestModelHome = isGuestPortal;
   const isTimelinePage = pathname.startsWith('/timeline');
   const boardSkinActive =
@@ -28,6 +36,13 @@ export const RootLayout: React.FC = () => {
       document.body.classList.remove('hotel-board-skin-active');
     };
   }, [boardSkinActive]);
+
+  useEffect(() => {
+    document.title = isGuestExperience ? GUEST_APP_TITLE : ADMIN_APP_TITLE;
+
+    const favicon = document.querySelector<HTMLLinkElement>('#app-favicon');
+    if (favicon) favicon.href = isGuestExperience ? GUEST_FAVICON : ADMIN_FAVICON;
+  }, [isGuestExperience]);
 
   useEffect(() => {
     const showResourceLocked = () => {
