@@ -704,10 +704,7 @@ fn ensure_booking_awaiting_payment(booking: &Booking) -> Result<(), ApiError> {
 /// Guard: reject a new guest payment attempt when the booking already has a
 /// `booking`-type payment that is pending, processing, or completed. Prevents
 /// duplicate claims / orders (and the resulting double approval) for one booking.
-async fn ensure_no_active_booking_payment(
-    pool: &DbPool,
-    booking_id: i64,
-) -> Result<(), ApiError> {
+async fn ensure_no_active_booking_payment(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
     if PaymentRepository::has_active_or_completed_booking_payment(pool, booking_id).await? {
         return Err(ApiError::Conflict(
             "A payment for this booking is already pending or completed.".to_string(),
@@ -810,12 +807,9 @@ pub async fn create_paypal_order(
     tx.commit().await.map_err(ApiError::from)?;
 
     let custom_id = format!("{}:{}", booking.id, payment_id);
-    let order_id = crate::services::paypal_client::create_order(
-        booking.total_amount,
-        currency,
-        &custom_id,
-    )
-    .await?;
+    let order_id =
+        crate::services::paypal_client::create_order(booking.total_amount, currency, &custom_id)
+            .await?;
 
     PaymentRepository::set_payment_gateway_order(pool, payment_id, &order_id).await?;
 
@@ -966,16 +960,15 @@ async fn complete_and_confirm(
         ));
     }
 
-    let completed = PaymentRepository::mark_payment_completed_tx(&mut tx, payment_id, actor_user_id)
-        .await?;
+    let completed =
+        PaymentRepository::mark_payment_completed_tx(&mut tx, payment_id, actor_user_id).await?;
     if completed.is_none() {
         return Err(ApiError::BadRequest(
             "Payment is no longer pending.".to_string(),
         ));
     }
 
-    let confirmed =
-        crate::repositories::bookings::confirm_booking_tx(&mut tx, booking_id).await?;
+    let confirmed = crate::repositories::bookings::confirm_booking_tx(&mut tx, booking_id).await?;
     if confirmed {
         crate::repositories::bookings::record_booking_history_tx(
             &mut tx,
@@ -1039,9 +1032,13 @@ pub async fn reject_payment(
     }
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    let rejected =
-        PaymentRepository::mark_payment_rejected_tx(&mut tx, payment_id, Some(actor_user_id), reason)
-            .await?;
+    let rejected = PaymentRepository::mark_payment_rejected_tx(
+        &mut tx,
+        payment_id,
+        Some(actor_user_id),
+        reason,
+    )
+    .await?;
     if rejected.is_none() {
         return Err(ApiError::BadRequest(
             "Payment is no longer pending.".to_string(),

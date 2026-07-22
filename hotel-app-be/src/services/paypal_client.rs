@@ -58,7 +58,10 @@ fn http_client() -> Result<reqwest::Client, ApiError> {
 }
 
 /// Fetch an OAuth2 access token via `client_credentials` (Basic auth).
-async fn get_access_token(cfg: &PaypalConfig, client: &reqwest::Client) -> Result<String, ApiError> {
+async fn get_access_token(
+    cfg: &PaypalConfig,
+    client: &reqwest::Client,
+) -> Result<String, ApiError> {
     let client_id = cfg.client_id.as_deref().unwrap_or_default();
     let client_secret = cfg.client_secret.as_deref().unwrap_or_default();
     let basic =

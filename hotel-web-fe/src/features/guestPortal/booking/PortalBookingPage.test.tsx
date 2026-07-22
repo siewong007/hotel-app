@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   createSession: vi.fn(),
   listVouchers: vi.fn(),
   navigate: vi.fn(),
+  paymentConfig: vi.fn(),
   quote: vi.fn(),
   search: vi.fn(),
 }));
@@ -31,6 +32,12 @@ vi.mock('../../promotions/api/portalPromotionsApi', () => ({
 vi.mock('../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
     createSession: (...args: unknown[]) => mocks.createSession(...args),
+  },
+}));
+
+vi.mock('../../../api/guestPortal.service', () => ({
+  GuestPortalService: {
+    paymentConfig: (...args: unknown[]) => mocks.paymentConfig(...args),
   },
 }));
 
@@ -150,6 +157,15 @@ describe('PortalBookingPage voucher eligibility', () => {
   });
 
   it('requires a payment choice and labels pay-at-hotel bookings as pending', async () => {
+    mocks.paymentConfig.mockResolvedValue({
+      paypal_enabled: false,
+      paypal_client_id: null,
+      bank_details: {
+        bank_name: 'Maybank',
+        account_name: 'Salim Inn',
+        account_number: '511270052595',
+      },
+    });
     mocks.createBooking.mockResolvedValue({
       booking_id: 42,
       booking_number: 'WEB-42',
@@ -178,6 +194,8 @@ describe('PortalBookingPage voucher eligibility', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit booking request' }));
 
     await screen.findByRole('heading', { name: 'Booking request received' });
-    expect(screen.getByText(/booking is pending until the hotel confirms it/i)).toBeTruthy();
+    await screen.findByText('Choose a payment method');
+    fireEvent.click(await screen.findByRole('radio', { name: 'Offline banking (bank transfer)' }));
+    expect(await screen.findByRole('button', { name: "I've paid via bank transfer" })).toBeTruthy();
   });
 });

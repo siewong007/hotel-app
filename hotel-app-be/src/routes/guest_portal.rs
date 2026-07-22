@@ -85,11 +85,15 @@ pub fn routes() -> Router<DbPool> {
         )
 }
 
-/// Apply the shared per-token rate limit used by the other token routes,
-/// returning a `429` with `Retry-After` when exceeded.
-async fn check_token_rate_limit(limiters: &RateLimiters, token: &str) -> Result<(), ApiError> {
+/// Allow up to 100 payment-write requests per booking link in 10 minutes,
+/// returning a `429` with `Retry-After` when exceeded. Payment traffic uses a
+/// dedicated limit so it does not consume the stricter pre-check-in budget.
+async fn check_token_payment_rate_limit(
+    limiters: &RateLimiters,
+    token: &str,
+) -> Result<(), ApiError> {
     let (allowed, retry_after) = limiters
-        .guest_portal_token
+        .guest_portal_token_payment
         .check_with_retry(token.to_string())
         .await;
     if !allowed {
@@ -109,7 +113,7 @@ async fn token_bank_transfer(
     Extension(limiters): Extension<RateLimiters>,
     path: Path<String>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
-    check_token_rate_limit(&limiters, &path.0).await?;
+    check_token_payment_rate_limit(&limiters, &path.0).await?;
     handlers::guest_portal::token_bank_transfer(State(pool), path).await
 }
 
@@ -118,7 +122,7 @@ async fn token_paypal_create_order(
     Extension(limiters): Extension<RateLimiters>,
     path: Path<String>,
 ) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
-    check_token_rate_limit(&limiters, &path.0).await?;
+    check_token_payment_rate_limit(&limiters, &path.0).await?;
     handlers::guest_portal::token_paypal_create_order(State(pool), path).await
 }
 
@@ -128,7 +132,7 @@ async fn token_paypal_capture(
     path: Path<String>,
     body: Json<models::PaypalCaptureRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
-    check_token_rate_limit(&limiters, &path.0).await?;
+    check_token_payment_rate_limit(&limiters, &path.0).await?;
     handlers::guest_portal::token_paypal_capture(State(pool), path, body).await
 }
 

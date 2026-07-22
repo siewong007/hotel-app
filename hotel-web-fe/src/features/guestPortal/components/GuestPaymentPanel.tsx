@@ -21,7 +21,10 @@ import {
   Box,
   Button,
   CircularProgress,
-  Divider,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
   Stack,
   Typography,
 } from '@mui/material';
@@ -78,6 +81,7 @@ export function GuestPaymentPanel({
   const [paypalError, setPaypalError] = useState<string | null>(null);
   const [pendingPaypalPaymentId, setPendingPaypalPaymentId] = useState<number | null>(null);
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | null>(null);
 
   const loadConfig = useCallback(async () => {
     setConfigLoading(true);
@@ -212,10 +216,41 @@ export function GuestPaymentPanel({
         </Typography>
       ) : null}
 
-      {showBankTransfer ? <><Typography variant="subtitle2" sx={{ mb: 1 }}>
-        Pay by bank transfer
-      </Typography>
-      {hasBankDetails ? (
+      <FormControl component="fieldset" fullWidth>
+        <Typography component="legend" variant="subtitle2" sx={{ mb: 1 }}>
+          Choose a payment method
+        </Typography>
+        <RadioGroup
+          name="guest-payment-method"
+          value={paymentMethod ?? ''}
+          onChange={(event) => {
+            setBankError(null);
+            setPaypalError(null);
+            setPaymentMethod(event.target.value as 'bank_transfer' | 'paypal');
+          }}
+        >
+          {showBankTransfer ? (
+            <FormControlLabel
+              value="bank_transfer"
+              control={<Radio />}
+              label="Offline banking (bank transfer)"
+            />
+          ) : null}
+          {paypalReady ? (
+            <FormControlLabel
+              value="paypal"
+              control={<Radio />}
+              label="PayPal or debit / credit card"
+            />
+          ) : null}
+        </RadioGroup>
+      </FormControl>
+
+      {paymentMethod === 'bank_transfer' && showBankTransfer ? <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          Bank transfer details
+        </Typography>
+        {hasBankDetails ? (
         <Stack spacing={0.5} sx={{ mb: 1.5 }}>
           {bankDetails.bank_name ? (
             <Typography variant="body2">
@@ -252,11 +287,10 @@ export function GuestPaymentPanel({
           {bankSubmitting ? <CircularProgress size={20} /> : "I've paid via bank transfer"}
         </Button>
       ) : null}
-      </> : null}
+      </Box> : null}
 
-      {paypalReady ? (
-        <>
-          {showBankTransfer ? <Divider sx={{ my: 2.5 }} /> : null}
+      {paymentMethod === 'paypal' && paypalReady ? (
+        <Box sx={{ mt: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
             Pay with PayPal or card
           </Typography>
@@ -279,7 +313,7 @@ export function GuestPaymentPanel({
               onError={onPaypalError}
             />
           </PayPalScriptProvider>
-        </>
+        </Box>
       ) : null}
     </Box>
   );

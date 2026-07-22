@@ -8,6 +8,10 @@
 *.pem
 *.key
 *.p12
+
+# Database backups/dumps (contain real guest PII, never commit)
+*.dump
+deploy/backups/
 *.pfx
 /deploy/credentials/
 

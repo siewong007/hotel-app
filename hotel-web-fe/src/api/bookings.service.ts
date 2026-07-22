@@ -108,6 +108,24 @@ export class BookingsService {
     }
   }
 
+  static async cancelMyPendingBooking(bookingId: string | number, reason?: string): Promise<BookingVoidResponse> {
+    try {
+      return await api
+        .post(`bookings/my-bookings/${bookingId}/cancel`, { json: { booking_id: Number(bookingId), reason } })
+        .json<BookingVoidResponse>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to cancel booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to cancel booking');
+    }
+  }
+
   static async createBooking(bookingData: BookingCreateRequest): Promise<Booking> {
     const validation = validateBookingRequest(bookingData);
     if (!validation.isValid) {

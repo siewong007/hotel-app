@@ -181,6 +181,9 @@ pub struct RateLimiters {
     /// Guest portal token-gated MUTATIONS (pre-checkin submit, auto-checkin):
     /// 5 attempts per 15 minutes per token (mirrors guest_portal_booking's keying)
     pub guest_portal_token: KeyedRateLimiter,
+    /// Guest portal token-gated payment writes. This has its own more generous
+    /// budget so checkout retries do not consume the pre-check-in budget.
+    pub guest_portal_token_payment: KeyedRateLimiter,
     /// Guest portal token-gated READS (get booking, dashboard tabs, support
     /// conversations, socket handshakes): 120 per 15 minutes per token. This
     /// budget is now shared across ~11 read endpoints plus the guest support
@@ -195,8 +198,8 @@ pub struct RateLimiters {
     pub guest_portal_support_mutation_ip: RateLimiter,
     /// Authenticated guest payment-write attempts (session bank-transfer claim
     /// and PayPal create-order/capture), keyed by guest id. Mirrors the
-    /// per-token payment limit (`guest_portal_token`) used by the unauthenticated
-    /// token payment routes: 5 attempts per 15 minutes.
+    /// per-token payment limit (`guest_portal_token_payment`) used by the
+    /// unauthenticated token payment routes: 100 attempts per 10 minutes.
     pub guest_portal_payment: KeyedRateLimiter,
     /// Authenticated direct-booking submissions, keyed by guest.
     pub guest_portal_booking_create: KeyedRateLimiter,
@@ -222,7 +225,8 @@ impl RateLimiters {
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
-            guest_portal_payment: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
+            guest_portal_token_payment: KeyedRateLimiter::new(RateLimitConfig::new(100, 600)),
+            guest_portal_payment: KeyedRateLimiter::new(RateLimitConfig::new(100, 600)),
             guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(120, 900)),
             guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),

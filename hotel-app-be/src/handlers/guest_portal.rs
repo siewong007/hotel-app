@@ -155,14 +155,14 @@ pub async fn get_my_benefits(
 // ---------------------------------------------------------------------------
 
 /// GET /guest-portal/payment-config (public)
-pub async fn get_payment_config()
--> Result<Json<crate::models::GuestPaymentConfig>, ApiError> {
+pub async fn get_payment_config() -> Result<Json<crate::models::GuestPaymentConfig>, ApiError> {
     Ok(Json(crate::services::payments::guest_payment_config()))
 }
 
 /// Per-guest rate limit for the authenticated payment-write routes. Keyed on
 /// `guest_id` (these are already authenticated, so IP keying is unnecessary).
-/// Mirrors the per-token payment limit used by the unauthenticated routes.
+/// Mirrors the 100-attempts-per-10-minutes payment limit used by the
+/// unauthenticated routes.
 async fn check_guest_payment_rate_limit(
     limiters: &RateLimiters,
     guest_id: i64,
@@ -207,7 +207,8 @@ pub async fn session_paypal_create_order(
     let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
     check_guest_payment_rate_limit(&limiters, guest_id).await?;
     Ok(Json(
-        guest_portal_service::session_create_paypal_order(&pool, guest_id, input.booking_id).await?,
+        guest_portal_service::session_create_paypal_order(&pool, guest_id, input.booking_id)
+            .await?,
     ))
 }
 
@@ -259,7 +260,12 @@ pub async fn token_paypal_capture(
     Json(input): Json<crate::models::PaypalCaptureRequest>,
 ) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
     Ok(Json(
-        guest_portal_service::token_capture_paypal(&pool, &token, &input.order_id, input.payment_id)
-            .await?,
+        guest_portal_service::token_capture_paypal(
+            &pool,
+            &token,
+            &input.order_id,
+            input.payment_id,
+        )
+        .await?,
     ))
 }
