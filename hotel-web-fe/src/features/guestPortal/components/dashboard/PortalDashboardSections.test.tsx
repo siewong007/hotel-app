@@ -13,6 +13,12 @@ vi.mock('../../api/guestPortalDashboard.service', () => ({
   },
 }));
 
+vi.mock('../GuestPaymentPanel', () => ({
+  GuestPaymentPanel: ({ bookingId }: { bookingId?: number }) => (
+    <div>Payment method for booking {bookingId}</div>
+  ),
+}));
+
 import { BookingsSection } from './PortalDashboardSections';
 
 const booking = {
@@ -72,5 +78,27 @@ describe('BookingsSection cancellation', () => {
     expect((await screen.findAllByText('Cancellation unavailable')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('This rate is non-refundable.').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Cancel booking' })).toBeNull();
+  });
+});
+
+describe('BookingsSection payment details', () => {
+  beforeEach(() => {
+    mocks.bookings.mockReset();
+    mocks.bookings.mockResolvedValue({
+      items: [{ ...booking, status: 'pending_payment' }],
+      total: 1,
+    });
+  });
+
+  afterEach(cleanup);
+
+  it('opens payment details from the selected My stays row', async () => {
+    render(<BookingsSection token="guest-token" />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View details' }))[0]);
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getAllByText('Pending Payment').length).toBeGreaterThan(0);
+    expect(screen.getByText('Payment method for booking 7')).toBeTruthy();
   });
 });

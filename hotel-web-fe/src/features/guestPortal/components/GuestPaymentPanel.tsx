@@ -45,6 +45,8 @@ export interface GuestPaymentPanelProps {
   token?: string;
   /** Whether to offer the manual bank-transfer claim alongside online checkout. */
   showBankTransfer?: boolean;
+  /** Keeps payment choices independent when multiple panels appear on one page. */
+  paymentMethodName?: string;
   onPaid?: () => void;
 }
 
@@ -71,6 +73,7 @@ export function GuestPaymentPanel({
   bookingId,
   token,
   showBankTransfer = true,
+  paymentMethodName = 'guest-payment-method',
   onPaid,
 }: GuestPaymentPanelProps) {
   const [config, setConfig] = useState<GuestPaymentConfig | null>(null);
@@ -221,7 +224,7 @@ export function GuestPaymentPanel({
           Choose a payment method
         </Typography>
         <RadioGroup
-          name="guest-payment-method"
+          name={paymentMethodName}
           value={paymentMethod ?? ''}
           onChange={(event) => {
             setBankError(null);

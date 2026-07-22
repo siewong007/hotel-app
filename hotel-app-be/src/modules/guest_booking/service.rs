@@ -445,7 +445,7 @@ pub async fn create(
         &mut tx,
         booking_id,
         None,
-        "pending",
+        "pending_payment",
         contact.actor_user_id,
         Some("Booking created in guest portal (pending payment)"),
         json!({

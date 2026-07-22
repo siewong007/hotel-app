@@ -4,7 +4,6 @@ import { formatCurrency, getCurrentCurrency } from '../../../../utils/currency';
 export const PORTAL_SECTIONS = [
   'overview',
   'stays',
-  'payments',
   'rewards',
   'offers',
   'vouchers',

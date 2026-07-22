@@ -18,7 +18,7 @@ impl GuestPortalRepository {
         booking_number: &str,
     ) -> Result<Option<Booking>, ApiError> {
         let row = sqlx::query(&format!(
-            "{} WHERE booking_number = {} AND status IN ('confirmed', 'pending')",
+            "{} WHERE booking_number = {} AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')",
             BOOKING_SELECT,
             param!(1)
         ))

@@ -820,7 +820,7 @@ BEGIN
             'Guest checked out - Needs cleaning - Booking #' || NEW.id,
             NULL, CURRENT_TIMESTAMP, NULL);
 
-    ELSIF NEW.status IN ('confirmed', 'pending')
+    ELSIF NEW.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
           AND NOT v_has_other_current_stay
           AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN
         PERFORM update_room_status(NEW.room_id, 'reserved',
@@ -846,7 +846,7 @@ BEGIN
                 SELECT 1 FROM bookings
                 WHERE room_id = NEW.room_id
                   AND id != NEW.id
-                  AND status IN ('confirmed', 'pending')
+                  AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
                   AND check_out_date > CURRENT_DATE
             ) THEN 'reserved'
             ELSE 'available'
@@ -1382,7 +1382,7 @@ END),
     net_revenue numeric(12,2),
     portal_request_id character varying(128),
     CONSTRAINT bookings_payment_status_check CHECK (((payment_status)::text = ANY ((ARRAY['unpaid'::character varying, 'unpaid_deposit'::character varying, 'paid_rate'::character varying, 'partial'::character varying, 'paid'::character varying, 'refunded'::character varying, 'void'::character varying])::text[]))),
-    CONSTRAINT bookings_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying, 'checked_out'::character varying, 'no_show'::character varying, 'completed'::character varying, 'comp_void'::character varying, 'partial_complimentary'::character varying, 'fully_complimentary'::character varying, 'voided'::character varying])::text[]))),
+    CONSTRAINT bookings_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_payment'::character varying, 'pending_confirmation'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying, 'checked_out'::character varying, 'no_show'::character varying, 'completed'::character varying, 'comp_void'::character varying, 'partial_complimentary'::character varying, 'fully_complimentary'::character varying, 'voided'::character varying])::text[]))),
     CONSTRAINT valid_complimentary_dates CHECK ((((complimentary_start_date IS NULL) AND (complimentary_end_date IS NULL)) OR ((complimentary_start_date IS NOT NULL) AND (complimentary_end_date IS NOT NULL) AND (complimentary_start_date >= check_in_date) AND (complimentary_end_date <= check_out_date) AND (complimentary_start_date < complimentary_end_date)))),
     CONSTRAINT valid_dates CHECK ((check_out_date >= check_in_date)),
     CONSTRAINT valid_occupancy CHECK ((((adults + children) + infants) > 0))
@@ -1414,7 +1414,7 @@ COMMENT ON COLUMN public.bookings.tourism_tax_amount IS 'Total tourism tax for t
 -- Name: COLUMN bookings.status; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, voided, no_show, completed, comp_void, partial_complimentary, fully_complimentary';
+COMMENT ON COLUMN public.bookings.status IS 'Booking status: pending_payment, pending_confirmation, confirmed, checked_in, checked_out, voided, no_show, completed, comp_void, partial_complimentary, fully_complimentary';
 
 
 --
@@ -5208,7 +5208,7 @@ ALTER TABLE ONLY public.bookings
 --
 
 ALTER TABLE ONLY public.bookings
-    ADD CONSTRAINT bookings_no_room_date_overlap EXCLUDE USING gist (room_id WITH =, daterange(check_in_date, check_out_date, '[)'::text) WITH &&) WHERE (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying])::text[])));
+    ADD CONSTRAINT bookings_no_room_date_overlap EXCLUDE USING gist (room_id WITH =, daterange(check_in_date, check_out_date, '[)'::text) WITH &&) WHERE (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_payment'::character varying, 'pending_confirmation'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying])::text[])));
 
 
 --

@@ -689,10 +689,10 @@ pub fn guest_payment_config() -> GuestPaymentConfig {
 }
 
 /// Guard: a guest may only initiate payment while the booking is still awaiting
-/// it (`status = 'pending'`). Anything else (already confirmed/checked-in,
+/// it (`status = 'pending_payment'`). Anything else (already confirmed/checked-in,
 /// cancelled, voided) is a no-op the caller should reject.
 fn ensure_booking_awaiting_payment(booking: &Booking) -> Result<(), ApiError> {
-    if booking.status == "pending" {
+    if matches!(booking.status.as_str(), "pending" | "pending_payment") {
         Ok(())
     } else {
         Err(ApiError::BadRequest(
@@ -738,6 +738,22 @@ pub async fn create_bank_transfer_claim(
     )
     .await?;
 
+    let moved_to_confirmation =
+        crate::repositories::bookings::move_booking_to_pending_confirmation_tx(&mut tx, booking.id)
+            .await?;
+    if moved_to_confirmation {
+        crate::repositories::bookings::record_booking_history_tx(
+            &mut tx,
+            booking.id,
+            Some(&booking.status),
+            "pending_confirmation",
+            None,
+            Some("Bank transfer submitted for staff confirmation"),
+            serde_json::json!({ "payment_id": payment_id }),
+        )
+        .await?;
+    }
+
     AuditLog::log_event_tx(
         &mut tx,
         None,
@@ -759,7 +775,7 @@ pub async fn create_bank_transfer_claim(
     Ok(PaymentActionResponse {
         payment_id,
         status: "pending".to_string(),
-        booking_status: Some(booking.status.clone()),
+        booking_status: Some("pending_confirmation".to_string()),
     })
 }
 
@@ -973,7 +989,7 @@ async fn complete_and_confirm(
         crate::repositories::bookings::record_booking_history_tx(
             &mut tx,
             booking_id,
-            Some("pending"),
+            Some("pending_payment"),
             "confirmed",
             actor_user_id,
             Some("Payment approved"),
@@ -1008,7 +1024,8 @@ async fn complete_and_confirm(
     })
 }
 
-/// Staff action: reject a pending payment. The booking stays `pending`.
+/// Staff action: reject a pending payment. A rejected bank claim returns the
+/// booking to `pending_payment` so the guest can choose another payment method.
 pub async fn reject_payment(
     pool: &DbPool,
     actor_user_id: i64,
@@ -1045,6 +1062,24 @@ pub async fn reject_payment(
         ));
     }
 
+    let reset_to_payment = crate::repositories::bookings::move_booking_to_pending_payment_tx(
+        &mut tx,
+        review.booking_id,
+    )
+    .await?;
+    if reset_to_payment {
+        crate::repositories::bookings::record_booking_history_tx(
+            &mut tx,
+            review.booking_id,
+            Some("pending_confirmation"),
+            "pending_payment",
+            Some(actor_user_id),
+            Some("Payment claim rejected; awaiting another payment"),
+            serde_json::json!({ "payment_id": payment_id }),
+        )
+        .await?;
+    }
+
     AuditLog::log_event_tx(
         &mut tx,
         Some(actor_user_id),
@@ -1064,7 +1099,7 @@ pub async fn reject_payment(
     Ok(PaymentActionResponse {
         payment_id,
         status: "void".to_string(),
-        booking_status: None,
+        booking_status: reset_to_payment.then(|| "pending_payment".to_string()),
     })
 }
 

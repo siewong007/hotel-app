@@ -529,6 +529,55 @@ export function OverviewSection({
   );
 }
 
+function BookingDetailsDialog({
+  booking,
+  token,
+  onClose,
+  onPaymentUpdated,
+}: {
+  booking: GuestPortalBookingSummary | null;
+  token: string;
+  onClose: () => void;
+  onPaymentUpdated: () => void;
+}) {
+  if (!booking) return null;
+  const awaitingPayment = ["pending", "pending_payment"].includes(booking.status);
+  const awaitingConfirmation = booking.status === "pending_confirmation";
+
+  return (
+    <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="booking-details-title">
+      <DialogTitle id="booking-details-title">Booking {booking.booking_number}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1.25}>
+          <Typography><strong>Stay:</strong> {formatPortalDate(booking.check_in_date)} — {formatPortalDate(booking.check_out_date)}</Typography>
+          <Typography><strong>Booking status:</strong> {humanizePortalStatus(booking.status)}</Typography>
+          <Typography><strong>Total:</strong> {formatPortalCurrency(booking.total_amount)}</Typography>
+        </Stack>
+        {awaitingConfirmation ? (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Your offline banking payment is awaiting confirmation by our team.
+          </Alert>
+        ) : null}
+        {awaitingPayment ? (
+          <Box sx={{ mt: 2 }}>
+            <GuestPaymentPanel
+              mode="session"
+              bookingId={booking.id}
+              token={token}
+              amount={booking.total_amount}
+              paymentMethodName={`guest-payment-method-${booking.id}`}
+              onPaid={onPaymentUpdated}
+            />
+          </Box>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function BookingsSection({ token }: { token: string }) {
   const [items, setItems] = useState<GuestPortalBookingSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -537,6 +586,7 @@ export function BookingsSection({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<GuestPortalBookingSummary | null>(null);
+  const [bookingToView, setBookingToView] = useState<GuestPortalBookingSummary | null>(null);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancellationSuccess, setCancellationSuccess] = useState<string | null>(null);
@@ -668,6 +718,10 @@ export function BookingsSection({ token }: { token: string }) {
                       {formatPortalCurrency(booking.total_amount)}
                     </TableCell>
                     <TableCell align="right">
+                      <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                        <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
+                          View details
+                        </Button>
                       {booking.can_cancel ? (
                         <Button
                           size="small"
@@ -685,7 +739,7 @@ export function BookingsSection({ token }: { token: string }) {
                           booking={booking}
                           suffix="desktop"
                         />
-                      )}
+                      )}</Stack>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -720,6 +774,9 @@ export function BookingsSection({ token }: { token: string }) {
                   <Typography fontWeight={700} sx={{ mt: 1 }}>
                     {formatPortalCurrency(booking.total_amount)}
                   </Typography>
+                  <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, minHeight: 44 }}>
+                    View details
+                  </Button>
                   {booking.can_cancel ? (
                     <Button
                       size="small"
@@ -768,6 +825,12 @@ export function BookingsSection({ token }: { token: string }) {
               }
             }}
             onConfirm={cancelBooking}
+          />
+          <BookingDetailsDialog
+            booking={bookingToView}
+            token={token}
+            onClose={() => setBookingToView(null)}
+            onPaymentUpdated={() => void load()}
           />
         </>
       )}
@@ -833,34 +896,11 @@ export function PaymentsSection({ token }: { token: string }) {
         title="Payments & invoices"
         description="A record of payments and invoices from your stays."
       />
-      {!pendingLoading && pendingBookings.length > 0 ? (
-        <Stack spacing={2} sx={{ mb: 3 }}>
-          {pendingBookings.map((booking) => (
-            <Card key={booking.id} variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                  Booking {booking.booking_number} — awaiting payment
-                </Typography>
-                <GuestPaymentPanel
-                  mode="session"
-                  bookingId={booking.id}
-                  token={token}
-                  amount={booking.total_amount}
-                  onPaid={() => {
-                    void loadPendingBookings();
-                    void load();
-                  }}
-                />
-              </CardContent>
-            </Card>
-          ))}
-        </Stack>
-      ) : null}
-      {loading ? (
+      {loading || pendingLoading ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} retry={() => void load()} />
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && pendingBookings.length === 0 ? (
         <EmptyState message="No transactions found." />
       ) : (
         <>
@@ -907,6 +947,38 @@ export function PaymentsSection({ token }: { token: string }) {
                 </TableRow>
               </TableHead>
               <TableBody>
+                {pendingBookings.map((booking) => (
+                  <TableRow key={`pending-booking-${booking.id}`} hover>
+                    <TableCell>—</TableCell>
+                    <TableCell>
+                      <Chip
+                        icon={<CreditCardOutlinedIcon />}
+                        label="Payment"
+                        color="success"
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>Amount due</TableCell>
+                    <TableCell>{booking.booking_number}</TableCell>
+                    <TableCell sx={{ minWidth: 300, py: 2 }}>
+                      <GuestPaymentPanel
+                        mode="session"
+                        bookingId={booking.id}
+                        token={token}
+                        amount={booking.total_amount}
+                        paymentMethodName={`guest-payment-method-${booking.id}`}
+                        onPaid={() => {
+                          void loadPendingBookings();
+                          void load();
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>Awaiting payment</TableCell>
+                    <TableCell align="right">
+                      {formatPortalCurrency(booking.total_amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
                 {items.map((tx, index) => {
                   const TransactionIcon =
                     tx.kind === "payment"
@@ -944,6 +1016,35 @@ export function PaymentsSection({ token }: { token: string }) {
             </Table>
           </TableContainer>
           <Stack spacing={1.5} sx={{ display: { xs: "flex", lg: "none" } }}>
+            {pendingBookings.map((booking) => (
+              <Card key={`pending-booking-${booking.id}`} variant="outlined">
+                <CardContent>
+                  <Stack direction="row" justifyContent="space-between" spacing={1}>
+                    <Chip icon={<CreditCardOutlinedIcon />} label="Payment" size="small" />
+                    <Typography fontWeight={700}>
+                      {formatPortalCurrency(booking.total_amount)}
+                    </Typography>
+                  </Stack>
+                  <Typography sx={{ mt: 1 }}>Booking {booking.booking_number}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Awaiting payment
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <GuestPaymentPanel
+                      mode="session"
+                      bookingId={booking.id}
+                      token={token}
+                      amount={booking.total_amount}
+                      paymentMethodName={`guest-payment-method-${booking.id}`}
+                      onPaid={() => {
+                        void loadPendingBookings();
+                        void load();
+                      }}
+                    />
+                  </Box>
+                </CardContent>
+              </Card>
+            ))}
             {items.map((tx, index) => {
               const TransactionIcon =
                 tx.kind === "payment"

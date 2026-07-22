@@ -349,8 +349,11 @@ pub async fn get_my_bookings(
         if booking.cancellation_unavailable_reason.is_none() {
             booking.cancellation_unavailable_reason = if !enabled {
                 Some("Guest booking cancellation is disabled by the hotel.".to_string())
-            } else if !matches!(booking.status.as_str(), "pending" | "confirmed") {
-                Some("Only pending or confirmed bookings can be cancelled.".to_string())
+            } else if !matches!(
+                booking.status.as_str(),
+                "pending" | "pending_payment" | "pending_confirmation" | "confirmed"
+            ) {
+                Some("Only bookings awaiting payment, confirmation, or confirmed bookings can be cancelled.".to_string())
             } else if booking.check_in_date <= today {
                 Some(
                     "This booking can no longer be cancelled because check-in has started."
