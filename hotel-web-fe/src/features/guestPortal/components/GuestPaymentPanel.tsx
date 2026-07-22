@@ -40,6 +40,8 @@ export interface GuestPaymentPanelProps {
   /** The portal session bearer token (`mode: 'session'`) or the pre-arrival
    *  booking token (`mode: 'token'`). Required in both modes. */
   token?: string;
+  /** Whether to offer the manual bank-transfer claim alongside online checkout. */
+  showBankTransfer?: boolean;
   onPaid?: () => void;
 }
 
@@ -65,6 +67,7 @@ export function GuestPaymentPanel({
   mode,
   bookingId,
   token,
+  showBankTransfer = true,
   onPaid,
 }: GuestPaymentPanelProps) {
   const [config, setConfig] = useState<GuestPaymentConfig | null>(null);
@@ -209,7 +212,7 @@ export function GuestPaymentPanel({
         </Typography>
       ) : null}
 
-      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+      {showBankTransfer ? <><Typography variant="subtitle2" sx={{ mb: 1 }}>
         Pay by bank transfer
       </Typography>
       {hasBankDetails ? (
@@ -249,12 +252,13 @@ export function GuestPaymentPanel({
           {bankSubmitting ? <CircularProgress size={20} /> : "I've paid via bank transfer"}
         </Button>
       ) : null}
+      </> : null}
 
       {paypalReady ? (
         <>
-          <Divider sx={{ my: 2.5 }} />
+          {showBankTransfer ? <Divider sx={{ my: 2.5 }} /> : null}
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
-            Pay with PayPal
+            Pay with PayPal or card
           </Typography>
           {paypalError ? (
             <Alert severity="error" sx={{ mb: 1.5 }}>
