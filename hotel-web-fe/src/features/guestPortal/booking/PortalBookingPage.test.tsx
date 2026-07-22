@@ -148,4 +148,36 @@ describe('PortalBookingPage voucher eligibility', () => {
     fireEvent.click(disabledVoucher);
     await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(2));
   });
+
+  it('requires a payment choice and labels pay-at-hotel bookings as pending', async () => {
+    mocks.createBooking.mockResolvedValue({
+      booking_id: 42,
+      booking_number: 'WEB-42',
+      room_type_name: 'Deluxe Room',
+      check_in_date: '2026-07-17',
+      check_out_date: '2026-07-18',
+      status: 'pending',
+      payment_status: 'unpaid',
+      currency: 'MYR',
+      subtotal: '250.00',
+      discount_amount: '0.00',
+      tax_amount: '0.00',
+      total_amount: '250.00',
+      created_at: '2026-07-01T00:00:00Z',
+    });
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('How would you like to pay?');
+
+    expect((screen.getByRole('button', { name: 'Continue to payment' }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Pay at the hotel (offline)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit booking request' }));
+
+    await screen.findByRole('heading', { name: 'Booking request received' });
+    expect(screen.getByText(/booking is pending until the hotel confirms it/i)).toBeTruthy();
+  });
 });
