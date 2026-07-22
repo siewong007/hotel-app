@@ -3412,6 +3412,42 @@ pub async fn void_booking_tx(
     Ok(())
 }
 
+/// Void a booking only if it is still awaiting payment. This keeps guest
+/// cancellation safe when payment approval and cancellation race each other.
+pub async fn void_pending_booking_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = r#"
+        UPDATE bookings
+        SET status = 'voided', updated_at = datetime('now'),
+            cancelled_at = datetime('now'), cancelled_by = ?2
+        WHERE id = ?1 AND status = 'pending'
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = r#"
+        UPDATE bookings
+        SET status = 'voided', updated_at = CURRENT_TIMESTAMP,
+            cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2
+        WHERE id = $1 AND status = 'pending'
+    "#;
+
+    let result = sqlx::query(query)
+        .bind(booking_id)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    if result.rows_affected() != 1 {
+        return Err(ApiError::BadRequest(
+            "Only pending bookings awaiting payment can be cancelled.".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub async fn booking_night_audit_dates(
     pool: &DbPool,
     booking_id: i64,

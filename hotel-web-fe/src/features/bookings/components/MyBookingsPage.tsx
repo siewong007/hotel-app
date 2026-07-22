@@ -33,9 +33,11 @@ import {
   HotelOutlined as RoomIcon,
   Redeem as GiftIcon,
   Search as SearchIcon,
+  Cancel as CancelIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../types';
 import { DataTable, type ColumnDef } from '../../../components';
+import { BookingsService } from '../../../api';
 import InvoiceModal from '../../invoices/components/InvoiceModal';
 import { useBookWithCreditsMutation, useMyBookings } from '../hooks/useBookingQueries';
 import { useMyGuestsWithCredits } from '../../guests/hooks/useGuestQueries';
@@ -61,6 +63,8 @@ const MyBookingsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
+  const [bookingToCancel, setBookingToCancel] = useState<BookingWithDetails | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState(false);
 
   // Complimentary credits state - now with room type breakdown
   const myBookingsQuery = useMyBookings();
@@ -128,6 +132,22 @@ const MyBookingsPage: React.FC = () => {
     setSelectedDates([]);
     setBookingError(null);
     setBookingSuccess(null);
+  };
+
+  const handleCancelPendingBooking = async () => {
+    if (!bookingToCancel) return;
+
+    try {
+      setCancellingBooking(true);
+      setError(null);
+      await BookingsService.cancelMyPendingBooking(bookingToCancel.id, 'Cancelled by guest before payment');
+      setBookingToCancel(null);
+      await myBookingsQuery.refetch();
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'Failed to cancel booking');
+    } finally {
+      setCancellingBooking(false);
+    }
   };
 
   const calculateNights = () => {
@@ -348,13 +368,25 @@ const MyBookingsPage: React.FC = () => {
       meta: { stopRowClick: true },
       cell: (info) => {
         const booking = info.row.original;
-        if (!canDownloadInvoice(booking)) return null;
+        const canCancel = booking.status.toLowerCase() === 'pending';
+        if (!canDownloadInvoice(booking) && !canCancel) return null;
         return (
-          <Tooltip title="Download Invoice">
-            <IconButton size="small" color="primary" onClick={() => handleViewInvoice(booking.id)}>
-              <ReceiptIcon />
-            </IconButton>
-          </Tooltip>
+          <Box display="flex" gap={0.5}>
+            {canDownloadInvoice(booking) && (
+              <Tooltip title="Download Invoice">
+                <IconButton size="small" color="primary" onClick={() => handleViewInvoice(booking.id)}>
+                  <ReceiptIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {canCancel && (
+              <Tooltip title="Cancel unpaid booking">
+                <IconButton size="small" color="error" onClick={() => setBookingToCancel(booking)}>
+                  <CancelIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
         );
       },
     },
@@ -454,11 +486,27 @@ const MyBookingsPage: React.FC = () => {
       <Box mt={2}>
         <Alert severity="info">
           <Typography variant="body2">
-            <strong>Note:</strong> To modify or cancel a booking, please contact our support team or visit the front desk.
+            <strong>Note:</strong> Pending bookings can be cancelled before payment using the cancel icon.
+            To modify a booking or cancel a paid booking, please contact support or visit the front desk.
             For checked-out bookings, you can download your invoice using the receipt icon in the Actions column.
           </Typography>
         </Alert>
       </Box>
+
+      <Dialog open={Boolean(bookingToCancel)} onClose={() => !cancellingBooking && setBookingToCancel(null)}>
+        <DialogTitle>Cancel pending booking?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            This booking has not been paid for and will be cancelled. This action cannot be undone here.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBookingToCancel(null)} disabled={cancellingBooking}>Keep booking</Button>
+          <Button color="error" variant="contained" onClick={handleCancelPendingBooking} disabled={cancellingBooking}>
+            {cancellingBooking ? 'Cancelling…' : 'Cancel booking'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Complimentary Credits Section */}
       <Card sx={{ mt: 4 }}>

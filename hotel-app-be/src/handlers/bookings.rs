@@ -59,6 +59,18 @@ pub async fn get_my_bookings_handler(
     booking_service::get_my_bookings_handler(State(pool), headers).await
 }
 
+pub async fn cancel_my_pending_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+    Json(input): Json<BookingCancellationRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        booking_service::cancel_pending_booking_by_guest(&pool, user_id, booking_id, input.reason)
+            .await?,
+    ))
+}
+
 pub async fn create_booking_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

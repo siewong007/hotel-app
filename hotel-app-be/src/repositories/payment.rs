@@ -849,12 +849,11 @@ impl PaymentRepository {
             .await
             .map_err(ApiError::from)?;
 
-        let total = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM payments WHERE status = 'pending'",
-        )
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
+        let total =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM payments WHERE status = 'pending'")
+                .fetch_one(pool)
+                .await
+                .map_err(ApiError::from)?;
 
         Ok((items, total))
     }

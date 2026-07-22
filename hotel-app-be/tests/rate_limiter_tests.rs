@@ -9,7 +9,9 @@ use std::net::IpAddr;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use hotel_app_be::core::rate_limiter::{KeyedRateLimiter, RateLimitConfig, RateLimiter};
+use hotel_app_be::core::rate_limiter::{
+    KeyedRateLimiter, RateLimitConfig, RateLimiter, RateLimiters,
+};
 
 fn ip(last_octet: u8) -> IpAddr {
     IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, last_octet))
@@ -120,4 +122,43 @@ async fn keyed_rate_limiter_tracks_keys_independently() {
     assert_eq!(limiter.check_with_retry("booking-a").await, (true, 0));
     assert!(!limiter.check_with_retry("booking-a").await.0);
     assert_eq!(limiter.check_with_retry("booking-b").await, (true, 0));
+}
+
+#[tokio::test]
+async fn guest_payment_limit_allows_100_attempts_in_ten_minutes() {
+    let limiters = RateLimiters::new();
+
+    for _ in 0..100 {
+        assert!(
+            limiters
+                .guest_portal_payment
+                .check_with_retry("guest:payment-limit")
+                .await
+                .0
+        );
+    }
+    assert!(
+        !limiters
+            .guest_portal_payment
+            .check_with_retry("guest:payment-limit")
+            .await
+            .0
+    );
+
+    for _ in 0..100 {
+        assert!(
+            limiters
+                .guest_portal_token_payment
+                .check_with_retry("booking:payment-limit")
+                .await
+                .0
+        );
+    }
+    assert!(
+        !limiters
+            .guest_portal_token_payment
+            .check_with_retry("booking:payment-limit")
+            .await
+            .0
+    );
 }

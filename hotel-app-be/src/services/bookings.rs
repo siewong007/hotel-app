@@ -71,6 +71,70 @@ fn is_online_source(source: Option<&str>) -> bool {
     source.is_some_and(|s| s.trim().eq_ignore_ascii_case("online"))
 }
 
+/// A guest may cancel a reservation only while it is still awaiting payment.
+/// Completing a payment confirms the booking, so the `pending` state is the
+/// authoritative guard for this self-service path.
+fn is_guest_cancellable_pending_booking(status: &str) -> bool {
+    status == "pending"
+}
+
+/// Cancel an unpaid pending booking belonging to the authenticated guest.
+pub async fn cancel_pending_booking_by_guest(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+    reason: Option<String>,
+) -> Result<serde_json::Value, ApiError> {
+    let booking = booking_service::fetch_booking_by_id(pool, booking_id).await?;
+    if !booking_repo::user_owns_booking(pool, user_id, booking.guest_id).await? {
+        return Err(ApiError::Forbidden(
+            "You don't have permission to cancel this booking".to_string(),
+        ));
+    }
+    if !is_guest_cancellable_pending_booking(&booking.status) {
+        return Err(ApiError::BadRequest(
+            "Only pending bookings awaiting payment can be cancelled.".to_string(),
+        ));
+    }
+
+    let affected_night_audit_dates =
+        booking_repo::booking_night_audit_dates(pool, booking_id).await?;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    booking_repo::void_pending_booking_tx(&mut tx, booking_id, user_id).await?;
+    booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
+    booking_repo::void_booking_payments_tx(&mut tx, booking_id).await?;
+    payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+
+    let change_reason = reason
+        .as_deref()
+        .unwrap_or("Booking cancelled before payment");
+    booking_repo::record_booking_history_tx(
+        &mut tx,
+        booking_id,
+        Some("pending"),
+        "voided",
+        Some(user_id),
+        Some(change_reason),
+        serde_json::json!({
+            "room_id": booking.room_id,
+            "guest_id": booking.guest_id,
+            "check_in_date": booking.check_in_date.to_string(),
+            "check_out_date": booking.check_out_date.to_string(),
+        }),
+    )
+    .await?;
+    booking_repo::record_booking_void_modification_tx(&mut tx, &booking, user_id).await?;
+    AuditLog::log_booking_voided_tx(&mut tx, user_id, booking_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(serde_json::json!({
+        "message": "Booking cancelled successfully",
+        "booking_id": booking_id,
+        "affected_night_audit_dates": affected_night_audit_dates,
+        "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
+    }))
+}
+
 pub async fn void_booking(
     pool: &DbPool,
     user_id: i64,
@@ -523,7 +587,7 @@ pub async fn reactivate_booking(
 
 #[cfg(test)]
 mod tests {
-    use super::is_online_source;
+    use super::{is_guest_cancellable_pending_booking, is_online_source};
 
     #[test]
     fn online_source_is_detected_case_and_whitespace_insensitive() {
@@ -539,5 +603,13 @@ mod tests {
         assert!(!is_online_source(Some("agent")));
         assert!(!is_online_source(Some("")));
         assert!(!is_online_source(None));
+    }
+
+    #[test]
+    fn only_pending_bookings_are_guest_cancellable() {
+        assert!(is_guest_cancellable_pending_booking("pending"));
+        assert!(!is_guest_cancellable_pending_booking("confirmed"));
+        assert!(!is_guest_cancellable_pending_booking("checked_in"));
+        assert!(!is_guest_cancellable_pending_booking("voided"));
     }
 }
