@@ -29,10 +29,10 @@ jobs:
         working-directory: hotel-desktop
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Cache Cargo dependencies (backend)
         uses: Swatinem/rust-cache@v2
@@ -105,7 +105,7 @@ jobs:
       # unfilled certificateThumbprint/updater pubkey placeholders in
       # hotel-desktop/src-tauri/tauri.conf.json. Artifacts here are unsigned.
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hotel-desktop-macos-aarch64
           retention-days: 14
