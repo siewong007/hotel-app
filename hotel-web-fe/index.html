@@ -2,13 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="/favicon.ico" />
+    <link id="app-favicon" rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="Hotel Management System - Web Frontend" />
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
-    <title>Hotel Management System</title>
+    <title>Hotel ERP System</title>
+    <script>
+      (() => {
+        const guestPaths = new Set(['/guest-portal', '/offers', '/register']);
+        const params = new URLSearchParams(window.location.search);
+        const isGuestExperience = guestPaths.has(window.location.pathname)
+          || (window.location.pathname === '/login' && params.get('account') === 'guest');
+
+        if (!isGuestExperience) return;
+
+        document.title = 'Salim Inn Sibu - Cozy stays at Farley';
+        const favicon = document.getElementById('app-favicon');
+        if (favicon) favicon.href = '/salim-inn/salim-inn-icon.svg';
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
