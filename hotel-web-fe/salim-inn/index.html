@@ -323,15 +323,20 @@
 </main>
 <script>
 function getCurrentAccount() {
+  const accountFromUrl = new URLSearchParams(window.location.search).get('account');
+  if (accountFromUrl === 'guest' || accountFromUrl === 'admin') {
+    return accountFromUrl;
+  }
+
   try {
     const storedUser = JSON.parse(window.localStorage.getItem('user') || 'null');
     return storedUser?.user_type === 'guest'
       ? 'guest'
       : storedUser ? 'admin' : null;
   } catch {
-    // Private browsing may deny storage; the React landing handoff supplies
-    // the account query as a fallback for that case only.
-    return new URLSearchParams(window.location.search).get('account');
+    // Private browsing may deny storage; without an explicit handoff account,
+    // treat the visitor as signed out.
+    return null;
   }
 }
 

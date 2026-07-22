@@ -7,6 +7,7 @@ import {
   PasskeyInfo,
   PasskeyUpdateInput,
   AccessSnapshot,
+  UserSessionInfo,
 } from '../types';
 
 export class AuthService {
@@ -88,6 +89,14 @@ export class AuthService {
 
   static async deletePasskey(passkeyId: string): Promise<void> {
     await api.delete(`profile/passkeys/${passkeyId}`);
+  }
+
+  static async listSessions(): Promise<UserSessionInfo[]> {
+    return await api.get('profile/sessions').json<UserSessionInfo[]>();
+  }
+
+  static async revokeSession(sessionId: string): Promise<void> {
+    await api.delete(`profile/sessions/${sessionId}`);
   }
 
   // 2FA Management

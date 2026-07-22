@@ -229,6 +229,10 @@ export const api = ky.create({
         const response = error.response;
         if (!response) return error;
 
+        if (response.status === 423 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('api:resource-locked'));
+        }
+
         const payload = await response.clone().json().catch(() => undefined);
         const explicitMessage = getExplicitApiNotificationMessage(payload);
         if (!explicitMessage) return error;

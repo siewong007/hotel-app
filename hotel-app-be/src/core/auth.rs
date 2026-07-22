@@ -8,7 +8,7 @@ use rand::Rng;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::Row;
+use sqlx::{FromRow, Row};
 use std::sync::OnceLock;
 use totp_rs::{Algorithm, Secret, TOTP};
 
@@ -20,9 +20,23 @@ pub struct Claims {
     pub exp: Option<usize>,
     pub iat: usize,
     pub roles: Vec<String>,
+    /// Stable refresh-session identifier. Tokens minted before session management
+    /// deliberately omit it and remain valid until their normal expiry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sid: Option<String>,
 }
 
 pub struct AuthService;
+
+#[derive(Debug, FromRow)]
+pub struct ActiveSessionRecord {
+    pub id: String,
+    pub user_agent: Option<String>,
+    pub ip_address: Option<String>,
+    pub created_at: chrono::DateTime<Utc>,
+    pub last_used_at: Option<chrono::DateTime<Utc>>,
+    pub expires_at: chrono::DateTime<Utc>,
+}
 
 const ACCESS_TOKEN_TTL_MINUTES: i64 = 30;
 static JWT_SECRET: OnceLock<String> = OnceLock::new();
@@ -104,6 +118,7 @@ impl AuthService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn generate_jwt(
         user_id: i64,
         username: String,
@@ -119,6 +134,32 @@ impl AuthService {
             exp,
             iat,
             roles,
+            sid: None,
+        };
+
+        encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(jwt_secret().as_ref()),
+        )
+    }
+
+    /// Generates an access token bound to one persisted refresh session.
+    pub fn generate_session_jwt(
+        user_id: i64,
+        username: String,
+        roles: Vec<String>,
+        session_id: String,
+    ) -> Result<String, jsonwebtoken::errors::Error> {
+        let now = Utc::now();
+        let exp = access_token_expiration(now, is_desktop_mode());
+        let claims = Claims {
+            sub: user_id.to_string(),
+            username,
+            exp,
+            iat: now.timestamp() as usize,
+            roles,
+            sid: Some(session_id),
         };
 
         encode(
@@ -212,46 +253,103 @@ impl AuthService {
         user_id: i64,
         token: &str,
         expires_in_days: i64,
-    ) -> Result<(), sqlx::Error> {
+        ip_address: Option<&str>,
+        user_agent: Option<&str>,
+    ) -> Result<String, sqlx::Error> {
+        let session_id = crate::core::db::generate_uuid();
         let token_hash = Self::hash_refresh_token(token);
         let expires_at = Utc::now() + Duration::days(expires_in_days);
 
-        sqlx::query(
-            r#"
-            INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-            VALUES ($1, $2, $3)
+        let query = crate::sql_query!(
+            postgres: r#"
+                INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at)
+                VALUES ($1::uuid, $2, $3, $4::inet, $5, $6)
             "#,
-        )
-        .bind(user_id)
-        .bind(token_hash)
-        .bind(expires_at)
-        .execute(pool)
-        .await?;
+            sqlite: r#"
+                INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#
+        );
+        sqlx::query(query)
+            .bind(&session_id)
+            .bind(user_id)
+            .bind(token_hash)
+            .bind(ip_address)
+            .bind(user_agent)
+            .bind(expires_at)
+            .execute(pool)
+            .await?;
 
-        Ok(())
+        Ok(session_id)
     }
 
     /// Validates a refresh token and returns the user_id if valid
     pub async fn validate_refresh_token(
         pool: &DbPool,
         token: &str,
-    ) -> Result<Option<i64>, sqlx::Error> {
+    ) -> Result<Option<(i64, String)>, sqlx::Error> {
         let token_hash = Self::hash_refresh_token(token);
 
-        let result = sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT user_id
-            FROM refresh_tokens
-            WHERE token_hash = $1
-              AND expires_at > CURRENT_TIMESTAMP
-              AND revoked_at IS NULL
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT user_id, id::text AS session_id
+                FROM refresh_tokens
+                WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP
+                  AND revoked_at IS NULL AND is_revoked = false
             "#,
-        )
-        .bind(token_hash)
-        .fetch_optional(pool)
-        .await?;
+            sqlite: r#"
+                SELECT user_id, id AS session_id
+                FROM refresh_tokens
+                WHERE token_hash = ?1 AND expires_at > datetime('now')
+                  AND revoked_at IS NULL AND is_revoked = 0
+            "#
+        );
+        let result = sqlx::query(query)
+            .bind(token_hash)
+            .fetch_optional(pool)
+            .await?;
 
-        Ok(result)
+        Ok(result.map(|row| {
+            (
+                sqlx::Row::try_get::<i64, _>(&row, "user_id").unwrap_or_default(),
+                sqlx::Row::try_get::<String, _>(&row, "session_id").unwrap_or_default(),
+            )
+        }))
+    }
+
+    /// Atomically replaces a refresh token while preserving the session row and
+    /// its stable identifier. A replayed token cannot win this update twice.
+    pub async fn rotate_refresh_token(
+        pool: &DbPool,
+        session_id: &str,
+        previous_token: &str,
+        next_token: &str,
+        expires_in_days: i64,
+    ) -> Result<bool, sqlx::Error> {
+        let previous_hash = Self::hash_refresh_token(previous_token);
+        let next_hash = Self::hash_refresh_token(next_token);
+        let expires_at = Utc::now() + Duration::days(expires_in_days);
+        let query = crate::sql_query!(
+            postgres: r#"
+                UPDATE refresh_tokens
+                SET token_hash = $1, expires_at = $2, last_used_at = CURRENT_TIMESTAMP
+                WHERE id = $3::uuid AND token_hash = $4 AND revoked_at IS NULL AND is_revoked = false
+            "#,
+            sqlite: r#"
+                UPDATE refresh_tokens
+                SET token_hash = ?1, expires_at = ?2, last_used_at = datetime('now')
+                WHERE id = ?3 AND token_hash = ?4 AND revoked_at IS NULL AND is_revoked = 0
+            "#
+        );
+        Ok(sqlx::query(query)
+            .bind(next_hash)
+            .bind(expires_at)
+            .bind(session_id)
+            .bind(previous_hash)
+            .execute(pool)
+            .await?
+            .rows_affected()
+            == 1)
     }
 
     /// Revokes a refresh token
@@ -261,7 +359,7 @@ impl AuthService {
         sqlx::query(
             r#"
             UPDATE refresh_tokens
-            SET revoked_at = CURRENT_TIMESTAMP
+            SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
             WHERE token_hash = $1
             "#,
         )
@@ -277,7 +375,7 @@ impl AuthService {
         sqlx::query(
             r#"
             UPDATE refresh_tokens
-            SET revoked_at = CURRENT_TIMESTAMP
+            SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP
             WHERE user_id = $1 AND revoked_at IS NULL
             "#,
         )
@@ -286,6 +384,84 @@ impl AuthService {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn list_active_sessions(
+        pool: &DbPool,
+        user_id: i64,
+    ) -> Result<Vec<ActiveSessionRecord>, sqlx::Error> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT id::text AS id, user_agent, host(ip_address) AS ip_address,
+                       created_at, last_used_at, expires_at
+                FROM refresh_tokens
+                WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP
+                  AND revoked_at IS NULL AND is_revoked = false
+                ORDER BY last_used_at DESC NULLS LAST, created_at DESC
+            "#,
+            sqlite: r#"
+                SELECT id, user_agent, ip_address, created_at, last_used_at, expires_at
+                FROM refresh_tokens
+                WHERE user_id = ?1 AND expires_at > datetime('now')
+                  AND revoked_at IS NULL AND is_revoked = 0
+                ORDER BY last_used_at DESC, created_at DESC
+            "#
+        );
+        sqlx::query_as(query).bind(user_id).fetch_all(pool).await
+    }
+
+    pub async fn revoke_user_session(
+        pool: &DbPool,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                UPDATE refresh_tokens
+                SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP, revoked_by = $1
+                WHERE id = $2::uuid AND user_id = $1 AND revoked_at IS NULL AND is_revoked = false
+            "#,
+            sqlite: r#"
+                UPDATE refresh_tokens
+                SET is_revoked = 1, revoked_at = datetime('now'), revoked_by = ?1
+                WHERE id = ?2 AND user_id = ?1 AND revoked_at IS NULL AND is_revoked = 0
+            "#
+        );
+        Ok(sqlx::query(query)
+            .bind(user_id)
+            .bind(session_id)
+            .execute(pool)
+            .await?
+            .rows_affected()
+            == 1)
+    }
+
+    pub async fn is_session_active(
+        pool: &DbPool,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT EXISTS(
+                    SELECT 1 FROM refresh_tokens
+                    WHERE id = $1::uuid AND user_id = $2 AND expires_at > CURRENT_TIMESTAMP
+                      AND revoked_at IS NULL AND is_revoked = false
+                )
+            "#,
+            sqlite: r#"
+                SELECT EXISTS(
+                    SELECT 1 FROM refresh_tokens
+                    WHERE id = ?1 AND user_id = ?2 AND expires_at > datetime('now')
+                      AND revoked_at IS NULL AND is_revoked = 0
+                )
+            "#
+        );
+        sqlx::query_scalar(query)
+            .bind(session_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
     }
 
     pub async fn get_user_permissions(

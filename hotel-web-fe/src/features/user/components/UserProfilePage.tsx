@@ -36,9 +36,10 @@ import {
   Tablet as TabletIcon,
   Security as SecurityIcon,
   Smartphone as SmartphoneIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { UserProfile, PasskeyInfo } from '../../../types';
+import { UserProfile, PasskeyInfo, UserSessionInfo } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 
@@ -232,6 +233,7 @@ const UserProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
+  const [sessions, setSessions] = useState<UserSessionInfo[]>([]);
   const [editing, setEditing] = useState(false);
   const [editingPasskey, setEditingPasskey] = useState<string | null>(null);
   const [passkeyName, setPasskeyName] = useState('');
@@ -286,10 +288,19 @@ const UserProfilePage: React.FC = () => {
     }
   }, []);
 
+  const loadSessions = useCallback(async () => {
+    try {
+      setSessions(await HotelAPIService.listSessions());
+    } catch (error) {
+      console.error('Failed to load active sessions:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadProfile();
     loadPasskeys();
-  }, [loadProfile, loadPasskeys]);
+    loadSessions();
+  }, [loadProfile, loadPasskeys, loadSessions]);
 
   // Auto-enter edit mode from a one-time `?edit=true` URL param, then strip it.
   // Guarded so it only acts once (setSearchParams below would otherwise
@@ -449,6 +460,17 @@ const UserProfilePage: React.FC = () => {
     setPasskeyName('');
   };
 
+  const handleRevokeSession = async (session: UserSessionInfo) => {
+    if (!window.confirm('Log out this device? It will need to sign in again.')) return;
+    try {
+      await HotelAPIService.revokeSession(session.id);
+      await loadSessions();
+      showSnackbar('Device logged out successfully', 'success');
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to log out device', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -477,6 +499,7 @@ const UserProfilePage: React.FC = () => {
           <Tab label="Security" icon={<LockIcon />} iconPosition="start" />
           <Tab label="Passkeys" icon={<FingerprintIcon />} iconPosition="start" />
           <Tab label="2FA" icon={<SecurityIcon />} iconPosition="start" />
+          <Tab label="Devices" icon={<LaptopIcon />} iconPosition="start" />
         </Tabs>
       </Card>
 
@@ -973,6 +996,44 @@ const UserProfilePage: React.FC = () => {
               <Alert severity="info" sx={{ mt: 2 }}>
                 Maximum number of passkeys reached (10/10). Delete a passkey to add a new one.
               </Alert>
+            )}
+          </CardContent>
+        </Card>
+      </TabPanel>
+
+      <TabPanel value={activeTab} index={4}>
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Signed-in devices
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Log out devices you no longer use. Their access ends immediately.
+            </Typography>
+            {sessions.length === 0 ? (
+              <Typography color="text.secondary">No active sessions found.</Typography>
+            ) : (
+              <List>
+                {sessions.map((session, index) => (
+                  <ListItem key={session.id} divider={index < sessions.length - 1}>
+                    <Box sx={{ mr: 2 }}><DeviceIcon deviceName={session.user_agent || ''} size={42} /></Box>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                          <Typography fontWeight={600}>{detectDeviceType(session.user_agent || '').label}</Typography>
+                          {session.is_current && <Chip label="Current device" size="small" color="success" />}
+                        </Box>
+                      }
+                      secondary={`Last active: ${new Date(session.last_used_at || session.created_at).toLocaleString()}${session.ip_address ? ` · ${session.ip_address}` : ''}`}
+                    />
+                    {!session.is_current && (
+                      <IconButton color="error" onClick={() => handleRevokeSession(session)} title="Log out device">
+                        <LogoutIcon />
+                      </IconButton>
+                    )}
+                  </ListItem>
+                ))}
+              </List>
             )}
           </CardContent>
         </Card>

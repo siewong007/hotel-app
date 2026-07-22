@@ -41,6 +41,8 @@ import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as AdminPortalRouteImport } from './routes/admin-portal'
+import { Route as R423RouteImport } from './routes/423'
+import { Route as R403RouteImport } from './routes/403'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalIndexRouteImport } from './routes/portal/index'
@@ -211,6 +213,16 @@ const AdminPortalRoute = AdminPortalRouteImport.update({
   path: '/admin-portal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const R423Route = R423RouteImport.update({
+  id: '/423',
+  path: '/423',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const R403Route = R403RouteImport.update({
+  id: '/403',
+  path: '/403',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SplatRoute = SplatRouteImport.update({
   id: '/$',
   path: '/$',
@@ -260,6 +272,8 @@ const GuestCheckinConfirmRoute = GuestCheckinConfirmRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/403': typeof R403Route
+  '/423': typeof R423Route
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
@@ -303,6 +317,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/403': typeof R403Route
+  '/423': typeof R423Route
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
@@ -347,6 +363,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/403': typeof R403Route
+  '/423': typeof R423Route
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
@@ -392,6 +410,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/$'
+    | '/403'
+    | '/423'
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
@@ -435,6 +455,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
+    | '/403'
+    | '/423'
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
@@ -478,6 +500,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/$'
+    | '/403'
+    | '/423'
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
@@ -522,6 +546,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  R403Route: typeof R403Route
+  R423Route: typeof R423Route
   AdminPortalRoute: typeof AdminPortalRoute
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRoute
@@ -789,6 +815,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPortalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/423': {
+      id: '/423'
+      path: '/423'
+      fullPath: '/423'
+      preLoaderRoute: typeof R423RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/403': {
+      id: '/403'
+      path: '/403'
+      fullPath: '/403'
+      preLoaderRoute: typeof R403RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$': {
       id: '/$'
       path: '/$'
@@ -858,6 +898,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  R403Route: R403Route,
+  R423Route: R423Route,
   AdminPortalRoute: AdminPortalRoute,
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRoute,

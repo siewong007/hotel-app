@@ -243,6 +243,8 @@ pub async fn login_start(
 pub async fn login_finish(
     pool: &DbPool,
     req: PasskeyLoginFinish,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
 ) -> Result<(AuthResponse, String), ApiError> {
     let user = PasskeyRepository::find_active_user_by_username(pool, &req.username)
         .await?
@@ -302,16 +304,22 @@ pub async fn login_finish(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
     let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
-    let access_token = AuthService::generate_jwt(user.id, user.username.clone(), roles.clone())
-        .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
     let refresh_token = AuthService::generate_refresh_token();
     let is_first_login = AuthRepository::is_first_login(pool, user.id)
         .await
         .unwrap_or(false);
 
-    AuthService::store_refresh_token(pool, user.id, &refresh_token, 30)
-        .await
-        .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
+    let session_id =
+        AuthService::store_refresh_token(pool, user.id, &refresh_token, 30, ip_address, user_agent)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
+    let access_token = AuthService::generate_session_jwt(
+        user.id,
+        user.username.clone(),
+        roles.clone(),
+        session_id,
+    )
+    .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
     Ok((

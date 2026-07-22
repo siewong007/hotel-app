@@ -4,7 +4,7 @@ use crate::constants::UserType;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate};
+use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate, UserSessionInfo};
 use crate::repositories::user::UserRepository;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
@@ -120,4 +120,47 @@ pub async fn update_password(
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
     UserRepository::update_password_hash(pool, user_id, &new_hash).await
+}
+
+pub async fn list_sessions(
+    pool: &DbPool,
+    user_id: i64,
+    current_session_id: Option<&str>,
+) -> Result<Vec<UserSessionInfo>, ApiError> {
+    let sessions = AuthService::list_active_sessions(pool, user_id)
+        .await
+        .map_err(|error| ApiError::Database(format!("Failed to list sessions: {error}")))?;
+
+    Ok(sessions
+        .into_iter()
+        .map(|session| UserSessionInfo {
+            is_current: current_session_id.is_some_and(|id| id == session.id),
+            id: session.id,
+            user_agent: session.user_agent,
+            ip_address: session.ip_address.map(mask_ip_address),
+            created_at: session.created_at,
+            last_used_at: session.last_used_at,
+            expires_at: session.expires_at,
+        })
+        .collect())
+}
+
+pub async fn revoke_session(pool: &DbPool, user_id: i64, session_id: &str) -> Result<(), ApiError> {
+    let revoked = AuthService::revoke_user_session(pool, user_id, session_id)
+        .await
+        .map_err(|error| ApiError::Database(format!("Failed to revoke session: {error}")))?;
+    if !revoked {
+        return Err(ApiError::NotFound("Active session not found".to_string()));
+    }
+    Ok(())
+}
+
+fn mask_ip_address(ip: String) -> String {
+    if let Some((prefix, _)) = ip.rsplit_once('.') {
+        return format!("{prefix}.•••");
+    }
+    if let Some((prefix, _)) = ip.rsplit_once(':') {
+        return format!("{prefix}:••••");
+    }
+    "•••".to_string()
 }

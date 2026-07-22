@@ -35,7 +35,15 @@ pub mod two_factor;
 use crate::core::config::{self, AllowedOrigins};
 use crate::core::db::DbPool;
 use crate::core::rate_limiter::RateLimiters;
-use axum::{Router, http::Method, routing::get};
+use crate::core::{AuthService, middleware};
+use axum::{
+    Router,
+    extract::{Request, State},
+    http::Method,
+    middleware::Next,
+    response::{IntoResponse, Response},
+    routing::get,
+};
 use std::net::{IpAddr, SocketAddr};
 use tower::ServiceBuilder;
 use tower_http::{
@@ -60,6 +68,52 @@ pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap, peer_addr: Sock
                 .and_then(|s| s.trim().parse().ok())
         })
         .unwrap_or_else(|| peer_addr.ip())
+}
+
+/// Session-bound JWTs are checked against their active refresh-session record
+/// before any authenticated API handler runs. Guest portal bearer tokens use a
+/// separate authentication scheme, so only a non-JWT bearer is allowed through
+/// to the guest portal's own validator.
+async fn enforce_active_session(
+    State(pool): State<DbPool>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let has_bearer_token = request
+        .headers()
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("Bearer "));
+    if !has_bearer_token {
+        return next.run(request).await;
+    }
+
+    let claims = match middleware::extract_claims(request.headers()).await {
+        Ok(claims) => claims,
+        Err(_error) if request.uri().path().contains("/guest-portal/") => {
+            return next.run(request).await;
+        }
+        Err(error) => return error.into_response(),
+    };
+    let Some(session_id) = claims.sid else {
+        return next.run(request).await;
+    };
+    let Ok(user_id) = claims.sub.parse::<i64>() else {
+        return crate::core::error::ApiError::Unauthorized("Invalid user ID in token".to_string())
+            .into_response();
+    };
+
+    match AuthService::is_session_active(&pool, user_id, &session_id).await {
+        Ok(true) => next.run(request).await,
+        Ok(false) => {
+            crate::core::error::ApiError::Unauthorized("Session has been logged out".to_string())
+                .into_response()
+        }
+        Err(error) => {
+            crate::core::error::ApiError::Database(format!("Session validation failed: {error}"))
+                .into_response()
+        }
+    }
 }
 
 /// Health check handler.
@@ -175,7 +229,11 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
         .merge(passkey::routes())
-        .merge(two_factor::routes());
+        .merge(two_factor::routes())
+        .layer(axum::middleware::from_fn_with_state(
+            pool.clone(),
+            enforce_active_session,
+        ));
 
     // Build all routes
     let app = Router::new()

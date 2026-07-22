@@ -5,7 +5,7 @@
 use super::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_auth;
+use crate::core::middleware::{extract_claims, require_auth};
 use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
@@ -25,6 +25,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/profile", get(get_profile))
         .route("/profile", patch(update_profile))
         .route("/profile/password", post(update_password))
+        .route("/profile/sessions", get(list_sessions))
+        .route("/profile/sessions/{id}", delete(revoke_session))
         // Passkey management
         .route("/profile/passkeys", get(list_passkeys))
         .route("/profile/passkeys/{id}", delete(delete_passkey))
@@ -77,6 +79,27 @@ async fn update_password(
     }
     let user_id = require_auth(&headers).await?;
     handlers::profile::update_password_handler(State(pool), Extension(user_id), Json(input)).await
+}
+
+async fn list_sessions(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<models::UserSessionInfo>>, ApiError> {
+    let claims = extract_claims(&headers).await?;
+    let user_id = claims
+        .sub
+        .parse::<i64>()
+        .map_err(|_| ApiError::Unauthorized("Invalid user ID in token".to_string()))?;
+    handlers::profile::list_sessions_handler(State(pool), Extension(user_id), claims.sid).await
+}
+
+async fn revoke_session(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(session_id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+    handlers::profile::revoke_session_handler(State(pool), Extension(user_id), session_id).await
 }
 
 // Passkey handlers

@@ -19,7 +19,12 @@ use validator::Validate;
 /// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
 /// the freshly minted refresh token as a separate `String`; the route handler
 /// sets that token on an `HttpOnly` cookie and never includes it in the JSON body.
-pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<(AuthResponse, String), ApiError> {
+pub async fn login(
+    pool: &DbPool,
+    req: LoginRequest,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(AuthResponse, String), ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
@@ -156,16 +161,22 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<(AuthResponse, St
         .map_err(|e| ApiError::Database(e.to_string()))?;
     let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
 
-    let access_token = AuthService::generate_jwt(user.id, user.username.clone(), roles.clone())
-        .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
     let refresh_token = AuthService::generate_refresh_token();
     let is_first_login = AuthRepository::is_first_login(pool, user.id)
         .await
         .unwrap_or(false);
 
-    AuthService::store_refresh_token(pool, user.id, &refresh_token, 30)
-        .await
-        .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
+    let session_id =
+        AuthService::store_refresh_token(pool, user.id, &refresh_token, 30, ip_address, user_agent)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
+    let access_token = AuthService::generate_session_jwt(
+        user.id,
+        user.username.clone(),
+        roles.clone(),
+        session_id,
+    )
+    .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
 
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
@@ -221,7 +232,7 @@ pub async fn refresh_token(
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    let user_id = AuthService::validate_refresh_token(pool, &req.refresh_token)
+    let (user_id, session_id) = AuthService::validate_refresh_token(pool, &req.refresh_token)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::Unauthorized("Invalid or expired refresh token".to_string()))?;
@@ -258,16 +269,29 @@ pub async fn refresh_token(
     let roles = AuthService::get_user_roles(pool, user.id)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
-    let access_token = AuthService::generate_jwt(user.id, user.username.clone(), roles.clone())
-        .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
     let new_refresh_token = AuthService::generate_refresh_token();
 
-    AuthService::revoke_refresh_token(pool, &req.refresh_token)
-        .await
-        .map_err(|e| ApiError::Database(format!("Failed to revoke old token: {}", e)))?;
-    AuthService::store_refresh_token(pool, user.id, &new_refresh_token, 30)
-        .await
-        .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
+    let rotated = AuthService::rotate_refresh_token(
+        pool,
+        &session_id,
+        &req.refresh_token,
+        &new_refresh_token,
+        30,
+    )
+    .await
+    .map_err(|e| ApiError::Database(format!("Failed to rotate refresh token: {}", e)))?;
+    if !rotated {
+        return Err(ApiError::Unauthorized(
+            "Refresh token was already used or revoked".to_string(),
+        ));
+    }
+    let access_token = AuthService::generate_session_jwt(
+        user.id,
+        user.username.clone(),
+        roles.clone(),
+        session_id,
+    )
+    .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
 
     Ok(RefreshTokenResponse {
         access_token,

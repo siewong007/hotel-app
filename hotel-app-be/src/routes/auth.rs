@@ -74,7 +74,18 @@ async fn login(
             retry_after,
         ));
     }
-    handlers::auth::login_handler(State(pool), jar, Json(req)).await
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.chars().take(512).collect());
+    handlers::auth::login_handler(
+        State(pool),
+        jar,
+        Json(req),
+        Some(ip.to_string()),
+        user_agent,
+    )
+    .await
 }
 
 async fn refresh(

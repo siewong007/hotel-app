@@ -197,6 +197,8 @@ export class HotelAPIService {
   static listPasskeys = AuthService.listPasskeys;
   static updatePasskey = AuthService.updatePasskey;
   static deletePasskey = AuthService.deletePasskey;
+  static listSessions = AuthService.listSessions;
+  static revokeSession = AuthService.revokeSession;
   static setupTwoFactor = AuthService.setupTwoFactor;
   static enableTwoFactor = AuthService.enableTwoFactor;
   static disableTwoFactor = AuthService.disableTwoFactor;

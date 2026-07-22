@@ -59,6 +59,19 @@ pub struct RefreshTokenResponse {
     pub refresh_token: String,
 }
 
+/// A currently active login session, backed by a rotating refresh-token record.
+/// The refresh-token value itself is never included in this response.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserSessionInfo {
+    pub id: String,
+    pub user_agent: Option<String>,
+    pub ip_address: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
+    pub is_current: bool,
+}
+
 /// Registration request
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RegisterRequest {
