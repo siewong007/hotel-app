@@ -15,12 +15,12 @@ jobs:
         working-directory: hotel-app-be
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Scan committed history for secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
 
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
@@ -36,7 +36,7 @@ jobs:
         working-directory: hotel-web-fe
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -84,10 +84,10 @@ jobs:
         working-directory: hotel-app-be
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: clippy
 
@@ -137,10 +137,10 @@ jobs:
         working-directory: hotel-app-be
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: clippy
 
@@ -182,10 +182,10 @@ jobs:
       ALLOWED_ORIGINS: http://localhost:3000
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Cache Cargo dependencies
         if: ${{ !env.ACT }}
@@ -262,10 +262,10 @@ jobs:
         working-directory: hotel-desktop/src-tauri
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
+        uses: dtolnay/rust-toolchain@1.100.0
 
       - name: Cache Cargo dependencies
         if: ${{ !env.ACT }}
