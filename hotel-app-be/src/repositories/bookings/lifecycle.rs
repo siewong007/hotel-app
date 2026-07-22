@@ -2185,7 +2185,7 @@ pub async fn update_booking_handler(
                     SELECT EXISTS(
                         SELECT 1 FROM bookings
                         WHERE room_id = ?1 AND id != ?2
-                          AND status IN ('confirmed', 'pending')
+                          AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
                           AND check_out_date >= date('now')
                     )
                 "#;
@@ -2194,7 +2194,7 @@ pub async fn update_booking_handler(
                     SELECT EXISTS(
                         SELECT 1 FROM bookings
                         WHERE room_id = $1 AND id != $2
-                          AND status IN ('confirmed', 'pending')
+                          AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
                           AND check_out_date >= CURRENT_DATE
                     )
                 "#;
@@ -2935,7 +2935,7 @@ pub async fn manual_checkin_handler(
             deposit_paid_at = CASE WHEN $2 = true AND deposit_paid_at IS NULL THEN CURRENT_TIMESTAMP ELSE deposit_paid_at END,
             payment_note = COALESCE($4, payment_note),
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1 AND status IN ('confirmed', 'pending')
+        WHERE id = $1 AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
         RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
         "#
     )
@@ -3424,14 +3424,14 @@ pub async fn void_pending_booking_tx(
         UPDATE bookings
         SET status = 'voided', updated_at = datetime('now'),
             cancelled_at = datetime('now'), cancelled_by = ?2
-        WHERE id = ?1 AND status = 'pending'
+        WHERE id = ?1 AND status IN ('pending', 'pending_payment', 'pending_confirmation')
     "#;
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = r#"
         UPDATE bookings
         SET status = 'voided', updated_at = CURRENT_TIMESTAMP,
             cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2
-        WHERE id = $1 AND status = 'pending'
+        WHERE id = $1 AND status IN ('pending', 'pending_payment', 'pending_confirmation')
     "#;
 
     let result = sqlx::query(query)
@@ -3919,8 +3919,8 @@ pub async fn checkin_booking_tx(
     Ok(row_mappers::row_to_booking(&row))
 }
 
-/// Atomically transition a booking from `pending` to `confirmed`, used when a
-/// guest payment is approved/captured. Guarded by `status = 'pending'` so the
+/// Atomically transition a booking from a payment-awaiting status to `confirmed`, used when a
+/// guest payment is approved/captured. Guarded by payment-awaiting statuses so the
 /// call is idempotent: a booking that is already `confirmed` (or beyond)
 /// affects zero rows and returns `false` without error, letting the caller
 /// still complete the payment. Both `pending` and `confirmed` are inside the
@@ -3934,12 +3934,12 @@ pub async fn confirm_booking_tx(
         postgres: r#"
             UPDATE bookings
             SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1 AND status = 'pending'
+            WHERE id = $1 AND status IN ('pending', 'pending_payment', 'pending_confirmation')
         "#,
         sqlite: r#"
             UPDATE bookings
             SET status = 'confirmed', updated_at = datetime('now')
-            WHERE id = ?1 AND status = 'pending'
+            WHERE id = ?1 AND status IN ('pending', 'pending_payment', 'pending_confirmation')
         "#
     );
 
@@ -3950,6 +3950,42 @@ pub async fn confirm_booking_tx(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(result.rows_affected() == 1)
+}
+
+/// Move an unpaid booking to the staff-review state after a bank-transfer claim.
+pub async fn move_booking_to_pending_confirmation_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<bool, ApiError> {
+    let query = crate::sql_query!(
+        postgres: "UPDATE bookings SET status = 'pending_confirmation', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status IN ('pending', 'pending_payment')",
+        sqlite: "UPDATE bookings SET status = 'pending_confirmation', updated_at = datetime('now') WHERE id = ?1 AND status IN ('pending', 'pending_payment')"
+    );
+    Ok(sqlx::query(query)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .rows_affected()
+        == 1)
+}
+
+/// Return a rejected bank-transfer claim to the payment-awaiting state.
+pub async fn move_booking_to_pending_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<bool, ApiError> {
+    let query = crate::sql_query!(
+        postgres: "UPDATE bookings SET status = 'pending_payment', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'pending_confirmation'",
+        sqlite: "UPDATE bookings SET status = 'pending_payment', updated_at = datetime('now') WHERE id = ?1 AND status = 'pending_confirmation'"
+    );
+    Ok(sqlx::query(query)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .rows_affected()
+        == 1)
 }
 
 /// Record an optional payment captured during check-in.

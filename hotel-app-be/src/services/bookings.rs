@@ -75,7 +75,10 @@ fn is_online_source(source: Option<&str>) -> bool {
 /// Completing a payment confirms the booking, so the `pending` state is the
 /// authoritative guard for this self-service path.
 fn is_guest_cancellable_pending_booking(status: &str) -> bool {
-    status == "pending"
+    matches!(
+        status,
+        "pending" | "pending_payment" | "pending_confirmation"
+    )
 }
 
 /// Cancel an unpaid pending booking belonging to the authenticated guest.
@@ -93,7 +96,7 @@ pub async fn cancel_pending_booking_by_guest(
     }
     if !is_guest_cancellable_pending_booking(&booking.status) {
         return Err(ApiError::BadRequest(
-            "Only pending bookings awaiting payment can be cancelled.".to_string(),
+            "Only bookings awaiting payment or confirmation can be cancelled.".to_string(),
         ));
     }
 
@@ -111,7 +114,7 @@ pub async fn cancel_pending_booking_by_guest(
     booking_repo::record_booking_history_tx(
         &mut tx,
         booking_id,
-        Some("pending"),
+        Some(&booking.status),
         "voided",
         Some(user_id),
         Some(change_reason),

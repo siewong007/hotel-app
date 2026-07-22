@@ -11,8 +11,7 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers::{get_decimal, get_opt_decimal};
 use crate::sql_query;
 
-const ACTIVE_BOOKING_STATUSES: &str =
-    "'reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending'";
+const ACTIVE_BOOKING_STATUSES: &str = "'reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation'";
 
 fn json_string_list(row: &DbRow, column: &str) -> Vec<String> {
     if let Ok(Some(value)) = row.try_get::<Option<serde_json::Value>, _>(column) {
@@ -109,7 +108,7 @@ impl GuestBookingRepository {
                 LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = true
                   AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
                   AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id
-                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
                     AND b.check_in_date < $2 AND b.check_out_date > $1)
                 LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = $1
                 WHERE rt.is_active = true
@@ -125,7 +124,7 @@ impl GuestBookingRepository {
                 LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = 1
                   AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
                   AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id
-                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
                     AND b.check_in_date < ?2 AND b.check_out_date > ?1)
                 LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = ?1
                 WHERE rt.is_active = 1
@@ -619,7 +618,7 @@ impl GuestBookingRepository {
                     special_requests, cleaning_preference, daily_rates, created_by
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
-                    $9, $10, 0, $11, $12, $13, 'pending', 'unpaid',
+                    $9, $10, 0, $11, $12, $13, 'pending_payment', 'unpaid',
                     'website', $14, $15, $16, $17, $18
                 ) RETURNING id
             "#,
@@ -632,7 +631,7 @@ impl GuestBookingRepository {
                     special_requests, cleaning_preference, daily_rates, created_by
                 ) VALUES (
                     ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                    ?9, ?9, ?10, 0, ?11, ?12, ?13, 'pending', 'unpaid',
+                    ?9, ?9, ?10, 0, ?11, ?12, ?13, 'pending_payment', 'unpaid',
                     'website', ?14, ?15, ?16, ?17, ?18
                 ) RETURNING id
             "#

@@ -1,5 +1,7 @@
 export const BookingStatus = {
   PENDING: 'pending',
+  PENDING_PAYMENT: 'pending_payment',
+  PENDING_CONFIRMATION: 'pending_confirmation',
   CONFIRMED: 'confirmed',
   CHECKED_IN: 'checked_in',
   CHECKED_OUT: 'checked_out',

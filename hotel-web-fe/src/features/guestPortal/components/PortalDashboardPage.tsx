@@ -2,14 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from '../../../router';
 import { Alert, Box, Button, Container, CircularProgress, Fade, Paper, Stack, Typography } from '@mui/material';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
-import { BookingsSection, EmbeddedSection, OverviewSection, PaymentsSection, RewardsSection } from './dashboard/PortalDashboardSections';
+import { BookingsSection, EmbeddedSection, OverviewSection, RewardsSection } from './dashboard/PortalDashboardSections';
 import { PortalSupportWidget } from './PortalSupportWidget';
 import { parsePortalSection, type PortalSection } from './dashboard/dashboardUtils';
 
@@ -131,7 +130,7 @@ const AuthenticatedDashboard: React.FC<{
             }}
           >
             {[
-              ['overview', 'Overview', CalendarMonthOutlinedIcon], ['stays', 'My stays', CalendarMonthOutlinedIcon], ['payments', 'Payments', CreditCardOutlinedIcon], ['rewards', 'Rewards', DiamondOutlinedIcon], ['offers', 'Offers', LocalOfferOutlinedIcon], ['vouchers', 'Vouchers', ConfirmationNumberOutlinedIcon], ['support', 'Support', SupportAgentOutlinedIcon], ['preferences', 'Preferences', TuneOutlinedIcon],
+              ['overview', 'Overview', CalendarMonthOutlinedIcon], ['stays', 'My stays', CalendarMonthOutlinedIcon], ['rewards', 'Rewards', DiamondOutlinedIcon], ['offers', 'Offers', LocalOfferOutlinedIcon], ['vouchers', 'Vouchers', ConfirmationNumberOutlinedIcon], ['support', 'Support', SupportAgentOutlinedIcon], ['preferences', 'Preferences', TuneOutlinedIcon],
             ].map(([value, label, Icon]) => { const isSupport = value === 'support'; const isActive = isSupport ? supportOpen : displaySection === value; const SectionIcon = Icon as typeof CalendarMonthOutlinedIcon; return <Button key={value as string} startIcon={<SectionIcon />} onClick={() => (isSupport ? setSupportOpen(true) : changeSection(value as PortalSection))} aria-current={isActive ? 'page' : undefined} sx={{ flexShrink: 0, color: isActive ? '#06110e' : 'text.secondary', bgcolor: isActive ? 'rgba(217,181,114,.35)' : 'transparent', fontWeight: isActive ? 700 : 500, '&:hover': { bgcolor: 'rgba(217,181,114,.22)' } }}>{label as string}</Button>; })}
           </Box>
         </Box>
@@ -144,7 +143,6 @@ const AuthenticatedDashboard: React.FC<{
             />
           ) : null}
           {displaySection === 'stays' ? <BookingsSection token={token} /> : null}
-          {displaySection === 'payments' ? <PaymentsSection token={token} /> : null}
           {displaySection === 'rewards' ? <RewardsSection token={token} /> : null}
           {['offers', 'vouchers', 'preferences'].includes(displaySection) ? <EmbeddedSection section={displaySection} token={token} /> : null}
         </Box></Fade>

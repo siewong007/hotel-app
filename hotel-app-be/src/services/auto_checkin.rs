@@ -332,7 +332,10 @@ fn booking_status_block_reason(status: &str) -> Option<String> {
         // A `pending` booking has no approved/captured payment yet. It must be
         // confirmed (which happens when a payment is approved/captured) before
         // check-in is allowed.
-        "pending" => Some("Payment required before check-in.".to_string()),
+        "pending" | "pending_payment" => Some("Payment required before check-in.".to_string()),
+        "pending_confirmation" => {
+            Some("Payment confirmation is required before check-in.".to_string())
+        }
         "checked_in" | "auto_checked_in" => Some("Booking is already checked in.".to_string()),
         "checked_out" | "completed" => Some("Booking has already checked out.".to_string()),
         "voided" | "cancelled" | "canceled" => Some("Booking is not active.".to_string()),
