@@ -1,7 +1,8 @@
-import { createFileRoute, Navigate } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
+import { StatusPage } from '../components';
 
 function NotFoundComponent() {
-  return <Navigate to="/" replace />;
+  return <StatusPage statusCode={404} />;
 }
 
 export const Route = createFileRoute('/$')({

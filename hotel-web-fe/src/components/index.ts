@@ -4,6 +4,7 @@
 // Common components
 export { AnimatedRoute } from './common/AnimatedRoute';
 export { ErrorBoundary, PageErrorBoundary, ComponentErrorBoundary } from './common/ErrorBoundary';
+export { StatusPage } from './common/StatusPage';
 export { default as HotelSpinner } from './common/HotelSpinner';
 export { default as LoadingSpinner } from './common/LoadingSpinner';
 export { default as ModernDatePicker } from './common/ModernDatePicker';

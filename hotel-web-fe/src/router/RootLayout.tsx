@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from 'react';
 import { AppBar, Box, Container } from '@mui/material';
-import { Navigate, Outlet, useLocation } from '@tanstack/react-router';
+import { Navigate, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../auth/AuthContext';
 import { NavigationTabs } from '../components/layout/NavigationTabs';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
@@ -10,6 +10,7 @@ import { GuestPortalShell } from '../features/guestPortal/components/GuestPortal
 
 export const RootLayout: React.FC = () => {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
   const isGuestPortal = pathname === '/guest-portal';
@@ -27,6 +28,15 @@ export const RootLayout: React.FC = () => {
       document.body.classList.remove('hotel-board-skin-active');
     };
   }, [boardSkinActive]);
+
+  useEffect(() => {
+    const showResourceLocked = () => {
+      void navigate({ to: '/423' });
+    };
+
+    window.addEventListener('api:resource-locked', showResourceLocked);
+    return () => window.removeEventListener('api:resource-locked', showResourceLocked);
+  }, [navigate]);
 
   // Portal pages share the Salim Inn guest experience instead of inheriting
   // the operational staff navigation.

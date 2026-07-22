@@ -102,6 +102,7 @@ export type {
   PasswordUpdate,
   PasskeyInfo,
   PasskeyUpdateInput,
+  UserSessionInfo,
   TwoFactorSetupRequest,
   TwoFactorSetupResponse,
   TwoFactorEnableRequest,

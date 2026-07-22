@@ -25,7 +25,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const policy = routeId ? getRoutePolicy(routeId) : undefined;
@@ -33,7 +33,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     if (routeId === 'online-inventory' && (hasPermission('rooms:update') || hasPermission('rooms:manage'))) {
       return <>{children}</>;
     }
-    return <Navigate to="/" replace />;
+    return <Navigate to="/403" replace />;
   }
 
   const requiredPermissions = policy?.required_permissions ?? [];
@@ -44,19 +44,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     const hasAnyPermission = requiredPermissions.some(permission => hasPermission(permission));
     const hasAnyRole = requiredRoles.some(role => hasRole(role));
     if (!hasAnyPermission && !hasAnyRole) {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/403" replace />;
     }
   }
 
   if (requiredPermissions.length === 0 && requiredRoles.length > 0) {
     const hasAnyRole = requiredRoles.some(role => hasRole(role));
     if (!hasAnyRole) {
-      return <Navigate to="/" replace />;
+      return <Navigate to="/403" replace />;
     }
   }
 
   if (excludeRoles.some((role) => hasRole(role))) {
-    return <Navigate to="/timeline" replace />;
+    return <Navigate to="/403" replace />;
   }
 
   return <>{children}</>;
