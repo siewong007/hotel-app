@@ -202,6 +202,8 @@ CREATE TABLE room_types(
   allows_extra_bed INTEGER DEFAULT 0,
   max_extra_beds INTEGER DEFAULT 0,
   extra_bed_charge REAL DEFAULT 0,
+  keycard_deposit_amount REAL DEFAULT 0,
+  service_charge_percentage REAL DEFAULT 0,
   is_active INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 0,
   created_at TEXT DEFAULT(datetime('now')),

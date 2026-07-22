@@ -45,6 +45,7 @@ export { NightAuditService } from './nightAudit.service';
 export { DataTransferService } from './dataTransfer.service';
 export { HousekeepingService } from './housekeeping.service';
 export { MaintenanceService } from './maintenance.service';
+export { PaymentApprovalsService } from './paymentApprovals.service';
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
 export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
 export type {
@@ -60,6 +61,14 @@ export type {
   RevenueBreakdownItem,
   JournalEntry,
   JournalSection
+} from '../types';
+export type {
+  GuestPaymentBankDetails,
+  GuestPaymentConfig,
+  PaymentActionResponse,
+  PaypalCreateOrderResponse,
+  PendingPaymentEntry,
+  PendingPaymentPage,
 } from '../types';
 
 // Backward Compatibility Layer - HotelAPIService

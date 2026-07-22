@@ -24,6 +24,9 @@ pub enum ApiError {
     Conflict(String),
     /// Internal server error
     Internal(String),
+    /// A dependency (e.g. an unconfigured or unreachable payment gateway) is
+    /// temporarily unavailable.
+    ServiceUnavailable(String),
     /// Rate limit exceeded (message, optional retry_after_secs)
     TooManyRequests(String),
     /// Rate limit exceeded with Retry-After header
@@ -40,6 +43,7 @@ impl std::fmt::Display for ApiError {
             ApiError::NotFound(msg) => write!(f, "Not found: {}", msg),
             ApiError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             ApiError::Internal(msg) => write!(f, "Internal error: {}", msg),
+            ApiError::ServiceUnavailable(msg) => write!(f, "Service unavailable: {}", msg),
             ApiError::TooManyRequests(msg) => write!(f, "Too many requests: {}", msg),
             ApiError::TooManyRequestsRetryAfter(msg, secs) => {
                 write!(f, "Too many requests (retry after {}s): {}", secs, msg)
@@ -132,6 +136,10 @@ impl IntoResponse for ApiError {
                     "Something went wrong on our end. Please try again.".to_string(),
                 )
             }
+            ApiError::ServiceUnavailable(msg) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                polish_message(msg, "This service is temporarily unavailable."),
+            ),
             ApiError::TooManyRequests(msg) => (
                 StatusCode::TOO_MANY_REQUESTS,
                 polish_message(msg, "Too many requests. Please slow down and try again."),

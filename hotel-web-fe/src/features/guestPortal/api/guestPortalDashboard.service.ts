@@ -27,6 +27,8 @@ import type {
   GuestPortalMembershipResponse,
   GuestPortalPagedResponse,
   GuestPortalTransaction,
+  PaymentActionResponse,
+  PaypalCreateOrderResponse,
 } from '../../../types';
 
 export interface PortalPageParams {
@@ -108,6 +110,44 @@ export class GuestPortalDashboardService {
   static async benefits(token?: string): Promise<GuestPortalBenefitsResponse> {
     return await api
       .get('guest-portal/me/benefits', { headers: authHeaders(token) })
+      .json();
+  }
+
+  static async submitBankTransfer(
+    bookingId: number,
+    token?: string
+  ): Promise<PaymentActionResponse> {
+    return await api
+      .post('guest-portal/me/payments/bank-transfer', {
+        headers: authHeaders(token),
+        json: { booking_id: bookingId },
+      })
+      .json();
+  }
+
+  static async createPaypalOrder(
+    bookingId: number,
+    token?: string
+  ): Promise<PaypalCreateOrderResponse> {
+    return await api
+      .post('guest-portal/me/payments/paypal/create-order', {
+        headers: authHeaders(token),
+        json: { booking_id: bookingId },
+      })
+      .json();
+  }
+
+  static async capturePaypalOrder(
+    bookingId: number,
+    orderId: string,
+    paymentId: number,
+    token?: string
+  ): Promise<PaymentActionResponse> {
+    return await api
+      .post('guest-portal/me/payments/paypal/capture', {
+        headers: authHeaders(token),
+        json: { booking_id: bookingId, order_id: orderId, payment_id: paymentId },
+      })
       .json();
   }
 }

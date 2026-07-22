@@ -4,7 +4,7 @@
 
 use axum::{
     Json,
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
 };
 
 use crate::core::db::DbPool;
@@ -151,5 +151,39 @@ pub async fn delete_payment_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
         payments::delete_payment(&pool, user_id, payment_id).await?,
+    ))
+}
+
+/// Staff: list pending payment claims awaiting review (paginated).
+pub async fn list_pending_payments_handler(
+    State(pool): State<DbPool>,
+    Query(query): Query<PendingPaymentsQuery>,
+) -> Result<Json<PendingPaymentPage>, ApiError> {
+    let (limit, offset) = query.limit_offset();
+    Ok(Json(
+        payments::list_pending_payments(&pool, limit, offset).await?,
+    ))
+}
+
+/// Staff: approve a pending payment (completes payment + confirms booking).
+pub async fn approve_payment_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(payment_id): Path<i64>,
+) -> Result<Json<PaymentActionResponse>, ApiError> {
+    Ok(Json(
+        payments::approve_payment(&pool, user_id, payment_id).await?,
+    ))
+}
+
+/// Staff: reject a pending payment (booking stays pending).
+pub async fn reject_payment_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(payment_id): Path<i64>,
+    Json(request): Json<RejectPaymentRequest>,
+) -> Result<Json<PaymentActionResponse>, ApiError> {
+    Ok(Json(
+        payments::reject_payment(&pool, user_id, payment_id, &request.reason).await?,
     ))
 }

@@ -1613,6 +1613,8 @@ CREATE TABLE public.room_types (
     allows_extra_bed boolean DEFAULT false,
     max_extra_beds integer DEFAULT 0,
     extra_bed_charge numeric(10,2) DEFAULT 0,
+    keycard_deposit_amount numeric(10,2) DEFAULT 0,
+    service_charge_percentage numeric(5,2) DEFAULT 0,
     size_sqm numeric(6,2),
     size_sqft numeric(6,2),
     floor_range character varying(20),

@@ -60,3 +60,57 @@ export interface PaymentWorkflowSummary {
   next_action: string;
   warnings: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Guest-portal payments (bank-transfer claim + PayPal) — mirrors
+// hotel-app-be/src/models/payment.rs exactly (session, token, and staff
+// review-queue contracts).
+// ---------------------------------------------------------------------------
+
+/** Hotel bank-transfer display details for the manual guest payment path. */
+export interface GuestPaymentBankDetails {
+  bank_name: string | null;
+  account_name: string | null;
+  account_number: string | null;
+}
+
+/** Public payment configuration served by `GET /guest-portal/payment-config`. */
+export interface GuestPaymentConfig {
+  paypal_enabled: boolean;
+  paypal_client_id: string | null;
+  bank_details: GuestPaymentBankDetails;
+}
+
+/** Generic acknowledgement returned by the guest payment mutation endpoints. */
+export interface PaymentActionResponse {
+  payment_id: number;
+  status: string;
+  booking_status: string | null;
+}
+
+/** Response from the PayPal create-order endpoints (session and token flows). */
+export interface PaypalCreateOrderResponse {
+  order_id: string;
+  payment_id: number;
+}
+
+/** A single pending bank-transfer/PayPal claim in the staff review queue. */
+export interface PendingPaymentEntry {
+  id: number;
+  booking_id: number;
+  booking_number: string | null;
+  guest_id: number | null;
+  guest_name: string | null;
+  amount: string;
+  payment_method: string;
+  status: string;
+  reference: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+/** Paginated wrapper for `GET /admin/payments/pending`. */
+export interface PendingPaymentPage {
+  items: PendingPaymentEntry[];
+  total: number;
+}

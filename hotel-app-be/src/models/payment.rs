@@ -44,6 +44,113 @@ pub struct Payment {
     pub created_at: DateTime<Utc>,
 }
 
+/// A payment awaiting staff review (bank-transfer claim or pre-capture record),
+/// enriched with booking + guest context for the staff approval queue.
+/// `amount` and `created_at` are selected as text to decode uniformly across
+/// PostgreSQL (numeric/timestamptz) and SQLite (REAL/TEXT).
+#[derive(Debug, Serialize, FromRow)]
+pub struct PendingPaymentEntry {
+    pub id: i64,
+    pub booking_id: i64,
+    pub booking_number: Option<String>,
+    pub guest_id: Option<i64>,
+    pub guest_name: Option<String>,
+    pub amount: String,
+    pub payment_method: String,
+    pub status: String,
+    pub reference: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: String,
+}
+
+/// Paginated wrapper for the staff pending-payments queue.
+#[derive(Debug, Serialize)]
+pub struct PendingPaymentPage {
+    pub items: Vec<PendingPaymentEntry>,
+    pub total: i64,
+}
+
+/// Public-facing payment configuration for the guest portal payment panel.
+/// `paypal_client_id` is public by design; it is only present when the PayPal
+/// integration is fully configured.
+#[derive(Debug, Serialize)]
+pub struct GuestPaymentConfig {
+    pub paypal_enabled: bool,
+    pub paypal_client_id: Option<String>,
+    pub bank_details: GuestBankDetails,
+}
+
+/// Hotel bank-transfer display details for the manual payment path.
+#[derive(Debug, Serialize)]
+pub struct GuestBankDetails {
+    pub bank_name: Option<String>,
+    pub account_name: Option<String>,
+    pub account_number: Option<String>,
+}
+
+/// Result of creating a PayPal order (returned to the browser to launch the
+/// PayPal approval popup).
+#[derive(Debug, Serialize)]
+pub struct PaypalCreateOrderResponse {
+    pub order_id: String,
+    pub payment_id: i64,
+}
+
+/// Request body for capturing a previously created PayPal order (token flow —
+/// the booking is identified by the path token).
+#[derive(Debug, Deserialize)]
+pub struct PaypalCaptureRequest {
+    pub order_id: String,
+    pub payment_id: i64,
+}
+
+/// Request body identifying a booking for the session-authenticated guest
+/// payment routes (the booking id comes from the body, ownership is verified
+/// against the session's guest).
+#[derive(Debug, Deserialize)]
+pub struct GuestBookingPaymentRequest {
+    pub booking_id: i64,
+}
+
+/// Request body for capturing a PayPal order on the session-authenticated flow.
+#[derive(Debug, Deserialize)]
+pub struct SessionPaypalCaptureRequest {
+    pub booking_id: i64,
+    pub order_id: String,
+    pub payment_id: i64,
+}
+
+/// Request body for rejecting a payment claim (staff).
+#[derive(Debug, Deserialize)]
+pub struct RejectPaymentRequest {
+    pub reason: String,
+}
+
+/// Pagination query for the staff pending-payments queue.
+#[derive(Debug, Deserialize)]
+pub struct PendingPaymentsQuery {
+    pub page: Option<i64>,
+    pub per_page: Option<i64>,
+}
+
+impl PendingPaymentsQuery {
+    /// Clamp page to >= 1 and per_page to 1..=100 (default 20), returning
+    /// (limit, offset).
+    pub fn limit_offset(&self) -> (i64, i64) {
+        let per_page = self.per_page.unwrap_or(20).clamp(1, 100);
+        let page = self.page.unwrap_or(1).max(1);
+        (per_page, (page - 1) * per_page)
+    }
+}
+
+/// Generic acknowledgement returned by the guest payment mutation endpoints.
+#[derive(Debug, Serialize)]
+pub struct PaymentActionResponse {
+    pub payment_id: i64,
+    pub status: String,
+    pub booking_status: Option<String>,
+}
+
 /// Payment summary for display
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PaymentSummary {
@@ -259,168 +366,21 @@ pub struct KeycardDeposit {
     pub created_at: DateTime<Utc>,
 }
 
+// This manual `FromRow` is currently unreachable (no `query_as::<_, Payment>`
+// call sites exist), but is kept so any future adoption maps the SAME real
+// columns as `row_mappers::row_to_payment`. Delegating keeps a single source of
+// truth instead of two contradictory mappings.
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
-        use sqlx::Row;
-        Ok(Payment {
-            id: row.try_get("id")?,
-            booking_id: row.try_get("booking_id")?,
-            user_id: row.try_get("user_id")?,
-            payment_method: row.try_get("payment_method")?,
-            payment_status: row.try_get("payment_status")?,
-            subtotal: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("subtotal")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("subtotal")?;
-                val
-            },
-            service_charge: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("service_charge")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("service_charge")?;
-                val
-            },
-            tax_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("tax_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("tax_amount")?;
-                val
-            },
-            keycard_deposit: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("keycard_deposit")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("keycard_deposit")?;
-                val
-            },
-            total_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("total_amount")?;
-                val
-            },
-            transaction_reference: row.try_get("transaction_reference")?,
-            payment_gateway: row.try_get("payment_gateway")?,
-            card_last_four: row.try_get("card_last_four")?,
-            card_brand: row.try_get("card_brand")?,
-            bank_name: row.try_get("bank_name")?,
-            account_reference: row.try_get("account_reference")?,
-            notes: row.try_get("notes")?,
-            created_at: row.try_get("created_at")?,
-        })
+        Ok(crate::models::row_mappers::row_to_payment(row))
     }
 }
 
+// Unreachable manual `FromRow` (no `query_as::<_, Invoice>` call sites); kept and
+// delegated to `row_mappers::row_to_invoice` so a single mapping stays canonical.
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
-        use sqlx::Row;
-        Ok(Invoice {
-            id: row.try_get("id")?,
-            uuid: row.try_get("uuid")?,
-            invoice_number: row.try_get("invoice_number")?,
-            booking_id: row.try_get("booking_id")?,
-            user_id: row.try_get("user_id")?,
-            billing_name: row.try_get("billing_name")?,
-            billing_address: row.try_get("billing_address")?,
-            billing_email: row.try_get("billing_email")?,
-            invoice_date: row.try_get("invoice_date")?,
-            issue_date: row.try_get("issue_date")?,
-            due_date: row.try_get("due_date")?,
-            check_in_date: row.try_get("check_in_date")?,
-            check_out_date: row.try_get("check_out_date")?,
-            number_of_nights: row.try_get("number_of_nights")?,
-            room_number: row.try_get("room_number")?,
-            room_type: row.try_get("room_type")?,
-            subtotal: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("subtotal")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("subtotal")?;
-                val
-            },
-            tax_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("tax_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("tax_amount")?;
-                val
-            },
-            discount_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("discount_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("discount_amount")?;
-                val
-            },
-            total_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("total_amount")?;
-                val
-            },
-            paid_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("paid_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("paid_amount")?;
-                val
-            },
-            balance_due: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("balance_due")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("balance_due")?;
-                val
-            },
-            currency: row.try_get("currency")?,
-            status: row.try_get("status")?,
-            notes: row.try_get("notes")?,
-            created_at: row.try_get("created_at")?,
-            updated_at: row.try_get("updated_at")?,
-        })
+        Ok(crate::models::row_mappers::row_to_invoice(row))
     }
 }
 

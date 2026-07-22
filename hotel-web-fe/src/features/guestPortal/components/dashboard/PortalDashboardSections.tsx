@@ -42,6 +42,7 @@ import { GuestPortalDashboardService } from "../../api/guestPortalDashboard.serv
 import { PromotionCatalog, VoucherWallet } from "../../../promotions";
 import PortalNotificationPreferences from "../../../communications/components/PortalNotificationPreferences";
 import { PortalSupportTab } from "../PortalSupportTab";
+import { GuestPaymentPanel } from "../GuestPaymentPanel";
 import type {
   GuestPortalBenefitsResponse,
   GuestPortalBookingSummary,
@@ -781,6 +782,14 @@ export function PaymentsSection({ token }: { token: string }) {
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Guest self-service bookings are created `pending` and only flip to
+  // `confirmed` once a bank-transfer claim is staff-approved or a PayPal
+  // payment captures (see hotel-app-be modules/guest_booking). The portal
+  // doesn't expose a separate "amount due"/balance field on
+  // GuestPortalBookingSummary, so booking status `pending` is the signal
+  // used here to detect bookings still awaiting payment.
+  const [pendingBookings, setPendingBookings] = useState<GuestPortalBookingSummary[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(true);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -797,9 +806,26 @@ export function PaymentsSection({ token }: { token: string }) {
       setLoading(false);
     }
   }, [page, pageSize, token]);
+  const loadPendingBookings = useCallback(async () => {
+    setPendingLoading(true);
+    try {
+      const response = await GuestPortalDashboardService.bookings(
+        { page: 1, per_page: 50 },
+        token,
+      );
+      setPendingBookings(response.items.filter((booking) => booking.status === "pending"));
+    } catch {
+      setPendingBookings([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [token]);
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    void loadPendingBookings();
+  }, [loadPendingBookings]);
   return (
     <>
       <SectionHeading
@@ -807,6 +833,29 @@ export function PaymentsSection({ token }: { token: string }) {
         title="Payments & invoices"
         description="A record of payments and invoices from your stays."
       />
+      {!pendingLoading && pendingBookings.length > 0 ? (
+        <Stack spacing={2} sx={{ mb: 3 }}>
+          {pendingBookings.map((booking) => (
+            <Card key={booking.id} variant="outlined">
+              <CardContent>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+                  Booking {booking.booking_number} — awaiting payment
+                </Typography>
+                <GuestPaymentPanel
+                  mode="session"
+                  bookingId={booking.id}
+                  token={token}
+                  amount={booking.total_amount}
+                  onPaid={() => {
+                    void loadPendingBookings();
+                    void load();
+                  }}
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </Stack>
+      ) : null}
       {loading ? (
         <LoadingState />
       ) : error ? (

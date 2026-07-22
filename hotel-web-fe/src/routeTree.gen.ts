@@ -20,6 +20,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RbacRouteImport } from './routes/rbac'
 import { Route as PromotionsRouteImport } from './routes/promotions'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
 import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
 import { Route as OffersRouteImport } from './routes/offers'
 import { Route as NightAuditRouteImport } from './routes/night-audit'
@@ -103,6 +104,11 @@ const PromotionsRoute = PromotionsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentApprovalsRoute = PaymentApprovalsRouteImport.update({
+  id: '/payment-approvals',
+  path: '/payment-approvals',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnlineInventoryRoute = OnlineInventoryRouteImport.update({
@@ -274,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/night-audit': typeof NightAuditRoute
   '/offers': typeof OffersRoute
   '/online-inventory': typeof OnlineInventoryRoute
+  '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
   '/rbac': typeof RbacRoute
@@ -316,6 +323,7 @@ export interface FileRoutesByTo {
   '/night-audit': typeof NightAuditRoute
   '/offers': typeof OffersRoute
   '/online-inventory': typeof OnlineInventoryRoute
+  '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
   '/rbac': typeof RbacRoute
@@ -359,6 +367,7 @@ export interface FileRoutesById {
   '/night-audit': typeof NightAuditRoute
   '/offers': typeof OffersRoute
   '/online-inventory': typeof OnlineInventoryRoute
+  '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
   '/rbac': typeof RbacRoute
@@ -403,6 +412,7 @@ export interface FileRouteTypes {
     | '/night-audit'
     | '/offers'
     | '/online-inventory'
+    | '/payment-approvals'
     | '/profile'
     | '/promotions'
     | '/rbac'
@@ -445,6 +455,7 @@ export interface FileRouteTypes {
     | '/night-audit'
     | '/offers'
     | '/online-inventory'
+    | '/payment-approvals'
     | '/profile'
     | '/promotions'
     | '/rbac'
@@ -487,6 +498,7 @@ export interface FileRouteTypes {
     | '/night-audit'
     | '/offers'
     | '/online-inventory'
+    | '/payment-approvals'
     | '/profile'
     | '/promotions'
     | '/rbac'
@@ -530,6 +542,7 @@ export interface RootRouteChildren {
   NightAuditRoute: typeof NightAuditRoute
   OffersRoute: typeof OffersRoute
   OnlineInventoryRoute: typeof OnlineInventoryRoute
+  PaymentApprovalsRoute: typeof PaymentApprovalsRoute
   ProfileRoute: typeof ProfileRoute
   PromotionsRoute: typeof PromotionsRoute
   RbacRoute: typeof RbacRoute
@@ -627,6 +640,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-approvals': {
+      id: '/payment-approvals'
+      path: '/payment-approvals'
+      fullPath: '/payment-approvals'
+      preLoaderRoute: typeof PaymentApprovalsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/online-inventory': {
@@ -858,6 +878,7 @@ const rootRouteChildren: RootRouteChildren = {
   NightAuditRoute: NightAuditRoute,
   OffersRoute: OffersRoute,
   OnlineInventoryRoute: OnlineInventoryRoute,
+  PaymentApprovalsRoute: PaymentApprovalsRoute,
   ProfileRoute: ProfileRoute,
   PromotionsRoute: PromotionsRoute,
   RbacRoute: RbacRoute,

@@ -193,6 +193,11 @@ pub struct RateLimiters {
     pub guest_portal_support_mutation: KeyedRateLimiter,
     /// Shared ceiling for guest support mutations from one origin IP.
     pub guest_portal_support_mutation_ip: RateLimiter,
+    /// Authenticated guest payment-write attempts (session bank-transfer claim
+    /// and PayPal create-order/capture), keyed by guest id. Mirrors the
+    /// per-token payment limit (`guest_portal_token`) used by the unauthenticated
+    /// token payment routes: 5 attempts per 15 minutes.
+    pub guest_portal_payment: KeyedRateLimiter,
     /// Authenticated direct-booking submissions, keyed by guest.
     pub guest_portal_booking_create: KeyedRateLimiter,
     /// Shared ceiling for direct-booking submissions from one origin IP.
@@ -217,6 +222,7 @@ impl RateLimiters {
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
+            guest_portal_payment: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(120, 900)),
             guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),

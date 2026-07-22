@@ -453,6 +453,81 @@ pub async fn get_my_benefits(
     })
 }
 
+// ---------------------------------------------------------------------------
+// Guest-portal payment entry points (session- and token-authenticated)
+// ---------------------------------------------------------------------------
+
+/// Resolve a booking the authenticated guest owns, or a 404/403. Used by the
+/// session (`/me/*`) payment routes where the booking id comes from the body.
+async fn resolve_owned_booking(
+    pool: &DbPool,
+    guest_id: i64,
+    booking_id: i64,
+) -> Result<Booking, ApiError> {
+    let booking = GuestPortalRepository::find_booking_by_id(pool, booking_id).await?;
+    if booking.guest_id != guest_id {
+        return Err(ApiError::Forbidden(
+            "This booking does not belong to you.".to_string(),
+        ));
+    }
+    Ok(booking)
+}
+
+pub async fn session_bank_transfer(
+    pool: &DbPool,
+    guest_id: i64,
+    booking_id: i64,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
+    crate::services::payments::create_bank_transfer_claim(pool, &booking).await
+}
+
+pub async fn session_create_paypal_order(
+    pool: &DbPool,
+    guest_id: i64,
+    booking_id: i64,
+) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
+    let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
+    crate::services::payments::create_paypal_order(pool, &booking).await
+}
+
+pub async fn session_capture_paypal(
+    pool: &DbPool,
+    guest_id: i64,
+    booking_id: i64,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
+    crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+}
+
+pub async fn token_bank_transfer(
+    pool: &DbPool,
+    token: &str,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    crate::services::payments::create_bank_transfer_claim(pool, &booking).await
+}
+
+pub async fn token_create_paypal_order(
+    pool: &DbPool,
+    token: &str,
+) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    crate::services::payments::create_paypal_order(pool, &booking).await
+}
+
+pub async fn token_capture_paypal(
+    pool: &DbPool,
+    token: &str,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -445,9 +445,9 @@ pub async fn create(
         &mut tx,
         booking_id,
         None,
-        "confirmed",
+        "pending",
         contact.actor_user_id,
-        Some("Booking created in guest portal"),
+        Some("Booking created in guest portal (pending payment)"),
         json!({
             "source": PORTAL_SOURCE,
             "guest_id": guest_id,
@@ -480,10 +480,11 @@ pub async fn create(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        let subject = format!("Booking confirmation {booking_number}");
+        let subject = format!("Booking received {booking_number}");
         let body_html = format!(
-            "<p>Dear {},</p><p>Your reservation <strong>{}</strong> is confirmed.</p>\
-             <p>{} · {} to {} · {} {}</p><p>Payment is due at the hotel.</p>",
+            "<p>Dear {},</p><p>Your reservation <strong>{}</strong> has been received and is pending payment.</p>\
+             <p>{} · {} to {} · {} {}</p>\
+             <p>Please complete payment to confirm your booking. You can pay online from your guest portal or complete a bank transfer.</p>",
             html_escape(&contact.full_name),
             html_escape(&booking_number),
             html_escape(&quote.room_type_name),

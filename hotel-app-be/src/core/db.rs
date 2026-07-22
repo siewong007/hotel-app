@@ -8,7 +8,7 @@ const SQLITE_REQUIRED_DATA: &str = include_str!("../../database/sqlite/data.sql"
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 const SQLITE_FRESH_SEED: &str = include_str!("../../database/sqlite/seed.sql");
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const SQLITE_V1_CHECKSUM: &str = "67f448d748de3600298fd75447b48098b966a5aba9305a030be3075f337031f1";
+const SQLITE_V1_CHECKSUM: &str = "119ae390dd283d601125f1736269dec7e806844d011cb253d4eda515517fa59b";
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 fn sqlite_v1_checksum() -> String {
