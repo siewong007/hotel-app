@@ -14,7 +14,7 @@ const SQLITE_V1_CHECKSUM: &str = "119ae390dd283d601125f1736269dec7e806844d011cb2
 fn sqlite_v1_checksum() -> String {
     use sha2::{Digest, Sha256};
 
-    format!("{:x}", Sha256::digest(SQLITE_V1_BASELINE.as_bytes()))
+    hex::encode(Sha256::digest(SQLITE_V1_BASELINE.as_bytes()))
 }
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
