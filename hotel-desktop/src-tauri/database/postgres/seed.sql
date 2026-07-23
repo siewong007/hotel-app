@@ -113,8 +113,13 @@ DO $$
 DECLARE
     welcome_promotion_id BIGINT;
     deluxe_room_type_id BIGINT;
+    admin_user_id BIGINT;
 BEGIN
     IF (SELECT seed_property FROM v1_seed_state) THEN
+        -- The seeded administrator is not id 1; resolve it by username so the
+        -- promotion audit columns satisfy promotions_created_by_fkey.
+        SELECT id INTO admin_user_id FROM users WHERE username = 'admin';
+
         INSERT INTO promotions (
             slug, name, description, terms, status, promotion_kind, discount_type,
             discount_value, currency, min_nights, min_subtotal, per_guest_limit,
@@ -124,7 +129,7 @@ BEGIN
             'A one-time welcome voucher for 10% off a Deluxe Room.',
             'Valid for one eligible Deluxe Room booking. One voucher per guest.',
             'published', 'voucher', 'percentage', 10.00, 'USD', 1, 0, 1,
-            false, true, 1, 1
+            false, true, admin_user_id, admin_user_id
         ) ON CONFLICT (slug) DO NOTHING;
 
         SELECT id INTO welcome_promotion_id FROM promotions WHERE slug = 'welcome-deluxe-10';
@@ -312,14 +317,17 @@ INSERT INTO promotions (
     discount_value, currency, claim_starts_at, claim_ends_at, stay_starts_on,
     stay_ends_on, min_nights, min_subtotal, per_guest_limit, is_public,
     is_cancellable, created_by, updated_by
-) VALUES (
+)
+SELECT
     'july-deluxe-20-loyalty', 'July Deluxe Room 20% Voucher',
     'Redeem 2,000 loyalty points for 20% off one eligible Deluxe Room booking.',
     'One voucher per guest. Claim and stay dates must be in July 2026. Valid only for Deluxe Rooms.',
     'published', 'voucher', 'percentage', 20.00, 'USD',
     '2026-07-01 00:00:00+00', '2026-07-31 23:59:59+00', '2026-07-01', '2026-07-31',
-    1, 0, 1, false, true, 1, 1
-) ON CONFLICT (slug) DO NOTHING;
+    1, 0, 1, false, true, u.id, u.id
+FROM users u
+WHERE u.username = 'admin'
+ON CONFLICT (slug) DO NOTHING;
 
 INSERT INTO promotion_room_types (promotion_id, room_type_id)
 SELECT p.id, rt.id

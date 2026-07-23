@@ -1663,6 +1663,7 @@ CREATE TABLE online_inventory_allocations(
   stay_date TEXT NOT NULL,
   walk_in_reserved_rooms INTEGER NOT NULL DEFAULT 0 CHECK(walk_in_reserved_rooms >= 0),
   online_booking_enabled INTEGER NOT NULL DEFAULT 1,
+  custom_price NUMERIC CHECK(custom_price IS NULL OR custom_price > 0),
   updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   updated_at TEXT NOT NULL DEFAULT(datetime('now')),
   PRIMARY KEY(room_type_id, stay_date)

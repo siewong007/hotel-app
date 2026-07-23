@@ -19,6 +19,10 @@ pub fn routes() -> Router<DbPool> {
             post(handlers::quote_handler),
         )
         .route(
+            "/guest-portal/me/booking-voucher-options",
+            post(handlers::quote_with_eligible_vouchers_handler),
+        )
+        .route(
             "/guest-portal/me/availability",
             get(handlers::availability_socket_handler),
         )

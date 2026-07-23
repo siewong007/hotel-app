@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{Datelike, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
@@ -6,7 +8,7 @@ use super::models::{
     BookingInsert, GuestBookingConfirmation, GuestContact, OnlineInventoryAllocation,
     RoomTypeInventory, VoucherPricing,
 };
-use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
+use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers::{get_decimal, get_opt_decimal};
 use crate::sql_query;
@@ -103,7 +105,8 @@ impl GuestBookingRepository {
                 SELECT rt.id AS room_type_id, rt.code AS room_type_code, rt.name AS room_type_name,
                        COUNT(r.id)::bigint AS physical_available_rooms,
                        COALESCE(a.walk_in_reserved_rooms, 0) AS walk_in_reserved_rooms,
-                       COALESCE(a.online_booking_enabled, true) AS online_booking_enabled
+                       COALESCE(a.online_booking_enabled, true) AS online_booking_enabled,
+                       a.custom_price::text AS custom_price
                 FROM room_types rt
                 LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = true
                   AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
@@ -112,14 +115,15 @@ impl GuestBookingRepository {
                     AND b.check_in_date < $2 AND b.check_out_date > $1)
                 LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = $1
                 WHERE rt.is_active = true
-                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled
+                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled, a.custom_price
                 ORDER BY rt.name
             "#,
             sqlite: r#"
                 SELECT rt.id AS room_type_id, rt.code AS room_type_code, rt.name AS room_type_name,
                        COUNT(r.id) AS physical_available_rooms,
                        COALESCE(a.walk_in_reserved_rooms, 0) AS walk_in_reserved_rooms,
-                       COALESCE(a.online_booking_enabled, 1) AS online_booking_enabled
+                       COALESCE(a.online_booking_enabled, 1) AS online_booking_enabled,
+                       CAST(a.custom_price AS TEXT) AS custom_price
                 FROM room_types rt
                 LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = 1
                   AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
@@ -128,7 +132,7 @@ impl GuestBookingRepository {
                     AND b.check_in_date < ?2 AND b.check_out_date > ?1)
                 LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = ?1
                 WHERE rt.is_active = 1
-                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled
+                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled, a.custom_price
                 ORDER BY rt.name
             "#
         ))
@@ -151,6 +155,7 @@ impl GuestBookingRepository {
                     physical_available_rooms: physical,
                     walk_in_reserved_rooms: reserved,
                     online_booking_enabled: enabled,
+                    custom_price: get_opt_decimal(&row, "custom_price"),
                     online_available_rooms: if enabled {
                         (physical - i64::from(reserved)).max(0)
                     } else {
@@ -167,18 +172,48 @@ impl GuestBookingRepository {
         stay_date: NaiveDate,
         reserved: i32,
         enabled: bool,
+        custom_price: Option<Decimal>,
         updated_by: i64,
     ) -> Result<(), ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
         Self::lock_room_type_tx(&mut tx, room_type_id).await?;
         sqlx::query(sql_query!(
-            postgres: "INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, updated_by) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = EXCLUDED.walk_in_reserved_rooms, online_booking_enabled = EXCLUDED.online_booking_enabled, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP",
-            sqlite: "INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, updated_by) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = excluded.walk_in_reserved_rooms, online_booking_enabled = excluded.online_booking_enabled, updated_by = excluded.updated_by, updated_at = datetime('now')"
+            postgres: "INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, custom_price, updated_by) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = EXCLUDED.walk_in_reserved_rooms, online_booking_enabled = EXCLUDED.online_booking_enabled, custom_price = EXCLUDED.custom_price, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP",
+            sqlite: "INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, custom_price, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = excluded.walk_in_reserved_rooms, online_booking_enabled = excluded.online_booking_enabled, custom_price = excluded.custom_price, updated_by = excluded.updated_by, updated_at = datetime('now')"
         ))
-        .bind(room_type_id).bind(stay_date).bind(reserved).bind(enabled).bind(updated_by)
+        .bind(room_type_id).bind(stay_date).bind(reserved).bind(enabled)
+        .bind(opt_decimal_to_db(custom_price)).bind(updated_by)
         .execute(&mut *tx).await.map_err(ApiError::from)?;
         tx.commit().await.map_err(ApiError::from)?;
         Ok(())
+    }
+
+    pub async fn online_custom_prices_for_stay(
+        pool: &DbPool,
+        room_type_id: i64,
+        check_in: NaiveDate,
+        check_out: NaiveDate,
+    ) -> Result<HashMap<NaiveDate, Decimal>, ApiError> {
+        let rows = sqlx::query(sql_query!(
+            postgres: "SELECT stay_date, custom_price::text AS custom_price FROM online_inventory_allocations WHERE room_type_id = $1 AND stay_date >= $2 AND stay_date < $3 AND custom_price IS NOT NULL",
+            sqlite: "SELECT stay_date, CAST(custom_price AS TEXT) AS custom_price FROM online_inventory_allocations WHERE room_type_id = ?1 AND stay_date >= ?2 AND stay_date < ?3 AND custom_price IS NOT NULL"
+        ))
+        .bind(room_type_id)
+        .bind(check_in)
+        .bind(check_out)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                (
+                    row.try_get("stay_date").unwrap_or(check_in),
+                    get_decimal(&row, "custom_price"),
+                )
+            })
+            .collect())
     }
 
     async fn lock_room_type_tx(
@@ -491,6 +526,63 @@ impl GuestBookingRepository {
             discount_value: get_decimal(&row, "discount_value"),
             max_discount_amount: get_opt_decimal(&row, "max_discount_amount"),
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn eligible_voucher_ids(
+        pool: &DbPool,
+        guest_id: i64,
+        room_type_id: i64,
+        check_in: NaiveDate,
+        check_out: NaiveDate,
+        nights: i64,
+        subtotal: Decimal,
+        currency: &str,
+    ) -> Result<Vec<i64>, ApiError> {
+        sqlx::query_scalar(sql_query!(
+            postgres: r#"
+                SELECT v.id
+                FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
+                WHERE v.guest_id = $1 AND v.status = 'available'
+                  AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)
+                  AND p.status = 'published'
+                  AND (p.stay_starts_on IS NULL OR p.stay_starts_on <= $3)
+                  AND (p.stay_ends_on IS NULL OR p.stay_ends_on >= $4)
+                  AND (p.min_nights IS NULL OR p.min_nights <= $5)
+                  AND (p.max_nights IS NULL OR p.max_nights >= $5)
+                  AND p.min_subtotal <= $6
+                  AND p.currency = $7
+                  AND (NOT EXISTS (SELECT 1 FROM promotion_room_types pr0 WHERE pr0.promotion_id = p.id)
+                    OR EXISTS (SELECT 1 FROM promotion_room_types pr WHERE pr.promotion_id = p.id AND pr.room_type_id = $2))
+                ORDER BY v.id
+            "#,
+            sqlite: r#"
+                SELECT v.id
+                FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
+                WHERE v.guest_id = ?1 AND v.status = 'available'
+                  AND (v.expires_at IS NULL OR v.expires_at > datetime('now'))
+                  AND p.status = 'published'
+                  AND (p.stay_starts_on IS NULL OR p.stay_starts_on <= ?3)
+                  AND (p.stay_ends_on IS NULL OR p.stay_ends_on >= ?4)
+                  AND (p.min_nights IS NULL OR p.min_nights <= ?5)
+                  AND (p.max_nights IS NULL OR p.max_nights >= ?5)
+                  AND p.min_subtotal <= ?6
+                  AND p.currency = ?7
+                  AND (NOT EXISTS (SELECT 1 FROM promotion_room_types pr0 WHERE pr0.promotion_id = p.id)
+                    OR EXISTS (SELECT 1 FROM promotion_room_types pr WHERE pr.promotion_id = p.id AND pr.room_type_id = ?2))
+                ORDER BY v.id
+            "#
+        ))
+        .bind(guest_id)
+        .bind(room_type_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(nights)
+        .bind(decimal_to_db(subtotal))
+        .bind(currency)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)
     }
 
     pub async fn find_by_request_id(

@@ -194,10 +194,10 @@ impl GuestPortalSessionRepository {
                     .try_get::<Option<String>, _>("completed_payment_method")
                     .ok()
                     .flatten(),
-                completed_payment_amount: row
-                    .try_get::<Option<rust_decimal::Decimal>, _>("completed_payment_amount")
-                    .ok()
-                    .flatten(),
+                completed_payment_amount: row_mappers::get_opt_decimal(
+                    row,
+                    "completed_payment_amount",
+                ),
                 can_cancel: false,
                 cancellation_unavailable_reason: if row
                     .try_get::<bool, _>("has_non_cancellable_voucher")
@@ -376,14 +376,25 @@ impl GuestPortalSessionRepository {
             .await
             .map_err(|e| ApiError::Database(format!("Membership lookup failed: {}", e)))?;
 
-        Ok(row.map(|row| GuestPortalMembership {
-            member_number: row.try_get("member_number").unwrap_or_default(),
-            tier_name: row.try_get("tier_name").unwrap_or_default(),
-            tier_level: row.try_get("tier_level").unwrap_or_default(),
-            points_balance: row.try_get("points_balance").unwrap_or_default(),
-            lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
-            status: row.try_get("status").unwrap_or_default(),
-        }))
+        row.map(|row| {
+            // PostgreSQL promotes SUM(INTEGER) to BIGINT. Decode the ledger
+            // balance as i64 in both database modes, then fail explicitly if a
+            // corrupt/out-of-range balance cannot fit the public i32 contract.
+            let points_balance: i64 = row.try_get("points_balance").map_err(ApiError::from)?;
+            let points_balance = i32::try_from(points_balance).map_err(|_| {
+                ApiError::Internal("Loyalty points balance is out of range.".to_string())
+            })?;
+
+            Ok(GuestPortalMembership {
+                member_number: row.try_get("member_number").unwrap_or_default(),
+                tier_name: row.try_get("tier_name").unwrap_or_default(),
+                tier_level: row.try_get("tier_level").unwrap_or_default(),
+                points_balance,
+                lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
+                status: row.try_get("status").unwrap_or_default(),
+            })
+        })
+        .transpose()
     }
 
     /// Last 20 points-activity rows for the guest's membership, newest first.

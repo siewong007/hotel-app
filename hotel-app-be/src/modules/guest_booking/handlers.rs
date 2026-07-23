@@ -10,8 +10,8 @@ use axum::{
 use super::availability::{AvailabilityHub, serve_socket};
 use super::models::{
     BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest, GuestBookingConfirmation,
-    GuestBookingOffer, GuestBookingQuote, OnlineInventoryAllocation, OnlineInventoryQuery,
-    UpdateOnlineInventoryRequest,
+    GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions, OnlineInventoryAllocation,
+    OnlineInventoryQuery, UpdateOnlineInventoryRequest,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -61,6 +61,19 @@ pub async fn quote_handler(
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
     require_read_capacity(&limiters, guest_id).await?;
     Ok(Json(service::quote(&pool, guest_id, request).await?))
+}
+
+pub async fn quote_with_eligible_vouchers_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Json(request): Json<BookingQuoteRequest>,
+) -> Result<Json<GuestBookingVoucherOptions>, ApiError> {
+    let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
+    require_read_capacity(&limiters, guest_id).await?;
+    Ok(Json(
+        service::quote_with_eligible_vouchers(&pool, guest_id, request).await?,
+    ))
 }
 
 pub async fn list_online_inventory_handler(

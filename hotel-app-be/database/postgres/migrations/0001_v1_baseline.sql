@@ -3626,9 +3626,11 @@ CREATE TABLE public.online_inventory_allocations (
     stay_date date NOT NULL,
     walk_in_reserved_rooms integer DEFAULT 0 NOT NULL,
     online_booking_enabled boolean DEFAULT true NOT NULL,
+    custom_price numeric(10,2),
     updated_by bigint,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT online_inventory_allocations_walk_in_reserved_rooms_check CHECK ((walk_in_reserved_rooms >= 0))
+    CONSTRAINT online_inventory_allocations_walk_in_reserved_rooms_check CHECK ((walk_in_reserved_rooms >= 0)),
+    CONSTRAINT online_inventory_allocations_custom_price_check CHECK (((custom_price IS NULL) OR (custom_price > 0)))
 );
 
 
@@ -3732,15 +3734,27 @@ CREATE TABLE public.payments (
 
 COMMENT ON TABLE public.payments IS 'Payment transactions';
 
+--
+-- Name: payment_receipt_requests; Type: TABLE; Schema: public; Owner: -
+--
+
 CREATE TABLE public.payment_receipt_requests (
-    payment_id bigint PRIMARY KEY REFERENCES public.payments(id) ON DELETE CASCADE,
-    requested_by bigint REFERENCES public.users(id) ON DELETE SET NULL,
+    payment_id bigint NOT NULL,
+    requested_by bigint,
     request_message text,
-    requested_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    requested_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     uploaded_at timestamp with time zone,
     receipt_path text,
     receipt_content_type character varying(100)
 );
+
+
+--
+-- Name: TABLE payment_receipt_requests; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.payment_receipt_requests IS 'Guest receipt upload requests raised against a payment';
+
 
 
 --
@@ -5755,6 +5769,14 @@ ALTER TABLE ONLY public.passkeys
 
 ALTER TABLE ONLY public.passkeys
     ADD CONSTRAINT passkeys_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_receipt_requests payment_receipt_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_receipt_requests
+    ADD CONSTRAINT payment_receipt_requests_pkey PRIMARY KEY (payment_id);
 
 
 --
@@ -9023,6 +9045,22 @@ ALTER TABLE ONLY public.passkey_challenges
 
 ALTER TABLE ONLY public.passkeys
     ADD CONSTRAINT passkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_receipt_requests payment_receipt_requests_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_receipt_requests
+    ADD CONSTRAINT payment_receipt_requests_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES public.payments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_receipt_requests payment_receipt_requests_requested_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_receipt_requests
+    ADD CONSTRAINT payment_receipt_requests_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   AppBar,
   BottomNavigation,
@@ -14,8 +14,10 @@ import HotelOutlinedIcon from '@mui/icons-material/HotelOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
-import { Link, useLocation } from '../../../router';
+import { Link, useLocation, useNavigate } from '../../../router';
 import { GuestPortalThemeProvider } from '../theme/GuestPortalThemeProvider';
+import { getValidPortalToken, PORTAL_TOKEN_CHANGE_EVENT } from '../api/portalTokenStore';
+import { GuestPortalNotificationBell } from './GuestPortalNotificationBell';
 
 interface GuestPortalShellProps {
   children: ReactNode;
@@ -59,8 +61,23 @@ function currentGuestSection(search: string): GuestSection {
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children }: GuestPortalShellProps) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [portalToken, setPortalToken] = useState<string | null>(() => getValidPortalToken());
   const activeSection = currentGuestSection(location.search);
   const mobileValue = mobileLinks.find((link) => link.section === activeSection)?.to ?? DASHBOARD_LINK;
+
+  useEffect(() => {
+    const syncPortalToken = () => setPortalToken(getValidPortalToken());
+    window.addEventListener(PORTAL_TOKEN_CHANGE_EVENT, syncPortalToken);
+    return () => window.removeEventListener(PORTAL_TOKEN_CHANGE_EVENT, syncPortalToken);
+  }, []);
+
+  const reviewReceiptRequest = () => {
+    const params = new URLSearchParams(location.search);
+    params.delete('view');
+    params.set('section', 'stays');
+    navigate(`/guest-portal?${params.toString()}`);
+  };
 
   return (
     <GuestPortalThemeProvider>
@@ -134,6 +151,11 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
                 </Button>
               </Stack>
 
+              <GuestPortalNotificationBell
+                token={portalToken}
+                onReviewReceipt={reviewReceiptRequest}
+              />
+
               <Button
                 component={Link}
                 to={BOOKING_LINK}
@@ -152,7 +174,8 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
                   '&:focus-visible': { outline: '3px solid #FFFFFF', outlineOffset: 3 },
                 }}
               >
-                Book a stay
+                <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Book</Box>
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Book a stay</Box>
               </Button>
             </Toolbar>
           </Container>

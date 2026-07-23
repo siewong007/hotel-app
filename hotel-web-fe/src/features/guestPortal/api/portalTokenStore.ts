@@ -13,6 +13,14 @@
 
 const GUEST_PORTAL_TOKEN_KEY = 'guestPortalToken';
 const GUEST_PORTAL_TOKEN_EXPIRES_KEY = 'guestPortalTokenExpiresAt';
+/** Lets the guest shell react when the short-lived portal session is renewed. */
+export const PORTAL_TOKEN_CHANGE_EVENT = 'guest-portal:token-changed';
+
+function notifyPortalTokenChange(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PORTAL_TOKEN_CHANGE_EVENT));
+  }
+}
 
 export function getPortalToken(): string | null {
   try {
@@ -48,6 +56,7 @@ export function setPortalToken(token: string, expiresAt: string): void {
   try {
     window.sessionStorage.setItem(GUEST_PORTAL_TOKEN_KEY, token);
     window.sessionStorage.setItem(GUEST_PORTAL_TOKEN_EXPIRES_KEY, expiresAt);
+    notifyPortalTokenChange();
   } catch {
     // sessionStorage unavailable (e.g. private browsing edge cases) — the
     // portal session simply won't persist across a reload in that case.
@@ -58,6 +67,7 @@ export function clearPortalToken(): void {
   try {
     window.sessionStorage.removeItem(GUEST_PORTAL_TOKEN_KEY);
     window.sessionStorage.removeItem(GUEST_PORTAL_TOKEN_EXPIRES_KEY);
+    notifyPortalTokenChange();
   } catch {
     // no-op
   }

@@ -6,8 +6,8 @@ use uuid::Uuid;
 use super::availability::{AvailabilityEvent, AvailabilityHub};
 use super::models::{
     BookingInsert, BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest,
-    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, NightlyRate,
-    OnlineInventoryAllocation, OnlineInventoryQuery, RoomTypeInventory,
+    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions,
+    NightlyRate, OnlineInventoryAllocation, OnlineInventoryQuery, RoomTypeInventory,
     UpdateOnlineInventoryRequest, VoucherPricing,
 };
 use super::repository::GuestBookingRepository as Repository;
@@ -45,15 +45,23 @@ async fn nightly_rates(
     room_type: &RoomTypeInventory,
     stay: ValidatedStay,
 ) -> Result<Vec<NightlyRate>, ApiError> {
+    let custom_prices = Repository::online_custom_prices_for_stay(
+        pool,
+        room_type.id,
+        stay.check_in_date,
+        stay.check_out_date,
+    )
+    .await?;
     let mut rates = Vec::new();
     let mut date = stay.check_in_date;
     while date < stay.check_out_date {
-        let (rate_plan_code, amount) =
-            if let Some(rate) = Repository::applicable_rate(pool, room_type.id, date).await? {
-                rate
-            } else {
-                ("BASE".to_string(), base_rate_for_date(room_type, date))
-            };
+        let (rate_plan_code, amount) = if let Some(custom_price) = custom_prices.get(&date) {
+            ("ONLINE_CUSTOM".to_string(), *custom_price)
+        } else if let Some(rate) = Repository::applicable_rate(pool, room_type.id, date).await? {
+            rate
+        } else {
+            ("BASE".to_string(), base_rate_for_date(room_type, date))
+        };
         rates.push(NightlyRate {
             date,
             rate_plan_code,
@@ -265,6 +273,37 @@ pub async fn quote(
     quote_for_inventory(pool, guest_id, room_type, stay, request.voucher_id).await
 }
 
+pub async fn quote_with_eligible_vouchers(
+    pool: &DbPool,
+    guest_id: i64,
+    request: BookingQuoteRequest,
+) -> Result<GuestBookingVoucherOptions, ApiError> {
+    let quote = quote(
+        pool,
+        guest_id,
+        BookingQuoteRequest {
+            voucher_id: None,
+            ..request
+        },
+    )
+    .await?;
+    let eligible_voucher_ids = Repository::eligible_voucher_ids(
+        pool,
+        guest_id,
+        quote.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+        (quote.check_out_date - quote.check_in_date).num_days(),
+        quote.subtotal,
+        &quote.currency,
+    )
+    .await?;
+    Ok(GuestBookingVoucherOptions {
+        quote,
+        eligible_voucher_ids,
+    })
+}
+
 pub async fn list_online_inventory(
     pool: &DbPool,
     query: OnlineInventoryQuery,
@@ -286,6 +325,18 @@ pub async fn update_online_inventory(
             "Walk-in reserve cannot be negative".to_string(),
         ));
     }
+    if let Some(custom_price) = request.custom_price {
+        if custom_price <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "Custom online price must be greater than zero".to_string(),
+            ));
+        }
+        if custom_price.scale() > 2 {
+            return Err(ApiError::BadRequest(
+                "Custom online price can have at most two decimal places".to_string(),
+            ));
+        }
+    }
     let stay_date = NaiveDate::parse_from_str(stay_date.trim(), "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid stay date. Use YYYY-MM-DD".to_string()))?;
     Repository::upsert_online_inventory(
@@ -294,6 +345,7 @@ pub async fn update_online_inventory(
         stay_date,
         request.walk_in_reserved_rooms,
         request.online_booking_enabled,
+        request.custom_price,
         actor_id,
     )
     .await?;
