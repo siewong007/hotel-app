@@ -14,6 +14,12 @@ use sqlx::Row;
 
 pub struct GuestRepository;
 
+#[derive(Debug, Clone, Copy)]
+pub struct GuestPortalAccountTransfer {
+    pub user_id: i64,
+    pub previous_guest_id: Option<i64>,
+}
+
 fn unique_violation_matches(error: &sqlx::Error, constraint_name: &str) -> bool {
     let Some(database_error) = error.as_database_error() else {
         return false;
@@ -295,9 +301,13 @@ impl GuestRepository {
             (SELECT username FROM users u
                 WHERE u.guest_id = guests.id
                   AND u.deleted_at IS NULL
-                  AND u.is_active = true
-                ORDER BY u.id
+                ORDER BY u.is_active DESC, u.id
                 LIMIT 1) AS account_username,
+            (SELECT is_active FROM users u
+                WHERE u.guest_id = guests.id
+                  AND u.deleted_at IS NULL
+                ORDER BY u.is_active DESC, u.id
+                LIMIT 1) AS account_is_active,
             (SELECT COUNT(*) FROM bookings b
                 WHERE b.guest_id = guests.id AND b.status != 'voided') AS bookings_count,
             (SELECT MAX(b.check_in_date) FROM bookings b
@@ -316,9 +326,13 @@ impl GuestRepository {
             (SELECT username FROM users u
                 WHERE u.guest_id = guests.id
                   AND u.deleted_at IS NULL
-                  AND u.is_active = true
-                ORDER BY u.id
+                ORDER BY u.is_active DESC, u.id
                 LIMIT 1) AS account_username,
+            (SELECT is_active FROM users u
+                WHERE u.guest_id = guests.id
+                  AND u.deleted_at IS NULL
+                ORDER BY u.is_active DESC, u.id
+                LIMIT 1) AS account_is_active,
             (SELECT COUNT(*) FROM bookings b
                 WHERE b.guest_id = guests.id AND b.status != 'voided') AS bookings_count,
             (SELECT MAX(b.check_in_date) FROM bookings b
@@ -1405,6 +1419,83 @@ impl GuestRepository {
                     ApiError::Database(err_msg)
                 }
             })
+    }
+
+    pub async fn transfer_portal_account(
+        pool: &DbPool,
+        target_guest_id: i64,
+        username: &str,
+    ) -> Result<GuestPortalAccountTransfer, ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+        let target_is_active: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM guests WHERE id = $1 AND deleted_at IS NULL AND is_active = true",
+        )
+        .bind(target_guest_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        if target_is_active.is_none() {
+            return Err(ApiError::BadRequest(
+                "Guest portal accounts can only be assigned to an active guest".to_string(),
+            ));
+        }
+
+        let account: Option<(i64, Option<i64>)> = sqlx::query_as(
+            "SELECT id, guest_id FROM users \
+             WHERE username = $1 AND user_type = 'guest' AND is_active = true AND deleted_at IS NULL",
+        )
+        .bind(username)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        let Some((user_id, previous_guest_id)) = account else {
+            return Err(ApiError::NotFound(
+                "Active guest portal account not found".to_string(),
+            ));
+        };
+
+        let existing_target_account: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM users \
+             WHERE guest_id = $1 AND id <> $2 AND user_type = 'guest' \
+               AND is_active = true AND deleted_at IS NULL \
+             ORDER BY id LIMIT 1",
+        )
+        .bind(target_guest_id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        if existing_target_account.is_some() {
+            return Err(ApiError::Conflict(
+                "This guest already has an active guest portal account".to_string(),
+            ));
+        }
+
+        // Portal bearer sessions are scoped to the guest profile rather than
+        // the login user. Revoke the old profile's sessions before assigning
+        // the login so a transfer cannot leave the previous owner signed in.
+        if let Some(previous_guest_id) = previous_guest_id {
+            sqlx::query("DELETE FROM guest_portal_sessions WHERE guest_id = $1")
+                .bind(previous_guest_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(ApiError::from)?;
+        }
+
+        sqlx::query("UPDATE users SET guest_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
+            .bind(target_guest_id)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(GuestPortalAccountTransfer {
+            user_id,
+            previous_guest_id,
+        })
     }
 
     pub async fn has_link(pool: &DbPool, user_id: i64, guest_id: i64) -> Result<bool, ApiError> {

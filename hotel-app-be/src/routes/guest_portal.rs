@@ -10,7 +10,8 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{ConnectInfo, Extension, Path, State},
+    extract::DefaultBodyLimit,
+    extract::{ConnectInfo, Extension, Multipart, Path, State},
     http::HeaderMap,
     response::Json,
     routing::{get, post},
@@ -24,6 +25,8 @@ use std::net::SocketAddr;
 /// routes require a valid guest bearer session.
 pub fn routes() -> Router<DbPool> {
     Router::new()
+        // Receipt proofs may be up to 10MB; the default multipart limit is smaller.
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .route("/guest-portal/verify", post(verify_booking))
         .route("/guest-portal/booking/{token}", get(get_booking))
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
@@ -63,6 +66,10 @@ pub fn routes() -> Router<DbPool> {
             post(handlers::guest_portal::session_bank_transfer),
         )
         .route(
+            "/guest-portal/me/payments/{payment_id}/receipt",
+            post(handlers::guest_portal::session_upload_payment_receipt),
+        )
+        .route(
             "/guest-portal/me/payments/paypal/create-order",
             post(handlers::guest_portal::session_paypal_create_order),
         )
@@ -74,6 +81,10 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/guest-portal/booking/{token}/payments/bank-transfer",
             post(token_bank_transfer),
+        )
+        .route(
+            "/guest-portal/booking/{token}/payments/{payment_id}/receipt",
+            post(token_upload_payment_receipt),
         )
         .route(
             "/guest-portal/booking/{token}/payments/paypal/create-order",
@@ -115,6 +126,21 @@ async fn token_bank_transfer(
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     check_token_payment_rate_limit(&limiters, &path.0).await?;
     handlers::guest_portal::token_bank_transfer(State(pool), path).await
+}
+
+async fn token_upload_payment_receipt(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    Path((token, payment_id)): Path<(String, i64)>,
+    multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    check_token_payment_rate_limit(&limiters, &token).await?;
+    handlers::guest_portal::token_upload_payment_receipt(
+        State(pool),
+        Path((token, payment_id)),
+        multipart,
+    )
+    .await
 }
 
 async fn token_paypal_create_order(

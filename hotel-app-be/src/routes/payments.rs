@@ -52,6 +52,14 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments", post(create_payment))
         // Guest-payment claim review queue (staff)
         .route("/admin/payments/pending", get(list_pending_payments))
+        .route(
+            "/admin/payments/history",
+            get(list_payment_approval_history),
+        )
+        .route(
+            "/admin/payments/{payment_id}/receipt",
+            get(download_payment_receipt),
+        )
         .route("/admin/payments/{payment_id}/approve", put(approve_payment))
         .route("/admin/payments/{payment_id}/reject", put(reject_payment))
         .route(
@@ -191,6 +199,24 @@ async fn list_pending_payments(
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::list_pending_payments_handler(State(pool), query).await
+}
+
+async fn list_payment_approval_history(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    query: Query<models::PendingPaymentsQuery>,
+) -> Result<Json<models::PendingPaymentPage>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    handlers::payments::list_payment_approval_history_handler(State(pool), query).await
+}
+
+async fn download_payment_receipt(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<axum::response::Response, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    handlers::payments::download_payment_receipt_handler(State(pool), path).await
 }
 
 async fn approve_payment(

@@ -32,6 +32,20 @@ export function useApprovePayment() {
   });
 }
 
+export function usePaymentApprovalHistory(
+  filters: PaymentApprovalsFilters = { page: 1, pageSize: 25 },
+  enabled = true,
+) {
+  const { page, pageSize } = filters;
+  return useQuery({
+    queryKey: [...queryKeys.paymentApprovals.all, 'history', page, pageSize],
+    queryFn: () => PaymentApprovalsService.listHistory({ page, perPage: pageSize }),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: queryStaleTime.short,
+  });
+}
+
 export function useRejectPayment() {
   const queryClient = useQueryClient();
   return useMutation({

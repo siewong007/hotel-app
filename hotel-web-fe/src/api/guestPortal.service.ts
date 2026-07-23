@@ -48,6 +48,12 @@ export class GuestPortalService {
     return await api.post(`guest-portal/booking/${token}/payments/bank-transfer`).json();
   }
 
+  static async uploadPaymentReceipt(token: string, paymentId: number, file: File): Promise<void> {
+    const form = new FormData();
+    form.append('file', file);
+    await api.post(`guest-portal/booking/${token}/payments/${paymentId}/receipt`, { body: form });
+  }
+
   static async createPaypalOrder(token: string): Promise<PaypalCreateOrderResponse> {
     return await api
       .post(`guest-portal/booking/${token}/payments/paypal/create-order`)

@@ -428,6 +428,15 @@ CREATE TABLE payments(
   void_reason TEXT,
   created_at TEXT DEFAULT(datetime('now'))
 );
+CREATE TABLE payment_receipt_requests(
+  payment_id INTEGER PRIMARY KEY REFERENCES payments(id) ON DELETE CASCADE,
+  requested_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  request_message TEXT,
+  requested_at TEXT NOT NULL DEFAULT(datetime('now')),
+  uploaded_at TEXT,
+  receipt_path TEXT,
+  receipt_content_type TEXT
+);
 CREATE TABLE invoices(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   invoice_number TEXT UNIQUE NOT NULL,

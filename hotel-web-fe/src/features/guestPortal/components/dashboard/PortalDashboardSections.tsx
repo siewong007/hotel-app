@@ -14,11 +14,16 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
   Grid,
   List,
   ListItem,
   ListItemText,
   Paper,
+  Radio,
+  RadioGroup,
   Stack,
   Table,
   TableBody,
@@ -39,6 +44,7 @@ import DiamondOutlinedIcon from "@mui/icons-material/DiamondOutlined";
 import EastOutlinedIcon from "@mui/icons-material/EastOutlined";
 import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
 import { GuestPortalDashboardService } from "../../api/guestPortalDashboard.service";
+import { useGuestLoyaltySocket } from "../../hooks/useGuestLoyaltySocket";
 import { PromotionCatalog, VoucherWallet } from "../../../promotions";
 import PortalNotificationPreferences from "../../../communications/components/PortalNotificationPreferences";
 import { PortalSupportTab } from "../PortalSupportTab";
@@ -55,12 +61,20 @@ import {
   formatPortalCurrency,
   formatPortalDate,
   humanizePortalStatus,
+  pointsActivityContext,
   type PortalSection,
 } from "./dashboardUtils";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const FOREST = "#06110e";
 const GOLD = "#d9b572";
+const REFUND_REASONS = [
+  "Change of plans",
+  "Booking made by mistake",
+  "Travel disruption",
+  "Found another accommodation",
+  "Other",
+] as const;
 
 function LoadingState({ label = "Loading your details…" }: { label?: string }) {
   return (
@@ -157,7 +171,7 @@ function CancellationUnavailable({
   return (
     <Box role="status" aria-describedby={reasonId}>
       <Typography variant="body2" color="text.secondary" fontWeight={600}>
-        Cancellation unavailable
+        Refund unavailable
       </Typography>
       <Typography id={reasonId} variant="caption" color="text.secondary">
         {reason}
@@ -166,7 +180,7 @@ function CancellationUnavailable({
   );
 }
 
-function CancelBookingDialog({
+function RefundBookingDialog({
   booking,
   open,
   isSubmitting,
@@ -186,17 +200,23 @@ function CancelBookingDialog({
   const prefersReducedMotion = useMediaQuery(
     "(prefers-reduced-motion: reduce)",
   );
-  const [reason, setReason] = useState("");
+  const [selectedReason, setSelectedReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
 
   useEffect(() => {
-    if (open) setReason("");
+    if (open) {
+      setSelectedReason("");
+      setCustomReason("");
+    }
   }, [booking?.id, open]);
 
   if (!booking) return null;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await onConfirm(reason.trim());
+    const reason = selectedReason === "Other" ? customReason.trim() : selectedReason;
+    if (!reason) return;
+    await onConfirm(reason);
   };
 
   return (
@@ -206,7 +226,7 @@ function CancelBookingDialog({
       fullScreen={fullScreen}
       fullWidth
       maxWidth="xs"
-      aria-describedby="cancel-booking-details"
+      aria-describedby="refund-booking-details"
       transitionDuration={
         prefersReducedMotion ? 0 : { enter: 180, exit: 140 }
       }
@@ -214,37 +234,53 @@ function CancelBookingDialog({
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
         <DialogTitle sx={{ color: FOREST, fontWeight: 700 }}>
-          Cancel booking {booking.booking_number}?
+          Request refund for {booking.booking_number}?
         </DialogTitle>
         <DialogContent>
-          <Typography id="cancel-booking-details" color="text.secondary">
+          <Typography id="refund-booking-details" color="text.secondary">
             {formatPortalDate(booking.check_in_date)} —{" "}
             {formatPortalDate(booking.check_out_date)} ·{" "}
             {formatPortalCurrency(booking.total_amount)}
           </Typography>
           <Alert severity="warning" sx={{ mt: 2 }}>
-            This action cannot be undone online.
+            Your booking will be cancelled and this request cannot be undone online.
           </Alert>
           {error ? (
             <Alert severity="error" role="alert" sx={{ mt: 2 }}>
               {error}
             </Alert>
           ) : null}
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="Reason (optional)"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            inputProps={{
-              "aria-label": "Reason for cancellation (optional)",
-              maxLength: 1000,
-            }}
-            helperText={`${1000 - reason.length} characters remaining`}
-            disabled={isSubmitting}
-            sx={{ mt: 2 }}
-          />
+          <FormControl component="fieldset" fullWidth sx={{ mt: 2 }}>
+            <FormLabel component="legend">Reason for refund</FormLabel>
+            <RadioGroup
+              value={selectedReason}
+              onChange={(event) => setSelectedReason(event.target.value)}
+            >
+              {REFUND_REASONS.map((reason) => (
+                <FormControlLabel
+                  key={reason}
+                  value={reason}
+                  control={<Radio />}
+                  label={reason}
+                  disabled={isSubmitting}
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
+          {selectedReason === "Other" ? (
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Custom refund reason"
+              value={customReason}
+              onChange={(event) => setCustomReason(event.target.value)}
+              inputProps={{ maxLength: 1000 }}
+              helperText={`${1000 - customReason.length} characters remaining`}
+              disabled={isSubmitting}
+              sx={{ mt: 1 }}
+            />
+          ) : null}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
           <Button
@@ -259,7 +295,11 @@ function CancelBookingDialog({
             type="submit"
             color="error"
             variant="contained"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              !selectedReason ||
+              (selectedReason === "Other" && !customReason.trim())
+            }
             sx={{ minHeight: 44 }}
             startIcon={
               isSubmitting ? (
@@ -267,7 +307,7 @@ function CancelBookingDialog({
               ) : undefined
             }
           >
-            {isSubmitting ? "Cancelling…" : "Cancel booking"}
+            {isSubmitting ? "Submitting…" : "Request refund"}
           </Button>
         </DialogActions>
       </Box>
@@ -312,6 +352,7 @@ export function OverviewSection({
     );
     setLoading(false);
   }, [token]);
+  useGuestLoyaltySocket(token, () => void load());
   useEffect(() => {
     void load();
   }, [load]);
@@ -540,9 +581,37 @@ function BookingDetailsDialog({
   onClose: () => void;
   onPaymentUpdated: () => void;
 }) {
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptUploadError, setReceiptUploadError] = useState<string | null>(null);
+  const [receiptUploaded, setReceiptUploaded] = useState(false);
   if (!booking) return null;
   const awaitingPayment = ["pending", "pending_payment"].includes(booking.status);
   const awaitingConfirmation = booking.status === "pending_confirmation";
+
+  const handleReceiptUpload = async () => {
+    if (!booking.receipt_request_payment_id || !receiptFile) return;
+    setReceiptUploading(true);
+    setReceiptUploadError(null);
+    try {
+      await GuestPortalDashboardService.uploadPaymentReceipt(
+        booking.receipt_request_payment_id,
+        receiptFile,
+        token,
+      );
+      setReceiptUploaded(true);
+      setReceiptFile(null);
+      onPaymentUpdated();
+    } catch (error) {
+      setReceiptUploadError(error instanceof Error ? error.message : 'Unable to upload your receipt.');
+    } finally {
+      setReceiptUploading(false);
+    }
+  };
+  // Older confirmed bookings may predate the payment-record link. They still
+  // need a guest-facing receipt, so confirmation itself is the availability
+  // rule; payment metadata is shown when it exists.
+  const hasReceipt = booking.status === "confirmed";
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="booking-details-title">
@@ -553,10 +622,75 @@ function BookingDetailsDialog({
           <Typography><strong>Booking status:</strong> {humanizePortalStatus(booking.status)}</Typography>
           <Typography><strong>Total:</strong> {formatPortalCurrency(booking.total_amount)}</Typography>
         </Stack>
+        {hasReceipt ? (
+          <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "success.50" }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+              <Box>
+                <Typography id="payment-receipt-heading" variant="h6">Booking receipt</Typography>
+                <Typography variant="body2" color="text.secondary">Your booking is confirmed.</Typography>
+              </Box>
+              <Chip label="Paid" color="success" size="small" />
+            </Stack>
+            <Divider sx={{ my: 1.5 }} />
+            <Stack spacing={0.75}>
+              <Typography variant="body2"><strong>Receipt ID:</strong> {booking.completed_payment_id != null ? `PAY-${booking.completed_payment_id}` : booking.booking_number}</Typography>
+              {booking.completed_payment_method ? <Typography variant="body2"><strong>Payment method:</strong> {booking.completed_payment_method}</Typography> : null}
+              <Typography variant="body2"><strong>Amount:</strong> {formatPortalCurrency(booking.completed_payment_amount ?? booking.total_amount)}</Typography>
+            </Stack>
+            <Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>Print receipt</Button>
+          </Paper>
+        ) : null}
         {awaitingConfirmation ? (
           <Alert severity="info" sx={{ mt: 2 }}>
             Your offline banking payment is awaiting confirmation by our team.
           </Alert>
+        ) : null}
+        {booking.receipt_request_payment_id && !booking.receipt_uploaded ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            <Typography variant="subtitle2">Receipt required</Typography>
+            <Typography variant="body2">
+              Our team has requested your bank-transfer receipt. Please submit it within 24 hours
+              to avoid automatic rejection of this payment.
+              {booking.receipt_request_message ? ` ${booking.receipt_request_message}` : ''}
+            </Typography>
+          </Alert>
+        ) : null}
+        {booking.receipt_uploaded || receiptUploaded ? (
+          <Alert severity="success" sx={{ mt: 2 }}>
+            <Typography variant="subtitle2">Receipt uploaded</Typography>
+            <Typography variant="body2">
+              Your receipt has been submitted and is pending confirmation from our team.
+            </Typography>
+          </Alert>
+        ) : booking.receipt_request_payment_id ? (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Upload payment receipt</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+                <Button component="label" variant="outlined" disabled={receiptUploading}>
+                  {receiptFile ? receiptFile.name : 'Choose receipt file'}
+                  <input
+                    hidden
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(event) => {
+                      setReceiptUploadError(null);
+                      setReceiptFile(event.target.files?.[0] ?? null);
+                    }}
+                  />
+                </Button>
+                <Button
+                  variant="contained"
+                  disabled={!receiptFile || receiptUploading}
+                  onClick={() => void handleReceiptUpload()}
+                >
+                  {receiptUploading ? 'Uploading…' : 'Upload receipt'}
+                </Button>
+            </Stack>
+            {receiptUploadError ? <Alert severity="error" sx={{ mt: 1 }}>{receiptUploadError}</Alert> : null}
+          </Box>
         ) : null}
         {awaitingPayment && booking.payment_rejection_reason ? (
           <Alert severity="warning" sx={{ mt: 2 }}>
@@ -625,14 +759,14 @@ export function BookingsSection({ token }: { token: string }) {
         reason,
         token,
       );
-      setCancellationSuccess(`Booking ${bookingToCancel.booking_number} was cancelled.`);
+      setCancellationSuccess(`Refund request for booking ${bookingToCancel.booking_number} was submitted.`);
       setBookingToCancel(null);
       void load();
     } catch (caught) {
       setCancellationError(
         caught instanceof Error
           ? caught.message
-          : "Unable to cancel this booking.",
+          : "Unable to submit this refund request.",
       );
       if (caught instanceof HTTPError && caught.response.status === 409) {
         void load();
@@ -728,6 +862,11 @@ export function BookingsSection({ token }: { token: string }) {
                         <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
                           View details
                         </Button>
+                      {booking.status === "confirmed" ? (
+                        <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
+                          View receipt
+                        </Button>
+                      ) : null}
                       {booking.can_cancel ? (
                         <Button
                           size="small"
@@ -738,7 +877,7 @@ export function BookingsSection({ token }: { token: string }) {
                           }}
                           sx={{ minHeight: 44 }}
                         >
-                          Cancel
+                          Refund
                         </Button>
                       ) : (
                         <CancellationUnavailable
@@ -783,6 +922,11 @@ export function BookingsSection({ token }: { token: string }) {
                   <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, minHeight: 44 }}>
                     View details
                   </Button>
+                  {booking.status === "confirmed" ? (
+                    <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, ml: 1, minHeight: 44 }}>
+                      View receipt
+                    </Button>
+                  ) : null}
                   {booking.can_cancel ? (
                     <Button
                       size="small"
@@ -793,7 +937,7 @@ export function BookingsSection({ token }: { token: string }) {
                       }}
                       sx={{ mt: 1, minHeight: 44 }}
                     >
-                      Cancel booking
+                      Refund
                     </Button>
                   ) : (
                     <Box sx={{ mt: 1.5 }}>
@@ -819,7 +963,7 @@ export function BookingsSection({ token }: { token: string }) {
               setPage(0);
             }}
           />
-          <CancelBookingDialog
+          <RefundBookingDialog
             booking={bookingToCancel}
             open={Boolean(bookingToCancel)}
             isSubmitting={isCancelling}
@@ -1135,6 +1279,7 @@ export function RewardsSection({ token }: { token: string }) {
       setLoading(false);
     }
   }, [token]);
+  useGuestLoyaltySocket(token, () => void load());
   useEffect(() => {
     void load();
   }, [load]);
@@ -1261,19 +1406,29 @@ export function RewardsSection({ token }: { token: string }) {
             Recent points activity
           </Typography>
           <List>
-            {membership.recent_activity.map((activity, index) => (
-              <Box key={`${activity.date}-${index}`}>
-                <ListItem disableGutters>
-                  <ListItemText
-                    primary={`${activity.transaction_type} · ${activity.points > 0 ? "+" : ""}${activity.points} points`}
-                    secondary={`${formatPortalDate(activity.date)} · Balance ${activity.balance_after.toLocaleString()}`}
-                  />
-                </ListItem>
-                {index < membership.recent_activity.length - 1 ? (
-                  <Divider />
-                ) : null}
-              </Box>
-            ))}
+            {membership.recent_activity.map((activity, index) => {
+              const context = pointsActivityContext(activity);
+              return (
+                <Box key={`${activity.date}-${index}`}>
+                  <ListItem disableGutters>
+                    <ListItemText
+                      primary={`${humanizePortalStatus(activity.transaction_type)} · ${activity.points > 0 ? "+" : ""}${activity.points} points`}
+                      secondary={
+                        <Stack component="span" spacing={0.25}>
+                          <Box component="span">
+                            {formatPortalDate(activity.date)} · Balance {activity.balance_after.toLocaleString()}
+                          </Box>
+                          {context ? <Box component="span">{context}</Box> : null}
+                        </Stack>
+                      }
+                    />
+                  </ListItem>
+                  {index < membership.recent_activity.length - 1 ? (
+                    <Divider />
+                  ) : null}
+                </Box>
+              );
+            })}
           </List>
         </Box>
       ) : null}

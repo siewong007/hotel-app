@@ -130,6 +130,11 @@ pub struct GuestPortalBookingSummary {
     pub check_out_date: NaiveDate,
     pub status: String,
     pub total_amount: rust_decimal::Decimal,
+    /// The completed booking payment, when one exists. These fields let the
+    /// guest portal render a receipt without exposing staff-only payment data.
+    pub completed_payment_id: Option<i64>,
+    pub completed_payment_method: Option<String>,
+    pub completed_payment_amount: Option<rust_decimal::Decimal>,
     pub can_cancel: bool,
     pub cancellation_unavailable_reason: Option<String>,
     /// Reason from the most recently rejected payment claim on this booking,
@@ -137,6 +142,10 @@ pub struct GuestPortalBookingSummary {
     /// awaiting payment, so a rejection reason from before a later successful
     /// payment is simply never shown.
     pub payment_rejection_reason: Option<String>,
+    /// Outstanding bank-transfer receipt request, if staff require proof.
+    pub receipt_request_payment_id: Option<i64>,
+    pub receipt_request_message: Option<String>,
+    pub receipt_uploaded: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,6 +194,12 @@ pub struct GuestPortalPointsActivity {
     pub transaction_type: String,
     pub points: i32,
     pub balance_after: i32,
+    /// Guest-safe explanation recorded when the transaction was created.
+    pub reason: Option<String>,
+    /// Booking reference for stay-related earnings or reversals.
+    pub booking_number: Option<String>,
+    /// Staff display name for an administrative points adjustment.
+    pub adjusted_by: Option<String>,
 }
 
 /// Response for GET /guest-portal/me/membership.

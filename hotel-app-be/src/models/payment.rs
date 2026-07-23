@@ -63,6 +63,10 @@ pub struct PendingPaymentEntry {
     pub created_at: String,
     pub receipt_requested: bool,
     pub receipt_uploaded: bool,
+    pub receipt_file_available: bool,
+    pub processed_at: Option<String>,
+    pub processed_by_name: Option<String>,
+    pub decision_reason: Option<String>,
 }
 
 /// Paginated wrapper for the staff pending-payments queue.
@@ -70,6 +74,14 @@ pub struct PendingPaymentEntry {
 pub struct PendingPaymentPage {
     pub items: Vec<PendingPaymentEntry>,
     pub total: i64,
+}
+
+/// A private, guest-provided proof of payment. The path is never serialized;
+/// staff retrieve it through the permission-protected download endpoint.
+#[derive(Debug, Clone)]
+pub struct PaymentReceiptFile {
+    pub path: String,
+    pub content_type: String,
 }
 
 /// Public-facing payment configuration for the guest portal payment panel.

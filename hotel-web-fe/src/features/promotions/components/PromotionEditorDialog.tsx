@@ -1,18 +1,21 @@
 import {
+  Alert,
+  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControl,
   FormControlLabel,
   Grid,
   InputLabel,
   MenuItem,
   Select,
-  Stack,
   Switch,
   TextField,
+  Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useAllRoomTypes } from "../../rooms/hooks";
@@ -76,6 +79,28 @@ function toIsoDateTime(value: string): string | null {
 function nullableNumber(value: string): number | null {
   if (!value.trim()) return null;
   return Number(value);
+}
+
+function FormSection({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <Grid size={{ xs: 12 }}>
+      <Box sx={{ pt: 1 }}>
+        <Typography variant="subtitle1" fontWeight={700}>
+          {title}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {description}
+        </Typography>
+        <Divider sx={{ mt: 1.25 }} />
+      </Box>
+    </Grid>
+  );
 }
 
 function initialEditorState(promotion?: Promotion | null): EditorState {
@@ -193,11 +218,22 @@ export function PromotionEditorDialog({
       maxWidth="md"
       fullWidth
     >
-      <DialogTitle>
-        {promotion ? "Edit promotion" : "Create promotion"}
+      <DialogTitle sx={{ pb: 1.5 }}>
+        <Typography variant="h6" fontWeight={750}>
+          {promotion ? "Edit promotion" : "Create promotion"}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {promotion
+            ? "Update the offer details and save your changes. Publishing is managed from the promotion list."
+            : "Set up the offer details now, then publish the draft when it is ready for guests."}
+        </Typography>
       </DialogTitle>
       <DialogContent dividers>
         <Grid container spacing={2} sx={{ pt: 0.5 }}>
+          <FormSection
+            title="Offer basics"
+            description="Give staff and guests a clear name, code, and description."
+          />
           <Grid size={{ xs: 12, sm: 7 }}>
             <TextField
               label="Promotion name"
@@ -232,6 +268,10 @@ export function PromotionEditorDialog({
               fullWidth
             />
           </Grid>
+          <FormSection
+            title="Discount"
+            description="Choose how the offer is applied and the value guests receive."
+          />
           <Grid size={{ xs: 12, sm: 6 }}>
             <FormControl fullWidth>
               <InputLabel id="promotion-kind-label">Offer type</InputLabel>
@@ -314,6 +354,10 @@ export function PromotionEditorDialog({
               fullWidth
             />
           </Grid>
+          <FormSection
+            title="Availability"
+            description="Control when guests may claim the offer and which stay dates qualify. Leave dates blank for no restriction."
+          />
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               label="Claim starts"
@@ -362,6 +406,10 @@ export function PromotionEditorDialog({
               fullWidth
             />
           </Grid>
+          <FormSection
+            title="Eligibility & limits"
+            description="Set booking requirements and protect inventory with sensible usage limits."
+          />
           <Grid size={{ xs: 6, sm: 3 }}>
             <TextField
               label="Minimum nights"
@@ -445,6 +493,10 @@ export function PromotionEditorDialog({
               </Select>
             </FormControl>
           </Grid>
+          <FormSection
+            title="Guest experience"
+            description="Explain the conditions clearly and choose how the promotion appears to guests."
+          />
           <Grid size={{ xs: 12 }}>
             <TextField
               label="Terms and conditions"
@@ -485,10 +537,12 @@ export function PromotionEditorDialog({
           </Grid>
         </Grid>
         {validationError ? (
-          <Stack sx={{ color: "error.main", mt: 2 }}>{validationError}</Stack>
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {validationError}
+          </Alert>
         ) : null}
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ px: 3, py: 1.5 }}>
         <Button onClick={onClose} disabled={isSaving}>
           Cancel
         </Button>

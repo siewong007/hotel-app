@@ -406,14 +406,54 @@ pub async fn upgrade_guest_to_user(
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
-    GuestRepository::upgrade_guest_to_user(
+    let new_user_id = GuestRepository::upgrade_guest_to_user(
         pool,
         input.guest_id,
         &input.username,
         &password_hash,
         &input.role.unwrap_or_else(|| "guest".to_string()),
     )
-    .await
+    .await?;
+
+    crate::modules::promotions::service::issue_welcome_deluxe_voucher(pool, input.guest_id).await?;
+
+    Ok(new_user_id)
+}
+
+pub async fn transfer_guest_portal_account(
+    pool: &DbPool,
+    actor_user_id: i64,
+    target_guest_id: i64,
+    input: TransferGuestPortalAccountInput,
+) -> Result<(), ApiError> {
+    let username = input.username.trim();
+    if username.is_empty() || username.len() > 50 {
+        return Err(ApiError::BadRequest(
+            "A valid guest portal username is required".to_string(),
+        ));
+    }
+
+    let transfer =
+        GuestRepository::transfer_portal_account(pool, target_guest_id, username).await?;
+    crate::modules::promotions::service::issue_welcome_deluxe_voucher(pool, target_guest_id)
+        .await?;
+    let _ = AuditLog::log_event(
+        pool,
+        Some(actor_user_id),
+        "guest_portal_account_transferred",
+        "guest",
+        Some(target_guest_id),
+        Some(serde_json::json!({
+            "portal_user_id": transfer.user_id,
+            "portal_username": username,
+            "previous_guest_id": transfer.previous_guest_id,
+        })),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(())
 }
 
 pub async fn guest_credits(
@@ -788,6 +828,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             account_username: None,
+            account_is_active: None,
             bookings_count: None,
             last_stay_date: None,
             ekyc_summary: GuestEkycStatusSummary::not_submitted(id),

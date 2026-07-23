@@ -165,6 +165,14 @@ pub struct ManualAdjustmentInput {
 }
 
 #[derive(Debug, Clone, Deserialize, Validate)]
+pub struct GiftPointsInput {
+    #[validate(range(min = 1, message = "Gift points must be greater than zero"))]
+    pub points: i32,
+    #[validate(length(min = 5, max = 500, message = "Gift reason must be 5-500 characters"))]
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Validate)]
 pub struct LoyaltyRulesInput {
     #[validate(range(min = 0.0, max = 100.0))]
     pub points_per_currency_unit: f64,

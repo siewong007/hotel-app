@@ -125,6 +125,19 @@ export class GuestPortalDashboardService {
       .json();
   }
 
+  static async uploadPaymentReceipt(
+    paymentId: number,
+    file: File,
+    token?: string,
+  ): Promise<void> {
+    const form = new FormData();
+    form.append('file', file);
+    await api.post(`guest-portal/me/payments/${paymentId}/receipt`, {
+      headers: authHeaders(token),
+      body: form,
+    });
+  }
+
   static async createPaypalOrder(
     bookingId: number,
     token?: string

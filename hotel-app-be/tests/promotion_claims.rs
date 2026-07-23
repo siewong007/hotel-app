@@ -6,6 +6,8 @@ mod common;
 mod sqlite_tests {
     use crate::common;
     use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::modules::loyalty::models::ManualAdjustmentInput;
+    use hotel_app_be::modules::loyalty::service as loyalty_service;
     use hotel_app_be::modules::promotions::models::{
         ClaimPromotionInput, PromotionInput, PromotionListQuery, VoucherRevokeInput,
     };
@@ -123,7 +125,7 @@ mod sqlite_tests {
                 .await
                 .unwrap()
                 .total,
-            0
+            1
         );
 
         let draft = service::create_admin_promotion(
@@ -152,6 +154,39 @@ mod sqlite_tests {
             .await
             .unwrap();
         assert!(public.items.iter().any(|item| item.id == published.id));
+    }
+
+    #[tokio::test]
+    async fn guest_activation_welcome_voucher_is_idempotent_and_deluxe_only() {
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 99699, "welcome-voucher@example.com").await;
+
+        let first = service::issue_welcome_deluxe_voucher(&pool, 99699)
+            .await
+            .unwrap();
+        let second = service::issue_welcome_deluxe_voucher(&pool, 99699)
+            .await
+            .unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(first.status, "available");
+        assert_eq!(first.promotion_slug, "welcome-deluxe-10");
+
+        let promotion = service::get_admin_promotion(&pool, first.promotion_id)
+            .await
+            .unwrap();
+        assert_eq!(promotion.discount_type, "percentage");
+        assert_eq!(promotion.discount_value, 10.0);
+        assert!(!promotion.is_public);
+        assert_eq!(promotion.room_type_ids.len(), 1);
+
+        let room_type_code: String =
+            sqlx::query_scalar("SELECT code FROM room_types WHERE id = ?1")
+                .bind(promotion.room_type_ids[0])
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(room_type_code, "DLX");
     }
 
     #[tokio::test]
@@ -447,6 +482,51 @@ mod sqlite_tests {
 
         assert_eq!(claimed.promotion_id, promotion.id);
         assert_eq!(claimed.guest_id, 99721);
+        assert_eq!(claimed.source, "guest_claim");
+        assert!(claimed.code.is_some());
+    }
+
+    #[tokio::test]
+    async fn july_loyalty_promotion_claim_uses_supported_voucher_source() {
+        let pool = common::setup_test_db().await;
+        seed_guest(&pool, 99722, "promotion-loyalty-owner@example.com").await;
+        let member = loyalty_service::ensure_member_for_guest(&pool, 99722)
+            .await
+            .unwrap();
+        loyalty_service::manual_adjustment(
+            &pool,
+            1,
+            member.id,
+            ManualAdjustmentInput {
+                points_delta: 2_000,
+                reason: "July loyalty voucher test balance".to_string(),
+                allow_negative_balance: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let promotion_id: i64 =
+            sqlx::query_scalar("SELECT id FROM promotions WHERE slug = 'july-deluxe-20-loyalty'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let claimed = service::claim_guest_promotion(
+            &pool,
+            99722,
+            promotion_id,
+            ClaimPromotionInput {
+                client_request_id: Some("promotion-loyalty-claim".to_string()),
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(claimed.promotion_id, promotion_id);
+        assert_eq!(claimed.guest_id, 99722);
         assert_eq!(claimed.source, "guest_claim");
         assert!(claimed.code.is_some());
     }

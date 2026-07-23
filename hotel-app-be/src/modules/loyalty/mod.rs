@@ -4,6 +4,7 @@
 //! and staff administration for the loyalty program portal.
 
 pub mod handlers;
+pub mod hub;
 pub mod models;
 pub mod queries;
 pub mod repository;

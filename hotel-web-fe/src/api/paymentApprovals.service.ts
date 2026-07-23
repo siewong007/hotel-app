@@ -32,6 +32,20 @@ export class PaymentApprovalsService {
     );
   }
 
+  static async listHistory(params: { page?: number; perPage?: number } = {}): Promise<PendingPaymentPage> {
+    const searchParams: Record<string, string> = {};
+    if (params.page !== undefined) searchParams.page = String(params.page);
+    if (params.perPage !== undefined) searchParams.per_page = String(params.perPage);
+    return await withRetry(
+      () => api.get('admin/payments/history', { searchParams }).json<PendingPaymentPage>(),
+      { maxAttempts: 3, initialDelay: 1000 },
+    );
+  }
+
+  static async downloadReceipt(paymentId: number): Promise<Blob> {
+    return await api.get(`admin/payments/${paymentId}/receipt`).blob();
+  }
+
   /**
    * Reject a pending payment claim. The booking stays in its current state.
    */

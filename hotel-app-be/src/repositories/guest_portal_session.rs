@@ -138,11 +138,26 @@ impl GuestPortalSessionRepository {
         let rejected_at_col = sql_query!(postgres: "processed_at", sqlite: "voided_at");
         let sql = format!(
             "SELECT b.id, b.booking_number, b.check_in_date, b.check_out_date, b.status, b.total_amount, \
+                    (SELECT cp.id FROM payments cp WHERE cp.booking_id = b.id AND cp.status = 'completed' \
+                        ORDER BY cp.id DESC LIMIT 1) AS completed_payment_id, \
+                    (SELECT cp.payment_method FROM payments cp WHERE cp.booking_id = b.id AND cp.status = 'completed' \
+                        ORDER BY cp.id DESC LIMIT 1) AS completed_payment_method, \
+                    (SELECT cp.amount FROM payments cp WHERE cp.booking_id = b.id AND cp.status = 'completed' \
+                        ORDER BY cp.id DESC LIMIT 1) AS completed_payment_amount, \
                     EXISTS(SELECT 1 FROM voucher_redemptions vr JOIN promotions p ON p.id = vr.promotion_id \
                            WHERE vr.booking_id = b.id AND vr.status = 'applied' AND p.is_cancellable = {}) AS has_non_cancellable_voucher, \
                     (SELECT rp.{rejection_reason_col} FROM payments rp WHERE rp.booking_id = b.id \
                             AND rp.status = 'void' ORDER BY rp.{rejected_at_col} DESC, rp.id DESC LIMIT 1) \
-                            AS payment_rejection_reason \
+                            AS payment_rejection_reason, \
+                    (SELECT p.id FROM payments p \
+                        WHERE p.booking_id = b.id AND p.status = 'pending' AND p.payment_method = 'bank_transfer' \
+                        ORDER BY p.created_at DESC, p.id DESC LIMIT 1) AS receipt_request_payment_id, \
+                    (SELECT pr.request_message FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
+                        WHERE p.booking_id = b.id AND p.status = 'pending' \
+                        ORDER BY pr.requested_at DESC LIMIT 1) AS receipt_request_message, \
+                    EXISTS(SELECT 1 FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
+                        WHERE p.booking_id = b.id AND p.status = 'pending' AND pr.uploaded_at IS NOT NULL) \
+                        AS receipt_uploaded \
              FROM bookings b WHERE b.guest_id = {} \
              ORDER BY b.check_in_date DESC, b.id DESC LIMIT {} OFFSET {}",
             false,
@@ -171,6 +186,18 @@ impl GuestPortalSessionRepository {
                     .unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
                 status: row.try_get("status").unwrap_or_default(),
                 total_amount: row_mappers::get_decimal(row, "total_amount"),
+                completed_payment_id: row
+                    .try_get::<Option<i64>, _>("completed_payment_id")
+                    .ok()
+                    .flatten(),
+                completed_payment_method: row
+                    .try_get::<Option<String>, _>("completed_payment_method")
+                    .ok()
+                    .flatten(),
+                completed_payment_amount: row
+                    .try_get::<Option<rust_decimal::Decimal>, _>("completed_payment_amount")
+                    .ok()
+                    .flatten(),
                 can_cancel: false,
                 cancellation_unavailable_reason: if row
                     .try_get::<bool, _>("has_non_cancellable_voucher")
@@ -184,6 +211,15 @@ impl GuestPortalSessionRepository {
                     .try_get::<Option<String>, _>("payment_rejection_reason")
                     .ok()
                     .flatten(),
+                receipt_request_payment_id: row
+                    .try_get::<Option<i64>, _>("receipt_request_payment_id")
+                    .ok()
+                    .flatten(),
+                receipt_request_message: row
+                    .try_get::<Option<String>, _>("receipt_request_message")
+                    .ok()
+                    .flatten(),
+                receipt_uploaded: row.try_get::<bool, _>("receipt_uploaded").unwrap_or(false),
             })
             .collect();
 
@@ -357,9 +393,15 @@ impl GuestPortalSessionRepository {
     ) -> Result<Vec<GuestPortalPointsActivity>, ApiError> {
         let sql = format!(
             "SELECT lt.created_at AS occurred_at, lt.transaction_type AS transaction_type, \
-                    lt.points_delta AS points, lt.balance_after AS balance_after \
+                    lt.points_delta AS points, lt.balance_after AS balance_after, \
+                    lt.description AS reason, b.booking_number AS booking_number, \
+                    CASE WHEN lt.transaction_type = 'adjusted' \
+                         THEN COALESCE(NULLIF(TRIM(u.full_name), ''), u.username) \
+                         ELSE NULL END AS adjusted_by \
              FROM loyalty_transactions lt \
              JOIN loyalty_members m ON m.id = lt.member_id \
+             LEFT JOIN bookings b ON b.id = lt.booking_id \
+             LEFT JOIN users u ON u.id = lt.actor_user_id \
              WHERE m.guest_id = {} \
              ORDER BY lt.created_at DESC, lt.id DESC LIMIT 20",
             param!(1)
@@ -377,6 +419,9 @@ impl GuestPortalSessionRepository {
                 transaction_type: row.try_get("transaction_type").unwrap_or_default(),
                 points: row.try_get("points").unwrap_or_default(),
                 balance_after: row.try_get("balance_after").unwrap_or_default(),
+                reason: row.try_get("reason").ok(),
+                booking_number: row.try_get("booking_number").ok(),
+                adjusted_by: row.try_get("adjusted_by").ok(),
             })
             .collect())
     }

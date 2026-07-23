@@ -60,6 +60,7 @@ import {
   useGuestCredits,
   useGuests,
   useGuestsPage,
+  useTransferGuestPortalAccount,
   useUpdateGuest,
 } from '../hooks/useGuestQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
@@ -171,6 +172,7 @@ const GuestConfigurationPage: React.FC = () => {
   const { format: formatCurrency } = useCurrency();
   const hasAccess = hasPermission('guests:read') || hasPermission('guests:manage');
   const canCreateEkyc = hasPermission('ekyc:approve');
+  const canTransferPortalAccount = hasPermission('guests:update') || hasPermission('guests:manage');
 
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -196,6 +198,7 @@ const GuestConfigurationPage: React.FC = () => {
   const createGuestMutation = useCreateGuest();
   const updateGuestMutation = useUpdateGuest();
   const applyGuestTourismMutation = useApplyGuestTourismFromLastCheckIn();
+  const transferPortalAccountMutation = useTransferGuestPortalAccount();
   const deleteGuestMutation = useDeleteGuest();
   const guests = React.useMemo(() => guestsQuery.data?.data ?? [], [guestsQuery.data]);
   const rooms = roomsQuery.data ?? [];
@@ -234,6 +237,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [bookingsDialogOpen, setBookingsDialogOpen] = useState(false);
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [portalAccountDialogOpen, setPortalAccountDialogOpen] = useState(false);
   const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
   const [ekycGuest, setEkycGuest] = useState<Guest | null>(null);
 
@@ -284,6 +288,8 @@ const GuestConfigurationPage: React.FC = () => {
   const [formLoading, setFormLoading] = useState(false);
   const [tourismConversionGuestId, setTourismConversionGuestId] = useState<number | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [portalAccountUsername, setPortalAccountUsername] = useState('');
+  const [portalAccountTransferError, setPortalAccountTransferError] = useState<string | null>(null);
   const guestBookingsQuery = useGuestBookings(viewingGuest?.id, bookingsDialogOpen && !!viewingGuest);
   const guestCreditsQuery = useGuestCredits(viewingGuest?.id, creditsDialogOpen && !!viewingGuest);
   const guestBookings = React.useMemo(
@@ -539,6 +545,33 @@ const GuestConfigurationPage: React.FC = () => {
     setBookingDialogOpen(true);
     if (rooms.length === 0) {
       await loadRooms();
+    }
+  };
+
+  const handleOpenPortalAccountTransfer = (guest: Guest) => {
+    setSelectedGuestId(guest.id);
+    setPortalAccountUsername(guest.account_username || '');
+    setPortalAccountTransferError(null);
+    setPortalAccountDialogOpen(true);
+  };
+
+  const handleTransferPortalAccount = async () => {
+    if (!selectedGuest) return;
+    const username = portalAccountUsername.trim();
+    if (!username) {
+      setPortalAccountTransferError('Enter the guest portal username to transfer.');
+      return;
+    }
+
+    try {
+      setPortalAccountTransferError(null);
+      await transferPortalAccountMutation.mutateAsync({ guestId: selectedGuest.id, username });
+      emitApiNotification({ message: `Guest portal account “${username}” transferred successfully`, severity: 'success' });
+      setPortalAccountDialogOpen(false);
+      setPortalAccountUsername('');
+      await loadGuests();
+    } catch (err: any) {
+      setPortalAccountTransferError(err.message || 'Failed to transfer guest portal account');
     }
   };
 
@@ -1276,6 +1309,13 @@ const GuestConfigurationPage: React.FC = () => {
                       Contact
                     </Typography>
                     <ContactRow icon={<PersonIcon />} label="Guest account username" value={g.account_username} placeholder="No guest account" readOnly />
+                    <ContactRow
+                      icon={<PersonIcon />}
+                      label="Guest account status"
+                      value={g.account_is_active == null ? 'No account' : g.account_is_active ? 'Activated' : 'Deactivated'}
+                      placeholder="No guest account"
+                      readOnly
+                    />
                     <ContactRow icon={<PhoneIcon />} label="Phone" value={g.phone} placeholder="Add phone number" onAdd={() => handleEditClick(g)} />
                     <ContactRow icon={<MailIcon />} label="Email" value={g.email} placeholder="Add email address" onAdd={() => handleEditClick(g)} />
                     <ContactRow icon={<IdIcon />} label="IC / Passport" value={g.ic_number} placeholder="Add ID document" onAdd={() => handleEditClick(g)} />
@@ -1338,6 +1378,24 @@ const GuestConfigurationPage: React.FC = () => {
                         }}
                       >
                         Create eKYC
+                      </Button>
+                    )}
+                    {canTransferPortalAccount && (
+                      <Button
+                        startIcon={<PersonIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => handleOpenPortalAccountTransfer(g)}
+                        sx={{
+                          py: 1.25,
+                          borderRadius: 1.25,
+                          border: `1px solid ${GUEST_DESIGN.rule}`,
+                          color: GUEST_DESIGN.blue,
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          textTransform: 'none',
+                          '&:hover': { bgcolor: GUEST_DESIGN.blueBg },
+                        }}
+                      >
+                        Transfer guest portal account
                       </Button>
                     )}
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -1497,6 +1555,46 @@ const GuestConfigurationPage: React.FC = () => {
         onClose={() => { setEditDialogOpen(false); setDialogError(null); }}
         onSubmit={handleUpdateGuest}
       />
+
+      <Dialog
+        open={portalAccountDialogOpen}
+        onClose={() => !transferPortalAccountMutation.isPending && setPortalAccountDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Transfer Guest Portal Account</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This reassigns the portal login and its guest-portal access to <strong>{selectedGuest?.full_name}</strong>.
+          </Alert>
+          {portalAccountTransferError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPortalAccountTransferError(null)}>
+              {portalAccountTransferError}
+            </Alert>
+          )}
+          <TextField
+            autoFocus
+            fullWidth
+            label="Guest portal username"
+            value={portalAccountUsername}
+            onChange={(event) => setPortalAccountUsername(event.target.value)}
+            helperText="Only an active guest portal account can be transferred."
+            disabled={transferPortalAccountMutation.isPending}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPortalAccountDialogOpen(false)} disabled={transferPortalAccountMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleTransferPortalAccount}
+            variant="contained"
+            disabled={transferPortalAccountMutation.isPending || !portalAccountUsername.trim()}
+          >
+            {transferPortalAccountMutation.isPending ? <CircularProgress size={20} /> : 'Transfer account'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>

@@ -401,14 +401,23 @@ impl LoyaltyRepository {
         tx: &mut DbTransaction<'_>,
         input: NewTransaction<'_>,
     ) -> Result<LoyaltyTransaction, ApiError> {
-        let balance_before: i32 = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = $1",
-        )
+        // PostgreSQL promotes SUM(INTEGER) to BIGINT, while SQLite returns an
+        // integer value. Decode into i64 first, then verify the value still
+        // fits the INTEGER ledger columns before inserting the transaction.
+        let balance_before: i64 = sqlx::query_scalar(sql_query!(
+            postgres: "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = $1",
+            sqlite: "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = ?1"
+        ))
         .bind(input.member_id)
         .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)?;
-        let balance_after = balance_before + input.available_delta;
+        let balance_after = balance_before
+            .checked_add(i64::from(input.available_delta))
+            .and_then(|balance| i32::try_from(balance).ok())
+            .ok_or_else(|| {
+                ApiError::BadRequest("Loyalty points balance is out of range.".to_string())
+            })?;
         let metadata = input.metadata.map(|v| v.to_string());
 
         let row = sqlx::query(sql_query!(
@@ -487,6 +496,23 @@ impl LoyaltyRepository {
         .bind(amount)
         .bind(nights)
         .bind(new_tier_id)
+        .bind(account_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(())
+    }
+
+    pub async fn add_lifetime_points(
+        tx: &mut DbTransaction<'_>,
+        account_id: i64,
+        points: i32,
+    ) -> Result<(), ApiError> {
+        sqlx::query(sql_query!(
+            postgres: "UPDATE loyalty_accounts SET lifetime_points = lifetime_points + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+            sqlite: "UPDATE loyalty_accounts SET lifetime_points = lifetime_points + ?1, updated_at = datetime('now') WHERE id = ?2"
+        ))
+        .bind(points)
         .bind(account_id)
         .execute(&mut **tx)
         .await
@@ -652,6 +678,22 @@ impl LoyaltyRepository {
         let sql = format!("{} WHERE lr.id = $1", reward_select_sql());
         let row = sqlx::query(&sql)
             .bind(reward_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(row.as_ref().map(row_to_reward))
+    }
+
+    pub async fn find_active_reward_by_name(
+        pool: &DbPool,
+        name: &str,
+    ) -> Result<Option<LoyaltyReward>, ApiError> {
+        let sql = format!(
+            "{} WHERE lr.name = $1 AND lr.is_active = true ORDER BY lr.id LIMIT 1",
+            reward_select_sql()
+        );
+        let row = sqlx::query(&sql)
+            .bind(name)
             .fetch_optional(pool)
             .await
             .map_err(ApiError::from)?;
@@ -1042,7 +1084,11 @@ fn row_to_member_summary(row: &DbRow) -> LoyaltyMemberSummary {
         guest_email: row.try_get("guest_email").ok(),
         guest_phone: row.try_get("guest_phone").ok(),
         account_id: row.try_get("account_id").unwrap_or_default(),
-        available_points: row.try_get("available_points").unwrap_or_default(),
+        available_points: row
+            .try_get::<i64, _>("available_points")
+            .ok()
+            .and_then(|points| i32::try_from(points).ok())
+            .unwrap_or_default(),
         lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
         qualifying_points: row.try_get("qualifying_points").unwrap_or_default(),
         qualifying_nights: row.try_get("qualifying_nights").unwrap_or_default(),

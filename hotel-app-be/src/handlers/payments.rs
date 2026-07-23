@@ -3,8 +3,10 @@
 //! Handles payments, invoices, and billing.
 
 use axum::{
-    Json,
+    body::Body,
     extract::{Extension, Path, Query, State},
+    http::{HeaderValue, header},
+    response::{Json, Response},
 };
 
 use crate::core::db::DbPool;
@@ -163,6 +165,34 @@ pub async fn list_pending_payments_handler(
     Ok(Json(
         payments::list_pending_payments(&pool, limit, offset).await?,
     ))
+}
+
+pub async fn list_payment_approval_history_handler(
+    State(pool): State<DbPool>,
+    Query(query): Query<PendingPaymentsQuery>,
+) -> Result<Json<PendingPaymentPage>, ApiError> {
+    let (limit, offset) = query.limit_offset();
+    Ok(Json(
+        payments::list_payment_approval_history(&pool, limit, offset).await?,
+    ))
+}
+
+pub async fn download_payment_receipt_handler(
+    State(pool): State<DbPool>,
+    Path(payment_id): Path<i64>,
+) -> Result<Response, ApiError> {
+    let (bytes, content_type) = payments::load_payment_receipt(&pool, payment_id).await?;
+    let content_type = HeaderValue::from_str(&content_type).map_err(|_| {
+        ApiError::Internal("Stored receipt has an invalid content type.".to_string())
+    })?;
+    Response::builder()
+        .header(header::CONTENT_TYPE, content_type)
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("inline; filename=payment-receipt-{payment_id}"),
+        )
+        .body(Body::from(bytes))
+        .map_err(|_| ApiError::Internal("Unable to return the receipt.".to_string()))
 }
 
 /// Staff: approve a pending payment (completes payment + confirms booking).

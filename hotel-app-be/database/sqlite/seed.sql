@@ -24,3 +24,54 @@ INSERT INTO users (
 );
 
 INSERT INTO user_roles (user_id, role_id) VALUES (1, 1);
+
+-- System-managed, non-public voucher issued automatically when a guest portal
+-- account is activated. It can only be redeemed against the Deluxe room type.
+INSERT INTO promotions (
+    slug, name, description, terms, status, promotion_kind, discount_type,
+    discount_value, currency, min_nights, min_subtotal, per_guest_limit,
+    is_public, is_cancellable, created_by, updated_by
+) VALUES (
+    'welcome-deluxe-10', 'Welcome Deluxe 10%',
+    'A one-time welcome voucher for 10% off a Deluxe Room.',
+    'Valid for one eligible Deluxe Room booking. One voucher per guest.',
+    'published', 'voucher', 'percentage', 10.00, 'USD', 1, 0, 1, 0, 1, 1, 1
+);
+
+INSERT INTO promotion_room_types (promotion_id, room_type_id)
+SELECT p.id, rt.id
+FROM promotions p
+JOIN room_types rt ON rt.code = 'DLX'
+WHERE p.slug = 'welcome-deluxe-10';
+
+-- Loyalty-only July offer. It remains private to the rewards catalogue so
+-- guests must redeem points before the voucher is issued.
+INSERT INTO promotions (
+    slug, name, description, terms, status, promotion_kind, discount_type,
+    discount_value, currency, claim_starts_at, claim_ends_at, stay_starts_on,
+    stay_ends_on, min_nights, min_subtotal, per_guest_limit, is_public,
+    is_cancellable, created_by, updated_by
+) VALUES (
+    'july-deluxe-20-loyalty', 'July Deluxe Room 20% Voucher',
+    'Redeem 2,000 loyalty points for 20% off one eligible Deluxe Room booking.',
+    'One voucher per guest. Claim and stay dates must be in July 2026. Valid only for Deluxe Rooms.',
+    'published', 'voucher', 'percentage', 20.00, 'USD',
+    '2026-07-01 00:00:00', '2026-07-31 23:59:59', '2026-07-01', '2026-07-31',
+    1, 0, 1, 0, 1, 1, 1
+);
+
+INSERT INTO promotion_room_types (promotion_id, room_type_id)
+SELECT p.id, rt.id
+FROM promotions p
+JOIN room_types rt ON rt.code = 'DLX'
+WHERE p.slug = 'july-deluxe-20-loyalty';
+
+INSERT INTO loyalty_rewards (
+    name, description, category, points_cost, requires_approval, is_active,
+    valid_from, valid_to, terms_conditions
+) VALUES (
+    'July Deluxe Room 20% Voucher',
+    'Redeem 2,000 points for a voucher worth 20% off a Deluxe Room.',
+    'discount', 2000, 0, 1, '2026-07-01', '2026-07-31',
+    'The voucher is issued immediately, may be used once, and is valid only for a Deluxe Room stay in July 2026.'
+);
