@@ -44,4 +44,10 @@ export class PaymentApprovalsService {
       { maxAttempts: 2, initialDelay: 1000 }
     );
   }
+
+  static async requestReceipt(paymentId: number, message?: string): Promise<void> {
+    await api.post(`admin/payments/${paymentId}/request-receipt`, {
+      json: { message: message?.trim() || null },
+    });
+  }
 }

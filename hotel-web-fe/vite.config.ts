@@ -1,11 +1,11 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { resolve } from 'node:path';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 
 const TAURI_MODES = new Set(['tauri', 'desktop']);
-const BACKEND_TARGET = 'http://127.0.0.1:3030';
+const DEFAULT_BACKEND_TARGET = 'http://127.0.0.1:3030';
 // All domain API endpoints are served under `/api` on the backend; only these
 // prefixes are forwarded so every other path falls through to the SPA (e.g.
 // deep-links like `/bookings/123`). `/uploads`, `/health`, and `/ws` stay at the
@@ -18,11 +18,16 @@ const BACKEND_TARGET = 'http://127.0.0.1:3030';
 const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
 
 export default defineConfig(({ mode, command }) => {
+  const env = loadEnv(mode, process.cwd(), 'VITE_');
   const isTauri = TAURI_MODES.has(mode);
   const isProductionBuild = command === 'build' && mode !== 'development';
+  // A local Docker backend normally listens on 3030. Allow developers whose
+  // port is already occupied (for example by an older container) to direct
+  // Vite at the backend they actually started without changing source.
+  const backendTarget = env.VITE_BACKEND_TARGET || env.VITE_API_URL || DEFAULT_BACKEND_TARGET;
   const proxy = Object.fromEntries(PROXY_PREFIXES.map((path) => [
     path,
-    { target: BACKEND_TARGET, ws: path === '/api' || path === '/ws' },
+    { target: backendTarget, ws: path === '/api' || path === '/ws' },
   ]));
 
   return {

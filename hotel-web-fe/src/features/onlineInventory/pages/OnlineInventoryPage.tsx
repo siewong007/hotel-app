@@ -1,0 +1,223 @@
+import { useMemo, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Container,
+  IconButton,
+  Paper,
+  Snackbar,
+  Stack,
+  TextField,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
+import SettingsSuggestOutlinedIcon from '@mui/icons-material/SettingsSuggestOutlined';
+
+import { formatLocalDate } from '../../../utils/date';
+import { InventoryRoomCard } from '../components/InventoryRoomCard';
+import { InventorySummary } from '../components/InventorySummary';
+import { useOnlineInventory } from '../hooks/useOnlineInventory';
+
+const shiftDate = (date: string, days: number) => {
+  const [year, month, day] = date.split('-').map(Number);
+  const shifted = new Date(year, month - 1, day);
+  shifted.setDate(shifted.getDate() + days);
+  return formatLocalDate(shifted);
+};
+
+const formatStayDate = (date: string) =>
+  new Intl.DateTimeFormat(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(`${date}T12:00:00`));
+
+const OnlineInventoryPage = () => {
+  const today = formatLocalDate();
+  const [stayDate, setStayDate] = useState(today);
+  const {
+    items,
+    changedRoomTypeIds,
+    changedCount,
+    isLoading,
+    isSaving,
+    error,
+    successMessage,
+    clearSuccessMessage,
+    updateItem,
+    discardChanges,
+    saveChanges,
+    reload,
+  } = useOnlineInventory(stayDate);
+
+  const openRoomTypeCount = useMemo(
+    () => items.filter((item) => item.online_booking_enabled).length,
+    [items],
+  );
+
+  const changeDate = (nextDate: string) => {
+    if (!nextDate) return;
+    if (changedCount > 0 && !window.confirm('Discard your unsaved inventory changes?')) return;
+    setStayDate(nextDate);
+  };
+
+  const refreshInventory = () => {
+    if (changedCount > 0 && !window.confirm('Discard your unsaved inventory changes and refresh availability?')) return;
+    void reload();
+  };
+
+  return (
+    <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3.5 }, pb: { xs: 12, md: 4 } }}>
+      <Stack spacing={3}>
+        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} gap={2}>
+          <Box>
+            <Stack direction="row" spacing={1} alignItems="center" color="primary.main" sx={{ mb: 0.75 }}>
+              <SettingsSuggestOutlinedIcon fontSize="small" />
+              <Typography variant="overline" fontWeight={800} letterSpacing={1.2}>Inventory settings</Typography>
+            </Stack>
+            <Typography variant="h4" component="h1" fontWeight={850} letterSpacing={-0.7}>
+              Online availability
+            </Typography>
+            <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 640 }}>
+              Choose how many rooms to keep for walk-ins. Everything else can be offered to online guests.
+            </Typography>
+          </Box>
+
+          <Paper variant="outlined" sx={{ p: 0.75, borderRadius: 3, alignSelf: { xs: 'stretch', md: 'auto' } }}>
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <Tooltip title="Previous day">
+                <IconButton aria-label="Previous stay date" onClick={() => changeDate(shiftDate(stayDate, -1))}>
+                  <ArrowBackIosNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <TextField
+                type="date"
+                value={stayDate}
+                onChange={(event) => changeDate(event.target.value)}
+                size="small"
+                inputProps={{ 'aria-label': 'Stay date' }}
+                sx={{ flex: 1, minWidth: 150, '& fieldset': { border: 0 } }}
+              />
+              <Tooltip title="Next day">
+                <IconButton aria-label="Next stay date" onClick={() => changeDate(shiftDate(stayDate, 1))}>
+                  <ArrowForwardIosIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              {stayDate !== today && (
+                <Button size="small" onClick={() => changeDate(today)} sx={{ whiteSpace: 'nowrap' }}>Today</Button>
+              )}
+            </Stack>
+          </Paper>
+        </Stack>
+
+        {error && <Alert severity="error">{error}</Alert>}
+
+        <Box>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1} sx={{ mb: 1.5 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <CalendarMonthOutlinedIcon color="action" />
+              <Box>
+                <Typography variant="h6" fontWeight={800}>{formatStayDate(stayDate)}</Typography>
+                {!isLoading && (
+                  <Typography variant="body2" color="text.secondary">
+                    {openRoomTypeCount} of {items.length} room types are open online
+                  </Typography>
+                )}
+              </Box>
+            </Stack>
+            <Tooltip title="Reload physical availability">
+              <span>
+                <Button startIcon={<RefreshIcon />} onClick={refreshInventory} disabled={isLoading || isSaving}>
+                  Refresh
+                </Button>
+              </span>
+            </Tooltip>
+          </Stack>
+
+          {!isLoading && items.length > 0 && <InventorySummary items={items} />}
+        </Box>
+
+        {isLoading ? (
+          <Paper variant="outlined" sx={{ display: 'grid', placeItems: 'center', minHeight: 280, borderRadius: 3 }}>
+            <Stack alignItems="center" spacing={1.5}>
+              <CircularProgress size={32} />
+              <Typography color="text.secondary">Loading room availability…</Typography>
+            </Stack>
+          </Paper>
+        ) : items.length === 0 ? (
+          <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
+            <CloudDoneOutlinedIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1 }} />
+            <Typography variant="h6" fontWeight={750}>No room types to configure</Typography>
+            <Typography color="text.secondary">Add a room type before setting its online availability.</Typography>
+          </Paper>
+        ) : (
+          <Stack spacing={2}>
+            {items.map((item) => (
+              <InventoryRoomCard
+                key={item.room_type_id}
+                item={item}
+                isChanged={changedRoomTypeIds.has(item.room_type_id)}
+                isDisabled={isSaving}
+                onChange={(patch) => updateItem(item.room_type_id, patch)}
+              />
+            ))}
+          </Stack>
+        )}
+      </Stack>
+
+      {changedCount > 0 && (
+        <Paper
+          elevation={8}
+          sx={{
+            position: 'fixed',
+            zIndex: (theme) => theme.zIndex.appBar - 1,
+            left: { xs: 12, md: '50%' },
+            right: { xs: 12, md: 'auto' },
+            bottom: 16,
+            transform: { md: 'translateX(-50%)' },
+            width: { md: 'min(680px, calc(100vw - 48px))' },
+            p: 1.25,
+            pl: 2,
+            borderRadius: 3,
+            border: 1,
+            borderColor: 'divider',
+          }}
+        >
+          <Stack direction="row" alignItems="center" spacing={1.5}>
+            <Typography fontWeight={750} sx={{ flex: 1 }}>
+              {changedCount} unsaved {changedCount === 1 ? 'change' : 'changes'}
+            </Typography>
+            <Button onClick={discardChanges} disabled={isSaving} color="inherit">Discard</Button>
+            <Button
+              variant="contained"
+              startIcon={isSaving ? <CircularProgress size={18} color="inherit" /> : <SaveOutlinedIcon />}
+              onClick={() => void saveChanges()}
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving…' : 'Save changes'}
+            </Button>
+          </Stack>
+        </Paper>
+      )}
+
+      <Snackbar
+        open={Boolean(successMessage)}
+        autoHideDuration={4000}
+        onClose={clearSuccessMessage}
+        message={successMessage}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </Container>
+  );
+};
+
+export default OnlineInventoryPage;

@@ -54,6 +54,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/admin/payments/pending", get(list_pending_payments))
         .route("/admin/payments/{payment_id}/approve", put(approve_payment))
         .route("/admin/payments/{payment_id}/reject", put(reject_payment))
+        .route(
+            "/admin/payments/{payment_id}/request-receipt",
+            post(request_payment_receipt),
+        )
         // Invoice routes
         .route("/invoices/preview/{booking_id}", get(get_invoice_preview))
         .route("/invoices/generate/{booking_id}", post(generate_invoice))
@@ -207,4 +211,20 @@ async fn reject_payment(
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
     handlers::payments::reject_payment_handler(State(pool), Extension(user_id), path, Json(body))
         .await
+}
+
+async fn request_payment_receipt(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(body): Json<models::RequestPaymentReceiptRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_APPROVE).await?;
+    handlers::payments::request_payment_receipt_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+        Json(body),
+    )
+    .await
 }

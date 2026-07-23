@@ -787,6 +787,7 @@ mod tests {
             complimentary_nights_credit: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            account_username: None,
             bookings_count: None,
             last_stay_date: None,
             ekyc_summary: GuestEkycStatusSummary::not_submitted(id),

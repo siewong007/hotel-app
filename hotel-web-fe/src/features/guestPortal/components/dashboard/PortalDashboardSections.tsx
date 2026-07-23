@@ -558,6 +558,12 @@ function BookingDetailsDialog({
             Your offline banking payment is awaiting confirmation by our team.
           </Alert>
         ) : null}
+        {awaitingPayment && booking.payment_rejection_reason ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            Your previous payment could not be confirmed: {booking.payment_rejection_reason}.
+            Please try again below.
+          </Alert>
+        ) : null}
         {awaitingPayment ? (
           <Box sx={{ mt: 2 }}>
             <GuestPaymentPanel

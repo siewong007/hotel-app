@@ -27,6 +27,8 @@ export interface Guest {
   tourism_type?: TourismType; // Local or foreign tourism for tax calculation
   discount_percentage?: number; // Member discount percentage (e.g., 10 for 10% off)
   company_name?: string; // Company the guest is tied to
+  /** Read-only username of the linked active guest account, when one exists. */
+  account_username?: string;
   created_at: string;
   updated_at: string;
   /**

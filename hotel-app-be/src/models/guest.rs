@@ -30,6 +30,11 @@ pub struct Guest {
     pub complimentary_nights_credit: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Read-only username of the active guest-portal account linked through
+    /// `users.guest_id`. Guest profile updates cannot modify this account field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub account_username: Option<String>,
     /// Aggregate counters populated by the list endpoint (subqueries against
     /// the bookings table). These stay `None` for endpoints that don't compute
     /// them so we don't pay the cost on every per-guest fetch.

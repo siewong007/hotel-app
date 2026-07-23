@@ -15,7 +15,7 @@
  * backend — the backend derives the charge from the booking itself; `amount`
  * here is display-only, and may be omitted if the caller doesn't have it.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -85,6 +85,9 @@ export function GuestPaymentPanel({
   const [pendingPaypalPaymentId, setPendingPaypalPaymentId] = useState<number | null>(null);
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | null>(null);
+  // React state updates are asynchronous, so it cannot by itself prevent two
+  // clicks in the same render from creating two payment claims.
+  const paymentAttemptInFlight = useRef(false);
 
   const loadConfig = useCallback(async () => {
     setConfigLoading(true);
@@ -103,9 +106,10 @@ export function GuestPaymentPanel({
   }, [loadConfig]);
 
   const submitBankTransfer = useCallback(async () => {
-    if (bankSubmitting || result) return;
+    if (paymentAttemptInFlight.current || bankSubmitting || result) return;
     if (mode === 'session' && (!bookingId || !token)) return;
     if (mode === 'token' && !token) return;
+    paymentAttemptInFlight.current = true;
     setBankSubmitting(true);
     setBankError(null);
     try {
@@ -118,18 +122,29 @@ export function GuestPaymentPanel({
     } catch (error) {
       setBankError(errorMessage(error, 'Unable to submit your bank transfer claim.'));
     } finally {
+      paymentAttemptInFlight.current = false;
       setBankSubmitting(false);
     }
   }, [bankSubmitting, result, mode, bookingId, token, onPaid]);
 
   const createOrder = useCallback(async (): Promise<string> => {
+    if (paymentAttemptInFlight.current) {
+      throw new Error('A payment request is already in progress.');
+    }
+    paymentAttemptInFlight.current = true;
     setPaypalError(null);
-    const response =
-      mode === 'session'
-        ? await GuestPortalDashboardService.createPaypalOrder(bookingId!, token)
-        : await GuestPortalService.createPaypalOrder(token!);
-    setPendingPaypalPaymentId(response.payment_id);
-    return response.order_id;
+    try {
+      const response =
+        mode === 'session'
+          ? await GuestPortalDashboardService.createPaypalOrder(bookingId!, token)
+          : await GuestPortalService.createPaypalOrder(token!);
+      setPendingPaypalPaymentId(response.payment_id);
+      return response.order_id;
+    } catch (error) {
+      setPaypalError(errorMessage(error, 'Unable to start your PayPal payment.'));
+      paymentAttemptInFlight.current = false;
+      throw error;
+    }
   }, [mode, bookingId, token]);
 
   const onApprove = useCallback(
@@ -156,13 +171,20 @@ export function GuestPaymentPanel({
         onPaid?.();
       } catch (error) {
         setPaypalError(errorMessage(error, 'Unable to confirm your PayPal payment.'));
+      } finally {
+        paymentAttemptInFlight.current = false;
       }
     },
     [mode, bookingId, token, pendingPaypalPaymentId, onPaid],
   );
 
   const onPaypalError = useCallback(() => {
+    paymentAttemptInFlight.current = false;
     setPaypalError('PayPal was unable to process this payment. Please try again.');
+  }, []);
+
+  const onPaypalCancel = useCallback(() => {
+    paymentAttemptInFlight.current = false;
   }, []);
 
   const canPay = mode === 'session' ? Boolean(bookingId && token) : Boolean(token);
@@ -314,6 +336,7 @@ export function GuestPaymentPanel({
               createOrder={createOrder}
               onApprove={onApprove}
               onError={onPaypalError}
+              onCancel={onPaypalCancel}
             />
           </PayPalScriptProvider>
         </Box>

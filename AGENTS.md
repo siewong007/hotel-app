@@ -371,6 +371,4 @@ When CodeGraph is initialized, use it for repository architecture, dependency, a
 - Use `codegraph status .` to check freshness. The MCP server auto-syncs changes; use `codegraph sync .` for a manual incremental refresh and `codegraph index . --force` to rebuild the index.
 - Treat CodeGraph output as current source when it has no staleness warning, but verify authentication, authorization, payment, ledger, migration, and other security/data-critical findings against the files.
 
-CodeGraph indexes the backend, frontend, and desktop source trees. SQL schema/data resources, secrets, generated outputs, build artifacts, design-sync files, and deployment infrastructure remain outside the graph and must be inspected directly when relevant.
-
-The old `graphify-out/` artifacts are retained only as migration-era rollback state; new work should not add Graphify references.
+CodeGraph is the repository's only code-graph system. It indexes the backend, frontend, and desktop source trees. SQL schema/data resources, secrets, generated outputs, build artifacts, design-sync files, and deployment infrastructure remain outside the graph and must be inspected directly when relevant.

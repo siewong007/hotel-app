@@ -378,6 +378,26 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn public_guest_payment_config_is_available_without_auth() {
+        let pool = common::setup_test_db().await;
+        let base_url = spawn_app(pool).await;
+
+        let response = reqwest::Client::new()
+            .get(format!("{base_url}/api/guest-portal/payment-config"))
+            .send()
+            .await
+            .expect("public payment-config request should complete");
+
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        let body: Value = response
+            .json()
+            .await
+            .expect("payment-config response should be JSON");
+        assert!(body["paypal_enabled"].is_boolean());
+        assert!(body["bank_details"].is_object());
+    }
+
+    #[tokio::test]
     async fn public_promotion_catalogue_is_available_without_auth_and_hides_drafts() {
         let pool = common::setup_test_db().await;
         let published =

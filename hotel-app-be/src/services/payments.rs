@@ -823,9 +823,28 @@ pub async fn create_paypal_order(
     tx.commit().await.map_err(ApiError::from)?;
 
     let custom_id = format!("{}:{}", booking.id, payment_id);
-    let order_id =
-        crate::services::paypal_client::create_order(booking.total_amount, currency, &custom_id)
+    // The database record must be committed before PayPal can receive its id in
+    // `custom_id`. If PayPal cannot create the external order, immediately move
+    // that local record to a terminal state so it cannot block the guest from
+    // trying again.
+    let order_id = match crate::services::paypal_client::create_order(
+        booking.total_amount,
+        currency,
+        &custom_id,
+    )
+    .await
+    {
+        Ok(order_id) => order_id,
+        Err(error) => {
+            release_failed_paypal_payment(
+                pool,
+                payment_id,
+                "PayPal could not create an order. No payment was captured.",
+            )
             .await?;
+            return Err(error);
+        }
+    };
 
     PaymentRepository::set_payment_gateway_order(pool, payment_id, &order_id).await?;
 
@@ -853,8 +872,33 @@ pub async fn capture_paypal_payment(
         ));
     }
 
+    // Capturing an already-completed PayPal order is a normal retry scenario
+    // (for example when the browser lost the first response). Return the same
+    // successful result rather than attempting a second settlement.
+    if review.status == "completed" {
+        return Ok(PaymentActionResponse {
+            payment_id,
+            status: "completed".to_string(),
+            booking_status: Some("confirmed".to_string()),
+        });
+    }
+    if review.status != "pending" && review.status != "processing" {
+        return Err(ApiError::BadRequest(
+            "This PayPal payment is no longer available for capture.".to_string(),
+        ));
+    }
+
     let outcome = crate::services::paypal_client::capture_order(order_id).await?;
     if outcome.status != "COMPLETED" {
+        release_failed_paypal_payment(
+            pool,
+            payment_id,
+            &format!(
+                "PayPal returned {} before completing the payment.",
+                outcome.status
+            ),
+        )
+        .await?;
         return Err(ApiError::BadRequest(format!(
             "PayPal payment was not completed (status: {}).",
             outcome.status
@@ -871,6 +915,12 @@ pub async fn capture_paypal_payment(
             log::error!(
                 "PayPal capture custom_id mismatch: expected {expected_custom_id}, got {other:?}"
             );
+            release_failed_paypal_payment(
+                pool,
+                payment_id,
+                "PayPal order did not match the booking payment.",
+            )
+            .await?;
             return Err(ApiError::BadRequest(
                 "PayPal order does not match this booking.".to_string(),
             ));
@@ -883,15 +933,28 @@ pub async fn capture_paypal_payment(
     let expected_currency = booking_currency(booking);
     if let Err(reason) = verify_captured_amount(&outcome, booking.total_amount, expected_currency) {
         log::error!("PayPal capture amount/currency mismatch for payment {payment_id}: {reason}");
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        PaymentRepository::mark_payment_failed_tx(&mut tx, payment_id, &reason).await?;
-        tx.commit().await.map_err(ApiError::from)?;
+        release_failed_paypal_payment(pool, payment_id, &reason).await?;
         return Err(ApiError::BadRequest(
             "PayPal captured amount does not match the booking total.".to_string(),
         ));
     }
 
     complete_and_confirm(pool, payment_id, booking.id, None, "payment_captured").await
+}
+
+/// Release a PayPal attempt that definitively did not complete. This is kept
+/// separate from network/transport failures: when the outcome is unknown we
+/// retain the pending row, because marking it failed could invite a duplicate
+/// charge. A concrete non-COMPLETED response, malformed matching data, or a
+/// failed order creation can safely become retryable.
+async fn release_failed_paypal_payment(
+    pool: &DbPool,
+    payment_id: i64,
+    reason: &str,
+) -> Result<(), ApiError> {
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::mark_payment_failed_tx(&mut tx, payment_id, reason).await?;
+    tx.commit().await.map_err(ApiError::from)
 }
 
 /// Compare a PayPal capture's echoed amount/currency against what we expect for
@@ -951,6 +1014,41 @@ pub async fn approve_payment(
         "payment_approved",
     )
     .await
+}
+
+/// Staff action: request proof for an unresolved bank-transfer claim without
+/// rejecting it. The claim remains pending for review; the request is safe to
+/// repeat and is restricted by the payments approval permission at the route.
+pub async fn request_payment_receipt(
+    pool: &DbPool,
+    actor_user_id: i64,
+    payment_id: i64,
+    message: Option<&str>,
+) -> Result<(), ApiError> {
+    let review = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if review.status != "pending"
+        || review.payment_method != PaymentMethod::BankTransfer.to_string()
+    {
+        return Err(ApiError::BadRequest(
+            "A receipt can only be requested for a pending bank-transfer claim.".to_string(),
+        ));
+    }
+    let message = message.map(str::trim).filter(|value| !value.is_empty());
+    PaymentRepository::request_receipt(pool, payment_id, actor_user_id, message).await?;
+    AuditLog::log_event(
+        pool,
+        Some(actor_user_id),
+        "payment_receipt_requested",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({ "booking_id": review.booking_id, "message": message })),
+        None,
+        None,
+    )
+    .await?;
+    Ok(())
 }
 
 /// Shared completion path: CAS the payment to `completed`, confirm the booking
@@ -1024,6 +1122,92 @@ async fn complete_and_confirm(
     })
 }
 
+/// Queue a guest-facing email explaining why their payment claim was
+/// rejected. Mirrors `queue_paid_online_booking_room_assignment`'s use of the
+/// `booking_confirmation` kind/topic — both DB dialects already allow that
+/// pair with `campaign_id IS NULL`, so no schema change is needed for a new
+/// notification kind.
+async fn queue_payment_rejected_notification(
+    pool: &DbPool,
+    guest_id: i64,
+    guest_name: &str,
+    booking_number: &str,
+    payment_id: i64,
+    reason: &str,
+) -> Result<(), ApiError> {
+    let Some(email) = CommunicationsRepository::get_guest_email(pool, guest_id).await? else {
+        return Ok(());
+    };
+
+    let subject = format!("Update on your payment for booking {booking_number}");
+    let body_html = format!(
+        "<p>Dear {},</p>\
+         <p>We were unable to confirm your recent payment for booking <strong>{}</strong>.</p>\
+         <p><strong>Reason:</strong> {}</p>\
+         <p>Please log in to your guest portal to try another payment method.</p>",
+        html_escape(guest_name),
+        html_escape(booking_number),
+        html_escape(reason),
+    );
+    let body_text = format!(
+        "We were unable to confirm your recent payment for booking {booking_number}.\n\
+         Reason: {reason}\n\
+         Please log in to your guest portal to try another payment method.",
+    );
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    CommunicationsRepository::insert_delivery_tx(
+        &mut tx,
+        None,
+        "booking_confirmation",
+        guest_id,
+        "booking_confirmation",
+        &email,
+        &subject,
+        &body_html,
+        Some(&body_text),
+        None,
+        &format!("payment-rejected:{payment_id}"),
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(())
+}
+
+/// Best-effort wrapper: a notification failure must never undo a staff
+/// rejection that has already been committed.
+async fn try_queue_payment_rejected_notification(
+    pool: &DbPool,
+    guest_id: Option<i64>,
+    guest_name: Option<&str>,
+    booking_id: i64,
+    booking_number: Option<&str>,
+    payment_id: i64,
+    reason: &str,
+) {
+    let Some(guest_id) = guest_id else { return };
+    let booking_label = booking_number
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("#{booking_id}"));
+
+    if let Err(error) = queue_payment_rejected_notification(
+        pool,
+        guest_id,
+        guest_name.unwrap_or("Guest"),
+        &booking_label,
+        payment_id,
+        reason,
+    )
+    .await
+    {
+        log::error!(
+            "Failed to queue payment-rejected notification for payment {}: {}",
+            payment_id,
+            error
+        );
+    }
+}
+
 /// Staff action: reject a pending payment. A rejected bank claim returns the
 /// booking to `pending_payment` so the guest can choose another payment method.
 pub async fn reject_payment(
@@ -1095,6 +1279,17 @@ pub async fn reject_payment(
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
+
+    try_queue_payment_rejected_notification(
+        pool,
+        review.guest_id,
+        review.guest_name.as_deref(),
+        review.booking_id,
+        review.booking_number.as_deref(),
+        payment_id,
+        reason,
+    )
+    .await;
 
     Ok(PaymentActionResponse {
         payment_id,

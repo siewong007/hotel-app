@@ -93,8 +93,11 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
   }, []);
 
   const signOut = useCallback(() => {
-    logoutAccount();
+    // Leave the guarded guest route before clearing the account state. Otherwise
+    // RootLayout sees an unauthenticated user still on /guest-portal and sends
+    // them to the guest login page instead of the public index page.
     logoutPortal();
+    logoutAccount();
   }, [logoutAccount, logoutPortal]);
 
   const restartSignIn = useCallback(() => {

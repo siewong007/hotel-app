@@ -131,10 +131,18 @@ impl GuestPortalSessionRepository {
             .try_get("c")
             .unwrap_or_default();
 
+        // Postgres records a rejected claim's reason in `failure_reason`
+        // (timestamped by `processed_at`); SQLite reuses its void columns
+        // (`void_reason`/`voided_at`) — see mark_payment_rejected_tx.
+        let rejection_reason_col = sql_query!(postgres: "failure_reason", sqlite: "void_reason");
+        let rejected_at_col = sql_query!(postgres: "processed_at", sqlite: "voided_at");
         let sql = format!(
             "SELECT b.id, b.booking_number, b.check_in_date, b.check_out_date, b.status, b.total_amount, \
                     EXISTS(SELECT 1 FROM voucher_redemptions vr JOIN promotions p ON p.id = vr.promotion_id \
-                           WHERE vr.booking_id = b.id AND vr.status = 'applied' AND p.is_cancellable = {}) AS has_non_cancellable_voucher \
+                           WHERE vr.booking_id = b.id AND vr.status = 'applied' AND p.is_cancellable = {}) AS has_non_cancellable_voucher, \
+                    (SELECT rp.{rejection_reason_col} FROM payments rp WHERE rp.booking_id = b.id \
+                            AND rp.status = 'void' ORDER BY rp.{rejected_at_col} DESC, rp.id DESC LIMIT 1) \
+                            AS payment_rejection_reason \
              FROM bookings b WHERE b.guest_id = {} \
              ORDER BY b.check_in_date DESC, b.id DESC LIMIT {} OFFSET {}",
             false,
@@ -172,6 +180,10 @@ impl GuestPortalSessionRepository {
                 } else {
                     None
                 },
+                payment_rejection_reason: row
+                    .try_get::<Option<String>, _>("payment_rejection_reason")
+                    .ok()
+                    .flatten(),
             })
             .collect();
 

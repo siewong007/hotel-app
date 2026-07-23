@@ -138,22 +138,27 @@ impl SearchRepository {
         let lk = like_op();
         let (p, plim) = placeholders();
         let sql = format!(
-            "SELECT id AS id, \
-                    COALESCE(full_name, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') AS full_name, \
-                    COALESCE(phone, '') AS phone, COALESCE(email, '') AS email, \
-                    COALESCE(ic_number, '') AS ic_number, \
-                    COALESCE(company_name, '') AS company_name \
-             FROM guests \
-             WHERE deleted_at IS NULL AND ( \
-                 CAST(id AS TEXT) {lk} {p} \
-                 OR COALESCE(full_name, '') {lk} {p} \
-                 OR COALESCE(first_name, '') {lk} {p} \
-                 OR COALESCE(last_name, '') {lk} {p} \
-                 OR TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) {lk} {p} \
-                 OR COALESCE(email, '') {lk} {p} \
-                 OR COALESCE(phone, '') {lk} {p} \
-                 OR COALESCE(ic_number, '') {lk} {p} \
-                 OR COALESCE(company_name, '') {lk} {p}) \
+            "SELECT g.id AS id, \
+                    COALESCE(g.full_name, TRIM(COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')), '') AS full_name, \
+                    COALESCE(g.phone, '') AS phone, COALESCE(g.email, '') AS email, \
+                    COALESCE(g.ic_number, '') AS ic_number, \
+                    COALESCE(g.company_name, '') AS company_name \
+             FROM guests g \
+             WHERE g.deleted_at IS NULL AND ( \
+                 CAST(g.id AS TEXT) {lk} {p} \
+                 OR COALESCE(g.full_name, '') {lk} {p} \
+                 OR COALESCE(g.first_name, '') {lk} {p} \
+                 OR COALESCE(g.last_name, '') {lk} {p} \
+                 OR TRIM(COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) {lk} {p} \
+                 OR COALESCE(g.email, '') {lk} {p} \
+                 OR COALESCE(g.phone, '') {lk} {p} \
+                 OR COALESCE(g.ic_number, '') {lk} {p} \
+                 OR COALESCE(g.company_name, '') {lk} {p} \
+                 OR EXISTS (SELECT 1 FROM users u \
+                            WHERE u.guest_id = g.id \
+                              AND u.deleted_at IS NULL \
+                              AND u.is_active = true \
+                              AND u.username {lk} {p})) \
              ORDER BY full_name LIMIT {plim}"
         );
 

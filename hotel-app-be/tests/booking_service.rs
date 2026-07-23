@@ -599,6 +599,62 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn guest_cancellation_releases_a_pending_confirmation_room_for_new_bookings() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9975,
+            9975,
+            9975,
+            "pending_confirmation",
+            "2030-07-10",
+            "2030-07-12",
+        )
+        .await;
+
+        let guest_user_id = 9975_i64;
+        sqlx::query(
+            "INSERT INTO users (id, uuid, username, email, password_hash, full_name, user_type, guest_id, is_active, is_verified) \
+             VALUES (?1, ?2, 'cancel-test-guest', 'cancel-test@example.com', 'hash', 'Cancel Test Guest', 'guest', ?3, 1, 1)",
+        )
+        .bind(guest_user_id)
+        .bind(uuid::Uuid::new_v4().to_string())
+        .bind(9975_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = ?1")
+            .bind(9975_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        bookings::cancel_pending_booking_by_guest(
+            &pool,
+            guest_user_id,
+            9975,
+            Some("Plans changed".to_string()),
+        )
+        .await
+        .expect("an unpaid guest booking should cancel successfully");
+
+        let booking_status: String =
+            sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+                .bind(9975_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = ?1")
+            .bind(9975_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(booking_status, "voided");
+        assert_eq!(room_status, "available");
+    }
+
+    #[tokio::test]
     async fn void_booking_rejects_already_voided_without_duplicate_audit_rows() {
         let pool = common::setup_test_db().await;
         seed_room_guest_booking(

@@ -176,6 +176,18 @@ pub async fn approve_payment_handler(
     ))
 }
 
+/// Staff: ask a guest to provide a receipt for a pending bank transfer.
+pub async fn request_payment_receipt_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(payment_id): Path<i64>,
+    Json(request): Json<RequestPaymentReceiptRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    payments::request_payment_receipt(&pool, user_id, payment_id, request.message.as_deref())
+        .await?;
+    Ok(Json(serde_json::json!({ "requested": true })))
+}
+
 /// Staff: reject a pending payment (booking stays pending).
 pub async fn reject_payment_handler(
     State(pool): State<DbPool>,

@@ -40,6 +40,8 @@ export interface GuestPortalBookingSummary {
   total_amount: string | number;
   can_cancel: boolean;
   cancellation_unavailable_reason?: string | null;
+  /** Reason from the most recently rejected payment claim, if the booking is still awaiting payment. */
+  payment_rejection_reason?: string | null;
 }
 
 export interface GuestPortalPagedResponse<T> {

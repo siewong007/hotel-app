@@ -609,8 +609,10 @@ mod tests {
     }
 
     #[test]
-    fn only_pending_bookings_are_guest_cancellable() {
+    fn unpaid_booking_states_are_guest_cancellable() {
         assert!(is_guest_cancellable_pending_booking("pending"));
+        assert!(is_guest_cancellable_pending_booking("pending_payment"));
+        assert!(is_guest_cancellable_pending_booking("pending_confirmation"));
         assert!(!is_guest_cancellable_pending_booking("confirmed"));
         assert!(!is_guest_cancellable_pending_booking("checked_in"));
         assert!(!is_guest_cancellable_pending_booking("voided"));
