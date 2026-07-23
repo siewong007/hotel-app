@@ -88,7 +88,7 @@ const OnlineInventoryPage = () => {
               Online availability
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 640 }}>
-              Choose how many rooms to keep for walk-ins. Everything else can be offered to online guests.
+              Choose how many rooms to keep for walk-ins, set a custom online price, or close a room type for the selected date.
             </Typography>
           </Box>
 

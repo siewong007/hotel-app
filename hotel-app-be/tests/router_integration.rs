@@ -16,7 +16,10 @@ mod sqlite_tests {
     use chrono::{Duration, Utc};
     use hotel_app_be::core::auth::AuthService;
     use hotel_app_be::core::config;
-    use hotel_app_be::modules::promotions::{models::PromotionInput, service as promotion_service};
+    use hotel_app_be::modules::promotions::{
+        models::{PromotionInput, VoucherIssueInput},
+        service as promotion_service,
+    };
     use hotel_app_be::repositories::guest_portal_session::GuestPortalSessionRepository;
     use hotel_app_be::routes::create_router;
     use serde_json::Value;
@@ -519,6 +522,327 @@ mod sqlite_tests {
             staff_voucher["code_masked"],
             format!("••••{}", &raw_code[raw_code.len() - 4..])
         );
+    }
+
+    #[tokio::test]
+    async fn voucher_mutations_reject_unauthorized_and_mass_assignment_payloads() {
+        let pool = common::setup_test_db().await;
+        let voucher_guest_id = 920_110;
+        let issue_target_guest_id = 920_111;
+        let staff_user_id = 920_112;
+        insert_guest(&pool, voucher_guest_id).await;
+        insert_guest(&pool, issue_target_guest_id).await;
+        insert_user_with_role(&pool, staff_user_id, "router_voucher_housekeeper", 4).await;
+        let promotion =
+            create_published_promotion(&pool, "router-voucher-security", "Router voucher security")
+                .await;
+        let voucher = promotion_service::issue_admin_voucher(
+            &pool,
+            1,
+            VoucherIssueInput {
+                promotion_id: promotion.id,
+                guest_id: voucher_guest_id,
+                code: Some("ROUTERSECUREVOUCHER110".to_string()),
+                expires_at: None,
+            },
+            None,
+            None,
+        )
+        .await
+        .expect("security test voucher should be issued");
+
+        let base_url = spawn_app(pool.clone()).await;
+        let client = reqwest::Client::new();
+        let issue_url = format!("{base_url}/api/admin/vouchers");
+        let revoke_url = format!("{base_url}/api/admin/vouchers/{}/revoke", voucher.id);
+        let issue_body = serde_json::json!({
+            "promotion_id": promotion.id,
+            "guest_id": issue_target_guest_id,
+            "code": "ROUTERSECUREVOUCHER111"
+        });
+
+        let unauthenticated_issue = client
+            .post(&issue_url)
+            .json(&issue_body)
+            .send()
+            .await
+            .expect("unauthenticated issue request should complete");
+        assert_eq!(
+            unauthenticated_issue.status(),
+            reqwest::StatusCode::UNAUTHORIZED
+        );
+
+        let housekeeping_token = staff_token(
+            &pool,
+            staff_user_id,
+            "router_voucher_housekeeper",
+            vec!["housekeeping".to_string()],
+        )
+        .await;
+        let forbidden_issue = client
+            .post(&issue_url)
+            .bearer_auth(&housekeeping_token)
+            .json(&issue_body)
+            .send()
+            .await
+            .expect("under-permitted issue request should complete");
+        assert_eq!(forbidden_issue.status(), reqwest::StatusCode::FORBIDDEN);
+
+        let forbidden_revoke = client
+            .post(&revoke_url)
+            .bearer_auth(&housekeeping_token)
+            .json(&serde_json::json!({"reason": "not authorized"}))
+            .send()
+            .await
+            .expect("under-permitted revoke request should complete");
+        assert_eq!(forbidden_revoke.status(), reqwest::StatusCode::FORBIDDEN);
+
+        let admin_token = staff_token(&pool, 1, "admin", vec!["admin".to_string()]).await;
+        let mass_assignment_issue = client
+            .post(&issue_url)
+            .bearer_auth(&admin_token)
+            .json(&serde_json::json!({
+                "promotion_id": promotion.id,
+                "guest_id": issue_target_guest_id,
+                "code": "ROUTERSECUREVOUCHER111",
+                "status": "redeemed",
+                "issued_by": staff_user_id
+            }))
+            .send()
+            .await
+            .expect("mass-assignment issue request should complete");
+        assert_eq!(
+            mass_assignment_issue.status(),
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY
+        );
+
+        let injection_code_issue = client
+            .post(&issue_url)
+            .bearer_auth(&admin_token)
+            .json(&serde_json::json!({
+                "promotion_id": promotion.id,
+                "guest_id": issue_target_guest_id,
+                "code": "VCH12345'); DROP TABLE vouchers;--"
+            }))
+            .send()
+            .await
+            .expect("injection-shaped issue request should complete");
+        assert_eq!(
+            injection_code_issue.status(),
+            reqwest::StatusCode::BAD_REQUEST
+        );
+
+        let mass_assignment_revoke = client
+            .post(&revoke_url)
+            .bearer_auth(&admin_token)
+            .json(&serde_json::json!({
+                "reason": "attempted actor override",
+                "revoked_by": staff_user_id,
+                "status": "redeemed"
+            }))
+            .send()
+            .await
+            .expect("mass-assignment revoke request should complete");
+        assert_eq!(
+            mass_assignment_revoke.status(),
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY
+        );
+
+        let target_voucher_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM vouchers WHERE guest_id = ?1")
+                .bind(issue_target_guest_id)
+                .fetch_one(&pool)
+                .await
+                .expect("target voucher count should load");
+        assert_eq!(target_voucher_count, 0);
+        let original_status: String =
+            sqlx::query_scalar("SELECT status FROM vouchers WHERE id = ?1")
+                .bind(voucher.id)
+                .fetch_one(&pool)
+                .await
+                .expect("original voucher status should load");
+        assert_eq!(original_status, "available");
+    }
+
+    #[tokio::test]
+    async fn guest_voucher_access_is_owner_scoped_and_rejects_guest_id_injection() {
+        let pool = common::setup_test_db().await;
+        let owner_guest_id = 920_120;
+        let other_guest_id = 920_121;
+        insert_guest(&pool, owner_guest_id).await;
+        insert_guest(&pool, other_guest_id).await;
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status, is_active) \
+             VALUES (920120, 'PORTAL-120', 1, 'available', 1)",
+        )
+        .execute(&pool)
+        .await
+        .expect("security test room should be inserted");
+        let promotion = create_published_promotion(
+            &pool,
+            "router-owner-scoped-voucher",
+            "Router owner scoped voucher",
+        )
+        .await;
+        let owner_token = create_guest_portal_token(&pool, owner_guest_id).await;
+        let other_token = create_guest_portal_token(&pool, other_guest_id).await;
+        let base_url = spawn_app(pool.clone()).await;
+        let client = reqwest::Client::new();
+        let claim_url = format!(
+            "{base_url}/api/guest-portal/me/promotions/{}/claim",
+            promotion.id
+        );
+
+        let injected_claim = client
+            .post(&claim_url)
+            .bearer_auth(&owner_token)
+            .json(&serde_json::json!({
+                "client_request_id": "owner-scope-injected",
+                "guest_id": other_guest_id
+            }))
+            .send()
+            .await
+            .expect("guest-id injection claim should complete");
+        assert_eq!(
+            injected_claim.status(),
+            reqwest::StatusCode::UNPROCESSABLE_ENTITY
+        );
+
+        let valid_claim = client
+            .post(&claim_url)
+            .bearer_auth(&owner_token)
+            .json(&serde_json::json!({"client_request_id": "owner-scope-valid"}))
+            .send()
+            .await
+            .expect("valid owner claim should complete");
+        assert_eq!(valid_claim.status(), reqwest::StatusCode::OK);
+        let owner_voucher: Value = valid_claim
+            .json()
+            .await
+            .expect("owner claim should return JSON");
+        let voucher_id = owner_voucher["id"]
+            .as_i64()
+            .expect("owner voucher id should be numeric");
+        assert_eq!(owner_voucher["guest_id"], owner_guest_id);
+
+        let other_wallet = client
+            .get(format!("{base_url}/api/guest-portal/me/vouchers"))
+            .bearer_auth(&other_token)
+            .send()
+            .await
+            .expect("other guest wallet request should complete");
+        assert_eq!(other_wallet.status(), reqwest::StatusCode::OK);
+        let other_wallet_body: Value = other_wallet
+            .json()
+            .await
+            .expect("other guest wallet should return JSON");
+        assert_eq!(other_wallet_body["total"], 0);
+
+        let check_in = (Utc::now().date_naive() + Duration::days(14)).to_string();
+        let check_out = (Utc::now().date_naive() + Duration::days(16)).to_string();
+        let cross_guest_quote = client
+            .post(format!("{base_url}/api/guest-portal/me/booking-quote"))
+            .bearer_auth(&other_token)
+            .json(&serde_json::json!({
+                "room_type_id": 1,
+                "check_in_date": check_in,
+                "check_out_date": check_out,
+                "adults": 1,
+                "children": 0,
+                "voucher_id": voucher_id
+            }))
+            .send()
+            .await
+            .expect("cross-guest quote request should complete");
+        assert_eq!(cross_guest_quote.status(), reqwest::StatusCode::CONFLICT);
+
+        let stored_status: String = sqlx::query_scalar("SELECT status FROM vouchers WHERE id = ?1")
+            .bind(voucher_id)
+            .fetch_one(&pool)
+            .await
+            .expect("owner voucher status should load");
+        assert_eq!(stored_status, "available");
+    }
+
+    #[tokio::test]
+    async fn staff_voucher_search_does_not_expose_a_raw_code_prefix_or_sql_injection() {
+        let pool = common::setup_test_db().await;
+        let guest_id = 920_130;
+        insert_guest(&pool, guest_id).await;
+        let promotion = create_published_promotion(
+            &pool,
+            "router-voucher-search-security",
+            "Router voucher search security",
+        )
+        .await;
+        let raw_code = "ROUTERSEARCHSECRET130";
+        let voucher = promotion_service::issue_admin_voucher(
+            &pool,
+            1,
+            VoucherIssueInput {
+                promotion_id: promotion.id,
+                guest_id,
+                code: Some(raw_code.to_string()),
+                expires_at: None,
+            },
+            None,
+            None,
+        )
+        .await
+        .expect("search security voucher should be issued");
+        let base_url = spawn_app(pool.clone()).await;
+        let client = reqwest::Client::new();
+        let admin_token = staff_token(&pool, 1, "admin", vec!["admin".to_string()]).await;
+
+        let prefix_search = client
+            .get(format!("{base_url}/api/admin/vouchers"))
+            .bearer_auth(&admin_token)
+            .query(&[("search", "ROUTERSEARCHSECRET")])
+            .send()
+            .await
+            .expect("voucher prefix search should complete");
+        assert_eq!(prefix_search.status(), reqwest::StatusCode::OK);
+        let prefix_body: Value = prefix_search
+            .json()
+            .await
+            .expect("voucher prefix search should return JSON");
+        assert_eq!(prefix_body["total"], 0);
+
+        let exact_search = client
+            .get(format!("{base_url}/api/admin/vouchers"))
+            .bearer_auth(&admin_token)
+            .query(&[("search", raw_code)])
+            .send()
+            .await
+            .expect("exact voucher search should complete");
+        assert_eq!(exact_search.status(), reqwest::StatusCode::OK);
+        let exact_body: Value = exact_search
+            .json()
+            .await
+            .expect("exact voucher search should return JSON");
+        assert_eq!(exact_body["total"], 1);
+        assert_eq!(exact_body["items"][0]["id"], voucher.id);
+        assert!(exact_body["items"][0]["code"].is_null());
+        assert_ne!(exact_body["items"][0]["code_masked"], raw_code);
+
+        let injection_search = client
+            .get(format!("{base_url}/api/admin/vouchers"))
+            .bearer_auth(&admin_token)
+            .query(&[("search", "' OR 1=1 --")])
+            .send()
+            .await
+            .expect("injection-shaped voucher search should complete");
+        assert_eq!(injection_search.status(), reqwest::StatusCode::OK);
+        let injection_body: Value = injection_search
+            .json()
+            .await
+            .expect("injection-shaped voucher search should return JSON");
+        assert_eq!(injection_body["total"], 0);
+        let voucher_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vouchers")
+            .fetch_one(&pool)
+            .await
+            .expect("voucher table should remain queryable");
+        assert!(voucher_count >= 1);
     }
 
     #[tokio::test]

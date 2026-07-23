@@ -9,7 +9,14 @@ const isSameConfiguration = (
 ) =>
   saved !== undefined &&
   current.walk_in_reserved_rooms === saved.walk_in_reserved_rooms &&
-  current.online_booking_enabled === saved.online_booking_enabled;
+  current.online_booking_enabled === saved.online_booking_enabled &&
+  comparablePrice(current.custom_price) === comparablePrice(saved.custom_price);
+
+const comparablePrice = (value: string | null) => {
+  if (value === null) return null;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue.toFixed(2) : value;
+};
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
@@ -54,7 +61,7 @@ export const useOnlineInventory = (stayDate: string) => {
   );
 
   const updateItem = useCallback(
-    (roomTypeId: number, patch: Partial<Pick<OnlineInventoryAllocation, 'walk_in_reserved_rooms' | 'online_booking_enabled'>>) => {
+    (roomTypeId: number, patch: Partial<Pick<OnlineInventoryAllocation, 'walk_in_reserved_rooms' | 'online_booking_enabled' | 'custom_price'>>) => {
       setSuccessMessage(null);
       setItems((current) =>
         current.map((item) => (item.room_type_id === roomTypeId ? { ...item, ...patch } : item)),
@@ -81,6 +88,7 @@ export const useOnlineInventory = (stayDate: string) => {
         updateOnlineInventory(item.room_type_id, stayDate, {
           walk_in_reserved_rooms: item.walk_in_reserved_rooms,
           online_booking_enabled: item.online_booking_enabled,
+          custom_price: item.custom_price,
         }),
       ),
     );

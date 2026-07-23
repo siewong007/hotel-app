@@ -202,6 +202,7 @@ pub struct PromotionActionInput {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ClaimPromotionInput {
     /// The unique guest/promotion constraint makes repeated claims idempotent;
     /// this client identifier is retained for API compatibility and tracing.
@@ -209,6 +210,7 @@ pub struct ClaimPromotionInput {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VoucherIssueInput {
     pub promotion_id: i64,
     pub guest_id: i64,
@@ -217,6 +219,38 @@ pub struct VoucherIssueInput {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VoucherRevokeInput {
     pub reason: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ClaimPromotionInput, VoucherIssueInput, VoucherRevokeInput};
+
+    #[test]
+    fn voucher_inputs_reject_mass_assignment_fields() {
+        assert!(
+            serde_json::from_value::<ClaimPromotionInput>(serde_json::json!({
+                "client_request_id": "claim-1",
+                "guest_id": 99
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<VoucherIssueInput>(serde_json::json!({
+                "promotion_id": 1,
+                "guest_id": 2,
+                "status": "redeemed"
+            }))
+            .is_err()
+        );
+        assert!(
+            serde_json::from_value::<VoucherRevokeInput>(serde_json::json!({
+                "reason": "test",
+                "revoked_by": 99
+            }))
+            .is_err()
+        );
+    }
 }

@@ -8,6 +8,7 @@ import type {
   GuestBookingQuote,
   GuestBookingQuoteRequest,
   GuestBookingSearch,
+  GuestBookingVoucherOptions,
 } from './types';
 
 function authHeaders(token?: string): Record<string, string> {
@@ -37,6 +38,18 @@ export const GuestBookingApi = {
         json: input,
       })
       .json<GuestBookingQuote>();
+  },
+
+  voucherOptions(
+    input: GuestBookingQuoteRequest,
+    token?: string,
+  ): Promise<GuestBookingVoucherOptions> {
+    return api
+      .post('guest-portal/me/booking-voucher-options', {
+        headers: authHeaders(token),
+        json: input,
+      })
+      .json<GuestBookingVoucherOptions>();
   },
 
   create(

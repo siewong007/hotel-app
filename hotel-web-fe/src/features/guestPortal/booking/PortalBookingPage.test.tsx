@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   paymentConfig: vi.fn(),
   quote: vi.fn(),
   search: vi.fn(),
+  voucherOptions: vi.fn(),
 }));
 
 vi.mock('../../../auth/AuthContext', () => ({
@@ -54,6 +55,7 @@ vi.mock('./api', () => ({
     create: (...args: unknown[]) => mocks.createBooking(...args),
     quote: (...args: unknown[]) => mocks.quote(...args),
     search: (...args: unknown[]) => mocks.search(...args),
+    voucherOptions: (...args: unknown[]) => mocks.voucherOptions(...args),
   },
 }));
 
@@ -122,19 +124,44 @@ describe('PortalBookingPage voucher eligibility', () => {
     });
     mocks.navigate.mockReset();
     mocks.search.mockReset().mockResolvedValue([offer]);
-    mocks.quote
-      .mockReset()
-      .mockResolvedValueOnce(quote)
-      .mockRejectedValueOnce(
-        new Error('This voucher is not eligible for the selected stay.'),
-      );
+    mocks.quote.mockReset();
+    mocks.voucherOptions.mockReset().mockResolvedValue({
+      quote,
+      eligible_voucher_ids: [],
+    });
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it('keeps a voucher disabled after the backend rejects it for the selected stay', async () => {
+  it('disables an ineligible voucher before the guest can select it', async () => {
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Voucher' }));
+
+    const disabledVoucher = screen.getByRole('option', {
+      name: 'Summer Saver (SAVE-10) — Not eligible for this stay',
+    });
+    expect(disabledVoucher.getAttribute('aria-disabled')).toBe('true');
+
+    fireEvent.click(disabledVoucher);
+    await waitFor(() => expect(mocks.quote).not.toHaveBeenCalled());
+  });
+
+  it('disables a voucher if eligibility changes before it is applied', async () => {
+    mocks.voucherOptions.mockResolvedValue({
+      quote,
+      eligible_voucher_ids: [31],
+    });
+    mocks.quote.mockRejectedValue(
+      new Error('This voucher is not eligible for the selected stay.'),
+    );
+
     render(<PortalBookingPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -151,9 +178,6 @@ describe('PortalBookingPage voucher eligibility', () => {
       name: 'Summer Saver (SAVE-10) — Not eligible for this stay',
     });
     expect(disabledVoucher.getAttribute('aria-disabled')).toBe('true');
-
-    fireEvent.click(disabledVoucher);
-    await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(2));
   });
 
   it('continues to payment without asking for a payment choice during review', async () => {

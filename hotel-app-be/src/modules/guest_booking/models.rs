@@ -19,6 +19,7 @@ pub struct OnlineInventoryQuery {
 pub struct UpdateOnlineInventoryRequest {
     pub walk_in_reserved_rooms: i32,
     pub online_booking_enabled: bool,
+    pub custom_price: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -30,6 +31,7 @@ pub struct OnlineInventoryAllocation {
     pub physical_available_rooms: i64,
     pub walk_in_reserved_rooms: i32,
     pub online_booking_enabled: bool,
+    pub custom_price: Option<Decimal>,
     pub online_available_rooms: i64,
 }
 
@@ -101,6 +103,12 @@ pub struct GuestBookingQuote {
     pub total_amount: Decimal,
     pub voucher_id: Option<i64>,
     pub voucher_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestBookingVoucherOptions {
+    pub quote: GuestBookingQuote,
+    pub eligible_voucher_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

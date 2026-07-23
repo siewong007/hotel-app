@@ -60,6 +60,7 @@ const PortalBookingPage: React.FC = () => {
   const [quote, setQuote] = useState<GuestBookingQuote | null>(null);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [voucherId, setVoucherId] = useState<number | ''>('');
+  const [eligibleVoucherIds, setEligibleVoucherIds] = useState<Set<number>>(() => new Set());
   const [ineligibleVoucherKeys, setIneligibleVoucherKeys] = useState<Set<string>>(() => new Set());
   const [specialRequests, setSpecialRequests] = useState('');
   const [cleaningPreference, setCleaningPreference] = useState(false);
@@ -95,13 +96,21 @@ const PortalBookingPage: React.FC = () => {
 
   const selectOffer = useCallback(async (offer: GuestBookingOffer) => {
     if (!token) return;
-    setSelectedOffer(offer); setVoucherId(''); setRequestId(newRequestId()); setIsQuoting(true); setError(null);
-    try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: offer.room_type_id }, token)); }
+    setSelectedOffer(offer); setVoucherId(''); setEligibleVoucherIds(new Set()); setRequestId(newRequestId()); setIsQuoting(true); setError(null);
+    try {
+      const voucherOptions = await GuestBookingApi.voucherOptions(
+        { ...search, room_type_id: offer.room_type_id },
+        token,
+      );
+      setQuote(voucherOptions.quote);
+      setEligibleVoucherIds(new Set(voucherOptions.eligible_voucher_ids));
+    }
     catch (quoteError) { setSelectedOffer(null); setError(errorMessage(quoteError, 'Unable to quote this room type.')); }
     finally { setIsQuoting(false); }
   }, [search, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
+    if (nextVoucherId !== '' && !eligibleVoucherIds.has(nextVoucherId)) return;
     const eligibilityKey = nextVoucherId === '' || !selectedOffer ? null : voucherStayEligibilityKey(nextVoucherId, selectedOffer.room_type_id, search);
     if (eligibilityKey && ineligibleVoucherKeys.has(eligibilityKey)) return;
     setVoucherId(nextVoucherId);
@@ -111,11 +120,18 @@ const PortalBookingPage: React.FC = () => {
       setQuote(await GuestBookingApi.quote({ ...search, room_type_id: selectedOffer.room_type_id, voucher_id: nextVoucherId === '' ? undefined : nextVoucherId }, token));
       setRequestId(newRequestId());
     } catch (quoteError) {
-      if (eligibilityKey && isVoucherEligibilityError(quoteError)) setIneligibleVoucherKeys((current) => new Set(current).add(eligibilityKey));
+      if (eligibilityKey && isVoucherEligibilityError(quoteError)) {
+        setIneligibleVoucherKeys((current) => new Set(current).add(eligibilityKey));
+        setEligibleVoucherIds((current) => {
+          const next = new Set(current);
+          if (nextVoucherId !== '') next.delete(nextVoucherId);
+          return next;
+        });
+      }
       setVoucherId('');
       setError(errorMessage(quoteError, 'This voucher cannot be applied to the selected stay.'));
     } finally { setIsQuoting(false); }
-  }, [ineligibleVoucherKeys, search, selectedOffer, token]);
+  }, [eligibleVoucherIds, ineligibleVoucherKeys, search, selectedOffer, token]);
 
   const submitBooking = useCallback(async () => {
     if (!token || !quote) return;
@@ -146,7 +162,7 @@ const PortalBookingPage: React.FC = () => {
   if (isStaffAccount) return <Navigate to="/admin-portal" replace />;
   if (needsLogin) return <Navigate to="/login?account=guest" replace />;
   if (!token) return <SessionGate error={sessionError} status={sessionStatus} canRetry={canRetry} onRetry={retry} onRestart={restartSignIn} />;
-  if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token} onStays={() => navigate('/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setSpecialRequests(''); setCleaningPreference(false); setRequestId(newRequestId()); }} />;
+  if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token} onStays={() => navigate('/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setSpecialRequests(''); setCleaningPreference(false); setRequestId(newRequestId()); }} />;
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
@@ -156,13 +172,13 @@ const PortalBookingPage: React.FC = () => {
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: { xs: 3, md: 4 }, '& .MuiStepLabel-label': { fontSize: { xs: '0.7rem', sm: '0.8125rem' } } }}>
         {STEPS.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
-      <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); void runSearch(); }} />
+      <SearchStage search={search} isSearching={isSearching} onChange={setSearch} onSearch={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); void runSearch(); }} />
       <Collapse in={Boolean(error)} timeout={animationTimeout}><Box sx={{ mt: 2 }}>{error && <Alert severity="error">{error}</Alert>}</Box></Collapse>
       <Collapse in={!selectedOffer && offers.length > 0} timeout={animationTimeout} unmountOnExit>
         <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>Choose your room</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{isQuoting || !quote ? <LoadingQuote /> : <ReviewStage quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting} onVoucher={(value) => void applyVoucher(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{isQuoting || !quote ? <LoadingQuote /> : <ReviewStage quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting} onVoucher={(value) => void applyVoucher(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>Room availability changed</DialogTitle><DialogContent><Typography>This room or its online availability changed while you were reviewing. We refreshed the options and cleared the previous quote so you can choose from the latest availability.</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>View available rooms</Button></DialogActions></Dialog>
     </Container>
@@ -188,9 +204,9 @@ function OfferCard({ offer, onSelect }: { offer: GuestBookingOffer; onSelect: ()
 
 function LoadingQuote() { return <Paper sx={{ p: 4 }}><Stack direction="row" spacing={2} justifyContent="center" alignItems="center"><CircularProgress size={24} /><Typography>Confirming the latest price…</Typography></Stack></Paper>; }
 
-function ReviewStage(props: { quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
-  const { quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onRequests, onCleaning, onBack, onConfirm } = props;
-  return <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">Review your stay</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography color="text.secondary">{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} inputProps={{ maxLength: 1000 }} sx={{ mt: 3 }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label="I would like daily room cleaning" /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>;
+function ReviewStage(props: { quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
+  const { quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onRequests, onCleaning, onBack, onConfirm } = props;
+  return <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">Review your stay</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography color="text.secondary">{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} inputProps={{ maxLength: 1000 }} sx={{ mt: 3 }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label="I would like daily room cleaning" /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>;
 }
 
 function PriceSummary({ quote, isSubmitting, onBack, onConfirm }: { quote: GuestBookingQuote; isSubmitting: boolean; onBack: () => void; onConfirm: () => void }) {

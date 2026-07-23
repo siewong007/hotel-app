@@ -8,7 +8,7 @@ const SQLITE_REQUIRED_DATA: &str = include_str!("../../database/sqlite/data.sql"
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 const SQLITE_FRESH_SEED: &str = include_str!("../../database/sqlite/seed.sql");
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const SQLITE_V1_CHECKSUM: &str = "119ae390dd283d601125f1736269dec7e806844d011cb253d4eda515517fa59b";
+const SQLITE_V1_CHECKSUM: &str = "12f3f5d3ede8e0b42f4d3f0a88baa159df46a8b0df2a2c94849691387c9f2913";
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 fn sqlite_v1_checksum() -> String {
@@ -34,7 +34,7 @@ async fn sqlite_v1_invariants_hold(pool: &sqlx::SqlitePool) -> Result<bool, sqlx
     .fetch_one(pool)
     .await?;
     let online_inventory: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'online_inventory_allocations')",
+        "SELECT EXISTS (SELECT 1 FROM pragma_table_info('online_inventory_allocations') WHERE name = 'custom_price')",
     )
     .fetch_one(pool)
     .await?;
@@ -108,7 +108,7 @@ pub async fn apply_sqlite_resources(pool: &sqlx::SqlitePool) -> Result<(), sqlx:
         .fetch_one(&mut *transaction)
         .await?;
         let online_inventory: bool = sqlx::query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'online_inventory_allocations')",
+            "SELECT EXISTS (SELECT 1 FROM pragma_table_info('online_inventory_allocations') WHERE name = 'custom_price')",
         )
         .fetch_one(&mut *transaction)
         .await?;

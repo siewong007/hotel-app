@@ -168,41 +168,37 @@ pub async fn list_guest_promotions(
     let mut has_loyalty_offer = false;
     if let Some(member) = LoyaltyRepository::member_by_guest(pool, guest_id).await?
         && member.status == "active"
-    {
-        if let Some(promotion) =
+        && let Some(promotion) =
             PromotionRepository::find_by_slug(pool, JULY_DELUXE_LOYALTY_PROMOTION_SLUG).await?
-            && promotion_is_within_claim_window(&promotion).is_ok()
-        {
-            let has_voucher =
-                PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?;
-            let reward = LoyaltyRepository::find_active_reward_by_name(
-                pool,
-                JULY_DELUXE_LOYALTY_REWARD_NAME,
-            )
-            .await?;
-            let can_claim = reward.as_ref().is_some_and(|reward| {
-                !has_voucher && member.available_points >= reward.points_cost
-            });
-            let claim_unavailable_reason = if has_voucher {
-                None
-            } else if let Some(reward) = reward {
-                (member.available_points < reward.points_cost).then(|| {
-                    format!(
-                        "You need {} loyalty points to redeem this voucher.",
-                        reward.points_cost
-                    )
-                })
-            } else {
-                Some("This loyalty voucher is not configured.".to_string())
-            };
-            items.push(GuestPromotion {
-                promotion: PublicPromotion::from(promotion),
-                can_claim,
-                has_voucher,
-                claim_unavailable_reason,
-            });
-            has_loyalty_offer = true;
-        }
+        && promotion_is_within_claim_window(&promotion).is_ok()
+    {
+        let has_voucher =
+            PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?;
+        let reward =
+            LoyaltyRepository::find_active_reward_by_name(pool, JULY_DELUXE_LOYALTY_REWARD_NAME)
+                .await?;
+        let can_claim = reward
+            .as_ref()
+            .is_some_and(|reward| !has_voucher && member.available_points >= reward.points_cost);
+        let claim_unavailable_reason = if has_voucher {
+            None
+        } else if let Some(reward) = reward {
+            (member.available_points < reward.points_cost).then(|| {
+                format!(
+                    "You need {} loyalty points to redeem this voucher.",
+                    reward.points_cost
+                )
+            })
+        } else {
+            Some("This loyalty voucher is not configured.".to_string())
+        };
+        items.push(GuestPromotion {
+            promotion: PublicPromotion::from(promotion),
+            can_claim,
+            has_voucher,
+            claim_unavailable_reason,
+        });
+        has_loyalty_offer = true;
     }
     Ok(GuestPromotionListResponse {
         items,

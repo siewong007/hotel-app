@@ -4,6 +4,7 @@ import {
   Chip,
   Divider,
   IconButton,
+  InputAdornment,
   Paper,
   Stack,
   Switch,
@@ -19,18 +20,20 @@ import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 
 import type { OnlineInventoryAllocation } from '../types';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 interface InventoryRoomCardProps {
   item: OnlineInventoryAllocation;
   isChanged: boolean;
   isDisabled: boolean;
   onChange: (
-    patch: Partial<Pick<OnlineInventoryAllocation, 'walk_in_reserved_rooms' | 'online_booking_enabled'>>,
+    patch: Partial<Pick<OnlineInventoryAllocation, 'walk_in_reserved_rooms' | 'online_booking_enabled' | 'custom_price'>>,
   ) => void;
 }
 
 export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: InventoryRoomCardProps) => {
   const theme = useTheme();
+  const { symbol: currencySymbol } = useCurrency();
   const onlineAvailable = item.online_booking_enabled
     ? Math.max(0, item.physical_available_rooms - item.walk_in_reserved_rooms)
     : 0;
@@ -39,6 +42,7 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
   const setReserve = (value: number) => {
     onChange({ walk_in_reserved_rooms: Math.max(0, Math.trunc(value || 0)) });
   };
+  const customPriceInvalid = item.custom_price !== null && Number(item.custom_price) <= 0;
 
   return (
     <Paper
@@ -82,7 +86,7 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
 
         <Divider />
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(250px, 1fr) 1fr' }, gap: 2.5, alignItems: 'center' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(250px, 1fr) minmax(240px, 1fr) minmax(260px, 1fr)' }, gap: 2.5, alignItems: 'center' }}>
           <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
               <Box>
@@ -126,6 +130,30 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
                 Reserve is higher than today’s physical availability.
               </Typography>
             )}
+          </Box>
+
+          <Box>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+              <Box>
+                <Typography fontWeight={750}>Custom online price</Typography>
+                <Typography variant="body2" color="text.secondary">Overrides the normal rate for this date.</Typography>
+              </Box>
+              {item.custom_price !== null && (
+                <Button size="small" onClick={() => onChange({ custom_price: null })} disabled={isDisabled}>Reset</Button>
+              )}
+            </Stack>
+            <TextField
+              value={item.custom_price ?? ''}
+              onChange={(event) => onChange({ custom_price: event.target.value || null })}
+              disabled={isDisabled}
+              type="number"
+              size="small"
+              fullWidth
+              error={customPriceInvalid}
+              helperText={customPriceInvalid ? 'Enter a price greater than zero.' : 'Leave blank to use the current room or rate-plan price.'}
+              inputProps={{ min: 0.01, step: 0.01, 'aria-label': `Custom online price for ${item.room_type_name}` }}
+              InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
+            />
           </Box>
 
           <Box

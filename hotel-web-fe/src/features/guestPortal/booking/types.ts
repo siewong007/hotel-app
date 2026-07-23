@@ -53,6 +53,11 @@ export interface GuestBookingQuote {
   voucher_name?: string | null;
 }
 
+export interface GuestBookingVoucherOptions {
+  quote: GuestBookingQuote;
+  eligible_voucher_ids: number[];
+}
+
 export interface CreateGuestBookingRequest extends GuestBookingQuoteRequest {
   client_request_id: string;
   expected_total: string | number;
