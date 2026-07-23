@@ -357,15 +357,20 @@ Never commit real secrets or local `.env` files.
 
 `hotel-app-be/README.md` references MCP servers under `hotel-app-be/mcp-server/`. They wrap the REST API and authenticate through JWT. They should not bypass the backend authorization/database access patterns.
 
-## graphify
+## CodeGraph
 
-This project's knowledge graph is generated in `graphify-out/`. That directory is intentionally Git-ignored and remains local.
+This project's local code index is generated in `.codegraph/`, which is intentionally Git-ignored and remains local.
 
-When the user types `/graphify`, use the installed Graphify skill or instructions before doing anything else. In Codex, the installed skill can also be invoked as `$graphify`.
+Prerequisite: install CodeGraph CLI 1.5.0 (`npm install --global @colbymchenry/codegraph@1.5.0`), run `codegraph init .`, and wire the Codex MCP server with `codegraph install --target=codex` when MCP access is desired.
 
-Rules:
-- Before repository-wide analysis, dependency tracing, architectural changes, or impact analysis, consult the graph with `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"`.
-- Treat the graph as an index, not the source of truth. Verify critical findings against the current source code.
-- The graph may be stale after code changes. Regenerate the local code-only graph with exactly `graphify extract . --code-only`, and refresh changed code with `graphify update .`.
-- The graph indexes only allowlisted backend source, tests, PostgreSQL schema, and SQLite schema/data resources; frontend source and configuration except `routeTree.gen.ts`; and desktop source, scripts, and configuration.
-- Everything else is excluded, including secrets, environment files, keys, dependencies, build outputs, logs, uploads, `data.sql` and other database data, bundled PostgreSQL, the copied desktop database, documentation, media, caches, design artifacts, and Claude artifacts.
+When CodeGraph is initialized, use it for repository architecture, dependency, and impact questions before broad file searches:
+
+- Use `codegraph explore "<question>"` for architecture, data-flow, and cross-file behavior questions.
+- Use `codegraph callers "<symbol>"`, `codegraph callees "<symbol>"`, and `codegraph impact "<symbol>"` before changing shared code.
+- Use `codegraph node "<symbol-or-file>"` when you need one symbol or file with line-numbered source.
+- Use `codegraph status .` to check freshness. The MCP server auto-syncs changes; use `codegraph sync .` for a manual incremental refresh and `codegraph index . --force` to rebuild the index.
+- Treat CodeGraph output as current source when it has no staleness warning, but verify authentication, authorization, payment, ledger, migration, and other security/data-critical findings against the files.
+
+CodeGraph indexes the backend, frontend, and desktop source trees. SQL schema/data resources, secrets, generated outputs, build artifacts, design-sync files, and deployment infrastructure remain outside the graph and must be inspected directly when relevant.
+
+The old `graphify-out/` artifacts are retained only as migration-era rollback state; new work should not add Graphify references.

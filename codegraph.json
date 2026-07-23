@@ -1,0 +1,15 @@
+{
+  "exclude": [
+    ".design-sync/",
+    ".github/",
+    "deploy/",
+    "infra/",
+    "hotel-app-be/scripts/",
+    "hotel-web-fe/.ds-entry.tsx",
+    "hotel-web-fe/.ds-provider.tsx",
+    "hotel-web-fe/salim-inn/",
+    "hotel-web-fe/src/routeTree.gen.ts",
+    "docker-compose.pg19-tuned.yml",
+    "docker-compose.yml"
+  ]
+}
