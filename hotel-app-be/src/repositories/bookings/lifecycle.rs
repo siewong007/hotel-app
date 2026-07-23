@@ -213,7 +213,7 @@ async fn reconcile_room_status_after_booking_release(
             WHEN EXISTS (
                 SELECT 1 FROM bookings
                 WHERE room_id = ?1 AND id != ?2
-                  AND status IN ('reserved', 'confirmed', 'pending')
+                  AND status IN ('reserved', 'confirmed', 'pending', 'pending_payment', 'pending_confirmation')
                   AND check_out_date > date('now')
             ) THEN 'reserved'
             ELSE 'available'
@@ -232,7 +232,7 @@ async fn reconcile_room_status_after_booking_release(
             WHEN EXISTS (
                 SELECT 1 FROM bookings
                 WHERE room_id = $1 AND id != $2
-                  AND status IN ('reserved', 'confirmed', 'pending')
+                  AND status IN ('reserved', 'confirmed', 'pending', 'pending_payment', 'pending_confirmation')
                   AND check_out_date > CURRENT_DATE
             ) THEN 'reserved'
             ELSE 'available'
@@ -1266,7 +1266,7 @@ pub async fn create_booking_handler(
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
+            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation') AND status != 'voided'
             AND ((check_in_date <= ?2 AND check_out_date > ?2)
                 OR (check_in_date < ?3 AND check_out_date >= ?3)
                 OR (check_in_date >= ?2 AND check_out_date <= ?3))
@@ -1277,7 +1277,7 @@ pub async fn create_booking_handler(
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
+            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation') AND status != 'voided'
             AND ((check_in_date <= $2 AND check_out_date > $2)
                 OR (check_in_date < $3 AND check_out_date >= $3)
                 OR (check_in_date >= $2 AND check_out_date <= $3))
@@ -1730,7 +1730,7 @@ pub async fn update_booking_handler(
             SELECT EXISTS(
                 SELECT 1 FROM bookings
                 WHERE room_id = ?1 AND id != ?4
-                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
+                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation') AND status != 'voided'
                 AND ((check_in_date <= ?2 AND check_out_date > ?2)
                     OR (check_in_date < ?3 AND check_out_date >= ?3)
                     OR (check_in_date >= ?2 AND check_out_date <= ?3))
@@ -1742,7 +1742,7 @@ pub async fn update_booking_handler(
             SELECT EXISTS(
                 SELECT 1 FROM bookings
                 WHERE room_id = $1 AND id != $4
-                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
+                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation') AND status != 'voided'
                 AND ((check_in_date <= $2 AND check_out_date > $2)
                     OR (check_in_date < $3 AND check_out_date >= $3)
                     OR (check_in_date >= $2 AND check_out_date <= $3))
@@ -3190,7 +3190,7 @@ pub async fn reactivate_booking_handler(
         SELECT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = ?1
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
               AND status != 'voided'
               AND id != ?4
               AND ((check_in_date <= ?2 AND check_out_date > ?2)
@@ -3203,7 +3203,7 @@ pub async fn reactivate_booking_handler(
         SELECT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = $1
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
               AND status != 'voided'
               AND id != $4
               AND ((check_in_date <= $2 AND check_out_date > $2)
@@ -4211,7 +4211,7 @@ pub async fn has_reactivation_conflict(
         SELECT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = ?1
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
               AND status != 'voided'
               AND id != ?4
               AND ((check_in_date <= ?2 AND check_out_date > ?2)
@@ -4224,7 +4224,7 @@ pub async fn has_reactivation_conflict(
         SELECT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = $1
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
               AND status != 'voided'
               AND id != $4
               AND ((check_in_date <= $2 AND check_out_date > $2)
