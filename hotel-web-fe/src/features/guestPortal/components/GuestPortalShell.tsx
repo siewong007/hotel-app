@@ -12,9 +12,9 @@ import {
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import HotelOutlinedIcon from '@mui/icons-material/HotelOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
-import { Link, useLocation, useNavigate } from '../../../router';
+import { Link, useLocation } from '../../../router';
 import { GuestPortalThemeProvider } from '../theme/GuestPortalThemeProvider';
 import { getValidPortalToken, PORTAL_TOKEN_CHANGE_EVENT } from '../api/portalTokenStore';
 import { GuestPortalNotificationBell } from './GuestPortalNotificationBell';
@@ -34,7 +34,7 @@ const HOTEL_INDEX_LINK = '/salim-inn/index.html?account=guest';
 const desktopLinks = [
   { label: 'Home', section: 'overview', to: '/guest-portal?section=overview' },
   { label: 'Stays', section: 'stays', to: '/guest-portal?section=stays' },
-  { label: 'Rewards', section: 'rewards', to: '/guest-portal?section=rewards' },
+  { label: 'Points history', section: 'points-history', to: '/guest-portal?section=points-history' },
   { label: 'Help', section: 'support', to: '/guest-portal?section=support' },
 ] as const;
 
@@ -42,7 +42,7 @@ const mobileLinks = [
   { label: 'Home', section: 'overview', to: '/guest-portal?section=overview', icon: <HomeOutlinedIcon /> },
   { label: 'Stays', section: 'stays', to: '/guest-portal?section=stays', icon: <HotelOutlinedIcon /> },
   { label: 'Book', section: 'booking', to: BOOKING_LINK, icon: <CalendarMonthOutlinedIcon /> },
-  { label: 'Rewards', section: 'rewards', to: '/guest-portal?section=rewards', icon: <CardGiftcardOutlinedIcon /> },
+  { label: 'Points history', section: 'points-history', to: '/guest-portal?section=points-history', icon: <HistoryOutlinedIcon /> },
   { label: 'Help', section: 'support', to: '/guest-portal?section=support', icon: <SupportAgentOutlinedIcon /> },
 ] as const;
 
@@ -53,7 +53,7 @@ function currentGuestSection(search: string): GuestSection {
   if (params.get('view') === 'booking') return 'booking';
   const section = params.get('section');
   if (section === 'stays' || section === 'payments') return 'stays';
-  if (section === 'rewards' || section === 'offers' || section === 'vouchers') return 'rewards';
+  if (section === 'points-history' || section === 'rewards' || section === 'offers' || section === 'vouchers') return 'points-history';
   if (section === 'support') return 'support';
   return 'overview';
 }
@@ -61,7 +61,6 @@ function currentGuestSection(search: string): GuestSection {
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children }: GuestPortalShellProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [portalToken, setPortalToken] = useState<string | null>(() => getValidPortalToken());
   const activeSection = currentGuestSection(location.search);
   const mobileValue = mobileLinks.find((link) => link.section === activeSection)?.to ?? DASHBOARD_LINK;
@@ -71,13 +70,6 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
     window.addEventListener(PORTAL_TOKEN_CHANGE_EVENT, syncPortalToken);
     return () => window.removeEventListener(PORTAL_TOKEN_CHANGE_EVENT, syncPortalToken);
   }, []);
-
-  const reviewReceiptRequest = () => {
-    const params = new URLSearchParams(location.search);
-    params.delete('view');
-    params.set('section', 'stays');
-    navigate(`/guest-portal?${params.toString()}`);
-  };
 
   return (
     <GuestPortalThemeProvider>
@@ -153,7 +145,6 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
 
               <GuestPortalNotificationBell
                 token={portalToken}
-                onReviewReceipt={reviewReceiptRequest}
               />
 
               <Button

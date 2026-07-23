@@ -103,4 +103,24 @@ describe('BookingsSection payment details', () => {
     expect(screen.getAllByText('Pending Payment').length).toBeGreaterThan(0);
     expect(screen.getByText('Payment method for booking 7')).toBeTruthy();
   });
+
+  it('makes an outstanding receipt request a prominent upload action', async () => {
+    mocks.bookings.mockResolvedValue({
+      items: [{
+        ...booking,
+        status: 'pending_confirmation',
+        receipt_request_payment_id: 91,
+        receipt_uploaded: false,
+      }],
+      total: 1,
+    });
+    render(<BookingsSection token="guest-token" />);
+
+    expect(await screen.findByText('Action required: upload your payment receipt')).toBeTruthy();
+    expect(screen.getAllByText('Receipt required').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Upload receipt' })[0]);
+
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(screen.getByText('Upload payment receipt')).toBeTruthy();
+  });
 });

@@ -50,7 +50,6 @@ import PortalNotificationPreferences from "../../../communications/components/Po
 import { PortalSupportTab } from "../PortalSupportTab";
 import { GuestPaymentPanel } from "../GuestPaymentPanel";
 import type {
-  GuestPortalBenefitsResponse,
   GuestPortalBookingSummary,
   GuestPortalMeResponse,
   GuestPortalMembershipResponse,
@@ -124,6 +123,10 @@ function EmptyState({ message }: { message: string }) {
       <Typography color="text.secondary">{message}</Typography>
     </Box>
   );
+}
+
+function requiresPaymentReceipt(booking: GuestPortalBookingSummary): boolean {
+  return booking.receipt_request_payment_id != null && !booking.receipt_uploaded;
 }
 
 function SectionHeading({
@@ -494,7 +497,7 @@ export function OverviewSection({
                     variant="overline"
                     sx={{ color: "#8d6b30", fontWeight: 700 }}
                   >
-                    Member rewards
+                    Points balance
                   </Typography>
                   <Typography
                     variant="h4"
@@ -512,7 +515,7 @@ export function OverviewSection({
               </Stack>
               <Button
                 endIcon={<EastOutlinedIcon />}
-                onClick={() => onSectionChange("rewards")}
+                onClick={() => onSectionChange("points-history")}
                 sx={{
                   color: FOREST,
                   mt: 3,
@@ -520,7 +523,7 @@ export function OverviewSection({
                   "&:hover": { bgcolor: "transparent", color: "#8d6b30" },
                 }}
               >
-                Explore rewards
+                View points history
               </Button>
             </CardContent>
           </Card>
@@ -645,9 +648,15 @@ function BookingDetailsDialog({
             Your offline banking payment is awaiting confirmation by our team.
           </Alert>
         ) : null}
-        {booking.receipt_request_payment_id && !booking.receipt_uploaded ? (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            <Typography variant="subtitle2">Receipt required</Typography>
+        {requiresPaymentReceipt(booking) ? (
+          <Alert
+            severity="error"
+            variant="filled"
+            sx={{ mt: 2, boxShadow: "0 4px 14px rgba(166,66,43,.22)" }}
+          >
+            <Typography variant="subtitle2" fontWeight={800}>
+              Action required: upload your receipt
+            </Typography>
             <Typography variant="body2">
               Our team has requested your bank-transfer receipt. Please submit it within 24 hours
               to avoid automatic rejection of this payment.
@@ -775,6 +784,9 @@ export function BookingsSection({ token }: { token: string }) {
       setIsCancelling(false);
     }
   };
+  const receiptRequests = items.filter(requiresPaymentReceipt);
+  const firstReceiptRequest = receiptRequests[0];
+
   return (
     <>
       <SectionHeading
@@ -793,6 +805,35 @@ export function BookingsSection({ token }: { token: string }) {
         <EmptyState message="You have no bookings on file yet." />
       ) : (
         <>
+          {firstReceiptRequest ? (
+            <Alert
+              severity="error"
+              variant="filled"
+              action={(
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => setBookingToView(firstReceiptRequest)}
+                  sx={{ fontWeight: 800 }}
+                >
+                  Upload receipt
+                </Button>
+              )}
+              sx={{
+                mb: 3,
+                py: 1,
+                alignItems: "center",
+                boxShadow: "0 6px 18px rgba(166,66,43,.24)",
+              }}
+            >
+              <Typography variant="subtitle1" fontWeight={800}>
+                Action required: upload your payment receipt
+              </Typography>
+              <Typography variant="body2">
+                Upload proof of payment for booking {firstReceiptRequest.booking_number} within 24 hours to avoid automatic rejection.
+              </Typography>
+            </Alert>
+          ) : null}
           <TableContainer sx={{ display: { xs: "none", md: "block" } }}>
             <Table aria-label="Your bookings">
               <caption
@@ -833,123 +874,149 @@ export function BookingsSection({ token }: { token: string }) {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {items.map((booking) => (
-                  <TableRow key={booking.booking_number} hover>
-                    <TableCell
-                      component="th"
-                      scope="row"
-                      sx={{ fontWeight: 700 }}
+                {items.map((booking) => {
+                  const receiptUploadRequired = requiresPaymentReceipt(booking);
+                  return (
+                    <TableRow
+                      key={booking.booking_number}
+                      hover
+                      sx={receiptUploadRequired ? { bgcolor: "#FFF1EE", "&:hover": { bgcolor: "#FBE0DA" } } : undefined}
                     >
-                      {booking.booking_number}
-                    </TableCell>
-                    <TableCell>
-                      {formatPortalDate(booking.check_in_date)}
-                    </TableCell>
-                    <TableCell>
-                      {formatPortalDate(booking.check_out_date)}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={humanizePortalStatus(booking.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      {formatPortalCurrency(booking.total_amount)}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                        <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
-                          View details
-                        </Button>
-                      {booking.status === "confirmed" ? (
-                        <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
-                          View receipt
-                        </Button>
-                      ) : null}
-                      {booking.can_cancel ? (
-                        <Button
-                          size="small"
-                          color="error"
-                          onClick={() => {
-                            setCancellationError(null);
-                            setBookingToCancel(booking);
-                          }}
-                          sx={{ minHeight: 44 }}
-                        >
-                          Refund
-                        </Button>
-                      ) : (
-                        <CancellationUnavailable
-                          booking={booking}
-                          suffix="desktop"
-                        />
-                      )}</Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      <TableCell
+                        component="th"
+                        scope="row"
+                        sx={{ fontWeight: 700 }}
+                      >
+                        {booking.booking_number}
+                      </TableCell>
+                      <TableCell>
+                        {formatPortalDate(booking.check_in_date)}
+                      </TableCell>
+                      <TableCell>
+                        {formatPortalDate(booking.check_out_date)}
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                          <Chip
+                            label={humanizePortalStatus(booking.status)}
+                            size="small"
+                          />
+                          {receiptUploadRequired ? <Chip label="Receipt required" color="error" size="small" /> : null}
+                        </Stack>
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatPortalCurrency(booking.total_amount)}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                          {receiptUploadRequired ? (
+                            <Button variant="contained" color="error" size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44, fontWeight: 800 }}>
+                              Upload receipt
+                            </Button>
+                          ) : null}
+                          <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
+                            View details
+                          </Button>
+                        {booking.status === "confirmed" ? (
+                          <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
+                            View receipt
+                          </Button>
+                        ) : null}
+                        {booking.can_cancel ? (
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() => {
+                              setCancellationError(null);
+                              setBookingToCancel(booking);
+                            }}
+                            sx={{ minHeight: 44 }}
+                          >
+                            Refund
+                          </Button>
+                        ) : (
+                          <CancellationUnavailable
+                            booking={booking}
+                            suffix="desktop"
+                          />
+                        )}</Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
           <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
-            {items.map((booking) => (
-              <Card key={booking.booking_number} variant="outlined">
-                <CardContent>
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    spacing={1}
-                  >
-                    <Typography fontWeight={700}>
-                      {booking.booking_number}
-                    </Typography>
-                    <Chip
-                      label={humanizePortalStatus(booking.status)}
-                      size="small"
-                    />
-                  </Stack>
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ mt: 1 }}
-                  >
-                    {formatPortalDate(booking.check_in_date)} —{" "}
-                    {formatPortalDate(booking.check_out_date)}
-                  </Typography>
-                  <Typography fontWeight={700} sx={{ mt: 1 }}>
-                    {formatPortalCurrency(booking.total_amount)}
-                  </Typography>
-                  <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, minHeight: 44 }}>
-                    View details
-                  </Button>
-                  {booking.status === "confirmed" ? (
-                    <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, ml: 1, minHeight: 44 }}>
-                      View receipt
-                    </Button>
-                  ) : null}
-                  {booking.can_cancel ? (
-                    <Button
-                      size="small"
-                      color="error"
-                      onClick={() => {
-                        setCancellationError(null);
-                        setBookingToCancel(booking);
-                      }}
-                      sx={{ mt: 1, minHeight: 44 }}
+            {items.map((booking) => {
+              const receiptUploadRequired = requiresPaymentReceipt(booking);
+              return (
+                <Card key={booking.booking_number} variant="outlined" sx={receiptUploadRequired ? { borderColor: "#C75A46", bgcolor: "#FFF8F6", boxShadow: "0 5px 16px rgba(166,66,43,.12)" } : undefined}>
+                  <CardContent>
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      spacing={1}
                     >
-                      Refund
+                      <Typography fontWeight={700}>
+                        {booking.booking_number}
+                      </Typography>
+                      <Stack spacing={0.5} alignItems="flex-end">
+                        <Chip
+                          label={humanizePortalStatus(booking.status)}
+                          size="small"
+                        />
+                        {receiptUploadRequired ? <Chip label="Receipt required" color="error" size="small" /> : null}
+                      </Stack>
+                    </Stack>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 1 }}
+                    >
+                      {formatPortalDate(booking.check_in_date)} —{" "}
+                      {formatPortalDate(booking.check_out_date)}
+                    </Typography>
+                    <Typography fontWeight={700} sx={{ mt: 1 }}>
+                      {formatPortalCurrency(booking.total_amount)}
+                    </Typography>
+                    {receiptUploadRequired ? (
+                      <Button variant="contained" color="error" onClick={() => setBookingToView(booking)} sx={{ mt: 1.5, minHeight: 44, fontWeight: 800 }}>
+                        Upload receipt
+                      </Button>
+                    ) : null}
+                    <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, minHeight: 44 }}>
+                      View details
                     </Button>
-                  ) : (
-                    <Box sx={{ mt: 1.5 }}>
-                      <CancellationUnavailable
-                        booking={booking}
-                        suffix="mobile"
-                      />
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                    {booking.status === "confirmed" ? (
+                      <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, ml: 1, minHeight: 44 }}>
+                        View receipt
+                      </Button>
+                    ) : null}
+                    {booking.can_cancel ? (
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => {
+                          setCancellationError(null);
+                          setBookingToCancel(booking);
+                        }}
+                        sx={{ mt: 1, minHeight: 44 }}
+                      >
+                        Refund
+                      </Button>
+                    ) : (
+                      <Box sx={{ mt: 1.5 }}>
+                        <CancellationUnavailable
+                          booking={booking}
+                          suffix="mobile"
+                        />
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </Stack>
           <TablePagination
             component="div"
@@ -1255,26 +1322,18 @@ export function PaymentsSection({ token }: { token: string }) {
   );
 }
 
-export function RewardsSection({ token }: { token: string }) {
+export function PointsHistorySection({ token }: { token: string }) {
   const [membership, setMembership] =
     useState<GuestPortalMembershipResponse | null>(null);
-  const [benefits, setBenefits] = useState<GuestPortalBenefitsResponse | null>(
-    null,
-  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [membershipResult, benefitsResult] = await Promise.all([
-        GuestPortalDashboardService.membership(token),
-        GuestPortalDashboardService.benefits(token),
-      ]);
-      setMembership(membershipResult);
-      setBenefits(benefitsResult);
+      setMembership(await GuestPortalDashboardService.membership(token));
     } catch {
-      setError("Unable to load your rewards right now.");
+      setError("Unable to load your points history right now.");
     } finally {
       setLoading(false);
     }
@@ -1290,8 +1349,8 @@ export function RewardsSection({ token }: { token: string }) {
     <>
       <SectionHeading
         eyebrow="Loyalty"
-        title="Rewards"
-        description="Your membership, eligible benefits, and available rewards."
+        title="Points history"
+        description="Track your loyalty points and current balance. Claimable rewards are available in Offers."
       />
       {member ? (
         <Card sx={{ mb: 3, bgcolor: FOREST, color: "white" }}>
@@ -1333,77 +1392,10 @@ export function RewardsSection({ token }: { token: string }) {
           You are not enrolled in the loyalty program yet.
         </Alert>
       )}
-      <Grid container spacing={2}>
-        {benefits?.tier_benefits.map((benefit) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={benefit.tier_name}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography color="text.secondary" variant="body2">
-                  {benefit.tier_name} benefit
-                </Typography>
-                <Typography
-                  variant="h5"
-                  sx={{ color: FOREST, fontWeight: 700, mt: 1 }}
-                >
-                  {benefit.discount_percentage}% off
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-      {benefits?.rewards.length ? (
-        <Box sx={{ mt: 4 }}>
-          <Typography
-            variant="h6"
-            sx={{ color: FOREST, fontWeight: 700, mb: 2 }}
-          >
-            Available rewards
-          </Typography>
-          <Grid container spacing={2}>
-            {benefits.rewards.map((reward) => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={reward.id}>
-                <Card
-                  variant="outlined"
-                  sx={{ height: "100%", opacity: reward.affordable ? 1 : 0.68 }}
-                >
-                  <CardContent>
-                    <Typography fontWeight={700}>{reward.name}</Typography>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 1 }}
-                    >
-                      {reward.description}
-                    </Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-                      <Chip label={reward.category} size="small" />
-                      <Chip
-                        label={`${reward.points_required.toLocaleString()} pts`}
-                        color={reward.affordable ? "success" : "default"}
-                        size="small"
-                      />
-                    </Stack>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ display: "block", mt: 2 }}
-                    >
-                      {reward.affordable
-                        ? "Redemption is not available in the guest portal yet."
-                        : "You need more points to unlock this reward."}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-      ) : null}
       {membership?.recent_activity.length ? (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
-            Recent points activity
+            Recent activity
           </Typography>
           <List>
             {membership.recent_activity.map((activity, index) => {
@@ -1431,7 +1423,9 @@ export function RewardsSection({ token }: { token: string }) {
             })}
           </List>
         </Box>
-      ) : null}
+      ) : (
+        <EmptyState message="You have no points activity yet." />
+      )}
     </>
   );
 }
