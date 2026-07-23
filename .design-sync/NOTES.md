@@ -28,8 +28,8 @@
   `hotel-web-fe/design-guidelines/app-structure.md` (app sitemap + where each DS
   component is used, for the design agent). Anchored re-sync ran aux-only (no
   component/bundle/render changes); validate clean; uploaded + fresh anchor pushed.
-- Content was derived from the repo's graphify graph (`graphify-out/graph.json`,
-  Codex-built) + direct-import greps. NOTE: graph BFS through barrel files
+- Content was derived from the repo's CodeGraph index (`.codegraph/`,
+  Codex-built) + direct-import greps. NOTE: graph traversal through barrel files
   over-reports component usage (every page "reaches" all 6) — use direct
   `import` greps per feature for usage claims, not graph reachability.
 - Playwright chromium had to be reinstalled (`cd .ds-sync && npx playwright

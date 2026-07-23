@@ -98,7 +98,7 @@ is kept as two rows.
    components pages are built from; (c) ~~add an app sitemap to the synced `guidelines/`~~ —
    **DONE 2026-07-10**: `hotel-web-fe/design-guidelines/app-structure.md` (full sitemap,
    surfaces/roles, per-feature component usage, screen conventions) is synced into the
-   project's `guidelines/` via `guidelinesGlob`; derived from the graphify code graph +
+   project's `guidelines/` via `guidelinesGlob`; derived from the CodeGraph code index +
    direct-import greps. Options (a)/(b) remain open scope decisions.
 2. **Git object corruption**: `git log` on some component paths fails (missing tree
    `c4528a11…`); flagged as a separate task 2026-07-10. Does not affect this reconciliation.
