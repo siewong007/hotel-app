@@ -163,6 +163,7 @@ export type {
   LoyaltyRedemption,
   LoyaltyMemberDetail,
   ManualAdjustmentInput,
+  GiftPointsInput,
   AdminRewardInput,
   AdminRewardUpdateInput,
   RejectRedemptionInput,

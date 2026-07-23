@@ -45,10 +45,10 @@ import type {
   TierQualificationMetric,
 } from '../../../types';
 import {
-  useAdjustPoints,
   useAdminLoyaltyRewards,
   useApproveRedemption,
   useCreateLoyaltyReward,
+  useGiftPoints,
   useLoyaltyMemberDetail,
   useLoyaltyMembers,
   useLoyaltyRedemptions,
@@ -57,6 +57,7 @@ import {
   useUpdateLoyaltyReward,
   useUpdateLoyaltyRules,
 } from '../hooks/useLoyaltyAdmin';
+import { useLoyaltySocket } from '../hooks/useLoyaltySocket';
 
 const fmt = (n: number | null | undefined): string =>
   typeof n === 'number' ? n.toLocaleString() : '—';
@@ -161,30 +162,30 @@ const OverviewTab: React.FC = () => {
 
 const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => void }> = ({ memberId, onClose }) => {
   const detailQuery = useLoyaltyMemberDetail(memberId);
-  const adjust = useAdjustPoints();
-  const [delta, setDelta] = useState('');
+  const giftPoints = useGiftPoints();
+  const [points, setPoints] = useState('');
   const [reason, setReason] = useState('');
-  const [adjustError, setAdjustError] = useState('');
+  const [giftError, setGiftError] = useState('');
 
   const detail = detailQuery.data;
 
-  const handleAdjust = async () => {
-    setAdjustError('');
-    const points = parseInt(delta, 10);
-    if (Number.isNaN(points) || points === 0) {
-      setAdjustError('Enter a non-zero points value');
+  const handleGiftPoints = async () => {
+    setGiftError('');
+    const pointsToGift = parseInt(points, 10);
+    if (Number.isNaN(pointsToGift) || pointsToGift <= 0) {
+      setGiftError('Enter a positive number of points');
       return;
     }
     if (reason.trim().length < 5) {
-      setAdjustError('Reason must be at least 5 characters');
+      setGiftError('Reason must be at least 5 characters');
       return;
     }
     try {
-      await adjust.mutateAsync({ id: memberId as number, input: { points_delta: points, reason: reason.trim() } });
-      setDelta('');
+      await giftPoints.mutateAsync({ id: memberId as number, input: { points: pointsToGift, reason: reason.trim() } });
+      setPoints('');
       setReason('');
     } catch (e) {
-      setAdjustError(errMessage(e, 'Failed to adjust points'));
+      setGiftError(errMessage(e, 'Failed to gift points'));
     }
   };
 
@@ -223,31 +224,32 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
 
             <Box>
               <Typography variant="subtitle2" gutterBottom>
-                Manual points adjustment
+                Gift points
               </Typography>
-              {adjustError && (
+              {giftError && (
                 <Alert severity="error" sx={{ mb: 1 }}>
-                  {adjustError}
+                  {giftError}
                 </Alert>
               )}
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="flex-start">
                 <TextField
-                  label="Points (+/-)"
+                  label="Points"
                   type="number"
                   size="small"
-                  value={delta}
-                  onChange={(e) => setDelta(e.target.value)}
+                  value={points}
+                  onChange={(e) => setPoints(e.target.value)}
+                  inputProps={{ min: 1 }}
                   sx={{ width: 140 }}
                 />
                 <TextField
-                  label="Reason"
+                  label="Reason (required)"
                   size="small"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   fullWidth
                 />
-                <Button variant="contained" onClick={handleAdjust} disabled={adjust.isPending}>
-                  Apply
+                <Button variant="contained" onClick={handleGiftPoints} disabled={giftPoints.isPending}>
+                  Gift points
                 </Button>
               </Stack>
             </Box>
@@ -932,6 +934,7 @@ const Loading: React.FC = () => (
 // ---------------------------------------------------------------------------
 
 const LoyaltyPortal: React.FC = () => {
+  useLoyaltySocket();
   const [tab, setTab] = useState(0);
 
   return (

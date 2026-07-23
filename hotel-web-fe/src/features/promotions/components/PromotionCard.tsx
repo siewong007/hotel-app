@@ -103,7 +103,13 @@ export function PromotionCard({
               disabled={!canClaim || hasVoucher || isClaiming}
               onClick={onClaim}
             >
-              {isClaiming ? 'Claiming…' : hasVoucher ? 'Already claimed' : 'Claim deal'}
+              {isClaiming
+                ? 'Redeeming…'
+                : hasVoucher
+                  ? 'Already claimed'
+                  : promotion.slug === 'july-deluxe-20-loyalty'
+                    ? 'Redeem 2,000 points'
+                    : 'Claim deal'}
             </Button>
             {!canClaim && !hasVoucher && claimUnavailableReason ? (
               <Typography variant="caption" color="text.secondary" textAlign="center">

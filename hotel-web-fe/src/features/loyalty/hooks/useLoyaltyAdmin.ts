@@ -9,6 +9,7 @@ import type {
   LoyaltyRedemptionQueryParams,
   LoyaltyRewardQueryParams,
   LoyaltyRulesInput,
+  GiftPointsInput,
   ManualAdjustmentInput,
   RejectRedemptionInput,
 } from '../../../types';
@@ -43,6 +44,15 @@ export function useAdjustPoints() {
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: ManualAdjustmentInput }) =>
       LoyaltyAdminService.adjustPoints(id, input),
+    onSuccess: invalidate,
+  });
+}
+
+export function useGiftPoints() {
+  const invalidate = useInvalidateLoyalty();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: GiftPointsInput }) =>
+      LoyaltyAdminService.giftPoints(id, input),
     onSuccess: invalidate,
   });
 }

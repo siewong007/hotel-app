@@ -52,7 +52,9 @@ mod sqlite_tests {
     async fn seed_guest_account(pool: &SqlitePool) {
         sqlx::query(
             "INSERT INTO users (id, uuid, username, email, full_name, user_type, guest_id, is_active, is_verified) \
-             VALUES (8201, 'guest2-user-uuid', 'guest2', 'guest2@example.com', 'Portal Guest', 'guest', 8101, 1, 1)",
+             VALUES \
+                (8201, 'guest2-user-uuid', 'guest2', 'guest2@example.com', 'Portal Guest', 'guest', 8101, 1, 1), \
+                (8202, 'inactive-user-uuid', 'inactive-guest', 'inactive@example.com', 'Inactive Portal Guest', 'guest', 8102, 0, 1)",
         )
         .execute(pool)
         .await
@@ -126,11 +128,91 @@ mod sqlite_tests {
         .await
         .unwrap();
         assert_eq!(guests[0].account_username.as_deref(), Some("guest2"));
+        assert_eq!(guests[0].account_is_active, Some(true));
+
+        let (_, guests) = GuestRepository::find_paginated(
+            &pool,
+            &GuestPaginationParams {
+                search: Some("Bob Local".to_string()),
+                ..params()
+            },
+            pagination,
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            guests[0].account_username.as_deref(),
+            Some("inactive-guest")
+        );
+        assert_eq!(guests[0].account_is_active, Some(false));
 
         let hits = SearchRepository::search_guests(&pool, "%guest2%", 6)
             .await
             .unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, 8101);
+    }
+
+    #[tokio::test]
+    async fn staff_can_transfer_an_active_portal_account_to_an_active_guest_only() {
+        let pool = super::common::setup_test_db().await;
+        seed_guests(&pool).await;
+        seed_guest_account(&pool).await;
+        sqlx::query(
+            "INSERT INTO guest_portal_sessions (guest_id, token_hash, expires_at) \
+             VALUES (8101, 'transfer-test-token', '2099-01-01 00:00:00')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let transfer = GuestRepository::transfer_portal_account(&pool, 8103, "guest2")
+            .await
+            .unwrap();
+        assert_eq!(transfer.user_id, 8201);
+        assert_eq!(transfer.previous_guest_id, Some(8101));
+
+        let pagination = normalize_pagination(Some(1), Some(20), 100, 500);
+        let (_, guests) = GuestRepository::find_paginated(
+            &pool,
+            &GuestPaginationParams {
+                search: Some("guest2".to_string()),
+                ..params()
+            },
+            pagination,
+        )
+        .await
+        .unwrap();
+        assert_eq!(guests[0].id, 8103);
+        assert_eq!(guests[0].account_is_active, Some(true));
+        let remaining_sessions: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM guest_portal_sessions WHERE guest_id = 8101")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(remaining_sessions, 0);
+
+        sqlx::query(
+            "INSERT INTO users (id, uuid, username, email, full_name, user_type, guest_id, is_active, is_verified) \
+             VALUES (8203, 'other-user-uuid', 'other-guest', 'other@example.com', 'Other Guest', 'guest', 8104, 1, 1)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert!(
+            GuestRepository::transfer_portal_account(&pool, 8103, "other-guest")
+                .await
+                .is_err()
+        );
+
+        sqlx::query("UPDATE guests SET is_active = 0 WHERE id = 8102")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(
+            GuestRepository::transfer_portal_account(&pool, 8102, "guest2")
+                .await
+                .is_err()
+        );
     }
 }

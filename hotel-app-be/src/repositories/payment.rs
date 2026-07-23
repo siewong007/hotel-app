@@ -6,8 +6,8 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
     Invoice, InvoiceBookingDetails, PaidOnlineBookingRoomAssignment, Payment, PaymentBookingStay,
-    PaymentEntryRow, PaymentRequest, PaymentRoomPricing, PaymentSummary, PaymentWorkflowSummaryRow,
-    PendingPaymentEntry, RecordPaymentRequest, UpdatePaymentRequest,
+    PaymentEntryRow, PaymentReceiptFile, PaymentRequest, PaymentRoomPricing, PaymentSummary,
+    PaymentWorkflowSummaryRow, PendingPaymentEntry, RecordPaymentRequest, UpdatePaymentRequest,
 };
 use rust_decimal::Decimal;
 use sqlx::Row;
@@ -783,10 +783,14 @@ impl PaymentRepository {
                        p.gateway_payment_intent_id AS reference, p.notes AS notes,
                        p.created_at::text AS created_at,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name,
+                       p.failure_reason AS decision_reason
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.id = $1
             "#,
             sqlite: r#"
@@ -796,10 +800,14 @@ impl PaymentRepository {
                        p.reference_number AS reference, p.description AS notes,
                        p.created_at AS created_at,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       COALESCE(p.processed_at, p.voided_at) AS processed_at, reviewer.full_name AS processed_by_name,
+                       p.void_reason AS decision_reason
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN users reviewer ON reviewer.id = COALESCE(p.processed_by, p.voided_by)
                 WHERE p.id = ?1
             "#
         );
@@ -825,10 +833,14 @@ impl PaymentRepository {
                        p.gateway_payment_intent_id AS reference, p.notes AS notes,
                        p.created_at::text AS created_at,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name,
+                       p.failure_reason AS decision_reason
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.status = 'pending'
                 ORDER BY p.created_at DESC
                 LIMIT $1 OFFSET $2
@@ -840,10 +852,14 @@ impl PaymentRepository {
                        p.reference_number AS reference, p.description AS notes,
                        p.created_at AS created_at,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       COALESCE(p.processed_at, p.voided_at) AS processed_at, reviewer.full_name AS processed_by_name,
+                       p.void_reason AS decision_reason
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
+                LEFT JOIN users reviewer ON reviewer.id = COALESCE(p.processed_by, p.voided_by)
                 WHERE p.status = 'pending'
                 ORDER BY p.created_at DESC
                 LIMIT ?1 OFFSET ?2
@@ -864,6 +880,90 @@ impl PaymentRepository {
                 .map_err(ApiError::from)?;
 
         Ok((items, total))
+    }
+
+    /// Completed and rejected guest payment claims, newest decision first.
+    pub async fn list_payment_approval_history(
+        pool: &DbPool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<PendingPaymentEntry>, i64), ApiError> {
+        let list_sql = crate::sql_query!(
+            postgres: r#"
+                SELECT p.id, p.booking_id, b.booking_number, b.guest_id, g.full_name AS guest_name,
+                       p.amount::text AS amount, p.payment_method, p.status,
+                       p.gateway_payment_intent_id AS reference, p.notes, p.created_at::text AS created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       p.processed_at::text AS processed_at, reviewer.full_name AS processed_by_name, p.failure_reason AS decision_reason
+                FROM payments p JOIN bookings b ON b.id = p.booking_id
+                LEFT JOIN guests g ON g.id = b.guest_id LEFT JOIN users reviewer ON reviewer.id = p.processed_by
+                WHERE p.payment_method IN ('bank_transfer', 'paypal') AND p.status IN ('completed', 'void')
+                ORDER BY p.processed_at DESC NULLS LAST, p.created_at DESC LIMIT $1 OFFSET $2
+            "#,
+            sqlite: r#"
+                SELECT p.id, p.booking_id, b.booking_number, b.guest_id, g.full_name AS guest_name,
+                       CAST(p.amount AS TEXT) AS amount, p.payment_method, p.status,
+                       p.reference_number AS reference, p.description AS notes, p.created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
+                       COALESCE(p.processed_at, p.voided_at) AS processed_at, reviewer.full_name AS processed_by_name, p.void_reason AS decision_reason
+                FROM payments p JOIN bookings b ON b.id = p.booking_id
+                LEFT JOIN guests g ON g.id = b.guest_id LEFT JOIN users reviewer ON reviewer.id = COALESCE(p.processed_by, p.voided_by)
+                WHERE p.payment_method IN ('bank_transfer', 'paypal') AND p.status IN ('completed', 'void')
+                ORDER BY COALESCE(p.processed_at, p.voided_at) DESC, p.created_at DESC LIMIT ?1 OFFSET ?2
+            "#
+        );
+        let items = sqlx::query_as::<_, PendingPaymentEntry>(list_sql)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+        let total_sql = "SELECT COUNT(*) FROM payments WHERE payment_method IN ('bank_transfer', 'paypal') AND status IN ('completed', 'void')";
+        let total = sqlx::query_scalar::<_, i64>(total_sql)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok((items, total))
+    }
+
+    pub async fn save_receipt_file(
+        pool: &DbPool,
+        payment_id: i64,
+        path: &str,
+        content_type: &str,
+    ) -> Result<(), ApiError> {
+        let sql = crate::sql_query!(
+            postgres: "INSERT INTO payment_receipt_requests (payment_id, uploaded_at, receipt_path, receipt_content_type) VALUES ($1, CURRENT_TIMESTAMP, $2, $3) ON CONFLICT (payment_id) DO UPDATE SET uploaded_at = CURRENT_TIMESTAMP, receipt_path = EXCLUDED.receipt_path, receipt_content_type = EXCLUDED.receipt_content_type",
+            sqlite: "INSERT INTO payment_receipt_requests (payment_id, uploaded_at, receipt_path, receipt_content_type) VALUES (?1, datetime('now'), ?2, ?3) ON CONFLICT (payment_id) DO UPDATE SET uploaded_at = datetime('now'), receipt_path = excluded.receipt_path, receipt_content_type = excluded.receipt_content_type"
+        );
+        sqlx::query(sql)
+            .bind(payment_id)
+            .bind(path)
+            .bind(content_type)
+            .execute(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(())
+    }
+
+    pub async fn receipt_file(
+        pool: &DbPool,
+        payment_id: i64,
+    ) -> Result<Option<PaymentReceiptFile>, ApiError> {
+        let sql = crate::sql_query!(
+            postgres: "SELECT receipt_path, receipt_content_type FROM payment_receipt_requests WHERE payment_id = $1 AND receipt_path IS NOT NULL",
+            sqlite: "SELECT receipt_path, receipt_content_type FROM payment_receipt_requests WHERE payment_id = ?1 AND receipt_path IS NOT NULL"
+        );
+        let row = sqlx::query_as::<_, (String, String)>(sql)
+            .bind(payment_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(row.map(|(path, content_type)| PaymentReceiptFile { path, content_type }))
     }
 
     /// Create or refresh a receipt request for a pending bank-transfer claim.
@@ -899,6 +999,19 @@ impl PaymentRepository {
             .await
             .map_err(ApiError::from)?;
         Ok(())
+    }
+
+    /// Pending bank-transfer claims whose requested receipt was not uploaded
+    /// within the allowed 24-hour review window.
+    pub async fn expired_receipt_request_payment_ids(pool: &DbPool) -> Result<Vec<i64>, ApiError> {
+        let sql = crate::sql_query!(
+            postgres: "SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id WHERE p.status = 'pending' AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL AND pr.requested_at <= CURRENT_TIMESTAMP - INTERVAL '1 day'",
+            sqlite: "SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id WHERE p.status = 'pending' AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL AND datetime(pr.requested_at) <= datetime('now', '-1 day')"
+        );
+        sqlx::query_scalar(sql)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)
     }
 
     pub async fn workflow_summary_row<'e, E>(

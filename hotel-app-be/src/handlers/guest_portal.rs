@@ -4,7 +4,7 @@
 
 use axum::{
     Json,
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Multipart, Path, Query, State},
     http::HeaderMap,
 };
 
@@ -197,6 +197,38 @@ pub async fn session_bank_transfer(
     ))
 }
 
+async fn receipt_upload_bytes(mut multipart: Multipart) -> Result<Vec<u8>, ApiError> {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()))?
+    {
+        if field.name() == Some("file") {
+            return field
+                .bytes()
+                .await
+                .map(|bytes| bytes.to_vec())
+                .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()));
+        }
+    }
+    Err(ApiError::BadRequest(
+        "Select a receipt file to upload.".to_string(),
+    ))
+}
+
+pub async fn session_upload_payment_receipt(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(payment_id): Path<i64>,
+    multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
+    let bytes = receipt_upload_bytes(multipart).await?;
+    guest_portal_service::session_upload_payment_receipt(&pool, guest_id, payment_id, &bytes)
+        .await?;
+    Ok(Json(serde_json::json!({ "uploaded": true })))
+}
+
 /// POST /guest-portal/me/payments/paypal/create-order
 pub async fn session_paypal_create_order(
     State(pool): State<DbPool>,
@@ -241,6 +273,16 @@ pub async fn token_bank_transfer(
     Ok(Json(
         guest_portal_service::token_bank_transfer(&pool, &token).await?,
     ))
+}
+
+pub async fn token_upload_payment_receipt(
+    State(pool): State<DbPool>,
+    Path((token, payment_id)): Path<(String, i64)>,
+    multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let bytes = receipt_upload_bytes(multipart).await?;
+    guest_portal_service::token_upload_payment_receipt(&pool, &token, payment_id, &bytes).await?;
+    Ok(Json(serde_json::json!({ "uploaded": true })))
 }
 
 /// POST /guest-portal/booking/{token}/payments/paypal/create-order

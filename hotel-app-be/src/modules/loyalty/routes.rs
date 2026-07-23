@@ -27,6 +27,9 @@ pub fn routes() -> Router<DbPool> {
             "/admin/loyalty/members/{id}/adjustments",
             post(manual_adjustment),
         )
+        .route("/admin/loyalty/members/{id}/gifts", post(gift_points))
+        .route("/admin/loyalty/socket", get(loyalty_socket))
+        .route("/guest-portal/me/loyalty/socket", get(guest_loyalty_socket))
         .route("/admin/loyalty/rules", get(rules))
         .route("/admin/loyalty/rules", put(update_rules))
         .route("/admin/loyalty/rewards", get(admin_rewards))
@@ -114,6 +117,43 @@ async fn manual_adjustment(
         require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
     handlers::manual_adjustment_handler(State(pool), Extension(actor_user_id), path, Json(input))
         .await
+}
+
+async fn gift_points(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<crate::modules::loyalty::hub::LoyaltyHub>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::GiftPointsInput>,
+) -> Result<JsonResponse<models::LoyaltyTransaction>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
+    handlers::gift_points_handler(
+        State(pool),
+        Extension(hub),
+        Extension(actor_user_id),
+        path,
+        Json(input),
+    )
+    .await
+}
+
+async fn loyalty_socket(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<crate::modules::loyalty::hub::LoyaltyHub>,
+    headers: HeaderMap,
+    websocket: axum::extract::WebSocketUpgrade,
+) -> Result<axum::response::Response, ApiError> {
+    handlers::loyalty_socket_handler(State(pool), Extension(hub), headers, websocket).await
+}
+
+async fn guest_loyalty_socket(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<crate::modules::loyalty::hub::LoyaltyHub>,
+    headers: HeaderMap,
+    websocket: axum::extract::WebSocketUpgrade,
+) -> Result<axum::response::Response, ApiError> {
+    handlers::guest_loyalty_socket_handler(State(pool), Extension(hub), headers, websocket).await
 }
 
 async fn rules(

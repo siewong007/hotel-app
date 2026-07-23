@@ -188,6 +188,9 @@ async fn main() {
     // lifetime and never blocks startup.
     services::night_audit_scheduler::spawn(pool.clone());
 
+    // Automatically expire receipt requests that remain unanswered for 24 hours.
+    services::payment_receipt_scheduler::spawn(pool.clone());
+
     // Start the durable email delivery worker. Inert when SMTP_* env vars are
     // absent; otherwise leases due outbox rows and sends with retry/backoff.
     modules::communications::worker::spawn(pool.clone());

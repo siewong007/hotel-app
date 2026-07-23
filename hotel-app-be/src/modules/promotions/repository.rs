@@ -326,6 +326,27 @@ impl PromotionRepository {
         )))
     }
 
+    pub async fn find_by_slug(pool: &DbPool, slug: &str) -> Result<Option<Promotion>, ApiError> {
+        let sql = crate::sql_query!(
+            postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = $1",
+            sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = ?1"
+        )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let row = query(&sql)
+            .bind(slug)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let id = row.try_get("id").map_err(ApiError::from)?;
+        Ok(Some(promotion_from_row(
+            &row,
+            Self::room_type_ids(pool, id).await?,
+        )))
+    }
+
     pub async fn find_public_by_slug(
         pool: &DbPool,
         slug: &str,

@@ -28,6 +28,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/guests/link", post(link_guest))
         .route("/guests/unlink/{guest_id}", delete(unlink_guest))
         .route("/guests/upgrade", post(upgrade_guest))
+        .route(
+            "/guests/{id}/portal-account",
+            post(transfer_guest_portal_account),
+        )
         .route("/guests/{id}", get(get_guest))
         .route("/guests/{id}", patch(update_guest))
         .route("/guests/{id}", delete(delete_guest))
@@ -110,6 +114,22 @@ async fn upgrade_guest(
     let user_id = require_auth(&headers).await?;
     handlers::guests::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input))
         .await
+}
+
+async fn transfer_guest_portal_account(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::TransferGuestPortalAccountInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
+    handlers::guests::transfer_guest_portal_account_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 async fn update_guest(

@@ -27,6 +27,7 @@ const GOLD = '#C7A45B';
 
 const DASHBOARD_LINK = '/guest-portal?section=overview';
 const BOOKING_LINK = '/guest-portal?view=booking';
+const HOTEL_INDEX_LINK = '/salim-inn/index.html?account=guest';
 
 const desktopLinks = [
   { label: 'Home', section: 'overview', to: '/guest-portal?section=overview' },
@@ -128,7 +129,7 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
                     {link.label}
                   </Button>
                 ))}
-                <Button component={Link} to="/" color="inherit" sx={{ minHeight: 44, px: 1.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'rgba(255,255,255,0.09)', color: '#FFFFFF', transform: 'translateY(-1px)' } }}>
+                <Button component="a" href={HOTEL_INDEX_LINK} color="inherit" sx={{ minHeight: 44, px: 1.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'rgba(255,255,255,0.09)', color: '#FFFFFF', transform: 'translateY(-1px)' } }}>
                   Explore hotel
                 </Button>
               </Stack>

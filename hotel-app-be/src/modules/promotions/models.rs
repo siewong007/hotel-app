@@ -122,6 +122,8 @@ pub struct GuestPromotion {
     pub promotion: PublicPromotion,
     pub can_claim: bool,
     pub has_voucher: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub claim_unavailable_reason: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

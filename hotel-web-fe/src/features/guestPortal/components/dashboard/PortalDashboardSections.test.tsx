@@ -40,32 +40,34 @@ describe('BookingsSection cancellation', () => {
 
   afterEach(cleanup);
 
-  it('keeps the dialog and its reason open after a cancellation failure', async () => {
+  it('keeps the selected refund reason open after a request failure', async () => {
     mocks.cancelBooking.mockRejectedValue(new Error('Cancellation window has closed'));
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cancel booking' }));
-    fireEvent.change(screen.getByLabelText('Reason for cancellation (optional)'), { target: { value: 'Plans changed' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Refund' }))[0]);
+    fireEvent.click(screen.getByLabelText('Other'));
+    fireEvent.change(screen.getByLabelText('Custom refund reason'), { target: { value: 'Plans changed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Request refund' }));
 
     await waitFor(() => expect(screen.getByText('Cancellation window has closed')).toBeTruthy());
-    expect((screen.getByLabelText('Reason for cancellation (optional)') as HTMLTextAreaElement).value).toBe('Plans changed');
+    expect((screen.getByLabelText('Custom refund reason') as HTMLTextAreaElement).value).toBe('Plans changed');
     expect(mocks.cancelBooking).toHaveBeenCalledWith(7, 'Plans changed', 'guest-token');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request refund' }));
     await waitFor(() => expect(mocks.cancelBooking).toHaveBeenCalledTimes(2));
-    expect((screen.getByLabelText('Reason for cancellation (optional)') as HTMLTextAreaElement).value).toBe('Plans changed');
+    expect((screen.getByLabelText('Custom refund reason') as HTMLTextAreaElement).value).toBe('Plans changed');
   });
 
-  it('closes after cancellation and announces success', async () => {
+  it('closes after submitting a refund request and announces success', async () => {
     mocks.cancelBooking.mockResolvedValue(undefined);
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Cancel booking' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel booking' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Refund' }))[0]);
+    fireEvent.click(screen.getByLabelText('Change of plans'));
+    fireEvent.click(screen.getByRole('button', { name: 'Request refund' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.getByText('Booking SI-1007 was cancelled.')).toBeTruthy();
+    expect(screen.getByText('Refund request for booking SI-1007 was submitted.')).toBeTruthy();
   });
 
   it('explains when online cancellation is unavailable', async () => {
@@ -75,9 +77,9 @@ describe('BookingsSection cancellation', () => {
     });
     render(<BookingsSection token="guest-token" />);
 
-    expect((await screen.findAllByText('Cancellation unavailable')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Refund unavailable')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('This rate is non-refundable.').length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: 'Cancel booking' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Refund' })).toBeNull();
   });
 });
 

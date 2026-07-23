@@ -11,6 +11,11 @@ use crate::modules::communications::validation::html_escape;
 use crate::repositories::payment::PaymentRepository;
 use crate::services::audit::AuditLog;
 use rust_decimal::Decimal;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+const PAYMENT_RECEIPT_UPLOAD_DIR: &str = "private_uploads/payment_receipts";
+const MAX_PAYMENT_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
 
 pub async fn queue_paid_online_booking_room_assignment(
     pool: &DbPool,
@@ -1048,7 +1053,81 @@ pub async fn request_payment_receipt(
         None,
     )
     .await?;
+    queue_payment_receipt_request_notification(
+        pool,
+        review.guest_id,
+        review.guest_name.as_deref(),
+        review.booking_number.as_deref(),
+        payment_id,
+        message,
+    )
+    .await;
     Ok(())
+}
+
+/// Notify the guest each time staff request or re-request proof of a bank transfer.
+async fn queue_payment_receipt_request_notification(
+    pool: &DbPool,
+    guest_id: Option<i64>,
+    guest_name: Option<&str>,
+    booking_number: Option<&str>,
+    payment_id: i64,
+    message: Option<&str>,
+) {
+    let Some(guest_id) = guest_id else { return };
+    let email = match CommunicationsRepository::get_guest_email(pool, guest_id).await {
+        Ok(Some(email)) => email,
+        Ok(None) => return,
+        Err(error) => {
+            log::error!("Failed to find guest email for payment receipt request: {error}");
+            return;
+        }
+    };
+    let booking = booking_number.unwrap_or("your booking");
+    let message =
+        message.unwrap_or("Please upload a clear receipt showing the transfer reference and date.");
+    let subject = format!("Receipt requested for booking {booking}");
+    let body_html = format!(
+        "<p>Dear {},</p><p>Please upload your bank-transfer receipt for booking <strong>{}</strong> within 24 hours.</p><p>{}</p>",
+        html_escape(guest_name.unwrap_or("Guest")),
+        html_escape(booking),
+        html_escape(message)
+    );
+    let body_text = format!(
+        "Please upload your bank-transfer receipt for booking {booking} within 24 hours.\n{message}"
+    );
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(error) => {
+            log::error!("Failed to start receipt-request notification transaction: {error}");
+            return;
+        }
+    };
+    let idempotency_key = format!(
+        "payment-receipt-request:{payment_id}:{}",
+        chrono::Utc::now().timestamp_millis()
+    );
+    if let Err(error) = CommunicationsRepository::insert_delivery_tx(
+        &mut tx,
+        None,
+        "booking_confirmation",
+        guest_id,
+        "booking_confirmation",
+        &email,
+        &subject,
+        &body_html,
+        Some(&body_text),
+        None,
+        &idempotency_key,
+    )
+    .await
+    {
+        log::error!("Failed to queue payment receipt request notification: {error}");
+        return;
+    }
+    if let Err(error) = tx.commit().await {
+        log::error!("Failed to commit payment receipt request notification: {error}");
+    }
 }
 
 /// Shared completion path: CAS the payment to `completed`, confirm the booking
@@ -1144,7 +1223,7 @@ async fn queue_payment_rejected_notification(
         "<p>Dear {},</p>\
          <p>We were unable to confirm your recent payment for booking <strong>{}</strong>.</p>\
          <p><strong>Reason:</strong> {}</p>\
-         <p>Please log in to your guest portal to try another payment method.</p>",
+         <p>Please log in to your guest portal to submit a new payment claim or contact the hotel if you need help.</p>",
         html_escape(guest_name),
         html_escape(booking_number),
         html_escape(reason),
@@ -1152,7 +1231,7 @@ async fn queue_payment_rejected_notification(
     let body_text = format!(
         "We were unable to confirm your recent payment for booking {booking_number}.\n\
          Reason: {reason}\n\
-         Please log in to your guest portal to try another payment method.",
+         Please log in to your guest portal to submit a new payment claim or contact the hotel if you need help.",
     );
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
@@ -1216,6 +1295,36 @@ pub async fn reject_payment(
     payment_id: i64,
     reason: &str,
 ) -> Result<PaymentActionResponse, ApiError> {
+    reject_payment_by(pool, Some(actor_user_id), payment_id, reason).await
+}
+
+/// Reject overdue receipt requests without attributing the automated decision
+/// to a staff account.
+pub async fn reject_expired_receipt_requests(pool: &DbPool) -> Result<usize, ApiError> {
+    let ids = PaymentRepository::expired_receipt_request_payment_ids(pool).await?;
+    let mut rejected = 0;
+    for payment_id in ids {
+        if reject_payment_by(
+            pool,
+            None,
+            payment_id,
+            "Receipt was not uploaded within 24 hours of the request.",
+        )
+        .await
+        .is_ok()
+        {
+            rejected += 1;
+        }
+    }
+    Ok(rejected)
+}
+
+async fn reject_payment_by(
+    pool: &DbPool,
+    actor_user_id: Option<i64>,
+    payment_id: i64,
+    reason: &str,
+) -> Result<PaymentActionResponse, ApiError> {
     let reason = reason.trim();
     if reason.is_empty() {
         return Err(ApiError::BadRequest(
@@ -1233,13 +1342,9 @@ pub async fn reject_payment(
     }
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    let rejected = PaymentRepository::mark_payment_rejected_tx(
-        &mut tx,
-        payment_id,
-        Some(actor_user_id),
-        reason,
-    )
-    .await?;
+    let rejected =
+        PaymentRepository::mark_payment_rejected_tx(&mut tx, payment_id, actor_user_id, reason)
+            .await?;
     if rejected.is_none() {
         return Err(ApiError::BadRequest(
             "Payment is no longer pending.".to_string(),
@@ -1257,7 +1362,7 @@ pub async fn reject_payment(
             review.booking_id,
             Some("pending_confirmation"),
             "pending_payment",
-            Some(actor_user_id),
+            actor_user_id,
             Some("Payment claim rejected; awaiting another payment"),
             serde_json::json!({ "payment_id": payment_id }),
         )
@@ -1266,7 +1371,7 @@ pub async fn reject_payment(
 
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_user_id),
+        actor_user_id,
         "payment_rejected",
         "payment",
         Some(payment_id),
@@ -1308,4 +1413,133 @@ pub async fn list_pending_payments(
     let offset = offset.max(0);
     let (items, total) = PaymentRepository::list_pending_payments(pool, limit, offset).await?;
     Ok(PendingPaymentPage { items, total })
+}
+
+/// Staff history of resolved guest payment claims.
+pub async fn list_payment_approval_history(
+    pool: &DbPool,
+    limit: i64,
+    offset: i64,
+) -> Result<PendingPaymentPage, ApiError> {
+    let (items, total) =
+        PaymentRepository::list_payment_approval_history(pool, limit.clamp(1, 200), offset.max(0))
+            .await?;
+    Ok(PendingPaymentPage { items, total })
+}
+
+fn receipt_extension(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some(("jpg", "image/jpeg"))
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some(("png", "image/png"))
+    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some(("webp", "image/webp"))
+    } else if bytes.starts_with(b"%PDF-") {
+        Some(("pdf", "application/pdf"))
+    } else {
+        None
+    }
+}
+
+/// Store a guest-provided proof privately after validating its actual contents.
+pub async fn save_payment_receipt(
+    pool: &DbPool,
+    payment_id: i64,
+    bytes: &[u8],
+) -> Result<(), ApiError> {
+    if bytes.is_empty() || bytes.len() > MAX_PAYMENT_RECEIPT_BYTES {
+        return Err(ApiError::BadRequest(
+            "Receipt file size must be between 1 byte and 10MB".to_string(),
+        ));
+    }
+    let receipt = PaymentRepository::get_payment_for_review(pool, payment_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if receipt.payment_method != PaymentMethod::BankTransfer.to_string()
+        || receipt.status != "pending"
+    {
+        return Err(ApiError::BadRequest(
+            "A receipt can only be uploaded for a pending bank-transfer claim.".to_string(),
+        ));
+    }
+    let (extension, content_type) = receipt_extension(bytes).ok_or_else(|| {
+        ApiError::BadRequest("Receipt must be a JPEG, PNG, WebP, or PDF file.".to_string())
+    })?;
+    let directory = PathBuf::from(PAYMENT_RECEIPT_UPLOAD_DIR);
+    fs::create_dir_all(&directory)
+        .map_err(|_| ApiError::Internal("Unable to prepare receipt storage.".to_string()))?;
+    let path = directory.join(format!(
+        "payment_{payment_id}_{}.{}",
+        uuid::Uuid::new_v4(),
+        extension
+    ));
+    fs::write(&path, bytes)
+        .map_err(|_| ApiError::Internal("Unable to save the receipt.".to_string()))?;
+    if let Err(error) = PaymentRepository::save_receipt_file(
+        pool,
+        payment_id,
+        &path.to_string_lossy(),
+        content_type,
+    )
+    .await
+    {
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+    AuditLog::log_event(
+        pool,
+        None,
+        "payment_receipt_uploaded",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({ "booking_id": receipt.booking_id })),
+        None,
+        None,
+    )
+    .await?;
+    Ok(())
+}
+
+/// Load a receipt that was saved by `save_payment_receipt`; never serve files outside its private directory.
+pub async fn load_payment_receipt(
+    pool: &DbPool,
+    payment_id: i64,
+) -> Result<(Vec<u8>, String), ApiError> {
+    let receipt = PaymentRepository::receipt_file(pool, payment_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound("No receipt has been uploaded for this payment.".to_string())
+        })?;
+    let root = Path::new(PAYMENT_RECEIPT_UPLOAD_DIR)
+        .canonicalize()
+        .map_err(|_| ApiError::NotFound("Receipt file is unavailable.".to_string()))?;
+    let path = Path::new(&receipt.path)
+        .canonicalize()
+        .map_err(|_| ApiError::NotFound("Receipt file is unavailable.".to_string()))?;
+    if !path.starts_with(&root) {
+        return Err(ApiError::NotFound(
+            "Receipt file is unavailable.".to_string(),
+        ));
+    }
+    let bytes = fs::read(path)
+        .map_err(|_| ApiError::NotFound("Receipt file is unavailable.".to_string()))?;
+    Ok((bytes, receipt.content_type))
+}
+
+#[cfg(test)]
+mod receipt_tests {
+    use super::receipt_extension;
+
+    #[test]
+    fn accepts_supported_receipt_signatures_only() {
+        assert_eq!(
+            receipt_extension(&[0xff, 0xd8, 0xff, 0x00]),
+            Some(("jpg", "image/jpeg"))
+        );
+        assert_eq!(
+            receipt_extension(b"%PDF-1.7"),
+            Some(("pdf", "application/pdf"))
+        );
+        assert_eq!(receipt_extension(b"not a receipt"), None);
+    }
 }

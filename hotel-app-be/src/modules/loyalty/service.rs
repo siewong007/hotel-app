@@ -3,7 +3,20 @@ use super::repository::{LoyaltyRepository, NewTransaction};
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::modules::promotions::repository::PromotionRepository;
+use crate::services::audit::AuditLog;
+use uuid::Uuid;
 use validator::Validate;
+
+/// System-managed loyalty reward that issues a voucher immediately after points are redeemed.
+const JULY_DELUXE_VOUCHER_REWARD_NAME: &str = "July Deluxe Room 20% Voucher";
+const JULY_DELUXE_PROMOTION_SLUG: &str = "july-deluxe-20-loyalty";
+const JULY_DELUXE_VOUCHER_TERMS: &str = "The voucher is issued immediately, may be used once, and is valid only for a Deluxe Room stay in July 2026.";
+
+fn generate_voucher_code() -> String {
+    let random = Uuid::new_v4().simple().to_string().to_ascii_uppercase();
+    format!("VCH{}", &random[..20])
+}
 
 pub async fn resolve_user_guest(
     pool: &DbPool,
@@ -119,11 +132,23 @@ pub async fn redeem_reward(
     reward_id: i64,
     input: RedeemRewardInput,
 ) -> Result<LoyaltyRedemption, ApiError> {
+    let profile = resolve_user_guest(pool, user_id).await?;
+    redeem_reward_for_guest(pool, profile.guest_id, Some(user_id), reward_id, input).await
+}
+
+/// Redeem a reward from a guest-authenticated surface, such as the guest portal.
+/// The caller has already resolved and authenticated the guest session.
+pub async fn redeem_reward_for_guest(
+    pool: &DbPool,
+    guest_id: i64,
+    actor_user_id: Option<i64>,
+    reward_id: i64,
+    input: RedeemRewardInput,
+) -> Result<LoyaltyRedemption, ApiError> {
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    let profile = resolve_user_guest(pool, user_id).await?;
-    let member = active_member_for_guest(pool, profile.guest_id).await?;
+    let member = active_member_for_guest(pool, guest_id).await?;
     ensure_member_can_redeem(&member)?;
 
     let reward = LoyaltyRepository::find_reward(pool, reward_id)
@@ -146,7 +171,34 @@ pub async fn redeem_reward(
     }
 
     let rules = LoyaltyRepository::get_rules(pool).await?;
-    let requires_approval = reward.requires_approval || rules.redemption_approval_required;
+    let july_deluxe_promotion_id = if reward.name == JULY_DELUXE_VOUCHER_REWARD_NAME
+        && reward.category == "discount"
+        && reward.points_cost == 2_000
+        && reward.terms_conditions.as_deref() == Some(JULY_DELUXE_VOUCHER_TERMS)
+    {
+        let promotion = PromotionRepository::find_by_slug(pool, JULY_DELUXE_PROMOTION_SLUG)
+            .await?
+            .ok_or_else(|| {
+                ApiError::Internal("July Deluxe voucher promotion is not configured.".to_string())
+            })?;
+        if promotion.status != "published" {
+            return Err(ApiError::Conflict(
+                "The July Deluxe voucher is not currently available.".to_string(),
+            ));
+        }
+        if PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await? {
+            return Err(ApiError::Conflict(
+                "You have already claimed the July Deluxe voucher.".to_string(),
+            ));
+        }
+        Some(promotion.id)
+    } else {
+        None
+    };
+    // This campaign is fulfilled by a voucher in the same transaction, so it
+    // must not be delayed by the program-wide manual-review setting.
+    let requires_approval = july_deluxe_promotion_id.is_none()
+        && (reward.requires_approval || rules.redemption_approval_required);
     let status = if requires_approval {
         "pending"
     } else {
@@ -173,7 +225,7 @@ pub async fn redeem_reward(
                 "reward_name": reward.name,
                 "requires_approval": requires_approval,
             })),
-            actor_user_id: Some(user_id),
+            actor_user_id,
         },
     )
     .await?;
@@ -188,6 +240,29 @@ pub async fn redeem_reward(
         input.notes.as_deref(),
     )
     .await?;
+    if let Some(promotion_id) = july_deluxe_promotion_id {
+        let voucher_id = PromotionRepository::insert_voucher_if_new(
+            &mut tx,
+            promotion_id,
+            guest_id,
+            &generate_voucher_code(),
+            // Voucher provenance is intentionally constrained to guest_claim or
+            // admin_issue in both database backends. This redemption is a
+            // guest-initiated claim; using a longer ad-hoc value also exceeds
+            // PostgreSQL's VARCHAR(16) column.
+            "guest_claim",
+            None,
+            None,
+        )
+        .await?;
+        if voucher_id.is_none()
+            || !PromotionRepository::reserve_claim_capacity(&mut tx, promotion_id).await?
+        {
+            return Err(ApiError::Conflict(
+                "The July Deluxe voucher is no longer available.".to_string(),
+            ));
+        }
+    }
     if reward.inventory_count.is_some() {
         LoyaltyRepository::decrement_reward_inventory(&mut tx, reward.id).await?;
     }
@@ -277,6 +352,72 @@ pub async fn manual_adjustment(
             })),
             actor_user_id: Some(actor_user_id),
         },
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(transaction)
+}
+
+pub async fn gift_points(
+    pool: &DbPool,
+    actor_user_id: i64,
+    member_id: i64,
+    input: GiftPointsInput,
+) -> Result<LoyaltyTransaction, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let reason = input.reason.trim();
+    if reason.len() < 5 {
+        return Err(ApiError::BadRequest(
+            "Gift reason must contain at least 5 non-whitespace characters.".to_string(),
+        ));
+    }
+
+    validation::validate_transaction_type("adjusted")?;
+    let member = LoyaltyRepository::member_by_id(pool, member_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Loyalty member not found.".to_string()))?;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let transaction = LoyaltyRepository::insert_transaction(
+        &mut tx,
+        NewTransaction {
+            member_id: member.id,
+            account_id: member.account_id,
+            transaction_type: "adjusted",
+            points_delta: input.points,
+            available_delta: input.points,
+            source_type: Some("admin_gift"),
+            source_id: Some(actor_user_id),
+            booking_id: None,
+            payment_id: None,
+            invoice_id: None,
+            related_transaction_id: None,
+            description: Some(reason),
+            metadata: Some(serde_json::json!({
+                "reason": reason,
+                "gifted_by_user_id": actor_user_id,
+            })),
+            actor_user_id: Some(actor_user_id),
+        },
+    )
+    .await?;
+    LoyaltyRepository::add_lifetime_points(&mut tx, member.account_id, input.points).await?;
+    AuditLog::log_event_tx(
+        &mut tx,
+        Some(actor_user_id),
+        "loyalty_gift",
+        "loyalty_member",
+        Some(member.id),
+        Some(serde_json::json!({
+            "guest_id": member.guest_id,
+            "points": input.points,
+            "reason": reason,
+            "transaction_id": transaction.id,
+        })),
+        None,
+        None,
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;

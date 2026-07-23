@@ -1,12 +1,16 @@
-import ArchiveIcon from '@mui/icons-material/Archive';
-import EditIcon from '@mui/icons-material/Edit';
-import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutline';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import ArchiveIcon from "@mui/icons-material/Archive";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
+import EditIcon from "@mui/icons-material/Edit";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import {
   Box,
   Chip,
   CircularProgress,
   IconButton,
+  LinearProgress,
   Stack,
   Table,
   TableBody,
@@ -17,10 +21,10 @@ import {
   TableRow,
   Tooltip,
   Typography,
-} from '@mui/material';
-import { PROMOTION_STATUS_LABELS } from '../constants';
-import type { Promotion, PromotionLifecycleAction } from '../types';
-import { formatPromotionDiscount } from '../utils';
+} from "@mui/material";
+import { PROMOTION_STATUS_LABELS } from "../constants";
+import type { Promotion, PromotionLifecycleAction } from "../types";
+import { formatPromotionDate, formatPromotionDiscount } from "../utils";
 
 interface PromotionAdminTableProps {
   promotions: Promotion[];
@@ -31,16 +35,19 @@ interface PromotionAdminTableProps {
   canManage: boolean;
   isTransitioning: boolean;
   onEdit: (promotion: Promotion) => void;
-  onTransition: (promotion: Promotion, action: PromotionLifecycleAction) => void;
+  onTransition: (
+    promotion: Promotion,
+    action: PromotionLifecycleAction,
+  ) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }
 
 const statusColor = {
-  draft: 'default',
-  published: 'success',
-  paused: 'warning',
-  archived: 'default',
+  draft: "default",
+  published: "success",
+  paused: "warning",
+  archived: "default",
 } as const;
 
 export function PromotionAdminTable({
@@ -58,8 +65,17 @@ export function PromotionAdminTable({
 }: PromotionAdminTableProps) {
   if (isLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-        <CircularProgress />
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 1.5,
+          py: 9,
+        }}
+      >
+        <CircularProgress size={28} />
+        <Typography color="text.secondary">Loading promotions…</Typography>
       </Box>
     );
   }
@@ -67,101 +83,224 @@ export function PromotionAdminTable({
   return (
     <>
       <TableContainer>
-        <Table size="small">
+        <Table size="small" sx={{ minWidth: 920 }}>
           <TableHead>
             <TableRow>
-              <TableCell>Promotion</TableCell>
+              <TableCell sx={{ width: "29%" }}>Promotion</TableCell>
               <TableCell>Type</TableCell>
               <TableCell>Discount</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>Claims</TableCell>
-              <TableCell>Public</TableCell>
+              <TableCell sx={{ minWidth: 130 }}>Claims</TableCell>
+              <TableCell>Visibility</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {promotions.map((promotion) => (
-              <TableRow key={promotion.id} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight={600}>
-                    {promotion.name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {promotion.slug}
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ textTransform: 'capitalize' }}>
-                  {promotion.promotion_kind}
-                </TableCell>
-                <TableCell>{formatPromotionDiscount(promotion)}</TableCell>
-                <TableCell>
-                  <Chip
-                    size="small"
-                    label={PROMOTION_STATUS_LABELS[promotion.status] ?? promotion.status}
-                    color={statusColor[promotion.status] ?? 'default'}
-                  />
-                </TableCell>
-                <TableCell>
-                  {promotion.claimed_count}
-                  {promotion.claim_limit ? ` / ${promotion.claim_limit}` : ''}
-                </TableCell>
-                <TableCell>{promotion.is_public ? 'Yes' : 'No'}</TableCell>
-                <TableCell align="right">
-                  {canManage ? (
-                    <Stack direction="row" justifyContent="flex-end" spacing={0.25}>
-                      <Tooltip title="Edit">
-                        <IconButton size="small" onClick={() => onEdit(promotion)}>
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {promotion.status === 'draft' || promotion.status === 'paused' ? (
-                        <Tooltip title="Publish">
-                          <IconButton
-                            size="small"
-                            color="success"
-                            disabled={isTransitioning}
-                            onClick={() => onTransition(promotion, 'publish')}
-                          >
-                            <PlayCircleOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : null}
-                      {promotion.status === 'published' ? (
-                        <Tooltip title="Pause">
-                          <IconButton
-                            size="small"
-                            color="warning"
-                            disabled={isTransitioning}
-                            onClick={() => onTransition(promotion, 'pause')}
-                          >
-                            <PauseCircleOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : null}
-                      {promotion.status !== 'archived' ? (
-                        <Tooltip title="Archive">
-                          <IconButton
-                            size="small"
-                            disabled={isTransitioning}
-                            onClick={() => onTransition(promotion, 'archive')}
-                          >
-                            <ArchiveIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+            {promotions.map((promotion) => {
+              const claimProgress = promotion.claim_limit
+                ? Math.min(
+                    100,
+                    (promotion.claimed_count / promotion.claim_limit) * 100,
+                  )
+                : null;
+              const availabilityEnd = formatPromotionDate(
+                promotion.claim_ends_at,
+              );
+
+              return (
+                <TableRow
+                  key={promotion.id}
+                  hover
+                  sx={{ opacity: promotion.status === "archived" ? 0.68 : 1 }}
+                >
+                  <TableCell>
+                    <Typography variant="body2" fontWeight={600}>
+                      {promotion.name}
+                    </Typography>
+                    <Stack
+                      direction="row"
+                      spacing={0.75}
+                      alignItems="center"
+                      sx={{ mt: 0.5 }}
+                    >
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={promotion.slug}
+                        sx={{
+                          height: 22,
+                          maxWidth: 170,
+                          fontFamily: "monospace",
+                          "& .MuiChip-label": { px: 0.75 },
+                        }}
+                      />
+                      {promotion.description ? (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          noWrap
+                          sx={{ maxWidth: 180 }}
+                        >
+                          {promotion.description}
+                        </Typography>
                       ) : null}
                     </Stack>
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">
-                      Read only
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={
+                        promotion.promotion_kind === "voucher"
+                          ? "Voucher offer"
+                          : "Deal"
+                      }
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography
+                      variant="body2"
+                      fontWeight={700}
+                      color="primary.main"
+                    >
+                      {formatPromotionDiscount(promotion)}
                     </Typography>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                    {promotion.min_nights ? (
+                      <Typography variant="caption" color="text.secondary">
+                        {promotion.min_nights}+ night
+                        {promotion.min_nights === 1 ? "" : "s"}
+                      </Typography>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      label={
+                        PROMOTION_STATUS_LABELS[promotion.status] ??
+                        promotion.status
+                      }
+                      color={statusColor[promotion.status] ?? "default"}
+                    />
+                    {availabilityEnd ? (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                        sx={{ mt: 0.5 }}
+                      >
+                        Until {availabilityEnd}
+                      </Typography>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
+                    <Stack spacing={0.5}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {promotion.claimed_count}
+                        {promotion.claim_limit
+                          ? ` of ${promotion.claim_limit}`
+                          : ""}
+                      </Typography>
+                      {claimProgress !== null ? (
+                        <LinearProgress
+                          variant="determinate"
+                          value={claimProgress}
+                          aria-label={`${Math.round(claimProgress)}% of claim limit used`}
+                          sx={{ height: 5, borderRadius: 99 }}
+                        />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          No total limit
+                        </Typography>
+                      )}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      icon={
+                        promotion.is_public ? (
+                          <PublicOutlinedIcon />
+                        ) : (
+                          <LockOutlinedIcon />
+                        )
+                      }
+                      label={promotion.is_public ? "Public" : "Private"}
+                      color={promotion.is_public ? "success" : "default"}
+                    />
+                  </TableCell>
+                  <TableCell align="right">
+                    {canManage ? (
+                      <Stack
+                        direction="row"
+                        justifyContent="flex-end"
+                        spacing={0.25}
+                      >
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            onClick={() => onEdit(promotion)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {promotion.status === "draft" ||
+                        promotion.status === "paused" ? (
+                          <Tooltip title="Publish">
+                            <IconButton
+                              size="small"
+                              color="success"
+                              disabled={isTransitioning}
+                              onClick={() => onTransition(promotion, "publish")}
+                            >
+                              <PlayCircleOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : null}
+                        {promotion.status === "published" ? (
+                          <Tooltip title="Pause">
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              disabled={isTransitioning}
+                              onClick={() => onTransition(promotion, "pause")}
+                            >
+                              <PauseCircleOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : null}
+                        {promotion.status !== "archived" ? (
+                          <Tooltip title="Archive">
+                            <IconButton
+                              size="small"
+                              disabled={isTransitioning}
+                              onClick={() => onTransition(promotion, "archive")}
+                            >
+                              <ArchiveIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : null}
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" color="text.secondary">
+                        Read only
+                      </Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {promotions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
-                  No promotions found.
+                <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                  <CampaignOutlinedIcon
+                    color="disabled"
+                    sx={{ fontSize: 44, mb: 1 }}
+                  />
+                  <Typography fontWeight={650}>No promotions found</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Try changing your search or status filter.
+                  </Typography>
                 </TableCell>
               </TableRow>
             ) : null}
@@ -175,7 +314,9 @@ export function PromotionAdminTable({
         rowsPerPage={pageSize}
         rowsPerPageOptions={[10, 25, 50]}
         onPageChange={(_, nextPage) => onPageChange(nextPage)}
-        onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))}
+        onRowsPerPageChange={(event) =>
+          onPageSizeChange(Number(event.target.value))
+        }
       />
     </>
   );

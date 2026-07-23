@@ -127,6 +127,15 @@ export function useApplyGuestTourismFromLastCheckIn() {
   });
 }
 
+export function useTransferGuestPortalAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guestId, username }: { guestId: number; username: string }) =>
+      GuestsService.transferPortalAccount(guestId, username),
+    onSuccess: () => invalidateGuestDependencies(queryClient),
+  });
+}
+
 export function useDeleteGuest() {
   const queryClient = useQueryClient();
   return useMutation({

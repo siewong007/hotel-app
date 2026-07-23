@@ -13,8 +13,16 @@ use super::repository::PromotionRepository;
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::modules::loyalty::models::RedeemRewardInput;
+use crate::modules::loyalty::repository::LoyaltyRepository;
+use crate::modules::loyalty::service as loyalty_service;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
+
+/// System-managed campaign used when a guest portal account is activated.
+pub const WELCOME_DELUXE_PROMOTION_SLUG: &str = "welcome-deluxe-10";
+pub const JULY_DELUXE_LOYALTY_PROMOTION_SLUG: &str = "july-deluxe-20-loyalty";
+const JULY_DELUXE_LOYALTY_REWARD_NAME: &str = "July Deluxe Room 20% Voucher";
 
 fn request_id_is_valid(value: Option<&str>) -> Result<(), ApiError> {
     if value.is_some_and(|value| value.trim().is_empty() || value.chars().count() > 128) {
@@ -64,6 +72,11 @@ fn promotion_is_within_claim_window(promotion: &Promotion) -> Result<(), ApiErro
 }
 
 fn ensure_guest_claimable(promotion: &Promotion) -> Result<(), ApiError> {
+    if promotion.slug == JULY_DELUXE_LOYALTY_PROMOTION_SLUG {
+        return Err(ApiError::Conflict(
+            "Redeem loyalty points to claim this voucher.".to_string(),
+        ));
+    }
     if promotion.status != "published" || !promotion.is_public {
         return Err(ApiError::NotFound("Promotion not found".to_string()));
     }
@@ -149,11 +162,51 @@ pub async fn list_guest_promotions(
             promotion,
             can_claim,
             has_voucher,
+            claim_unavailable_reason: None,
         });
+    }
+    let mut has_loyalty_offer = false;
+    if let Some(member) = LoyaltyRepository::member_by_guest(pool, guest_id).await?
+        && member.status == "active"
+    {
+        if let Some(promotion) =
+            PromotionRepository::find_by_slug(pool, JULY_DELUXE_LOYALTY_PROMOTION_SLUG).await?
+            && promotion_is_within_claim_window(&promotion).is_ok()
+        {
+            let has_voucher =
+                PromotionRepository::guest_has_voucher(pool, promotion.id, guest_id).await?;
+            let reward = LoyaltyRepository::find_active_reward_by_name(
+                pool,
+                JULY_DELUXE_LOYALTY_REWARD_NAME,
+            )
+            .await?;
+            let can_claim = reward.as_ref().is_some_and(|reward| {
+                !has_voucher && member.available_points >= reward.points_cost
+            });
+            let claim_unavailable_reason = if has_voucher {
+                None
+            } else if let Some(reward) = reward {
+                (member.available_points < reward.points_cost).then(|| {
+                    format!(
+                        "You need {} loyalty points to redeem this voucher.",
+                        reward.points_cost
+                    )
+                })
+            } else {
+                Some("This loyalty voucher is not configured.".to_string())
+            };
+            items.push(GuestPromotion {
+                promotion: PublicPromotion::from(promotion),
+                can_claim,
+                has_voucher,
+                claim_unavailable_reason,
+            });
+            has_loyalty_offer = true;
+        }
     }
     Ok(GuestPromotionListResponse {
         items,
-        total: public.total,
+        total: public.total + i64::from(has_loyalty_offer),
         page: public.page,
         page_size: public.page_size,
     })
@@ -173,6 +226,71 @@ pub async fn list_guest_vouchers(
         page,
         page_size,
     })
+}
+
+/// Issue the one-time welcome voucher for a newly activated guest portal
+/// account. The database uniqueness constraint makes retries safe.
+pub async fn issue_welcome_deluxe_voucher(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<Voucher, ApiError> {
+    let promotion = PromotionRepository::find_by_slug(pool, WELCOME_DELUXE_PROMOTION_SLUG)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Internal("Welcome Deluxe promotion is not configured".to_string())
+        })?;
+    ensure_admin_issueable(&promotion)?;
+
+    if let Some(voucher) =
+        PromotionRepository::find_voucher_by_promotion_guest(pool, promotion.id, guest_id, true)
+            .await?
+    {
+        return Ok(voucher);
+    }
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let voucher_id = PromotionRepository::insert_voucher_if_new(
+        &mut tx,
+        promotion.id,
+        guest_id,
+        &generate_voucher_code(),
+        "admin_issue",
+        None,
+        None,
+    )
+    .await?;
+
+    if let Some(voucher_id) = voucher_id {
+        if !PromotionRepository::reserve_claim_capacity(&mut tx, promotion.id).await? {
+            return Err(ApiError::Conflict(
+                "The Welcome Deluxe promotion has reached its claim limit".to_string(),
+            ));
+        }
+        AuditLog::log_event_tx(
+            &mut tx,
+            None,
+            "voucher.welcome_issued",
+            "voucher",
+            Some(voucher_id),
+            Some(json!({
+                "promotion_id": promotion.id,
+                "guest_id": guest_id,
+                "source": "guest_activation",
+            })),
+            None,
+            None,
+        )
+        .await?;
+        tx.commit().await.map_err(ApiError::from)?;
+        return PromotionRepository::find_voucher_for_guest(pool, voucher_id, guest_id)
+            .await?
+            .ok_or_else(|| ApiError::Internal("Issued welcome voucher was not found".to_string()));
+    }
+
+    tx.commit().await.map_err(ApiError::from)?;
+    PromotionRepository::find_voucher_by_promotion_guest(pool, promotion.id, guest_id, true)
+        .await?
+        .ok_or_else(|| ApiError::Internal("Existing welcome voucher was not found".to_string()))
 }
 
 pub async fn claim_guest_promotion(
@@ -199,6 +317,34 @@ pub async fn claim_guest_promotion(
     let promotion = PromotionRepository::find_by_id_tx(&mut tx, promotion_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Promotion not found".to_string()))?;
+    if promotion.slug == JULY_DELUXE_LOYALTY_PROMOTION_SLUG {
+        drop(tx);
+        let reward =
+            LoyaltyRepository::find_active_reward_by_name(pool, JULY_DELUXE_LOYALTY_REWARD_NAME)
+                .await?
+                .ok_or_else(|| {
+                    ApiError::Internal("July Deluxe loyalty reward is not configured.".to_string())
+                })?;
+        loyalty_service::redeem_reward_for_guest(
+            pool,
+            guest_id,
+            None,
+            reward.id,
+            RedeemRewardInput {
+                booking_id: None,
+                notes: None,
+            },
+        )
+        .await?;
+        return PromotionRepository::find_voucher_by_promotion_guest(
+            pool,
+            promotion_id,
+            guest_id,
+            true,
+        )
+        .await?
+        .ok_or_else(|| ApiError::Internal("Redeemed loyalty voucher was not found.".to_string()));
+    }
     ensure_guest_claimable(&promotion)?;
 
     let voucher_id = PromotionRepository::insert_voucher_if_new(

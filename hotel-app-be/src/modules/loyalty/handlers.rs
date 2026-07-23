@@ -2,9 +2,13 @@ use super::models::*;
 use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::modules::loyalty::hub::{LoyaltyHub, serve_guest_socket, serve_socket};
+use crate::services::guest_portal;
 use axum::{
     Json,
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Path, Query, State, WebSocketUpgrade},
+    http::{HeaderMap, header::HeaderValue},
+    response::Response,
 };
 
 pub async fn me_handler(
@@ -70,6 +74,72 @@ pub async fn manual_adjustment_handler(
     Ok(Json(
         service::manual_adjustment(&pool, actor_user_id, member_id, input).await?,
     ))
+}
+
+pub async fn gift_points_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<LoyaltyHub>,
+    Extension(actor_user_id): Extension<i64>,
+    Path(member_id): Path<i64>,
+    Json(input): Json<GiftPointsInput>,
+) -> Result<Json<LoyaltyTransaction>, ApiError> {
+    let transaction = service::gift_points(&pool, actor_user_id, member_id, input).await?;
+    let member = service::admin_member_detail(&pool, member_id).await?.member;
+    hub.publish_member_updated(member_id, member.guest_id);
+    Ok(Json(transaction))
+}
+
+pub async fn guest_loyalty_socket_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<LoyaltyHub>,
+    headers: HeaderMap,
+    websocket: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    let token = headers
+        .get(axum::http::header::SEC_WEBSOCKET_PROTOCOL)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .find(|part| *part != "hotel-guest-loyalty" && !part.is_empty())
+        })
+        .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
+    let guest_id = guest_portal::require_guest_session_token(token, &pool).await?;
+    Ok(websocket
+        .protocols(["hotel-guest-loyalty"])
+        .on_upgrade(move |socket| serve_guest_socket(socket, hub, guest_id)))
+}
+
+pub async fn loyalty_socket_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<LoyaltyHub>,
+    headers: HeaderMap,
+    websocket: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    let token = headers
+        .get(axum::http::header::SEC_WEBSOCKET_PROTOCOL)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .find(|part| *part != "hotel-loyalty" && !part.is_empty())
+        })
+        .ok_or_else(|| ApiError::Unauthorized("Missing access token".to_string()))?;
+    let mut auth_headers = HeaderMap::new();
+    let value = HeaderValue::from_str(&format!("Bearer {token}"))
+        .map_err(|_| ApiError::Unauthorized("Invalid access token".to_string()))?;
+    auth_headers.insert(axum::http::header::AUTHORIZATION, value);
+    crate::core::middleware::require_any_permission_helper(
+        &pool,
+        &auth_headers,
+        &["loyalty:read", "loyalty:manage", "analytics:read"],
+    )
+    .await?;
+    Ok(websocket
+        .protocols(["hotel-loyalty"])
+        .on_upgrade(move |socket| serve_socket(socket, hub)))
 }
 
 pub async fn rules_handler(

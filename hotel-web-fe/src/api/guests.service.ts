@@ -178,6 +178,14 @@ export class GuestsService {
     }
   }
 
+  static async transferPortalAccount(guestId: number, username: string): Promise<void> {
+    try {
+      await api.post(`guests/${guestId}/portal-account`, { json: { username } });
+    } catch (error) {
+      throw await toGuestApiError(error, 'Failed to transfer guest portal account');
+    }
+  }
+
   static async deleteGuest(guestId: number): Promise<{ success: boolean; message: string }> {
     try {
       return await api.delete(`guests/${guestId}`).json<{ success: boolean; message: string }>();

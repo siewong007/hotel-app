@@ -28,6 +28,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { GuestPortalService } from '../../../api/guestPortal.service';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
@@ -47,7 +48,8 @@ export interface GuestPaymentPanelProps {
   showBankTransfer?: boolean;
   /** Keeps payment choices independent when multiple panels appear on one page. */
   paymentMethodName?: string;
-  onPaid?: () => void;
+  /** Called with the server-confirmed outcome after a payment action succeeds. */
+  onPaid?: (result: PaymentActionResponse) => void;
 }
 
 function formatAmount(amount: string | number | null | undefined, currency?: string): string {
@@ -81,6 +83,7 @@ export function GuestPaymentPanel({
   const [configError, setConfigError] = useState<string | null>(null);
   const [bankSubmitting, setBankSubmitting] = useState(false);
   const [bankError, setBankError] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [paypalError, setPaypalError] = useState<string | null>(null);
   const [pendingPaypalPaymentId, setPendingPaypalPaymentId] = useState<number | null>(null);
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
@@ -117,15 +120,22 @@ export function GuestPaymentPanel({
         mode === 'session'
           ? await GuestPortalDashboardService.submitBankTransfer(bookingId!, token)
           : await GuestPortalService.submitBankTransfer(token!);
+      if (receiptFile) {
+        if (mode === 'session') {
+          await GuestPortalDashboardService.uploadPaymentReceipt(response.payment_id, receiptFile, token);
+        } else {
+          await GuestPortalService.uploadPaymentReceipt(token!, response.payment_id, receiptFile);
+        }
+      }
       setResult(response);
-      onPaid?.();
+      onPaid?.(response);
     } catch (error) {
       setBankError(errorMessage(error, 'Unable to submit your bank transfer claim.'));
     } finally {
       paymentAttemptInFlight.current = false;
       setBankSubmitting(false);
     }
-  }, [bankSubmitting, result, mode, bookingId, token, onPaid]);
+  }, [bankSubmitting, result, mode, bookingId, token, onPaid, receiptFile]);
 
   const createOrder = useCallback(async (): Promise<string> => {
     if (paymentAttemptInFlight.current) {
@@ -168,7 +178,7 @@ export function GuestPaymentPanel({
                 pendingPaypalPaymentId,
               );
         setResult(response);
-        onPaid?.();
+        onPaid?.(response);
       } catch (error) {
         setPaypalError(errorMessage(error, 'Unable to confirm your PayPal payment.'));
       } finally {
@@ -222,7 +232,7 @@ export function GuestPaymentPanel({
       <Alert severity="success">
         {isConfirmed
           ? 'Payment received — your booking is confirmed.'
-          : 'Payment received — pending confirmation by our team.'}
+          : 'Pending payment confirmation by our team.'}
       </Alert>
     );
   }
@@ -304,13 +314,27 @@ export function GuestPaymentPanel({
         </Alert>
       ) : null}
       {hasBankDetails ? (
-        <Button
-          variant="outlined"
-          disabled={!canPay || bankSubmitting}
-          onClick={() => void submitBankTransfer()}
-        >
-          {bankSubmitting ? <CircularProgress size={20} /> : "I've paid via bank transfer"}
-        </Button>
+        <Stack spacing={1.25} alignItems="flex-start">
+          <Button component="label" size="small" startIcon={<UploadFileOutlinedIcon />}>
+            {receiptFile ? `Receipt selected: ${receiptFile.name}` : 'Attach receipt (optional)'}
+            <input
+              hidden
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+            />
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            Optional JPEG, PNG, WebP, or PDF proof of payment (up to 10MB).
+          </Typography>
+          <Button
+            variant="outlined"
+            disabled={!canPay || bankSubmitting}
+            onClick={() => void submitBankTransfer()}
+          >
+            {bankSubmitting ? <CircularProgress size={20} /> : "I've paid via bank transfer"}
+          </Button>
+        </Stack>
       ) : null}
       </Box> : null}
 

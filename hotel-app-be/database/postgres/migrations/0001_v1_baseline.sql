@@ -3732,6 +3732,16 @@ CREATE TABLE public.payments (
 
 COMMENT ON TABLE public.payments IS 'Payment transactions';
 
+CREATE TABLE public.payment_receipt_requests (
+    payment_id bigint PRIMARY KEY REFERENCES public.payments(id) ON DELETE CASCADE,
+    requested_by bigint REFERENCES public.users(id) ON DELETE SET NULL,
+    request_message text,
+    requested_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    uploaded_at timestamp with time zone,
+    receipt_path text,
+    receipt_content_type character varying(100)
+);
+
 
 --
 -- Name: COLUMN payments.payment_gateway; Type: COMMENT; Schema: public; Owner: -

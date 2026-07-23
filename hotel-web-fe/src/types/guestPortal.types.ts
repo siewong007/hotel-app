@@ -38,10 +38,17 @@ export interface GuestPortalBookingSummary {
   check_out_date: string;
   status: string;
   total_amount: string | number;
+  /** Present only after a booking payment is completed. */
+  completed_payment_id?: number | null;
+  completed_payment_method?: string | null;
+  completed_payment_amount?: string | number | null;
   can_cancel: boolean;
   cancellation_unavailable_reason?: string | null;
   /** Reason from the most recently rejected payment claim, if the booking is still awaiting payment. */
   payment_rejection_reason?: string | null;
+  receipt_request_payment_id?: number | null;
+  receipt_request_message?: string | null;
+  receipt_uploaded?: boolean;
 }
 
 export interface GuestPortalPagedResponse<T> {
@@ -76,6 +83,9 @@ export interface GuestPortalMembershipActivity {
   transaction_type: string;
   points: number;
   balance_after: number;
+  reason: string | null;
+  booking_number: string | null;
+  adjusted_by: string | null;
 }
 
 export interface GuestPortalMembershipResponse {

@@ -142,6 +142,11 @@ export interface ManualAdjustmentInput {
   allow_negative_balance?: boolean;
 }
 
+export interface GiftPointsInput {
+  points: number;
+  reason: string;
+}
+
 export interface AdminRewardInput {
   name: string;
   description?: string;

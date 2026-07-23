@@ -1,5 +1,6 @@
 import { parseLocalDate } from '../../../../utils/date';
 import { formatCurrency, getCurrentCurrency } from '../../../../utils/currency';
+import type { GuestPortalMembershipActivity } from '../../../../types';
 
 export const PORTAL_SECTIONS = [
   'overview',
@@ -50,4 +51,30 @@ export function humanizePortalStatus(value: string | null | undefined): string {
     .trim()
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+export function pointsActivityContext(
+  activity: GuestPortalMembershipActivity,
+): string | null {
+  const reason = activity.reason?.trim();
+  const bookingNumber = activity.booking_number?.trim();
+
+  if (bookingNumber) {
+    const bookingContext = activity.transaction_type === 'earned'
+      ? `From booking ${bookingNumber}`
+      : `Booking ${bookingNumber}`;
+    return reason && activity.transaction_type !== 'earned'
+      ? `${bookingContext}: ${reason}`
+      : bookingContext;
+  }
+
+  if (activity.transaction_type === 'adjusted') {
+    const adjustedBy = activity.adjusted_by?.trim();
+    const adjustmentContext = adjustedBy
+      ? `Adjusted by ${adjustedBy}`
+      : 'Adjusted by hotel staff';
+    return reason ? `${adjustmentContext}: ${reason}` : adjustmentContext;
+  }
+
+  return reason || null;
 }

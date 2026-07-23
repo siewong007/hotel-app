@@ -12,6 +12,7 @@ import type {
   LoyaltyRewardQueryParams,
   LoyaltyRulesInput,
   LoyaltyTransaction,
+  GiftPointsInput,
   ManualAdjustmentInput,
   RejectRedemptionInput,
 } from '../types';
@@ -48,6 +49,12 @@ export class LoyaltyAdminService {
   ): Promise<LoyaltyTransaction> {
     return await api
       .post(`admin/loyalty/members/${id}/adjustments`, { json: input })
+      .json<LoyaltyTransaction>();
+  }
+
+  static async giftPoints(id: number, input: GiftPointsInput): Promise<LoyaltyTransaction> {
+    return await api
+      .post(`admin/loyalty/members/${id}/gifts`, { json: input })
       .json<LoyaltyTransaction>();
   }
 

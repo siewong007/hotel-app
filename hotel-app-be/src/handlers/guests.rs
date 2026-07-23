@@ -128,6 +128,22 @@ pub async fn upgrade_guest_to_user_handler(
     })))
 }
 
+pub async fn transfer_guest_portal_account_handler(
+    State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
+    Path(guest_id): Path<i64>,
+    Json(input): Json<TransferGuestPortalAccountInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let username = input.username.clone();
+    svc::transfer_guest_portal_account(&pool, actor_user_id, guest_id, input).await?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Guest portal account transferred successfully",
+        "guest_id": guest_id,
+        "username": username,
+    })))
+}
+
 pub async fn get_guest_credits_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

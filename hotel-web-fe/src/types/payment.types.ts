@@ -109,6 +109,10 @@ export interface PendingPaymentEntry {
   created_at: string;
   receipt_requested: boolean;
   receipt_uploaded: boolean;
+  receipt_file_available: boolean;
+  processed_at: string | null;
+  processed_by_name: string | null;
+  decision_reason: string | null;
 }
 
 /** Paginated wrapper for `GET /admin/payments/pending`. */

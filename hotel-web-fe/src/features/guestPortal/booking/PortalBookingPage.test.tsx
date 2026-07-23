@@ -156,7 +156,7 @@ describe('PortalBookingPage voucher eligibility', () => {
     await waitFor(() => expect(mocks.quote).toHaveBeenCalledTimes(2));
   });
 
-  it('requires a payment choice and labels pay-at-hotel bookings as pending', async () => {
+  it('continues to payment without asking for a payment choice during review', async () => {
     mocks.paymentConfig.mockResolvedValue({
       paypal_enabled: false,
       paypal_client_id: null,
@@ -186,14 +186,14 @@ describe('PortalBookingPage voucher eligibility', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
-    await screen.findByText('How would you like to pay?');
+    await screen.findByText('Review your stay');
+    expect(screen.queryByText('How would you like to pay?')).toBeNull();
 
-    expect((screen.getByRole('button', { name: 'Continue to payment' }) as HTMLButtonElement).disabled).toBe(true);
+    const continueButton = screen.getByRole('button', { name: 'Continue to payment' }) as HTMLButtonElement;
+    expect(continueButton.disabled).toBe(false);
+    fireEvent.click(continueButton);
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Pay at the hotel (offline)' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Submit booking request' }));
-
-    await screen.findByRole('heading', { name: 'Booking request received' });
+    await screen.findByRole('heading', { name: 'Complete your payment' });
     await screen.findByText('Choose a payment method');
     fireEvent.click(await screen.findByRole('radio', { name: 'Offline banking (bank transfer)' }));
     expect(await screen.findByRole('button', { name: "I've paid via bank transfer" })).toBeTruthy();

@@ -71,17 +71,17 @@ fn is_online_source(source: Option<&str>) -> bool {
     source.is_some_and(|s| s.trim().eq_ignore_ascii_case("online"))
 }
 
-/// A guest may cancel a reservation only while it is still awaiting payment.
-/// Completing a payment confirms the booking, so the `pending` state is the
-/// authoritative guard for this self-service path.
-fn is_guest_cancellable_pending_booking(status: &str) -> bool {
+/// A guest may cancel an upcoming reservation. Payment completion must not
+/// remove this self-service option; non-refundable voucher terms are enforced
+/// by the guest-portal service before this workflow is reached.
+fn is_guest_cancellable_booking(status: &str) -> bool {
     matches!(
         status,
-        "pending" | "pending_payment" | "pending_confirmation"
+        "pending" | "pending_payment" | "pending_confirmation" | "confirmed"
     )
 }
 
-/// Cancel an unpaid pending booking belonging to the authenticated guest.
+/// Cancel an eligible booking belonging to the authenticated guest.
 pub async fn cancel_pending_booking_by_guest(
     pool: &DbPool,
     user_id: i64,
@@ -94,23 +94,21 @@ pub async fn cancel_pending_booking_by_guest(
             "You don't have permission to cancel this booking".to_string(),
         ));
     }
-    if !is_guest_cancellable_pending_booking(&booking.status) {
+    if !is_guest_cancellable_booking(&booking.status) {
         return Err(ApiError::BadRequest(
-            "Only bookings awaiting payment or confirmation can be cancelled.".to_string(),
+            "Only upcoming bookings can be cancelled online.".to_string(),
         ));
     }
 
     let affected_night_audit_dates =
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    booking_repo::void_pending_booking_tx(&mut tx, booking_id, user_id).await?;
+    booking_repo::void_booking_tx(&mut tx, booking_id, user_id).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
-    booking_repo::void_booking_payments_tx(&mut tx, booking_id).await?;
+    booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
     payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
-    let change_reason = reason
-        .as_deref()
-        .unwrap_or("Booking cancelled before payment");
+    let change_reason = reason.as_deref().unwrap_or("Booking cancelled by guest");
     booking_repo::record_booking_history_tx(
         &mut tx,
         booking_id,
@@ -590,7 +588,7 @@ pub async fn reactivate_booking(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_guest_cancellable_pending_booking, is_online_source};
+    use super::{is_guest_cancellable_booking, is_online_source};
 
     #[test]
     fn online_source_is_detected_case_and_whitespace_insensitive() {
@@ -609,12 +607,13 @@ mod tests {
     }
 
     #[test]
-    fn unpaid_booking_states_are_guest_cancellable() {
-        assert!(is_guest_cancellable_pending_booking("pending"));
-        assert!(is_guest_cancellable_pending_booking("pending_payment"));
-        assert!(is_guest_cancellable_pending_booking("pending_confirmation"));
-        assert!(!is_guest_cancellable_pending_booking("confirmed"));
-        assert!(!is_guest_cancellable_pending_booking("checked_in"));
-        assert!(!is_guest_cancellable_pending_booking("voided"));
+    fn upcoming_booking_states_are_guest_cancellable() {
+        assert!(is_guest_cancellable_booking("pending"));
+        assert!(is_guest_cancellable_booking("pending_payment"));
+        assert!(is_guest_cancellable_booking("pending_confirmation"));
+        assert!(is_guest_cancellable_booking("confirmed"));
+        assert!(!is_guest_cancellable_booking("checked_in"));
+        assert!(!is_guest_cancellable_booking("checked_out"));
+        assert!(!is_guest_cancellable_booking("voided"));
     }
 }
