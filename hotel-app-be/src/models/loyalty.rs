@@ -182,17 +182,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyProgram {
             name: row.try_get("name")?,
             description: row.try_get("description")?,
             tier_level: row.try_get("tier_level")?,
-            points_multiplier: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("points_multiplier")?;
-                val
-            },
+            points_multiplier: { row.try_get("points_multiplier")? },
             minimum_points_required: row.try_get("minimum_points_required")?,
             is_active: row.try_get("is_active")?,
             created_at: row.try_get("created_at")?,
@@ -216,17 +206,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyMembershipWithDeta
             points_balance: row.try_get("points_balance")?,
             lifetime_points: row.try_get("lifetime_points")?,
             tier_level: row.try_get("tier_level")?,
-            points_multiplier: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("points_multiplier")?;
-                val
-            },
+            points_multiplier: { row.try_get("points_multiplier")? },
             status: row.try_get("status")?,
             enrolled_date: row.try_get("enrolled_date")?,
         })

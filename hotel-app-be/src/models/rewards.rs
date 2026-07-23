@@ -127,18 +127,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyReward {
             description: row.try_get("description")?,
             category: row.try_get("category")?,
             points_cost: row.try_get("points_cost")?,
-            monetary_value: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("monetary_value")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("monetary_value")?;
-                val
-            },
+            monetary_value: { row.try_get("monetary_value")? },
             minimum_tier_level: row.try_get("minimum_tier_level")?,
             is_active: row.try_get("is_active")?,
             stock_quantity: row.try_get("stock_quantity")?,

@@ -33,8 +33,8 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<Option<PaidOnlineBookingRoomAssignment>, ApiError> {
-        sqlx::query_as(crate::sql_query!(
-            postgres: r#"
+        sqlx::query_as(
+            r#"
                 SELECT b.id AS booking_id, b.booking_number, b.guest_id,
                        COALESCE(NULLIF(g.full_name, ''), 'Guest') AS guest_name,
                        g.email AS guest_email, r.room_number,
@@ -53,26 +53,7 @@ impl PaymentRepository {
                         AND p.payment_method IN ('card', 'duitnow', 'online_banking')
                   )
             "#,
-            sqlite: r#"
-                SELECT b.id AS booking_id, b.booking_number, b.guest_id,
-                       COALESCE(NULLIF(g.full_name, ''), 'Guest') AS guest_name,
-                       g.email AS guest_email, r.room_number,
-                       rt.name AS room_type_name, b.check_in_date, b.check_out_date
-                FROM bookings b
-                JOIN guests g ON g.id = b.guest_id
-                JOIN rooms r ON r.id = b.room_id
-                JOIN room_types rt ON rt.id = r.room_type_id
-                WHERE b.id = ?1
-                  AND b.portal_request_id IS NOT NULL
-                  AND b.payment_status = 'paid'
-                  AND g.email IS NOT NULL AND TRIM(g.email) <> ''
-                  AND EXISTS (
-                      SELECT 1 FROM payments p
-                      WHERE p.booking_id = b.id AND p.status = 'completed'
-                        AND p.payment_method IN ('card', 'duitnow', 'online_banking')
-                  )
-            "#
-        ))
+        )
         .bind(booking_id)
         .fetch_optional(pool)
         .await
@@ -83,29 +64,6 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<(), ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let sql = r#"
-            UPDATE bookings AS b
-            SET payment_status = CASE
-                WHEN b.status = 'voided' THEN 'void'
-                WHEN COALESCE(b.is_complimentary, 0) = 1 THEN COALESCE(b.payment_status, 'paid')
-                WHEN b.total_amount <= 0 THEN 'paid'
-                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                        WHERE p.booking_id = b.id
-                          AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
-                     >= b.total_amount THEN 'paid'
-                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                        WHERE p.booking_id = b.id
-                          AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
-                    THEN 'partial'
-                ELSE 'unpaid'
-            END,
-            updated_at = CURRENT_TIMESTAMP
-            WHERE b.id = ?1
-        "#;
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let sql = r#"
             UPDATE bookings AS b
             SET payment_status = CASE
@@ -141,29 +99,6 @@ impl PaymentRepository {
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
     ) -> Result<(), ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let sql = r#"
-            UPDATE bookings AS b
-            SET payment_status = CASE
-                WHEN b.status = 'voided' THEN 'void'
-                WHEN COALESCE(b.is_complimentary, 0) = 1 THEN COALESCE(b.payment_status, 'paid')
-                WHEN b.total_amount <= 0 THEN 'paid'
-                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                        WHERE p.booking_id = b.id
-                          AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
-                     >= b.total_amount THEN 'paid'
-                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                        WHERE p.booking_id = b.id
-                          AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
-                    THEN 'partial'
-                ELSE 'unpaid'
-            END,
-            updated_at = CURRENT_TIMESTAMP
-            WHERE b.id = ?1
-        "#;
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let sql = r#"
             UPDATE bookings AS b
             SET payment_status = CASE
@@ -247,10 +182,7 @@ impl PaymentRepository {
         // Reject a second completed payment for the booking. The real column is
         // `status` (there is no `payment_status` column); placeholders are
         // cfg-gated for each engine.
-        let existing_sql = crate::sql_query!(
-            postgres: "SELECT id FROM payments WHERE booking_id = $1 AND status = $2 LIMIT 1",
-            sqlite: "SELECT id FROM payments WHERE booking_id = ?1 AND status = ?2 LIMIT 1"
-        );
+        let existing_sql = "SELECT id FROM payments WHERE booking_id = $1 AND status = $2 LIMIT 1";
         let existing_payment: Option<i64> = sqlx::query_scalar(existing_sql)
             .bind(request.booking_id)
             .bind(PaymentStatus::Completed.to_string())
@@ -269,30 +201,8 @@ impl PaymentRepository {
         // only the total is stored. Column sets diverge per engine (mirroring
         // `insert_payment`/`insert_pending_payment_tx`): postgres carries the
         // card + gateway columns and uses `transaction_id`/`notes`/`created_by`;
-        // sqlite has none of the card/gateway columns and uses
         // `reference_number`/`description`/`processed_by`.
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) = sqlx::query_as(
-            r#"
-            INSERT INTO payments (
-                booking_id, amount, payment_method, payment_type, status,
-                reference_number, description, processed_by
-            )
-            VALUES (?1, ?2, ?3, 'booking', 'completed', ?4, ?5, ?6)
-            RETURNING id, created_at
-            "#,
-        )
-        .bind(request.booking_id)
-        .bind(decimal_to_db(summary.total_amount))
-        .bind(request.payment_method.to_string())
-        .bind(&request.transaction_reference)
-        .bind(&request.notes)
-        .bind(user_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
 
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) = sqlx::query_as(
             r#"
             INSERT INTO payments (
@@ -355,16 +265,6 @@ impl PaymentRepository {
         if let Some(ref txn_ref) = request.transaction_reference
             && !txn_ref.is_empty()
         {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let duplicate_sql = r#"
-                SELECT id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
-                       status AS payment_status, reference_number AS transaction_reference, description AS notes,
-                       substr(created_at, 1, 10) AS payment_date, created_at
-                FROM payments
-                WHERE reference_number = ?1
-                LIMIT 1
-                "#;
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let duplicate_sql = r#"
                 SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                        status AS payment_status, transaction_id AS transaction_reference, notes,
@@ -409,31 +309,6 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let sql = if created_at_override.is_some() {
-            r#"
-            INSERT INTO payments (
-                booking_id, amount, payment_method, payment_type, status,
-                reference_number, description, processed_by, created_at
-            )
-            VALUES (?1, ?2, ?3, ?4, 'completed', ?5, ?6, ?7, ?8)
-            RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
-                      status AS payment_status, reference_number AS transaction_reference, description AS notes,
-                      substr(created_at, 1, 10) AS payment_date, created_at
-            "#
-        } else {
-            r#"
-            INSERT INTO payments (
-                booking_id, amount, payment_method, payment_type, status,
-                reference_number, description, processed_by
-            )
-            VALUES (?1, ?2, ?3, ?4, 'completed', ?5, ?6, ?7)
-            RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
-                      status AS payment_status, reference_number AS transaction_reference, description AS notes,
-                      substr(created_at, 1, 10) AS payment_date, created_at
-            "#
-        };
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let sql = if created_at_override.is_some() {
             r#"
             INSERT INTO payments (
@@ -478,16 +353,6 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<Vec<PaymentEntryRow>, ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let list_sql = r#"
-            SELECT id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
-                   status AS payment_status, reference_number AS transaction_reference, description AS notes,
-                   substr(created_at, 1, 10) AS payment_date, created_at
-            FROM payments
-            WHERE booking_id = ?1
-            ORDER BY created_at ASC
-            "#;
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let list_sql = r#"
             SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                    status AS payment_status, transaction_id AS transaction_reference, notes,
@@ -508,7 +373,6 @@ impl PaymentRepository {
     /// or a pre-capture PayPal record. Returns the new payment id.
     ///
     /// The two schemas diverge: PostgreSQL carries gateway columns
-    /// (`payment_gateway`, `gateway_payment_intent_id`) and `created_by`; SQLite
     /// has neither, so it reuses `reference_number` for the gateway order id and
     /// `payment_number` (a generated uuid) for its unique key, and records the
     /// initiating `guest_id`. Both persist `payment_type='booking'` and
@@ -526,31 +390,6 @@ impl PaymentRepository {
         description: Option<&str>,
         created_by: Option<i64>,
     ) -> Result<i64, ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        {
-            let _ = (currency, payment_gateway, created_by);
-            sqlx::query_scalar::<_, i64>(
-                r#"
-                INSERT INTO payments (
-                    payment_number, booking_id, guest_id, amount, payment_method,
-                    payment_type, reference_number, description, status
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, 'booking', ?6, ?7, 'pending')
-                RETURNING id
-                "#,
-            )
-            .bind(crate::core::db::generate_uuid())
-            .bind(booking_id)
-            .bind(guest_id)
-            .bind(decimal_to_db(amount))
-            .bind(payment_method)
-            .bind(gateway_order_id)
-            .bind(description)
-            .fetch_one(&mut **tx)
-            .await
-            .map_err(ApiError::from)
-        }
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         {
             let _ = guest_id;
             sqlx::query_scalar::<_, i64>(
@@ -578,17 +417,13 @@ impl PaymentRepository {
     }
 
     /// Attach a PayPal order id to a previously inserted pending payment.
-    /// PostgreSQL stores it in `gateway_payment_intent_id`; SQLite reuses
     /// `reference_number`.
     pub async fn set_payment_gateway_order(
         pool: &DbPool,
         payment_id: i64,
         order_id: &str,
     ) -> Result<(), ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "UPDATE payments SET gateway_payment_intent_id = $2 WHERE id = $1",
-            sqlite: "UPDATE payments SET reference_number = ?2 WHERE id = ?1"
-        );
+        let sql = "UPDATE payments SET gateway_payment_intent_id = $2 WHERE id = $1";
         sqlx::query(sql)
             .bind(payment_id)
             .bind(order_id)
@@ -607,20 +442,12 @@ impl PaymentRepository {
         payment_id: i64,
         processed_by: Option<i64>,
     ) -> Result<Option<i64>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 UPDATE payments
                 SET status = 'completed', processed_at = CURRENT_TIMESTAMP, processed_by = $2
                 WHERE id = $1 AND status IN ('pending', 'processing')
                 RETURNING id
-            "#,
-            sqlite: r#"
-                UPDATE payments
-                SET status = 'completed', processed_at = datetime('now'), processed_by = ?2
-                WHERE id = ?1 AND status IN ('pending', 'processing')
-                RETURNING id
-            "#
-        );
+            "#;
         sqlx::query_scalar::<_, i64>(sql)
             .bind(payment_id)
             .bind(processed_by)
@@ -631,7 +458,6 @@ impl PaymentRepository {
 
     /// Compare-and-swap a `pending` payment to `void`, recording the rejection
     /// reason. PostgreSQL stores it in `failure_reason` (+ `processed_by`);
-    /// SQLite in `void_reason` (+ `voided_by`/`voided_at`). Returns the id when
     /// it transitioned.
     pub async fn mark_payment_rejected_tx(
         tx: &mut DbTransaction<'_>,
@@ -639,22 +465,13 @@ impl PaymentRepository {
         rejected_by: Option<i64>,
         reason: &str,
     ) -> Result<Option<i64>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 UPDATE payments
                 SET status = 'void', failure_reason = $2,
                     processed_at = CURRENT_TIMESTAMP, processed_by = $3
                 WHERE id = $1 AND status = 'pending'
                 RETURNING id
-            "#,
-            sqlite: r#"
-                UPDATE payments
-                SET status = 'void', void_reason = ?2,
-                    voided_at = datetime('now'), voided_by = ?3
-                WHERE id = ?1 AND status = 'pending'
-                RETURNING id
-            "#
-        );
+            "#;
         sqlx::query_scalar::<_, i64>(sql)
             .bind(payment_id)
             .bind(reason)
@@ -667,29 +484,19 @@ impl PaymentRepository {
     /// Compare-and-swap a payment to `failed`, recording the failure reason.
     /// Used when a gateway capture reports figures that do not match the stored
     /// pending payment (amount/currency mismatch). PostgreSQL stores the reason
-    /// in `failure_reason`; SQLite reuses `void_reason`. Guarded by
     /// `status IN ('pending','processing')`. Returns the id when it transitioned.
     pub async fn mark_payment_failed_tx(
         tx: &mut DbTransaction<'_>,
         payment_id: i64,
         reason: &str,
     ) -> Result<Option<i64>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 UPDATE payments
                 SET status = 'failed', failure_reason = $2,
                     processed_at = CURRENT_TIMESTAMP
                 WHERE id = $1 AND status IN ('pending', 'processing')
                 RETURNING id
-            "#,
-            sqlite: r#"
-                UPDATE payments
-                SET status = 'failed', void_reason = ?2,
-                    voided_at = datetime('now')
-                WHERE id = ?1 AND status IN ('pending', 'processing')
-                RETURNING id
-            "#
-        );
+            "#;
         sqlx::query_scalar::<_, i64>(sql)
             .bind(payment_id)
             .bind(reason)
@@ -707,24 +514,14 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<bool, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT EXISTS(
                     SELECT 1 FROM payments
                     WHERE booking_id = $1
                       AND payment_type = 'booking'
                       AND status IN ('pending', 'processing', 'completed')
                 )
-            "#,
-            sqlite: r#"
-                SELECT EXISTS(
-                    SELECT 1 FROM payments
-                    WHERE booking_id = ?1
-                      AND payment_type = 'booking'
-                      AND status IN ('pending', 'processing', 'completed')
-                )
-            "#
-        );
+            "#;
         sqlx::query_scalar::<_, bool>(sql)
             .bind(booking_id)
             .fetch_one(pool)
@@ -741,8 +538,7 @@ impl PaymentRepository {
         booking_id: i64,
         exclude_payment_id: i64,
     ) -> Result<bool, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT EXISTS(
                     SELECT 1 FROM payments
                     WHERE booking_id = $1
@@ -750,17 +546,7 @@ impl PaymentRepository {
                       AND status = 'completed'
                       AND id <> $2
                 )
-            "#,
-            sqlite: r#"
-                SELECT EXISTS(
-                    SELECT 1 FROM payments
-                    WHERE booking_id = ?1
-                      AND payment_type = 'booking'
-                      AND status = 'completed'
-                      AND id <> ?2
-                )
-            "#
-        );
+            "#;
         sqlx::query_scalar::<_, bool>(sql)
             .bind(booking_id)
             .bind(exclude_payment_id)
@@ -775,8 +561,7 @@ impl PaymentRepository {
         pool: &DbPool,
         payment_id: i64,
     ) -> Result<Option<PendingPaymentEntry>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
                        g.full_name AS guest_name, p.amount::text AS amount,
                        p.payment_method, p.status,
@@ -792,25 +577,7 @@ impl PaymentRepository {
                 LEFT JOIN guests g ON g.id = b.guest_id
                 LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.id = $1
-            "#,
-            sqlite: r#"
-                SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
-                       g.full_name AS guest_name, CAST(p.amount AS TEXT) AS amount,
-                       p.payment_method, p.status,
-                       p.reference_number AS reference, p.description AS notes,
-                       p.created_at AS created_at,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
-                       COALESCE(p.processed_at, p.voided_at) AS processed_at, reviewer.full_name AS processed_by_name,
-                       p.void_reason AS decision_reason
-                FROM payments p
-                JOIN bookings b ON b.id = p.booking_id
-                LEFT JOIN guests g ON g.id = b.guest_id
-                LEFT JOIN users reviewer ON reviewer.id = COALESCE(p.processed_by, p.voided_by)
-                WHERE p.id = ?1
-            "#
-        );
+            "#;
         sqlx::query_as::<_, PendingPaymentEntry>(sql)
             .bind(payment_id)
             .fetch_optional(pool)
@@ -825,8 +592,7 @@ impl PaymentRepository {
         limit: i64,
         offset: i64,
     ) -> Result<(Vec<PendingPaymentEntry>, i64), ApiError> {
-        let list_sql = crate::sql_query!(
-            postgres: r#"
+        let list_sql = r#"
                 SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
                        g.full_name AS guest_name, p.amount::text AS amount,
                        p.payment_method, p.status,
@@ -844,27 +610,7 @@ impl PaymentRepository {
                 WHERE p.status = 'pending'
                 ORDER BY p.created_at DESC
                 LIMIT $1 OFFSET $2
-            "#,
-            sqlite: r#"
-                SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
-                       g.full_name AS guest_name, CAST(p.amount AS TEXT) AS amount,
-                       p.payment_method, p.status,
-                       p.reference_number AS reference, p.description AS notes,
-                       p.created_at AS created_at,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
-                       COALESCE(p.processed_at, p.voided_at) AS processed_at, reviewer.full_name AS processed_by_name,
-                       p.void_reason AS decision_reason
-                FROM payments p
-                JOIN bookings b ON b.id = p.booking_id
-                LEFT JOIN guests g ON g.id = b.guest_id
-                LEFT JOIN users reviewer ON reviewer.id = COALESCE(p.processed_by, p.voided_by)
-                WHERE p.status = 'pending'
-                ORDER BY p.created_at DESC
-                LIMIT ?1 OFFSET ?2
-            "#
-        );
+            "#;
 
         let items = sqlx::query_as::<_, PendingPaymentEntry>(list_sql)
             .bind(limit)
@@ -888,8 +634,7 @@ impl PaymentRepository {
         limit: i64,
         offset: i64,
     ) -> Result<(Vec<PendingPaymentEntry>, i64), ApiError> {
-        let list_sql = crate::sql_query!(
-            postgres: r#"
+        let list_sql = r#"
                 SELECT p.id, p.booking_id, b.booking_number, b.guest_id, g.full_name AS guest_name,
                        p.amount::text AS amount, p.payment_method, p.status,
                        p.gateway_payment_intent_id AS reference, p.notes, p.created_at::text AS created_at,
@@ -901,21 +646,7 @@ impl PaymentRepository {
                 LEFT JOIN guests g ON g.id = b.guest_id LEFT JOIN users reviewer ON reviewer.id = p.processed_by
                 WHERE p.payment_method IN ('bank_transfer', 'paypal') AND p.status IN ('completed', 'void')
                 ORDER BY p.processed_at DESC NULLS LAST, p.created_at DESC LIMIT $1 OFFSET $2
-            "#,
-            sqlite: r#"
-                SELECT p.id, p.booking_id, b.booking_number, b.guest_id, g.full_name AS guest_name,
-                       CAST(p.amount AS TEXT) AS amount, p.payment_method, p.status,
-                       p.reference_number AS reference, p.description AS notes, p.created_at,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded,
-                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.receipt_path IS NOT NULL) AS receipt_file_available,
-                       COALESCE(p.processed_at, p.voided_at) AS processed_at, reviewer.full_name AS processed_by_name, p.void_reason AS decision_reason
-                FROM payments p JOIN bookings b ON b.id = p.booking_id
-                LEFT JOIN guests g ON g.id = b.guest_id LEFT JOIN users reviewer ON reviewer.id = COALESCE(p.processed_by, p.voided_by)
-                WHERE p.payment_method IN ('bank_transfer', 'paypal') AND p.status IN ('completed', 'void')
-                ORDER BY COALESCE(p.processed_at, p.voided_at) DESC, p.created_at DESC LIMIT ?1 OFFSET ?2
-            "#
-        );
+            "#;
         let items = sqlx::query_as::<_, PendingPaymentEntry>(list_sql)
             .bind(limit)
             .bind(offset)
@@ -936,10 +667,7 @@ impl PaymentRepository {
         path: &str,
         content_type: &str,
     ) -> Result<(), ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "INSERT INTO payment_receipt_requests (payment_id, uploaded_at, receipt_path, receipt_content_type) VALUES ($1, CURRENT_TIMESTAMP, $2, $3) ON CONFLICT (payment_id) DO UPDATE SET uploaded_at = CURRENT_TIMESTAMP, receipt_path = EXCLUDED.receipt_path, receipt_content_type = EXCLUDED.receipt_content_type",
-            sqlite: "INSERT INTO payment_receipt_requests (payment_id, uploaded_at, receipt_path, receipt_content_type) VALUES (?1, datetime('now'), ?2, ?3) ON CONFLICT (payment_id) DO UPDATE SET uploaded_at = datetime('now'), receipt_path = excluded.receipt_path, receipt_content_type = excluded.receipt_content_type"
-        );
+        let sql = "INSERT INTO payment_receipt_requests (payment_id, uploaded_at, receipt_path, receipt_content_type) VALUES ($1, CURRENT_TIMESTAMP, $2, $3) ON CONFLICT (payment_id) DO UPDATE SET uploaded_at = CURRENT_TIMESTAMP, receipt_path = EXCLUDED.receipt_path, receipt_content_type = EXCLUDED.receipt_content_type";
         sqlx::query(sql)
             .bind(payment_id)
             .bind(path)
@@ -954,10 +682,7 @@ impl PaymentRepository {
         pool: &DbPool,
         payment_id: i64,
     ) -> Result<Option<PaymentReceiptFile>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT receipt_path, receipt_content_type FROM payment_receipt_requests WHERE payment_id = $1 AND receipt_path IS NOT NULL",
-            sqlite: "SELECT receipt_path, receipt_content_type FROM payment_receipt_requests WHERE payment_id = ?1 AND receipt_path IS NOT NULL"
-        );
+        let sql = "SELECT receipt_path, receipt_content_type FROM payment_receipt_requests WHERE payment_id = $1 AND receipt_path IS NOT NULL";
         let row = sqlx::query_as::<_, (String, String)>(sql)
             .bind(payment_id)
             .fetch_optional(pool)
@@ -973,24 +698,14 @@ impl PaymentRepository {
         requested_by: i64,
         message: Option<&str>,
     ) -> Result<(), ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 INSERT INTO payment_receipt_requests (payment_id, requested_by, request_message)
                 VALUES ($1, $2, $3)
                 ON CONFLICT (payment_id) DO UPDATE SET
                     requested_by = EXCLUDED.requested_by,
                     request_message = EXCLUDED.request_message,
                     requested_at = CURRENT_TIMESTAMP
-            "#,
-            sqlite: r#"
-                INSERT INTO payment_receipt_requests (payment_id, requested_by, request_message)
-                VALUES (?1, ?2, ?3)
-                ON CONFLICT (payment_id) DO UPDATE SET
-                    requested_by = excluded.requested_by,
-                    request_message = excluded.request_message,
-                    requested_at = datetime('now')
-            "#
-        );
+            "#;
         sqlx::query(sql)
             .bind(payment_id)
             .bind(requested_by)
@@ -1004,10 +719,7 @@ impl PaymentRepository {
     /// Pending bank-transfer claims whose requested receipt was not uploaded
     /// within the allowed 24-hour review window.
     pub async fn expired_receipt_request_payment_ids(pool: &DbPool) -> Result<Vec<i64>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id WHERE p.status = 'pending' AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL AND pr.requested_at <= CURRENT_TIMESTAMP - INTERVAL '1 day'",
-            sqlite: "SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id WHERE p.status = 'pending' AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL AND datetime(pr.requested_at) <= datetime('now', '-1 day')"
-        );
+        let sql = "SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id WHERE p.status = 'pending' AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL AND pr.requested_at <= CURRENT_TIMESTAMP - INTERVAL '1 day'";
         sqlx::query_scalar(sql)
             .fetch_all(pool)
             .await
@@ -1021,33 +733,6 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let summary_sql = r#"
-            SELECT
-                b.id AS booking_id,
-                b.status AS booking_status,
-                COALESCE(b.payment_status, 'unpaid') AS payment_status,
-                b.total_amount,
-                COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
-                COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
-                COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
-                COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
-                      AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
-                COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') = 'deposit'), 0) AS deposit_collected,
-                COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
-                      AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
-                EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
-            FROM bookings b
-            WHERE b.id = ?1
-        "#;
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let summary_sql = r#"
             SELECT
                 b.id AS booking_id,
@@ -1139,9 +824,6 @@ impl PaymentRepository {
 
         // The note/description column differs between databases, but the
         // marker text is identical to what `refund_deposit` writes.
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let select_sql = "SELECT id FROM payments WHERE booking_id = ?1 AND payment_type = 'refund' AND description = 'Keycard deposit refund' ORDER BY id DESC LIMIT 1";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' ORDER BY id DESC LIMIT 1";
 
         let refund_id: Option<i64> = sqlx::query_scalar(select_sql)
@@ -1233,10 +915,8 @@ impl PaymentRepository {
 
         // Whether a completed payment already exists — decides the invoice's
         // `status`/`paid_amount`. Uses the real `status` column, cfg-gated.
-        let paid_sql = crate::sql_query!(
-            postgres: "SELECT EXISTS(SELECT 1 FROM payments WHERE booking_id = $1 AND status = 'completed')",
-            sqlite: "SELECT EXISTS(SELECT 1 FROM payments WHERE booking_id = ?1 AND status = 'completed')"
-        );
+        let paid_sql =
+            "SELECT EXISTS(SELECT 1 FROM payments WHERE booking_id = $1 AND status = 'completed')";
         let has_completed_payment: bool = sqlx::query_scalar(paid_sql)
             .bind(booking_id)
             .fetch_one(&mut *tx)
@@ -1299,40 +979,9 @@ impl PaymentRepository {
 
         // Insert against the REAL invoices columns, cfg-gated like
         // `insert_checkout_invoice`. postgres carries billing_name/email +
-        // line_items + room/service charge columns; sqlite's table has none of
         // those. check_in/check_out/room/nights are NOT stored (no columns) — they
         // are attached to the returned struct from `booking_details` instead.
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) = {
-            let _ = &line_items; // sqlite invoices has no line_items column
-            sqlx::query_as(
-                r#"
-                INSERT INTO invoices (
-                    invoice_number, booking_id, guest_id, invoice_type,
-                    subtotal, tax_amount, discount_amount, total_amount, paid_amount,
-                    status, notes, created_by
-                )
-                VALUES (?1, ?2, ?3, 'booking', ?4, ?5, 0, ?6, ?7, ?8, NULL, ?9)
-                RETURNING id, created_at
-                "#,
-            )
-            .bind(invoice_number)
-            .bind(booking_id)
-            .bind(guest_id)
-            .bind(decimal_to_db(subtotal))
-            .bind(decimal_to_db(tax_amount))
-            .bind(decimal_to_db(total))
-            .bind(decimal_to_db(paid_amount))
-            .bind(status)
-            .bind(user_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(ApiError::from)?
-        };
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let uuid_val = uuid::Uuid::nil();
 
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let (id, uuid_val, created_at): (i64, uuid::Uuid, chrono::DateTime<chrono::Utc>) =
             sqlx::query_as(
                 r#"
@@ -1368,7 +1017,7 @@ impl PaymentRepository {
         tx.commit().await.map_err(ApiError::from)?;
 
         // `balance_due` is a generated column in postgres (can't be inserted);
-        // compute it here so the returned struct is consistent on both engines.
+        // compute it here so the returned struct is internally consistent.
         Ok(Invoice {
             id,
             uuid: uuid_val,
@@ -1411,8 +1060,7 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT i.*, i.created_by AS user_id,
                        b.check_in_date::date AS check_in_date,
                        b.check_out_date::date AS check_out_date,
@@ -1425,22 +1073,7 @@ impl PaymentRepository {
                 WHERE i.booking_id = $1
                 ORDER BY i.id DESC
                 LIMIT 1
-            "#,
-            sqlite: r#"
-                SELECT i.*, i.created_by AS user_id,
-                       date(b.check_in_date) AS check_in_date,
-                       date(b.check_out_date) AS check_out_date,
-                       CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER) AS number_of_nights,
-                       r.room_number, rt.name AS room_type
-                FROM invoices i
-                LEFT JOIN bookings b ON b.id = i.booking_id
-                LEFT JOIN rooms r ON r.id = b.room_id
-                LEFT JOIN room_types rt ON rt.id = r.room_type_id
-                WHERE i.booking_id = ?1
-                ORDER BY i.id DESC
-                LIMIT 1
-            "#
-        );
+            "#;
         let row = sqlx::query(sql)
             .bind(booking_id)
             .fetch_optional(executor)
@@ -1460,8 +1093,7 @@ impl PaymentRepository {
     pub async fn find_user_invoices(pool: &DbPool, user_id: i64) -> Result<Vec<Invoice>, ApiError> {
         // Ownership is tracked via `created_by` (no `user_id` column). Stay/room
         // detail is joined at read time (LEFT JOIN — absent joins degrade to NULL).
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT i.*, i.created_by AS user_id,
                        b.check_in_date::date AS check_in_date,
                        b.check_out_date::date AS check_out_date,
@@ -1473,21 +1105,7 @@ impl PaymentRepository {
                 LEFT JOIN room_types rt ON rt.id = r.room_type_id
                 WHERE i.created_by = $1
                 ORDER BY i.id DESC
-            "#,
-            sqlite: r#"
-                SELECT i.*, i.created_by AS user_id,
-                       date(b.check_in_date) AS check_in_date,
-                       date(b.check_out_date) AS check_out_date,
-                       CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER) AS number_of_nights,
-                       r.room_number, rt.name AS room_type
-                FROM invoices i
-                LEFT JOIN bookings b ON b.id = i.booking_id
-                LEFT JOIN rooms r ON r.id = b.room_id
-                LEFT JOIN room_types rt ON rt.id = r.room_type_id
-                WHERE i.created_by = ?1
-                ORDER BY i.id DESC
-            "#
-        );
+            "#;
         let rows = sqlx::query(sql)
             .bind(user_id)
             .fetch_all(pool)
@@ -1504,9 +1122,6 @@ impl PaymentRepository {
     ) -> Result<PaymentEntryRow, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let existing_sql = "SELECT id FROM payments WHERE id = ?1";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let existing_sql = "SELECT id FROM payments WHERE id = $1";
 
         let existing: Option<i64> = sqlx::query_scalar(existing_sql)
@@ -1524,37 +1139,22 @@ impl PaymentRepository {
 
         if request.amount.is_some() {
             param_index += 1;
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            updates.push(format!("amount = ?{}", param_index));
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("amount = ${}", param_index));
         }
         if request.payment_method.is_some() {
             param_index += 1;
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            updates.push(format!("payment_method = ?{}", param_index));
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("payment_method = ${}", param_index));
         }
         if request.transaction_reference.is_some() {
             param_index += 1;
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            updates.push(format!("reference_number = ?{}", param_index));
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("transaction_id = ${}", param_index));
         }
         if request.notes.is_some() {
             param_index += 1;
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            updates.push(format!("description = ?{}", param_index));
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("notes = ${}", param_index));
         }
         if request.payment_date.is_some() {
             param_index += 1;
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            updates.push(format!("created_at = ?{}", param_index));
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("created_at = ${}::timestamptz", param_index));
         }
 
@@ -1562,12 +1162,6 @@ impl PaymentRepository {
             return Err(ApiError::BadRequest("No fields to update".to_string()));
         }
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let query = format!(
-            "UPDATE payments SET {} WHERE id = ?1 RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type, status AS payment_status, reference_number AS transaction_reference, description AS notes, substr(created_at, 1, 10) AS payment_date, created_at",
-            updates.join(", ")
-        );
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let query = format!(
             "UPDATE payments SET {} WHERE id = $1 RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type, status AS payment_status, transaction_id AS transaction_reference, notes, created_at::date::text AS payment_date, created_at",
             updates.join(", ")
@@ -1646,9 +1240,6 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let sql = "SELECT invoice_number FROM invoices WHERE booking_id = ?1 LIMIT 1";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let sql = "SELECT invoice_number FROM invoices WHERE booking_id = $1 LIMIT 1";
 
         sqlx::query_scalar(sql)
@@ -1665,11 +1256,6 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let sql = "SELECT invoice_number FROM customer_ledgers \
-             WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
-             ORDER BY id LIMIT 1";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let sql = "SELECT invoice_number FROM customer_ledgers \
              WHERE booking_id = $1 AND invoice_number IS NOT NULL \
              ORDER BY id LIMIT 1";
@@ -1690,28 +1276,6 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        {
-            sqlx::query(
-                r#"
-                INSERT INTO invoices (
-                    invoice_number, booking_id, invoice_type,
-                    subtotal, total_amount, status, created_by
-                )
-                SELECT ?1, b.id, 'checkout', b.total_amount, b.total_amount, 'issued', ?2
-                FROM bookings b
-                WHERE b.id = ?3
-                "#,
-            )
-            .bind(invoice_number)
-            .bind(user_id)
-            .bind(booking_id)
-            .execute(executor)
-            .await
-            .map_err(ApiError::from)?;
-        }
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         {
             sqlx::query(
                 r#"
@@ -1750,8 +1314,7 @@ impl PaymentRepository {
         pool: &DbPool,
         invoice_number: &str,
     ) -> Result<Option<Invoice>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT i.*, i.created_by AS user_id,
                        b.check_in_date::date AS check_in_date,
                        b.check_out_date::date AS check_out_date,
@@ -1763,21 +1326,7 @@ impl PaymentRepository {
                 LEFT JOIN room_types rt ON rt.id = r.room_type_id
                 WHERE i.invoice_number = $1
                 LIMIT 1
-            "#,
-            sqlite: r#"
-                SELECT i.*, i.created_by AS user_id,
-                       date(b.check_in_date) AS check_in_date,
-                       date(b.check_out_date) AS check_out_date,
-                       CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER) AS number_of_nights,
-                       r.room_number, rt.name AS room_type
-                FROM invoices i
-                LEFT JOIN bookings b ON b.id = i.booking_id
-                LEFT JOIN rooms r ON r.id = b.room_id
-                LEFT JOIN room_types rt ON rt.id = r.room_type_id
-                WHERE i.invoice_number = ?1
-                LIMIT 1
-            "#
-        );
+            "#;
         let row = sqlx::query(sql)
             .bind(invoice_number)
             .fetch_optional(pool)

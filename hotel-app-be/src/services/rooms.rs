@@ -20,17 +20,7 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 
 fn get_bool_at(row: &DbRow, index: usize) -> Option<bool> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        row.try_get::<i32, _>(index).ok().map(|value| value != 0)
-    }
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
-    {
-        row.try_get::<bool, _>(index).ok()
-    }
+    row.try_get::<bool, _>(index).ok()
 }
 
 fn normalize_transition_permission(permission: &str) -> &str {
@@ -45,18 +35,11 @@ async fn required_transition_permission(
     from_status: &str,
     to_status: &str,
 ) -> Result<Option<String>, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 SELECT requires_permission
 FROM room_status_transitions
 WHERE from_status = $1 AND to_status = $2 AND is_allowed = true
-"#,
-        sqlite: r#"
-SELECT requires_permission
-FROM room_status_transitions
-WHERE from_status = ?1 AND to_status = ?2 AND is_allowed = 1
-"#
-    );
+"#;
 
     // `requires_permission` is a nullable column: an allowed transition may
     // require no special permission (NULL). Decode the scalar as Option<String>
@@ -142,15 +125,13 @@ pub async fn complete_housekeeping_cleaning_tx(
             ));
         }
 
-        let check_in_time: String = sqlx::query_scalar(crate::sql_query!(
-            postgres: "SELECT value FROM system_settings WHERE key = $1",
-            sqlite: "SELECT value FROM system_settings WHERE key = ?1"
-        ))
-        .bind("check_in_time")
-        .fetch_optional(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?
-        .unwrap_or_else(|| "15:00:00".to_string());
+        let check_in_time: String =
+            sqlx::query_scalar("SELECT value FROM system_settings WHERE key = $1")
+                .bind("check_in_time")
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?
+                .unwrap_or_else(|| "15:00:00".to_string());
 
         let reservation: Option<(i64, NaiveDate, NaiveDate)> =
             sqlx::query_as(CHECK_RESERVATION_TODAY)
@@ -208,10 +189,7 @@ pub async fn complete_housekeeping_cleaning_tx(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let last_cleaned_query = crate::sql_query!(
-        postgres: "UPDATE rooms SET last_cleaned_at = CURRENT_TIMESTAMP WHERE id = $1",
-        sqlite: "UPDATE rooms SET last_cleaned_at = datetime('now') WHERE id = ?1"
-    );
+    let last_cleaned_query = "UPDATE rooms SET last_cleaned_at = CURRENT_TIMESTAMP WHERE id = $1";
     sqlx::query(last_cleaned_query)
         .bind(room_id)
         .execute(&mut **tx)
@@ -226,7 +204,6 @@ pub async fn complete_housekeeping_cleaning_tx(
     // statement (see lessons.md 2026-07-10b). Wrap the insert in a SAVEPOINT so
     // any failure is isolated: roll back to the savepoint instead of poisoning
     // the parent tx. SAVEPOINT / RELEASE SAVEPOINT / ROLLBACK TO SAVEPOINT is
-    // accepted by both PostgreSQL and SQLite.
     let event_note = format!("Status changed to: {}", target_status);
     sqlx::query("SAVEPOINT sp_room_event")
         .execute(&mut **tx)
@@ -262,34 +239,14 @@ pub async fn complete_housekeeping_cleaning_tx(
 }
 
 /// Helper function to map a database row to RoomType
-/// This avoids using FromRow which doesn't work for Decimal in SQLite
 fn row_to_room_type(row: &DbRow) -> RoomType {
     let base_price = get_decimal(row, "base_price");
     let weekday_rate = get_opt_decimal(row, "weekday_rate");
     let weekend_rate = get_opt_decimal(row, "weekend_rate");
     let extra_bed_charge = get_decimal(row, "extra_bed_charge");
 
-    // Handle boolean fields for SQLite (returns 0/1)
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let allows_extra_bed: bool = row
-        .try_get::<i32, _>("allows_extra_bed")
-        .map(|v| v != 0)
-        .unwrap_or(false);
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let is_active: bool = row
-        .try_get::<i32, _>("is_active")
-        .map(|v| v != 0)
-        .unwrap_or(true);
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let is_active: bool = row.try_get("is_active").unwrap_or(true);
 
     RoomType {
@@ -324,7 +281,6 @@ pub async fn get_rooms_handler(
 
     let mut rooms = Vec::new();
     for row in rows {
-        // Read average_rating as f64 (works for both PostgreSQL and SQLite NULL)
         let average_rating: Option<f64> = row.try_get(9).ok();
         let review_count: Option<i64> = row.try_get(10).ok();
         let status: Option<String> = row.try_get(11).ok();
@@ -335,13 +291,6 @@ pub async fn get_rooms_handler(
         let reserved_start_date: Option<DateTime<Utc>> = row.try_get(16).ok();
         let reserved_end_date: Option<DateTime<Utc>> = row.try_get(17).ok();
 
-        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let available: bool = row.get::<i32, _>(4) != 0;
-        #[cfg(any(
-            all(feature = "postgres", not(feature = "sqlite")),
-            all(feature = "sqlite", feature = "postgres")
-        ))]
         let available: bool = row.get(4);
 
         rooms.push(RoomWithRating {
@@ -418,13 +367,6 @@ pub async fn search_rooms_handler(
         let reserved_start_date: Option<DateTime<Utc>> = row.try_get(16).ok();
         let reserved_end_date: Option<DateTime<Utc>> = row.try_get(17).ok();
 
-        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let available: bool = row.get::<i32, _>(4) != 0;
-        #[cfg(any(
-            all(feature = "postgres", not(feature = "sqlite")),
-            all(feature = "sqlite", feature = "postgres")
-        ))]
         let available: bool = row.get(4);
 
         rooms.push(RoomWithRating {
@@ -472,13 +414,6 @@ pub async fn update_room_handler(
     let current_room_type: String = existing_row.get(2);
     let current_price: Decimal = existing_row.get::<String, _>(3).parse().unwrap_or_default();
 
-    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let current_available: bool = existing_row.get::<i32, _>(4) != 0;
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let current_available: bool = existing_row.get(4);
 
     let current_description: Option<String> = existing_row.get(5);
@@ -530,12 +465,6 @@ pub async fn update_room_handler(
         None
     };
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let is_smoking_for_db = input.is_smoking.map(|b| if b { 1i32 } else { 0i32 });
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let is_smoking_for_db = input.is_smoking;
 
     // Check if trying to set room as available while there's an active booking
@@ -582,13 +511,6 @@ pub async fn update_room_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let available: bool = row.get::<i32, _>(4) != 0;
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let available: bool = row.get(4);
 
     let updated_room = Room {
@@ -653,39 +575,6 @@ pub async fn create_room_handler(
         .custom_price
         .map(|p| Decimal::from_f64_retain(p).unwrap_or_default());
 
-    // SQLite doesn't support RETURNING, so we need different handling
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let room_id: i64 = {
-        sqlx::query(INSERT_ROOM_QUERY)
-            .bind(&input.room_number)
-            .bind(input.room_type_id)
-            .bind(input.floor)
-            .bind(&input.building)
-            .bind(opt_decimal_to_db(custom_price_decimal))
-            .bind(if input.is_accessible.unwrap_or(false) {
-                1i32
-            } else {
-                0i32
-            })
-            .bind(if input.is_smoking.unwrap_or(false) {
-                1i32
-            } else {
-                0i32
-            })
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?
-    };
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let room_id: i64 = sqlx::query_scalar(INSERT_ROOM_QUERY)
         .bind(&input.room_number)
         .bind(input.room_type_id)
@@ -704,13 +593,6 @@ pub async fn create_room_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let available: bool = row.get::<i32, _>(4) != 0;
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let available: bool = row.get(4);
 
     let created_room = Room {
@@ -872,10 +754,6 @@ pub async fn create_room_type_handler(
         Decimal::from_f64_retain(input.extra_bed_charge.unwrap_or(0.0)).unwrap_or(Decimal::ZERO);
 
     // PostgreSQL version with RETURNING
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let room_type_id: i64 = {
         let row = sqlx::query(
             r#"
@@ -905,42 +783,6 @@ pub async fn create_room_type_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
         row.get::<i64, _>("id")
-    };
-
-    // SQLite version without RETURNING
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let room_type_id: i64 = {
-        sqlx::query(
-            r#"
-            INSERT INTO room_types (
-                name, code, description, base_price, weekday_rate, weekend_rate,
-                max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-                extra_bed_charge, sort_order
-            )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-            "#,
-        )
-        .bind(&input.name)
-        .bind(&input.code)
-        .bind(&input.description)
-        .bind(decimal_to_db(base_price_decimal))
-        .bind(opt_decimal_to_db(weekday_rate_decimal))
-        .bind(opt_decimal_to_db(weekend_rate_decimal))
-        .bind(input.max_occupancy.unwrap_or(2))
-        .bind(&input.bed_type)
-        .bind(input.bed_count.unwrap_or(1))
-        .bind(input.allows_extra_bed.unwrap_or(false) as i32)
-        .bind(input.max_extra_beds.unwrap_or(0))
-        .bind(decimal_to_db(extra_bed_charge_decimal))
-        .bind(input.sort_order.unwrap_or(0))
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?
     };
 
     // Fetch the created room type
@@ -995,10 +837,6 @@ pub async fn update_room_type_handler(
         .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
 
     // PostgreSQL version with RETURNING
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     {
         sqlx::query(
             r#"
@@ -1035,54 +873,6 @@ pub async fn update_room_type_handler(
         .bind(input.max_extra_beds)
         .bind(opt_decimal_to_db(extra_bed_charge_decimal))
         .bind(input.is_active)
-        .bind(input.sort_order)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    // SQLite version without RETURNING
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        // Convert Option<bool> to Option<i32> for SQLite
-        let allows_extra_bed_i32 = input.allows_extra_bed.map(|b| if b { 1i32 } else { 0i32 });
-        let is_active_i32 = input.is_active.map(|b| if b { 1i32 } else { 0i32 });
-
-        sqlx::query(
-            r#"
-            UPDATE room_types SET
-                name = COALESCE(?2, name),
-                code = COALESCE(?3, code),
-                description = COALESCE(?4, description),
-                base_price = COALESCE(?5, base_price),
-                weekday_rate = COALESCE(?6, weekday_rate),
-                weekend_rate = COALESCE(?7, weekend_rate),
-                max_occupancy = COALESCE(?8, max_occupancy),
-                bed_type = COALESCE(?9, bed_type),
-                bed_count = COALESCE(?10, bed_count),
-                allows_extra_bed = COALESCE(?11, allows_extra_bed),
-                max_extra_beds = COALESCE(?12, max_extra_beds),
-                extra_bed_charge = COALESCE(?13, extra_bed_charge),
-                is_active = COALESCE(?14, is_active),
-                sort_order = COALESCE(?15, sort_order),
-                updated_at = datetime('now')
-            WHERE id = ?1
-            "#,
-        )
-        .bind(id)
-        .bind(&input.name)
-        .bind(&input.code)
-        .bind(&input.description)
-        .bind(opt_decimal_to_db(base_price_decimal))
-        .bind(opt_decimal_to_db(weekday_rate_decimal))
-        .bind(opt_decimal_to_db(weekend_rate_decimal))
-        .bind(input.max_occupancy)
-        .bind(&input.bed_type)
-        .bind(input.bed_count)
-        .bind(allows_extra_bed_i32)
-        .bind(input.max_extra_beds)
-        .bind(opt_decimal_to_db(extra_bed_charge_decimal))
-        .bind(is_active_i32)
         .bind(input.sort_order)
         .execute(&pool)
         .await
@@ -1441,13 +1231,6 @@ pub async fn update_room_status_handler(
 
     let room_number: String = row.get(1);
 
-    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let available: bool = row.get::<i32, _>(4) != 0;
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let available: bool = row.get(4);
 
     // Audit log: room status change
@@ -1513,13 +1296,6 @@ pub async fn end_maintenance_handler(
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let available: bool = row.get::<i32, _>(4) != 0;
-        #[cfg(any(
-            all(feature = "postgres", not(feature = "sqlite")),
-            all(feature = "sqlite", feature = "postgres")
-        ))]
         let available: bool = row.get(4);
 
         return Ok(Json(Room {
@@ -1567,13 +1343,6 @@ pub async fn end_maintenance_handler(
 
     let room_number: String = row.get(1);
 
-    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let available: bool = row.get::<i32, _>(4) != 0;
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let available: bool = row.get(4);
 
     // Audit log: maintenance ended
@@ -2012,50 +1781,6 @@ pub async fn create_room_event_handler(
         )));
     }
 
-    // SQLite doesn't support RETURNING, so we need different handling
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let event = {
-        sqlx::query(INSERT_ROOM_EVENT_FULL)
-            .bind(room_id)
-            .bind(&input.event_type)
-            .bind(&input.status)
-            .bind(priority)
-            .bind(&input.notes)
-            .bind(scheduled_date)
-            .bind(user_id)
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        let event_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        let row = sqlx::query(GET_ROOM_EVENT_BY_ID)
-            .bind(event_id)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        RoomEvent {
-            id: row.get(0),
-            room_id: row.get(1),
-            event_type: row.get(2),
-            status: row.get(3),
-            priority: row.get(4),
-            notes: row.get(5),
-            scheduled_date: row.get(6),
-            created_by: row.get(7),
-            created_at: row.get(8),
-            updated_at: row.get(9),
-        }
-    };
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let event = {
         let row = sqlx::query(INSERT_ROOM_EVENT_FULL)
             .bind(room_id)
@@ -2110,13 +1835,6 @@ pub async fn get_room_detailed_status_handler(
 
     let status: Option<String> = room_row.try_get(3).ok();
 
-    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let available: bool = room_row.try_get::<i32, _>(4).unwrap_or(0) != 0;
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let available: bool = room_row.try_get(4).unwrap_or(false);
 
     let maintenance_notes: Option<String> = room_row.try_get(5).ok(); // now 'notes' column
@@ -2201,14 +1919,7 @@ pub async fn get_room_history_handler(
     let history_json: Vec<serde_json::Value> = history
         .iter()
         .map(|row| {
-            // Handle is_auto_generated - SQLite returns 0/1, PostgreSQL returns bool
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let is_auto_generated = row.get::<i32, _>("is_auto_generated") != 0;
-            #[cfg(any(
-                all(feature = "postgres", not(feature = "sqlite")),
-                all(feature = "sqlite", feature = "postgres")
-            ))]
-            let is_auto_generated = row.get::<bool, _>("is_auto_generated");
+                        let is_auto_generated = row.get::<bool, _>("is_auto_generated");
 
             serde_json::json!({
                 "id": row.get::<i64, _>("id").to_string(),
@@ -2297,31 +2008,6 @@ pub async fn get_room_occupancy_handler(
 ) -> Result<Json<RoomCurrentOccupancy>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = r#"
-        SELECT
-            room_id,
-            room_number,
-            room_type_id,
-            room_type_name,
-            max_occupancy,
-            room_status,
-            current_adults,
-            current_children,
-            current_infants,
-            current_total_guests,
-            occupancy_percentage,
-            current_booking_id,
-            current_booking_number,
-            current_guest_id,
-            check_in_date,
-            check_out_date,
-            is_occupied
-        FROM room_current_occupancy
-        WHERE room_id = ?1
-        "#;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = r#"
         SELECT
             room_id,
@@ -2434,22 +2120,8 @@ pub async fn get_rooms_with_occupancy_handler(
 
     let mut rooms_with_occupancy = Vec::new();
     for row in rows {
-        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let available: bool = row.get::<i32, _>(4) != 0;
-        #[cfg(any(
-            all(feature = "postgres", not(feature = "sqlite")),
-            all(feature = "sqlite", feature = "postgres")
-        ))]
         let available: bool = row.get(4);
 
-        // Handle is_occupied field - SQLite returns 0/1, PostgreSQL returns bool
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let is_occupied: bool = row.get::<i32, _>(14) != 0;
-        #[cfg(any(
-            all(feature = "postgres", not(feature = "sqlite")),
-            all(feature = "sqlite", feature = "postgres")
-        ))]
         let is_occupied: bool = row.get(14);
 
         let room = Room {

@@ -37,9 +37,6 @@ setup-desktop: ## Install desktop dependencies
 dev-be: ## Start backend in development mode
 	cd hotel-app-be && cargo run
 
-dev-be-sqlite: ## Start backend in SQLite development mode
-	cd hotel-app-be && DATABASE_PATH=./hotel_data.db cargo run --features sqlite --no-default-features
-
 dev-fe: ## Start frontend development server
 	cd hotel-web-fe && $(BUN) run start
 
@@ -62,16 +59,13 @@ build-desktop: ## Build desktop production
 check-be: ## Check backend compilation
 	cd hotel-app-be && cargo check --all-features
 
-check-be-sqlite: ## Check backend with SQLite feature only
-	cd hotel-app-be && cargo check --features sqlite --no-default-features
-
 check-fe: ## Typecheck frontend
 	cd hotel-web-fe && $(BUN) run typecheck
 
 check-desktop: ## Check desktop compilation
 	cd hotel-desktop/src-tauri && cargo check
 
-check-all: check-be check-be-sqlite check-fe check-desktop ## Typecheck all projects
+check-all: check-be check-fe check-desktop ## Typecheck all projects
 
 # ─── Linting ──────────────────────────────────────────────────────────────────
 
@@ -103,16 +97,13 @@ fmt: fmt-all ## Alias for fmt-all
 test-be: ## Run all backend tests
 	cd hotel-app-be && cargo test --all-features
 
-test-be-sqlite: ## Run backend SQLite tests
-	cd hotel-app-be && cargo test --features sqlite --no-default-features
-
 test-be-pg: ## Run backend PostgreSQL tests (requires DATABASE_URL)
 	cd hotel-app-be && cargo test --features postgres --no-default-features
 
 test-fe: ## Run frontend tests
 	cd hotel-web-fe && $(BUN) run test -- --run
 
-test-all: test-be test-be-sqlite test-fe ## Test all projects
+test-all: test-be test-fe ## Test all projects
 
 # ─── Docker ───────────────────────────────────────────────────────────────────
 

@@ -31,7 +31,6 @@ contains a trailing space after "SSD". Always double-quote paths in shell comman
 > checklists apply), plus {specific files with line anchors}.
 > SPEC: {exact behavior, inputs/outputs, edge cases. If SQL is involved: must use
 > param!/sql_compat helpers and update BOTH database/postgres/ and
-> database/sqlite/ V1 resources (see hotel-app-be/database/README.md)}.
 > DO NOT: {out-of-scope things, e.g. "refactor surrounding code, touch CI config"}.
 > ACCEPTANCE CRITERIA: (1) {behavioral check, e.g. "POST /x returns 201 and row
 > appears"}; (2) `cargo check --all-features` exits 0 [backend] and/or
@@ -79,7 +78,7 @@ plans, or subagent output.
 > the author's claims are NOT evidence; re-derive from the artifact itself.
 > CHECK SPECIFICALLY: (1) contradictions with .claude/rules/*.md and CLAUDE.md;
 > (2) wrong paths/commands/tool or model names (verify each against the repo —
-> Glob the path, grep the script); (3) dual-DB violations per 00-diagnosis.md
+> Glob the path, grep the script); (3) PostgreSQL query and schema violations per 00-diagnosis.md
 > Leak #2; (4) ambiguous instructions a smaller model could misread — quote them.
 > ACCEPTANCE CRITERIA: every finding has `path:line`, a severity
 > (blocker/should-fix/nit), and a concrete suggested fix.

@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{User, UserProfile};
-use crate::{param, sql_query};
+use crate::param;
 
 const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
 
@@ -51,8 +51,7 @@ impl UserRepository {
 
     /// Get user profile
     pub async fn get_profile(pool: &DbPool, user_id: i64) -> Result<Option<UserProfile>, ApiError> {
-        let query = sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id, username,
                        CASE WHEN email LIKE '%@no-email.invalid' THEN '' ELSE email END AS email,
                        CASE WHEN email LIKE '%@no-email.invalid' THEN false ELSE true END AS email_configured,
@@ -60,17 +59,7 @@ impl UserRepository {
                        created_at, updated_at, last_login_at
                 FROM users
                 WHERE id = $1 AND is_active = true AND deleted_at IS NULL
-            "#,
-            sqlite: r#"
-                SELECT id, username,
-                       CASE WHEN email LIKE '%@no-email.invalid' THEN '' ELSE email END AS email,
-                       CASE WHEN email LIKE '%@no-email.invalid' THEN 0 ELSE 1 END AS email_configured,
-                       is_verified, user_type, full_name, phone, avatar_url,
-                       created_at, updated_at, last_login_at
-                FROM users
-                WHERE id = ?1 AND is_active = 1 AND deleted_at IS NULL
-            "#
-        );
+            "#;
         sqlx::query_as::<_, UserProfile>(query)
             .bind(user_id)
             .fetch_optional(pool)

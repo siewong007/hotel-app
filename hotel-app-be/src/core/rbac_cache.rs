@@ -86,7 +86,6 @@ async fn resolve(pool: &DbPool, user_id: i64) -> Result<RbacSets, sqlx::Error> {
         return Ok(hit);
     }
 
-    // `$1` placeholder syntax is accepted by both PostgreSQL and SQLite, so this
     // compiles and runs under either backend (matching AuthService's own SQL).
     let permissions: HashSet<String> = sqlx::query_scalar::<_, String>(
         "SELECT DISTINCT p.name \

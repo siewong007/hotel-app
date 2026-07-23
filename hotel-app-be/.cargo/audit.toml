@@ -9,7 +9,7 @@ ignore = [
     # RUSTSEC-2023-0071 — rsa "Marvin Attack" timing sidechannel.
     # No fixed upgrade is available upstream. rsa is only pulled into Cargo.lock
     # via sqlx's optional `mysql` backend, which this project never enables (we
-    # build with the `sqlite`/`postgres` features only). `cargo tree -i rsa`
+    # build with the PostgreSQL feature only). `cargo tree -i rsa`
     # confirms it is absent from the compiled dependency graph, so the timing
     # sidechannel is not reachable in any artifact we ship. Re-evaluate if a
     # MySQL backend is ever added or a fixed rsa release lands.

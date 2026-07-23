@@ -24,26 +24,23 @@ Each has its own build system, dependency management, and CI jobs. There is no r
 
 ---
 
-## ADR 002: Dual-Database Support (PostgreSQL + SQLite)
+## ADR 002: PostgreSQL-Only Persistence
 
-**Status:** Accepted (2025)
+**Status:** Accepted (2026)
 
-**Context:** The system needed both server-deployed (PostgreSQL) and offline/desktop (SQLite) database modes. The backend must compile for exactly one database at runtime.
+**Context:** Web, Docker, and desktop deployments all use PostgreSQL. Maintaining
+an additional compile-time database backend created schema drift, duplicated
+queries, and test paths that did not represent the shipped desktop architecture.
 
-**Decision:** Use Cargo features (`postgres` and `sqlite`) to select the database backend at compile time. The default feature is `postgres`. Use `sqlx` for database access with custom compatibility macros in `core/sql_compat.rs`.
-
-**Core pattern:**
-- `param!(N)` macros for cross-DB placeholder syntax (`$1` vs `?1`)
-- `sql_query!(postgres: "...", sqlite: "...")` for divergent SQL
-- Helpers like `current_timestamp()`, `current_date()` in `core/sql_compat.rs`
-- `core/db.rs` provides database-specific value conversion (e.g., `Decimal` → `String` on SQLite)
+**Decision:** PostgreSQL is the only supported database engine. SQLx is compiled
+with PostgreSQL support, `DATABASE_URL` is required, and all deployment targets
+use the PostgreSQL V1 lifecycle.
 
 **Consequences:**
-- ✅ Offline/desktop mode works without PostgreSQL
-- ✅ Full PostgreSQL features in production deployment
-- ❌ Must maintain aligned PostgreSQL and SQLite V1 baseline, data, and seed resources
-- ❌ Some SQL must be duplicated in the `sql_query!` macro
-- ❌ SQLite has limitations (no `FOR UPDATE`, different UUID handling)
+- ✅ One schema and query implementation
+- ✅ Desktop and server deployments exercise the same database behavior
+- ✅ Database tests represent the production engine
+- ❌ Local development requires PostgreSQL
 
 ---
 
@@ -199,7 +196,6 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 **Context:** The PostgreSQL schema was maintained differently from typical sqlx migration patterns, using raw SQL files.
 
-**Decision:** Use a clean V1 baseline and one-time initialization resources for each engine. PostgreSQL applies `database/postgres/migrations/0001_v1_baseline.sql`, then `database/postgres/data.sql`, then `database/postgres/seed.sql` to a new empty database. SQLite embeds the equivalent V1 baseline, data, and seed resources and applies them transactionally only to a new empty database. Existing V1 databases are verified and left unchanged at startup. SQLite has no legacy migration path; the only supported historical upgrade is the controlled PostgreSQL 18.4 logical restore into PostgreSQL 19 Beta 2 followed by `postgres/upgrade/pg18_4_to_v1.sql` and the one-time data/seed sequence.
 
 **Consequences:**
 - ✅ Single source of truth for PostgreSQL schema
@@ -207,7 +203,6 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 - ✅ Compatible with Docker init scripts
 - ✅ Existing V1 databases avoid accidental seed or backfill rewrites at startup
 - ❌ Different from typical sqlx migration workflow
-- ❌ Must manually keep SQLite resources in sync with the PostgreSQL resources
 - ❌ PostgreSQL 19 Beta 2 remains a testing target until general availability
 
 ---

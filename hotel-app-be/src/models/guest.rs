@@ -399,17 +399,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for GuestBookingRow {
             check_out_date: row.try_get("check_out_date")?,
             nights: row.try_get("nights")?,
             status: row.try_get("status")?,
-            total_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("total_amount")?;
-                val
-            },
+            total_amount: { row.try_get("total_amount")? },
             created_at: row.try_get("created_at")?,
             room_number: row.try_get("room_number")?,
             room_type: row.try_get("room_type")?,

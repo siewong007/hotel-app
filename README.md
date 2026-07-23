@@ -38,7 +38,6 @@ This project addresses that problem by implementing a centralized administrative
 - Provide a unified interface for core hotel administration tasks.
 - Maintain structured records for rooms, guests, bookings, payments, ledgers, audit logs, and reports.
 - Demonstrate authenticated and permission-aware workflows using JWT, RBAC, 2FA, and passkey-related endpoints.
-- Support both PostgreSQL-backed web deployment and SQLite/offline compilation paths.
 - Package the same frontend/backend system inside a Tauri desktop application.
 - Keep the codebase organized enough for academic review, future refactoring, and open-source contribution.
 
@@ -66,7 +65,7 @@ This project addresses that problem by implementing a centralized administrative
 | Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.8, Serde, Validator |
 | Frontend | React 19, TypeScript 5.8, Vite 8, MUI v7, TanStack Router, TanStack Query, Zustand, ky |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
-| Database | PostgreSQL by default; SQLite feature for offline/test mode |
+| Database | PostgreSQL 19, SQLx migrations and parameterized queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
 | Reporting | Recharts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
 | CI/CD | GitHub Actions for frontend typecheck/build and backend check/clippy/build; Docker image workflow for backend |
@@ -89,7 +88,7 @@ flowchart LR
     SidecarBackend --> Auth
     Auth --> Routes["Domain routes and handlers"]
     Routes --> Services["Services and repositories"]
-    Services --> Db["PostgreSQL or SQLite database"]
+    Services --> Db["PostgreSQL database"]
     PgBundle --> Db
 
     Backend --> Logs["Audit and application logs"]
@@ -122,8 +121,7 @@ hotel-app/
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
-│   │   ├── postgres/             # V1 baseline, one-time data/seed, PG19 tuning
-│   │   └── sqlite/               # V1 baseline and one-time data/seed
+│   │   └── postgres/             # V1 baseline, one-time data/seed, PG19 tuning
 │   └── tests/                    # Focused backend tests
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/
@@ -160,14 +158,12 @@ curl http://localhost:3030/health
 
 Services: frontend at `http://localhost:80`, backend API at `http://localhost:3030`, PostgreSQL at `localhost:5432`. An opt-in PostgreSQL 19 tuning profile is available via `make docker-up-pg19-tuned`.
 
-For production deployment (Docker + Caddy HTTPS, manual deployment, Oracle Cloud, desktop distribution), see the [Deployment Guide](docs/guides/deployment.md). For local development setup — prerequisites, per-project install, running the backend/frontend/desktop directly, SQLite mode — see [CONTRIBUTING.md](CONTRIBUTING.md#getting-started).
 
 ## Environment Variables
 
 | Variable | Used by | Required | Description |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | Backend | PostgreSQL mode | PostgreSQL connection string. |
-| `DATABASE_PATH` | Backend | SQLite mode | SQLite database file path. |
+| `DATABASE_URL` | Backend/Desktop sidecar | Yes | PostgreSQL connection string. |
 | `JWT_SECRET` | Backend/Desktop sidecar | Yes | JWT signing secret; use at least 32 characters. |
 | `BACKEND_PORT` | Backend/Desktop | No | API port, default `3030`. |
 | `ALLOWED_ORIGINS` | Backend | No | Comma-separated CORS origins. |
@@ -220,7 +216,6 @@ Full-stack hotel administrative panel built with Rust, React, PostgreSQL, and Ta
 Suggested topics:
 
 ```text
-hotel-management, property-management, rust, axum, react, typescript, vite, mui, tauri, postgresql, sqlite, sqlx, rbac, final-year-project
 ```
 
 Logo/banner idea:
@@ -236,7 +231,6 @@ Logo/banner idea:
 - ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
 - ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
-- ✅ **SQLite V1 resources** — One immutable baseline plus one-time data and bootstrap seed files
 - ✅ **Project Makefile** — Convenience commands for all development workflows
 - ✅ **Frontend test suite** — Vitest + Testing Library component and utility tests
 - ✅ **Backend service tests** — Rate limiter, booking service, and core utility tests
@@ -254,14 +248,12 @@ Logo/banner idea:
 - **Strict TypeScript mode** — Enable `strict: true` incrementally in tsconfig
 - **Backend domain module migration** — Incremental move toward `modules/<domain>/` structure
 - **Frontend component tests** — Expand coverage for major feature components
-- **Expand SQLite/PostgreSQL parity tests** — Database-sensitive workflow coverage
 - **Desktop backup/restore** — Complete managed backup solution with recovery procedures
 
 ## Limitations
 
 - The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
 - Frontend automated tests are still being expanded (utilities and select components covered; full feature coverage in progress).
-- SQLite support exists for offline/test-oriented modes, but schema parity should be rechecked when database changes are made.
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.
 - API documentation is currently README-based rather than generated from a formal OpenAPI schema.
@@ -305,6 +297,5 @@ This project is licensed under the [MIT License](LICENSE).
 - Rust, Axum, SQLx, Tokio, and the wider Rust ecosystem.
 - React, TypeScript, Vite, MUI, TanStack Router, and TanStack Query.
 - Tauri for enabling a desktop packaging path with a web frontend.
-- PostgreSQL and SQLite for database support.
 - University evaluators, reviewers, and open-source contributors who provide feedback on maintainability and project quality.
 - Architecture Decision Records inspired by [Michael Nygard's ADR format](https://thinkmicroservices.com/blog/2024/01/14/architecture-decision-records.html).

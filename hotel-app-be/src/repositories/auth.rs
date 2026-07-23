@@ -187,8 +187,7 @@ impl AuthRepository {
     ) -> Result<(Guest, User), ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
         let full_name = format!("{} {}", req.first_name, req.last_name);
-        let guest_query = crate::sql_query!(
-            postgres: r#"
+        let guest_query = r#"
                 INSERT INTO guests (
                     first_name, last_name, full_name, email, phone, address_line_1,
                     is_active, guest_type, created_at
@@ -203,25 +202,7 @@ impl AuthRepository {
                           created_at, updated_at,
                           NULL::BIGINT AS bookings_count,
                           NULL::DATE AS last_stay_date
-            "#,
-            sqlite: r#"
-                INSERT INTO guests (
-                    first_name, last_name, full_name, email, phone, address_line1,
-                    is_active, guest_type, created_at
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 'non_member', datetime('now'))
-                RETURNING id, full_name, email, phone, ic_number, nationality,
-                          address_line1, city, state_province, postal_code, country,
-                          title, alt_phone, is_active,
-                          CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END AS guest_type,
-                          tourism_type, COALESCE(discount_percentage, 0) AS discount_percentage,
-                          company_name,
-                          COALESCE(complimentary_nights_credit, 0) AS complimentary_nights_credit,
-                          created_at, updated_at,
-                          NULL AS bookings_count,
-                          NULL AS last_stay_date
-            "#
-        );
+            "#;
 
         let guest: Guest = sqlx::query_as(guest_query)
             .bind(&req.first_name)
@@ -252,8 +233,7 @@ impl AuthRepository {
             .unwrap_or_else(|| format!("{}@no-email.invalid", req.username));
         let is_verified = req.email.is_none();
         let user_uuid = crate::core::db::generate_uuid();
-        let user_query = crate::sql_query!(
-            postgres: r#"
+        let user_query = r#"
                 INSERT INTO users (
                     uuid, username, email, password_hash, full_name, phone,
                     user_type, guest_id, is_active, is_verified, created_at
@@ -262,18 +242,7 @@ impl AuthRepository {
                 RETURNING id, username, email, full_name, phone, is_active, is_verified,
                           user_type, two_factor_enabled, two_factor_secret,
                           two_factor_recovery_codes, created_at, updated_at
-            "#,
-            sqlite: r#"
-                INSERT INTO users (
-                    uuid, username, email, password_hash, full_name, phone,
-                    user_type, guest_id, is_active, is_verified, created_at
-                )
-                VALUES (?8, ?1, ?2, ?3, ?4, ?5, 'guest', ?6, 1, ?7, datetime('now'))
-                RETURNING id, username, email, full_name, phone, is_active, is_verified,
-                          user_type, two_factor_enabled, two_factor_secret,
-                          two_factor_recovery_codes, created_at, updated_at
-            "#
-        );
+            "#;
 
         let user = sqlx::query_as::<_, User>(user_query)
             .bind(&req.username)

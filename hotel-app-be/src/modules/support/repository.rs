@@ -10,7 +10,6 @@ use super::models::{
 };
 use crate::core::db::{DbDatabase, DbPool, DbRow};
 use crate::core::error::ApiError;
-use crate::sql_query;
 
 const CONVERSATION_SELECT: &str = r#"
 SELECT
@@ -145,29 +144,9 @@ fn conversation_from_row(row: &DbRow) -> SupportConversation {
 }
 
 fn details_from_row(row: &DbRow) -> Option<Value> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        optional::<String>(row, "details").and_then(|value| serde_json::from_str(&value).ok())
-    }
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
-    {
-        optional::<Value>(row, "details")
-    }
+    optional::<Value>(row, "details")
 }
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn details_bind(details: Option<Value>) -> Option<String> {
-    details.map(|value| value.to_string())
-}
-
-#[cfg(any(
-    all(feature = "postgres", not(feature = "sqlite")),
-    all(feature = "sqlite", feature = "postgres")
-))]
 fn details_bind(details: Option<Value>) -> Option<Value> {
     details
 }
@@ -281,8 +260,7 @@ impl SupportRepository {
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<SupportConversationSummary>), ApiError> {
-        let filter = sql_query!(
-            postgres: r#"
+        let filter = r#"
 WHERE (
         $1::text IS NULL
         OR ($1 = 'unassigned' AND c.assigned_to_user_id IS NULL AND c.status <> 'closed')
@@ -301,28 +279,7 @@ WHERE (
         OR lower(COALESCE(g.full_name, g.first_name || ' ' || g.last_name, '')) LIKE lower($6)
         OR lower(COALESCE(b.booking_number, '')) LIKE lower($6)
   ))
-"#,
-            sqlite: r#"
-WHERE (
-        ?1 IS NULL
-        OR (?1 = 'unassigned' AND c.assigned_to_user_id IS NULL AND c.status <> 'closed')
-        OR (?1 = 'mine' AND c.assigned_to_user_id = ?2 AND c.status <> 'closed')
-        OR (?1 = 'at_risk' AND (
-            (c.first_response_at IS NULL AND c.status = 'waiting_for_staff' AND c.first_response_due_at <= datetime('now', '+30 minutes'))
-            OR (c.resolved_at IS NULL AND c.status NOT IN ('waiting_for_guest', 'closed') AND c.resolution_due_at <= datetime('now', '+30 minutes'))
-        ))
-        OR (?1 IN ('waiting_for_staff', 'waiting_for_guest', 'resolved', 'closed') AND c.status = ?1)
-    )
-  AND (?3 IS NULL OR c.status = ?3)
-  AND (?4 IS NULL OR c.priority = ?4)
-  AND (?5 IS NULL OR c.assigned_to_user_id = ?5)
-  AND (?6 IS NULL OR (
-        lower(c.conversation_number) LIKE lower(?6)
-        OR lower(COALESCE(g.full_name, g.first_name || ' ' || g.last_name, '')) LIKE lower(?6)
-        OR lower(COALESCE(b.booking_number, '')) LIKE lower(?6)
-  ))
-"#
-        );
+"#;
         let count_sql = format!(
             "SELECT COUNT(*) FROM support_conversations c JOIN guests g ON g.id = c.guest_id LEFT JOIN bookings b ON b.id = c.booking_id {filter}"
         );
@@ -363,8 +320,7 @@ WHERE (
     }
 
     pub async fn queue_metrics(pool: &DbPool) -> Result<SupportQueueMetrics, ApiError> {
-        let row = sqlx::query(sql_query!(
-            postgres: r#"
+        let row = sqlx::query(r#"
 SELECT
     COUNT(*) FILTER (WHERE status <> 'closed') AS total_open,
     COUNT(*) FILTER (WHERE status <> 'closed' AND assigned_to_user_id IS NULL) AS unassigned,
@@ -379,24 +335,7 @@ SELECT
         OR (resolved_at IS NULL AND status NOT IN ('waiting_for_guest', 'closed') AND resolution_due_at <= CURRENT_TIMESTAMP)
     )) AS breached
 FROM support_conversations
-"#,
-            sqlite: r#"
-SELECT
-    SUM(CASE WHEN status <> 'closed' THEN 1 ELSE 0 END) AS total_open,
-    SUM(CASE WHEN status <> 'closed' AND assigned_to_user_id IS NULL THEN 1 ELSE 0 END) AS unassigned,
-    SUM(CASE WHEN status = 'waiting_for_staff' THEN 1 ELSE 0 END) AS waiting_for_staff,
-    SUM(CASE WHEN status = 'waiting_for_guest' THEN 1 ELSE 0 END) AS waiting_for_guest,
-    SUM(CASE WHEN (
-        (first_response_at IS NULL AND status = 'waiting_for_staff' AND first_response_due_at <= datetime('now', '+30 minutes'))
-        OR (resolved_at IS NULL AND status NOT IN ('waiting_for_guest', 'closed') AND resolution_due_at <= datetime('now', '+30 minutes'))
-    ) THEN 1 ELSE 0 END) AS at_risk,
-    SUM(CASE WHEN (
-        (first_response_at IS NULL AND status = 'waiting_for_staff' AND first_response_due_at <= datetime('now'))
-        OR (resolved_at IS NULL AND status NOT IN ('waiting_for_guest', 'closed') AND resolution_due_at <= datetime('now'))
-    ) THEN 1 ELSE 0 END) AS breached
-FROM support_conversations
-"#
-        ))
+"#)
         .fetch_one(pool)
         .await
         .map_err(ApiError::from)?;
@@ -448,9 +387,9 @@ FROM support_conversations
         );
         let list_sql = format!(
             "SELECT id, category, status, assigned_team, booking_id, subject, created_at, updated_at, last_activity_at, first_response_at, resolved_at, closed_at, resolution_summary, version, CASE WHEN status = 'resolved' AND resolved_at >= {} THEN {} ELSE {} END AS can_reopen FROM support_conversations WHERE guest_id = {} ORDER BY last_activity_at DESC, id DESC LIMIT {} OFFSET {}",
-            crate::sql_query!(postgres: "CURRENT_TIMESTAMP - ($1 * INTERVAL '1 day')", sqlite: "datetime('now', '-' || ?1 || ' days')"),
-            crate::sql_query!(postgres: "true", sqlite: "1"),
-            crate::sql_query!(postgres: "false", sqlite: "0"),
+            "CURRENT_TIMESTAMP - ($1 * INTERVAL '1 day')",
+            "true",
+            "false",
             crate::param!(2),
             crate::param!(3),
             crate::param!(4)
@@ -542,8 +481,8 @@ ORDER BY se.created_at ASC, se.id ASC
     }
 
     pub async fn list_agents(pool: &DbPool) -> Result<Vec<SupportAgent>, ApiError> {
-        let rows = sqlx::query(sql_query!(
-            postgres: r#"
+        let rows = sqlx::query(
+            r#"
 SELECT DISTINCT u.id, COALESCE(u.full_name, u.username) AS name, u.email
 FROM users u
 WHERE COALESCE(u.is_active, true) = true
@@ -563,27 +502,7 @@ WHERE COALESCE(u.is_active, true) = true
   )
 ORDER BY name ASC
 "#,
-            sqlite: r#"
-SELECT DISTINCT u.id, COALESCE(u.full_name, u.username) AS name, u.email
-FROM users u
-WHERE COALESCE(u.is_active, 1) = 1
-  AND EXISTS (
-      SELECT 1
-      FROM user_roles ur
-      JOIN role_permissions rp ON rp.role_id = ur.role_id
-      JOIN permissions p ON p.id = rp.permission_id
-      WHERE ur.user_id = u.id AND p.name IN ('support:read', 'support:manage')
-  )
-  AND EXISTS (
-      SELECT 1
-      FROM user_roles ur
-      JOIN role_permissions rp ON rp.role_id = ur.role_id
-      JOIN permissions p ON p.id = rp.permission_id
-      WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
-  )
-ORDER BY name ASC
-"#
-        ))
+        )
         .fetch_all(pool)
         .await
         .map_err(ApiError::from)?;
@@ -603,10 +522,7 @@ ORDER BY name ASC
         booking_id: i64,
         guest_id: i64,
     ) -> Result<bool, ApiError> {
-        let sql = sql_query!(
-            postgres: "SELECT EXISTS (SELECT 1 FROM bookings WHERE id = $1 AND guest_id = $2)",
-            sqlite: "SELECT EXISTS (SELECT 1 FROM bookings WHERE id = ?1 AND guest_id = ?2)"
-        );
+        let sql = "SELECT EXISTS (SELECT 1 FROM bookings WHERE id = $1 AND guest_id = $2)";
         sqlx::query_scalar(sql)
             .bind(booking_id)
             .bind(guest_id)
@@ -622,22 +538,13 @@ ORDER BY name ASC
     where
         E: Executor<'e, Database = DbDatabase>,
     {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 INSERT INTO support_conversations (
     conversation_number, guest_id, booking_id, subject, category, priority,
     first_response_due_at, resolution_due_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING id
-"#,
-            sqlite: r#"
-INSERT INTO support_conversations (
-    conversation_number, guest_id, booking_id, subject, category, priority,
-    first_response_due_at, resolution_due_at
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-RETURNING id
-"#
-        );
+"#;
         sqlx::query_scalar::<_, i64>(sql)
             .bind(conversation.conversation_number)
             .bind(conversation.guest_id)
@@ -664,20 +571,12 @@ RETURNING id
     where
         E: Executor<'e, Database = DbDatabase>,
     {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 INSERT INTO support_messages (
     conversation_id, author_type, author_guest_id, author_user_id, body, client_message_id
 ) VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id
-"#,
-            sqlite: r#"
-INSERT INTO support_messages (
-    conversation_id, author_type, author_guest_id, author_user_id, body, client_message_id
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-RETURNING id
-"#
-        );
+"#;
         sqlx::query_scalar::<_, i64>(sql)
             .bind(conversation_id)
             .bind(author_type)
@@ -696,10 +595,7 @@ RETURNING id
         guest_id: i64,
         client_message_id: &str,
     ) -> Result<bool, ApiError> {
-        let sql = sql_query!(
-            postgres: "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = $1 AND author_type = 'guest' AND author_guest_id = $2 AND client_message_id = $3)",
-            sqlite: "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = ?1 AND author_type = 'guest' AND author_guest_id = ?2 AND client_message_id = ?3)"
-        );
+        let sql = "SELECT EXISTS (SELECT 1 FROM support_messages WHERE conversation_id = $1 AND author_type = 'guest' AND author_guest_id = $2 AND client_message_id = $3)";
         sqlx::query_scalar(sql)
             .bind(conversation_id)
             .bind(guest_id)
@@ -718,24 +614,14 @@ RETURNING id
         actor_user_id: i64,
         client_message_id: &str,
     ) -> Result<Option<bool>, ApiError> {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 SELECT CASE WHEN author_user_id = $2 THEN 1 ELSE 0 END
 FROM support_messages
 WHERE conversation_id = $1
   AND author_type = 'staff'
   AND client_message_id = $3
 LIMIT 1
-"#,
-            sqlite: r#"
-SELECT CASE WHEN author_user_id = ?2 THEN 1 ELSE 0 END
-FROM support_messages
-WHERE conversation_id = ?1
-  AND author_type = 'staff'
-  AND client_message_id = ?3
-LIMIT 1
-"#
-        );
+"#;
         let result = sqlx::query_scalar::<_, i64>(sql)
             .bind(conversation_id)
             .bind(actor_user_id)
@@ -751,18 +637,11 @@ LIMIT 1
         guest_id: i64,
         client_request_id: &str,
     ) -> Result<Option<i64>, ApiError> {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 SELECT conversation_id
 FROM support_guest_request_idempotency_keys
 WHERE guest_id = $1 AND idempotency_key = $2
-"#,
-            sqlite: r#"
-SELECT conversation_id
-FROM support_guest_request_idempotency_keys
-WHERE guest_id = ?1 AND idempotency_key = ?2
-"#
-        );
+"#;
         sqlx::query_scalar(sql)
             .bind(guest_id)
             .bind(client_request_id)
@@ -780,18 +659,11 @@ WHERE guest_id = ?1 AND idempotency_key = ?2
     where
         E: Executor<'e, Database = DbDatabase>,
     {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 INSERT INTO support_guest_request_idempotency_keys (guest_id, idempotency_key, conversation_id)
 VALUES ($1, $2, $3)
 ON CONFLICT (guest_id, idempotency_key) DO NOTHING
-"#,
-            sqlite: r#"
-INSERT INTO support_guest_request_idempotency_keys (guest_id, idempotency_key, conversation_id)
-VALUES (?1, ?2, ?3)
-ON CONFLICT (guest_id, idempotency_key) DO NOTHING
-"#
-        );
+"#;
         let result = sqlx::query(sql)
             .bind(guest_id)
             .bind(client_request_id)
@@ -816,18 +688,11 @@ ON CONFLICT (guest_id, idempotency_key) DO NOTHING
     where
         E: Executor<'e, Database = DbDatabase>,
     {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 INSERT INTO support_events (
     conversation_id, actor_guest_id, actor_user_id, event_type, from_status, to_status, details
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-"#,
-            sqlite: r#"
-INSERT INTO support_events (
-    conversation_id, actor_guest_id, actor_user_id, event_type, from_status, to_status, details
-) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-"#
-        );
+"#;
         sqlx::query(sql)
             .bind(conversation_id)
             .bind(actor_guest_id)
@@ -850,8 +715,7 @@ INSERT INTO support_events (
     where
         E: Executor<'e, Database = DbDatabase>,
     {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 UPDATE support_conversations
 SET status = $2,
     priority = $3,
@@ -871,29 +735,7 @@ SET status = $2,
     last_activity_at = CURRENT_TIMESTAMP,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1 AND ($16::bigint IS NULL OR version = $16)
-"#,
-            sqlite: r#"
-UPDATE support_conversations
-SET status = ?2,
-    priority = ?3,
-    assigned_team = ?4,
-    assigned_to_user_id = ?5,
-    escalation_level = ?6,
-    escalated_at = ?7,
-    first_response_due_at = ?8,
-    resolution_due_at = ?9,
-    first_response_at = ?10,
-    resolved_at = ?11,
-    closed_at = ?12,
-    resolution_code = ?13,
-    resolution_summary = ?14,
-    reopen_count = ?15,
-    version = version + 1,
-    last_activity_at = datetime('now'),
-    updated_at = datetime('now')
-WHERE id = ?1 AND (?16 IS NULL OR version = ?16)
-"#
-        );
+"#;
         let result = sqlx::query(sql)
             .bind(conversation_id)
             .bind(&mutation.status)
@@ -923,10 +765,7 @@ WHERE id = ?1 AND (?16 IS NULL OR version = ?16)
         actor_user_id: i64,
         key: &str,
     ) -> Result<Option<String>, ApiError> {
-        let sql = sql_query!(
-            postgres: "SELECT action FROM support_action_idempotency_keys WHERE conversation_id = $1 AND actor_user_id = $2 AND idempotency_key = $3",
-            sqlite: "SELECT action FROM support_action_idempotency_keys WHERE conversation_id = ?1 AND actor_user_id = ?2 AND idempotency_key = ?3"
-        );
+        let sql = "SELECT action FROM support_action_idempotency_keys WHERE conversation_id = $1 AND actor_user_id = $2 AND idempotency_key = $3";
         sqlx::query_scalar(sql)
             .bind(conversation_id)
             .bind(actor_user_id)
@@ -946,18 +785,11 @@ WHERE id = ?1 AND (?16 IS NULL OR version = ?16)
     where
         E: Executor<'e, Database = DbDatabase>,
     {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 INSERT INTO support_action_idempotency_keys (conversation_id, actor_user_id, idempotency_key, action)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (conversation_id, actor_user_id, idempotency_key) DO NOTHING
-"#,
-            sqlite: r#"
-INSERT INTO support_action_idempotency_keys (conversation_id, actor_user_id, idempotency_key, action)
-VALUES (?1, ?2, ?3, ?4)
-ON CONFLICT (conversation_id, actor_user_id, idempotency_key) DO NOTHING
-"#
-        );
+"#;
         sqlx::query(sql)
             .bind(conversation_id)
             .bind(actor_user_id)
@@ -970,8 +802,7 @@ ON CONFLICT (conversation_id, actor_user_id, idempotency_key) DO NOTHING
     }
 
     pub async fn is_active_support_agent(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
 SELECT EXISTS (
     SELECT 1
     FROM users u
@@ -992,30 +823,7 @@ SELECT EXISTS (
           WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
       )
 )
-"#,
-            sqlite: r#"
-SELECT EXISTS (
-    SELECT 1
-    FROM users u
-    WHERE u.id = ?1
-      AND COALESCE(u.is_active, 1) = 1
-      AND EXISTS (
-          SELECT 1
-          FROM user_roles ur
-          JOIN role_permissions rp ON rp.role_id = ur.role_id
-          JOIN permissions p ON p.id = rp.permission_id
-          WHERE ur.user_id = u.id AND p.name IN ('support:read', 'support:manage')
-      )
-      AND EXISTS (
-          SELECT 1
-          FROM user_roles ur
-          JOIN role_permissions rp ON rp.role_id = ur.role_id
-          JOIN permissions p ON p.id = rp.permission_id
-          WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
-      )
-)
-"#
-        );
+"#;
         sqlx::query_scalar(sql)
             .bind(user_id)
             .fetch_one(pool)

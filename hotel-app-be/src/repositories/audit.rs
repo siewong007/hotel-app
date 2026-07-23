@@ -7,12 +7,7 @@ use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{AuditLogQuery, AuditLogRow, AuditResourceTypeCount, AuditUserOption};
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 type AuditQueryAs<'q, O> = sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>;
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-type AuditQueryAs<'q, O> =
-    sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>;
 
 pub struct AuditRepository;
 
@@ -62,28 +57,6 @@ impl AuditRepository {
         user_agent: Option<String>,
         created_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        {
-            sqlx::query(
-                r#"
-                INSERT INTO audit_logs
-                (user_id, action, entity_type, entity_id, new_values, ip_address, user_agent, created_at)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-                "#,
-            )
-            .bind(user_id)
-            .bind(action)
-            .bind(resource_type)
-            .bind(resource_id.map(|id| id.to_string()))
-            .bind(details.map(|value| value.to_string()))
-            .bind(ip_address)
-            .bind(user_agent)
-            .bind(created_at.to_rfc3339())
-            .execute(&mut **tx)
-            .await?;
-        }
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         {
             sqlx::query(
                 r#"
@@ -166,15 +139,8 @@ impl AuditRepository {
             count_sqlx = count_sqlx.bind(format!("%{}%", search));
         }
         if let Some(types) = category_types {
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             {
                 count_sqlx = count_sqlx.bind(types.clone());
-            }
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            {
-                for resource_type in types {
-                    count_sqlx = count_sqlx.bind(resource_type.clone());
-                }
             }
         }
 
@@ -292,7 +258,6 @@ impl AuditRepository {
             .map_err(|e| ApiError::Database(format!("Failed to count audit categories: {}", e)))
     }
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     pub async fn list_db_statements(pool: &DbPool, limit: i64) -> Result<Vec<Value>, sqlx::Error> {
         use sqlx::Row;
 
@@ -365,20 +330,9 @@ fn build_log_where_clause(
         if types.is_empty() {
             where_clauses.push("1 = 0".to_string());
         } else {
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             {
                 where_clauses.push(format!("a.resource_type = ANY(${})", bind_index));
                 bind_index += 1;
-            }
-
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            {
-                let placeholders = (0..types.len())
-                    .map(|index| format!("${}", bind_index + index as i32))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                where_clauses.push(format!("a.resource_type IN ({})", placeholders));
-                bind_index += types.len() as i32;
             }
         }
     }
@@ -420,7 +374,6 @@ fn build_category_count_where_clause(params: &AuditLogQuery) -> (String, i32) {
     (where_clause, bind_index)
 }
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn bind_log_filters<'q, O>(
     mut query: AuditQueryAs<'q, O>,
     params: &AuditLogQuery,
@@ -445,53 +398,9 @@ fn bind_log_filters<'q, O>(
         query = query.bind(format!("%{}%", search));
     }
     if let Some(types) = category_types {
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         {
             query = query.bind(types.clone());
         }
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        {
-            for resource_type in types {
-                query = query.bind(resource_type.clone());
-            }
-        }
-    }
-
-    query
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn bind_log_filters<'q, O>(
-    mut query: sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>,
-    params: &AuditLogQuery,
-    category_types: Option<&Vec<String>>,
-) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>> {
-    if let Some(user_id) = params.user_id {
-        query = query.bind(user_id);
-    }
-    if let Some(ref action) = params.action {
-        query = query.bind(action.clone());
-    }
-    if let Some(ref resource_type) = params.resource_type {
-        query = query.bind(resource_type.clone());
-    }
-    if let Some(ref start_date) = params.start_date {
-        query = query.bind(start_date.clone());
-    }
-    if let Some(ref end_date) = params.end_date {
-        query = query.bind(end_date.clone());
-    }
-    if let Some(ref search) = params.search {
-        query = query.bind(format!("%{}%", search));
-    }
-    if category_types.is_some() {
-        let joined_types = category_types
-            .into_iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>()
-            .join(",");
-        query = query.bind(joined_types);
     }
 
     query

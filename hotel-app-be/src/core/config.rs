@@ -111,18 +111,12 @@ pub struct BankDetails {
 #[derive(Debug, Clone)]
 pub struct DatabaseConfig {
     pub acquire_timeout_secs: u64,
-    #[allow(dead_code)]
-    pub busy_timeout_secs: u64,
-    #[cfg_attr(all(feature = "sqlite", not(feature = "postgres")), allow(dead_code))]
     pub idle_timeout_secs: u64,
     pub max_connections: u32,
-    #[cfg_attr(all(feature = "sqlite", not(feature = "postgres")), allow(dead_code))]
     pub max_lifetime_secs: u64,
     pub min_connections: u32,
     pub slow_statement_ms: u64,
-    #[allow(dead_code)]
-    pub sqlite_path: String,
-    pub url: Option<String>,
+    pub url: String,
 }
 
 #[derive(Debug, Clone)]
@@ -219,14 +213,12 @@ impl DatabaseConfig {
     fn from_env() -> Result<Self, String> {
         Ok(Self {
             acquire_timeout_secs: env_or_parse("DATABASE_ACQUIRE_TIMEOUT_SECS", 30)?,
-            busy_timeout_secs: env_or_parse("DATABASE_BUSY_TIMEOUT_SECS", 10)?,
             idle_timeout_secs: env_or_parse("DATABASE_IDLE_TIMEOUT_SECS", 600)?,
             max_connections: env_or_parse("DATABASE_MAX_CONNECTIONS", default_max_connections())?,
             max_lifetime_secs: env_or_parse("DATABASE_MAX_LIFETIME_SECS", 1800)?,
             min_connections: env_or_parse("DATABASE_MIN_CONNECTIONS", 0)?,
             slow_statement_ms: env_or_parse("DATABASE_SLOW_STATEMENT_MS", 500)?,
-            sqlite_path: env_or_string("DATABASE_PATH", "./hotel_data.db")?,
-            url: database_url_from_env()?,
+            url: required_env("DATABASE_URL")?,
         })
     }
 }
@@ -282,28 +274,6 @@ pub fn validate_jwt_secret(secret: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn database_url_from_env() -> Result<Option<String>, String> {
-    Ok(std::env::var("DATABASE_URL").ok())
-}
-
-#[cfg(any(
-    all(feature = "postgres", not(feature = "sqlite")),
-    all(feature = "sqlite", feature = "postgres")
-))]
-fn database_url_from_env() -> Result<Option<String>, String> {
-    required_env("DATABASE_URL").map(Some)
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn default_max_connections() -> u32 {
-    5
-}
-
-#[cfg(any(
-    all(feature = "postgres", not(feature = "sqlite")),
-    all(feature = "sqlite", feature = "postgres")
-))]
 fn default_max_connections() -> u32 {
     20
 }

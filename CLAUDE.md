@@ -18,7 +18,6 @@ every session, so keep those lean). Do not add content here without removing som
 | Desktop/Tauri build or packaging | `hotel-desktop/BUILD_SPEED.md`, `hotel-desktop/UPDATER.md` |
 | Architecture overview / deployment / ADRs | `docs/architecture/architecture-flow.md`, `docs/guides/deployment.md`, `docs/architecture/ADRS.md` |
 | Architecture, dependency, caller, or change-impact question | `.claude/refs/codegraph.md` — use CodeGraph before broad repository searches |
-| Onboarding context from the 2026-07-05 Fable session | `.claude/refs/letter-to-future-sessions.md` |
 | Using Codex (OpenAI) for second opinions / cross-vendor review | `.claude/refs/codex-collab.md` |
 | Picking the next improvement / tech-debt work | `docs/ongoing-dev.md` |
 
@@ -29,7 +28,6 @@ This volume path contains a trailing space ("…EXTERNAL SSD ") — always quote
 
 Three-project monorepo; no root workspace — run commands from the subdirectory:
 
-- `hotel-app-be/` — Rust backend API (Axum + SQLx; dual PostgreSQL/SQLite via cargo features)
 - `hotel-web-fe/` — React 19 + TypeScript (Vite, MUI v7, TanStack Query + Router)
 - `hotel-desktop/` — Tauri 2 wrapper: backend as sidecar + embedded PostgreSQL under `src-tauri/pgsql/`
 
@@ -46,7 +44,6 @@ Backend (`hotel-app-be/`):
 cargo check --all-features                    # minimum bar before claiming done
 cargo clippy --all-features -- -D warnings    # what CI actually runs
 cargo run                                     # PostgreSQL mode, port 3030
-cargo run --features sqlite --no-default-features   # SQLite mode (DATABASE_PATH, default ./hotel_data.db)
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
 psql "$DATABASE_URL" -f database/postgres/data.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql                 # one-time V1 initialization
@@ -70,7 +67,7 @@ bun run desktop:prepare:force  # force resource/frontend/backend/sidecar refresh
 ```
 
 CI (`.github/workflows/ci.yml`, push/PR to master): FE typecheck+lint+test+build;
-BE check/clippy/build `--all-features -D warnings` + tests on both DBs + schema
+BE check/clippy/build `--all-features -D warnings` + PostgreSQL tests and schema
 smoke. The desktop job is only a `cargo check` with placeholder resources — a
 broken `tauri build` is NOT caught by CI.
 
@@ -81,22 +78,14 @@ Backend request flow: `routes/<domain>.rs` → auth middleware → `handlers/<do
 `repositories/` or inline SQL → `models/`. Key modules:
 - `routes/mod.rs::create_router` — ALL domain routers must be `.merge()`d here; wires CORS, rate limits, security headers.
 - `core/auth.rs` + `core/middleware.rs` — `require_auth(&headers)`; `check_permission(pool, user_id, "<resource>:<action>")`; `<resource>:manage` implies all actions of that resource.
-- `core/db.rs` — pool creation; on PostgreSQL sets per-connection timezone from `system_settings.timezone`; cross-DB value helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
-- `core/sql_compat.rs` — `sql_query!(postgres: …, sqlite: …)`, `param!(N)`, `current_timestamp()`, `current_date()`.
+- `core/db.rs` — PostgreSQL pool creation and database value helpers; each connection receives the timezone from `system_settings.timezone`.
 - `core/rate_limiter.rs` — in-memory rate limiting, injected as an Extension.
 - `services/audit.rs` — call from every mutating handler; `utils/sanitization.rs::Sanitizer` for free-text input; `utils/validation.rs` for shape validation.
 
-Dual-database contract (full checklist: `.claude/rules/00-diagnosis.md` Leak #2):
-one DB per production build (default `postgres`); every SQL change must compile
-under `--all-features`. PostgreSQL V1 = baseline migration, then `data.sql`,
-then `seed.sql`, exactly once for a new empty database; Docker and desktop use
-that same order and do not rerun it for existing V1 data. SQLite embeds the
-corresponding V1 baseline, data, and seed scripts and applies them once only to
-a new empty database. There is no SQLite legacy migration. Schema changes must
-touch BOTH database paths.
-Note: `hotel-desktop` does NOT use the sqlite feature (it ships embedded PostgreSQL);
-sqlite serves the standalone lightweight server mode and CI. Removal decided
-2026-07-08, execution pending — see `docs/ongoing-dev.md` (plan in `.claude/reports/`).
+PostgreSQL is the only database engine. Every SQL change must compile under
+`--all-features`. PostgreSQL V1 initialization is the baseline migration,
+`data.sql`, then `seed.sql`, exactly once for a new empty database. Docker and
+desktop use that same sequence.
 
 Frontend:
 - `src/features/<domain>/` feature modules; `src/api/*.service.ts` one per backend domain.
@@ -119,12 +108,11 @@ the backend as a permissive option but desktop does not use it.
 - Parameterize all SQL; never interpolate user input. Sanitize free text. Transactions for multi-step mutations.
 - Generic errors to clients; log specifics server-side.
 - FE: prefer MUI components; request/response types in `src/types/`.
-- Test backend query changes against both DBs (minimum: `cargo check --all-features`).
+- Test backend query changes with PostgreSQL (minimum: `cargo check --all-features`).
 
 ## Environment
 
 Required (see `hotel-app-be/.env.example`): `DATABASE_URL` (postgres) /
-`DATABASE_PATH` (sqlite), `JWT_SECRET` (≥32 chars), `BACKEND_PORT` (3030),
 `ALLOWED_ORIGINS` (comma-separated; `*` = permissive), `HOTEL_DESKTOP_MODE`,
 `VITE_API_URL` (optional build-time override; web defaults to dynamic same-origin
 routing and dev uses the Vite proxy). Optional pool/cache tuning

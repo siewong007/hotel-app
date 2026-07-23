@@ -163,7 +163,7 @@ async fn main() {
         }
         Err(e) => {
             log::error!("✗ Failed to create database pool: {}", e);
-            log::error!("DATABASE_URL configured: {}", config.database.url.is_some());
+            log::error!("DATABASE_URL configured: true");
             eprintln!("FATAL: Database connection failed: {}", e);
             std::process::exit(1);
         }

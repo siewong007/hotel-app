@@ -6,7 +6,7 @@ This file defines the working rules for Codex and other coding agents in this re
 
 This is a three-project monorepo. Each project has its own build system and should be worked on independently:
 
-- `hotel-app-be/` - Rust backend API using Axum + SQLx, with PostgreSQL and SQLite support via Cargo features.
+- `hotel-app-be/` - Rust backend API using Axum, SQLx, and PostgreSQL.
 - `hotel-web-fe/` - React 19 + TypeScript frontend using Vite, MUI v7, ky, and Zustand.
 - `hotel-desktop/` - Tauri 2 desktop wrapper that embeds the backend sidecar and bundled PostgreSQL resources for offline use.
 
@@ -86,9 +86,7 @@ Keep these existing global areas:
 - `services/audit.rs` for append-only audit logging.
 - `database/postgres/migrations/0001_v1_baseline.sql` for the PostgreSQL V1 baseline.
 - `database/postgres/data.sql` and `database/postgres/seed.sql` for one-time PostgreSQL initialization data.
-- `database/sqlite/migrations/0001_v1_baseline.sql`, `database/sqlite/data.sql`, and `database/sqlite/seed.sql` for the embedded SQLite V1 lifecycle.
 
-When schema changes are made, keep PostgreSQL and SQLite resources aligned or clearly document why they intentionally differ. V1 resources are clean baselines: do not reintroduce historical SQLite sections or startup seed/backfill reruns.
 
 ### Frontend
 
@@ -160,11 +158,9 @@ Do not manually edit synced desktop database resources without also checking the
 Add or update tests when refactoring:
 
 - Pure business logic.
-- SQL query builders and cross-database helpers.
+- SQL query builders and PostgreSQL helpers.
 - Date, money, status, permission, and validation logic.
 - Behavior around auth, 2FA, passkeys, eKYC documents, booking state transitions, payments, ledgers, and night audit.
-
-Use focused tests. Prefer unit tests for extracted pure helpers and services. Use SQLite integration tests for database behavior that can run locally without PostgreSQL.
 
 Useful commands:
 
@@ -175,11 +171,10 @@ cargo check --all-features
 cargo clippy --all-features -- -D warnings
 ```
 
-For SQL changes, verify both database modes when practical:
+For SQL changes, verify the PostgreSQL build:
 
 ```bash
 cargo check --all-features
-cargo check --features sqlite --no-default-features
 ```
 
 ### Frontend
@@ -279,17 +274,13 @@ CI runs on push/PR to `master`: frontend `tsc --noEmit` + Vite build, and backen
 - Log internal error details server-side but return generic client-facing errors where appropriate.
 - Respect dirty worktrees. Do not revert or overwrite changes you did not make.
 
-## Backend Dual-Database Contract
-
-The backend compiles for exactly one database at runtime. The default feature is PostgreSQL; SQLite is used for offline/test modes. CI may compile with `--all-features`.
+## Backend PostgreSQL Contract
 
 When writing SQL:
 
-- Use `param!(1)` / `param!(2)` or `sql_query!(postgres: "...", sqlite: "...")` instead of hand-building placeholders.
 - Use helpers from `core/sql_compat.rs` such as `current_timestamp()` and `current_date()` instead of hardcoded database-specific expressions when possible.
-- Use helpers in `core/db.rs` for database-specific value conversion such as decimals and UUID generation.
-- Keep PostgreSQL and SQLite schema expectations aligned.
-- Avoid duplicating long PostgreSQL and SQLite queries inline in handlers. Move them into repositories or query modules.
+- Use helpers in `core/db.rs` for value conversion such as decimals and UUID generation.
+- Keep SQL parameterized and use PostgreSQL `$N` placeholders.
 
 ## Existing Project Commands
 
@@ -300,7 +291,6 @@ cargo check --all-features
 cargo clippy --all-features -- -D warnings
 cargo build --release
 cargo run
-cargo run --features sqlite --no-default-features
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
 psql "$DATABASE_URL" -f database/postgres/data.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql
@@ -343,7 +333,6 @@ The desktop app ships embedded PostgreSQL resources under `src-tauri/pgsql/` and
 Required env vars are documented in `hotel-app-be/.env.example`:
 
 - `DATABASE_URL` - PostgreSQL DSN.
-- `DATABASE_PATH` - SQLite file path.
 - `JWT_SECRET` - at least 32 characters.
 - `BACKEND_PORT` - default 3030.
 - `ALLOWED_ORIGINS` - comma-separated origins.

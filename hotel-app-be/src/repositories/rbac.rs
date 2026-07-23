@@ -281,8 +281,7 @@ impl RbacRepository {
     pub async fn find_all_route_access_policies(
         pool: &DbPool,
     ) -> Result<Vec<RouteAccessPolicy>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT
                     route_id,
                     path,
@@ -297,24 +296,7 @@ impl RbacRepository {
                     is_navigation
                 FROM route_access_policies
                 ORDER BY route_id
-            "#,
-            sqlite: r#"
-                SELECT
-                    route_id,
-                    path,
-                    nav_label,
-                    nav_group,
-                    required_permissions,
-                    required_roles,
-                    excluded_roles,
-                    nav_permissions,
-                    nav_roles,
-                    nav_excluded_roles,
-                    is_navigation
-                FROM route_access_policies
-                ORDER BY route_id
-            "#
-        );
+            "#;
 
         let rows = sqlx::query_as::<_, RouteAccessPolicyRow>(query)
             .fetch_all(pool)
@@ -336,8 +318,7 @@ impl RbacRepository {
         let nav_roles = json_array(&input.nav_roles)?;
         let nav_excluded_roles = json_array(&input.nav_excluded_roles)?;
 
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 UPDATE route_access_policies
                 SET
                     nav_label = $2,
@@ -363,35 +344,7 @@ impl RbacRepository {
                     nav_roles::text AS nav_roles,
                     nav_excluded_roles::text AS nav_excluded_roles,
                     is_navigation
-            "#,
-            sqlite: r#"
-                UPDATE route_access_policies
-                SET
-                    nav_label = ?2,
-                    nav_group = ?3,
-                    required_permissions = ?4,
-                    required_roles = ?5,
-                    excluded_roles = ?6,
-                    nav_permissions = ?7,
-                    nav_roles = ?8,
-                    nav_excluded_roles = ?9,
-                    is_navigation = ?10,
-                    updated_at = datetime('now')
-                WHERE route_id = ?1
-                RETURNING
-                    route_id,
-                    path,
-                    nav_label,
-                    nav_group,
-                    required_permissions,
-                    required_roles,
-                    excluded_roles,
-                    nav_permissions,
-                    nav_roles,
-                    nav_excluded_roles,
-                    is_navigation
-            "#
-        );
+            "#;
 
         let row = sqlx::query_as::<_, RouteAccessPolicyRow>(query)
             .bind(route_id)
@@ -432,10 +385,7 @@ impl RbacRepository {
     }
 
     pub async fn role_priority(pool: &DbPool, role_id: i64) -> Result<Option<i64>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: "SELECT priority::BIGINT FROM roles WHERE id = $1",
-            sqlite: "SELECT priority FROM roles WHERE id = ?1"
-        );
+        let query = "SELECT priority::BIGINT FROM roles WHERE id = $1";
 
         sqlx::query_scalar(query)
             .bind(role_id)
@@ -445,20 +395,12 @@ impl RbacRepository {
     }
 
     pub async fn max_role_priority_for_user(pool: &DbPool, user_id: i64) -> Result<i64, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT COALESCE(MAX(r.priority), 0)::BIGINT
                 FROM roles r
                 JOIN user_roles ur ON r.id = ur.role_id
                 WHERE ur.user_id = $1
-            "#,
-            sqlite: r#"
-                SELECT COALESCE(MAX(r.priority), 0)
-                FROM roles r
-                JOIN user_roles ur ON r.id = ur.role_id
-                WHERE ur.user_id = ?1
-            "#
-        );
+            "#;
 
         sqlx::query_scalar(query)
             .bind(user_id)
@@ -570,8 +512,7 @@ impl RbacRepository {
         username: Option<&str>,
         email: Option<&str>,
     ) -> Result<bool, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id
                 FROM users
                 WHERE deleted_at IS NULL
@@ -581,19 +522,7 @@ impl RbacRepository {
                     OR ($3::text IS NOT NULL AND email = $3)
                   )
                 LIMIT 1
-            "#,
-            sqlite: r#"
-                SELECT id
-                FROM users
-                WHERE deleted_at IS NULL
-                  AND id != ?1
-                  AND (
-                    (?2 IS NOT NULL AND username = ?2)
-                    OR (?3 IS NOT NULL AND email = ?3)
-                  )
-                LIMIT 1
-            "#
-        );
+            "#;
 
         let id: Option<i64> = sqlx::query_scalar(query)
             .bind(user_id)
@@ -612,8 +541,7 @@ impl RbacRepository {
         input: &UserUpdateInput,
         password_hash: Option<&str>,
     ) -> Result<User, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 UPDATE users
                 SET username = COALESCE($2, username),
                     email = COALESCE($3, email),
@@ -626,22 +554,7 @@ impl RbacRepository {
                 RETURNING id, username, email, full_name, phone, is_active, is_verified,
                           user_type, two_factor_enabled, two_factor_secret,
                           two_factor_recovery_codes, created_at, updated_at
-            "#,
-            sqlite: r#"
-                UPDATE users
-                SET username = COALESCE(?2, username),
-                    email = COALESCE(?3, email),
-                    full_name = COALESCE(?4, full_name),
-                    phone = COALESCE(?5, phone),
-                    is_active = COALESCE(?6, is_active),
-                    password_hash = COALESCE(?7, password_hash),
-                    updated_at = datetime('now')
-                WHERE id = ?1 AND deleted_at IS NULL
-                RETURNING id, username, email, full_name, phone, is_active, is_verified,
-                          user_type, two_factor_enabled, two_factor_secret,
-                          two_factor_recovery_codes, created_at, updated_at
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, User>(query)
             .bind(user_id)
@@ -658,26 +571,14 @@ impl RbacRepository {
     }
 
     pub async fn soft_delete_user(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
-        let delete_roles_query = crate::sql_query!(
-            postgres: "DELETE FROM user_roles WHERE user_id = $1",
-            sqlite: "DELETE FROM user_roles WHERE user_id = ?1"
-        );
-        let delete_user_query = crate::sql_query!(
-            postgres: r#"
+        let delete_roles_query = "DELETE FROM user_roles WHERE user_id = $1";
+        let delete_user_query = r#"
                 UPDATE users
                 SET is_active = false,
                     deleted_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1 AND deleted_at IS NULL
-            "#,
-            sqlite: r#"
-                UPDATE users
-                SET is_active = 0,
-                    deleted_at = datetime('now'),
-                    updated_at = datetime('now')
-                WHERE id = ?1 AND deleted_at IS NULL
-            "#
-        );
+            "#;
 
         let mut tx = pool
             .begin()

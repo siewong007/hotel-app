@@ -41,7 +41,7 @@ What happened instead?
 | Browser |  |
 | Node.js version |  |
 | Rust version |  |
-| Database mode | PostgreSQL / SQLite |
+| Database | PostgreSQL |
 | App mode | Web / Desktop |
 
 ## Logs or Screenshots

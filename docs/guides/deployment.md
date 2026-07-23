@@ -124,7 +124,6 @@ sudo -u postgres psql -c "CREATE DATABASE hotel_management OWNER hotel_admin;"
 Then run the V1 init sequence from [Database Setup](#database-setup) below
 (baseline → data → seed, once only), prefixing each with
 `PGPASSWORD=strong_password psql -h localhost -U hotel_admin -d hotel_management -f`.
-No SQLite legacy migration is supported.
 
 #### 2. Backend Deployment
 
@@ -291,13 +290,10 @@ database), see
 [`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md) —
 it is the canonical database lifecycle reference.
 
-### SQLite Setup (Desktop/Offline)
 
-SQLite is initialized automatically when running in SQLite mode:
 
 ```bash
 cd hotel-app-be
-DATABASE_PATH=./hotel_data.db JWT_SECRET="your-secret" cargo run --features sqlite --no-default-features
 ```
 
 The bootstrap seed deliberately does not install a shared usable password.
@@ -390,10 +386,8 @@ psql -h localhost -U hotel_admin hotel_management < /backups/hotel_20250101.sql 
 
 ### Desktop Data Backup
 
-For desktop mode, back up the SQLite database file and the PostgreSQL data directory:
 
 ```bash
-cp ./hotel_data.db ./backups/hotel_data_$(date +%Y%m%d).db      # SQLite
 cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)   # PostgreSQL (desktop mode)
 ```
 

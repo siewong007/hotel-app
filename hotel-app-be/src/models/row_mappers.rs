@@ -1,6 +1,4 @@
-//! SQLite-specific row mapping helpers
 //!
-//! SQLite doesn't natively support Decimal types, so we need manual row mapping
 //! for models that contain Decimal fields when using `sqlx::query()` instead of `query_as`.
 
 use chrono::{NaiveDate, NaiveDateTime, Utc};
@@ -10,11 +8,9 @@ use sqlx::Row;
 use crate::core::db::DbRow;
 
 // =============================================================================
-// Helper functions for reading Decimal values from SQLite rows
 // =============================================================================
 
 /// Read a required Decimal field from a PostgreSQL row.
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
     row.try_get::<Decimal, _>(col)
         .ok()
@@ -32,30 +28,7 @@ pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
         .unwrap_or_default()
 }
 
-/// Read a required Decimal field from a SQLite row.
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
-    row.try_get::<String, _>(col)
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .or_else(|| {
-            row.try_get::<f64, _>(col)
-                .ok()
-                .and_then(Decimal::from_f64_retain)
-        })
-        .or_else(|| {
-            // NUMERIC-affinity columns (e.g. DECIMAL(10,2) like the
-            // customer_ledgers.balance_due generated column) store whole
-            // numbers under SQLite's INTEGER storage class, which sqlx
-            // refuses to decode as String or f64 — without this branch a
-            // round-number balance silently reads as zero.
-            row.try_get::<i64, _>(col).ok().map(Decimal::from)
-        })
-        .unwrap_or_default()
-}
-
 /// Read an optional Decimal field from a PostgreSQL row.
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
     row.try_get::<Option<Decimal>, _>(col)
         .ok()
@@ -75,54 +48,11 @@ pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
         })
 }
 
-/// Read an optional Decimal field from a SQLite row.
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
-    row.try_get::<Option<String>, _>(col)
-        .ok()
-        .flatten()
-        .and_then(|s| s.parse().ok())
-        .or_else(|| {
-            row.try_get::<Option<f64>, _>(col)
-                .ok()
-                .flatten()
-                .and_then(Decimal::from_f64_retain)
-        })
-        .or_else(|| {
-            // See get_decimal: INTEGER storage class for whole-number
-            // NUMERIC values needs an explicit i64 branch.
-            row.try_get::<Option<i64>, _>(col)
-                .ok()
-                .flatten()
-                .map(Decimal::from)
-        })
-}
-
-/// Read a required bool field (SQLite stores as INTEGER 0/1)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub fn get_bool(row: &DbRow, col: &str) -> bool {
-    row.try_get::<i32, _>(col)
-        .map(|v| v != 0)
-        .or_else(|_| row.try_get::<bool, _>(col))
-        .unwrap_or(false)
-}
-
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub fn get_bool(row: &DbRow, col: &str) -> bool {
     row.try_get::<bool, _>(col).unwrap_or(false)
 }
 
 /// Read an optional bool field
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub fn get_opt_bool(row: &DbRow, col: &str) -> Option<bool> {
-    row.try_get::<Option<i32>, _>(col)
-        .ok()
-        .flatten()
-        .map(|v| v != 0)
-        .or_else(|| row.try_get::<Option<bool>, _>(col).ok().flatten())
-}
-
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub fn get_opt_bool(row: &DbRow, col: &str) -> Option<bool> {
     row.try_get::<Option<bool>, _>(col).ok().flatten()
 }
@@ -272,7 +202,6 @@ use super::payment::{Invoice, KeycardDeposit, Payment};
 // the per-payment breakdown, so `subtotal`/`service_charge`/`tax_amount`/
 // `keycard_deposit` are always `Decimal::ZERO` here and `total_amount` carries
 // the stored `amount`. The `transaction_reference`/`notes` source column names
-// differ by database (postgres: `transaction_id`/`notes`; sqlite:
 // `reference_number`/`description`), so both are attempted. `bank_name`/
 // `account_reference` have no column in either schema and are always `None`.
 pub fn row_to_payment(row: &DbRow) -> Payment {

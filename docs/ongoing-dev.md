@@ -9,7 +9,6 @@ Single live tracker for open work. Replaces the deleted enhancement docs
 - Master CI red: `checkin_booking_flow` fixture missing IC/passport number (10+ test files).
 - PII in git history: 3 eKYC ID-document JPGs under `uploads/` (needs `git filter-repo`; user call).
 - CI lint breaker: `OnlineInventoryPage.tsx:22` banned `toISOString().slice` → use `formatLocalDate()`.
-- `guest_portal.rs`: 5 literal `$1` sites need `param!`/`sql_query!` (dual-DB break).
 - Guest-portal mutations missing audit logging (`verify_guest_booking`, `submit_precheckin_update`, `auto_checkin`).
 - Payments endpoints: 13 handlers login-only, no `check_permission` (RBAC gap).
 - Bump `ammonia` ≥ 4.1.3 (RUSTSEC-2026-0193 mXSS bypass).
@@ -18,11 +17,10 @@ Single live tracker for open work. Replaces the deleted enhancement docs
 
 ## P1 — decided, not yet executed
 
-- SQLite removal (decided 2026-07-08) — plan: `.claude/reports/plan-remove-sqlite-2026-07-08.md`.
-- Guest email notifications v1 — plan: `.claude/reports/guest-notifications-plan-2026-07-12.md`; blocked on decisions below.
+- Guest email notifications v1 — implementation decisions are listed below.
 - N+1 on `GET /bookings`: batch the per-booking eKYC summary query.
 - Unit tests: auth session flow (login/JWT/refresh-cookie/logout) + invoice-number generation.
-- `services/rooms.rs`: ~90 inline `sqlx::query` calls unaudited for dual-DB divergence.
+- `services/rooms.rs`: audit and consolidate roughly 90 inline `sqlx::query` calls.
 - Eliminate runtime `SELECT *` (61 hits across repos).
 - CI hardening: branch protection on master, `lint:strict`, vitest coverage threshold, dependency audit; prove `desktop-build.yml` with a `workflow_dispatch` run.
 - Delete dead duplicate `src/routes/ekyc.rs` (never merged).

@@ -314,17 +314,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Room {
             id: row.try_get("id")?,
             room_number: row.try_get("room_number")?,
             room_type: row.try_get("room_type")?,
-            price_per_night: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("price_per_night")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("price_per_night")?;
-                val
-            },
+            price_per_night: { row.try_get("price_per_night")? },
             available: row.try_get("available")?,
             status: row.try_get("status")?,
             description: row.try_get("description")?,
@@ -344,17 +334,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomWithRating {
             id: row.try_get("id")?,
             room_number: row.try_get("room_number")?,
             room_type: row.try_get("room_type")?,
-            price_per_night: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("price_per_night")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("price_per_night")?;
-                val
-            },
+            price_per_night: { row.try_get("price_per_night")? },
             available: row.try_get("available")?,
             status: row.try_get("status")?,
             description: row.try_get("description")?,
@@ -383,78 +363,12 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for GuestReview {
             guest_id: row.try_get("guest_id")?,
             guest_name: row.try_get("guest_name")?,
             room_type_id: row.try_get("room_type_id")?,
-            overall_rating: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("overall_rating")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("overall_rating")?;
-                val
-            },
-            cleanliness_rating: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("cleanliness_rating")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("cleanliness_rating")?;
-                val
-            },
-            staff_rating: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("staff_rating")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("staff_rating")?;
-                val
-            },
-            facilities_rating: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("facilities_rating")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("facilities_rating")?;
-                val
-            },
-            value_rating: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("value_rating")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("value_rating")?;
-                val
-            },
-            location_rating: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("location_rating")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("location_rating")?;
-                val
-            },
+            overall_rating: { row.try_get("overall_rating")? },
+            cleanliness_rating: { row.try_get("cleanliness_rating")? },
+            staff_rating: { row.try_get("staff_rating")? },
+            facilities_rating: { row.try_get("facilities_rating")? },
+            value_rating: { row.try_get("value_rating")? },
+            location_rating: { row.try_get("location_rating")? },
             title: row.try_get("title")?,
             review_text: row.try_get("review_text")?,
             pros: row.try_get("pros")?,
@@ -476,56 +390,15 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomType {
             name: row.try_get("name")?,
             code: row.try_get("code")?,
             description: row.try_get("description")?,
-            base_price: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("base_price")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("base_price")?;
-                val
-            },
-            weekday_rate: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("weekday_rate")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("weekday_rate")?;
-                val
-            },
-            weekend_rate: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("weekend_rate")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("weekend_rate")?;
-                val
-            },
+            base_price: { row.try_get("base_price")? },
+            weekday_rate: { row.try_get("weekday_rate")? },
+            weekend_rate: { row.try_get("weekend_rate")? },
             max_occupancy: row.try_get("max_occupancy")?,
             bed_type: row.try_get("bed_type")?,
             bed_count: row.try_get("bed_count")?,
             allows_extra_bed: row.try_get("allows_extra_bed")?,
             max_extra_beds: row.try_get("max_extra_beds")?,
-            extra_bed_charge: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("extra_bed_charge")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("extra_bed_charge")?;
-                val
-            },
+            extra_bed_charge: { row.try_get("extra_bed_charge")? },
             is_active: row.try_get("is_active")?,
             sort_order: row.try_get("sort_order")?,
             created_at: row.try_get("created_at")?,
@@ -548,18 +421,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomCurrentOccupancy {
             current_children: row.try_get("current_children")?,
             current_infants: row.try_get("current_infants")?,
             current_total_guests: row.try_get("current_total_guests")?,
-            occupancy_percentage: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("occupancy_percentage")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("occupancy_percentage")?;
-                val
-            },
+            occupancy_percentage: { row.try_get("occupancy_percentage")? },
             current_booking_id: row.try_get("current_booking_id")?,
             current_booking_number: row.try_get("current_booking_number")?,
             current_guest_id: row.try_get("current_guest_id")?,
@@ -577,35 +439,13 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for HotelOccupancySummary {
             total_rooms: row.try_get("total_rooms")?,
             occupied_rooms: row.try_get("occupied_rooms")?,
             available_rooms: row.try_get("available_rooms")?,
-            occupancy_rate: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("occupancy_rate")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("occupancy_rate")?;
-                val
-            },
+            occupancy_rate: { row.try_get("occupancy_rate")? },
             total_adults: row.try_get("total_adults")?,
             total_children: row.try_get("total_children")?,
             total_infants: row.try_get("total_infants")?,
             total_guests: row.try_get("total_guests")?,
             total_capacity: row.try_get("total_capacity")?,
-            guest_occupancy_rate: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("guest_occupancy_rate")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("guest_occupancy_rate")?;
-                val
-            },
+            guest_occupancy_rate: { row.try_get("guest_occupancy_rate")? },
         })
     }
 }
@@ -619,32 +459,10 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for OccupancyByRoomType {
             capacity_per_room: row.try_get("capacity_per_room")?,
             total_rooms: row.try_get("total_rooms")?,
             occupied_rooms: row.try_get("occupied_rooms")?,
-            room_occupancy_rate: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("room_occupancy_rate")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("room_occupancy_rate")?;
-                val
-            },
+            room_occupancy_rate: { row.try_get("room_occupancy_rate")? },
             total_guests: row.try_get("total_guests")?,
             total_capacity: row.try_get("total_capacity")?,
-            guest_occupancy_rate: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("guest_occupancy_rate")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("guest_occupancy_rate")?;
-                val
-            },
+            guest_occupancy_rate: { row.try_get("guest_occupancy_rate")? },
         })
     }
 }

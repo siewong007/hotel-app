@@ -317,7 +317,6 @@ fn commission_for_row(
     )
 }
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn map_posted_row(row: &DbRow) -> RawRevenueRow {
     RawRevenueRow {
         booking_id: row.get("booking_id"),
@@ -400,7 +399,6 @@ fn map_unposted_row(row: &DbRow, tax_rate: Decimal) -> RawRevenueRow {
     }
 }
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 async fn fetch_posted_rows(
     pool: &DbPool,
     start_date: NaiveDate,
@@ -450,16 +448,6 @@ async fn fetch_posted_rows(
     Ok(rows.iter().map(map_posted_row).collect())
 }
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-async fn fetch_posted_rows(
-    _pool: &DbPool,
-    _start_date: NaiveDate,
-    _end_date: NaiveDate,
-) -> Result<Vec<RawRevenueRow>, ApiError> {
-    Ok(Vec::new())
-}
-
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 async fn fetch_unposted_rows(
     pool: &DbPool,
     start_date: NaiveDate,
@@ -533,82 +521,6 @@ async fn fetch_unposted_rows(
             WHERE napn.booking_id = b.id
               AND napn.audit_date = b.business_date
         )
-        ORDER BY b.business_date, b.booking_number, r.room_number
-        "#,
-    )
-    .bind(start_date)
-    .bind(end_date)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(rows
-        .iter()
-        .map(|row| map_unposted_row(row, tax_rate))
-        .collect())
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-async fn fetch_unposted_rows(
-    pool: &DbPool,
-    start_date: NaiveDate,
-    end_date: NaiveDate,
-    tax_rate: Decimal,
-) -> Result<Vec<RawRevenueRow>, ApiError> {
-    let rows = sqlx::query(
-        r#"
-        WITH RECURSIVE booking_nights AS (
-            SELECT
-                b.*,
-                CASE WHEN b.check_in_date > ?1 THEN b.check_in_date ELSE ?1 END AS business_date,
-                CASE
-                    WHEN b.check_out_date > b.check_in_date THEN date(b.check_out_date, '-1 day')
-                    ELSE b.check_in_date
-                END AS last_night
-            FROM bookings b
-            WHERE b.check_in_date <= ?2
-              AND (
-                    CASE
-                        WHEN b.check_out_date > b.check_in_date THEN date(b.check_out_date, '-1 day')
-                        ELSE b.check_in_date
-                    END
-                  ) >= ?1
-              AND COALESCE(b.status, '') NOT IN ('voided', 'comp_void', 'no_show')
-            UNION ALL
-            SELECT
-                booking_nights.*,
-                date(booking_nights.business_date, '+1 day') AS business_date,
-                booking_nights.last_night
-            FROM booking_nights
-            WHERE booking_nights.business_date < booking_nights.last_night
-              AND booking_nights.business_date < ?2
-        )
-        SELECT
-            b.id AS booking_id,
-            COALESCE(b.booking_number, CAST(b.id AS TEXT)) AS booking_number,
-            b.ota_reference,
-            COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(g.first_name || ' ' || g.last_name), ''), 'Guest') AS guest_name,
-            r.room_number,
-            COALESCE(rt.name, 'Unknown') AS room_type,
-            b.check_in_date,
-            b.check_out_date,
-            b.business_date,
-            COALESCE(b.status, 'unknown') AS booking_status,
-            b.source,
-            b.booking_remarks AS remarks,
-            b.booking_channel_id,
-            b.commission_type_override,
-            b.commission_value_override,
-            b.commission_scope_override,
-            NULL AS legacy_commission_rate,
-            b.rate_per_night AS nightly_rate,
-            0 AS extra_bed_charge,
-            0 AS tourism_tax,
-            MAX(CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER), 1) AS stay_nights
-        FROM booking_nights b
-        JOIN guests g ON g.id = b.guest_id
-        JOIN rooms r ON r.id = b.room_id
-        LEFT JOIN room_types rt ON rt.id = r.room_type_id
         ORDER BY b.business_date, b.booking_number, r.room_number
         "#,
     )
@@ -700,7 +612,6 @@ fn month_year_label(date: NaiveDate) -> String {
     format!("{} {}", month, date.year())
 }
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 async fn fetch_statement_posted_rows(
     pool: &DbPool,
     start_date: NaiveDate,
@@ -750,16 +661,6 @@ async fn fetch_statement_posted_rows(
     Ok(rows.iter().map(map_posted_row).collect())
 }
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-async fn fetch_statement_posted_rows(
-    _pool: &DbPool,
-    _start_date: NaiveDate,
-    _end_date: NaiveDate,
-) -> Result<Vec<RawRevenueRow>, ApiError> {
-    Ok(Vec::new())
-}
-
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 async fn fetch_statement_unposted_rows(
     pool: &DbPool,
     start_date: NaiveDate,
@@ -825,76 +726,6 @@ async fn fetch_statement_unposted_rows(
             WHERE napn.booking_id = b.id
               AND napn.audit_date = b.business_date
         )
-        ORDER BY b.check_out_date, b.booking_number, b.business_date
-        "#,
-    )
-    .bind(start_date)
-    .bind(end_date)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(rows
-        .iter()
-        .map(|row| map_unposted_row(row, tax_rate))
-        .collect())
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-async fn fetch_statement_unposted_rows(
-    pool: &DbPool,
-    start_date: NaiveDate,
-    end_date: NaiveDate,
-    tax_rate: Decimal,
-) -> Result<Vec<RawRevenueRow>, ApiError> {
-    let rows = sqlx::query(
-        r#"
-        WITH RECURSIVE booking_nights AS (
-            SELECT
-                b.*,
-                b.check_in_date AS business_date,
-                CASE
-                    WHEN b.check_out_date > b.check_in_date THEN date(b.check_out_date, '-1 day')
-                    ELSE b.check_in_date
-                END AS last_night
-            FROM bookings b
-            WHERE b.check_out_date >= ?1
-              AND b.check_out_date <= ?2
-              AND COALESCE(b.status, '') IN ('checked_out', 'completed')
-            UNION ALL
-            SELECT
-                booking_nights.*,
-                date(booking_nights.business_date, '+1 day') AS business_date,
-                booking_nights.last_night
-            FROM booking_nights
-            WHERE booking_nights.business_date < booking_nights.last_night
-        )
-        SELECT
-            b.id AS booking_id,
-            COALESCE(b.booking_number, CAST(b.id AS TEXT)) AS booking_number,
-            b.ota_reference,
-            COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(g.first_name || ' ' || g.last_name), ''), 'Guest') AS guest_name,
-            r.room_number,
-            COALESCE(rt.name, 'Unknown') AS room_type,
-            b.check_in_date,
-            b.check_out_date,
-            b.business_date,
-            COALESCE(b.status, 'unknown') AS booking_status,
-            b.source,
-            b.booking_remarks AS remarks,
-            b.booking_channel_id,
-            b.commission_type_override,
-            b.commission_value_override,
-            b.commission_scope_override,
-            NULL AS legacy_commission_rate,
-            b.rate_per_night AS nightly_rate,
-            0 AS extra_bed_charge,
-            0 AS tourism_tax,
-            MAX(CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER), 1) AS stay_nights
-        FROM booking_nights b
-        JOIN guests g ON g.id = b.guest_id
-        JOIN rooms r ON r.id = b.room_id
-        LEFT JOIN room_types rt ON rt.id = r.room_type_id
         ORDER BY b.check_out_date, b.booking_number, b.business_date
         "#,
     )

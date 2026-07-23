@@ -1,26 +1,19 @@
-# Hotel App Database Resources
+# Hotel App PostgreSQL Resources
 
-Database resources are versioned by engine. V1 is the only active schema
-version for both PostgreSQL and SQLite.
+PostgreSQL is the application's only database engine.
 
 ```text
-database/
-├── postgres/
-│   ├── migrations/0001_v1_baseline.sql
-│   ├── data.sql
-│   ├── seed.sql
-│   ├── upgrade/pg18_4_to_v1.sql
-│   └── optimization/pg19_beta2*.sql
-└── sqlite/
-    ├── migrations/0001_v1_baseline.sql
-    ├── data.sql
-    └── seed.sql
+database/postgres/
+├── migrations/0001_v1_baseline.sql
+├── data.sql
+├── seed.sql
+├── upgrade/pg18_4_to_v1.sql
+└── optimization/pg19_beta2*.sql
 ```
 
 ## V1 lifecycle
 
-For a new PostgreSQL database, execute these files once and in this exact
-order:
+For a new PostgreSQL database, execute these files once in order:
 
 ```bash
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
@@ -29,31 +22,16 @@ psql "$DATABASE_URL" -f database/postgres/seed.sql
 ```
 
 `data.sql` creates required system and reference records. `seed.sql` creates
-fresh-install bootstrap records. Neither is a startup task and neither should
-be rerun against an existing V1 database.
+fresh-install bootstrap records. Neither file is a startup task or safe to
+rerun against an existing V1 database.
 
-SQLite embeds the equivalent V1 baseline, data, and seed resources in the
-backend. They execute together only when a new empty SQLite database is first
-opened. Existing V1 SQLite databases are verified and left unchanged. There is
-no SQLite legacy migration or adoption flow.
-
-V1 identifies the lifecycle version, not byte-for-byte engine parity. SQLite
-keeps the application's lightweight/offline table shapes where handlers use
-engine-specific SQL, while PostgreSQL keeps server-only operational models and
-partitioning. `scripts/check-schema-drift.mjs` therefore remains a review
-report for known engine differences; new domain changes must align both engines
-or document an intentional exception instead of copying PostgreSQL DDL blindly.
-
-`postgres/upgrade/pg18_4_to_v1.sql` is legacy — kept only because
-`tests/status_vocabulary.rs`, the `db-upgrade-pg18_4-to-v1` Make target, and
-desktop recovery messaging reference it. New deployments start at V1 on
-PostgreSQL 19; do not use that script for anything else.
+`postgres/upgrade/pg18_4_to_v1.sql` is retained only for the controlled legacy
+upgrade path referenced by `tests/status_vocabulary.rs`, the
+`db-upgrade-pg18_4-to-v1` Make target, and desktop recovery messaging.
 
 ## PostgreSQL 19 Beta 2 optimization
 
-`postgres/optimization/pg19_beta2.sql` is an opt-in, benchmark-gated profile
-for physical storage, statistics, and autovacuum. Use its matching benchmark
-and rollback files to measure a development workload before retaining it:
+The files under `postgres/optimization/` are opt-in, benchmark-gated profiles:
 
 ```bash
 make db-pg19-tune DATABASE_URL="$DATABASE_URL"
@@ -65,8 +43,7 @@ PostgreSQL 19 Beta 2 is prerelease software for testing, not production.
 
 ## Docker and desktop
 
-The Docker entrypoint and desktop resource bundle use the same V1 sequence:
-baseline, data, then seed, only for a new empty database. The desktop launcher
-does not alter a non-empty, unversioned database; recovering one is a manual,
-backup-first operation. Optimization scripts are
-never bundled or applied automatically.
+Docker and desktop bundles use the same V1 sequence: baseline, data, then seed,
+only for a new empty PostgreSQL database. The desktop launcher does not alter a
+non-empty unversioned database. Recovery is a manual, backup-first operation.
+Optimization scripts are never bundled or applied automatically.

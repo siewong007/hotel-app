@@ -2,9 +2,8 @@
 //!
 //! This test is intentionally opt-in through `DATABASE_URL`, matching the
 //! existing PostgreSQL workflow tests. It exercises the production `$N`
-//! placeholder path rather than only the SQLite harness.
+//! placeholder path.
 
-#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
 mod postgres_tests {
     use chrono::Utc;
     use hotel_app_be::repositories::guest_portal_session::GuestPortalSessionRepository;

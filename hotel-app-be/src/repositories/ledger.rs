@@ -7,8 +7,6 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 
 use crate::core::db::DbPool;
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-use crate::core::db::{decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::row_mappers::{
@@ -44,7 +42,6 @@ async fn default_payment_terms_days(pool: &DbPool) -> i64 {
 // the `invoice_state`, `balance_state`, and `ui_status` filters surfaced by the
 // Customer Ledger UI (the "Uninvoiced / Outstanding / Invoiced / Paid / Overdue
 // / Voided" buttons). They are extracted into pure functions so the exact SQL
-// can be exercised by unit tests and so the PostgreSQL and SQLite query builders
 // share one source of truth.
 //
 // `null_expr` is the placeholder used for the "filter not set" check (it carries
@@ -95,26 +92,7 @@ pub fn ui_status_clause(null_expr: &str, p: &str, today: &str) -> String {
     )
 }
 
-// SQLite query for getting ledger by ID
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const GET_LEDGER_BY_ID_QUERY: &str = r#"
-    SELECT id, company_name, company_registration_number, contact_person,
-        contact_email, contact_phone, billing_address_line1, billing_city,
-        billing_state, billing_postal_code, billing_country, description,
-        expense_type, amount, currency, status, paid_amount, balance_due,
-        payment_method, payment_reference, payment_date, booking_id, guest_id,
-        invoice_number, invoice_date, due_date, notes, internal_notes,
-        created_by, updated_by, created_at, updated_at,
-        folio_number, folio_type, transaction_type, post_type, department_code,
-        transaction_code, room_number, posting_date, transaction_date,
-        reference_number, cashier_id, is_reversal, original_transaction_id,
-        reversal_reason, tax_amount, service_charge, net_amount,
-        is_posted, posted_at, void_at, void_by, void_reason
-    FROM customer_ledgers WHERE id = ?1
-"#;
-
 // PostgreSQL query for getting ledger by ID
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const GET_LEDGER_BY_ID_QUERY: &str = r#"
     SELECT id, company_name, company_registration_number, contact_person,
         contact_email, contact_phone, billing_address_line1, billing_city,
@@ -131,18 +109,7 @@ const GET_LEDGER_BY_ID_QUERY: &str = r#"
     FROM customer_ledgers WHERE id = $1
 "#;
 
-// SQLite query for getting ledger payments
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const GET_LEDGER_PAYMENTS_QUERY: &str = r#"
-    SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
-           payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
-    FROM customer_ledger_payments
-    WHERE ledger_id = ?1
-    ORDER BY payment_date DESC
-"#;
-
 // PostgreSQL query for getting ledger payments
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const GET_LEDGER_PAYMENTS_QUERY: &str = r#"
     SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
            payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
@@ -151,61 +118,27 @@ const GET_LEDGER_PAYMENTS_QUERY: &str = r#"
     ORDER BY payment_date DESC
 "#;
 
-// SQLite query for checking ledger exists
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const CHECK_LEDGER_EXISTS_QUERY: &str = "SELECT 1 FROM customer_ledgers WHERE id = ?1";
-
 // PostgreSQL query for checking ledger exists
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const CHECK_LEDGER_EXISTS_QUERY: &str =
     "SELECT EXISTS(SELECT 1 FROM customer_ledgers WHERE id = $1)";
 
-// SQLite query for getting ledger status and paid_amount
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const GET_LEDGER_STATUS_QUERY: &str =
-    "SELECT status, paid_amount FROM customer_ledgers WHERE id = ?1";
-
 // PostgreSQL query for getting ledger status and paid_amount
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const GET_LEDGER_STATUS_QUERY: &str =
     "SELECT status, paid_amount FROM customer_ledgers WHERE id = $1";
 
-// SQLite query for deleting ledger payments
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const DELETE_LEDGER_PAYMENTS_QUERY: &str =
-    "DELETE FROM customer_ledger_payments WHERE ledger_id = ?1";
-
 // PostgreSQL query for deleting ledger payments
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const DELETE_LEDGER_PAYMENTS_QUERY: &str =
     "DELETE FROM customer_ledger_payments WHERE ledger_id = $1";
 
-// SQLite query for deleting ledger
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = ?1";
-
 // PostgreSQL query for deleting ledger
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = $1";
 
-// SQLite query for getting ledger info for payment
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
-    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = ?1";
-
 // PostgreSQL query for getting ledger info for payment
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
     "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1";
 
-// SQLite query for checking if ledger is voided
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const CHECK_LEDGER_VOIDED_QUERY: &str =
-    "SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = ?1";
-
 // PostgreSQL query for checking if ledger is voided
 #[allow(dead_code)]
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const CHECK_LEDGER_VOIDED_QUERY: &str =
     "SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1";
 
@@ -272,27 +205,7 @@ pub async fn list_customer_ledgers(
 
     // Build queries dynamically so we can inject the safe ORDER BY and the
     // optional search clause. All user-supplied values still go through bindings.
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let (count_sql, data_sql) = {
-        let search_clause = if search.is_some() {
-            "AND (?8 IS NULL OR (CAST(id AS TEXT) LIKE '%' || ?8 || '%' OR company_name LIKE '%' || ?8 || '%' OR description LIKE '%' || ?8 || '%' OR COALESCE(invoice_number,'') LIKE '%' || ?8 || '%' OR COALESCE(folio_number,'') LIKE '%' || ?8 || '%' OR COALESCE(contact_person,'') LIKE '%' || ?8 || '%' OR EXISTS (SELECT 1 FROM bookings b WHERE b.id = customer_ledgers.booking_id AND b.booking_number LIKE '%' || ?8 || '%')))"
-        } else {
-            "AND (?8 IS NULL OR 1=1)"
-        };
-        let invoice_clause = invoice_state_clause("?9", "?9");
-        let balance_clause = balance_state_clause("?10", "?10", "date('now')");
-        let ui_clause = ui_status_clause("?11", "?11", "date('now')");
-        let base_where = format!(
-            "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause} {invoice_clause} {balance_clause} {ui_clause}"
-        );
-        let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
-        let data = format!(
-            "SELECT id, company_name, company_registration_number, contact_person, contact_email, contact_phone, billing_address_line1, billing_city, billing_state, billing_postal_code, billing_country, description, expense_type, amount, currency, status, paid_amount, balance_due, payment_method, payment_reference, payment_date, booking_id, guest_id, invoice_number, invoice_date, due_date, notes, internal_notes, created_by, updated_by, created_at, updated_at, folio_number, folio_type, transaction_type, post_type, department_code, transaction_code, room_number, posting_date, transaction_date, reference_number, cashier_id, is_reversal, original_transaction_id, reversal_reason, tax_amount, service_charge, net_amount, is_posted, posted_at, void_at, void_by, void_reason FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT ?12 OFFSET ?13"
-        );
-        (count, data)
-    };
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let (count_sql, data_sql) = {
         let search_clause = if search.is_some() {
             "AND ($8::text IS NULL OR (CAST(id AS TEXT) ILIKE '%' || $8 || '%' OR company_name ILIKE '%' || $8 || '%' OR description ILIKE '%' || $8 || '%' OR COALESCE(invoice_number,'') ILIKE '%' || $8 || '%' OR COALESCE(folio_number,'') ILIKE '%' || $8 || '%' OR COALESCE(contact_person,'') ILIKE '%' || $8 || '%' OR EXISTS (SELECT 1 FROM bookings b WHERE b.id = customer_ledgers.booking_id AND b.booking_number ILIKE '%' || $8 || '%')))"
@@ -402,184 +315,6 @@ pub async fn get_customer_ledger_with_payments(
 }
 
 /// Create a new customer ledger entry.
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn create_customer_ledger(
-    pool: &DbPool,
-    user_id: i64,
-    request: CustomerLedgerCreateRequest,
-) -> Result<CustomerLedger, ApiError> {
-    let invoice_date = request
-        .invoice_date
-        .as_ref()
-        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
-    let posting_date = request
-        .posting_date
-        .as_ref()
-        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
-    let transaction_date = request
-        .transaction_date
-        .as_ref()
-        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
-    // due_date: prefer the caller's value; otherwise look up the company's
-    // payment_terms_days; otherwise fall back to default_payment_terms_days.
-    // Without this, auto-created ledgers (company check-in / checkout) leave
-    // due_date NULL and the UI shows "-".
-    let due_date = match request
-        .due_date
-        .as_ref()
-        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
-    {
-        Some(d) => Some(d),
-        None => {
-            let default_terms_days = default_payment_terms_days(pool).await;
-            let terms_days: i64 = sqlx::query_scalar::<_, Option<i64>>(
-                "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
-            )
-            .bind(&request.company_name)
-            .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten()
-            .flatten()
-            .unwrap_or(default_terms_days);
-            let base = posting_date.unwrap_or_else(|| chrono::Local::now().date_naive());
-            Some(base + chrono::Duration::days(terms_days))
-        }
-    };
-
-    let amount = Decimal::from_f64_retain(request.amount)
-        .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
-    let tax_amount = request.tax_amount.and_then(|v| Decimal::from_f64_retain(v));
-    let service_charge = request
-        .service_charge
-        .and_then(|v| Decimal::from_f64_retain(v));
-
-    if let Some(booking_id) = request.booking_id {
-        let existing = sqlx::query(
-            r#"
-            SELECT id, company_name, company_registration_number, contact_person,
-                contact_email, contact_phone, billing_address_line1, billing_city,
-                billing_state, billing_postal_code, billing_country, description,
-                expense_type, amount, currency, status, paid_amount, balance_due,
-                payment_method, payment_reference, payment_date, booking_id, guest_id,
-                invoice_number, invoice_date, due_date, notes, internal_notes,
-                created_by, updated_by, created_at, updated_at,
-                folio_number, folio_type, transaction_type, post_type, department_code,
-                transaction_code, room_number, posting_date, transaction_date,
-                reference_number, cashier_id, is_reversal, original_transaction_id,
-                reversal_reason, tax_amount, service_charge, net_amount,
-                is_posted, posted_at, void_at, void_by, void_reason
-            FROM customer_ledgers
-            WHERE booking_id = ?1
-              AND company_name = ?2
-              AND description = ?3
-              AND expense_type = ?4
-              AND amount = ?5
-              AND ((post_type IS NULL AND ?6 IS NULL) OR post_type = ?6)
-              AND ((room_number IS NULL AND ?7 IS NULL) OR room_number = ?7)
-              AND ((posting_date IS NULL AND ?8 IS NULL) OR posting_date = ?8)
-              AND ((transaction_date IS NULL AND ?9 IS NULL) OR transaction_date = ?9)
-              AND void_at IS NULL
-            ORDER BY id DESC
-            LIMIT 1
-            "#,
-        )
-        .bind(booking_id)
-        .bind(&request.company_name)
-        .bind(&request.description)
-        .bind(&request.expense_type)
-        .bind(decimal_to_db(amount))
-        .bind(&request.post_type)
-        .bind(&request.room_number)
-        .bind(posting_date)
-        .bind(transaction_date)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        if let Some(row) = existing {
-            return Ok(row_to_customer_ledger(&row));
-        }
-    }
-
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
-
-    // SQLite INSERT without RETURNING
-    sqlx::query(
-        r#"
-        INSERT INTO customer_ledgers (
-            company_name, company_registration_number, contact_person,
-            contact_email, contact_phone, billing_address_line1, billing_city,
-            billing_state, billing_postal_code, billing_country, description,
-            expense_type, amount, currency, status, paid_amount,
-            booking_id, guest_id, invoice_number, invoice_date, due_date, notes, internal_notes,
-            created_by, updated_by, cashier_id,
-            folio_type, transaction_type, post_type, department_code,
-            transaction_code, room_number, posting_date, transaction_date,
-            reference_number, tax_amount, service_charge
-        )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'pending', 0,
-                ?15, ?16, ?33, ?17, ?18, ?19, ?20, ?21, ?21, ?21,
-                ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)
-        "#,
-    )
-    .bind(&request.company_name)
-    .bind(&request.company_registration_number)
-    .bind(&request.contact_person)
-    .bind(&request.contact_email)
-    .bind(&request.contact_phone)
-    .bind(&request.billing_address_line1)
-    .bind(&request.billing_city)
-    .bind(&request.billing_state)
-    .bind(&request.billing_postal_code)
-    .bind(&request.billing_country)
-    .bind(&request.description)
-    .bind(&request.expense_type)
-    .bind(decimal_to_db(amount))
-    .bind(&request.currency)
-    .bind(&request.booking_id)
-    .bind(&request.guest_id)
-    .bind(invoice_date)
-    .bind(due_date)
-    .bind(&request.notes)
-    .bind(&request.internal_notes)
-    .bind(user_id)
-    // Ledger accounting fields
-    .bind(request.folio_type.as_deref().unwrap_or("city_ledger"))
-    .bind(request.transaction_type.as_deref().unwrap_or("debit"))
-    .bind(&request.post_type)
-    .bind(&request.department_code)
-    .bind(&request.transaction_code)
-    .bind(&request.room_number)
-    .bind(posting_date)
-    .bind(transaction_date)
-    .bind(&request.reference_number)
-    .bind(opt_decimal_to_db(tax_amount))
-    .bind(opt_decimal_to_db(service_charge))
-    .bind(&invoice_number)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get the inserted ID and fetch the record
-    let ledger_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
-        .bind(ledger_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let ledger = row_to_customer_ledger(&row);
-
-    Ok(ledger)
-}
-
-/// Create a new customer ledger entry (PostgreSQL).
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn create_customer_ledger(
     pool: &DbPool,
     user_id: i64,
@@ -736,212 +471,7 @@ pub async fn create_customer_ledger(
     Ok(ledger)
 }
 
-/// Update a customer ledger entry (SQLite version)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn update_customer_ledger(
-    pool: &DbPool,
-    ledger_id: i64,
-    user_id: i64,
-    request: CustomerLedgerUpdateRequest,
-) -> Result<CustomerLedger, ApiError> {
-    // Check if ledger exists
-    let exists = sqlx::query(CHECK_LEDGER_EXISTS_QUERY)
-        .bind(ledger_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if exists.is_none() {
-        return Err(ApiError::NotFound("Customer ledger not found".to_string()));
-    }
-
-    let mut updates = Vec::new();
-    let mut param_index = 1;
-
-    if request.company_name.is_some() {
-        updates.push(format!("company_name = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.company_registration_number.is_some() {
-        updates.push(format!("company_registration_number = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.contact_person.is_some() {
-        updates.push(format!("contact_person = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.contact_email.is_some() {
-        updates.push(format!("contact_email = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.contact_phone.is_some() {
-        updates.push(format!("contact_phone = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.billing_address_line1.is_some() {
-        updates.push(format!("billing_address_line1 = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.billing_city.is_some() {
-        updates.push(format!("billing_city = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.billing_state.is_some() {
-        updates.push(format!("billing_state = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.billing_postal_code.is_some() {
-        updates.push(format!("billing_postal_code = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.billing_country.is_some() {
-        updates.push(format!("billing_country = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.description.is_some() {
-        updates.push(format!("description = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.expense_type.is_some() {
-        updates.push(format!("expense_type = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.amount.is_some() {
-        updates.push(format!("amount = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.currency.is_some() {
-        updates.push(format!("currency = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.status.is_some() {
-        updates.push(format!("status = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.invoice_date.is_some() {
-        updates.push(format!("invoice_date = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.due_date.is_some() {
-        updates.push(format!("due_date = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.notes.is_some() {
-        updates.push(format!("notes = ?{}", param_index));
-        param_index += 1;
-    }
-    if request.internal_notes.is_some() {
-        updates.push(format!("internal_notes = ?{}", param_index));
-        param_index += 1;
-    }
-
-    updates.push(format!("updated_by = ?{}", param_index));
-    param_index += 1;
-    updates.push("updated_at = datetime('now')".to_string());
-
-    if updates.len() < 2 {
-        return Err(ApiError::BadRequest("No fields to update".to_string()));
-    }
-
-    let query = format!(
-        r#"
-        UPDATE customer_ledgers
-        SET {}
-        WHERE id = ?{}
-        "#,
-        updates.join(", "),
-        param_index
-    );
-
-    let mut query_builder = sqlx::query(&query);
-
-    if let Some(ref v) = request.company_name {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.company_registration_number {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.contact_person {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.contact_email {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.contact_phone {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.billing_address_line1 {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.billing_city {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.billing_state {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.billing_postal_code {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.billing_country {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.description {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.expense_type {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(amount) = request.amount {
-        let decimal_amount = Decimal::from_f64_retain(amount)
-            .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
-        query_builder = query_builder.bind(decimal_to_db(decimal_amount));
-    }
-    if let Some(ref v) = request.currency {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.status {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.invoice_date {
-        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|_| {
-            ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string())
-        })?;
-        query_builder = query_builder.bind(parsed);
-    }
-    if let Some(ref v) = request.due_date {
-        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid due date. Use YYYY-MM-DD".to_string()))?;
-        query_builder = query_builder.bind(parsed);
-    }
-    if let Some(ref v) = request.notes {
-        query_builder = query_builder.bind(v);
-    }
-    if let Some(ref v) = request.internal_notes {
-        query_builder = query_builder.bind(v);
-    }
-
-    query_builder = query_builder.bind(user_id);
-    query_builder = query_builder.bind(ledger_id);
-
-    query_builder
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Fetch the updated ledger
-    let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
-        .bind(ledger_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let ledger = row_to_customer_ledger(&row);
-
-    Ok(ledger)
-}
-
 /// Update a customer ledger entry (PostgreSQL version)
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn update_customer_ledger(
     pool: &DbPool,
     ledger_id: i64,
@@ -1192,165 +722,7 @@ pub async fn delete_customer_ledger(
     }))
 }
 
-/// Record a payment against a customer ledger (SQLite version)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn create_ledger_payment(
-    pool: &DbPool,
-    ledger_id: i64,
-    user_id: i64,
-    request: CustomerLedgerPaymentRequest,
-) -> Result<CustomerLedgerPayment, ApiError> {
-    let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_QUERY)
-        .bind(ledger_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let (total_amount, current_paid, current_status, is_voided) = match ledger_row {
-        Some(row) => {
-            let amount = get_decimal(&row, "amount");
-            let paid = get_decimal(&row, "paid_amount");
-            let status: String = row.try_get("status").unwrap_or_default();
-            let void_at: Option<chrono::NaiveDateTime> = row.try_get("void_at").ok();
-            (amount, paid, status, void_at.is_some())
-        }
-        None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
-    };
-
-    if current_status == "void" || is_voided {
-        return Err(ApiError::BadRequest(
-            "Cannot record payment for a voided ledger".to_string(),
-        ));
-    }
-
-    let payment_amount = Decimal::from_f64_retain(request.payment_amount)
-        .ok_or_else(|| ApiError::BadRequest("Invalid payment amount".to_string()))?;
-
-    if payment_amount <= Decimal::ZERO {
-        return Err(ApiError::BadRequest(
-            "Payment amount must be positive".to_string(),
-        ));
-    }
-
-    let outstanding = total_amount - current_paid;
-    if payment_amount > outstanding {
-        return Err(ApiError::BadRequest(
-            "Payment amount cannot exceed outstanding balance".to_string(),
-        ));
-    }
-
-    if let Some(receipt_number) = request
-        .receipt_number
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        let receipt_exists: bool = sqlx::query_scalar::<_, i32>(
-            "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER(?1))",
-        )
-        .bind(receipt_number)
-        .fetch_one(pool)
-        .await
-        .map(|v| v != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        if receipt_exists {
-            return Err(ApiError::BadRequest(
-                "Receipt number already exists".to_string(),
-            ));
-        }
-    }
-
-    let new_total_paid = current_paid + payment_amount;
-
-    let new_status = if new_total_paid >= total_amount {
-        "paid"
-    } else if new_total_paid > Decimal::ZERO {
-        "partial"
-    } else {
-        "pending"
-    };
-
-    // Resolve payment date: use provided date or default to now
-    let payment_date_value = request
-        .payment_date
-        .as_ref()
-        .map(|d| format!("{} 12:00:00", d));
-
-    // Insert payment without RETURNING
-    sqlx::query(
-        r#"
-        INSERT INTO customer_ledger_payments (
-            ledger_id, payment_amount, payment_method, payment_reference,
-            payment_date, receipt_number, receipt_file_url, notes, processed_by
-        )
-        VALUES (?1, ?2, ?3, ?4, COALESCE(?5, datetime('now')), ?6, ?7, ?8, ?9)
-        "#,
-    )
-    .bind(ledger_id)
-    .bind(decimal_to_db(payment_amount))
-    .bind(&request.payment_method)
-    .bind(&request.payment_reference)
-    .bind(&payment_date_value)
-    .bind(&request.receipt_number)
-    .bind(&request.receipt_file_url)
-    .bind(&request.notes)
-    .bind(user_id)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get the inserted payment
-    let payment_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let payment_row = sqlx::query(
-        r#"
-        SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
-               payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
-        FROM customer_ledger_payments
-        WHERE id = ?1
-        "#,
-    )
-    .bind(payment_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let payment = row_to_customer_ledger_payment(&payment_row);
-
-    // Update ledger totals
-    sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-        SET paid_amount = ?1,
-            status = ?2,
-            payment_method = ?3,
-            payment_reference = ?4,
-            payment_date = COALESCE(?5, datetime('now')),
-            updated_at = datetime('now'),
-            updated_by = ?6
-        WHERE id = ?7
-        "#,
-    )
-    .bind(decimal_to_db(new_total_paid))
-    .bind(new_status)
-    .bind(&request.payment_method)
-    .bind(&request.payment_reference)
-    .bind(&payment_date_value)
-    .bind(user_id)
-    .bind(ledger_id)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(payment)
-}
-
 /// Record a payment against a customer ledger (PostgreSQL version)
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn create_ledger_payment(
     pool: &DbPool,
     ledger_id: i64,
@@ -1516,48 +888,7 @@ pub async fn get_ledger_payments(
     Ok(payments)
 }
 
-/// Get summary statistics for ledgers (SQLite version)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
-    let row = sqlx::query(
-        r#"
-        SELECT
-            COUNT(*) as total_entries,
-            COALESCE(SUM(CAST(amount AS REAL)), 0) as total_amount,
-            COALESCE(SUM(CAST(paid_amount AS REAL)), 0) as total_paid,
-            COALESCE(SUM(CAST(balance_due AS REAL)), 0) as total_outstanding,
-            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count,
-            SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END) as partial_count,
-            SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as overdue_count
-        FROM customer_ledgers
-        WHERE status NOT IN ('void')
-        "#,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let total_entries: i64 = row.try_get("total_entries").unwrap_or(0);
-    let total_amount: f64 = row.try_get("total_amount").unwrap_or(0.0);
-    let total_paid: f64 = row.try_get("total_paid").unwrap_or(0.0);
-    let total_outstanding: f64 = row.try_get("total_outstanding").unwrap_or(0.0);
-    let pending_count: i64 = row.try_get("pending_count").unwrap_or(0);
-    let partial_count: i64 = row.try_get("partial_count").unwrap_or(0);
-    let overdue_count: i64 = row.try_get("overdue_count").unwrap_or(0);
-
-    Ok(serde_json::json!({
-        "total_entries": total_entries,
-        "total_amount": total_amount,
-        "total_paid": total_paid,
-        "total_outstanding": total_outstanding,
-        "pending_count": pending_count,
-        "partial_count": partial_count,
-        "overdue_count": overdue_count
-    }))
-}
-
 /// Get summary statistics for ledgers (PostgreSQL version)
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
     let row = sqlx::query(
         r#"
@@ -1596,64 +927,7 @@ pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiE
     }))
 }
 
-/// Void a ledger entry (SQLite version)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn void_ledger(
-    pool: &DbPool,
-    ledger_id: i64,
-    user_id: i64,
-    request: LedgerVoidRequest,
-) -> Result<CustomerLedger, ApiError> {
-    // Check if ledger exists and is not already voided
-    let exists_row = sqlx::query(CHECK_LEDGER_VOIDED_QUERY)
-        .bind(ledger_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    match exists_row {
-        None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
-        Some(row) => {
-            // SQLite returns 0/1 for boolean expressions
-            let is_voided: i32 = row.try_get(0).unwrap_or(0);
-            if is_voided != 0 {
-                return Err(ApiError::BadRequest("Ledger is already voided".to_string()));
-            }
-        }
-    }
-
-    sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-        SET void_at = datetime('now'),
-            void_by = ?1,
-            void_reason = ?2,
-            status = 'void',
-            updated_at = datetime('now'),
-            updated_by = ?1
-        WHERE id = ?3
-        "#,
-    )
-    .bind(user_id)
-    .bind(&request.reason)
-    .bind(ledger_id)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
-        .bind(ledger_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let ledger = row_to_customer_ledger(&row);
-
-    Ok(ledger)
-}
-
 /// Void a ledger entry (PostgreSQL version)
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn void_ledger(
     pool: &DbPool,
     ledger_id: i64,
@@ -1702,115 +976,7 @@ pub async fn void_ledger(
     Ok(ledger)
 }
 
-/// Create a reversal for a ledger entry (SQLite version)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn create_ledger_reversal(
-    pool: &DbPool,
-    ledger_id: i64,
-    user_id: i64,
-    request: LedgerReversalRequest,
-) -> Result<CustomerLedger, ApiError> {
-    // Get the original ledger
-    let original_row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
-        .bind(ledger_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Customer ledger not found".to_string()))?;
-
-    let original = row_to_customer_ledger(&original_row);
-
-    if original.is_reversal.unwrap_or(false) {
-        return Err(ApiError::BadRequest(
-            "Cannot reverse a reversal entry".to_string(),
-        ));
-    }
-
-    // Create the reversal entry with opposite transaction type
-    let reversal_type = if original.transaction_type.as_deref() == Some("debit") {
-        "credit"
-    } else {
-        "debit"
-    };
-
-    let description = format!("REVERSAL: {}", original.description);
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
-
-    // Insert reversal without RETURNING
-    sqlx::query(
-        r#"
-        INSERT INTO customer_ledgers (
-            company_name, company_registration_number, contact_person,
-            contact_email, contact_phone, billing_address_line1, billing_city,
-            billing_state, billing_postal_code, billing_country, description,
-            expense_type, amount, currency, status, paid_amount,
-            booking_id, guest_id, invoice_number, notes, internal_notes,
-            created_by, updated_by, cashier_id,
-            folio_type, transaction_type, post_type, department_code,
-            transaction_code, room_number, posting_date, transaction_date,
-            reference_number, tax_amount, service_charge,
-            is_reversal, original_transaction_id, reversal_reason
-        )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 'paid', ?13,
-                ?15, ?16, ?31, ?17, ?18, ?19, ?19, ?19,
-                ?20, ?21, ?22, ?23, ?24, ?25, date('now'), date('now'),
-                ?26, ?27, ?28, 1, ?29, ?30)
-        "#,
-    )
-    .bind(&original.company_name)
-    .bind(&original.company_registration_number)
-    .bind(&original.contact_person)
-    .bind(&original.contact_email)
-    .bind(&original.contact_phone)
-    .bind(&original.billing_address_line1)
-    .bind(&original.billing_city)
-    .bind(&original.billing_state)
-    .bind(&original.billing_postal_code)
-    .bind(&original.billing_country)
-    .bind(&description)
-    .bind(&original.expense_type)
-    .bind(decimal_to_db(original.amount))
-    .bind(&original.currency)
-    .bind(original.booking_id)
-    .bind(original.guest_id)
-    .bind(&request.notes)
-    .bind(&original.internal_notes)
-    .bind(user_id)
-    .bind(&original.folio_type)
-    .bind(reversal_type)
-    .bind(&original.post_type)
-    .bind(&original.department_code)
-    .bind(&original.transaction_code)
-    .bind(&original.room_number)
-    .bind(&original.reference_number)
-    .bind(opt_decimal_to_db(original.tax_amount))
-    .bind(opt_decimal_to_db(original.service_charge))
-    .bind(ledger_id)
-    .bind(&request.reason)
-    .bind(&invoice_number)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get the inserted reversal
-    let reversal_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
-        .bind(reversal_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let reversal = row_to_customer_ledger(&row);
-
-    Ok(reversal)
-}
-
 /// Create a reversal for a ledger entry (PostgreSQL version)
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn create_ledger_reversal(
     pool: &DbPool,
     ledger_id: i64,
@@ -1906,155 +1072,10 @@ pub async fn create_ledger_reversal(
     Ok(reversal)
 }
 
-/// Update an existing ledger payment (SQLite version). `payment_date` is always
-/// applied; `payment_amount`/`payment_method`/`payment_reference`/`notes` are
-/// applied only when provided (others are left unchanged). The ledger's
-/// `paid_amount`, `status` and `payment_date` are recomputed from the resulting
-/// set of payments.
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn update_ledger_payment(
-    pool: &DbPool,
-    ledger_id: i64,
-    payment_id: i64,
-    request: UpdateLedgerPaymentRequest,
-) -> Result<CustomerLedgerPayment, ApiError> {
-    let payment_date_value = format!("{} 12:00:00", &request.payment_date);
-
-    // Verify the payment belongs to this ledger
-    let exists =
-        sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = ?1 AND ledger_id = ?2")
-            .bind(payment_id)
-            .bind(ledger_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if exists.is_none() {
-        return Err(ApiError::NotFound("Payment not found".to_string()));
-    }
-
-    // Validate the optional new amount and guard against over-payment (the sum
-    // of the other payments plus this one must not exceed the ledger total).
-    let new_amount = match request.payment_amount {
-        Some(a) => {
-            let dec = Decimal::from_f64_retain(a)
-                .ok_or_else(|| ApiError::BadRequest("Invalid payment amount".to_string()))?;
-            if dec <= Decimal::ZERO {
-                return Err(ApiError::BadRequest(
-                    "Payment amount must be positive".to_string(),
-                ));
-            }
-            let total_amount: f64 = sqlx::query_scalar(
-                "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1",
-            )
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-            let others_paid: f64 = sqlx::query_scalar(
-                "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1 AND id <> ?2",
-            )
-            .bind(ledger_id)
-            .bind(payment_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-            let prospective = Decimal::from_f64_retain(others_paid).unwrap_or(Decimal::ZERO) + dec;
-            if prospective > Decimal::from_f64_retain(total_amount).unwrap_or(Decimal::ZERO) {
-                return Err(ApiError::BadRequest(
-                    "Payment amount cannot exceed outstanding balance".to_string(),
-                ));
-            }
-            Some(dec)
-        }
-        None => None,
-    };
-
-    // Update the payment row. COALESCE keeps the existing value when a field is
-    // omitted from the request.
-    sqlx::query(
-        r#"
-        UPDATE customer_ledger_payments
-        SET payment_date = ?1,
-            payment_amount = COALESCE(?2, payment_amount),
-            payment_method = COALESCE(?3, payment_method),
-            payment_reference = COALESCE(?4, payment_reference),
-            notes = COALESCE(?5, notes)
-        WHERE id = ?6
-        "#,
-    )
-    .bind(&payment_date_value)
-    .bind(new_amount.map(decimal_to_db))
-    .bind(request.payment_method.as_deref())
-    .bind(request.payment_reference.as_deref())
-    .bind(request.notes.as_deref())
-    .bind(payment_id)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Recalculate paid_amount + status from all remaining payments.
-    let new_paid: f64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1",
-    )
-    .bind(ledger_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let total_amount: f64 =
-        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1")
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let new_status = if new_paid >= total_amount {
-        "paid"
-    } else if new_paid > 0.0 {
-        "partial"
-    } else {
-        "pending"
-    };
-
-    sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-        SET paid_amount = ?1,
-            status = ?2,
-            payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = ?3),
-            updated_at = datetime('now')
-        WHERE id = ?3
-        "#,
-    )
-    .bind(new_paid)
-    .bind(new_status)
-    .bind(ledger_id)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let payment_row = sqlx::query(
-        r#"
-        SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
-               payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
-        FROM customer_ledger_payments
-        WHERE id = ?1
-        "#,
-    )
-    .bind(payment_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(row_to_customer_ledger_payment(&payment_row))
-}
-
 /// Update an existing ledger payment (PostgreSQL version). `payment_date` is
 /// always applied; `payment_amount`/`payment_method`/`payment_reference`/`notes`
 /// are applied only when provided. The ledger's `paid_amount`, `status` and
 /// `payment_date` are recomputed from the resulting set of payments.
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn update_ledger_payment(
     pool: &DbPool,
     ledger_id: i64,
@@ -2185,83 +1206,7 @@ pub async fn update_ledger_payment(
     Ok(row_to_customer_ledger_payment(&payment_row))
 }
 
-/// Delete a payment from a customer ledger (SQLite version)
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn delete_ledger_payment(
-    pool: &DbPool,
-    ledger_id: i64,
-    payment_id: i64,
-) -> Result<serde_json::Value, ApiError> {
-    // Verify the payment belongs to this ledger
-    let exists =
-        sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = ?1 AND ledger_id = ?2")
-            .bind(payment_id)
-            .bind(ledger_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if exists.is_none() {
-        return Err(ApiError::NotFound("Payment not found".to_string()));
-    }
-
-    // Delete the payment
-    sqlx::query("DELETE FROM customer_ledger_payments WHERE id = ?1")
-        .bind(payment_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Recalculate paid_amount from remaining payments
-    let new_paid: f64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1"
-    )
-    .bind(ledger_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get total amount for status calculation
-    let total_amount: f64 =
-        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1")
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let new_status = if new_paid >= total_amount {
-        "paid"
-    } else if new_paid > 0.0 {
-        "partial"
-    } else {
-        "pending"
-    };
-
-    sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-        SET paid_amount = ?1,
-            status = ?2,
-            payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = ?3),
-            updated_at = datetime('now')
-        WHERE id = ?3
-        "#,
-    )
-    .bind(new_paid)
-    .bind(new_status)
-    .bind(ledger_id)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(serde_json::json!({
-        "message": "Payment deleted successfully",
-        "payment_id": payment_id
-    }))
-}
-
 /// Delete a payment from a customer ledger (PostgreSQL version)
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn delete_ledger_payment(
     pool: &DbPool,
     ledger_id: i64,

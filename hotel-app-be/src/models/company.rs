@@ -88,18 +88,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Company {
             billing_postal_code: row.try_get("billing_postal_code")?,
             billing_country: row.try_get("billing_country")?,
             is_active: row.try_get("is_active")?,
-            credit_limit: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("credit_limit")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("credit_limit")?;
-                val
-            },
+            credit_limit: { row.try_get("credit_limit")? },
             payment_terms_days: row.try_get("payment_terms_days")?,
             notes: row.try_get("notes")?,
             created_by: row.try_get("created_by")?,

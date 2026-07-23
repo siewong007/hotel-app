@@ -5,7 +5,7 @@
 //! - `db`: Database connection pool
 //! - `error`: Unified API error types
 //! - `middleware`: Request authentication and authorization middleware
-//! - `sql_compat`: SQL compatibility helpers for PostgreSQL/SQLite
+//! - `sql_compat`: PostgreSQL SQL helpers
 
 pub mod auth;
 pub mod config;

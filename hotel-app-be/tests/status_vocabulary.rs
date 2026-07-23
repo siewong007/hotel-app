@@ -3,7 +3,6 @@
 const POSTGRES_SCHEMA: &str = include_str!("../database/postgres/migrations/0001_v1_baseline.sql");
 const POSTGRES_UPGRADE: &str = include_str!("../database/postgres/upgrade/pg18_4_to_v1.sql");
 const POSTGRES_DATA: &str = include_str!("../database/postgres/data.sql");
-#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
 const POSTGRES_SEED: &str = include_str!("../database/postgres/seed.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
@@ -170,7 +169,6 @@ fn postgres_permission_constraint_accepts_seeded_refund_action() {
     }
 }
 
-#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
 mod postgres_smoke {
     use super::{POSTGRES_DATA, POSTGRES_SCHEMA, POSTGRES_SEED};
     use sqlx::{Connection, Executor, PgConnection, PgPool};

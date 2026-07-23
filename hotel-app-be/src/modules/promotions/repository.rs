@@ -157,10 +157,7 @@ pub struct PromotionRepository;
 
 impl PromotionRepository {
     async fn room_type_ids(pool: &DbPool, promotion_id: i64) -> Result<Vec<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: "SELECT room_type_id FROM promotion_room_types WHERE promotion_id = $1 ORDER BY room_type_id",
-            sqlite: "SELECT room_type_id FROM promotion_room_types WHERE promotion_id = ?1 ORDER BY room_type_id"
-        ))
+        query_scalar("SELECT room_type_id FROM promotion_room_types WHERE promotion_id = $1 ORDER BY room_type_id")
         .bind(promotion_id)
         .fetch_all(pool)
         .await
@@ -187,8 +184,7 @@ impl PromotionRepository {
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<Promotion>), ApiError> {
-        let count_sql = crate::sql_query!(
-            postgres: r#"
+        let count_sql = r#"
                 SELECT COUNT(*)
                 FROM promotions p
                 WHERE p.status = 'published'
@@ -196,23 +192,12 @@ impl PromotionRepository {
                   AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= CURRENT_TIMESTAMP)
                   AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= CURRENT_TIMESTAMP)
                   AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
-            "#,
-            sqlite: r#"
-                SELECT COUNT(*)
-                FROM promotions p
-                WHERE p.status = 'published'
-                  AND p.is_public = 1
-                  AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= datetime('now'))
-                  AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= datetime('now'))
-                  AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
-            "#
-        );
+            "#;
         let total = query_scalar::<_, i64>(count_sql)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE p.status = 'published'
@@ -222,19 +207,7 @@ impl PromotionRepository {
                       AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
                     ORDER BY p.claim_ends_at NULLS LAST, p.created_at DESC
                     LIMIT $1 OFFSET $2
-                "#,
-            sqlite: r#"
-                    SELECT {PROMOTION_COLUMNS}
-                    FROM promotions p
-                    WHERE p.status = 'published'
-                      AND p.is_public = 1
-                      AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= datetime('now'))
-                      AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= datetime('now'))
-                      AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
-                    ORDER BY (p.claim_ends_at IS NULL), p.claim_ends_at, p.created_at DESC
-                    LIMIT ?1 OFFSET ?2
                 "#
-        )
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let rows = query(&sql)
             .bind(page_size)
@@ -252,44 +225,26 @@ impl PromotionRepository {
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<Promotion>), ApiError> {
-        let count_sql = crate::sql_query!(
-            postgres: r#"
+        let count_sql = r#"
                 SELECT COUNT(*)
                 FROM promotions p
                 WHERE ($1::text IS NULL OR p.status = $1)
                   AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
-            "#,
-            sqlite: r#"
-                SELECT COUNT(*)
-                FROM promotions p
-                WHERE (?1 IS NULL OR p.status = ?1)
-                  AND (?2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER(?2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER(?2) || '%')
-            "#
-        );
+            "#;
         let total = query_scalar::<_, i64>(count_sql)
             .bind(status)
             .bind(search)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = crate::sql_query!(
-                postgres: r#"
+        let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE ($1::text IS NULL OR p.status = $1)
                       AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
                     ORDER BY p.updated_at DESC
                     LIMIT $3 OFFSET $4
-                "#,
-                sqlite: r#"
-                    SELECT {PROMOTION_COLUMNS}
-                    FROM promotions p
-                    WHERE (?1 IS NULL OR p.status = ?1)
-                      AND (?2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER(?2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER(?2) || '%')
-                    ORDER BY p.updated_at DESC
-                    LIMIT ?3 OFFSET ?4
                 "#
-            )
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let rows = query(&sql)
             .bind(status)
@@ -306,11 +261,8 @@ impl PromotionRepository {
         pool: &DbPool,
         promotion_id: i64,
     ) -> Result<Option<Promotion>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1",
-            sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = ?1"
-        )
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1"
+            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(promotion_id)
             .fetch_optional(pool)
@@ -327,11 +279,8 @@ impl PromotionRepository {
     }
 
     pub async fn find_by_slug(pool: &DbPool, slug: &str) -> Result<Option<Promotion>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = $1",
-            sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = ?1"
-        )
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = $1"
+            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(slug)
             .fetch_optional(pool)
@@ -351,8 +300,7 @@ impl PromotionRepository {
         pool: &DbPool,
         slug: &str,
     ) -> Result<Option<Promotion>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE p.slug = $1
@@ -360,17 +308,7 @@ impl PromotionRepository {
                       AND p.is_public = true
                       AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= CURRENT_TIMESTAMP)
                       AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= CURRENT_TIMESTAMP)
-                "#,
-            sqlite: r#"
-                    SELECT {PROMOTION_COLUMNS}
-                    FROM promotions p
-                    WHERE p.slug = ?1
-                      AND p.status = 'published'
-                      AND p.is_public = 1
-                      AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= datetime('now'))
-                      AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= datetime('now'))
                 "#
-        )
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(slug)
@@ -391,11 +329,8 @@ impl PromotionRepository {
         tx: &mut DbTransaction<'_>,
         promotion_id: i64,
     ) -> Result<Option<Promotion>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1",
-            sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = ?1"
-        )
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1"
+            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(promotion_id)
             .fetch_optional(&mut **tx)
@@ -409,8 +344,7 @@ impl PromotionRepository {
         draft: &PromotionDraft,
         actor_id: i64,
     ) -> Result<i64, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(r#"
                 INSERT INTO promotions (
                     slug, name, description, terms, promotion_kind, discount_type,
                     discount_value, max_discount_amount, currency, claim_starts_at,
@@ -420,19 +354,7 @@ impl PromotionRepository {
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                     $15, $16, $17, $18, $19, $20, $21, $22
                 ) RETURNING id
-            "#,
-            sqlite: r#"
-                INSERT INTO promotions (
-                    slug, name, description, terms, promotion_kind, discount_type,
-                    discount_value, max_discount_amount, currency, claim_starts_at,
-                    claim_ends_at, stay_starts_on, stay_ends_on, min_nights, max_nights,
-                    min_subtotal, claim_limit, per_guest_limit, is_public, is_cancellable, created_by, updated_by
-                ) VALUES (
-                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14,
-                    ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22
-                ) RETURNING id
-            "#
-        ))
+            "#)
         .bind(&draft.slug)
         .bind(&draft.name)
         .bind(&draft.description)
@@ -467,8 +389,7 @@ impl PromotionRepository {
         draft: &PromotionDraft,
         actor_id: i64,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(r#"
                 UPDATE promotions SET
                     slug = $1, name = $2, description = $3, terms = $4,
                     promotion_kind = $5, discount_type = $6, discount_value = $7,
@@ -481,22 +402,7 @@ impl PromotionRepository {
                   AND ($23::integer IS NULL OR version = $23)
                   AND status IN ('draft', 'paused')
                 RETURNING id
-            "#,
-            sqlite: r#"
-                UPDATE promotions SET
-                    slug = ?1, name = ?2, description = ?3, terms = ?4,
-                    promotion_kind = ?5, discount_type = ?6, discount_value = ?7,
-                    max_discount_amount = ?8, currency = ?9, claim_starts_at = ?10,
-                    claim_ends_at = ?11, stay_starts_on = ?12, stay_ends_on = ?13,
-                    min_nights = ?14, max_nights = ?15, min_subtotal = ?16,
-                    claim_limit = ?17, per_guest_limit = ?18, is_public = ?19,
-                    is_cancellable = ?20, updated_by = ?21, updated_at = datetime('now'), version = version + 1
-                WHERE id = ?22
-                  AND (?23 IS NULL OR version = ?23)
-                  AND status IN ('draft', 'paused')
-                RETURNING id
-            "#
-        ))
+            "#)
         .bind(&draft.slug)
         .bind(&draft.name)
         .bind(&draft.description)
@@ -530,24 +436,18 @@ impl PromotionRepository {
         promotion_id: i64,
         room_type_ids: &[i64],
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: "DELETE FROM promotion_room_types WHERE promotion_id = $1",
-            sqlite: "DELETE FROM promotion_room_types WHERE promotion_id = ?1"
-        ))
-        .bind(promotion_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(ApiError::from)?;
-        for room_type_id in room_type_ids {
-            query(crate::sql_query!(
-                postgres: "INSERT INTO promotion_room_types (promotion_id, room_type_id) VALUES ($1, $2)",
-                sqlite: "INSERT INTO promotion_room_types (promotion_id, room_type_id) VALUES (?1, ?2)"
-            ))
+        query("DELETE FROM promotion_room_types WHERE promotion_id = $1")
             .bind(promotion_id)
-            .bind(room_type_id)
             .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
+        for room_type_id in room_type_ids {
+            query("INSERT INTO promotion_room_types (promotion_id, room_type_id) VALUES ($1, $2)")
+                .bind(promotion_id)
+                .bind(room_type_id)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
         }
         Ok(())
     }
@@ -559,20 +459,12 @@ impl PromotionRepository {
         expected_version: Option<i64>,
         actor_id: i64,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(r#"
                 UPDATE promotions
                 SET status = $1, updated_by = $2, updated_at = CURRENT_TIMESTAMP, version = version + 1
                 WHERE id = $3 AND ($4::integer IS NULL OR version = $4)
                 RETURNING id
-            "#,
-            sqlite: r#"
-                UPDATE promotions
-                SET status = ?1, updated_by = ?2, updated_at = datetime('now'), version = version + 1
-                WHERE id = ?3 AND (?4 IS NULL OR version = ?4)
-                RETURNING id
-            "#
-        ))
+            "#)
         .bind(status)
         .bind(actor_id)
         .bind(promotion_id)
@@ -587,10 +479,9 @@ impl PromotionRepository {
         promotion_id: i64,
         guest_id: i64,
     ) -> Result<bool, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = $1 AND guest_id = $2)",
-            sqlite: "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = ?1 AND guest_id = ?2)"
-        ))
+        query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM vouchers WHERE promotion_id = $1 AND guest_id = $2)",
+        )
         .bind(promotion_id)
         .bind(guest_id)
         .fetch_one(pool)
@@ -604,32 +495,19 @@ impl PromotionRepository {
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<Voucher>), ApiError> {
-        let total = query_scalar::<_, i64>(crate::sql_query!(
-            postgres: "SELECT COUNT(*) FROM vouchers WHERE guest_id = $1",
-            sqlite: "SELECT COUNT(*) FROM vouchers WHERE guest_id = ?1"
-        ))
-        .bind(guest_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
-        let sql = crate::sql_query!(
-                postgres: r#"
+        let total = query_scalar::<_, i64>("SELECT COUNT(*) FROM vouchers WHERE guest_id = $1")
+            .bind(guest_id)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+        let sql = r#"
                     SELECT {VOUCHER_COLUMNS}
                     FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
                     WHERE v.guest_id = $1
                     ORDER BY CASE v.status WHEN 'available' THEN 0 WHEN 'redeemed' THEN 1 ELSE 2 END,
                              v.expires_at NULLS LAST, v.created_at DESC
                     LIMIT $2 OFFSET $3
-                "#,
-                sqlite: r#"
-                    SELECT {VOUCHER_COLUMNS}
-                    FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
-                    WHERE v.guest_id = ?1
-                    ORDER BY CASE v.status WHEN 'available' THEN 0 WHEN 'redeemed' THEN 1 ELSE 2 END,
-                             (v.expires_at IS NULL), v.expires_at, v.created_at DESC
-                    LIMIT ?2 OFFSET ?3
                 "#
-            )
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let rows = query(&sql)
             .bind(guest_id)
@@ -651,28 +529,19 @@ impl PromotionRepository {
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<Voucher>), ApiError> {
-        let count_sql = crate::sql_query!(
-            postgres: r#"
+        let count_sql = r#"
                 SELECT COUNT(*) FROM vouchers v
                 JOIN promotions p ON p.id = v.promotion_id
                 WHERE ($1::text IS NULL OR v.status = $1)
                   AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) = LOWER($2))
-            "#,
-            sqlite: r#"
-                SELECT COUNT(*) FROM vouchers v
-                JOIN promotions p ON p.id = v.promotion_id
-                WHERE (?1 IS NULL OR v.status = ?1)
-                  AND (?2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER(?2) || '%' OR LOWER(v.code) = LOWER(?2))
-            "#
-        );
+            "#;
         let total = query_scalar::<_, i64>(count_sql)
             .bind(status)
             .bind(search)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = crate::sql_query!(
-                postgres: r#"
+        let sql = r#"
                     SELECT {VOUCHER_COLUMNS}
                     FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
                     WHERE ($1::text IS NULL OR v.status = $1)
@@ -680,17 +549,7 @@ impl PromotionRepository {
                       -- code lookup so substring searches cannot become a code oracle.
                       AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) = LOWER($2))
                     ORDER BY v.created_at DESC LIMIT $3 OFFSET $4
-                "#,
-                sqlite: r#"
-                    SELECT {VOUCHER_COLUMNS}
-                    FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
-                    WHERE (?1 IS NULL OR v.status = ?1)
-                      -- Raw codes are masked in staff responses. Only allow an exact
-                      -- code lookup so substring searches cannot become a code oracle.
-                      AND (?2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER(?2) || '%' OR LOWER(v.code) = LOWER(?2))
-                    ORDER BY v.created_at DESC LIMIT ?3 OFFSET ?4
                 "#
-            )
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let rows = query(&sql)
             .bind(status)
@@ -713,10 +572,7 @@ impl PromotionRepository {
         voucher_id: i64,
         guest_id: i64,
     ) -> Result<Option<Voucher>, ApiError> {
-        let sql = crate::sql_query!(
-                postgres: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1 AND v.guest_id = $2",
-                sqlite: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = ?1 AND v.guest_id = ?2"
-            )
+        let sql = "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1 AND v.guest_id = $2"
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let row = query(&sql)
             .bind(voucher_id)
@@ -733,10 +589,7 @@ impl PromotionRepository {
         guest_id: i64,
         include_code: bool,
     ) -> Result<Option<Voucher>, ApiError> {
-        let sql = crate::sql_query!(
-                postgres: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.promotion_id = $1 AND v.guest_id = $2",
-                sqlite: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.promotion_id = ?1 AND v.guest_id = ?2"
-            )
+        let sql = "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.promotion_id = $1 AND v.guest_id = $2"
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let row = query(&sql)
             .bind(promotion_id)
@@ -751,10 +604,7 @@ impl PromotionRepository {
         pool: &DbPool,
         voucher_id: i64,
     ) -> Result<Option<Voucher>, ApiError> {
-        let sql = crate::sql_query!(
-                postgres: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1",
-                sqlite: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = ?1"
-            )
+        let sql = "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1"
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let row = query(&sql)
             .bind(voucher_id)
@@ -773,20 +623,12 @@ impl PromotionRepository {
         expires_at: Option<DateTime<Utc>>,
         issued_by: Option<i64>,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(r#"
                 INSERT INTO vouchers (promotion_id, guest_id, code, status, source, expires_at, issued_by, claimed_at)
                 VALUES ($1, $2, $3, 'available', $4, $5, $6, CURRENT_TIMESTAMP)
                 ON CONFLICT (promotion_id, guest_id) DO NOTHING
                 RETURNING id
-            "#,
-            sqlite: r#"
-                INSERT INTO vouchers (promotion_id, guest_id, code, status, source, expires_at, issued_by, claimed_at)
-                VALUES (?1, ?2, ?3, 'available', ?4, ?5, ?6, datetime('now'))
-                ON CONFLICT (promotion_id, guest_id) DO NOTHING
-                RETURNING id
-            "#
-        ))
+            "#)
         .bind(promotion_id)
         .bind(guest_id)
         .bind(code)
@@ -802,22 +644,15 @@ impl PromotionRepository {
         tx: &mut DbTransaction<'_>,
         promotion_id: i64,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: r#"
+        let result = query(
+            r#"
                 UPDATE promotions
                 SET claimed_count = claimed_count + 1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1
                   AND status = 'published'
                   AND (claim_limit IS NULL OR claimed_count < claim_limit)
             "#,
-            sqlite: r#"
-                UPDATE promotions
-                SET claimed_count = claimed_count + 1, updated_at = datetime('now')
-                WHERE id = ?1
-                  AND status = 'published'
-                  AND (claim_limit IS NULL OR claimed_count < claim_limit)
-            "#
-        ))
+        )
         .bind(promotion_id)
         .execute(&mut **tx)
         .await
@@ -831,22 +666,15 @@ impl PromotionRepository {
         actor_id: i64,
         reason: Option<&str>,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(
+            r#"
                 UPDATE vouchers
                 SET status = 'revoked', revoked_at = CURRENT_TIMESTAMP, revoked_by = $1,
                     revocation_reason = $2, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $3 AND status = 'available'
                 RETURNING id
             "#,
-            sqlite: r#"
-                UPDATE vouchers
-                SET status = 'revoked', revoked_at = datetime('now'), revoked_by = ?1,
-                    revocation_reason = ?2, updated_at = datetime('now')
-                WHERE id = ?3 AND status = 'available'
-                RETURNING id
-            "#
-        ))
+        )
         .bind(actor_id)
         .bind(reason)
         .bind(voucher_id)

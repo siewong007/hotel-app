@@ -5,18 +5,12 @@ use crate::core::error::ApiError;
 use crate::models::SearchHit;
 
 fn like_op() -> &'static str {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    return "LIKE";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    return "ILIKE";
+    "ILIKE"
 }
 
 /// (`$1`/`?1` for the search pattern, `$2`/`?2` for the row limit).
 fn placeholders() -> (&'static str, &'static str) {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    return ("?1", "?2");
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    return ("$1", "$2");
+    ("$1", "$2")
 }
 
 fn encode_query_component(value: &str) -> String {

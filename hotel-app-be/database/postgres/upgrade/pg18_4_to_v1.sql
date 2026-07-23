@@ -3806,7 +3806,6 @@ WHERE receipt_number IS NOT NULL AND TRIM(receipt_number) <> '';
 --     New tables should default UUID columns to gen_uuidv7().
 --   * Hardens update_updated_at_column() with a pinned search_path.
 --
--- Postgres-only. SQLite migrations are unaffected.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -4189,7 +4188,6 @@ ALTER TABLE invoices      ALTER COLUMN uuid       SET DEFAULT gen_uuidv7();
 --   Application code can opt in by SELECTing bookings.tourism_billable_amount
 --   instead of duplicating the CASE expression.
 --
--- Postgres-only (SQLite uses STORED generated columns and lacks VIRTUAL).
 -- ============================================================================
 
 ALTER TABLE bookings
@@ -4243,8 +4241,6 @@ COMMENT ON COLUMN bookings.tourism_billable_amount IS
 --   large `audit_logs` it takes an ACCESS EXCLUSIVE lock for the duration of
 --   the copy — run it during a maintenance window if the table is already big.
 --
--- Postgres-only. SQLite has no partitioning and the column shape is unchanged,
--- so there is no SQLite counterpart migration.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -6400,7 +6396,7 @@ CREATE TRIGGER update_voucher_redemptions_updated_at
 -- 042_vouchers_promotion_guest_uniqueness.sql
 -- ============================================================================
 -- Guest claim creation uses ON CONFLICT (promotion_id, guest_id) so the pair
--- must be backed by an exact unique index in both database engines.
+-- must be backed by an exact unique index.
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_vouchers_promotion_guest
     ON vouchers (promotion_id, guest_id);

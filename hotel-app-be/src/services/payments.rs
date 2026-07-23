@@ -1203,7 +1203,7 @@ async fn complete_and_confirm(
 
 /// Queue a guest-facing email explaining why their payment claim was
 /// rejected. Mirrors `queue_paid_online_booking_room_assignment`'s use of the
-/// `booking_confirmation` kind/topic — both DB dialects already allow that
+/// `booking_confirmation` kind/topic — the database constraints allow that
 /// pair with `campaign_id IS NULL`, so no schema change is needed for a new
 /// notification kind.
 async fn queue_payment_rejected_notification(
