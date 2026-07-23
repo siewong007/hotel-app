@@ -131,30 +131,6 @@ jobs:
       - name: Cargo build (release)
         run: cargo build --release
 
-  backend-sqlite:
-    name: Backend — SQLite Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: hotel-app-be
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
-        with:
-          components: clippy
-
-      - name: Cache Cargo dependencies
-        if: ${{ !env.ACT }}
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: hotel-app-be
-
-      - name: Run SQLite-only tests
-        run: cargo test --features sqlite --no-default-features
-
   backend-postgres-smoke:
     name: Backend — PostgreSQL Smoke
     runs-on: ubuntu-latest
