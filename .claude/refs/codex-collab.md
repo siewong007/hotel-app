@@ -75,6 +75,8 @@ DATABASE_URL with credentials, auth.json contents) into a Codex prompt.
 
 - `AGENTS.md` → Codex-owned. Claude asks the user before editing (maintenance.md).
 - `CLAUDE.md`, `.claude/**` → Claude-owned. If Codex edits these, flag it to the user.
+- CodeGraph is the shared and exclusive repository code-graph system. Both agents use
+  `.codegraph/` for graph-based discovery and do not create or rely on legacy graph artifacts.
 - Fact drift: when a shared fact changes (commands, schema contract, env vars),
   update the Claude-side file AND tell the user AGENTS.md needs the matching edit —
   do not edit AGENTS.md yourself.

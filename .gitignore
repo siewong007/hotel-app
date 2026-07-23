@@ -88,9 +88,6 @@ temp/
 # CodeGraph local index
 /.codegraph/
 
-# Legacy Graphify generated output (kept ignored during migration)
-/graphify-out/
-
 # design-sync (local build artifacts)
 .ds-sync/
 ds-bundle/

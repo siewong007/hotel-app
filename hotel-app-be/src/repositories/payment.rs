@@ -781,7 +781,9 @@ impl PaymentRepository {
                        g.full_name AS guest_name, p.amount::text AS amount,
                        p.payment_method, p.status,
                        p.gateway_payment_intent_id AS reference, p.notes AS notes,
-                       p.created_at::text AS created_at
+                       p.created_at::text AS created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
@@ -792,7 +794,9 @@ impl PaymentRepository {
                        g.full_name AS guest_name, CAST(p.amount AS TEXT) AS amount,
                        p.payment_method, p.status,
                        p.reference_number AS reference, p.description AS notes,
-                       p.created_at AS created_at
+                       p.created_at AS created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
@@ -819,7 +823,9 @@ impl PaymentRepository {
                        g.full_name AS guest_name, p.amount::text AS amount,
                        p.payment_method, p.status,
                        p.gateway_payment_intent_id AS reference, p.notes AS notes,
-                       p.created_at::text AS created_at
+                       p.created_at::text AS created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
@@ -832,7 +838,9 @@ impl PaymentRepository {
                        g.full_name AS guest_name, CAST(p.amount AS TEXT) AS amount,
                        p.payment_method, p.status,
                        p.reference_number AS reference, p.description AS notes,
-                       p.created_at AS created_at
+                       p.created_at AS created_at,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
+                       EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id AND pr.uploaded_at IS NOT NULL) AS receipt_uploaded
                 FROM payments p
                 JOIN bookings b ON b.id = p.booking_id
                 LEFT JOIN guests g ON g.id = b.guest_id
@@ -856,6 +864,41 @@ impl PaymentRepository {
                 .map_err(ApiError::from)?;
 
         Ok((items, total))
+    }
+
+    /// Create or refresh a receipt request for a pending bank-transfer claim.
+    pub async fn request_receipt(
+        pool: &DbPool,
+        payment_id: i64,
+        requested_by: i64,
+        message: Option<&str>,
+    ) -> Result<(), ApiError> {
+        let sql = crate::sql_query!(
+            postgres: r#"
+                INSERT INTO payment_receipt_requests (payment_id, requested_by, request_message)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (payment_id) DO UPDATE SET
+                    requested_by = EXCLUDED.requested_by,
+                    request_message = EXCLUDED.request_message,
+                    requested_at = CURRENT_TIMESTAMP
+            "#,
+            sqlite: r#"
+                INSERT INTO payment_receipt_requests (payment_id, requested_by, request_message)
+                VALUES (?1, ?2, ?3)
+                ON CONFLICT (payment_id) DO UPDATE SET
+                    requested_by = excluded.requested_by,
+                    request_message = excluded.request_message,
+                    requested_at = datetime('now')
+            "#
+        );
+        sqlx::query(sql)
+            .bind(payment_id)
+            .bind(requested_by)
+            .bind(message)
+            .execute(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(())
     }
 
     pub async fn workflow_summary_row<'e, E>(

@@ -107,6 +107,8 @@ export interface PendingPaymentEntry {
   reference: string | null;
   notes: string | null;
   created_at: string;
+  receipt_requested: boolean;
+  receipt_uploaded: boolean;
 }
 
 /** Paginated wrapper for `GET /admin/payments/pending`. */

@@ -132,6 +132,11 @@ pub struct GuestPortalBookingSummary {
     pub total_amount: rust_decimal::Decimal,
     pub can_cancel: bool,
     pub cancellation_unavailable_reason: Option<String>,
+    /// Reason from the most recently rejected payment claim on this booking,
+    /// if any. The frontend only renders it while the booking is still
+    /// awaiting payment, so a rejection reason from before a later successful
+    /// payment is simply never shown.
+    pub payment_rejection_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

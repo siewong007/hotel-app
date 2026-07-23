@@ -7,10 +7,11 @@ interface ContactRowProps {
   label: string;
   value?: string | null;
   placeholder: string;
-  onAdd: () => void;
+  onAdd?: () => void;
+  readOnly?: boolean;
 }
 
-export const ContactRow: React.FC<ContactRowProps> = ({ icon, label, value, placeholder, onAdd }) => {
+export const ContactRow: React.FC<ContactRowProps> = ({ icon, label, value, placeholder, onAdd, readOnly = false }) => {
   const empty = !value;
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1, borderBottom: `1px dashed ${GUEST_DESIGN.rule}` }}>
@@ -30,7 +31,7 @@ export const ContactRow: React.FC<ContactRowProps> = ({ icon, label, value, plac
         <Typography sx={{ fontSize: 11, color: GUEST_DESIGN.ink3, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
           {label}
         </Typography>
-        {empty ? (
+        {empty && !readOnly ? (
           <Box
             component="button"
             onClick={onAdd}
@@ -50,7 +51,7 @@ export const ContactRow: React.FC<ContactRowProps> = ({ icon, label, value, plac
           </Box>
         ) : (
           <Typography sx={{ fontSize: 13.5, color: GUEST_DESIGN.ink, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums' }}>
-            {value}
+            {value || '—'}
           </Typography>
         )}
       </Box>

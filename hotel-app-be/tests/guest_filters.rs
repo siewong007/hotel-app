@@ -5,6 +5,7 @@ mod common;
 mod sqlite_tests {
     use hotel_app_be::models::GuestPaginationParams;
     use hotel_app_be::repositories::guest::GuestRepository;
+    use hotel_app_be::repositories::search::SearchRepository;
     use hotel_app_be::utils::pagination::normalize_pagination;
     use sqlx::SqlitePool;
 
@@ -48,6 +49,16 @@ mod sqlite_tests {
         (total, ids)
     }
 
+    async fn seed_guest_account(pool: &SqlitePool) {
+        sqlx::query(
+            "INSERT INTO users (id, uuid, username, email, full_name, user_type, guest_id, is_active, is_verified) \
+             VALUES (8201, 'guest2-user-uuid', 'guest2', 'guest2@example.com', 'Portal Guest', 'guest', 8101, 1, 1)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn guest_list_filters_and_totals_apply_to_full_result_set() {
         let pool = super::common::setup_test_db().await;
@@ -88,5 +99,38 @@ mod sqlite_tests {
             filtered_ids(&pool, searched_missing_params).await,
             (1, vec![8106])
         );
+    }
+
+    #[tokio::test]
+    async fn guest_searches_match_linked_account_username() {
+        let pool = super::common::setup_test_db().await;
+        seed_guests(&pool).await;
+        seed_guest_account(&pool).await;
+
+        let mut guest_list_params = params();
+        guest_list_params.search = Some("guest2".to_string());
+        assert_eq!(
+            filtered_ids(&pool, guest_list_params).await,
+            (1, vec![8101])
+        );
+
+        let pagination = normalize_pagination(Some(1), Some(20), 100, 500);
+        let (_, guests) = GuestRepository::find_paginated(
+            &pool,
+            &GuestPaginationParams {
+                search: Some("guest2".to_string()),
+                ..params()
+            },
+            pagination,
+        )
+        .await
+        .unwrap();
+        assert_eq!(guests[0].account_username.as_deref(), Some("guest2"));
+
+        let hits = SearchRepository::search_guests(&pool, "%guest2%", 6)
+            .await
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, 8101);
     }
 }

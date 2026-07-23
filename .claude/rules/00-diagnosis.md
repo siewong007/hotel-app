@@ -11,13 +11,16 @@ so are `BookingsPage.tsx` and `CustomerLedgerPage.tsx`. Reading one of these who
 can burn 30–60k tokens in a single call.
 
 **Fix (mandatory procedure):**
-1. Before reading any `.rs`, `.tsx`, or `.sql` file, run `wc -l` on it (or Glob+Grep first).
-2. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
+1. For architecture, dependency, caller, or change-impact questions, start with
+   `codegraph status .` and the relevant command from `.claude/refs/codegraph.md`.
+   Do not substitute a broad repository search for this discovery step.
+2. Before reading any `.rs`, `.tsx`, or `.sql` file, run `wc -l` on it (or Glob+Grep first).
+3. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
    function name first to get a line number, then Read ±80 lines around it.
-3. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
+4. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
    (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:1181). Start from those, but verify
    with Grep — anchors rot as code moves.
-4. If you need a broad sweep ("where is X handled across the repo"), delegate to an
+5. If you need a broad sweep ("where is X handled across the repo"), delegate to an
    Explore subagent (see `model-dispatch.md`) instead of reading files yourself.
 
 - ✅ Good: `grep -n "fn manual_checkin_handler" handlers/bookings.rs` → Read offset 1780, limit 160.

@@ -17,6 +17,7 @@ every session, so keep those lean). Do not add content here without removing som
 | Working on ledgers / city ledger / invoicing | `.claude/refs/ledger-workflow.md` |
 | Desktop/Tauri build or packaging | `hotel-desktop/BUILD_SPEED.md`, `hotel-desktop/UPDATER.md` |
 | Architecture overview / deployment / ADRs | `docs/architecture/architecture-flow.md`, `docs/guides/deployment.md`, `docs/architecture/ADRS.md` |
+| Architecture, dependency, caller, or change-impact question | `.claude/refs/codegraph.md` — use CodeGraph before broad repository searches |
 | Onboarding context from the 2026-07-05 Fable session | `.claude/refs/letter-to-future-sessions.md` |
 | Using Codex (OpenAI) for second opinions / cross-vendor review | `.claude/refs/codex-collab.md` |
 | Picking the next improvement / tech-debt work | `docs/ongoing-dev.md` |
@@ -33,6 +34,10 @@ Three-project monorepo; no root workspace — run commands from the subdirectory
 - `hotel-desktop/` — Tauri 2 wrapper: backend as sidecar + embedded PostgreSQL under `src-tauri/pgsql/`
 
 `AGENTS.md` is the Codex-oriented rulebook (overlapping content) — owned by other tooling; ask before editing.
+
+CodeGraph is the repository's only code-graph system. Its local `.codegraph/` index is
+Git-ignored; use it for architecture and impact discovery, then verify security-,
+authorization-, payment-, ledger-, and migration-critical findings against source files.
 
 ## Common commands
 

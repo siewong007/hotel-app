@@ -40,3 +40,12 @@ export function useRejectPayment() {
     onSuccess: () => invalidatePaymentApprovalDependencies(queryClient),
   });
 }
+
+export function useRequestPaymentReceipt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ paymentId, message }: { paymentId: number; message?: string }) =>
+      PaymentApprovalsService.requestReceipt(paymentId, message),
+    onSuccess: () => invalidatePaymentApprovalDependencies(queryClient),
+  });
+}

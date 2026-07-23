@@ -292,6 +292,12 @@ impl GuestRepository {
             COALESCE(discount_percentage, 0) as discount_percentage, company_name,
             COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
             created_at, updated_at,
+            (SELECT username FROM users u
+                WHERE u.guest_id = guests.id
+                  AND u.deleted_at IS NULL
+                  AND u.is_active = true
+                ORDER BY u.id
+                LIMIT 1) AS account_username,
             (SELECT COUNT(*) FROM bookings b
                 WHERE b.guest_id = guests.id AND b.status != 'voided') AS bookings_count,
             (SELECT MAX(b.check_in_date) FROM bookings b
@@ -307,6 +313,12 @@ impl GuestRepository {
             COALESCE(discount_percentage, 0) as discount_percentage, company_name,
             COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
             created_at, updated_at,
+            (SELECT username FROM users u
+                WHERE u.guest_id = guests.id
+                  AND u.deleted_at IS NULL
+                  AND u.is_active = true
+                ORDER BY u.id
+                LIMIT 1) AS account_username,
             (SELECT COUNT(*) FROM bookings b
                 WHERE b.guest_id = guests.id AND b.status != 'voided') AS bookings_count,
             (SELECT MAX(b.check_in_date) FROM bookings b
@@ -331,7 +343,12 @@ impl GuestRepository {
                  OR COALESCE(email, '') {like_op} {p_search} \
                  OR COALESCE(phone, '') {like_op} {p_search} \
                  OR COALESCE(ic_number, '') {like_op} {p_search} \
-                 OR COALESCE(company_name, '') {like_op} {p_search})"
+                 OR COALESCE(company_name, '') {like_op} {p_search} \
+                 OR EXISTS (SELECT 1 FROM users u \
+                            WHERE u.guest_id = guests.id \
+                              AND u.deleted_at IS NULL \
+                              AND u.is_active = true \
+                              AND u.username {like_op} {p_search}))"
             );
 
             let count_sql = format!(

@@ -99,6 +99,20 @@ describe('usePortalSessionBootstrap', () => {
     expect(mocks.createSession).not.toHaveBeenCalled();
   });
 
+  it('leaves the guest portal before clearing the account session on sign out', () => {
+    mocks.createSession.mockResolvedValue({
+      token: 'portal-token',
+      expires_at: '2999-01-01T00:00:00Z',
+    });
+    const { result } = renderHook(() => usePortalSessionBootstrap());
+
+    act(() => result.current.signOut());
+
+    expect(mocks.logoutPortal).toHaveBeenCalledBefore(mocks.auth.logout);
+    expect(mocks.logoutPortal).toHaveBeenCalledTimes(1);
+    expect(mocks.auth.logout).toHaveBeenCalledTimes(1);
+  });
+
   it('offers a retry after the portal session exchange fails', async () => {
     mocks.createSession
       .mockRejectedValueOnce(new Error('Backend unavailable'))

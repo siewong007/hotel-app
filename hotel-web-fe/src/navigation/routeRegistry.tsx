@@ -88,7 +88,7 @@ const SupportManagementPage = lazyRoute(() => import('../features/support'));
 const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPage'));
 const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
-const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/OnlineInventoryPage'));
+const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'public' },

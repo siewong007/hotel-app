@@ -1275,6 +1275,7 @@ const GuestConfigurationPage: React.FC = () => {
                     <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: GUEST_DESIGN.ink3, mb: 1.5 }}>
                       Contact
                     </Typography>
+                    <ContactRow icon={<PersonIcon />} label="Guest account username" value={g.account_username} placeholder="No guest account" readOnly />
                     <ContactRow icon={<PhoneIcon />} label="Phone" value={g.phone} placeholder="Add phone number" onAdd={() => handleEditClick(g)} />
                     <ContactRow icon={<MailIcon />} label="Email" value={g.email} placeholder="Add email address" onAdd={() => handleEditClick(g)} />
                     <ContactRow icon={<IdIcon />} label="IC / Passport" value={g.ic_number} placeholder="Add ID document" onAdd={() => handleEditClick(g)} />

@@ -22,12 +22,14 @@ import {
 } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { PendingPaymentEntry } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
 import {
   useApprovePayment,
   usePendingPayments,
   useRejectPayment,
+  useRequestPaymentReceipt,
 } from '../hooks/usePaymentApprovalsQueries';
 
 function statusColor(status: string): 'default' | 'warning' | 'success' | 'error' {
@@ -56,6 +58,7 @@ const PaymentApprovalsPage: React.FC = () => {
   const pendingQuery = usePendingPayments({ page: page + 1, pageSize });
   const approveMutation = useApprovePayment();
   const rejectMutation = useRejectPayment();
+  const receiptMutation = useRequestPaymentReceipt();
 
   const items = pendingQuery.data?.items ?? [];
   const total = pendingQuery.data?.total ?? 0;
@@ -98,6 +101,17 @@ const PaymentApprovalsPage: React.FC = () => {
       setRejectTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to reject this payment.');
+    }
+  };
+
+  const handleRequestReceipt = async (entry: PendingPaymentEntry) => {
+    setError(null);
+    setSuccess(null);
+    try {
+      await receiptMutation.mutateAsync({ paymentId: entry.id });
+      setSuccess(`Receipt requested from the guest for booking ${entry.booking_number ?? entry.booking_id}.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to request a receipt.');
     }
   };
 
@@ -146,7 +160,8 @@ const PaymentApprovalsPage: React.FC = () => {
               {items.map((entry) => {
                 const isBusy =
                   (approveMutation.isPending && approveMutation.variables === entry.id) ||
-                  (rejectMutation.isPending && rejectMutation.variables?.paymentId === entry.id);
+                  (rejectMutation.isPending && rejectMutation.variables?.paymentId === entry.id) ||
+                  (receiptMutation.isPending && receiptMutation.variables?.paymentId === entry.id);
                 return (
                   <TableRow key={entry.id} hover>
                     <TableCell>{entry.booking_number ?? `#${entry.booking_id}`}</TableCell>
@@ -179,6 +194,18 @@ const PaymentApprovalsPage: React.FC = () => {
                       >
                         Approve
                       </Button>
+                      {entry.payment_method === 'bank_transfer' ? (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<UploadFileOutlinedIcon />}
+                          disabled={isBusy}
+                          onClick={() => void handleRequestReceipt(entry)}
+                          sx={{ mr: 1 }}
+                        >
+                          {entry.receipt_uploaded ? 'Receipt uploaded' : entry.receipt_requested ? 'Request again' : 'Request receipt'}
+                        </Button>
+                      ) : null}
                       <Button
                         size="small"
                         color="error"

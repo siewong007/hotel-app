@@ -61,6 +61,8 @@ pub struct PendingPaymentEntry {
     pub reference: Option<String>,
     pub notes: Option<String>,
     pub created_at: String,
+    pub receipt_requested: bool,
+    pub receipt_uploaded: bool,
 }
 
 /// Paginated wrapper for the staff pending-payments queue.
@@ -124,6 +126,12 @@ pub struct SessionPaypalCaptureRequest {
 #[derive(Debug, Deserialize)]
 pub struct RejectPaymentRequest {
     pub reason: String,
+}
+
+/// Staff message asking a guest to upload proof for a pending bank transfer.
+#[derive(Debug, Deserialize)]
+pub struct RequestPaymentReceiptRequest {
+    pub message: Option<String>,
 }
 
 /// Pagination query for the staff pending-payments queue.

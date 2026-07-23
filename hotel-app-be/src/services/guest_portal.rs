@@ -337,26 +337,14 @@ pub async fn get_my_bookings(
 ) -> Result<GuestPortalPage<GuestPortalBookingSummary>, ApiError> {
     let (mut items, total) =
         GuestPortalSessionRepository::list_bookings(pool, guest_id, limit, offset).await?;
-    let enabled = crate::core::settings_cache::get_string(
-        pool,
-        "guest_booking_cancellation_enabled",
-        "false",
-    )
-    .await
-        == "true";
-    let today = chrono::Utc::now().date_naive();
     for booking in &mut items {
         if booking.cancellation_unavailable_reason.is_none() {
-            booking.cancellation_unavailable_reason = if !enabled {
-                Some("Guest booking cancellation is disabled by the hotel.".to_string())
-            } else if !matches!(
+            booking.cancellation_unavailable_reason = if !matches!(
                 booking.status.as_str(),
-                "pending" | "pending_payment" | "pending_confirmation" | "confirmed"
+                "pending" | "pending_payment" | "pending_confirmation"
             ) {
-                Some("Only bookings awaiting payment, confirmation, or confirmed bookings can be cancelled.".to_string())
-            } else if booking.check_in_date <= today {
                 Some(
-                    "This booking can no longer be cancelled because check-in has started."
+                    "Only unpaid bookings awaiting payment or confirmation can be cancelled."
                         .to_string(),
                 )
             } else {
@@ -404,7 +392,8 @@ pub async fn cancel_my_booking(
         .ok_or_else(|| {
             ApiError::Forbidden("No active guest account is linked to this booking.".to_string())
         })?;
-    crate::services::bookings::void_booking(pool, user_id, booking_id, reason).await
+    crate::services::bookings::cancel_pending_booking_by_guest(pool, user_id, booking_id, reason)
+        .await
 }
 
 /// GET /guest-portal/me/transactions
