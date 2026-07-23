@@ -111,10 +111,7 @@ impl EkycRepository {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<(String, Option<i64>), ApiError> {
-        let query = crate::sql_query!(
-            postgres: "SELECT user_type::text, guest_id FROM users WHERE id = $1",
-            sqlite: "SELECT user_type, guest_id FROM users WHERE id = $1"
-        );
+        let query = "SELECT user_type::text, guest_id FROM users WHERE id = $1";
         sqlx::query_as(query)
             .bind(user_id)
             .fetch_one(pool)
@@ -123,10 +120,7 @@ impl EkycRepository {
     }
 
     pub async fn guest_id_for_user(pool: &DbPool, user_id: i64) -> Result<Option<i64>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: "SELECT guest_id FROM users WHERE id = $1",
-            sqlite: "SELECT guest_id FROM users WHERE id = ?1"
-        );
+        let query = "SELECT guest_id FROM users WHERE id = $1";
 
         sqlx::query_scalar(query)
             .bind(user_id)
@@ -139,8 +133,7 @@ impl EkycRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Option<GuestEkycSummaryRecord>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id, user_id, guest_id, status,
                        COALESCE(self_checkin_enabled, false) AS self_checkin_enabled,
                        verified_at
@@ -148,17 +141,7 @@ impl EkycRepository {
                 WHERE guest_id = $1
                 ORDER BY COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
                 LIMIT 1
-            "#,
-            sqlite: r#"
-                SELECT id, user_id, guest_id, status,
-                       COALESCE(self_checkin_enabled, 0) AS self_checkin_enabled,
-                       verified_at
-                FROM ekyc_verifications
-                WHERE guest_id = ?1
-                ORDER BY COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
-                LIMIT 1
-            "#
-        );
+            "#;
 
         let row = sqlx::query(query)
             .bind(guest_id)
@@ -429,10 +412,8 @@ impl EkycRepository {
 
     /// The id of an existing guest-type portal user linked to this guest, if any.
     pub async fn find_guest_user(pool: &DbPool, guest_id: i64) -> Result<Option<i64>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: "SELECT id FROM users WHERE guest_id = $1 AND user_type = 'guest' ORDER BY id LIMIT 1",
-            sqlite: "SELECT id FROM users WHERE guest_id = ?1 AND user_type = 'guest' ORDER BY id LIMIT 1"
-        );
+        let query =
+            "SELECT id FROM users WHERE guest_id = $1 AND user_type = 'guest' ORDER BY id LIMIT 1";
         sqlx::query_scalar(query)
             .bind(guest_id)
             .fetch_optional(pool)
@@ -454,12 +435,8 @@ impl EkycRepository {
         } else {
             full_name.to_string()
         };
-        let query = crate::sql_query!(
-            postgres: "INSERT INTO users (username, email, full_name, user_type, guest_id, is_active, is_verified) \
-                       VALUES ($1, $2, $3, 'guest', $4, false, true) RETURNING id",
-            sqlite: "INSERT INTO users (username, email, full_name, user_type, guest_id, is_active, is_verified) \
-                     VALUES (?1, ?2, ?3, 'guest', ?4, 0, 1) RETURNING id"
-        );
+        let query = "INSERT INTO users (username, email, full_name, user_type, guest_id, is_active, is_verified) \
+                       VALUES ($1, $2, $3, 'guest', $4, false, true) RETURNING id";
         sqlx::query_scalar(query)
             .bind(username)
             .bind(email)
@@ -552,9 +529,7 @@ impl EkycRepository {
     }
 
     pub async fn dashboard_metrics(pool: &DbPool) -> Result<EkycDashboardRow, ApiError> {
-        let query = crate::sql_query!(
-            postgres:
-            r#"
+        let query = r#"
             SELECT
                 COUNT(*)::BIGINT AS total_submitted,
                 COALESCE(SUM(CASE WHEN status IN ('submitted', 'automated_review', 'pending_manual_review') THEN 1 ELSE 0 END), 0)::BIGINT AS pending_review,
@@ -574,30 +549,7 @@ impl EkycRepository {
                 COALESCE(SUM(CASE WHEN submitted_at >= CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)::BIGINT AS weekly_trend,
                 COALESCE(SUM(CASE WHEN submitted_at >= CURRENT_TIMESTAMP - INTERVAL '30 days' THEN 1 ELSE 0 END), 0)::BIGINT AS monthly_trend
             FROM ekyc_verifications
-            "#,
-            sqlite:
-            r#"
-            SELECT
-                COUNT(*) AS total_submitted,
-                COALESCE(SUM(CASE WHEN status IN ('submitted', 'automated_review', 'pending_manual_review') THEN 1 ELSE 0 END), 0) AS pending_review,
-                COALESCE(SUM(CASE WHEN status IN ('pending_manual_review', 'in_review', 'on_hold') THEN 1 ELSE 0 END), 0) AS under_manual_review,
-                COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) AS approved,
-                COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected,
-                COALESCE(SUM(CASE WHEN status = 'additional_information_required' THEN 1 ELSE 0 END), 0) AS resubmission_required,
-                COALESCE(SUM(CASE WHEN status = 'escalated' OR risk_level IN ('high', 'critical') THEN 1 ELSE 0 END), 0) AS escalated_high_risk,
-                AVG(CASE WHEN verified_at IS NOT NULL AND submitted_at IS NOT NULL
-                    THEN (julianday(verified_at) - julianday(submitted_at)) * 24 * 60
-                    ELSE NULL END) AS average_processing_minutes,
-                COALESCE(SUM(CASE WHEN submitted_at <= datetime('now', '-20 hours')
-                         AND submitted_at > datetime('now', '-24 hours')
-                         AND status NOT IN ('approved', 'rejected', 'expired', 'void')
-                    THEN 1 ELSE 0 END), 0) AS nearing_sla,
-                COALESCE(SUM(CASE WHEN date(submitted_at) = date('now') THEN 1 ELSE 0 END), 0) AS daily_trend,
-                COALESCE(SUM(CASE WHEN submitted_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END), 0) AS weekly_trend,
-                COALESCE(SUM(CASE WHEN submitted_at >= datetime('now', '-30 days') THEN 1 ELSE 0 END), 0) AS monthly_trend
-            FROM ekyc_verifications
-            "#
-        );
+            "#;
 
         sqlx::query_as(query)
             .fetch_one(pool)
@@ -1008,10 +960,7 @@ impl EkycRepository {
 
     #[allow(dead_code)]
     pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
-        let query = crate::sql_query!(
-            postgres: "SELECT room_number FROM rooms WHERE id = $1",
-            sqlite: "SELECT room_number FROM rooms WHERE id = ?1"
-        );
+        let query = "SELECT room_number FROM rooms WHERE id = $1";
 
         sqlx::query_scalar(query)
             .bind(room_id)
@@ -1110,10 +1059,6 @@ fn normalized_search(value: Option<&str>) -> Option<String> {
         .map(|value| value.trim_start_matches("EKYC-").to_string())
 }
 
-#[cfg(any(
-    all(feature = "postgres", not(feature = "sqlite")),
-    all(feature = "sqlite", feature = "postgres")
-))]
 fn bind_count_filters<'q>(
     query: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
     params: &'q EkycListQuery,
@@ -1171,10 +1116,6 @@ fn bind_count_filters<'q>(
         .bind(like_search.as_ref())
 }
 
-#[cfg(any(
-    all(feature = "postgres", not(feature = "sqlite")),
-    all(feature = "sqlite", feature = "postgres")
-))]
 fn bind_data_filters<'q>(
     query: sqlx::query::QueryAs<
         'q,
@@ -1187,132 +1128,6 @@ fn bind_data_filters<'q>(
     like_search: &'q Option<String>,
 ) -> sqlx::query::QueryAs<'q, sqlx::Postgres, EkycApplicationSummaryRow, sqlx::postgres::PgArguments>
 {
-    query
-        .bind(
-            params
-                .status
-                .as_ref()
-                .filter(|status| status.as_str() != "all"),
-        )
-        .bind(params.submission_from)
-        .bind(params.submission_to)
-        .bind(
-            params
-                .risk_level
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .verification_method
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(params.assigned_reviewer_id)
-        .bind(
-            params
-                .nationality
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .country
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .document_type
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .provider_result
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(params.manual_review_required)
-        .bind(exact_search.as_ref())
-        .bind(like_search.as_ref())
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn bind_count_filters<'q>(
-    query: sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>>,
-    params: &'q EkycListQuery,
-    exact_search: &'q Option<String>,
-    like_search: &'q Option<String>,
-) -> sqlx::query::Query<'q, sqlx::Sqlite, sqlx::sqlite::SqliteArguments<'q>> {
-    query
-        .bind(
-            params
-                .status
-                .as_ref()
-                .filter(|status| status.as_str() != "all"),
-        )
-        .bind(params.submission_from)
-        .bind(params.submission_to)
-        .bind(
-            params
-                .risk_level
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .verification_method
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(params.assigned_reviewer_id)
-        .bind(
-            params
-                .nationality
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .country
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .document_type
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(
-            params
-                .provider_result
-                .as_ref()
-                .filter(|value| value.as_str() != "all"),
-        )
-        .bind(params.manual_review_required)
-        .bind(exact_search.as_ref())
-        .bind(like_search.as_ref())
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn bind_data_filters<'q>(
-    query: sqlx::query::QueryAs<
-        'q,
-        sqlx::Sqlite,
-        EkycApplicationSummaryRow,
-        sqlx::sqlite::SqliteArguments<'q>,
-    >,
-    params: &'q EkycListQuery,
-    exact_search: &'q Option<String>,
-    like_search: &'q Option<String>,
-) -> sqlx::query::QueryAs<
-    'q,
-    sqlx::Sqlite,
-    EkycApplicationSummaryRow,
-    sqlx::sqlite::SqliteArguments<'q>,
-> {
     query
         .bind(
             params

@@ -1,55 +1,51 @@
 # Architecture Flow
 
-One-page system flow. Decisions and rationale live in [ADRS.md](ADRS.md); deploy
-steps in [../guides/deployment.md](../guides/deployment.md).
+Decisions and rationale live in [ADRS.md](ADRS.md); deployment steps live in
+[the deployment guide](../guides/deployment.md).
 
-## Request flow (web)
+## Web request flow
 
-```
-Browser (React 19 / MUI / TanStack Router+Query)
-  └─ src/api/client.ts (ky; bearer token, 401 → auth:unauthorized)
-      └─ dev: Vite proxy :3000 → 127.0.0.1:3030   prod: Caddy → backend
-          └─ routes/mod.rs::create_router (CORS, rate limits, security headers)
-              └─ require_auth → check_permission("<resource>:<action>")
-                  └─ handlers/<domain>.rs
-                      ├─ services/ (business logic, audit.rs on every mutation)
-                      └─ repositories/ or inline SQL (sql_query!/param! dual-DB)
-                          └─ PostgreSQL 19 (prod/docker) | SQLite (lightweight/CI)
-```
-
-## Desktop flow (Tauri 2)
-
-```
-Tauri webview (tauri://localhost)
-  └─ IPC: commands.rs get_status / backend-ready event → src/desktop/runtimeApi.ts
-      └─ backend sidecar, 127.0.0.1 on first free port ≥ BACKEND_PORT
-          └─ embedded PostgreSQL (src-tauri/pgsql/)
+```text
+Browser (React / MUI / TanStack Router and Query)
+  └─ src/api/client.ts (ky, bearer token, auth events)
+      └─ Vite proxy in development or Caddy in production
+          └─ Axum routes, CORS, rate limits, and security headers
+              └─ authentication and permission checks
+                  └─ handlers
+                      └─ services
+                          └─ repositories
+                              └─ PostgreSQL
 ```
 
-- `HOTEL_DESKTOP_MODE` set; `ALLOWED_ORIGINS` is a specific list, never `*`.
-- Cookies are cross-site here (tauri:// → 127.0.0.1): SameSite=Strict means no
-  session restore after restart — accepted trade-off (2026-07-06).
+## Desktop flow
 
-## Data lifecycle (V1)
-
-New empty database → `postgres/migrations/0001_v1_baseline.sql` → `data.sql` →
-`seed.sql`, applied exactly once (Docker, desktop, and `make db-setup` all use
-this order). SQLite embeds the equivalent V1 resources. Existing V1 databases are
-verified and left unchanged at startup. Canonical lifecycle doc:
-[hotel-app-be/database/README.md](../../hotel-app-be/database/README.md).
-
-## Deployment topology (docker compose)
-
-```
-Caddy (HTTPS) ── static frontend build
-     └── /api → hotel-app-be (Axum, :3030) ── postgres:19beta2 volume
+```text
+Tauri webview
+  └─ Tauri IPC and backend-ready event
+      └─ backend sidecar on a dynamically selected localhost port
+          └─ bundled PostgreSQL runtime and resources
 ```
 
-## Wiring points that bite (checklist in .claude/rules/00-diagnosis.md)
+Desktop mode sets `HOTEL_DESKTOP_MODE`. The webview obtains the selected backend
+port through Tauri IPC. The sidecar receives an explicit `ALLOWED_ORIGINS` list.
 
-- New router → `.merge()` in `routes/mod.rs` or it 404s.
-- New top-level API prefix → add to `hotel-web-fe/vite.config.ts` proxy list.
-- New page → `src/routes/*.tsx` AND `src/navigation/routeRegistry.tsx`.
-- SQL → dual-DB (`sql_query!`, `param!`, both `database/postgres/` and
-  `database/sqlite/` resources); verify with `cargo check --all-features` AND
-  `--features sqlite --no-default-features`.
+## PostgreSQL V1 lifecycle
+
+A new empty database is initialized exactly once:
+
+```text
+database/postgres/migrations/0001_v1_baseline.sql
+  → database/postgres/data.sql
+  → database/postgres/seed.sql
+```
+
+Docker, server, and desktop deployments share this sequence. Existing databases
+are not automatically reinitialized. See the
+[database lifecycle](../../hotel-app-be/database/README.md).
+
+## Important wiring checks
+
+- Merge every new backend router in `routes/mod.rs`.
+- Add new top-level API prefixes to `hotel-web-fe/vite.config.ts`.
+- Register new pages in both `src/routes/` and `src/navigation/routeRegistry.tsx`.
+- Keep SQL parameterized and validate it against PostgreSQL.

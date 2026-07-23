@@ -28,7 +28,6 @@ can burn 30–60k tokens in a single call.
 
 ## Leak #2: Dual-database contract violations (most common CI failure)
 
-The backend must compile for BOTH PostgreSQL and SQLite. A model that writes
 Postgres-only SQL will pass a plain `cargo check` locally and then fail CI
 (`cargo check --all-features`, clippy `-D warnings`). Worse: SQL that compiles but
 behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silently.
@@ -38,13 +37,10 @@ behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silentl
 2. Time: use `sql_compat::current_timestamp()` / `current_date()` — never `NOW()` / `CURRENT_DATE`.
 3. DB-divergent values: use `core/db.rs` helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
 4. Schema changes: update BOTH `hotel-app-be/database/postgres/` AND
-   `hotel-app-be/database/sqlite/` V1 resources (lifecycle:
    `hotel-app-be/database/README.md`). One engine without the other = incomplete task.
 5. Before claiming done: `cargo check --all-features` MUST pass. This is the minimum
    bar; `cargo clippy --all-features -- -D warnings` is what CI actually runs.
 
-- ✅ Good: `sql_query!(postgres: "...", sqlite: "...")` + both schema files touched + check passes.
-- ❌ Bad: "I updated schema.sql; the SQLite side probably works the same way."
 
 ## Leak #3: Forgetting cross-cutting wiring (silent runtime failures)
 

@@ -15,7 +15,6 @@ use crate::models::{
     GuestPortalBookingSummary, GuestPortalGuestView, GuestPortalMembership,
     GuestPortalPointsActivity, GuestPortalReward, GuestPortalTierBenefit, GuestPortalTransaction,
 };
-use crate::sql_query;
 use crate::{core::sql_compat::current_timestamp, param};
 
 pub struct GuestPortalSessionRepository;
@@ -40,10 +39,7 @@ impl GuestPortalSessionRepository {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<Option<i64>, ApiError> {
-        let sql = sql_query!(
-            postgres: "SELECT guest_id FROM users WHERE id = $1 AND user_type::text = 'guest' AND guest_id IS NOT NULL AND is_active = true",
-            sqlite: "SELECT guest_id FROM users WHERE id = ?1 AND user_type = 'guest' AND guest_id IS NOT NULL AND is_active = 1"
-        );
+        let sql = "SELECT guest_id FROM users WHERE id = $1 AND user_type::text = 'guest' AND guest_id IS NOT NULL AND is_active = true";
         sqlx::query_scalar(sql)
             .bind(user_id)
             .fetch_optional(pool)
@@ -132,10 +128,9 @@ impl GuestPortalSessionRepository {
             .unwrap_or_default();
 
         // Postgres records a rejected claim's reason in `failure_reason`
-        // (timestamped by `processed_at`); SQLite reuses its void columns
         // (`void_reason`/`voided_at`) — see mark_payment_rejected_tx.
-        let rejection_reason_col = sql_query!(postgres: "failure_reason", sqlite: "void_reason");
-        let rejected_at_col = sql_query!(postgres: "processed_at", sqlite: "voided_at");
+        let rejection_reason_col = "failure_reason";
+        let rejected_at_col = "processed_at";
         let sql = format!(
             "SELECT b.id, b.booking_number, b.check_in_date, b.check_out_date, b.status, b.total_amount, \
                     (SELECT cp.id FROM payments cp WHERE cp.booking_id = b.id AND cp.status = 'completed' \
@@ -228,10 +223,7 @@ impl GuestPortalSessionRepository {
     }
 
     pub async fn find_guest_user_id(pool: &DbPool, guest_id: i64) -> Result<Option<i64>, ApiError> {
-        sqlx::query_scalar(sql_query!(
-            postgres: "SELECT id FROM users WHERE guest_id = $1 AND user_type::text = 'guest' AND is_active = true ORDER BY id LIMIT 1",
-            sqlite: "SELECT id FROM users WHERE guest_id = ?1 AND user_type = 'guest' AND is_active = 1 ORDER BY id LIMIT 1"
-        ))
+        sqlx::query_scalar("SELECT id FROM users WHERE guest_id = $1 AND user_type::text = 'guest' AND is_active = true ORDER BY id LIMIT 1")
         .bind(guest_id)
         .fetch_optional(pool)
         .await
@@ -248,19 +240,11 @@ impl GuestPortalSessionRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<GuestPortalGuestView, ApiError> {
-        let sql = sql_query!(
-            postgres: format!(
-                "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
+        let sql = format!(
+            "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
                         address_line_1 AS address_line1, city, state AS state_province, postal_code, country \
                  FROM guests WHERE id = {}",
-                param!(1)
-            ),
-            sqlite: format!(
-                "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
-                        address_line1, city, state_province, postal_code, country \
-                 FROM guests WHERE id = {}",
-                param!(1)
-            )
+            param!(1)
         );
         let row = sqlx::query(&sql)
             .bind(guest_id)
@@ -306,9 +290,8 @@ impl GuestPortalSessionRepository {
                     i.status AS status \
              FROM invoices i JOIN bookings b2 ON b2.id = i.booking_id \
              WHERE i.{invoice_guest_col} = {g}",
-            // Postgres and SQLite name these columns differently.
-            payment_ref_col = sql_query!(postgres: "transaction_id", sqlite: "reference_number"),
-            invoice_guest_col = sql_query!(postgres: "bill_to_guest_id", sqlite: "guest_id"),
+            payment_ref_col = "transaction_id",
+            invoice_guest_col = "bill_to_guest_id",
             g = param!(1)
         );
 
@@ -379,7 +362,7 @@ impl GuestPortalSessionRepository {
 
         row.map(|row| {
             // PostgreSQL promotes SUM(INTEGER) to BIGINT. Decode the ledger
-            // balance as i64 in both database modes, then fail explicitly if a
+            // balance as i64, then fail explicitly if a
             // corrupt/out-of-range balance cannot fit the public i32 contract.
             let points_balance: i64 = row.try_get("points_balance").map_err(ApiError::from)?;
             let points_balance = i32::try_from(points_balance).map_err(|_| {
@@ -477,27 +460,15 @@ impl GuestPortalSessionRepository {
         // valid_from/valid_to are dates; open-ended when null.
         let is_active = crate::core::sql_compat::bool_true();
         let today = crate::core::sql_compat::current_date();
-        let sql = sql_query!(
-            postgres: format!(
-                "SELECT id, name, description, category, points_cost \
+        let sql = format!(
+            "SELECT id, name, description, category, points_cost \
                  FROM loyalty_rewards \
                  WHERE is_active = {active} \
                    AND (valid_from IS NULL OR valid_from <= {today}) \
                    AND (valid_to IS NULL OR valid_to >= {today}) \
                  ORDER BY points_cost ASC, id ASC",
-                active = is_active,
-                today = today
-            ),
-            sqlite: format!(
-                "SELECT id, name, description, category, points_cost \
-                 FROM loyalty_rewards \
-                 WHERE is_active = {active} \
-                   AND (valid_from IS NULL OR valid_from <= {today}) \
-                   AND (valid_to IS NULL OR valid_to >= {today}) \
-                 ORDER BY points_cost ASC, id ASC",
-                active = is_active,
-                today = today
-            )
+            active = is_active,
+            today = today
         );
         let rows = sqlx::query(&sql)
             .fetch_all(pool)

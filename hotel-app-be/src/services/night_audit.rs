@@ -156,7 +156,6 @@ pub async fn booking_posted_status(
 
 /// Backfill missing `night_audit_posted_nights` rows for a booking whose stay
 /// overlaps one or more already-completed audit dates.
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn backfill_booking_posted_nights(
     pool: &DbPool,
     booking_id: i64,

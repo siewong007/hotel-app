@@ -1,8 +1,6 @@
 //! Rate plan repository for database operations.
 
 use crate::core::db::{DbPool, DbRow, decimal_to_db};
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-use crate::core::db::{array_to_json, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -20,65 +18,6 @@ impl RateRepository {
         user_id: i64,
         values: &RatePlanCreateValues,
     ) -> Result<RatePlan, ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        {
-            sqlx::query(
-                r#"
-                INSERT INTO rate_plans (
-                    name, code, description, plan_type, adjustment_type, adjustment_value,
-                    valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday,
-                    applies_thursday, applies_friday, applies_saturday, applies_sunday,
-                    min_nights, max_nights, min_advance_booking, max_advance_booking,
-                    blackout_dates, is_active, priority, created_by
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
-                "#,
-            )
-            .bind(&values.name)
-            .bind(&values.code)
-            .bind(&values.description)
-            .bind(&values.plan_type)
-            .bind(&values.adjustment_type)
-            .bind(opt_decimal_to_db(values.adjustment_value))
-            .bind(values.valid_from)
-            .bind(values.valid_to)
-            .bind(if values.applies_monday { 1i32 } else { 0i32 })
-            .bind(if values.applies_tuesday { 1i32 } else { 0i32 })
-            .bind(if values.applies_wednesday { 1i32 } else { 0i32 })
-            .bind(if values.applies_thursday { 1i32 } else { 0i32 })
-            .bind(if values.applies_friday { 1i32 } else { 0i32 })
-            .bind(if values.applies_saturday { 1i32 } else { 0i32 })
-            .bind(if values.applies_sunday { 1i32 } else { 0i32 })
-            .bind(values.min_nights)
-            .bind(values.max_nights)
-            .bind(values.min_advance_booking)
-            .bind(values.max_advance_booking)
-            .bind(values.blackout_dates.as_ref().map(|dates| array_to_json(dates)))
-            .bind(if values.is_active { 1i32 } else { 0i32 })
-            .bind(values.priority)
-            .bind(user_id)
-            .execute(pool)
-            .await
-            .map_err(ApiError::from)?;
-
-            let rate_plan_id: i64 = sqlx::query_scalar("SELECT last_insert_rowid()")
-                .fetch_one(pool)
-                .await
-                .map_err(ApiError::from)?;
-
-            let row = sqlx::query("SELECT * FROM rate_plans WHERE id = ?1")
-                .bind(rate_plan_id)
-                .fetch_one(pool)
-                .await
-                .map_err(ApiError::from)?;
-
-            Ok(row_mappers::row_to_rate_plan(&row))
-        }
-
-        #[cfg(any(
-            all(feature = "postgres", not(feature = "sqlite")),
-            all(feature = "sqlite", feature = "postgres")
-        ))]
         {
             let row = sqlx::query(
                 r#"
@@ -555,26 +494,8 @@ fn row_to_room_type(row: DbRow) -> RoomType {
         })
         .unwrap_or_else(|_| "0".to_string());
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let allows_extra_bed: bool = row
-        .try_get::<i32, _>("allows_extra_bed")
-        .map(|v| v != 0)
-        .unwrap_or(false);
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let is_active: bool = row
-        .try_get::<i32, _>("is_active")
-        .map(|v| v != 0)
-        .unwrap_or(true);
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let is_active: bool = row.try_get("is_active").unwrap_or(true);
 
     RoomType {

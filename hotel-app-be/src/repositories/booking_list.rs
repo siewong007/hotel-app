@@ -132,7 +132,6 @@ pub fn build_booking_list_query(
         // EXISTS predicate over the booking's non-void payments of this method.
         // LOWER() on both sides keeps the (free-typed) filter case-insensitive.
         // The same placeholder is referenced twice — both PostgreSQL ($N) and
-        // SQLite (?N) resolve a repeated numbered placeholder to the single bind.
         let mut pay_exists = format!(
             "LOWER(pay.payment_method) = LOWER({p}) \
              AND pay.status NOT IN ('void', 'voided', 'failed')"
@@ -317,17 +316,11 @@ pub fn build_booking_list_query(
 }
 
 fn param_placeholder(idx: i32) -> String {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    return format!("?{}", idx);
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    return format!("${}", idx);
+    format!("${}", idx)
 }
 
 fn like_operator() -> &'static str {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    return "LIKE";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    return "ILIKE";
+    "ILIKE"
 }
 
 /// Resolve the payment-date window from the request's date filters.
@@ -345,10 +338,7 @@ fn payment_date_window(params: &BookingPaginationParams) -> (Option<NaiveDate>, 
 }
 
 fn date_cast(col: &str) -> String {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    return format!("date({})", col);
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    return format!("{}::date", col);
+    format!("{}::date", col)
 }
 
 #[cfg(test)]

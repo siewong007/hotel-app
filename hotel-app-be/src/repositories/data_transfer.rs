@@ -171,7 +171,6 @@ impl DataTransferRepository {
 
         let quoted_table = quote_identifier(table);
 
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let existing_ids = sqlx::query_scalar::<_, i64>(&format!(
             "SELECT id FROM {quoted_table} WHERE id = ANY($1)"
         ))
@@ -181,26 +180,6 @@ impl DataTransferRepository {
         .map_err(ApiError::from)?
         .into_iter()
         .collect();
-
-        // SQLite has no ANY(array); bind each id via an IN list ($N is valid SQLite syntax)
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let existing_ids = {
-            let placeholders = (1..=ids.len())
-                .map(|i| format!("${i}"))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let sql = format!("SELECT id FROM {quoted_table} WHERE id IN ({placeholders})");
-            let mut query = sqlx::query_scalar::<_, i64>(&sql);
-            for id in ids {
-                query = query.bind(*id);
-            }
-            query
-                .fetch_all(&mut **tx)
-                .await
-                .map_err(ApiError::from)?
-                .into_iter()
-                .collect()
-        };
 
         Ok(existing_ids)
     }
@@ -213,7 +192,6 @@ impl DataTransferRepository {
             return Ok(HashMap::new());
         }
 
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let rows = sqlx::query_as::<_, (String, i64)>(
             "SELECT room_number, id FROM rooms WHERE room_number = ANY($1)",
         )
@@ -221,22 +199,6 @@ impl DataTransferRepository {
         .fetch_all(&mut **tx)
         .await
         .map_err(ApiError::from)?;
-
-        // SQLite has no ANY(array); bind each value via an IN list ($N is valid SQLite syntax)
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let rows = {
-            let placeholders = (1..=room_numbers.len())
-                .map(|i| format!("${i}"))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let sql =
-                format!("SELECT room_number, id FROM rooms WHERE room_number IN ({placeholders})");
-            let mut query = sqlx::query_as::<_, (String, i64)>(&sql);
-            for room_number in room_numbers {
-                query = query.bind(room_number);
-            }
-            query.fetch_all(&mut **tx).await.map_err(ApiError::from)?
-        };
 
         Ok(rows.into_iter().collect())
     }

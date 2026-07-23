@@ -31,7 +31,6 @@ A task is complete ONLY when all of these hold:
 2. Backend touched → `cargo check --all-features` passes (clippy for CI-ready).
    Frontend touched → `npm run typecheck && npm run lint && npm run test` pass.
 3. Cross-cutting checklist from `00-diagnosis.md` Leak #3 walked item-by-item.
-4. Schema touched → BOTH `database/postgres/` and `database/sqlite/` V1 resources updated (see `hotel-app-be/database/README.md`).
 5. The user-visible summary states what was verified and HOW ("clippy clean, 42
    tests pass"), not "should be fine".
 

@@ -45,20 +45,6 @@ pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiErr
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let occupied_rooms: i64 = sqlx::query_scalar(
-        r#"
-        SELECT COUNT(DISTINCT room_id) FROM bookings
-        WHERE status NOT IN ('voided')
-        AND check_in_date <= date('now')
-        AND check_out_date > date('now')
-        "#,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let occupied_rooms: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(DISTINCT room_id) FROM bookings
@@ -78,15 +64,7 @@ pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiErr
     };
 
     // Count only rooms with status 'available' (excludes maintenance, cleaning, out_of_order, etc.)
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let available_rooms: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM rooms WHERE status = 'available' AND is_active = 1",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let available_rooms: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM rooms WHERE status = 'available' AND is_active = true",
     )
@@ -94,23 +72,6 @@ pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiErr
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let revenue_row = sqlx::query(
-        r#"
-        SELECT COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as revenue FROM bookings
-        WHERE status NOT IN ('voided')
-        AND check_in_date <= date('now')
-        AND check_out_date > date('now')
-        "#,
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let revenue = row_mappers::get_decimal(&revenue_row, "revenue");
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let revenue: Decimal = sqlx::query_scalar(
         r#"
         SELECT COALESCE(SUM(total_amount), 0) FROM bookings
@@ -140,25 +101,12 @@ pub async fn booking_analytics(pool: &DbPool) -> Result<serde_json::Value, ApiEr
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let revenue_row = sqlx::query(
-        "SELECT CAST(SUM(total_amount) AS TEXT) as revenue FROM bookings WHERE status NOT IN ('voided')"
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let total_revenue = row_mappers::get_opt_decimal(&revenue_row, "revenue").unwrap_or_default();
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let revenue_result: Option<Decimal> =
         sqlx::query_scalar("SELECT SUM(total_amount) FROM bookings WHERE status NOT IN ('voided')")
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let total_revenue = revenue_result.unwrap_or_default();
 
     let average_booking_value = if total_bookings > 0 {
@@ -191,25 +139,6 @@ pub async fn booking_analytics(pool: &DbPool) -> Result<serde_json::Value, ApiEr
         })
         .collect();
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let monthly_trend_rows = sqlx::query(
-        r#"
-        SELECT
-            strftime('%Y-%m', check_in_date) as month_label,
-            COUNT(*) as bookings,
-            COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as revenue
-        FROM bookings
-        WHERE status NOT IN ('voided')
-          AND date(check_in_date) >= date('now', 'start of month', '-5 months')
-        GROUP BY month_label
-        ORDER BY month_label
-        "#,
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let monthly_trend_rows = sqlx::query(
         r#"
         SELECT
@@ -247,23 +176,6 @@ pub async fn booking_analytics(pool: &DbPool) -> Result<serde_json::Value, ApiEr
         })
         .collect();
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let peak_hour_rows = sqlx::query(
-        r#"
-        SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as bookings
-        FROM bookings
-        WHERE status NOT IN ('voided')
-          AND created_at IS NOT NULL
-        GROUP BY hour
-        ORDER BY bookings DESC, hour
-        LIMIT 6
-        "#,
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let peak_hour_rows = sqlx::query(
         r#"
         SELECT EXTRACT(HOUR FROM created_at)::INTEGER as hour, COUNT(*)::BIGINT as bookings
@@ -428,8 +340,6 @@ pub async fn personalized_report(
     };
     let period = params.get("period").map(String::as_str).unwrap_or("month");
     let period_start = report_period_start(period);
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let period_start_text = period_start.to_string();
 
     let user_roles: Vec<String> = sqlx::query(
         r#"
@@ -453,40 +363,6 @@ pub async fn personalized_report(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let occupied_rooms: i64 = {
-        let mut query = String::from(
-            r#"
-            SELECT COUNT(DISTINCT b.room_id)
-            FROM bookings b
-            INNER JOIN guests g ON b.guest_id = g.id
-            WHERE b.status NOT IN ('voided')
-              AND b.check_in_date <= date('now')
-              AND b.check_out_date > date('now')
-            "#,
-        );
-        if !has_full_analytics {
-            query.push_str(
-                r#"
-              AND (
-                  b.created_by = $1
-                  OR b.guest_id = (SELECT guest_id FROM users WHERE id = $1)
-                  OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $1)
-              )
-                "#,
-            );
-        }
-
-        let mut sql = sqlx::query_scalar::<_, i64>(&query);
-        if !has_full_analytics {
-            sql = sql.bind(user_id);
-        }
-        sql.fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?
-    };
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let occupied_rooms: i64 = {
         let mut query = String::from(
             r#"
@@ -519,49 +395,6 @@ pub async fn personalized_report(
             .map_err(|e| ApiError::Database(e.to_string()))?
     };
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let (total_bookings, total_revenue) = {
-        let row = if has_full_analytics {
-            sqlx::query(
-                r#"
-                SELECT COUNT(*) as total_bookings, COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as total_revenue
-                FROM bookings
-                WHERE status NOT IN ('voided')
-                  AND date(check_in_date) >= date($1)
-                "#,
-            )
-            .bind(&period_start_text)
-            .fetch_one(pool)
-            .await
-        } else {
-            sqlx::query(
-                r#"
-                SELECT COUNT(*) as total_bookings, COALESCE(CAST(SUM(b.total_amount) AS TEXT), '0') as total_revenue
-                FROM bookings b
-                INNER JOIN guests g ON b.guest_id = g.id
-                WHERE b.status NOT IN ('voided')
-                  AND date(b.check_in_date) >= date($1)
-                  AND (
-                      b.created_by = $2
-                      OR b.guest_id = (SELECT guest_id FROM users WHERE id = $2)
-                      OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $2)
-                  )
-                "#,
-            )
-            .bind(&period_start_text)
-            .bind(user_id)
-            .fetch_one(pool)
-            .await
-        }
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        (
-            row_i64(&row, "total_bookings"),
-            row_mappers::get_decimal(&row, "total_revenue"),
-        )
-    };
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let (total_bookings, total_revenue) = {
         let row = if has_full_analytics {
             sqlx::query(
@@ -603,67 +436,6 @@ pub async fn personalized_report(
         )
     };
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let recent_booking_rows = if has_full_analytics {
-        sqlx::query(
-            r#"
-            SELECT
-                b.id,
-                COALESCE(g.full_name, 'Guest') as guest_name,
-                r.room_number,
-                COALESCE(rt.name, 'Room') as room_type,
-                b.check_in_date as check_in,
-                b.check_out_date as check_out,
-                COALESCE(CAST(b.total_amount AS TEXT), '0') as total_price,
-                b.status
-            FROM bookings b
-            INNER JOIN guests g ON b.guest_id = g.id
-            INNER JOIN rooms r ON b.room_id = r.id
-            LEFT JOIN room_types rt ON r.room_type_id = rt.id
-            WHERE b.status NOT IN ('voided')
-              AND date(b.check_in_date) >= date($1)
-            ORDER BY b.created_at DESC
-            LIMIT 5
-            "#,
-        )
-        .bind(&period_start_text)
-        .fetch_all(pool)
-        .await
-    } else {
-        sqlx::query(
-            r#"
-            SELECT
-                b.id,
-                COALESCE(g.full_name, 'Guest') as guest_name,
-                r.room_number,
-                COALESCE(rt.name, 'Room') as room_type,
-                b.check_in_date as check_in,
-                b.check_out_date as check_out,
-                COALESCE(CAST(b.total_amount AS TEXT), '0') as total_price,
-                b.status
-            FROM bookings b
-            INNER JOIN guests g ON b.guest_id = g.id
-            INNER JOIN rooms r ON b.room_id = r.id
-            LEFT JOIN room_types rt ON r.room_type_id = rt.id
-            WHERE b.status NOT IN ('voided')
-              AND date(b.check_in_date) >= date($1)
-              AND (
-                  b.created_by = $2
-                  OR b.guest_id = (SELECT guest_id FROM users WHERE id = $2)
-                  OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $2)
-              )
-            ORDER BY b.created_at DESC
-            LIMIT 5
-            "#,
-        )
-        .bind(&period_start_text)
-        .bind(user_id)
-        .fetch_all(pool)
-        .await
-    }
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let recent_booking_rows = if has_full_analytics {
         sqlx::query(
             r#"

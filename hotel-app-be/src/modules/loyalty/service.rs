@@ -247,7 +247,7 @@ pub async fn redeem_reward_for_guest(
             guest_id,
             &generate_voucher_code(),
             // Voucher provenance is intentionally constrained to guest_claim or
-            // admin_issue in both database backends. This redemption is a
+            // admin_issue in the database. This redemption is a
             // guest-initiated claim; using a longer ad-hoc value also exceeds
             // PostgreSQL's VARCHAR(16) column.
             "guest_claim",

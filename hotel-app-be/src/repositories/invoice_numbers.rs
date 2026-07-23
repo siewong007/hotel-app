@@ -11,26 +11,6 @@ pub async fn max_invoice_sequence<'e, E>(
 where
     E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
 {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        sqlx::query_scalar(
-            r#"
-            SELECT MAX(seq) FROM (
-                SELECT CAST(SUBSTR(invoice_number, 12) AS INTEGER) AS seq
-                FROM invoices WHERE invoice_number LIKE ?1
-                UNION ALL
-                SELECT CAST(SUBSTR(invoice_number, 12) AS INTEGER) AS seq
-                FROM customer_ledgers WHERE invoice_number LIKE ?1
-            )
-            "#,
-        )
-        .bind(pattern)
-        .fetch_one(executor)
-        .await
-        .map_err(ApiError::from)
-    }
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     {
         sqlx::query_scalar(
             r#"
@@ -51,22 +31,6 @@ where
 }
 
 pub async fn bookings_missing_invoices(pool: &DbPool) -> Result<Vec<(i64, String)>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        sqlx::query_as(
-            r#"
-            SELECT b.id, strftime('%Y%m', b.created_at)
-            FROM bookings b
-            WHERE NOT EXISTS (SELECT 1 FROM invoices i WHERE i.booking_id = b.id)
-            ORDER BY b.created_at
-            "#,
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(ApiError::from)
-    }
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     {
         sqlx::query_as(
             r#"
@@ -87,28 +51,6 @@ pub async fn insert_booking_invoice(
     booking_id: i64,
     invoice_number: &str,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        sqlx::query(
-            r#"
-            INSERT INTO invoices (
-                invoice_number, booking_id, invoice_type,
-                subtotal, total_amount, status
-            )
-            SELECT ?1, b.id, 'checkout', b.total_amount, b.total_amount, 'issued'
-            FROM bookings b
-            WHERE b.id = ?2
-            "#,
-        )
-        .bind(invoice_number)
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .map(|_| ())
-        .map_err(ApiError::from)
-    }
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     {
         sqlx::query(
             r#"
@@ -142,26 +84,6 @@ pub async fn backfill_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError>
     let default_terms_days =
         settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let result = sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-           SET due_date = date(
-               COALESCE(posting_date, invoice_date, date(created_at)),
-               '+' || COALESCE(
-                   (SELECT payment_terms_days FROM companies WHERE companies.company_name = customer_ledgers.company_name LIMIT 1),
-                   ?1
-               ) || ' days'
-           )
-         WHERE due_date IS NULL
-        "#,
-    )
-    .bind(default_terms_days)
-    .execute(pool)
-    .await
-    .map_err(ApiError::from)?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let result = sqlx::query(
         r#"
         UPDATE customer_ledgers

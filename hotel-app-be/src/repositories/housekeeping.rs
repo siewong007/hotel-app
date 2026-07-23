@@ -48,21 +48,7 @@ pub struct NewHousekeepingTask<'a> {
 }
 
 fn items_from_row(row: &DbRow) -> Option<Value> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        row.try_get::<Option<String>, _>("items_used")
-            .ok()
-            .flatten()
-            .and_then(|value| serde_json::from_str(&value).ok())
-    }
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
-    {
-        row.try_get::<Option<Value>, _>("items_used").ok().flatten()
-    }
+    row.try_get::<Option<Value>, _>("items_used").ok().flatten()
 }
 
 fn row_to_task(row: DbRow) -> HousekeepingTask {
@@ -90,23 +76,8 @@ fn row_to_task(row: DbRow) -> HousekeepingTask {
 }
 
 pub async fn room_exists(pool: &DbPool, room_id: i64) -> Result<bool, ApiError> {
-    let query = crate::sql_query!(
-        postgres: "SELECT EXISTS(SELECT 1 FROM rooms WHERE id = $1 AND is_active = true)",
-        sqlite: "SELECT EXISTS(SELECT 1 FROM rooms WHERE id = ?1 AND is_active = 1)"
-    );
+    let query = "SELECT EXISTS(SELECT 1 FROM rooms WHERE id = $1 AND is_active = true)";
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let exists = sqlx::query_scalar::<_, i32>(query)
-        .bind(room_id)
-        .fetch_one(pool)
-        .await
-        .map(|value| value != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let exists = sqlx::query_scalar::<_, bool>(query)
         .bind(room_id)
         .fetch_one(pool)
@@ -137,20 +108,12 @@ pub async fn list_tasks(
     page_size: i64,
     offset: i64,
 ) -> Result<(i64, Vec<HousekeepingTask>), ApiError> {
-    let where_clause = crate::sql_query!(
-        postgres: r#"
+    let where_clause = r#"
 WHERE ($1::text IS NULL OR t.status = $1)
   AND ($2::bigint IS NULL OR t.room_id = $2)
   AND ($3::bigint IS NULL OR t.assigned_to = $3)
   AND ($4::date IS NULL OR t.scheduled_date = $4)
-"#,
-        sqlite: r#"
-WHERE (?1 IS NULL OR t.status = ?1)
-  AND (?2 IS NULL OR t.room_id = ?2)
-  AND (?3 IS NULL OR t.assigned_to = ?3)
-  AND (?4 IS NULL OR t.scheduled_date = ?4)
-"#
-    );
+"#;
     let count_query = format!("SELECT COUNT(*) FROM housekeeping_tasks t {}", where_clause);
     let list_query = format!(
         "{} {} ORDER BY t.created_at DESC LIMIT {} OFFSET {}",
@@ -187,31 +150,15 @@ pub async fn insert_task(
     pool: &DbPool,
     task: NewHousekeepingTask<'_>,
 ) -> Result<HousekeepingTask, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 INSERT INTO housekeeping_tasks (
     room_id, task_type, priority, assigned_to, scheduled_date,
     notes, inspection_notes, items_used, created_by
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id
-"#,
-        sqlite: r#"
-INSERT INTO housekeeping_tasks (
-    room_id, task_type, priority, assigned_to, scheduled_date,
-    notes, inspection_notes, items_used, created_by
-)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-RETURNING id
-"#
-    );
+"#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let items_bind = task.items_used.map(|value| value.to_string());
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let items_bind = task.items_used;
 
     let task_id = sqlx::query_scalar::<_, i64>(query)
@@ -238,8 +185,7 @@ pub async fn patch_task(
     task_id: i64,
     patch: &HousekeepingTaskPatch,
 ) -> Result<HousekeepingTask, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 UPDATE housekeeping_tasks
 SET priority = COALESCE($2, priority),
     status = COALESCE($3, status),
@@ -252,29 +198,8 @@ SET priority = COALESCE($2, priority),
     completed_at = CASE WHEN $3 = 'completed' AND completed_at IS NULL THEN CURRENT_TIMESTAMP ELSE completed_at END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-"#,
-        sqlite: r#"
-UPDATE housekeeping_tasks
-SET priority = COALESCE(?2, priority),
-    status = COALESCE(?3, status),
-    assigned_to = COALESCE(?4, assigned_to),
-    scheduled_date = COALESCE(?5, scheduled_date),
-    notes = COALESCE(?6, notes),
-    inspection_notes = COALESCE(?7, inspection_notes),
-    items_used = COALESCE(?8, items_used),
-    started_at = CASE WHEN ?3 = 'in_progress' AND started_at IS NULL THEN datetime('now') ELSE started_at END,
-    completed_at = CASE WHEN ?3 = 'completed' AND completed_at IS NULL THEN datetime('now') ELSE completed_at END,
-    updated_at = datetime('now')
-WHERE id = ?1
-"#
-    );
+"#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let items_bind = patch.items_used.clone().map(|value| value.to_string());
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let items_bind = patch.items_used.clone();
 
     sqlx::query(query)
@@ -300,8 +225,7 @@ pub async fn patch_task_tx(
     task_id: i64,
     patch: &HousekeepingTaskPatch,
 ) -> Result<(), ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 UPDATE housekeeping_tasks
 SET priority = COALESCE($2, priority),
     status = COALESCE($3, status),
@@ -314,29 +238,8 @@ SET priority = COALESCE($2, priority),
     completed_at = CASE WHEN $3 = 'completed' AND completed_at IS NULL THEN CURRENT_TIMESTAMP ELSE completed_at END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-"#,
-        sqlite: r#"
-UPDATE housekeeping_tasks
-SET priority = COALESCE(?2, priority),
-    status = COALESCE(?3, status),
-    assigned_to = COALESCE(?4, assigned_to),
-    scheduled_date = COALESCE(?5, scheduled_date),
-    notes = COALESCE(?6, notes),
-    inspection_notes = COALESCE(?7, inspection_notes),
-    items_used = COALESCE(?8, items_used),
-    started_at = CASE WHEN ?3 = 'in_progress' AND started_at IS NULL THEN datetime('now') ELSE started_at END,
-    completed_at = CASE WHEN ?3 = 'completed' AND completed_at IS NULL THEN datetime('now') ELSE completed_at END,
-    updated_at = datetime('now')
-WHERE id = ?1
-"#
-    );
+"#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let items_bind = patch.items_used.clone().map(|value| value.to_string());
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let items_bind = patch.items_used.clone();
 
     sqlx::query(query)
@@ -356,22 +259,13 @@ WHERE id = ?1
 }
 
 pub async fn list_board_rooms(pool: &DbPool) -> Result<Vec<HousekeepingBoardRoom>, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 SELECT r.id, r.room_number, rt.name AS room_type, r.floor, r.status
 FROM rooms r
 INNER JOIN room_types rt ON rt.id = r.room_type_id
 WHERE r.is_active = true
 ORDER BY r.floor NULLS LAST, r.room_number
-"#,
-        sqlite: r#"
-SELECT r.id, r.room_number, rt.name AS room_type, r.floor, r.status
-FROM rooms r
-INNER JOIN room_types rt ON rt.id = r.room_type_id
-WHERE r.is_active = 1
-ORDER BY r.floor IS NULL, r.floor, r.room_number
-"#
-    );
+"#;
 
     let rows = sqlx::query(query)
         .fetch_all(pool)
@@ -410,38 +304,15 @@ pub async fn has_open_task_tx(
     room_id: i64,
     task_type: &str,
 ) -> Result<bool, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 SELECT EXISTS(
     SELECT 1 FROM housekeeping_tasks
     WHERE room_id = $1
       AND task_type = $2
       AND status IN ('pending', 'in_progress')
 )
-"#,
-        sqlite: r#"
-SELECT EXISTS(
-    SELECT 1 FROM housekeeping_tasks
-    WHERE room_id = ?1
-      AND task_type = ?2
-      AND status IN ('pending', 'in_progress')
-)
-"#
-    );
+"#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let exists = sqlx::query_scalar::<_, i32>(query)
-        .bind(room_id)
-        .bind(task_type)
-        .fetch_one(&mut **tx)
-        .await
-        .map(|value| value != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let exists = sqlx::query_scalar::<_, bool>(query)
         .bind(room_id)
         .bind(task_type)
@@ -457,16 +328,10 @@ pub async fn insert_checkout_task_tx(
     room_id: i64,
     created_by: i64,
 ) -> Result<(), ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 INSERT INTO housekeeping_tasks (room_id, task_type, priority, status, created_by, notes)
 VALUES ($1, 'checkout_clean', 'normal', 'pending', $2, 'Auto-created on checkout')
-"#,
-        sqlite: r#"
-INSERT INTO housekeeping_tasks (room_id, task_type, priority, status, created_by, notes)
-VALUES (?1, 'checkout_clean', 'normal', 'pending', ?2, 'Auto-created on checkout')
-"#
-    );
+"#;
 
     sqlx::query(query)
         .bind(room_id)

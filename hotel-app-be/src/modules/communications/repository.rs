@@ -193,11 +193,9 @@ impl CommunicationsRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Vec<NotificationSubscription>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM notification_subscriptions WHERE guest_id = $1 ORDER BY topic",
-            sqlite: "SELECT {COLS} FROM notification_subscriptions WHERE guest_id = ?1 ORDER BY topic"
-        )
-        .replace("{COLS}", SUBSCRIPTION_COLUMNS);
+        let sql =
+            "SELECT {COLS} FROM notification_subscriptions WHERE guest_id = $1 ORDER BY topic"
+                .replace("{COLS}", SUBSCRIPTION_COLUMNS);
         let rows = query(&sql)
             .bind(guest_id)
             .fetch_all(pool)
@@ -215,8 +213,8 @@ impl CommunicationsRepository {
         source: Option<&str>,
         policy_version: Option<&str>,
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: r#"
+        query(
+            r#"
                 INSERT INTO notification_subscriptions
                     (guest_id, channel, topic, subscribed, source, policy_version)
                 VALUES ($1, $2, $3, $4, $5, $6)
@@ -226,17 +224,7 @@ impl CommunicationsRepository {
                     policy_version = EXCLUDED.policy_version,
                     updated_at = CURRENT_TIMESTAMP
             "#,
-            sqlite: r#"
-                INSERT INTO notification_subscriptions
-                    (guest_id, channel, topic, subscribed, source, policy_version)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-                ON CONFLICT (guest_id, channel, topic) DO UPDATE SET
-                    subscribed = excluded.subscribed,
-                    source = excluded.source,
-                    policy_version = excluded.policy_version,
-                    updated_at = datetime('now')
-            "#
-        ))
+        )
         .bind(guest_id)
         .bind(channel)
         .bind(topic)
@@ -267,20 +255,14 @@ impl CommunicationsRepository {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: r#"
+        query(
+            r#"
                 INSERT INTO notification_consent_events
                     (guest_id, channel, topic, action, source, policy_version,
                      actor_type, actor_user_id, ip_address, user_agent)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             "#,
-            sqlite: r#"
-                INSERT INTO notification_consent_events
-                    (guest_id, channel, topic, action, source, policy_version,
-                     actor_type, actor_user_id, ip_address, user_agent)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-            "#
-        ))
+        )
         .bind(guest_id)
         .bind(channel)
         .bind(topic)
@@ -302,10 +284,7 @@ impl CommunicationsRepository {
         guest_id: i64,
         limit: i64,
     ) -> Result<Vec<ConsentEvent>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM notification_consent_events WHERE guest_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2",
-            sqlite: "SELECT {COLS} FROM notification_consent_events WHERE guest_id = ?1 ORDER BY created_at DESC, id DESC LIMIT ?2"
-        )
+        let sql = "SELECT {COLS} FROM notification_consent_events WHERE guest_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2"
         .replace("{COLS}", CONSENT_COLUMNS);
         let rows = query(&sql)
             .bind(guest_id)
@@ -321,14 +300,12 @@ impl CommunicationsRepository {
     // ------------------------------------------------------------------
 
     pub async fn is_email_suppressed(pool: &DbPool, email: &str) -> Result<bool, ApiError> {
-        let exists: i64 = query_scalar(crate::sql_query!(
-            postgres: "SELECT COUNT(*) FROM email_suppressions WHERE email = LOWER($1)",
-            sqlite: "SELECT COUNT(*) FROM email_suppressions WHERE email = LOWER(?1)"
-        ))
-        .bind(email)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
+        let exists: i64 =
+            query_scalar("SELECT COUNT(*) FROM email_suppressions WHERE email = LOWER($1)")
+                .bind(email)
+                .fetch_one(pool)
+                .await
+                .map_err(ApiError::from)?;
         Ok(exists > 0)
     }
 
@@ -337,8 +314,8 @@ impl CommunicationsRepository {
         draft: &SuppressionDraft,
         source: Option<&str>,
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: r#"
+        query(
+            r#"
                 INSERT INTO email_suppressions (email, reason, source, notes)
                 VALUES (LOWER($1), $2, $3, $4)
                 ON CONFLICT (email) DO UPDATE SET
@@ -346,15 +323,7 @@ impl CommunicationsRepository {
                     source = EXCLUDED.source,
                     notes = EXCLUDED.notes
             "#,
-            sqlite: r#"
-                INSERT INTO email_suppressions (email, reason, source, notes)
-                VALUES (LOWER(?1), ?2, ?3, ?4)
-                ON CONFLICT (email) DO UPDATE SET
-                    reason = excluded.reason,
-                    source = excluded.source,
-                    notes = excluded.notes
-            "#
-        ))
+        )
         .bind(&draft.email)
         .bind(&draft.reason)
         .bind(source)
@@ -374,10 +343,7 @@ impl CommunicationsRepository {
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM email_suppressions ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2",
-            sqlite: "SELECT {COLS} FROM email_suppressions ORDER BY created_at DESC, id DESC LIMIT ?1 OFFSET ?2"
-        )
+        let sql = "SELECT {COLS} FROM email_suppressions ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2"
         .replace("{COLS}", SUPPRESSION_COLUMNS);
         let rows = query(&sql)
             .bind(page_size)
@@ -392,14 +358,11 @@ impl CommunicationsRepository {
         tx: &mut DbTransaction<'_>,
         email: &str,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: "DELETE FROM email_suppressions WHERE email = LOWER($1)",
-            sqlite: "DELETE FROM email_suppressions WHERE email = LOWER(?1)"
-        ))
-        .bind(email)
-        .execute(&mut **tx)
-        .await
-        .map_err(ApiError::from)?;
+        let result = query("DELETE FROM email_suppressions WHERE email = LOWER($1)")
+            .bind(email)
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
         Ok(result.rows_affected() > 0)
     }
 
@@ -415,11 +378,8 @@ impl CommunicationsRepository {
     }
 
     pub async fn get_template(pool: &DbPool, id: i64) -> Result<Option<EmailTemplate>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM email_templates WHERE id = $1",
-            sqlite: "SELECT {COLS} FROM email_templates WHERE id = ?1"
-        )
-        .replace("{COLS}", TEMPLATE_COLUMNS);
+        let sql =
+            "SELECT {COLS} FROM email_templates WHERE id = $1".replace("{COLS}", TEMPLATE_COLUMNS);
         let row = query(&sql)
             .bind(id)
             .fetch_optional(pool)
@@ -432,11 +392,8 @@ impl CommunicationsRepository {
         pool: &DbPool,
         code: &str,
     ) -> Result<Option<EmailTemplate>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM email_templates WHERE code = $1",
-            sqlite: "SELECT {COLS} FROM email_templates WHERE code = ?1"
-        )
-        .replace("{COLS}", TEMPLATE_COLUMNS);
+        let sql = "SELECT {COLS} FROM email_templates WHERE code = $1"
+            .replace("{COLS}", TEMPLATE_COLUMNS);
         let row = query(&sql)
             .bind(code)
             .fetch_optional(pool)
@@ -451,20 +408,14 @@ impl CommunicationsRepository {
     ) -> Result<i64, ApiError> {
         let variables_json =
             serde_json::to_string(&draft.variables).unwrap_or_else(|_| "[]".to_string());
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(
+            r#"
                 INSERT INTO email_templates
                     (code, name, subject, body_html, body_text, variables, is_active)
                 VALUES ($1, $2, $3, $4, $5, CAST($6 AS JSONB), $7)
                 RETURNING id
             "#,
-            sqlite: r#"
-                INSERT INTO email_templates
-                    (code, name, subject, body_html, body_text, variables, is_active)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                RETURNING id
-            "#
-        ))
+        )
         .bind(&draft.code)
         .bind(&draft.name)
         .bind(&draft.subject)
@@ -484,22 +435,15 @@ impl CommunicationsRepository {
     ) -> Result<bool, ApiError> {
         let variables_json =
             serde_json::to_string(&draft.variables).unwrap_or_else(|_| "[]".to_string());
-        let result = query(crate::sql_query!(
-            postgres: r#"
+        let result = query(
+            r#"
                 UPDATE email_templates SET
                     code = $1, name = $2, subject = $3, body_html = $4,
                     body_text = $5, variables = CAST($6 AS JSONB), is_active = $7,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $8
             "#,
-            sqlite: r#"
-                UPDATE email_templates SET
-                    code = ?1, name = ?2, subject = ?3, body_html = ?4,
-                    body_text = ?5, variables = ?6, is_active = ?7,
-                    updated_at = datetime('now')
-                WHERE id = ?8
-            "#
-        ))
+        )
         .bind(&draft.code)
         .bind(&draft.name)
         .bind(&draft.subject)
@@ -519,10 +463,7 @@ impl CommunicationsRepository {
         id: i64,
         active: bool,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: "UPDATE email_templates SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-            sqlite: "UPDATE email_templates SET is_active = ?1, updated_at = datetime('now') WHERE id = ?2"
-        ))
+        let result = query("UPDATE email_templates SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(active)
         .bind(id)
         .execute(&mut **tx)
@@ -540,22 +481,15 @@ impl CommunicationsRepository {
         draft: &CampaignDraft,
         created_by: i64,
     ) -> Result<i64, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(
+            r#"
                 INSERT INTO email_campaigns
                     (name, campaign_type, topic, status, subject, body_html,
                      body_text, template_id, promotion_id, created_by)
                 VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9)
                 RETURNING id
             "#,
-            sqlite: r#"
-                INSERT INTO email_campaigns
-                    (name, campaign_type, topic, status, subject, body_html,
-                     body_text, template_id, promotion_id, created_by)
-                VALUES (?1, ?2, ?3, 'draft', ?4, ?5, ?6, ?7, ?8, ?9)
-                RETURNING id
-            "#
-        ))
+        )
         .bind(&draft.name)
         .bind(&draft.campaign_type)
         .bind(&draft.topic)
@@ -571,11 +505,8 @@ impl CommunicationsRepository {
     }
 
     pub async fn get_campaign(pool: &DbPool, id: i64) -> Result<Option<EmailCampaign>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM email_campaigns WHERE id = $1",
-            sqlite: "SELECT {COLS} FROM email_campaigns WHERE id = ?1"
-        )
-        .replace("{COLS}", CAMPAIGN_COLUMNS);
+        let sql =
+            "SELECT {COLS} FROM email_campaigns WHERE id = $1".replace("{COLS}", CAMPAIGN_COLUMNS);
         let row = query(&sql)
             .bind(id)
             .fetch_optional(pool)
@@ -591,40 +522,26 @@ impl CommunicationsRepository {
         page: i64,
         page_size: i64,
     ) -> Result<(Vec<EmailCampaign>, i64), ApiError> {
-        let total: i64 = query_scalar(crate::sql_query!(
-            postgres: r#"
+        let total: i64 = query_scalar(
+            r#"
                 SELECT COUNT(*) FROM email_campaigns
                 WHERE ($1 IS NULL OR status = $1)
                   AND ($2 IS NULL OR campaign_type = $2)
             "#,
-            sqlite: r#"
-                SELECT COUNT(*) FROM email_campaigns
-                WHERE (?1 IS NULL OR status = ?1)
-                  AND (?2 IS NULL OR campaign_type = ?2)
-            "#
-        ))
+        )
         .bind(&status)
         .bind(&campaign_type)
         .fetch_one(pool)
         .await
         .map_err(ApiError::from)?;
 
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT {COLS} FROM email_campaigns
                 WHERE ($1 IS NULL OR status = $1)
                   AND ($2 IS NULL OR campaign_type = $2)
                 ORDER BY created_at DESC, id DESC
                 LIMIT $3 OFFSET $4
-            "#,
-            sqlite: r#"
-                SELECT {COLS} FROM email_campaigns
-                WHERE (?1 IS NULL OR status = ?1)
-                  AND (?2 IS NULL OR campaign_type = ?2)
-                ORDER BY created_at DESC, id DESC
-                LIMIT ?3 OFFSET ?4
             "#
-        )
         .replace("{COLS}", CAMPAIGN_COLUMNS);
         let rows = query(&sql)
             .bind(&status)
@@ -642,22 +559,15 @@ impl CommunicationsRepository {
         id: i64,
         draft: &CampaignDraft,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: r#"
+        let result = query(
+            r#"
                 UPDATE email_campaigns SET
                     name = $1, campaign_type = $2, topic = $3, subject = $4,
                     body_html = $5, body_text = $6, template_id = $7,
                     promotion_id = $8, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $9 AND status = 'draft'
             "#,
-            sqlite: r#"
-                UPDATE email_campaigns SET
-                    name = ?1, campaign_type = ?2, topic = ?3, subject = ?4,
-                    body_html = ?5, body_text = ?6, template_id = ?7,
-                    promotion_id = ?8, updated_at = datetime('now')
-                WHERE id = ?9 AND status = 'draft'
-            "#
-        ))
+        )
         .bind(&draft.name)
         .bind(&draft.campaign_type)
         .bind(&draft.topic)
@@ -678,18 +588,13 @@ impl CommunicationsRepository {
         id: i64,
         scheduled_at: DateTime<Utc>,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: r#"
+        let result = query(
+            r#"
                 UPDATE email_campaigns
                 SET status = 'scheduled', scheduled_at = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2 AND status = 'draft'
             "#,
-            sqlite: r#"
-                UPDATE email_campaigns
-                SET status = 'scheduled', scheduled_at = ?1, updated_at = datetime('now')
-                WHERE id = ?2 AND status = 'draft'
-            "#
-        ))
+        )
         .bind(scheduled_at)
         .bind(id)
         .execute(&mut **tx)
@@ -703,20 +608,14 @@ impl CommunicationsRepository {
         id: i64,
         cancelled_by: i64,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: r#"
+        let result = query(
+            r#"
                 UPDATE email_campaigns
                 SET status = 'cancelled', cancelled_at = CURRENT_TIMESTAMP,
                     cancelled_by = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2 AND status IN ('scheduled', 'running')
             "#,
-            sqlite: r#"
-                UPDATE email_campaigns
-                SET status = 'cancelled', cancelled_at = datetime('now'),
-                    cancelled_by = ?1, updated_at = datetime('now')
-                WHERE id = ?2 AND status IN ('scheduled', 'running')
-            "#
-        ))
+        )
         .bind(cancelled_by)
         .bind(id)
         .execute(&mut **tx)
@@ -731,20 +630,14 @@ impl CommunicationsRepository {
         sent_delta: i32,
         failed_delta: i32,
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: r#"
+        query(
+            r#"
                 UPDATE email_campaigns
                 SET sent_count = sent_count + $1, failed_count = failed_count + $2,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $3
             "#,
-            sqlite: r#"
-                UPDATE email_campaigns
-                SET sent_count = sent_count + ?1, failed_count = failed_count + ?2,
-                    updated_at = datetime('now')
-                WHERE id = ?3
-            "#
-        ))
+        )
         .bind(sent_delta)
         .bind(failed_delta)
         .bind(id)
@@ -774,8 +667,8 @@ impl CommunicationsRepository {
         voucher_id: Option<i64>,
         idempotency_key: &str,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(
+            r#"
                 INSERT INTO email_deliveries
                     (campaign_id, kind, guest_id, topic, recipient_email, subject,
                      body_html, body_text, voucher_id, idempotency_key)
@@ -783,15 +676,7 @@ impl CommunicationsRepository {
                 ON CONFLICT (idempotency_key) DO NOTHING
                 RETURNING id
             "#,
-            sqlite: r#"
-                INSERT INTO email_deliveries
-                    (campaign_id, kind, guest_id, topic, recipient_email, subject,
-                     body_html, body_text, voucher_id, idempotency_key)
-                VALUES (?1, ?2, ?3, ?4, LOWER(?5), ?6, ?7, ?8, ?9, ?10)
-                ON CONFLICT (idempotency_key) DO NOTHING
-                RETURNING id
-            "#
-        ))
+        )
         .bind(campaign_id)
         .bind(kind)
         .bind(guest_id)
@@ -813,18 +698,13 @@ impl CommunicationsRepository {
         page: i64,
         page_size: i64,
     ) -> Result<(Vec<EmailDelivery>, i64), ApiError> {
-        let total: i64 = query_scalar(crate::sql_query!(
-            postgres: "SELECT COUNT(*) FROM email_deliveries WHERE campaign_id = $1",
-            sqlite: "SELECT COUNT(*) FROM email_deliveries WHERE campaign_id = ?1"
-        ))
-        .bind(campaign_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM email_deliveries WHERE campaign_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3",
-            sqlite: "SELECT {COLS} FROM email_deliveries WHERE campaign_id = ?1 ORDER BY id DESC LIMIT ?2 OFFSET ?3"
-        )
+        let total: i64 =
+            query_scalar("SELECT COUNT(*) FROM email_deliveries WHERE campaign_id = $1")
+                .bind(campaign_id)
+                .fetch_one(pool)
+                .await
+                .map_err(ApiError::from)?;
+        let sql = "SELECT {COLS} FROM email_deliveries WHERE campaign_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3"
         .replace("{COLS}", DELIVERY_COLUMNS);
         let rows = query(&sql)
             .bind(campaign_id)
@@ -841,20 +721,14 @@ impl CommunicationsRepository {
     // ------------------------------------------------------------------
 
     pub async fn due_scheduled_campaigns(pool: &DbPool) -> Result<Vec<EmailCampaign>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: "SELECT {COLS} FROM email_campaigns WHERE status = 'scheduled' AND scheduled_at <= CURRENT_TIMESTAMP ORDER BY scheduled_at",
-            sqlite: "SELECT {COLS} FROM email_campaigns WHERE status = 'scheduled' AND datetime(scheduled_at) <= datetime('now') ORDER BY scheduled_at"
-        )
+        let sql = "SELECT {COLS} FROM email_campaigns WHERE status = 'scheduled' AND scheduled_at <= CURRENT_TIMESTAMP ORDER BY scheduled_at"
         .replace("{COLS}", CAMPAIGN_COLUMNS);
         let rows = query(&sql).fetch_all(pool).await.map_err(ApiError::from)?;
         Ok(rows.iter().map(campaign_from_row).collect())
     }
 
     pub async fn mark_campaign_running(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: "UPDATE email_campaigns SET status = 'running', started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'scheduled'",
-            sqlite: "UPDATE email_campaigns SET status = 'running', started_at = datetime('now'), updated_at = datetime('now') WHERE id = ?1 AND status = 'scheduled'"
-        ))
+        let result = query("UPDATE email_campaigns SET status = 'running', started_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'scheduled'")
         .bind(id)
         .execute(pool)
         .await
@@ -863,10 +737,7 @@ impl CommunicationsRepository {
     }
 
     pub async fn refresh_campaign_total(pool: &DbPool, id: i64) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: "UPDATE email_campaigns SET total_recipients = (SELECT COUNT(*) FROM email_deliveries WHERE campaign_id = $1), updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-            sqlite: "UPDATE email_campaigns SET total_recipients = (SELECT COUNT(*) FROM email_deliveries WHERE campaign_id = ?1), updated_at = datetime('now') WHERE id = ?1"
-        ))
+        query("UPDATE email_campaigns SET total_recipients = (SELECT COUNT(*) FROM email_deliveries WHERE campaign_id = $1), updated_at = CURRENT_TIMESTAMP WHERE id = $1")
         .bind(id)
         .execute(pool)
         .await
@@ -882,8 +753,8 @@ impl CommunicationsRepository {
         campaign_id: i64,
         limit: i64,
     ) -> Result<Vec<AudienceGuest>, ApiError> {
-        let rows = query(crate::sql_query!(
-            postgres: r#"
+        let rows = query(
+            r#"
                 SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
                 WHERE g.is_active IS TRUE
                   AND g.email IS NOT NULL AND length(trim(g.email)) > 0
@@ -897,21 +768,7 @@ impl CommunicationsRepository {
                 ORDER BY g.id
                 LIMIT $3
             "#,
-            sqlite: r#"
-                SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
-                WHERE g.is_active = 1
-                  AND g.email IS NOT NULL AND length(trim(g.email)) > 0
-                  AND EXISTS (SELECT 1 FROM notification_subscriptions ns
-                              WHERE ns.guest_id = g.id AND ns.channel = 'email'
-                                AND ns.topic = ?1 AND ns.subscribed = 1)
-                  AND NOT EXISTS (SELECT 1 FROM email_suppressions es
-                                  WHERE es.email = LOWER(g.email))
-                  AND NOT EXISTS (SELECT 1 FROM email_deliveries d
-                                  WHERE d.campaign_id = ?2 AND d.guest_id = g.id)
-                ORDER BY g.id
-                LIMIT ?3
-            "#
-        ))
+        )
         .bind(topic)
         .bind(campaign_id)
         .bind(limit)
@@ -939,8 +796,7 @@ impl CommunicationsRepository {
         promotion_id: i64,
         limit: i64,
     ) -> Result<Vec<AudienceGuest>, ApiError> {
-        let rows = query(crate::sql_query!(
-            postgres: r#"
+        let rows = query(r#"
                 SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
                 WHERE g.is_active IS TRUE
                   AND g.email IS NOT NULL AND length(trim(g.email)) > 0
@@ -960,29 +816,7 @@ impl CommunicationsRepository {
                                   WHERE v.guest_id = g.id AND v.promotion_id = $6)
                 ORDER BY g.id
                 LIMIT $7
-            "#,
-            sqlite: r#"
-                SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
-                WHERE g.is_active = 1
-                  AND g.email IS NOT NULL AND length(trim(g.email)) > 0
-                  AND g.date_of_birth IS NOT NULL
-                  AND (
-                      (CAST(strftime('%m', g.date_of_birth) AS INTEGER) = ?1 AND CAST(strftime('%d', g.date_of_birth) AS INTEGER) = ?2)
-                      OR (CAST(strftime('%m', g.date_of_birth) AS INTEGER) = ?3 AND CAST(strftime('%d', g.date_of_birth) AS INTEGER) = ?4)
-                  )
-                  AND EXISTS (SELECT 1 FROM notification_subscriptions ns
-                              WHERE ns.guest_id = g.id AND ns.channel = 'email'
-                                AND ns.topic = 'birthday_voucher' AND ns.subscribed = 1)
-                  AND NOT EXISTS (SELECT 1 FROM email_suppressions es
-                                  WHERE es.email = LOWER(g.email))
-                  AND NOT EXISTS (SELECT 1 FROM vouchers v
-                                  WHERE v.guest_id = g.id AND v.source_reference = ?5)
-                  AND NOT EXISTS (SELECT 1 FROM vouchers v
-                                  WHERE v.guest_id = g.id AND v.promotion_id = ?6)
-                ORDER BY g.id
-                LIMIT ?7
-            "#
-        ))
+            "#)
         .bind(month1)
         .bind(day1)
         .bind(month2)
@@ -1007,21 +841,15 @@ impl CommunicationsRepository {
         expires_at: DateTime<Utc>,
         source_reference: &str,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: r#"
+        query_scalar(
+            r#"
                 INSERT INTO vouchers
                     (promotion_id, guest_id, code, status, source, expires_at, source_reference)
                 VALUES ($1, $2, $3, 'available', 'admin_issue', $4, $5)
                 ON CONFLICT DO NOTHING
                 RETURNING id
             "#,
-            sqlite: r#"
-                INSERT OR IGNORE INTO vouchers
-                    (promotion_id, guest_id, code, status, source, expires_at, source_reference)
-                VALUES (?1, ?2, ?3, 'available', 'admin_issue', ?4, ?5)
-                RETURNING id
-            "#
-        ))
+        )
         .bind(promotion_id)
         .bind(guest_id)
         .bind(code)
@@ -1033,26 +861,19 @@ impl CommunicationsRepository {
     }
 
     pub async fn promotion_name(pool: &DbPool, id: i64) -> Result<Option<String>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: "SELECT name FROM promotions WHERE id = $1",
-            sqlite: "SELECT name FROM promotions WHERE id = ?1"
-        ))
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-        .map_err(ApiError::from)
+        query_scalar("SELECT name FROM promotions WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)
     }
 
     /// "Today" in the hotel's configured timezone (Postgres session timezone;
-    /// host-local time on SQLite deployments).
     pub async fn hotel_local_date(pool: &DbPool) -> Result<chrono::NaiveDate, ApiError> {
-        let raw: String = query_scalar(crate::sql_query!(
-            postgres: "SELECT to_char(LOCALTIMESTAMP, 'YYYY-MM-DD')",
-            sqlite: "SELECT strftime('%Y-%m-%d', 'now', 'localtime')"
-        ))
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
+        let raw: String = query_scalar("SELECT to_char(LOCALTIMESTAMP, 'YYYY-MM-DD')")
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
         raw.parse()
             .map_err(|_| ApiError::Internal("Unparseable hotel-local date".to_string()))
     }
@@ -1069,8 +890,7 @@ impl CommunicationsRepository {
         worker_id: &str,
         batch: i64,
     ) -> Result<Vec<EmailDelivery>, ApiError> {
-        let sql = crate::sql_query!(
-            postgres: r#"
+        let sql = r#"
                 UPDATE email_deliveries SET
                     status = 'sending',
                     lease_owner = $1,
@@ -1086,24 +906,7 @@ impl CommunicationsRepository {
                     FOR UPDATE SKIP LOCKED
                 )
                 RETURNING {COLS}
-            "#,
-            sqlite: r#"
-                UPDATE email_deliveries SET
-                    status = 'sending',
-                    lease_owner = ?1,
-                    lease_expires_at = datetime('now', '+5 minutes'),
-                    attempts = attempts + 1,
-                    updated_at = datetime('now')
-                WHERE id IN (
-                    SELECT id FROM email_deliveries
-                    WHERE (status = 'queued' AND datetime(next_attempt_at) <= datetime('now'))
-                       OR (status = 'sending' AND datetime(lease_expires_at) < datetime('now'))
-                    ORDER BY next_attempt_at
-                    LIMIT ?2
-                )
-                RETURNING {COLS}
             "#
-        )
         .replace("{COLS}", DELIVERY_COLUMNS);
         let rows = query(&sql)
             .bind(worker_id)
@@ -1121,22 +924,15 @@ impl CommunicationsRepository {
         guest_id: i64,
         topic: &str,
     ) -> Result<bool, ApiError> {
-        let count: i64 = query_scalar(crate::sql_query!(
-            postgres: r#"
+        let count: i64 = query_scalar(
+            r#"
                 SELECT COUNT(*) FROM guests g
                 WHERE g.id = $1 AND g.is_active IS TRUE
                   AND EXISTS (SELECT 1 FROM notification_subscriptions ns
                               WHERE ns.guest_id = g.id AND ns.channel = 'email'
                                 AND ns.topic = $2 AND ns.subscribed IS TRUE)
             "#,
-            sqlite: r#"
-                SELECT COUNT(*) FROM guests g
-                WHERE g.id = ?1 AND g.is_active = 1
-                  AND EXISTS (SELECT 1 FROM notification_subscriptions ns
-                              WHERE ns.guest_id = g.id AND ns.channel = 'email'
-                                AND ns.topic = ?2 AND ns.subscribed = 1)
-            "#
-        ))
+        )
         .bind(guest_id)
         .bind(topic)
         .fetch_one(pool)
@@ -1150,8 +946,8 @@ impl CommunicationsRepository {
         id: i64,
         provider_message_id: Option<&str>,
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: r#"
+        query(
+            r#"
                 UPDATE email_deliveries SET
                     status = 'sent', sent_at = CURRENT_TIMESTAMP,
                     provider_message_id = $1, last_error = NULL,
@@ -1159,15 +955,7 @@ impl CommunicationsRepository {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
             "#,
-            sqlite: r#"
-                UPDATE email_deliveries SET
-                    status = 'sent', sent_at = datetime('now'),
-                    provider_message_id = ?1, last_error = NULL,
-                    lease_owner = NULL, lease_expires_at = NULL,
-                    updated_at = datetime('now')
-                WHERE id = ?2
-            "#
-        ))
+        )
         .bind(provider_message_id)
         .bind(id)
         .execute(&mut **tx)
@@ -1184,22 +972,15 @@ impl CommunicationsRepository {
         retry_at: Option<DateTime<Utc>>,
     ) -> Result<(), ApiError> {
         match retry_at {
-            Some(retry_at) => query(crate::sql_query!(
-                postgres: r#"
+            Some(retry_at) => query(
+                r#"
                     UPDATE email_deliveries SET
                         status = 'queued', next_attempt_at = $1, last_error = $2,
                         lease_owner = NULL, lease_expires_at = NULL,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $3
                 "#,
-                sqlite: r#"
-                    UPDATE email_deliveries SET
-                        status = 'queued', next_attempt_at = ?1, last_error = ?2,
-                        lease_owner = NULL, lease_expires_at = NULL,
-                        updated_at = datetime('now')
-                    WHERE id = ?3
-                "#
-            ))
+            )
             .bind(retry_at)
             .bind(error)
             .bind(id)
@@ -1207,22 +988,15 @@ impl CommunicationsRepository {
             .await
             .map(|_| ())
             .map_err(ApiError::from),
-            None => query(crate::sql_query!(
-                postgres: r#"
+            None => query(
+                r#"
                     UPDATE email_deliveries SET
                         status = 'failed', last_error = $1,
                         lease_owner = NULL, lease_expires_at = NULL,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $2
                 "#,
-                sqlite: r#"
-                    UPDATE email_deliveries SET
-                        status = 'failed', last_error = ?1,
-                        lease_owner = NULL, lease_expires_at = NULL,
-                        updated_at = datetime('now')
-                    WHERE id = ?2
-                "#
-            ))
+            )
             .bind(error)
             .bind(id)
             .execute(&mut **tx)
@@ -1240,22 +1014,15 @@ impl CommunicationsRepository {
         status: &str,
         reason: &str,
     ) -> Result<(), ApiError> {
-        query(crate::sql_query!(
-            postgres: r#"
+        query(
+            r#"
                 UPDATE email_deliveries SET
                     status = $1, last_error = $2,
                     lease_owner = NULL, lease_expires_at = NULL,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $3
             "#,
-            sqlite: r#"
-                UPDATE email_deliveries SET
-                    status = ?1, last_error = ?2,
-                    lease_owner = NULL, lease_expires_at = NULL,
-                    updated_at = datetime('now')
-                WHERE id = ?3
-            "#
-        ))
+        )
         .bind(status)
         .bind(reason)
         .bind(id)
@@ -1270,8 +1037,8 @@ impl CommunicationsRepository {
         pool: &DbPool,
         campaign_id: i64,
     ) -> Result<bool, ApiError> {
-        let result = query(crate::sql_query!(
-            postgres: r#"
+        let result = query(
+            r#"
                 UPDATE email_campaigns SET
                     status = 'completed', completed_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
@@ -1279,15 +1046,7 @@ impl CommunicationsRepository {
                   AND NOT EXISTS (SELECT 1 FROM email_deliveries
                                   WHERE campaign_id = $1 AND status IN ('queued', 'sending'))
             "#,
-            sqlite: r#"
-                UPDATE email_campaigns SET
-                    status = 'completed', completed_at = datetime('now'),
-                    updated_at = datetime('now')
-                WHERE id = ?1 AND status = 'running'
-                  AND NOT EXISTS (SELECT 1 FROM email_deliveries
-                                  WHERE campaign_id = ?1 AND status IN ('queued', 'sending'))
-            "#
-        ))
+        )
         .bind(campaign_id)
         .execute(pool)
         .await
@@ -1303,28 +1062,22 @@ impl CommunicationsRepository {
         pool: &DbPool,
         promotion_id: i64,
     ) -> Result<Option<String>, ApiError> {
-        query_scalar(crate::sql_query!(
-            postgres: "SELECT status FROM promotions WHERE id = $1",
-            sqlite: "SELECT status FROM promotions WHERE id = ?1"
-        ))
-        .bind(promotion_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(ApiError::from)
+        query_scalar("SELECT status FROM promotions WHERE id = $1")
+            .bind(promotion_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)
     }
 
     /// Returns Some(email) for an existing guest (None email allowed), or
     /// Err(NotFound) when the guest does not exist.
     pub async fn get_guest_email(pool: &DbPool, guest_id: i64) -> Result<Option<String>, ApiError> {
-        let row = query(crate::sql_query!(
-            postgres: "SELECT email FROM guests WHERE id = $1",
-            sqlite: "SELECT email FROM guests WHERE id = ?1"
-        ))
-        .bind(guest_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(ApiError::from)?
-        .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+        let row = query("SELECT email FROM guests WHERE id = $1")
+            .bind(guest_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?
+            .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
         Ok(row.try_get::<Option<String>, _>("email").ok().flatten())
     }
 
@@ -1337,8 +1090,7 @@ impl CommunicationsRepository {
         pool: &DbPool,
         topic: &str,
     ) -> Result<AudienceCount, ApiError> {
-        let row = query(crate::sql_query!(
-            postgres: r#"
+        let row = query(r#"
                 SELECT
                     (SELECT COUNT(*) FROM guests g
                      WHERE g.is_active IS TRUE
@@ -1367,38 +1119,7 @@ impl CommunicationsRepository {
                                      AND ns.topic = $1 AND ns.subscribed IS TRUE)
                        AND EXISTS (SELECT 1 FROM email_suppressions es
                                    WHERE es.email = LOWER(g.email))) AS excluded_suppressed
-            "#,
-            sqlite: r#"
-                SELECT
-                    (SELECT COUNT(*) FROM guests g
-                     WHERE g.is_active = 1
-                       AND g.email IS NOT NULL AND length(trim(g.email)) > 0
-                       AND EXISTS (SELECT 1 FROM notification_subscriptions ns
-                                   WHERE ns.guest_id = g.id AND ns.channel = 'email'
-                                     AND ns.topic = ?1 AND ns.subscribed = 1)
-                       AND NOT EXISTS (SELECT 1 FROM email_suppressions es
-                                       WHERE es.email = LOWER(g.email))) AS eligible,
-                    (SELECT COUNT(*) FROM guests g
-                     WHERE g.is_active = 1
-                       AND (g.email IS NULL OR length(trim(g.email)) = 0)) AS excluded_no_email,
-                    (SELECT COUNT(*) FROM guests g
-                     WHERE g.is_active IS NULL OR g.is_active <> 1) AS excluded_inactive,
-                    (SELECT COUNT(*) FROM guests g
-                     WHERE g.is_active = 1
-                       AND g.email IS NOT NULL AND length(trim(g.email)) > 0
-                       AND NOT EXISTS (SELECT 1 FROM notification_subscriptions ns
-                                       WHERE ns.guest_id = g.id AND ns.channel = 'email'
-                                         AND ns.topic = ?1 AND ns.subscribed = 1)) AS excluded_unsubscribed,
-                    (SELECT COUNT(*) FROM guests g
-                     WHERE g.is_active = 1
-                       AND g.email IS NOT NULL AND length(trim(g.email)) > 0
-                       AND EXISTS (SELECT 1 FROM notification_subscriptions ns
-                                   WHERE ns.guest_id = g.id AND ns.channel = 'email'
-                                     AND ns.topic = ?1 AND ns.subscribed = 1)
-                       AND EXISTS (SELECT 1 FROM email_suppressions es
-                                   WHERE es.email = LOWER(g.email))) AS excluded_suppressed
-            "#
-        ))
+            "#)
         .bind(topic)
         .fetch_one(pool)
         .await

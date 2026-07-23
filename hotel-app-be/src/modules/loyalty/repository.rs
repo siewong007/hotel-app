@@ -2,7 +2,6 @@ use super::models::*;
 use crate::core::db::{DbPool, DbRow, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
-use crate::sql_query;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::prelude::ToPrimitive;
 use sqlx::Row;
@@ -32,8 +31,7 @@ impl LoyaltyRepository {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<Option<LoyaltyGuestProfile>, ApiError> {
-        let sql = sql_query!(
-            postgres: r#"
+        let sql = r#"
                 SELECT g.id AS guest_id, g.full_name, g.email, g.phone
                 FROM users u
                 LEFT JOIN guests g ON g.id = u.guest_id
@@ -44,20 +42,7 @@ impl LoyaltyRepository {
                 JOIN guests g ON lower(g.email) = lower(u.email)
                 WHERE u.id = $1 AND u.guest_id IS NULL
                 LIMIT 1
-            "#,
-            sqlite: r#"
-                SELECT g.id AS guest_id, g.full_name, g.email, g.phone
-                FROM users u
-                LEFT JOIN guests g ON g.id = u.guest_id
-                WHERE u.id = ?1
-                UNION
-                SELECT g.id AS guest_id, g.full_name, g.email, g.phone
-                FROM users u
-                JOIN guests g ON lower(g.email) = lower(u.email)
-                WHERE u.id = ?1 AND u.guest_id IS NULL
-                LIMIT 1
-            "#
-        );
+            "#;
 
         let row = sqlx::query(sql)
             .bind(user_id)
@@ -69,10 +54,7 @@ impl LoyaltyRepository {
     }
 
     pub async fn get_rules(pool: &DbPool) -> Result<LoyaltyProgramRules, ApiError> {
-        let row = sqlx::query(sql_query!(
-            postgres: "SELECT id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount, updated_at FROM loyalty_program_rules WHERE id = 1",
-            sqlite: "SELECT id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount, updated_at FROM loyalty_program_rules WHERE id = 1"
-        ))
+        let row = sqlx::query("SELECT id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount, updated_at FROM loyalty_program_rules WHERE id = 1")
         .fetch_one(pool)
         .await
         .map_err(ApiError::from)?;
@@ -83,8 +65,8 @@ impl LoyaltyRepository {
         pool: &DbPool,
         input: &LoyaltyRulesInput,
     ) -> Result<LoyaltyProgramRules, ApiError> {
-        let row = sqlx::query(sql_query!(
-            postgres: r#"
+        let row = sqlx::query(
+            r#"
                 UPDATE loyalty_program_rules
                 SET points_per_currency_unit = $1,
                     tier_qualification_metric = $2,
@@ -96,19 +78,7 @@ impl LoyaltyRepository {
                 WHERE id = 1
                 RETURNING *
             "#,
-            sqlite: r#"
-                UPDATE loyalty_program_rules
-                SET points_per_currency_unit = ?1,
-                    tier_qualification_metric = ?2,
-                    point_expiry_months = ?3,
-                    redemption_approval_required = ?4,
-                    earning_enabled = ?5,
-                    min_eligible_amount = ?6,
-                    updated_at = datetime('now')
-                WHERE id = 1
-                RETURNING *
-            "#
-        ))
+        )
         .bind(input.points_per_currency_unit)
         .bind(&input.tier_qualification_metric)
         .bind(input.point_expiry_months)
@@ -282,34 +252,25 @@ impl LoyaltyRepository {
         tier_id: i64,
     ) -> Result<LoyaltyMemberSummary, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        let member_id: i64 = sqlx::query_scalar(sql_query!(
-            postgres: r#"
+        let member_id: i64 = sqlx::query_scalar(
+            r#"
                 INSERT INTO loyalty_members (guest_id, member_number, status)
                 VALUES ($1, $2, 'active')
                 RETURNING id
             "#,
-            sqlite: r#"
-                INSERT INTO loyalty_members (guest_id, member_number, status)
-                VALUES (?1, ?2, 'active')
-                RETURNING id
-            "#
-        ))
+        )
         .bind(guest_id)
         .bind(member_number)
         .fetch_one(&mut *tx)
         .await
         .map_err(ApiError::from)?;
 
-        sqlx::query(sql_query!(
-            postgres: r#"
+        sqlx::query(
+            r#"
                 INSERT INTO loyalty_accounts (member_id, current_tier_id)
                 VALUES ($1, $2)
             "#,
-            sqlite: r#"
-                INSERT INTO loyalty_accounts (member_id, current_tier_id)
-                VALUES (?1, ?2)
-            "#
-        ))
+        )
         .bind(member_id)
         .bind(tier_id)
         .execute(&mut *tx)
@@ -401,13 +362,9 @@ impl LoyaltyRepository {
         tx: &mut DbTransaction<'_>,
         input: NewTransaction<'_>,
     ) -> Result<LoyaltyTransaction, ApiError> {
-        // PostgreSQL promotes SUM(INTEGER) to BIGINT, while SQLite returns an
         // integer value. Decode into i64 first, then verify the value still
         // fits the INTEGER ledger columns before inserting the transaction.
-        let balance_before: i64 = sqlx::query_scalar(sql_query!(
-            postgres: "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = $1",
-            sqlite: "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = ?1"
-        ))
+        let balance_before: i64 = sqlx::query_scalar("SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = $1")
         .bind(input.member_id)
         .fetch_one(&mut **tx)
         .await
@@ -420,8 +377,8 @@ impl LoyaltyRepository {
             })?;
         let metadata = input.metadata.map(|v| v.to_string());
 
-        let row = sqlx::query(sql_query!(
-            postgres: r#"
+        let row = sqlx::query(
+            r#"
                 INSERT INTO loyalty_transactions (
                     member_id, account_id, transaction_type, points_delta, available_delta,
                     balance_after, source_type, source_id, booking_id, payment_id, invoice_id,
@@ -430,16 +387,7 @@ impl LoyaltyRepository {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 RETURNING *
             "#,
-            sqlite: r#"
-                INSERT INTO loyalty_transactions (
-                    member_id, account_id, transaction_type, points_delta, available_delta,
-                    balance_after, source_type, source_id, booking_id, payment_id, invoice_id,
-                    related_transaction_id, description, metadata, actor_user_id
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
-                RETURNING *
-            "#
-        ))
+        )
         .bind(input.member_id)
         .bind(input.account_id)
         .bind(input.transaction_type)
@@ -470,8 +418,8 @@ impl LoyaltyRepository {
         nights: i32,
         new_tier_id: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(sql_query!(
-            postgres: r#"
+        sqlx::query(
+            r#"
                 UPDATE loyalty_accounts
                 SET lifetime_points = lifetime_points + $1,
                     qualifying_points = qualifying_points + $1,
@@ -481,17 +429,7 @@ impl LoyaltyRepository {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $5
             "#,
-            sqlite: r#"
-                UPDATE loyalty_accounts
-                SET lifetime_points = lifetime_points + ?1,
-                    qualifying_points = qualifying_points + ?1,
-                    qualifying_spend = qualifying_spend + ?2,
-                    qualifying_nights = qualifying_nights + ?3,
-                    current_tier_id = ?4,
-                    updated_at = datetime('now')
-                WHERE id = ?5
-            "#
-        ))
+        )
         .bind(points)
         .bind(amount)
         .bind(nights)
@@ -508,10 +446,7 @@ impl LoyaltyRepository {
         account_id: i64,
         points: i32,
     ) -> Result<(), ApiError> {
-        sqlx::query(sql_query!(
-            postgres: "UPDATE loyalty_accounts SET lifetime_points = lifetime_points + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-            sqlite: "UPDATE loyalty_accounts SET lifetime_points = lifetime_points + ?1, updated_at = datetime('now') WHERE id = ?2"
-        ))
+        sqlx::query("UPDATE loyalty_accounts SET lifetime_points = lifetime_points + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(points)
         .bind(account_id)
         .execute(&mut **tx)
@@ -526,10 +461,7 @@ impl LoyaltyRepository {
         account_id: i64,
         tier_id: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(sql_query!(
-            postgres: "UPDATE loyalty_accounts SET current_tier_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-            sqlite: "UPDATE loyalty_accounts SET current_tier_id = ?1, updated_at = datetime('now') WHERE id = ?2"
-        ))
+        sqlx::query("UPDATE loyalty_accounts SET current_tier_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(tier_id)
         .bind(account_id)
         .execute(pool)
@@ -561,9 +493,8 @@ impl LoyaltyRepository {
         }
 
         let where_clause = clauses.join(" AND ");
-        let sql = sql_query!(
-            postgres: format!(
-                r#"
+        let sql = format!(
+            r#"
                 SELECT
                     b.id AS booking_id,
                     b.guest_id,
@@ -576,25 +507,6 @@ impl LoyaltyRepository {
                 WHERE {where_clause}
                 ORDER BY p.created_at ASC, p.id ASC
                 "#
-            ),
-            sqlite: format!(
-                r#"
-                SELECT
-                    b.id AS booking_id,
-                    b.guest_id,
-                    p.id AS payment_id,
-                    (SELECT i.id FROM invoices i WHERE i.booking_id = b.id ORDER BY i.id DESC LIMIT 1) AS invoice_id,
-                    CAST(p.amount AS TEXT) AS amount,
-                    CASE
-                        WHEN julianday(b.check_out_date) - julianday(b.check_in_date) < 1 THEN 1
-                        ELSE CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER)
-                    END AS nights
-                FROM payments p
-                JOIN bookings b ON b.id = p.booking_id
-                WHERE {where_clause}
-                ORDER BY p.created_at ASC, p.id ASC
-                "#
-            )
         );
 
         let mut query = sqlx::query(&sql);
@@ -704,24 +616,14 @@ impl LoyaltyRepository {
         pool: &DbPool,
         input: &RewardInput,
     ) -> Result<LoyaltyReward, ApiError> {
-        let row = sqlx::query(sql_query!(
-            postgres: r#"
+        let row = sqlx::query(r#"
                 INSERT INTO loyalty_rewards (
                     name, description, category, points_cost, minimum_tier_id,
                     requires_approval, is_active, inventory_count, valid_from, valid_to, terms_conditions
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), $8, $9, $10, $11)
                 RETURNING id
-            "#,
-            sqlite: r#"
-                INSERT INTO loyalty_rewards (
-                    name, description, category, points_cost, minimum_tier_id,
-                    requires_approval, is_active, inventory_count, valid_from, valid_to, terms_conditions
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, COALESCE(?7, 1), ?8, ?9, ?10, ?11)
-                RETURNING id
-            "#
-        ))
+            "#)
         .bind(&input.name)
         .bind(&input.description)
         .bind(&input.category)
@@ -748,8 +650,8 @@ impl LoyaltyRepository {
         input: &RewardUpdateInput,
         existing: &LoyaltyReward,
     ) -> Result<LoyaltyReward, ApiError> {
-        let row = sqlx::query(sql_query!(
-            postgres: r#"
+        let row = sqlx::query(
+            r#"
                 UPDATE loyalty_rewards
                 SET name = $1,
                     description = $2,
@@ -766,24 +668,7 @@ impl LoyaltyRepository {
                 WHERE id = $12
                 RETURNING id
             "#,
-            sqlite: r#"
-                UPDATE loyalty_rewards
-                SET name = ?1,
-                    description = ?2,
-                    category = ?3,
-                    points_cost = ?4,
-                    minimum_tier_id = ?5,
-                    requires_approval = ?6,
-                    is_active = ?7,
-                    inventory_count = ?8,
-                    valid_from = ?9,
-                    valid_to = ?10,
-                    terms_conditions = ?11,
-                    updated_at = datetime('now')
-                WHERE id = ?12
-                RETURNING id
-            "#
-        ))
+        )
         .bind(input.name.as_ref().unwrap_or(&existing.name))
         .bind(input.description.clone().or(existing.description.clone()))
         .bind(input.category.as_ref().unwrap_or(&existing.category))
@@ -879,24 +764,14 @@ impl LoyaltyRepository {
         status: &str,
         notes: Option<&str>,
     ) -> Result<i64, ApiError> {
-        sqlx::query_scalar(sql_query!(
-            postgres: r#"
+        sqlx::query_scalar(r#"
                 INSERT INTO loyalty_redemptions (
                     member_id, reward_id, transaction_id, points_spent, status, notes,
                     reviewed_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $5 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END)
                 RETURNING id
-            "#,
-            sqlite: r#"
-                INSERT INTO loyalty_redemptions (
-                    member_id, reward_id, transaction_id, points_spent, status, notes,
-                    reviewed_at
-                )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, CASE WHEN ?5 = 'approved' THEN datetime('now') ELSE NULL END)
-                RETURNING id
-            "#
-        ))
+            "#)
         .bind(member_id)
         .bind(reward_id)
         .bind(transaction_id)
@@ -913,8 +788,8 @@ impl LoyaltyRepository {
         redemption_id: i64,
         actor_user_id: i64,
     ) -> Result<LoyaltyRedemption, ApiError> {
-        sqlx::query(sql_query!(
-            postgres: r#"
+        sqlx::query(
+            r#"
                 UPDATE loyalty_redemptions
                 SET status = 'approved',
                     reviewed_by = $1,
@@ -922,15 +797,7 @@ impl LoyaltyRepository {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2 AND status = 'pending'
             "#,
-            sqlite: r#"
-                UPDATE loyalty_redemptions
-                SET status = 'approved',
-                    reviewed_by = ?1,
-                    reviewed_at = datetime('now'),
-                    updated_at = datetime('now')
-                WHERE id = ?2 AND status = 'pending'
-            "#
-        ))
+        )
         .bind(actor_user_id)
         .bind(redemption_id)
         .execute(pool)
@@ -948,8 +815,8 @@ impl LoyaltyRepository {
         actor_user_id: i64,
         reason: &str,
     ) -> Result<(), ApiError> {
-        sqlx::query(sql_query!(
-            postgres: r#"
+        sqlx::query(
+            r#"
                 UPDATE loyalty_redemptions
                 SET status = 'rejected',
                     reviewed_by = $1,
@@ -958,16 +825,7 @@ impl LoyaltyRepository {
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $3 AND status = 'pending'
             "#,
-            sqlite: r#"
-                UPDATE loyalty_redemptions
-                SET status = 'rejected',
-                    reviewed_by = ?1,
-                    reviewed_at = datetime('now'),
-                    rejection_reason = ?2,
-                    updated_at = datetime('now')
-                WHERE id = ?3 AND status = 'pending'
-            "#
-        ))
+        )
         .bind(actor_user_id)
         .bind(reason)
         .bind(redemption_id)
@@ -981,20 +839,14 @@ impl LoyaltyRepository {
         tx: &mut DbTransaction<'_>,
         reward_id: i64,
     ) -> Result<(), ApiError> {
-        sqlx::query(sql_query!(
-            postgres: r#"
+        sqlx::query(
+            r#"
                 UPDATE loyalty_rewards
                 SET inventory_count = inventory_count - 1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1 AND inventory_count IS NOT NULL
             "#,
-            sqlite: r#"
-                UPDATE loyalty_rewards
-                SET inventory_count = inventory_count - 1,
-                    updated_at = datetime('now')
-                WHERE id = ?1 AND inventory_count IS NOT NULL
-            "#
-        ))
+        )
         .bind(reward_id)
         .execute(&mut **tx)
         .await

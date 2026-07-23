@@ -73,8 +73,7 @@ impl GuestRepository {
 
     /// Find guest by ID
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Guest>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id, full_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, true as is_active,
@@ -87,23 +86,7 @@ impl GuestRepository {
                        NULL::DATE as last_stay_date
                 FROM guests
                 WHERE id = $1 AND deleted_at IS NULL
-            "#,
-            sqlite: r#"
-                SELECT id, full_name, email, phone, ic_number, nationality,
-                       address_line1, city, state_province, postal_code, country,
-                       title, alt_phone, 1 as is_active,
-                       CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
-                       tourism_type,
-                       COALESCE(discount_percentage, 0) as discount_percentage,
-                       company_name,
-                       COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                       created_at, updated_at,
-                       NULL as bookings_count,
-                       NULL as last_stay_date
-                FROM guests
-                WHERE id = ?1
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, Guest>(query)
             .bind(id)
@@ -255,18 +238,12 @@ impl GuestRepository {
         let missing_tourism_filter = params.missing_tourism.unwrap_or(false);
         let missing_info_filter = params.missing_info.unwrap_or(false);
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let like_op = "LIKE";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let like_op = "ILIKE";
 
         let mut filter_clause = String::new();
         match guest_type_filter {
             Some("member") => filter_clause.push_str(" AND guest_type = 'member'"),
             Some("non_member") => {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                filter_clause.push_str(" AND (guest_type != 'member' OR guest_type IS NULL)");
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
                 filter_clause.push_str(" AND (guest_type = 'non_member' OR guest_type IS NULL)");
             }
             _ => {}
@@ -277,9 +254,6 @@ impl GuestRepository {
             _ => {}
         }
         if missing_tourism_filter {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            filter_clause.push_str(" AND NULLIF(TRIM(COALESCE(tourism_type, '')), '') IS NULL");
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             filter_clause.push_str(" AND tourism_type IS NULL");
         }
         if missing_info_filter {
@@ -290,7 +264,6 @@ impl GuestRepository {
             );
         }
 
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let select_cols = r#"id, full_name, email, phone, ic_number, nationality,
             address_line_1 as address_line1, city, state as state_province,
             postal_code, country, title, alt_phone, true as is_active,
@@ -314,38 +287,10 @@ impl GuestRepository {
                 WHERE b.guest_id = guests.id
                   AND b.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed')
             ) AS last_stay_date"#;
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let select_cols = r#"id, full_name, email, phone, ic_number, nationality,
-            address_line1, city, state_province, postal_code, country, title, alt_phone,
-            1 as is_active,
-            CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
-            tourism_type,
-            COALESCE(discount_percentage, 0) as discount_percentage, company_name,
-            COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-            created_at, updated_at,
-            (SELECT username FROM users u
-                WHERE u.guest_id = guests.id
-                  AND u.deleted_at IS NULL
-                ORDER BY u.is_active DESC, u.id
-                LIMIT 1) AS account_username,
-            (SELECT is_active FROM users u
-                WHERE u.guest_id = guests.id
-                  AND u.deleted_at IS NULL
-                ORDER BY u.is_active DESC, u.id
-                LIMIT 1) AS account_is_active,
-            (SELECT COUNT(*) FROM bookings b
-                WHERE b.guest_id = guests.id AND b.status != 'voided') AS bookings_count,
-            (SELECT MAX(b.check_in_date) FROM bookings b
-                WHERE b.guest_id = guests.id
-                  AND b.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed')
-            ) AS last_stay_date"#;
 
         if let Some(q) = search {
             let pattern = format!("%{}%", q.trim());
 
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let (p_search, p_limit, p_offset) = ("?1", "?2", "?3");
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let (p_search, p_limit, p_offset) = ("$1", "$2", "$3");
 
             let search_clause = format!(
@@ -392,9 +337,6 @@ impl GuestRepository {
         } else {
             let count_sql =
                 format!("SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{filter_clause}");
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let (p_limit, p_offset) = ("?1", "?2");
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let (p_limit, p_offset) = ("$1", "$2");
             let data_sql = format!(
                 "SELECT {select_cols} FROM guests \
@@ -425,10 +367,7 @@ impl GuestRepository {
         exclude_guest_id: Option<i64>,
     ) -> Result<Option<i64>, ApiError> {
         let id: Option<i64> = if let Some(exclude_guest_id) = exclude_guest_id {
-            let query = crate::sql_query!(
-                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1",
-                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) AND id != ?2 LIMIT 1"
-            );
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1";
 
             sqlx::query_scalar(query)
                 .bind(full_name)
@@ -437,10 +376,7 @@ impl GuestRepository {
                 .await
                 .map_err(ApiError::from)?
         } else {
-            let query = crate::sql_query!(
-                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1",
-                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) LIMIT 1"
-            );
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1";
 
             sqlx::query_scalar(query)
                 .bind(full_name)
@@ -547,10 +483,7 @@ impl GuestRepository {
         exclude_guest_id: Option<i64>,
     ) -> Result<Option<i64>, ApiError> {
         let id: Option<i64> = if let Some(exclude_guest_id) = exclude_guest_id {
-            let query = crate::sql_query!(
-                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1",
-                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) AND id != ?2 LIMIT 1"
-            );
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1";
 
             sqlx::query_scalar(query)
                 .bind(full_name)
@@ -559,10 +492,7 @@ impl GuestRepository {
                 .await
                 .map_err(ApiError::from)?
         } else {
-            let query = crate::sql_query!(
-                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1",
-                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) LIMIT 1"
-            );
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1";
 
             sqlx::query_scalar(query)
                 .bind(full_name)
@@ -578,8 +508,7 @@ impl GuestRepository {
         tx: &mut DbTransaction<'_>,
         values: &GuestCreateValues<'_>,
     ) -> Result<Guest, sqlx::Error> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                 RETURNING id, full_name, email, phone, ic_number, nationality,
@@ -592,23 +521,7 @@ impl GuestRepository {
                           created_at, updated_at,
                           NULL::BIGINT as bookings_count,
                           NULL::DATE as last_stay_date
-            "#,
-            sqlite: r#"
-                INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line1, city, state_province, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
-                RETURNING id, full_name, email, phone, ic_number, nationality,
-                          address_line1, city, state_province, postal_code, country,
-                          title, alt_phone, 1 as is_active,
-                          CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
-                          tourism_type,
-                          COALESCE(discount_percentage, 0) as discount_percentage,
-                          company_name,
-                          COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                          created_at, updated_at,
-                          NULL as bookings_count,
-                          NULL as last_stay_date
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, Guest>(query)
             .bind(values.full_name)
@@ -633,10 +546,6 @@ impl GuestRepository {
     }
 
     async fn repair_guest_id_sequence(pool: &DbPool) -> Result<(), ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let _ = pool;
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         {
             let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
@@ -766,8 +675,7 @@ impl GuestRepository {
             crate::constants::TourismType::Foreign => "foreign",
         };
 
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 UPDATE guests
                 SET tourism_type = $1::tourism_type,
                     updated_at = CURRENT_TIMESTAMP
@@ -782,25 +690,7 @@ impl GuestRepository {
                           created_at, updated_at,
                           NULL::BIGINT as bookings_count,
                           NULL::DATE as last_stay_date
-            "#,
-            sqlite: r#"
-                UPDATE guests
-                SET tourism_type = ?1,
-                    updated_at = datetime('now')
-                WHERE id = ?2 AND deleted_at IS NULL
-                RETURNING id, full_name, email, phone, ic_number, nationality,
-                          address_line1, city, state_province, postal_code, country,
-                          title, alt_phone, 1 as is_active,
-                          CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
-                          tourism_type,
-                          COALESCE(discount_percentage, 0) as discount_percentage,
-                          company_name,
-                          COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                          created_at, updated_at,
-                          NULL as bookings_count,
-                          NULL as last_stay_date
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, Guest>(query)
             .bind(tourism_type_text)
@@ -815,17 +705,7 @@ impl GuestRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Option<GuestTourismTaxSignal>, ApiError> {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        {
-            if !Self::sqlite_table_has_column(pool, "bookings", "tourism_tax_amount").await? {
-                return Err(ApiError::BadRequest(
-                    "Tourism tax history is not available in this database".to_string(),
-                ));
-            }
-        }
-
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 WITH payment_totals AS (
                     SELECT
                         booking_id,
@@ -853,34 +733,7 @@ impl GuestRepository {
                     b.check_in_date DESC,
                     b.id DESC
                 LIMIT 1
-            "#,
-            sqlite: r#"
-                WITH payment_totals AS (
-                    SELECT
-                        booking_id,
-                        COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0)
-                        - COALESCE(SUM(CASE WHEN status = 'refunded' THEN amount ELSE 0 END), 0) AS net_paid_amount
-                    FROM payments
-                    GROUP BY booking_id
-                )
-                SELECT
-                    b.id AS booking_id,
-                    b.booking_number,
-                    b.check_in_date,
-                    b.check_out_date,
-                    COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
-                    MAX(COALESCE(p.net_paid_amount, 0), 0) AS net_paid_amount
-                FROM bookings b
-                LEFT JOIN payment_totals p ON p.booking_id = b.id
-                WHERE b.guest_id = ?1
-                  AND b.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed')
-                ORDER BY
-                    COALESCE(b.actual_check_in, b.created_at) DESC,
-                    b.check_in_date DESC,
-                    b.id DESC
-                LIMIT 1
-            "#
-        );
+            "#;
 
         let row = sqlx::query(query)
             .bind(guest_id)
@@ -899,23 +752,6 @@ impl GuestRepository {
             })
         })
         .transpose()
-    }
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    async fn sqlite_table_has_column(
-        pool: &DbPool,
-        table_name: &str,
-        column_name: &str,
-    ) -> Result<bool, ApiError> {
-        let rows = sqlx::query(&format!("PRAGMA table_info({table_name})"))
-            .fetch_all(pool)
-            .await
-            .map_err(ApiError::from)?;
-
-        Ok(rows.iter().any(|row| {
-            row.try_get::<String, _>("name")
-                .is_ok_and(|name| name == column_name)
-        }))
     }
 
     pub async fn exists_any(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
@@ -951,8 +787,7 @@ impl GuestRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Vec<GuestBookingRow>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
             SELECT
                 b.id,
                 b.booking_number,
@@ -977,34 +812,7 @@ impl GuestRepository {
                 b.check_in_date ASC,
                 b.check_out_date ASC,
                 b.id ASC
-            "#,
-            sqlite: r#"
-            SELECT
-                b.id,
-                b.booking_number,
-                b.check_in_date,
-                b.check_out_date,
-                CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER) as nights,
-                b.status,
-                b.total_amount,
-                b.created_at,
-                r.room_number,
-                rt.name as room_type
-            FROM bookings b
-            JOIN rooms r ON b.room_id = r.id
-            LEFT JOIN room_types rt ON r.room_type_id = rt.id
-            WHERE b.guest_id = ?1
-            ORDER BY
-                CASE
-                    WHEN b.status IN ('checked_out', 'completed') THEN 0
-                    WHEN b.status IN ('voided', 'comp_void') THEN 1
-                    ELSE 2
-                END,
-                b.check_in_date ASC,
-                b.check_out_date ASC,
-                b.id ASC
-            "#
-        );
+            "#;
         let rows = sqlx::query(query)
             .bind(guest_id)
             .fetch_all(pool)
@@ -1029,8 +837,7 @@ impl GuestRepository {
     }
 
     pub async fn guest_summary(pool: &DbPool, guest_id: i64) -> Result<GuestSummary, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 WITH payment_totals AS (
                     SELECT
                         booking_id,
@@ -1072,52 +879,7 @@ impl GuestRepository {
                         LIMIT 1
                     ) AS active_booking_number
                 FROM guest_bookings
-            "#,
-            sqlite: r#"
-                WITH payment_totals AS (
-                    SELECT
-                        booking_id,
-                        COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS total_paid,
-                        COALESCE(SUM(CASE WHEN status = 'refunded' THEN amount ELSE 0 END), 0) AS total_refunded
-                    FROM payments
-                    GROUP BY booking_id
-                ),
-                guest_bookings AS (
-                    SELECT
-                        b.*,
-                        COALESCE(p.total_paid, 0) AS total_paid,
-                        COALESCE(p.total_refunded, 0) AS total_refunded
-                    FROM bookings b
-                    LEFT JOIN payment_totals p ON p.booking_id = b.id
-                    WHERE b.guest_id = ?1 AND b.status NOT IN ('voided', 'comp_void')
-                )
-                SELECT
-                    COALESCE(SUM(CASE WHEN status IN ('checked_out', 'completed') THEN 1 ELSE 0 END), 0) AS completed_stays,
-                    COALESCE(SUM(CASE
-                        WHEN status IN ('checked_out', 'completed')
-                        THEN CAST(julianday(check_out_date) - julianday(check_in_date) AS INTEGER)
-                        ELSE 0
-                    END), 0) AS total_nights,
-                    COALESCE(SUM(CASE WHEN status IN ('checked_out', 'completed') THEN total_amount ELSE 0 END), 0) AS total_room_revenue,
-                    MAX(CASE WHEN status IN ('checked_out', 'completed') THEN check_out_date END) AS last_stay_at,
-                    MIN(CASE WHEN date(check_in_date) >= date('now') THEN check_in_date END) AS next_stay_at,
-                    COALESCE(SUM(MAX(total_amount - total_paid + total_refunded, 0)), 0) AS outstanding_balance,
-                    COUNT(*) AS total_bookings,
-                    (
-                        SELECT id FROM bookings
-                        WHERE guest_id = ?1 AND status IN ('checked_in', 'auto_checked_in')
-                        ORDER BY check_in_date DESC, id DESC
-                        LIMIT 1
-                    ) AS active_booking_id,
-                    (
-                        SELECT booking_number FROM bookings
-                        WHERE guest_id = ?1 AND status IN ('checked_in', 'auto_checked_in')
-                        ORDER BY check_in_date DESC, id DESC
-                        LIMIT 1
-                    ) AS active_booking_number
-                FROM guest_bookings
-            "#
-        );
+            "#;
 
         let row = sqlx::query(query)
             .bind(guest_id)
@@ -1142,8 +904,7 @@ impl GuestRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Vec<GuestProfileBooking>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 WITH payment_totals AS (
                     SELECT
                         booking_id,
@@ -1178,41 +939,7 @@ impl GuestRepository {
                 WHERE b.guest_id = $1 AND b.status NOT IN ('voided', 'comp_void')
                 ORDER BY b.check_in_date DESC, b.created_at DESC
                 LIMIT 50
-            "#,
-            sqlite: r#"
-                WITH payment_totals AS (
-                    SELECT
-                        booking_id,
-                        COALESCE(SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END), 0) AS total_paid,
-                        COALESCE(SUM(CASE WHEN status = 'refunded' THEN amount ELSE 0 END), 0) AS total_refunded
-                    FROM payments
-                    GROUP BY booking_id
-                )
-                SELECT
-                    b.id,
-                    b.booking_number,
-                    b.check_in_date,
-                    b.check_out_date,
-                    CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER) AS nights,
-                    b.status,
-                    b.payment_status,
-                    b.total_amount,
-                    COALESCE(p.total_paid, 0) AS total_paid,
-                    MAX(b.total_amount - COALESCE(p.total_paid, 0) + COALESCE(p.total_refunded, 0), 0) AS balance_due,
-                    b.created_at,
-                    r.room_number,
-                    COALESCE(rt.name, '') AS room_type,
-                    b.special_requests,
-                    b.source
-                FROM bookings b
-                JOIN rooms r ON b.room_id = r.id
-                LEFT JOIN room_types rt ON r.room_type_id = rt.id
-                LEFT JOIN payment_totals p ON p.booking_id = b.id
-                WHERE b.guest_id = ?1 AND b.status NOT IN ('voided', 'comp_void')
-                ORDER BY b.check_in_date DESC, b.created_at DESC
-                LIMIT 50
-            "#
-        );
+            "#;
 
         let rows = sqlx::query(query)
             .bind(guest_id)
@@ -1252,8 +979,7 @@ impl GuestRepository {
         full_name: &str,
         name_pattern: &str,
     ) -> Result<Vec<Guest>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id, full_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, true as is_active,
@@ -1276,32 +1002,7 @@ impl GuestRepository {
                   )
                 ORDER BY updated_at DESC
                 LIMIT 100
-            "#,
-            sqlite: r#"
-                SELECT id, full_name, email, phone, ic_number, nationality,
-                       address_line1, city, state_province, postal_code, country,
-                       title, alt_phone, 1 as is_active,
-                       CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
-                       NULL as tourism_type,
-                       0 as discount_percentage,
-                       company_name,
-                       0 as complimentary_nights_credit,
-                       created_at, updated_at,
-                       NULL as bookings_count,
-                       NULL as last_stay_date
-                FROM guests
-                WHERE id != ?1
-                  AND (
-                    (?2 IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM(?2)))
-                    OR (?3 IS NOT NULL AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), '+', ''), '-', ''), ' ', ''), '(', ''), ')', '') = ?3)
-                    OR (?4 IS NOT NULL AND LOWER(TRIM(ic_number)) = LOWER(TRIM(?4)))
-                    OR LOWER(TRIM(full_name)) = LOWER(TRIM(?5))
-                    OR LOWER(full_name) LIKE LOWER(?6)
-                  )
-                ORDER BY updated_at DESC
-                LIMIT 100
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, Guest>(query)
             .bind(guest_id)
@@ -1558,26 +1259,13 @@ impl GuestRepository {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<Vec<LinkedGuestCreditRow>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT DISTINCT g.id, g.full_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
                 FROM guests g
                 INNER JOIN user_guests ug ON g.id = ug.guest_id
                 WHERE ug.user_id = $1 AND g.deleted_at IS NULL
                 ORDER BY g.full_name
-            "#,
-            sqlite: r#"
-                SELECT DISTINCT
-                    g.id,
-                    COALESCE(g.full_name, TRIM(g.first_name || ' ' || g.last_name)) as full_name,
-                    g.email,
-                    0 as legacy_credits
-                FROM guests g
-                INNER JOIN user_guests ug ON g.id = ug.guest_id
-                WHERE ug.user_id = ?1
-                ORDER BY full_name
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, LinkedGuestCreditRow>(query)
             .bind(user_id)
@@ -1589,8 +1277,7 @@ impl GuestRepository {
     pub async fn all_guest_credit_rows(
         pool: &DbPool,
     ) -> Result<Vec<LinkedGuestCreditRow>, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT DISTINCT g.id, g.full_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
                 FROM guests g
                 WHERE g.deleted_at IS NULL
@@ -1600,22 +1287,7 @@ impl GuestRepository {
                       WHERE gcc.guest_id = g.id AND gcc.nights_available > 0
                   )
                 ORDER BY g.full_name
-            "#,
-            sqlite: r#"
-                SELECT DISTINCT
-                    g.id,
-                    COALESCE(g.full_name, TRIM(g.first_name || ' ' || g.last_name)) as full_name,
-                    g.email,
-                    0 as legacy_credits
-                FROM guests g
-                WHERE EXISTS (
-                    SELECT 1
-                    FROM guest_complimentary_credits gcc
-                    WHERE gcc.guest_id = g.id AND gcc.nights_available > 0
-                )
-                ORDER BY full_name
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, LinkedGuestCreditRow>(query)
             .fetch_all(pool)
@@ -1644,51 +1316,15 @@ impl GuestRepository {
     }
 }
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn get_optional_date(row: &DbRow, col: &str) -> Option<NaiveDate> {
     row.try_get::<Option<NaiveDate>, _>(col).ok().flatten()
 }
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn get_optional_date(row: &DbRow, col: &str) -> Option<NaiveDate> {
-    row.try_get::<Option<String>, _>(col)
-        .ok()
-        .flatten()
-        .and_then(|value| NaiveDate::parse_from_str(&value, "%Y-%m-%d").ok())
-}
-
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn get_required_date(row: &DbRow, col: &str) -> Result<NaiveDate, ApiError> {
     row.try_get::<NaiveDate, _>(col)
         .map_err(|e| ApiError::Database(e.to_string()))
 }
 
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn get_required_date(row: &DbRow, col: &str) -> Result<NaiveDate, ApiError> {
-    let value = row
-        .try_get::<String, _>(col)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    NaiveDate::parse_from_str(&value, "%Y-%m-%d").map_err(|e| ApiError::Database(e.to_string()))
-}
-
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn get_datetime(row: &DbRow, col: &str) -> DateTime<Utc> {
     row.try_get(col).unwrap_or_else(|_| Utc::now())
-}
-
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-fn get_datetime(row: &DbRow, col: &str) -> DateTime<Utc> {
-    row.try_get::<String, _>(col)
-        .ok()
-        .and_then(|value| {
-            DateTime::parse_from_rfc3339(&value)
-                .map(|dt| dt.with_timezone(&Utc))
-                .or_else(|_| {
-                    chrono::NaiveDateTime::parse_from_str(&value, "%Y-%m-%d %H:%M:%S")
-                        .map(|dt| dt.and_utc())
-                })
-                .ok()
-        })
-        .unwrap_or_else(Utc::now)
 }

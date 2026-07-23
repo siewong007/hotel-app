@@ -53,18 +53,6 @@ pub struct NewMaintenanceTicket<'a> {
 }
 
 fn images_from_row(row: &DbRow) -> Option<serde_json::Value> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        row.try_get::<Option<String>, _>("images")
-            .ok()
-            .flatten()
-            .and_then(|value| serde_json::from_str(&value).ok())
-    }
-
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     {
         row.try_get::<Option<serde_json::Value>, _>("images")
             .ok()
@@ -112,10 +100,7 @@ where
     let prefix = format!("MT-{}-", yyyymm);
     let pattern = format!("{}%", prefix);
 
-    let query = crate::sql_query!(
-        postgres: "SELECT MAX(CAST(SUBSTRING(ticket_number FROM 11) AS BIGINT)) FROM maintenance_tickets WHERE ticket_number LIKE $1",
-        sqlite: "SELECT MAX(CAST(SUBSTR(ticket_number, 11) AS INTEGER)) FROM maintenance_tickets WHERE ticket_number LIKE ?1"
-    );
+    let query = "SELECT MAX(CAST(SUBSTRING(ticket_number FROM 11) AS BIGINT)) FROM maintenance_tickets WHERE ticket_number LIKE $1";
 
     let max_seq: Option<i64> = sqlx::query_scalar(query)
         .bind(&pattern)
@@ -153,22 +138,13 @@ pub async fn list_tickets(
     page_size: i64,
     offset: i64,
 ) -> Result<(i64, Vec<MaintenanceTicket>), ApiError> {
-    let where_clause = crate::sql_query!(
-        postgres: r#"
+    let where_clause = r#"
 WHERE ($1::text IS NULL OR t.status = $1)
   AND ($2::bigint IS NULL OR t.room_id = $2)
   AND ($3::bigint IS NULL OR t.assigned_to = $3)
   AND ($4::text IS NULL OR t.category = $4)
   AND ($5::text IS NULL OR t.priority = $5)
-"#,
-        sqlite: r#"
-WHERE (?1 IS NULL OR t.status = ?1)
-  AND (?2 IS NULL OR t.room_id = ?2)
-  AND (?3 IS NULL OR t.assigned_to = ?3)
-  AND (?4 IS NULL OR t.category = ?4)
-  AND (?5 IS NULL OR t.priority = ?5)
-"#
-    );
+"#;
     let count_query = format!(
         "SELECT COUNT(*) FROM maintenance_tickets t {}",
         where_clause
@@ -210,31 +186,15 @@ pub async fn insert_ticket(
     pool: &DbPool,
     ticket: NewMaintenanceTicket<'_>,
 ) -> Result<MaintenanceTicket, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 INSERT INTO maintenance_tickets (
     room_id, ticket_number, title, description, category, priority,
     assigned_to, reported_by, estimated_cost, estimated_hours, scheduled_date, images
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING id
-"#,
-        sqlite: r#"
-INSERT INTO maintenance_tickets (
-    room_id, ticket_number, title, description, category, priority,
-    assigned_to, reported_by, estimated_cost, estimated_hours, scheduled_date, images
-)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-RETURNING id
-"#
-    );
+"#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let images_bind = ticket.images.map(|value| value.to_string());
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let images_bind = ticket.images;
 
     let estimated_cost = crate::core::db::opt_decimal_to_db(ticket.estimated_cost);
@@ -267,8 +227,7 @@ pub async fn patch_ticket(
     ticket_id: i64,
     patch: &MaintenanceTicketPatch,
 ) -> Result<MaintenanceTicket, ApiError> {
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
 UPDATE maintenance_tickets
 SET title = COALESCE($2, title),
     description = COALESCE($3, description),
@@ -287,35 +246,8 @@ SET title = COALESCE($2, title),
     resolved_at = CASE WHEN $6 IN ('resolved', 'closed') AND resolved_at IS NULL THEN CURRENT_TIMESTAMP ELSE resolved_at END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
-"#,
-        sqlite: r#"
-UPDATE maintenance_tickets
-SET title = COALESCE(?2, title),
-    description = COALESCE(?3, description),
-    category = COALESCE(?4, category),
-    priority = COALESCE(?5, priority),
-    status = COALESCE(?6, status),
-    assigned_to = COALESCE(?7, assigned_to),
-    estimated_cost = COALESCE(?8, estimated_cost),
-    actual_cost = COALESCE(?9, actual_cost),
-    estimated_hours = COALESCE(?10, estimated_hours),
-    actual_hours = COALESCE(?11, actual_hours),
-    scheduled_date = COALESCE(?12, scheduled_date),
-    resolution_notes = COALESCE(?13, resolution_notes),
-    images = COALESCE(?14, images),
-    started_at = CASE WHEN ?6 = 'in_progress' AND started_at IS NULL THEN datetime('now') ELSE started_at END,
-    resolved_at = CASE WHEN ?6 IN ('resolved', 'closed') AND resolved_at IS NULL THEN datetime('now') ELSE resolved_at END,
-    updated_at = datetime('now')
-WHERE id = ?1
-"#
-    );
+"#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let images_bind = patch.images.clone().map(|value| value.to_string());
-    #[cfg(any(
-        all(feature = "postgres", not(feature = "sqlite")),
-        all(feature = "sqlite", feature = "postgres")
-    ))]
     let images_bind = patch.images.clone();
 
     let estimated_cost = crate::core::db::opt_decimal_to_db(patch.estimated_cost);

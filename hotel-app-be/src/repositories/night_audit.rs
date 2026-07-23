@@ -6,7 +6,6 @@ use sqlx::Row;
 use std::collections::HashMap;
 
 use crate::core::db::DbPool;
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 use crate::core::db::decimal_to_db;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
@@ -215,7 +214,6 @@ pub async fn update_audit_notes(
 /// Resolves an optional year/month filter into a half-open `[from, to)` date
 /// range. Filtering with a date-range comparison (rather than
 /// `EXTRACT`/`strftime` on `audit_date`) keeps the query portable across
-/// PostgreSQL and SQLite without per-engine SQL branches.
 fn audit_date_bounds(
     year: Option<i32>,
     month: Option<i32>,
@@ -450,7 +448,6 @@ pub async fn booking_posted_status(
 /// night audits already closed — still appear on those reports.
 /// Mirrors the per-night calculations of `run_night_audit`.
 /// No-op for bookings in non-stay statuses. Returns the number of nights posted.
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn backfill_booking_posted_nights(
     pool: &DbPool,
     booking_id: i64,

@@ -226,18 +226,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RatePlan {
             description: row.try_get("description")?,
             plan_type: row.try_get("plan_type")?,
             adjustment_type: row.try_get("adjustment_type")?,
-            adjustment_value: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(
-                    row.try_get::<Option<String>, _>("adjustment_value")?,
-                );
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("adjustment_value")?;
-                val
-            },
+            adjustment_value: { row.try_get("adjustment_value")? },
             valid_from: row.try_get("valid_from")?,
             valid_to: row.try_get("valid_to")?,
             applies_monday: row.try_get("applies_monday")?,
@@ -266,16 +255,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRate {
             id: row.try_get("id")?,
             rate_plan_id: row.try_get("rate_plan_id")?,
             room_type_id: row.try_get("room_type_id")?,
-            price: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("price")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("price")?;
-                val
-            },
+            price: { row.try_get("price")? },
             effective_from: row.try_get("effective_from")?,
             effective_to: row.try_get("effective_to")?,
             created_at: row.try_get("created_at")?,
@@ -294,16 +274,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRateWithDetails {
             room_type_id: row.try_get("room_type_id")?,
             room_type_name: row.try_get("room_type_name")?,
             room_type_code: row.try_get("room_type_code")?,
-            price: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("price")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("price")?;
-                val
-            },
+            price: { row.try_get("price")? },
             effective_from: row.try_get("effective_from")?,
             effective_to: row.try_get("effective_to")?,
         })

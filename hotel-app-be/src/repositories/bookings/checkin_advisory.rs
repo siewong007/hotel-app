@@ -96,12 +96,8 @@ async fn build_guest_advisory(
     guest_id: i64,
     exclude_booking_id: i64,
 ) -> Result<CheckInAdvisory, ApiError> {
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let totals_sql = "SELECT COUNT(*) AS total, COUNT(company_id) AS company_count \
          FROM bookings WHERE guest_id = $1 AND id <> $2 AND status <> 'voided'";
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let totals_sql = "SELECT COUNT(*) AS total, COUNT(company_id) AS company_count \
-         FROM bookings WHERE guest_id = ?1 AND id <> ?2 AND status <> 'voided'";
 
     let row = sqlx::query(totals_sql)
         .bind(guest_id)
@@ -120,14 +116,8 @@ async fn build_guest_advisory(
     }
 
     // Suggest the company they most often bill to.
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let suggest_sql = "SELECT company_id, company_name, COUNT(*) AS c \
          FROM bookings WHERE guest_id = $1 AND id <> $2 AND status <> 'voided' \
-         AND company_id IS NOT NULL \
-         GROUP BY company_id, company_name ORDER BY c DESC, MAX(created_at) DESC LIMIT 1";
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let suggest_sql = "SELECT company_id, company_name, COUNT(*) AS c \
-         FROM bookings WHERE guest_id = ?1 AND id <> ?2 AND status <> 'voided' \
          AND company_id IS NOT NULL \
          GROUP BY company_id, company_name ORDER BY c DESC, MAX(created_at) DESC LIMIT 1";
 

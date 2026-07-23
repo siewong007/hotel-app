@@ -117,8 +117,7 @@ impl SettingsRepository {
         requires_ekyc: bool,
     ) -> Result<u64, ApiError> {
         let ekyc_clause = if requires_ekyc {
-            crate::sql_query!(
-                postgres: r#"
+            r#"
               AND (
                     SELECT e.status
                     FROM ekyc_verifications e
@@ -133,31 +132,13 @@ impl SettingsRepository {
                     ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
                     LIMIT 1
                   ), false) = true
-            "#,
-                sqlite: r#"
-              AND (
-                    SELECT e.status
-                    FROM ekyc_verifications e
-                    WHERE e.guest_id = bookings.guest_id
-                    ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
-                    LIMIT 1
-                  ) IN ('approved', 'verified')
-              AND COALESCE((
-                    SELECT e.self_checkin_enabled
-                    FROM ekyc_verifications e
-                    WHERE e.guest_id = bookings.guest_id
-                    ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
-                    LIMIT 1
-                  ), 0) = 1
             "#
-            )
         } else {
             ""
         };
 
-        let query = crate::sql_query!(
-            postgres: format!(
-                r#"
+        let query = format!(
+            r#"
             UPDATE bookings
             SET status = 'auto_checked_in', updated_at = CURRENT_TIMESTAMP
             WHERE status = 'confirmed'
@@ -166,18 +147,6 @@ impl SettingsRepository {
               AND CURRENT_TIME < $2::TIME
               {ekyc_clause}
             "#
-            ),
-            sqlite: format!(
-                r#"
-            UPDATE bookings
-            SET status = 'auto_checked_in', updated_at = datetime('now')
-            WHERE status = 'confirmed'
-              AND check_in_date = date('now')
-              AND time('now') >= time(?1)
-              AND time('now') < time(?2)
-              {ekyc_clause}
-            "#
-            )
         );
 
         sqlx::query(&query)
@@ -191,8 +160,7 @@ impl SettingsRepository {
 
     /// Mark rooms occupied for bookings auto-checked-in today.
     pub async fn mark_auto_checked_in_rooms_occupied(pool: &DbPool) -> Result<u64, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
             UPDATE rooms
             SET status = 'occupied'
             WHERE id IN (
@@ -200,17 +168,7 @@ impl SettingsRepository {
                 WHERE status = 'auto_checked_in'
                   AND check_in_date = CURRENT_DATE
             )
-            "#,
-            sqlite: r#"
-            UPDATE rooms
-            SET status = 'occupied'
-            WHERE id IN (
-                SELECT room_id FROM bookings
-                WHERE status = 'auto_checked_in'
-                  AND check_in_date = date('now')
-            )
-            "#
-        );
+            "#;
 
         sqlx::query(query)
             .execute(pool)
@@ -221,22 +179,13 @@ impl SettingsRepository {
 
     /// Mark checked-in bookings late after the configured checkout time.
     pub async fn mark_late_checkouts(pool: &DbPool, check_out_time: &str) -> Result<u64, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
             UPDATE bookings
             SET status = 'late_checkout', updated_at = CURRENT_TIMESTAMP
             WHERE status IN ('checked_in', 'auto_checked_in')
               AND check_out_date = CURRENT_DATE
               AND CURRENT_TIME > $1::TIME
-            "#,
-            sqlite: r#"
-            UPDATE bookings
-            SET status = 'late_checkout', updated_at = datetime('now')
-            WHERE status IN ('checked_in', 'auto_checked_in')
-              AND check_out_date = date('now')
-              AND time('now') > time(?1)
-            "#
-        );
+            "#;
 
         sqlx::query(query)
             .bind(check_out_time)

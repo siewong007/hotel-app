@@ -283,16 +283,10 @@ impl AuthService {
         let token_hash = Self::hash_refresh_token(token);
         let expires_at = Utc::now() + Duration::days(expires_in_days);
 
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at)
                 VALUES ($1::uuid, $2, $3, $4::inet, $5, $6)
-            "#,
-            sqlite: r#"
-                INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            "#
-        );
+            "#;
         sqlx::query(query)
             .bind(&session_id)
             .bind(user_id)
@@ -313,20 +307,12 @@ impl AuthService {
     ) -> Result<Option<(i64, String)>, sqlx::Error> {
         let token_hash = Self::hash_refresh_token(token);
 
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT user_id, id::text AS session_id
                 FROM refresh_tokens
                 WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP
                   AND revoked_at IS NULL AND is_revoked = false
-            "#,
-            sqlite: r#"
-                SELECT user_id, id AS session_id
-                FROM refresh_tokens
-                WHERE token_hash = ?1 AND expires_at > datetime('now')
-                  AND revoked_at IS NULL AND is_revoked = 0
-            "#
-        );
+            "#;
         let result = sqlx::query(query)
             .bind(token_hash)
             .fetch_optional(pool)
@@ -352,18 +338,11 @@ impl AuthService {
         let previous_hash = Self::hash_refresh_token(previous_token);
         let next_hash = Self::hash_refresh_token(next_token);
         let expires_at = Utc::now() + Duration::days(expires_in_days);
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 UPDATE refresh_tokens
                 SET token_hash = $1, expires_at = $2, last_used_at = CURRENT_TIMESTAMP
                 WHERE id = $3::uuid AND token_hash = $4 AND revoked_at IS NULL AND is_revoked = false
-            "#,
-            sqlite: r#"
-                UPDATE refresh_tokens
-                SET token_hash = ?1, expires_at = ?2, last_used_at = datetime('now')
-                WHERE id = ?3 AND token_hash = ?4 AND revoked_at IS NULL AND is_revoked = 0
-            "#
-        );
+            "#;
         Ok(sqlx::query(query)
             .bind(next_hash)
             .bind(expires_at)
@@ -413,23 +392,14 @@ impl AuthService {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<Vec<ActiveSessionRecord>, sqlx::Error> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id::text AS id, user_agent, host(ip_address) AS ip_address,
                        created_at, last_used_at, expires_at
                 FROM refresh_tokens
                 WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP
                   AND revoked_at IS NULL AND is_revoked = false
                 ORDER BY last_used_at DESC NULLS LAST, created_at DESC
-            "#,
-            sqlite: r#"
-                SELECT id, user_agent, ip_address, created_at, last_used_at, expires_at
-                FROM refresh_tokens
-                WHERE user_id = ?1 AND expires_at > datetime('now')
-                  AND revoked_at IS NULL AND is_revoked = 0
-                ORDER BY last_used_at DESC, created_at DESC
-            "#
-        );
+            "#;
         sqlx::query_as(query).bind(user_id).fetch_all(pool).await
     }
 
@@ -438,18 +408,11 @@ impl AuthService {
         user_id: i64,
         session_id: &str,
     ) -> Result<bool, sqlx::Error> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 UPDATE refresh_tokens
                 SET is_revoked = true, revoked_at = CURRENT_TIMESTAMP, revoked_by = $1
                 WHERE id = $2::uuid AND user_id = $1 AND revoked_at IS NULL AND is_revoked = false
-            "#,
-            sqlite: r#"
-                UPDATE refresh_tokens
-                SET is_revoked = 1, revoked_at = datetime('now'), revoked_by = ?1
-                WHERE id = ?2 AND user_id = ?1 AND revoked_at IS NULL AND is_revoked = 0
-            "#
-        );
+            "#;
         Ok(sqlx::query(query)
             .bind(user_id)
             .bind(session_id)
@@ -464,8 +427,7 @@ impl AuthService {
         user_id: i64,
         session_id: &str,
     ) -> Result<bool, sqlx::Error> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT EXISTS(
                     SELECT 1
                     FROM refresh_tokens AS session
@@ -477,21 +439,7 @@ impl AuthService {
                       AND account.is_locked = false
                       AND account.deleted_at IS NULL
                 )
-            "#,
-            sqlite: r#"
-                SELECT EXISTS(
-                    SELECT 1
-                    FROM refresh_tokens AS session
-                    INNER JOIN users AS account ON account.id = session.user_id
-                    WHERE session.id = ?1 AND session.user_id = ?2
-                      AND session.expires_at > datetime('now')
-                      AND session.revoked_at IS NULL AND session.is_revoked = 0
-                      AND account.is_active = 1
-                      AND account.is_locked = 0
-                      AND account.deleted_at IS NULL
-                )
-            "#
-        );
+            "#;
         sqlx::query_scalar(query)
             .bind(session_id)
             .bind(user_id)
@@ -816,7 +764,6 @@ impl AuthService {
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
         let recovery_code_hashes = Self::recovery_codes_for_storage(recovery_codes);
-        // Convert recovery codes to JSON string for SQLite compatibility
         let codes_json = array_to_json(&recovery_code_hashes);
 
         sqlx::query(
@@ -864,7 +811,6 @@ impl AuthService {
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
         let recovery_code_hashes = Self::recovery_codes_for_storage(recovery_codes);
-        // Convert recovery codes to JSON string for SQLite compatibility
         let codes_json = array_to_json(&recovery_code_hashes);
 
         sqlx::query(

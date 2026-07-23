@@ -47,7 +47,6 @@ pub struct Payment {
 /// A payment awaiting staff review (bank-transfer claim or pre-capture record),
 /// enriched with booking + guest context for the staff approval queue.
 /// `amount` and `created_at` are selected as text to decode uniformly across
-/// PostgreSQL (numeric/timestamptz) and SQLite (REAL/TEXT).
 #[derive(Debug, Serialize, FromRow)]
 pub struct PendingPaymentEntry {
     pub id: i64,
@@ -411,17 +410,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for KeycardDeposit {
             id: row.try_get("id")?,
             booking_id: row.try_get("booking_id")?,
             payment_id: row.try_get("payment_id")?,
-            deposit_amount: {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val =
-                    crate::core::db::parse_decimal(&row.try_get::<String, _>("deposit_amount")?);
-                #[cfg(any(
-                    all(feature = "postgres", not(feature = "sqlite")),
-                    all(feature = "sqlite", feature = "postgres")
-                ))]
-                let val = row.try_get("deposit_amount")?;
-                val
-            },
+            deposit_amount: { row.try_get("deposit_amount")? },
             deposit_status: row.try_get("deposit_status")?,
             returned_at: row.try_get("returned_at")?,
             returned_by: row.try_get("returned_by")?,

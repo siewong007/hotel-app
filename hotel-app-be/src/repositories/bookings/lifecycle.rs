@@ -45,25 +45,6 @@ pub async fn record_booking_history(
     change_reason: Option<&str>,
     metadata: serde_json::Value,
 ) {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let result = sqlx::query(
-        r#"
-        INSERT INTO booking_history (
-            booking_id, previous_status, new_status, changed_by, change_reason, metadata
-        )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-        "#,
-    )
-    .bind(booking_id)
-    .bind(previous_status)
-    .bind(new_status)
-    .bind(changed_by)
-    .bind(change_reason)
-    .bind(metadata.to_string())
-    .execute(pool)
-    .await;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let result = sqlx::query(
         r#"
         INSERT INTO booking_history (
@@ -99,26 +80,6 @@ pub async fn record_booking_history_tx(
     change_reason: Option<&str>,
     metadata: serde_json::Value,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        r#"
-        INSERT INTO booking_history (
-            booking_id, previous_status, new_status, changed_by, change_reason, metadata
-        )
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-        "#,
-    )
-    .bind(booking_id)
-    .bind(previous_status)
-    .bind(new_status)
-    .bind(changed_by)
-    .bind(change_reason)
-    .bind(metadata.to_string())
-    .execute(&mut **tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
         r#"
         INSERT INTO booking_history (
@@ -159,8 +120,7 @@ pub async fn record_self_checkin_event_tx(
     })
     .to_string();
 
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
             INSERT INTO self_checkin_events (
                 booking_id, guest_id, ekyc_verification_id, user_id, checked_in_at,
                 room_key_issued, digital_key_sent, device_type, checkin_location,
@@ -168,17 +128,7 @@ pub async fn record_self_checkin_event_tx(
             )
             VALUES ($1, $2, $3, $4, $5, true, true, $6, $7, 'auto_checkin', $8, $9, CURRENT_TIMESTAMP)
             RETURNING checked_in_at
-        "#,
-        sqlite: r#"
-            INSERT INTO self_checkin_events (
-                booking_id, guest_id, ekyc_verification_id, user_id, checked_in_at,
-                room_key_issued, digital_key_sent, device_type, checkin_location,
-                event_type, source, event_data, created_at
-            )
-            VALUES (?1, ?2, ?3, ?4, ?5, 1, 1, ?6, ?7, 'auto_checkin', ?8, ?9, datetime('now'))
-            RETURNING checked_in_at
-        "#
-    );
+        "#;
 
     sqlx::query_scalar(query)
         .bind(booking_id)
@@ -200,26 +150,6 @@ async fn reconcile_room_status_after_booking_release(
     room_id: i64,
     released_booking_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let status_query = r#"
-        SELECT CASE
-            WHEN EXISTS (
-                SELECT 1 FROM bookings
-                WHERE room_id = ?1 AND id != ?2
-                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
-                  AND check_in_date <= date('now')
-                  AND check_out_date >= date('now')
-            ) THEN 'occupied'
-            WHEN EXISTS (
-                SELECT 1 FROM bookings
-                WHERE room_id = ?1 AND id != ?2
-                  AND status IN ('reserved', 'confirmed', 'pending', 'pending_payment', 'pending_confirmation')
-                  AND check_out_date > date('now')
-            ) THEN 'reserved'
-            ELSE 'available'
-        END
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let status_query = r#"
         SELECT CASE
             WHEN EXISTS (
@@ -246,9 +176,6 @@ async fn reconcile_room_status_after_booking_release(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let current_status_query = "SELECT status FROM rooms WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let current_status_query = "SELECT status FROM rooms WHERE id = $1";
 
     let current_status: Option<String> = sqlx::query_scalar(current_status_query)
@@ -275,14 +202,6 @@ async fn reconcile_room_status_after_booking_release(
         _ => "Room released after booking update",
     };
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_query = r#"
-        UPDATE rooms
-        SET status = ?1, status_notes = ?2
-        WHERE id = ?3
-          AND (status = 'reserved_dirty' OR status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning'))
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_query = r#"
         UPDATE rooms
         SET status = $1, status_notes = $2
@@ -311,9 +230,6 @@ async fn canonical_tourism_tax_for_guest(
     check_in: NaiveDate,
     check_out: NaiveDate,
 ) -> Result<(bool, Decimal), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let tourism_type_query = "SELECT tourism_type FROM guests WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let tourism_type_query = "SELECT tourism_type::text FROM guests WHERE id = $1";
 
     let tourism_type: Option<String> = sqlx::query_scalar(tourism_type_query)
@@ -349,21 +265,8 @@ pub async fn get_booking_timeline_handler(
             .await
             .unwrap_or(false);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking_query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2 UNION SELECT 1 FROM users u WHERE u.id = ?1 AND u.guest_id = ?2)";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let owns_booking_query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2 UNION SELECT 1 FROM users u WHERE u.id = $1 AND u.guest_id = $2)";
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking: bool = sqlx::query_scalar::<_, i32>(owns_booking_query)
-        .bind(user_id)
-        .bind(booking.guest_id)
-        .fetch_one(&pool)
-        .await
-        .map(|v| v != 0)
-        .unwrap_or(false);
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let owns_booking: bool = sqlx::query_scalar::<_, bool>(owns_booking_query)
         .bind(user_id)
         .bind(booking.guest_id)
@@ -377,50 +280,6 @@ pub async fn get_booking_timeline_handler(
         ));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let timeline_sql = r#"
-        SELECT CAST(id AS TEXT) AS id, 'booking_history' AS source, 'status_change' AS event_type,
-               'Status changed to ' || new_status AS title,
-               change_reason AS description, previous_status AS status_from, new_status AS status_to,
-               NULL AS amount, changed_by AS actor_id, NULL AS old_metadata, metadata, created_at
-        FROM booking_history
-        WHERE booking_id = ?1
-        UNION ALL
-        SELECT CAST(id AS TEXT) AS id, 'booking_modifications' AS source, modification_type AS event_type,
-               CASE modification_type
-                   WHEN 'rate_change' THEN 'Rate updated'
-                   WHEN 'date_change' THEN 'Dates updated'
-                   WHEN 'room_change' THEN 'Room changed'
-                   WHEN 'check_in' THEN 'Guest checked in'
-                   WHEN 'voided' THEN 'Booking voided'
-                   ELSE 'Booking updated'
-               END AS title,
-               reason AS description, NULL AS status_from, NULL AS status_to,
-               CAST(price_adjustment AS TEXT) AS amount, modified_by AS actor_id, old_value AS old_metadata, new_value AS metadata, modified_at AS created_at
-        FROM booking_modifications
-        WHERE booking_id = ?1
-        UNION ALL
-        SELECT CAST(id AS TEXT) AS id, 'payments' AS source, COALESCE(payment_type, 'booking') AS event_type,
-               CASE
-                   WHEN COALESCE(payment_type, '') = 'refund' THEN 'Refund recorded'
-                   WHEN status = 'failed' THEN 'Payment failed'
-                   ELSE 'Payment recorded'
-               END AS title,
-               notes AS description, NULL AS status_from, status AS status_to,
-               CAST(amount AS TEXT) AS amount, processed_by AS actor_id, NULL AS old_metadata, NULL AS metadata, created_at
-        FROM payments
-        WHERE booking_id = ?1
-        UNION ALL
-        SELECT CAST(id AS TEXT) AS id, 'invoices' AS source, 'invoice' AS event_type,
-               'Invoice ' || invoice_number AS title,
-               notes AS description, NULL AS status_from, status AS status_to,
-               CAST(total_amount AS TEXT) AS amount, created_by AS actor_id, NULL AS old_metadata, NULL AS metadata, created_at
-        FROM invoices
-        WHERE booking_id = ?1
-        ORDER BY created_at ASC
-    "#;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let timeline_sql = r#"
         SELECT id::text AS id, 'booking_history' AS source, 'status_change' AS event_type,
                'Status changed to ' || new_status AS title,
@@ -472,24 +331,10 @@ pub async fn get_booking_timeline_handler(
     let timeline = rows
         .iter()
         .map(|row| {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let metadata = row
-                .try_get::<Option<String>, _>("metadata")
-                .ok()
-                .flatten()
-                .and_then(|s| serde_json::from_str(&s).ok());
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let old_metadata = row
-                .try_get::<Option<String>, _>("old_metadata")
-                .ok()
-                .flatten()
-                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let metadata = row
                 .try_get::<Option<serde_json::Value>, _>("metadata")
                 .ok()
                 .flatten();
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let old_metadata = row
                 .try_get::<Option<serde_json::Value>, _>("old_metadata")
                 .ok()
@@ -692,7 +537,6 @@ async fn auto_post_company_ledger(
 ) -> Result<(), ApiError> {
     let booking_id = booking.id;
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
          WHERE booking_id = $1 AND post_type = 'room_charge' \
@@ -702,17 +546,6 @@ async fn auto_post_company_ledger(
     .fetch_one(pool)
     .await
     .unwrap_or(false);
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let exists: bool = sqlx::query_scalar::<_, i32>(
-        "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
-         WHERE booking_id = ?1 AND post_type = 'room_charge' \
-         AND COALESCE(is_reversal, 0) = 0)",
-    )
-    .bind(booking_id)
-    .fetch_one(pool)
-    .await
-    .map(|v| v != 0)
-    .unwrap_or(false);
 
     if exists {
         return Ok(());
@@ -720,22 +553,10 @@ async fn auto_post_company_ledger(
 
     let nights = std::cmp::max((check_out - check_in).num_days(), 1);
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let detail: Option<(Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT r.room_number, g.full_name FROM bookings b \
          LEFT JOIN rooms r ON b.room_id = r.id \
          LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = $1",
-    )
-    .bind(booking_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let detail: Option<(Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT r.room_number, g.full_name FROM bookings b \
-         LEFT JOIN rooms r ON b.room_id = r.id \
-         LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = ?1",
     )
     .bind(booking_id)
     .fetch_optional(pool)
@@ -757,7 +578,6 @@ async fn auto_post_company_ledger(
     let default_terms_days =
         settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await as i64;
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let terms_days: i64 = sqlx::query_scalar::<_, Option<i32>>(
         "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
     )
@@ -769,17 +589,6 @@ async fn auto_post_company_ledger(
     .flatten()
     .map(i64::from)
     .unwrap_or(default_terms_days);
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let terms_days: i64 = sqlx::query_scalar::<_, Option<i64>>(
-        "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
-    )
-    .bind(company_name)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten()
-    .flatten()
-    .unwrap_or(default_terms_days);
 
     let today = chrono::Local::now().date_naive();
     let due_date = today + chrono::Duration::days(terms_days);
@@ -787,21 +596,9 @@ async fn auto_post_company_ledger(
     // Reuse the booking's existing invoice number when one already exists,
     // so a single booking has a single invoice number across `invoices` and
     // `customer_ledgers`. Only generate a new one if neither table has one yet.
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let existing_invoice: Option<String> = sqlx::query_scalar(
         "SELECT invoice_number FROM invoices \
          WHERE booking_id = $1 AND invoice_number IS NOT NULL \
-         ORDER BY created_at LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let existing_invoice: Option<String> = sqlx::query_scalar(
-        "SELECT invoice_number FROM invoices \
-         WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
          ORDER BY created_at LIMIT 1",
     )
     .bind(booking_id)
@@ -817,7 +614,6 @@ async fn auto_post_company_ledger(
             .ok(),
     };
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
         r#"
         INSERT INTO customer_ledgers (
@@ -841,37 +637,6 @@ async fn auto_post_company_ledger(
     .bind(booking.total_amount)
     .bind(booking_id)
     .bind(due_date)
-    .bind(&room_number)
-    .bind(user_id)
-    .bind(&invoice_number)
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        r#"
-        INSERT INTO customer_ledgers (
-            company_name, description, expense_type, amount,
-            booking_id, post_type, posting_date, transaction_date,
-            invoice_date, due_date, room_number,
-            folio_type, transaction_type,
-            created_by, updated_by, cashier_id,
-            invoice_number
-        )
-        VALUES (?1, ?2, 'accommodation', ?3,
-                ?4, 'room_charge', date('now'), date('now'),
-                date('now'), ?5, ?6,
-                'city_ledger', 'debit',
-                ?7, ?7, ?7,
-                ?8)
-        "#,
-    )
-    .bind(company_name)
-    .bind(&description)
-    .bind(booking.total_amount.to_string())
-    .bind(booking_id)
-    .bind(due_date.to_string())
     .bind(&room_number)
     .bind(user_id)
     .bind(&invoice_number)
@@ -940,26 +705,6 @@ async fn completed_booking_payment_total(
     pool: &DbPool,
     booking_id: i64,
 ) -> Result<Decimal, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let row = sqlx::query(
-        r#"
-        SELECT COALESCE(SUM(
-            CASE
-                WHEN status = 'completed' AND COALESCE(payment_type, 'booking') != 'refund'
-                THEN amount
-                ELSE 0
-            END
-        ), 0) AS total_paid
-        FROM payments
-        WHERE booking_id = ?1
-        "#,
-    )
-    .bind(booking_id)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let row = sqlx::query(
         r#"
         SELECT COALESCE(SUM(amount) FILTER (
@@ -1038,20 +783,6 @@ mod checkout_payment_guard_tests {
 }
 
 async fn booking_revenue_for_date(pool: &DbPool, date: NaiveDate) -> Result<f64, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let row = sqlx::query(
-        r#"
-        SELECT COALESCE(SUM(total_amount), 0) AS revenue
-        FROM bookings
-        WHERE status != 'voided' AND date(created_at) = date(?1)
-        "#,
-    )
-    .bind(date.to_string())
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let row = sqlx::query(
         r#"
         SELECT COALESCE(SUM(total_amount), 0) AS revenue
@@ -1089,22 +820,10 @@ pub async fn get_booking_stats_handler(
             .await
             .unwrap_or(0);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let today_check_ins: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed') AND date(check_in_date) = ?"
-    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let today_check_ins: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed') AND check_in_date::date = $1"
     ).bind(today).fetch_one(&pool).await.unwrap_or(0);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let today_check_outs: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') AND date(check_out_date) = ?"
-    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let today_check_outs: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM bookings WHERE status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') AND check_out_date::date = $1"
     ).bind(today).fetch_one(&pool).await.unwrap_or(0);
@@ -1234,17 +953,6 @@ pub async fn create_booking_handler(
         is_smoking: None,
     };
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let hotel_today: NaiveDate = {
-        let today_str: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-        NaiveDate::parse_from_str(&today_str, "%Y-%m-%d")
-            .map_err(|e| ApiError::Database(e.to_string()))?
-    };
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let hotel_today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
         .fetch_one(&mut *tx)
         .await
@@ -1262,18 +970,7 @@ pub async fn create_booking_handler(
     // Only check for ACTIVE bookings that would conflict
     // Active statuses: reserved, confirmed, checked_in, auto_checked_in, pending
     // Inactive statuses (don't block): voided, checked_out, completed
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict_query = r#"
-        SELECT EXISTS(
-            SELECT 1 FROM bookings
-            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation') AND status != 'voided'
-            AND ((check_in_date <= ?2 AND check_out_date > ?2)
-                OR (check_in_date < ?3 AND check_out_date >= ?3)
-                OR (check_in_date >= ?2 AND check_out_date <= ?3))
-        )
-    "#;
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
@@ -1284,17 +981,6 @@ pub async fn create_booking_handler(
         )
     "#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict: bool = sqlx::query_scalar::<_, i32>(conflict_query)
-        .bind(input.room_id)
-        .bind(check_in)
-        .bind(check_out)
-        .fetch_one(&mut *tx)
-        .await
-        .map(|v| v != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let conflict: bool = sqlx::query_scalar::<_, bool>(conflict_query)
         .bind(input.room_id)
         .bind(check_in)
@@ -1311,8 +997,6 @@ pub async fn create_booking_handler(
 
     let (is_tourist, tourism_tax_amount) =
         canonical_tourism_tax_for_guest(&pool, input.guest_id, check_in, check_out).await?;
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let _ = (is_tourist, tourism_tax_amount);
 
     let nights = (check_out - check_in).num_days() as i32;
     let is_hourly = nights == 0; // Same-day check-in/check-out = hourly booking
@@ -1371,62 +1055,7 @@ pub async fn create_booking_handler(
     // Get the override rate value if provided (to store in rate_override_weekday)
     let rate_override_value = input.room_rate_override;
 
-    // SQLite version: INSERT then SELECT
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let booking: Booking = {
-        use rust_decimal::prelude::ToPrimitive;
-        sqlx::query(
-            r#"
-            INSERT INTO bookings (
-                booking_number, guest_id, room_id, check_in_date, check_out_date,
-                room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates, cleaning_preference,
-                company_id, company_name, booking_channel_id, ota_reference
-            )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)
-            "#
-        )
-        .bind(&booking_number)
-        .bind(input.guest_id)
-        .bind(input.room_id)
-        .bind(check_in)
-        .bind(check_out)
-        .bind(room_rate.to_f64().unwrap_or(0.0))
-        .bind(subtotal.to_f64().unwrap_or(0.0))
-        .bind(tax_amount.to_f64().unwrap_or(0.0))
-        .bind(total_amount.to_f64().unwrap_or(0.0))
-        .bind(&payment_status)
-        .bind(input.payment_method.as_deref())
-        .bind(booking_remarks.as_deref())
-        .bind(user_id)
-        .bind(&source)
-        .bind(if deposit_paid { 1i32 } else { 0i32 })
-        .bind(deposit_amount_f64)
-        .bind(rate_override_value)
-        .bind(special_requests.as_deref())
-        .bind(if is_hourly { Some("hourly") } else { None::<&str> })
-        .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
-        .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
-        .bind(input.company_id)
-        .bind(input.company_name.as_deref())
-        .bind(input.booking_channel_id)
-        .bind(ota_reference.as_deref())
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        // Fetch the created booking
-        let row = sqlx::query(r#"SELECT * FROM bookings WHERE booking_number = ?1"#)
-            .bind(&booking_number)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        row_mappers::row_to_booking(&row)
-    };
-
     // PostgreSQL version: INSERT with RETURNING
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let booking: Booking = {
         let deposit_amount =
             deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
@@ -1486,9 +1115,6 @@ pub async fn create_booking_handler(
     } else {
         "reserved"
     };
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_room_query = "UPDATE rooms SET status = ?1, status_notes = ?2 WHERE id = ?3";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_room_query = "UPDATE rooms SET status = $1, status_notes = $2 WHERE id = $3";
 
     sqlx::query(update_room_query)
@@ -1510,7 +1136,7 @@ pub async fn create_booking_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record a deposit payment as part of the same transaction as the booking.
-    // `record_checkin_payment_tx` handles both database schemas despite its
+    // `record_checkin_payment_tx` handles the database schema despite its
     // historical name, so a failed payment cannot leave a successful booking
     // with its deposit silently missing.
     if let Some(amount_paid) = input.amount_paid
@@ -1625,23 +1251,9 @@ pub async fn update_booking_handler(
             .await
             .unwrap_or(false);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking_query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let owns_booking_query =
         "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)";
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking: bool = sqlx::query_scalar::<_, i32>(owns_booking_query)
-        .bind(user_id)
-        .bind(existing_booking.guest_id)
-        .fetch_one(&pool)
-        .await
-        .map(|v| v != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let owns_booking: bool = sqlx::query_scalar::<_, bool>(owns_booking_query)
         .bind(user_id)
         .bind(existing_booking.guest_id)
@@ -1725,19 +1337,6 @@ pub async fn update_booking_handler(
         "voided" | "checked_out" | "late_checkout"
     );
     if (room_changed || dates_changed) && !is_inactive_status {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let conflict_query = r#"
-            SELECT EXISTS(
-                SELECT 1 FROM bookings
-                WHERE room_id = ?1 AND id != ?4
-                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation') AND status != 'voided'
-                AND ((check_in_date <= ?2 AND check_out_date > ?2)
-                    OR (check_in_date < ?3 AND check_out_date >= ?3)
-                    OR (check_in_date >= ?2 AND check_out_date <= ?3))
-            )
-        "#;
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let conflict_query = r#"
             SELECT EXISTS(
                 SELECT 1 FROM bookings
@@ -1749,18 +1348,6 @@ pub async fn update_booking_handler(
             )
         "#;
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let conflict: bool = sqlx::query_scalar::<_, i32>(conflict_query)
-            .bind(new_room_id)
-            .bind(check_in)
-            .bind(check_out)
-            .bind(booking_id)
-            .fetch_one(&pool)
-            .await
-            .map(|v| v != 0)
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let conflict: bool = sqlx::query_scalar::<_, bool>(conflict_query)
             .bind(new_room_id)
             .bind(check_in)
@@ -1777,9 +1364,6 @@ pub async fn update_booking_handler(
         }
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let new_room_status_query = "SELECT status FROM rooms WHERE id = ?1 AND is_active = 1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let new_room_status_query = "SELECT status FROM rooms WHERE id = $1 AND is_active = true";
 
     let new_room_status: Option<String> = sqlx::query_scalar(new_room_status_query)
@@ -1914,86 +1498,7 @@ pub async fn update_booking_handler(
     )
     .await?;
 
-    // SQLite version: UPDATE then SELECT
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let booking: Booking = {
-        use rust_decimal::prelude::ToPrimitive;
-        sqlx::query(
-            r#"UPDATE bookings SET
-                room_id = ?1, status = ?2, check_in_date = ?3, check_out_date = ?4,
-                post_type = ?5, payment_status = ?6,
-                deposit_paid = COALESCE(?8, deposit_paid),
-                deposit_amount = COALESCE(?9, deposit_amount),
-                deposit_paid_at = CASE WHEN ?8 = 1 AND deposit_paid_at IS NULL THEN datetime('now') ELSE deposit_paid_at END,
-                company_id = CASE WHEN ?27 = 1 THEN NULL ELSE COALESCE(?10, company_id) END,
-                company_name = CASE WHEN ?27 = 1 THEN NULL ELSE COALESCE(?11, company_name) END,
-                payment_note = COALESCE(?12, payment_note),
-                remarks = COALESCE(?13, remarks),
-                source = COALESCE(?14, source),
-                payment_method = ?15,
-                room_rate = COALESCE(?16, room_rate),
-                subtotal = COALESCE(?17, subtotal),
-                total_amount = COALESCE(?18, total_amount),
-                rate_override_weekday = COALESCE(?19, rate_override_weekday),
-                rate_override_weekend = COALESCE(?19, rate_override_weekend),
-                special_requests = COALESCE(?20, special_requests),
-                is_tourist = ?21,
-                tourism_tax_amount = ?22,
-                extra_bed_count = COALESCE(?23, extra_bed_count),
-                extra_bed_charge = COALESCE(?24, extra_bed_charge),
-                daily_rates = COALESCE(?25, daily_rates),
-                cleaning_preference = COALESCE(?26, cleaning_preference),
-                actual_check_out = COALESCE(?28, CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END),
-                booking_channel_id = COALESCE(?29, booking_channel_id),
-                ota_reference = COALESCE(?30, ota_reference),
-                updated_at = datetime('now')
-            WHERE id = ?7"#
-        )
-        .bind(&new_room_id)
-        .bind(&new_status)
-        .bind(check_in)
-        .bind(check_out)
-        .bind(&post_type)
-        .bind(&new_payment_status)
-        .bind(booking_id)
-        .bind(deposit_paid.map(|b| if b { 1i32 } else { 0i32 }))
-        .bind(deposit_amount_f64)
-        .bind(input.company_id)
-        .bind(&input.company_name)
-        .bind(&input.payment_note)
-        .bind(&input.remarks)
-        .bind(&input.source)
-        .bind(&input.payment_method)
-        .bind(new_room_rate.map(|r| r.to_f64().unwrap_or(0.0)))
-        .bind(new_subtotal.map(|s| s.to_f64().unwrap_or(0.0)))
-        .bind(new_total_amount.map(|t| t.to_f64().unwrap_or(0.0)))
-        .bind(input.room_rate_override)
-        .bind(&input.special_requests)
-        .bind(if canonical_is_tourist { 1i32 } else { 0i32 })
-        .bind(canonical_tourism_tax_amount.to_f64().unwrap_or(0.0))
-        .bind(input.extra_bed_count)
-        .bind(input.extra_bed_charge)
-        .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
-        .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
-        .bind(if clear_company { 1i32 } else { 0i32 })
-        .bind(actual_check_out_override.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()))
-        .bind(input.booking_channel_id)
-        .bind(ota_reference.as_deref())
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        let row = sqlx::query("SELECT * FROM bookings WHERE id = ?1")
-            .bind(booking_id)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        row_mappers::row_to_booking(&row)
-    };
-
     // PostgreSQL version: UPDATE with RETURNING
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let booking: Booking = {
         let deposit_amount =
             deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
@@ -2091,13 +1596,6 @@ pub async fn update_booking_handler(
             } else {
                 "reserved"
             };
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let _ = sqlx::query("UPDATE rooms SET status = ?1 WHERE id = ?2")
-                .bind(reserved_status)
-                .bind(new_room_id)
-                .execute(&pool)
-                .await;
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let _ = sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
                 .bind(reserved_status)
                 .bind(new_room_id)
@@ -2137,14 +1635,6 @@ pub async fn update_booking_handler(
                 }
 
                 // Void all linked payments so they don't appear in night audit.
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let void_payments = sqlx::query(
-                    "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'"
-                )
-                .bind(booking_id)
-                .execute(&pool)
-                .await;
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
                 let void_payments = sqlx::query(
                     "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'"
                 )
@@ -2180,16 +1670,6 @@ pub async fn update_booking_handler(
                 }
             }
             "checked_out" | "completed" => {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let upcoming_reservation_query = r#"
-                    SELECT EXISTS(
-                        SELECT 1 FROM bookings
-                        WHERE room_id = ?1 AND id != ?2
-                          AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
-                          AND check_out_date >= date('now')
-                    )
-                "#;
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
                 let upcoming_reservation_query = r#"
                     SELECT EXISTS(
                         SELECT 1 FROM bookings
@@ -2199,16 +1679,6 @@ pub async fn update_booking_handler(
                     )
                 "#;
 
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let has_upcoming_reservation =
-                    sqlx::query_scalar::<_, i32>(upcoming_reservation_query)
-                        .bind(new_room_id)
-                        .bind(booking_id)
-                        .fetch_one(&pool)
-                        .await
-                        .map(|v| v != 0)
-                        .unwrap_or(false);
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
                 let has_upcoming_reservation =
                     sqlx::query_scalar::<_, bool>(upcoming_reservation_query)
                         .bind(new_room_id)
@@ -2230,13 +1700,6 @@ pub async fn update_booking_handler(
                     next_room_status,
                     booking_id
                 );
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let result = sqlx::query("UPDATE rooms SET status = ?1 WHERE id = ?2")
-                    .bind(next_room_status)
-                    .bind(new_room_id)
-                    .execute(&pool)
-                    .await;
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
                 let result = sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
                     .bind(next_room_status)
                     .bind(new_room_id)
@@ -2331,12 +1794,6 @@ pub async fn update_booking_handler(
                 }
             }
             "checked_in" | "auto_checked_in" => {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = ?1")
-                    .bind(new_room_id)
-                    .execute(&pool)
-                    .await;
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
                 let _ = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
                     .bind(new_room_id)
                     .execute(&pool)
@@ -2347,7 +1804,6 @@ pub async fn update_booking_handler(
 
         // Back-fill night audit postings when a booking enters a "stayed" status.
         // Handles edits that advance a back-dated booking past a closed audit.
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         if matches!(
             updated_status,
             "checked_in" | "auto_checked_in" | "checked_out" | "late_checkout" | "completed"
@@ -2377,22 +1833,6 @@ pub async fn update_booking_handler(
     if let Some(new_total) = new_total_amount {
         let delta = new_total - existing_booking.total_amount;
         if !delta.is_zero() {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let sync_res = sqlx::query(
-                r#"UPDATE customer_ledgers
-                    SET amount = amount + CAST(?1 AS REAL)
-                  WHERE booking_id = ?2
-                    AND status IN ('pending', 'partial')
-                    AND post_type = 'room_charge'
-                    AND amount + CAST(?1 AS REAL) > 0
-                    AND amount + CAST(?1 AS REAL) >= paid_amount"#,
-            )
-            .bind(delta.to_string())
-            .bind(booking_id)
-            .execute(&pool)
-            .await;
-
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let sync_res = sqlx::query(
                 r#"UPDATE customer_ledgers
                     SET amount = amount + $1
@@ -2510,18 +1950,6 @@ pub async fn delete_booking_handler(
             .await
             .unwrap_or(false);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking: bool = sqlx::query_scalar::<_, i32>(
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)",
-    )
-    .bind(user_id)
-    .bind(guest_id)
-    .fetch_one(&pool)
-    .await
-    .map(|v| v != 0)
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let owns_booking: bool = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)",
     )
@@ -2546,17 +1974,6 @@ pub async fn delete_booking_handler(
     let affected_night_audit_dates = booking_night_audit_dates(&pool, booking_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_booking_query = r#"
-        UPDATE bookings
-        SET status = 'voided',
-            updated_at = datetime('now'),
-            cancelled_at = datetime('now'),
-            cancelled_by = ?2
-        WHERE id = ?1
-          AND status != 'voided'
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_booking_query = r#"
         UPDATE bookings
         SET status = 'voided',
@@ -2578,9 +1995,6 @@ pub async fn delete_booking_handler(
         return Err(ApiError::BadRequest("Booking cannot be voided".to_string()));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = $1";
 
     sqlx::query(update_room_query)
@@ -2589,10 +2003,6 @@ pub async fn delete_booking_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let void_payments_query =
-        "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let void_payments_query =
         "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'";
 
@@ -2609,9 +2019,6 @@ pub async fn delete_booking_handler(
     if is_complimentary == Some(true) {
         let nights = (check_out_date - check_in_date).num_days().max(0) as i32;
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let room_type_query = "SELECT room_type_id FROM rooms WHERE id = ?1";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let room_type_query = "SELECT room_type_id FROM rooms WHERE id = $1";
 
         let room_type_id: Option<i64> = sqlx::query_scalar(room_type_query)
@@ -2622,15 +2029,6 @@ pub async fn delete_booking_handler(
             .flatten();
 
         if let Some(rt_id) = room_type_id {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let credit_query = r#"
-                INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
-                VALUES (?1, ?2, ?3, 'Refunded from voided complimentary booking', datetime('now'), datetime('now'))
-                ON CONFLICT (guest_id, room_type_id)
-                DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + ?3,
-                              updated_at = datetime('now')
-            "#;
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let credit_query = r#"
                 INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
                 VALUES ($1, $2, $3, 'Refunded from voided complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -2667,24 +2065,6 @@ pub async fn delete_booking_handler(
     )
     .await?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
-    )
-    .bind(booking_id)
-    .bind("voided")
-    .bind(serde_json::json!({
-        "status": &status,
-        "check_in_date": check_in_date.to_string(),
-        "check_out_date": check_out_date.to_string()
-    }).to_string())
-    .bind(serde_json::json!({"status": "voided"}).to_string())
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
@@ -2992,7 +2372,6 @@ pub async fn manual_checkin_handler(
 
     // Back-fill night audit postings for any past nights whose audit already closed.
     // Covers same-day walk-ins created after their own 00:00 audit ran.
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     if let Err(e) =
         crate::services::night_audit::backfill_booking_posted_nights(&pool, booking_id, user_id)
             .await
@@ -3144,9 +2523,6 @@ pub async fn reactivate_booking_handler(
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Booking>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let existing_query = "SELECT id, guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let existing_query = "SELECT id, guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = $1";
 
     let existing_row = sqlx::query(existing_query)
@@ -3185,20 +2561,6 @@ pub async fn reactivate_booking_handler(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict_query = r#"
-        SELECT EXISTS(
-            SELECT 1 FROM bookings
-            WHERE room_id = ?1
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
-              AND status != 'voided'
-              AND id != ?4
-              AND ((check_in_date <= ?2 AND check_out_date > ?2)
-                  OR (check_in_date < ?3 AND check_out_date >= ?3)
-                  OR (check_in_date >= ?2 AND check_out_date <= ?3))
-        )
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
@@ -3212,18 +2574,6 @@ pub async fn reactivate_booking_handler(
         )
     "#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict: bool = sqlx::query_scalar::<_, i32>(conflict_query)
-        .bind(room_id)
-        .bind(check_in)
-        .bind(check_out)
-        .bind(booking_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map(|v| v != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let conflict: bool = sqlx::query_scalar::<_, bool>(conflict_query)
         .bind(room_id)
         .bind(check_in)
@@ -3239,16 +2589,6 @@ pub async fn reactivate_booking_handler(
         ));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let reactivate_query = r#"
-        UPDATE bookings
-        SET status = 'confirmed',
-            updated_at = datetime('now'),
-            booking_remarks = COALESCE(booking_remarks, '') || ' | Reactivated from voided status'
-        WHERE id = ?1
-          AND status = 'voided'
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let reactivate_query = r#"
         UPDATE bookings
         SET status = 'confirmed',
@@ -3270,9 +2610,6 @@ pub async fn reactivate_booking_handler(
         ));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_room_query = "UPDATE rooms SET status = ?1 WHERE id = ?2";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_room_query = "UPDATE rooms SET status = $1 WHERE id = $2";
 
     sqlx::query(update_room_query)
@@ -3309,20 +2646,6 @@ pub async fn reactivate_booking_handler(
     )
     .await?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
-    )
-    .bind(booking_id)
-    .bind("reactivation")
-    .bind(serde_json::json!({"status": "voided"}).to_string())
-    .bind(serde_json::json!({"status": "confirmed"}).to_string())
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
@@ -3347,21 +2670,8 @@ pub async fn user_owns_booking(
     user_id: i64,
     guest_id: i64,
 ) -> Result<bool, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2 UNION SELECT 1 FROM users u WHERE u.id = ?1 AND u.guest_id = ?2)";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2 UNION SELECT 1 FROM users u WHERE u.id = $1 AND u.guest_id = $2)";
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking = sqlx::query_scalar::<_, i32>(query)
-        .bind(user_id)
-        .bind(guest_id)
-        .fetch_one(pool)
-        .await
-        .map(|value| value != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let owns_booking = sqlx::query_scalar::<_, bool>(query)
         .bind(user_id)
         .bind(guest_id)
@@ -3377,17 +2687,6 @@ pub async fn void_booking_tx(
     booking_id: i64,
     user_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_booking_query = r#"
-        UPDATE bookings
-        SET status = 'voided',
-            updated_at = datetime('now'),
-            cancelled_at = datetime('now'),
-            cancelled_by = ?2
-        WHERE id = ?1
-          AND status != 'voided'
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_booking_query = r#"
         UPDATE bookings
         SET status = 'voided',
@@ -3416,23 +2715,6 @@ pub async fn booking_night_audit_dates(
     pool: &DbPool,
     booking_id: i64,
 ) -> Result<Vec<NaiveDate>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let rows = sqlx::query(
-        r#"
-        SELECT DISTINCT posted_date AS audit_date
-        FROM bookings
-        WHERE id = ?1
-          AND COALESCE(is_posted, 0) = 1
-          AND posted_date IS NOT NULL
-        ORDER BY audit_date
-        "#,
-    )
-    .bind(booking_id)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let rows = sqlx::query(
         r#"
         SELECT DISTINCT audit_date
@@ -3473,9 +2755,6 @@ pub async fn booking_night_audit_dates(
 }
 
 pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = $1";
 
     sqlx::query(update_room_query)
@@ -3491,10 +2770,6 @@ pub async fn void_booking_payments_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let void_payments_query =
-        "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let void_payments_query =
         "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'";
 
@@ -3513,9 +2788,6 @@ pub async fn void_uncompleted_booking_payments_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let void_payments_query = "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status NOT IN ('void', 'completed')";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let void_payments_query = "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status NOT IN ('void', 'completed')";
 
     sqlx::query(void_payments_query)
@@ -3537,9 +2809,6 @@ pub async fn restore_complimentary_credits_tx(
             .num_days()
             .max(0) as i32;
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let room_type_query = "SELECT room_type_id FROM rooms WHERE id = ?1";
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
         let room_type_query = "SELECT room_type_id FROM rooms WHERE id = $1";
 
         let room_type_id: Option<i64> = sqlx::query_scalar(room_type_query)
@@ -3550,15 +2819,6 @@ pub async fn restore_complimentary_credits_tx(
             .flatten();
 
         if let Some(room_type_id) = room_type_id {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let credit_query = r#"
-                INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
-                VALUES (?1, ?2, ?3, 'Refunded from voided complimentary booking', datetime('now'), datetime('now'))
-                ON CONFLICT (guest_id, room_type_id)
-                DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + ?3,
-                              updated_at = datetime('now')
-            "#;
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let credit_query = r#"
                 INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
                 VALUES ($1, $2, $3, 'Refunded from voided complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -3587,24 +2847,6 @@ pub async fn record_booking_void_modification_tx(
     booking: &Booking,
     user_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
-    )
-    .bind(booking.id)
-    .bind("voided")
-    .bind(serde_json::json!({
-        "status": &booking.status,
-        "check_in_date": booking.check_in_date.to_string(),
-        "check_out_date": booking.check_out_date.to_string()
-    }).to_string())
-    .bind(serde_json::json!({"status": "voided"}).to_string())
-    .bind(user_id)
-    .execute(&mut **tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
@@ -3636,9 +2878,6 @@ pub async fn record_booking_void_modification_tx(
 /// Read a room's current status on the check-in transaction (used to block
 /// check-in into a room under maintenance / out of order).
 pub async fn fetch_room_status(pool: &DbPool, room_id: i64) -> Result<Option<String>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT status FROM rooms WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "SELECT status FROM rooms WHERE id = $1";
 
     sqlx::query_scalar(query)
@@ -3649,9 +2888,6 @@ pub async fn fetch_room_status(pool: &DbPool, room_id: i64) -> Result<Option<Str
 }
 
 pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT room_number FROM rooms WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "SELECT room_number FROM rooms WHERE id = $1";
 
     sqlx::query_scalar(query)
@@ -3665,9 +2901,6 @@ pub async fn fetch_room_status_tx(
     tx: &mut DbTransaction<'_>,
     room_id: i64,
 ) -> Result<Option<String>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT status FROM rooms WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "SELECT status FROM rooms WHERE id = $1";
 
     sqlx::query_scalar(query)
@@ -3683,9 +2916,6 @@ pub async fn fetch_guest_ic_number_tx(
     tx: &mut DbTransaction<'_>,
     guest_id: i64,
 ) -> Result<Option<String>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT ic_number FROM guests WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "SELECT ic_number FROM guests WHERE id = $1";
 
     sqlx::query_scalar(query)
@@ -3858,16 +3088,6 @@ pub async fn checkin_booking_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<Booking, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_query = r#"
-        UPDATE bookings
-        SET status = 'checked_in',
-            actual_check_in = datetime('now'),
-            updated_at = datetime('now')
-        WHERE id = ?1
-          AND status = 'confirmed'
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_query = r#"
         UPDATE bookings
         SET status = 'checked_in',
@@ -3889,9 +3109,6 @@ pub async fn checkin_booking_tx(
         ));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let select_query = "SELECT * FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let select_query = "SELECT * FROM bookings WHERE id = $1";
 
     let row = sqlx::query(select_query)
@@ -3914,18 +3131,11 @@ pub async fn confirm_booking_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<bool, ApiError> {
-    let update_query = crate::sql_query!(
-        postgres: r#"
+    let update_query = r#"
             UPDATE bookings
             SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
             WHERE id = $1 AND status IN ('pending', 'pending_payment', 'pending_confirmation')
-        "#,
-        sqlite: r#"
-            UPDATE bookings
-            SET status = 'confirmed', updated_at = datetime('now')
-            WHERE id = ?1 AND status IN ('pending', 'pending_payment', 'pending_confirmation')
-        "#
-    );
+        "#;
 
     let result = sqlx::query(update_query)
         .bind(booking_id)
@@ -3941,10 +3151,7 @@ pub async fn move_booking_to_pending_confirmation_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<bool, ApiError> {
-    let query = crate::sql_query!(
-        postgres: "UPDATE bookings SET status = 'pending_confirmation', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status IN ('pending', 'pending_payment')",
-        sqlite: "UPDATE bookings SET status = 'pending_confirmation', updated_at = datetime('now') WHERE id = ?1 AND status IN ('pending', 'pending_payment')"
-    );
+    let query = "UPDATE bookings SET status = 'pending_confirmation', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status IN ('pending', 'pending_payment')";
     Ok(sqlx::query(query)
         .bind(booking_id)
         .execute(&mut **tx)
@@ -3959,10 +3166,7 @@ pub async fn move_booking_to_pending_payment_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<bool, ApiError> {
-    let query = crate::sql_query!(
-        postgres: "UPDATE bookings SET status = 'pending_payment', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'pending_confirmation'",
-        sqlite: "UPDATE bookings SET status = 'pending_payment', updated_at = datetime('now') WHERE id = ?1 AND status = 'pending_confirmation'"
-    );
+    let query = "UPDATE bookings SET status = 'pending_payment', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'pending_confirmation'";
     Ok(sqlx::query(query)
         .bind(booking_id)
         .execute(&mut **tx)
@@ -3983,14 +3187,7 @@ pub async fn record_checkin_payment_tx(
     let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
 
     // The two schemas diverge: PostgreSQL keys payments by `uuid` + `created_by`
-    // and stores free text in `notes`; SQLite uses `payment_number` + `processed_by`
     // and `description`. The bind order is identical — only the column list differs.
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let insert_query = r#"
-        INSERT INTO payments (payment_number, booking_id, amount, payment_method, payment_type, status, description, processed_by)
-        VALUES (?1, ?2, ?3, ?4, ?5, 'completed', ?6, ?7)
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let insert_query = r#"
         INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
         VALUES ($1::uuid, $2, $3, $4, $5, 'completed', $6, $7)
@@ -4038,23 +3235,6 @@ pub async fn record_online_checkin_payment_tx(
     // The completed-non-refund SUM and the `> 0` guard mirror
     // `recompute_booking_payment_status_tx`, keeping the posted amount and the
     // resulting status in agreement.
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let insert_query = r#"
-        INSERT INTO payments (payment_number, booking_id, amount, payment_method, payment_type, status, description, processed_by)
-        SELECT ?1, b.id,
-               b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
-                   WHERE p.booking_id = b.id
-                     AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0),
-               ?2, 'booking', 'completed', ?3, ?4
-        FROM bookings b
-        WHERE b.id = ?5
-          AND b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
-                   WHERE p.booking_id = b.id
-                     AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let insert_query = r#"
         INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
         SELECT $1::uuid, b.id,
@@ -4089,9 +3269,6 @@ pub async fn set_room_occupied_tx(
     tx: &mut DbTransaction<'_>,
     room_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "UPDATE rooms SET status = 'occupied' WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "UPDATE rooms SET status = 'occupied' WHERE id = $1";
 
     sqlx::query(query)
@@ -4120,20 +3297,6 @@ pub async fn record_checkin_modification_tx(
         "room_id": booking.room_id,
     });
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
-    )
-    .bind(booking.id)
-    .bind("check_in")
-    .bind(old_value.to_string())
-    .bind(new_value.to_string())
-    .bind(user_id)
-    .execute(&mut **tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
@@ -4162,9 +3325,6 @@ pub async fn find_reactivation_candidate(
     pool: &DbPool,
     booking_id: i64,
 ) -> Result<BookingReactivationCandidate, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let query = "SELECT guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = $1";
 
     let row = sqlx::query(query)
@@ -4190,20 +3350,6 @@ pub async fn has_reactivation_conflict(
     check_in: NaiveDate,
     check_out: NaiveDate,
 ) -> Result<bool, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict_query = r#"
-        SELECT EXISTS(
-            SELECT 1 FROM bookings
-            WHERE room_id = ?1
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
-              AND status != 'voided'
-              AND id != ?4
-              AND ((check_in_date <= ?2 AND check_out_date > ?2)
-                  OR (check_in_date < ?3 AND check_out_date >= ?3)
-                  OR (check_in_date >= ?2 AND check_out_date <= ?3))
-        )
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
@@ -4217,18 +3363,6 @@ pub async fn has_reactivation_conflict(
         )
     "#;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict = sqlx::query_scalar::<_, i32>(conflict_query)
-        .bind(room_id)
-        .bind(check_in)
-        .bind(check_out)
-        .bind(booking_id)
-        .fetch_one(pool)
-        .await
-        .map(|value| value != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let conflict = sqlx::query_scalar::<_, bool>(conflict_query)
         .bind(room_id)
         .bind(check_in)
@@ -4248,15 +3382,6 @@ pub async fn confirm_reactivated_booking_and_reserve_room(
 ) -> Result<Booking, ApiError> {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_booking_query = r#"
-        UPDATE bookings
-        SET status = 'confirmed',
-            updated_at = datetime('now'),
-            booking_remarks = COALESCE(booking_remarks, '') || ' | Reactivated from voided status'
-        WHERE id = ?1 AND status = 'voided'
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_booking_query = r#"
         UPDATE bookings
         SET status = 'confirmed',
@@ -4277,9 +3402,6 @@ pub async fn confirm_reactivated_booking_and_reserve_room(
         ));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_room_query = "UPDATE rooms SET status = ?1 WHERE id = ?2";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_room_query = "UPDATE rooms SET status = $1 WHERE id = $2";
 
     sqlx::query(update_room_query)
@@ -4289,9 +3411,6 @@ pub async fn confirm_reactivated_booking_and_reserve_room(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let select_booking_query = "SELECT * FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let select_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
         room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, \
         payment_method, adults, children, special_requests, remarks, source, market_code, \
@@ -4319,19 +3438,6 @@ pub async fn record_booking_reactivation_modification(
     booking_id: i64,
     user_id: i64,
 ) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let result = sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
-    )
-    .bind(booking_id)
-    .bind("reactivation")
-    .bind(serde_json::json!({"status": "voided"}).to_string())
-    .bind(serde_json::json!({"status": "confirmed"}).to_string())
-    .bind(user_id)
-    .execute(pool)
-    .await;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let result = sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )

@@ -572,17 +572,6 @@ pub async fn get_db_statements(
 ) -> Result<Value, ApiError> {
     let limit = params.limit.unwrap_or(20).clamp(1, 200);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        let _ = (pool, limit);
-        Ok(serde_json::json!({
-            "available": false,
-            "reason": "pg_stat_statements is PostgreSQL-only; not available in SQLite mode.",
-            "statements": [],
-        }))
-    }
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     {
         match AuditRepository::list_db_statements(pool, limit).await {
             Ok(statements) => Ok(serde_json::json!({

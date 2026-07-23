@@ -31,8 +31,6 @@ Quick reference for common tasks:
 # Start backend (PostgreSQL)
 make dev-be
 
-# Start backend (SQLite/offline)
-make dev-be-sqlite
 
 # Start frontend
 make dev-fe
@@ -99,8 +97,7 @@ Project layout: see [README.md](README.md#project-structure) for the monorepo st
 - **Architecture:** Follow the layered pattern:
   `routes/` → `handlers/` → `services/` → `repositories/` → `models/`
 - **SQL:** Always parameterize SQL queries. Never interpolate user input.
-  Use `param!(N)` for cross-DB placeholder syntax.
-  Use `sql_query!(postgres: "...", sqlite: "...")` for database-specific SQL.
+  Use PostgreSQL `$N` placeholders or the existing `param!(N)` helper.
 - **Sanitization:** Apply `Sanitizer` from `utils/sanitization.rs` to free-text user input.
 - **Errors:** Return generic error messages to clients; log specifics server-side.
 - **Transactions:** Use transactions for multi-step mutations.
@@ -135,11 +132,10 @@ Project layout: see [README.md](README.md#project-structure) for the monorepo st
   - Place in the same file as the code being tested (inline `#[cfg(test)]`)
   - Or in separate test modules under `tests/`
 - **Integration tests:** Database-backed tests
-  - SQLite tests: `cargo test --features sqlite --no-default-features`
   - PostgreSQL tests: `cargo test --features postgres --no-default-features`
 - **What to test:**
   - Pure business logic and calculations
-  - SQL query builders and cross-database helpers
+  - SQL query builders and PostgreSQL helpers
   - Date, money, status, permission, and validation logic
   - Booking state transitions, payments, ledgers, night audit
 
@@ -162,7 +158,6 @@ make test-all
 
 # Backend
 make test-be
-make test-be-sqlite
 make test-be-pg     # Requires PostgreSQL
 
 # Frontend

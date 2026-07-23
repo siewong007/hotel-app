@@ -55,8 +55,7 @@ impl GuestPortalRepository {
     }
 
     pub async fn find_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> {
-        let query = crate::sql_query!(
-            postgres: r#"
+        let query = r#"
                 SELECT id, full_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, is_active,
@@ -69,23 +68,7 @@ impl GuestPortalRepository {
                        NULL::DATE as last_stay_date
                 FROM guests
                 WHERE id = $1
-            "#,
-            sqlite: r#"
-                SELECT id, full_name, email, phone, ic_number, nationality,
-                       address_line1, city, state_province, postal_code, country,
-                       title, alt_phone, is_active,
-                       CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
-                       tourism_type,
-                       COALESCE(discount_percentage, 0) as discount_percentage,
-                       company_name,
-                       COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                       created_at, updated_at,
-                       NULL as bookings_count,
-                       NULL as last_stay_date
-                FROM guests
-                WHERE id = ?1
-            "#
-        );
+            "#;
 
         sqlx::query_as::<_, Guest>(query)
             .bind(guest_id)
@@ -277,5 +260,5 @@ fn push_update(
 }
 
 fn parameter(index: usize) -> String {
-    format!("{}{}", crate::sql_query!(postgres: "$", sqlite: "?"), index)
+    format!("{}{}", "$", index)
 }

@@ -160,8 +160,7 @@ pub async fn create(pool: &DbPool, input: BookingChannelInput) -> Result<Booking
         validate_commission(commission_type, commission_value, commission_scope)?;
     let is_active = input.is_active.unwrap_or(true);
 
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
         INSERT INTO booking_channels
             (name, channel_type, default_commission_type, default_commission_value,
              default_commission_scope, is_active)
@@ -169,17 +168,7 @@ pub async fn create(pool: &DbPool, input: BookingChannelInput) -> Result<Booking
         RETURNING id, name, channel_type, default_commission_type,
                   default_commission_value, default_commission_scope, is_active,
                   created_at, updated_at
-        "#,
-        sqlite: r#"
-        INSERT INTO booking_channels
-            (name, channel_type, default_commission_type, default_commission_value,
-             default_commission_scope, is_active)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-        RETURNING id, name, channel_type, default_commission_type,
-                  default_commission_value, default_commission_scope, is_active,
-                  created_at, updated_at
-        "#
-    );
+        "#;
 
     let row = sqlx::query(query)
         .bind(name)
@@ -200,22 +189,13 @@ pub async fn update(
     id: i64,
     input: BookingChannelUpdate,
 ) -> Result<BookingChannel, ApiError> {
-    let current_query = crate::sql_query!(
-        postgres: r#"
+    let current_query = r#"
         SELECT id, name, channel_type, default_commission_type,
                default_commission_value, default_commission_scope, is_active,
                created_at, updated_at
         FROM booking_channels
         WHERE id = $1
-        "#,
-        sqlite: r#"
-        SELECT id, name, channel_type, default_commission_type,
-               default_commission_value, default_commission_scope, is_active,
-               created_at, updated_at
-        FROM booking_channels
-        WHERE id = ?1
-        "#
-    );
+        "#;
 
     let current = sqlx::query(current_query)
         .bind(id)
@@ -246,8 +226,7 @@ pub async fn update(
         validate_commission(commission_type, commission_value, commission_scope)?;
     let is_active = input.is_active.unwrap_or(current.is_active);
 
-    let query = crate::sql_query!(
-        postgres: r#"
+    let query = r#"
         UPDATE booking_channels
         SET name = $1,
             channel_type = $2,
@@ -260,22 +239,7 @@ pub async fn update(
         RETURNING id, name, channel_type, default_commission_type,
                   default_commission_value, default_commission_scope, is_active,
                   created_at, updated_at
-        "#,
-        sqlite: r#"
-        UPDATE booking_channels
-        SET name = ?1,
-            channel_type = ?2,
-            default_commission_type = ?3,
-            default_commission_value = ?4,
-            default_commission_scope = ?5,
-            is_active = ?6,
-            updated_at = datetime('now')
-        WHERE id = ?7
-        RETURNING id, name, channel_type, default_commission_type,
-                  default_commission_value, default_commission_scope, is_active,
-                  created_at, updated_at
-        "#
-    );
+        "#;
 
     let row = sqlx::query(query)
         .bind(name)

@@ -998,8 +998,7 @@ ON CONFLICT (route_id) DO UPDATE SET
 -- hidden: that function returns false when an accessControlled route has no
 -- matching policy. admin and super_admin hold every permission referenced below,
 -- so they see all navigation tabs; other roles remain gated per permission.
--- SQLite already seeds this full set (database/sqlite/data.sql); this brings
--- Postgres to parity using only permissions that exist in the Postgres seed.
+-- These policies use only permissions that exist in the PostgreSQL seed.
 INSERT INTO route_access_policies (
     route_id, path, nav_label, nav_group, required_permissions, required_roles,
     excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation, is_system_policy
