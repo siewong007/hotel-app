@@ -5,7 +5,7 @@ import type { GuestPortalMembershipActivity } from '../../../../types';
 export const PORTAL_SECTIONS = [
   'overview',
   'stays',
-  'rewards',
+  'points-history',
   'offers',
   'vouchers',
   'support',
@@ -16,6 +16,8 @@ export type PortalSection = (typeof PORTAL_SECTIONS)[number];
 
 export function parsePortalSection(search: string): PortalSection {
   const section = new URLSearchParams(search).get('section');
+  // Preserve links shared before the rewards catalog moved to Offers.
+  if (section === 'rewards') return 'points-history';
   return PORTAL_SECTIONS.includes(section as PortalSection)
     ? (section as PortalSection)
     : 'overview';

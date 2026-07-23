@@ -149,11 +149,12 @@ impl GuestPortalSessionRepository {
                     (SELECT rp.{rejection_reason_col} FROM payments rp WHERE rp.booking_id = b.id \
                             AND rp.status = 'void' ORDER BY rp.{rejected_at_col} DESC, rp.id DESC LIMIT 1) \
                             AS payment_rejection_reason, \
-                    (SELECT p.id FROM payments p \
+                    (SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
                         WHERE p.booking_id = b.id AND p.status = 'pending' AND p.payment_method = 'bank_transfer' \
-                        ORDER BY p.created_at DESC, p.id DESC LIMIT 1) AS receipt_request_payment_id, \
+                            AND pr.uploaded_at IS NULL \
+                        ORDER BY pr.requested_at DESC, p.id DESC LIMIT 1) AS receipt_request_payment_id, \
                     (SELECT pr.request_message FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
-                        WHERE p.booking_id = b.id AND p.status = 'pending' \
+                        WHERE p.booking_id = b.id AND p.status = 'pending' AND pr.uploaded_at IS NULL \
                         ORDER BY pr.requested_at DESC LIMIT 1) AS receipt_request_message, \
                     EXISTS(SELECT 1 FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
                         WHERE p.booking_id = b.id AND p.status = 'pending' AND pr.uploaded_at IS NOT NULL) \

@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatPortalCurrency, pointsActivityContext } from './dashboardUtils';
+import { formatPortalCurrency, parsePortalSection, pointsActivityContext } from './dashboardUtils';
+
+describe('parsePortalSection', () => {
+  it('opens the points history page and keeps legacy rewards links working', () => {
+    expect(parsePortalSection('?section=points-history')).toBe('points-history');
+    expect(parsePortalSection('?section=rewards')).toBe('points-history');
+  });
+});
 
 describe('formatPortalCurrency', () => {
   const values = new Map<string, string>();

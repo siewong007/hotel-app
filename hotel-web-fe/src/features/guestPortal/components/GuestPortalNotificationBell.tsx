@@ -4,6 +4,10 @@ import {
   Box,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   Popover,
   Stack,
@@ -22,7 +26,6 @@ const URGENT = '#A6422B';
 
 interface GuestPortalNotificationBellProps {
   token: string | null;
-  onReviewReceipt: () => void;
 }
 
 /**
@@ -32,12 +35,16 @@ interface GuestPortalNotificationBellProps {
  */
 export function GuestPortalNotificationBell({
   token,
-  onReviewReceipt,
 }: GuestPortalNotificationBellProps) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [bookings, setBookings] = useState<GuestPortalBookingSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [receiptRequest, setReceiptRequest] = useState<GuestPortalBookingSummary | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSucceeded, setUploadSucceeded] = useState(false);
   const open = Boolean(anchorEl);
 
   const receiptRequests = useMemo(
@@ -84,9 +91,57 @@ export function GuestPortalNotificationBell({
     void loadNotifications();
   };
 
-  const handleReviewReceipt = () => {
+  const handleReviewReceipt = (booking: GuestPortalBookingSummary) => {
     setAnchorEl(null);
-    onReviewReceipt();
+    setReceiptRequest(booking);
+    setReceiptFile(null);
+    setUploadError(null);
+    setUploadSucceeded(false);
+  };
+
+  const closeReceiptRequest = () => {
+    if (isUploading) return;
+    setReceiptRequest(null);
+    setReceiptFile(null);
+    setUploadError(null);
+    setUploadSucceeded(false);
+  };
+
+  const handleReceiptFileChange = (file: File | null) => {
+    setUploadError(null);
+    if (!file) {
+      setReceiptFile(null);
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setReceiptFile(null);
+      setUploadError('The receipt must be 10 MB or smaller.');
+      return;
+    }
+
+    setReceiptFile(file);
+  };
+
+  const uploadReceipt = async () => {
+    if (!receiptRequest?.receipt_request_payment_id || !receiptFile) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      await GuestPortalDashboardService.uploadPaymentReceipt(
+        receiptRequest.receipt_request_payment_id,
+        receiptFile,
+        token ?? undefined,
+      );
+      setReceiptFile(null);
+      setUploadSucceeded(true);
+      await loadNotifications();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Unable to upload your receipt.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const pendingCount = receiptRequests.length;
@@ -201,7 +256,7 @@ export function GuestPortalNotificationBell({
                   <Button
                     variant="contained"
                     color="secondary"
-                    onClick={handleReviewReceipt}
+                    onClick={() => handleReviewReceipt(booking)}
                     sx={{ mt: 1.5, minHeight: 40, fontWeight: 800 }}
                   >
                     View request
@@ -218,6 +273,62 @@ export function GuestPortalNotificationBell({
           )}
         </Box>
       </Popover>
+
+      <Dialog
+        open={Boolean(receiptRequest)}
+        onClose={closeReceiptRequest}
+        fullWidth
+        maxWidth="xs"
+        aria-labelledby="receipt-upload-request-title"
+      >
+        <DialogTitle id="receipt-upload-request-title">Upload payment receipt</DialogTitle>
+        <DialogContent dividers>
+          {uploadSucceeded ? (
+            <Typography color="success.main">
+              Your receipt has been submitted and is pending confirmation from our team.
+            </Typography>
+          ) : (
+            <Stack spacing={1.5}>
+              <Typography>
+                Upload the bank-transfer receipt for booking <strong>{receiptRequest?.booking_number}</strong>.
+              </Typography>
+              {receiptRequest?.receipt_request_message ? (
+                <Typography variant="body2" color="text.secondary">
+                  {receiptRequest.receipt_request_message}
+                </Typography>
+              ) : null}
+              <Typography variant="body2" color="text.secondary">
+                Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
+              </Typography>
+              <Button component="label" variant="outlined" disabled={isUploading}>
+                {receiptFile ? receiptFile.name : 'Choose receipt file'}
+                <input
+                  hidden
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  aria-label="Select receipt file"
+                  onChange={(event) => handleReceiptFileChange(event.target.files?.[0] ?? null)}
+                />
+              </Button>
+              {uploadError ? <Typography color="error" role="alert">{uploadError}</Typography> : null}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeReceiptRequest} disabled={isUploading}>
+            {uploadSucceeded ? 'Done' : 'Cancel'}
+          </Button>
+          {!uploadSucceeded ? (
+            <Button
+              variant="contained"
+              onClick={() => void uploadReceipt()}
+              disabled={!receiptFile || isUploading}
+            >
+              {isUploading ? 'Uploading…' : 'Upload receipt'}
+            </Button>
+          ) : null}
+        </DialogActions>
+      </Dialog>
     </>
   );
 }
