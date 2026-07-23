@@ -8,6 +8,9 @@ updates:
     directory: /hotel-app-be
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "sqlx"
+      - dependency-name: "sqlx-*"
   - package-ecosystem: bun
     directory: /hotel-web-fe
     schedule:
