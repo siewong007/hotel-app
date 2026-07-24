@@ -86,8 +86,8 @@ describe('PromotionCard', () => {
       <PromotionCard promotion={buildPromotion()} isPortal canClaim isClaiming onClaim={onClaim} />
     );
 
-    const claimingButton = screen.getByRole('button', { name: 'Claiming…' });
-    expect((claimingButton as HTMLButtonElement).disabled).toBe(true);
+    const redeemingButton = screen.getByRole('button', { name: 'Redeeming…' });
+    expect((redeemingButton as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('shows the server-supplied reason when a guest cannot claim yet', () => {
