@@ -1,0 +1,29 @@
+# gitleaks configuration
+#
+# Extends the upstream default ruleset; this file only narrows it.
+#
+# Why this exists: `.claude/reports/` holds agent-generated security-analysis
+# prose. Those documents describe credentials, tokens and auth flows in English,
+# so the entropy-based `generic-api-key` rule matches ordinary sentences. The
+# first occurrence was:
+#
+#   .claude/reports/user-rework-2026-07-27/auth.md:408
+#   "| AUTH-17 | medium | security | Passkey registration has no step-up
+#    re-auth for a persistent, 2FA-bypassing credential |"
+#
+# That is a findings-table row, not a secret. Rather than silence the scanner
+# repo-wide, the allowlist below is scoped two ways: it applies ONLY to the
+# low-confidence `generic-api-key` rule, and ONLY under `.claude/reports/`.
+# Every high-confidence rule (AWS keys, GCP keys, private key blocks, GitHub /
+# Slack / Stripe tokens, …) still runs against these paths, so a genuinely
+# pasted secret in a report is still caught.
+#
+# Do NOT widen `paths` to cover source or config directories.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "generic-api-key matches English prose in agent-generated reports"
+targetRules = ["generic-api-key"]
+paths = ['''^\.claude/reports/.*''']
