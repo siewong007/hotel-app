@@ -27,8 +27,34 @@ async fn export_data(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::BookingDataExport>, ApiError> {
-    require_permission_helper(&pool, &headers, "settings:manage").await?;
-    handlers::data_transfer::export_booking_data_handler(State(pool)).await
+    let user_id = require_permission_helper(&pool, &headers, "settings:manage").await?;
+    let export = handlers::data_transfer::export_booking_data_handler(State(pool.clone())).await?;
+
+    // This single GET returns every guest (name, email, phone, IC/passport),
+    // every booking, payment and ledger row — the largest exfiltration channel
+    // in the product, and until now the one with no record. Audited after a
+    // successful export so the row counts describe what actually left.
+    let payload = &export.0;
+    let _ = crate::services::audit::AuditLog::log_event(
+        &pool,
+        crate::models::AuditEvent {
+            user_id: Some(user_id),
+            action: "data_export",
+            resource_type: "data_transfer",
+            details: Some(serde_json::json!({
+                "guests": payload.guests.len(),
+                "companies": payload.companies.len(),
+                "bookings": payload.bookings.len(),
+                "payments": payload.payments.len(),
+                "invoices": payload.invoices.len(),
+                "customer_ledgers": payload.customer_ledgers.len(),
+            })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    Ok(export)
 }
 
 async fn preview_export_counts(

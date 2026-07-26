@@ -89,6 +89,21 @@ services:
       HOTEL_BANK_NAME: "${HOTEL_BANK_NAME:-}"
       HOTEL_BANK_ACCOUNT_NAME: "${HOTEL_BANK_ACCOUNT_NAME:-}"
       HOTEL_BANK_ACCOUNT_NUMBER: "${HOTEL_BANK_ACCOUNT_NUMBER:-}"
+      # Outbound email. Supplied from /opt/saliminn/secrets.env (root-owned,
+      # 0600) which deploy.sh sources before invoking compose — credentials
+      # never enter the repository, the image, or GitHub Actions secrets.
+      #
+      # All optional: Transport::from_env() returns None unless BOTH SMTP_HOST
+      # and SMTP_FROM_EMAIL are set, and the delivery worker then stays inert
+      # rather than failing startup. Setting them is what enables guest email
+      # and, later, operational alerting.
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM_EMAIL: "${SMTP_FROM_EMAIL:-}"
+      SMTP_FROM_NAME: "${SMTP_FROM_NAME:-Salim Inn}"
+      SMTP_SECURITY: "${SMTP_SECURITY:-starttls}"
     volumes:
       # These bind mounts survive image/container replacement. eKYC documents
       # are private and remain accessible only through authenticated handlers.
