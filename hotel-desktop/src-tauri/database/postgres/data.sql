@@ -868,6 +868,51 @@ VALUES
     ('Other OTA', 'ota', 'none', 0, 'per_booking', true)
 ON CONFLICT (name) DO NOTHING;
 
+-- ============================================================================
+-- LOYALTY PROGRAM BOOTSTRAP
+-- ============================================================================
+-- The loyalty module has no CRUD surface for programs, tiers, or program
+-- rules: it only ever SELECTs them (modules/loyalty/repository.rs
+-- default_tier_id / get_rules) and UPDATEs the single rules row
+-- (update_rules ... WHERE id = 1). Without these rows every enrollment fails
+-- with "no rows returned by a query that expected to return at least one row"
+-- and the whole module is unusable. The values below are the canonical ones
+-- carried over from the pre-PostgreSQL data.sql.
+
+INSERT INTO loyalty_programs (name, description, points_per_dollar, currency, is_active)
+SELECT 'Stay Rewards', 'Default guest loyalty program', 1.0000, 'USD', true
+WHERE NOT EXISTS (SELECT 1 FROM loyalty_programs);
+
+-- One statement per tier, lowest rank first: `LoyaltyRepository::list_rewards`
+-- gating compares tier ids directly (`minimum_tier_id <= member.tier_id`), so
+-- the generated ids must ascend with the tier rank.
+INSERT INTO loyalty_tiers
+    (program_id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active)
+SELECT p.id, 'silver', 'Silver', 1, 0, 0, 0,
+       '["Member rates","Points on eligible stays"]'::jsonb, true
+FROM (SELECT id FROM loyalty_programs ORDER BY id LIMIT 1) p
+WHERE NOT EXISTS (SELECT 1 FROM loyalty_tiers WHERE code = 'silver');
+
+INSERT INTO loyalty_tiers
+    (program_id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active)
+SELECT p.id, 'gold', 'Gold', 2, 5000, 10, 2500,
+       '["Priority support","Late checkout when available","Bonus earning"]'::jsonb, true
+FROM (SELECT id FROM loyalty_programs ORDER BY id LIMIT 1) p
+WHERE NOT EXISTS (SELECT 1 FROM loyalty_tiers WHERE code = 'gold');
+
+INSERT INTO loyalty_tiers
+    (program_id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active)
+SELECT p.id, 'platinum', 'Platinum', 3, 15000, 30, 7500,
+       '["Room upgrade priority","Welcome amenity","Highest earning rate"]'::jsonb, true
+FROM (SELECT id FROM loyalty_programs ORDER BY id LIMIT 1) p
+WHERE NOT EXISTS (SELECT 1 FROM loyalty_tiers WHERE code = 'platinum');
+
+INSERT INTO loyalty_program_rules
+    (id, points_per_currency_unit, tier_qualification_metric, point_expiry_months,
+     redemption_approval_required, earning_enabled, min_eligible_amount)
+VALUES (1, 1, 'points', 24, true, true, 0)
+ON CONFLICT (id) DO NOTHING;
+
 DO $$ BEGIN RAISE NOTICE 'Required system configuration loaded'; END $$;
 
 -- Normalize ownership markers for canonical records whose conflict updates do
