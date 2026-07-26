@@ -247,3 +247,15 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 - Wrong: assuming a script that works in browser dev/prod works in the desktop webview; browser serving has no CSP header here, so nothing ever flagged it
 - Right: externalized both blocks (salim-inn/account-actions.js as a module entry-adjacent script; public/guest-branding.js as a classic head script keeping pre-paint timing). Also noted: csp img-src 'self' blocks the landing page's remote room photos in the packaged app (left for a vendoring decision)
 - Rule: any inline <script> (or style beyond 'unsafe-inline') in HTML that the desktop webview loads is dead code under the packaged CSP — externalize scripts to files; when adding markup with scripts, grep tauri.conf.json csp and test against the PACKAGED app, not the dev server
+
+## 2026-07-26j — desktop DB silently missed ALL seven dated patches; the auto-patch flow covers only pg19
+- Trigger: first Windows build/run of the new sidecar. Backend started fine (pg19 auto-patch worked, pre-patch backup taken) but logged `relation "payment_receipt_requests" does not exist`; probing found ALL 7 patches dated 2026-07-21..24 missing — the desktop DB had received nothing since the July 17 PG19 upgrade, and sync_all_room_statuses() (baseline-only, no patch existed) was missing too
+- Wrong: assuming a desktop DB that starts cleanly is schema-current. run_database_setup's auto-patch handles ONLY the 2026-07-26 pg19 physical-design patch; dated patches in database/postgres/patches/ reach existing desktop DBs by hand or not at all, and the old sidecar predated the features so nothing errored
+- Right: probed each patch's key object via psql (port 5433, password in %LOCALAPPDATA%\HotelApp\postgres-password.txt), applied all 7 idempotent patches in date order with ON_ERROR_STOP, and wrote patches/2026-07-26-sync-all-room-statuses-function.sql (verbatim baseline body) for every existing V1 DB incl. the VPS
+- Rule: after updating the desktop sidecar, enumerate database/postgres/patches/ newer than the DB's last known patch date and probe each patch's key object before trusting the app; any object added to the baseline MUST ship with a dated patch in the same commit or existing deployments silently lack it
+
+## 2026-07-26k — Windows build-from-clean gotchas: unquoted npm_execpath with a space, stale FE deps, no bun
+- Trigger: first `bun run build:no-bundle` on the Windows machine (user dir "C:\Users\SALIM INN" has a space) failed twice
+- Wrong: build-frontend.mjs spawned npm_execpath with shell:true unquoted → cmd.exe ran `C:\Users\SALIM`; hotel-web-fe/node_modules predated @paypal/react-paypal-js; bun was not installed at all (npm i -g bun works)
+- Right: quote the exec path when spawning through the Windows shell (fixed in build-frontend.mjs); run `bun install` in hotel-web-fe after pulling dependency changes before any desktop build
+- Rule: on Windows, any spawnSync(cmd, args, {shell:true}) with a path argument must quote the path — a user directory with a space breaks it; and treat "Rolldown failed to resolve import X" as a stale node_modules signal, not a config problem
