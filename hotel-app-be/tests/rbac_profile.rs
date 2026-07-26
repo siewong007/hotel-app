@@ -962,12 +962,125 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         "ON CONFLICT (user_id, purpose) must keep exactly one setup challenge per user"
     );
 
+    // The table must store the challenge hashed (sha-256 hex), never plaintext.
+    let (stored_challenge,): (String,) = sqlx::query_as(
+        "SELECT challenge_code FROM two_factor_challenges WHERE user_id = $1 AND purpose = 'setup'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("reading the stored challenge must succeed");
+    assert_ne!(
+        stored_challenge, second_challenge,
+        "the plaintext challenge must never be stored"
+    );
+    assert_eq!(
+        stored_challenge,
+        AuthService::hash_refresh_token(&second_challenge),
+        "the stored challenge must be the sha-256 hash of the plaintext returned to the client"
+    );
+
     // The secret from the LATEST setup call is the one persisted on the user.
     let secret = setup_again["secret"]
         .as_str()
         .expect("setup_2fa must return the TOTP secret")
         .to_string();
     let totp = build_totp(&secret);
+
+    // --- enable_2fa: challenge gating ----------------------------------------
+    // A stale challenge (the one replaced by the second setup call) must be
+    // rejected even alongside a valid live TOTP code, without enabling 2FA.
+    let stale_attempt = two_factor_service::enable_2fa(
+        &pool,
+        user_id,
+        TwoFactorEnableRequest {
+            code: totp
+                .generate_current()
+                .expect("generating a live TOTP code must succeed"),
+            challenge_code: first_challenge.clone(),
+        },
+    )
+    .await;
+    match stale_attempt {
+        Err(ApiError::BadRequest(message)) => assert!(
+            message.contains("challenge"),
+            "stale-challenge rejection must come from the challenge check, got {message:?}"
+        ),
+        other => panic!("a stale challenge must not enable 2FA, got {other:?}"),
+    }
+
+    // An expired challenge must be rejected too, and rejection must not delete
+    // the row (only a successful match consumes it).
+    sqlx::query(
+        "UPDATE two_factor_challenges SET expires_at = CURRENT_TIMESTAMP - INTERVAL '1 minute' \
+         WHERE user_id = $1 AND purpose = 'setup'",
+    )
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .expect("expiring the challenge must succeed");
+    let expired_attempt = two_factor_service::enable_2fa(
+        &pool,
+        user_id,
+        TwoFactorEnableRequest {
+            code: totp
+                .generate_current()
+                .expect("generating a live TOTP code must succeed"),
+            challenge_code: second_challenge.clone(),
+        },
+    )
+    .await;
+    match expired_attempt {
+        Err(ApiError::BadRequest(message)) => assert!(
+            message.contains("challenge"),
+            "expired-challenge rejection must come from the challenge check, got {message:?}"
+        ),
+        other => panic!("an expired challenge must not enable 2FA, got {other:?}"),
+    }
+    sqlx::query(
+        "UPDATE two_factor_challenges SET expires_at = CURRENT_TIMESTAMP + INTERVAL '10 minutes' \
+         WHERE user_id = $1 AND purpose = 'setup'",
+    )
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .expect("restoring the challenge expiry must succeed");
+
+    // A wrong TOTP code must fail BEFORE the challenge is consumed, so a code
+    // typo leaves the single-use challenge intact for a retry.
+    let mut wrong_code = totp
+        .generate_current()
+        .expect("generating a live TOTP code must succeed");
+    let last_digit = wrong_code.pop().expect("TOTP codes are non-empty");
+    wrong_code.push(if last_digit == '9' { '0' } else { (last_digit as u8 + 1) as char });
+    let wrong_code_attempt = two_factor_service::enable_2fa(
+        &pool,
+        user_id,
+        TwoFactorEnableRequest {
+            code: wrong_code,
+            challenge_code: second_challenge.clone(),
+        },
+    )
+    .await;
+    match wrong_code_attempt {
+        Err(ApiError::BadRequest(message)) => assert!(
+            !message.contains("challenge"),
+            "a wrong TOTP code must be rejected by the TOTP check, before the \
+             challenge is even consulted, got {message:?}"
+        ),
+        other => panic!("a wrong TOTP code must not enable 2FA, got {other:?}"),
+    }
+    let (rows_after_failures,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM two_factor_challenges WHERE user_id = $1 AND purpose = 'setup'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("counting challenge rows must succeed");
+    assert_eq!(
+        rows_after_failures, 1,
+        "failed enable attempts must never consume the challenge row"
+    );
 
     // --- enable_2fa: must persist hashed backup codes as native text[] -------
     let enable_code = totp
@@ -976,10 +1089,13 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     let enable = two_factor_service::enable_2fa(
         &pool,
         user_id,
-        TwoFactorEnableRequest { code: enable_code },
+        TwoFactorEnableRequest {
+            code: enable_code,
+            challenge_code: second_challenge.clone(),
+        },
     )
     .await
-    .expect("enable_2fa must succeed with a valid live TOTP code");
+    .expect("enable_2fa must succeed with a valid live TOTP code and challenge");
     let original_backup_codes: Vec<String> = enable["backup_codes"]
         .as_array()
         .expect("enable_2fa must return backup_codes")
@@ -1007,6 +1123,19 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     assert!(
         stored_hashes.contains(&AuthService::hash_recovery_code(&original_backup_codes[0])),
         "stored hashes must correspond to the plaintext codes returned to the caller"
+    );
+
+    // The successful enable must have consumed the challenge: single-use.
+    let (rows_after_enable,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM two_factor_challenges WHERE user_id = $1 AND purpose = 'setup'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("counting challenge rows must succeed");
+    assert_eq!(
+        rows_after_enable, 0,
+        "a successful enable_2fa must delete the consumed challenge row"
     );
 
     // --- regenerate_backup_codes: exercises update_recovery_codes ------------
@@ -1084,6 +1213,173 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     assert!(!enabled_after, "disable_2fa must clear the enabled flag");
     assert!(secret_after.is_none(), "disable_2fa must clear the stored secret");
     assert!(codes_after.is_none(), "disable_2fa must clear the stored recovery codes");
+
+    cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
+}
+
+// ---------------------------------------------------------------------------
+// Scenario 10: login with a RECOVERY code -- the lost-authenticator path.
+//
+// `services::auth::login`'s 2FA branch accepts either a live TOTP code or an
+// unused recovery code in `totp_code`. A recovery-code login must (a) succeed,
+// (b) consume the code (single use -- replay must be rejected), (c) report the
+// remaining count on `AuthResponse.recovery_codes_remaining` so the client can
+// warn the user, and (d) leave both a `two_factor_recovery_code_used` audit
+// row and a `login_success` row with method `password+2fa_recovery`. A normal
+// TOTP login must leave `recovery_codes_remaining` unset and consume nothing.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    ensure_test_app_config();
+
+    // 920_012: ids 920_010/920_011 are taken by Scenarios 4/5's actor users,
+    // and test fns run concurrently -- sharing an id lets their upsert/cleanup
+    // reset this user's 2FA state mid-scenario.
+    let user_id = 920_012;
+    let username = "rbac920_user_2fa_login".to_string();
+    let email = "rbac920-2fa-login@hotel.local".to_string();
+    let password = "S3cure!Passw0rd-2fa3";
+
+    cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
+    upsert_test_user(&pool, user_id, &username, &email, password).await;
+
+    // Seed the enabled-2FA end state directly (same pattern as Scenario 8):
+    // a real secret plus hashed backup codes bound as a native text[].
+    let (secret, _qr_url) = AuthService::generate_totp_secret(&username, "Hotel App Test")
+        .expect("generating a TOTP secret must succeed");
+    let backup_codes = AuthService::generate_backup_codes();
+    let hashed_backup_codes: Vec<String> = backup_codes
+        .iter()
+        .map(|code| AuthService::hash_recovery_code(code))
+        .collect();
+    sqlx::query(
+        "UPDATE users \
+         SET two_factor_enabled = true, two_factor_secret = $2, two_factor_recovery_codes = $3 \
+         WHERE id = $1",
+    )
+    .bind(user_id)
+    .bind(&secret)
+    .bind(&hashed_backup_codes)
+    .execute(&pool)
+    .await
+    .expect("seeding the enabled 2FA precondition must succeed");
+
+    let login_req = |code: Option<String>| LoginRequest {
+        username: username.clone(),
+        password: password.to_string(),
+        totp_code: code,
+    };
+
+    // (a) Correct password but no code: rejected, and the error must now
+    // advertise the recovery-code option.
+    let missing = auth_service::login(&pool, login_req(None), None, None).await;
+    match missing {
+        Err(ApiError::Unauthorized(message)) => assert!(
+            message.contains("recovery code"),
+            "the 2FA-required error must mention recovery codes, got {message:?}"
+        ),
+        other => panic!("login without a 2FA code must be Unauthorized, got {other:?}"),
+    }
+
+    // (b) A well-formed but unknown recovery code: rejected. 'Z' is outside
+    // the hex alphabet backup codes are built from, so this can never collide
+    // with a generated code.
+    let wrong = auth_service::login(
+        &pool,
+        login_req(Some("ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ".to_string())),
+        None,
+        None,
+    )
+    .await;
+    assert!(
+        matches!(wrong, Err(ApiError::Unauthorized(_))),
+        "an unknown recovery code must be rejected, got {wrong:?}"
+    );
+
+    // (c) A live TOTP login still works and does not touch the recovery codes.
+    let totp = build_totp(&secret);
+    let (totp_response, _refresh) = auth_service::login(
+        &pool,
+        login_req(Some(
+            totp.generate_current().expect("generating a live TOTP code must succeed"),
+        )),
+        None,
+        None,
+    )
+    .await
+    .expect("a live TOTP login must succeed");
+    assert!(
+        totp_response.recovery_codes_remaining.is_none(),
+        "a TOTP login must not report recovery_codes_remaining"
+    );
+
+    // (d) A recovery-code login succeeds, consumes exactly that code, and
+    // reports the remaining count.
+    let used_code = backup_codes[0].clone();
+    let (recovery_response, _refresh) =
+        auth_service::login(&pool, login_req(Some(used_code.clone())), None, None)
+            .await
+            .expect("an unused recovery code must log the user in");
+    assert_eq!(
+        recovery_response.recovery_codes_remaining,
+        Some(backup_codes.len() - 1),
+        "the response must report how many recovery codes remain"
+    );
+
+    let (stored_after,): (Option<Vec<String>>,) =
+        sqlx::query_as("SELECT two_factor_recovery_codes FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("reading the remaining codes must succeed");
+    let stored_after = stored_after.expect("recovery codes must still be present after one use");
+    assert_eq!(stored_after.len(), backup_codes.len() - 1);
+    assert!(
+        !stored_after.contains(&AuthService::hash_recovery_code(&used_code)),
+        "the used code's hash must be removed from storage"
+    );
+    assert!(
+        stored_after.contains(&AuthService::hash_recovery_code(&backup_codes[1])),
+        "unused codes must survive the consumption"
+    );
+
+    let (recovery_audit_rows,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM audit_logs \
+         WHERE user_id = $1 AND action = 'two_factor_recovery_code_used'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("counting recovery-use audit rows must succeed");
+    assert_eq!(
+        recovery_audit_rows, 1,
+        "consuming a recovery code at login must write exactly one audit row"
+    );
+
+    let (recovery_method_rows,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM audit_logs \
+         WHERE user_id = $1 AND action = 'login_success' \
+           AND details->>'method' = 'password+2fa_recovery'",
+    )
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .expect("counting login_success rows must succeed");
+    assert_eq!(
+        recovery_method_rows, 1,
+        "a recovery-code login must be audited with method password+2fa_recovery"
+    );
+
+    // (e) Replaying the SAME recovery code must fail -- it was consumed.
+    let replay = auth_service::login(&pool, login_req(Some(used_code)), None, None).await;
+    assert!(
+        matches!(replay, Err(ApiError::Unauthorized(_))),
+        "a consumed recovery code must be rejected on reuse, got {replay:?}"
+    );
 
     cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }

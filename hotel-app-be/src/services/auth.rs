@@ -121,27 +121,11 @@ pub async fn login(
 
     let (two_factor_enabled, two_factor_secret) =
         AuthRepository::two_factor_state(pool, user.id).await?;
+    // Set only when this login consumed a recovery code (the lost-authenticator
+    // path); carried through to the response so the client can warn the user.
+    let mut recovery_codes_remaining: Option<usize> = None;
     if two_factor_enabled.unwrap_or(false) {
-        if let Some(totp_code) = &req.totp_code {
-            let valid_totp = AuthService::verify_totp_code(
-                &two_factor_secret
-                    .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?,
-                totp_code,
-            )
-            .map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
-
-            if !valid_totp {
-                let _ = AuditLog::log_login_failure(
-                    pool,
-                    &req.username,
-                    "Invalid 2FA code",
-                    None,
-                    None,
-                )
-                .await;
-                return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
-            }
-        } else {
+        let Some(submitted_code) = &req.totp_code else {
             let _ = AuditLog::log_login_failure(
                 pool,
                 &req.username,
@@ -151,8 +135,61 @@ pub async fn login(
             )
             .await;
             return Err(ApiError::Unauthorized(
-                "2FA required. Please provide a TOTP code.".to_string(),
+                "2FA required. Please provide a TOTP code or recovery code.".to_string(),
             ));
+        };
+
+        let secret = two_factor_secret
+            .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+        // TOTP first, then recovery-code fallback — the same order the
+        // 2FA-disable flow uses. Recovery codes must work here: this is the
+        // only unauthenticated surface, so without it a user who lost their
+        // authenticator is locked out despite holding valid codes.
+        let valid_totp = AuthService::verify_totp_code(&secret, submitted_code).unwrap_or(false);
+        if !valid_totp {
+            let recovery_codes = user.two_factor_recovery_codes.clone().unwrap_or_default();
+            match AuthService::check_recovery_code(submitted_code, &recovery_codes) {
+                Some(index) => {
+                    let mut updated_codes = recovery_codes;
+                    updated_codes.remove(index);
+                    AuthService::update_recovery_codes(pool, user.id, &updated_codes)
+                        .await
+                        .map_err(|e| ApiError::Database(e.to_string()))?;
+                    recovery_codes_remaining = Some(updated_codes.len());
+                    if updated_codes.len() <= 3 {
+                        log::warn!(
+                            "User {} logged in with a 2FA recovery code; only {} recovery code(s) remain",
+                            user.id,
+                            updated_codes.len()
+                        );
+                    }
+                    let _ = AuditLog::log_event(
+                        pool,
+                        Some(user.id),
+                        "two_factor_recovery_code_used",
+                        "user",
+                        Some(user.id),
+                        Some(json!({
+                            "context": "login",
+                            "recovery_codes_remaining": updated_codes.len(),
+                        })),
+                        None,
+                        None,
+                    )
+                    .await;
+                }
+                None => {
+                    let _ = AuditLog::log_login_failure(
+                        pool,
+                        &req.username,
+                        "Invalid 2FA code",
+                        None,
+                        None,
+                    )
+                    .await;
+                    return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
+                }
+            }
         }
     }
 
@@ -185,7 +222,9 @@ pub async fn login(
 
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
-    let login_method = if two_factor_enabled.unwrap_or(false) {
+    let login_method = if recovery_codes_remaining.is_some() {
+        "password+2fa_recovery"
+    } else if two_factor_enabled.unwrap_or(false) {
         "password+2fa"
     } else {
         "password"
@@ -200,6 +239,7 @@ pub async fn login(
             permissions,
             route_policies,
             is_first_login,
+            recovery_codes_remaining,
         },
         refresh_token,
     ))
