@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { HousekeepingService } from '../../../api/housekeeping.service';
+import { RoomsService } from '../../../api/rooms.service';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import type {
@@ -31,6 +32,18 @@ export function useCreateHousekeepingTask() {
 
   return useMutation({
     mutationFn: (input: CreateHousekeepingTaskRequest) => HousekeepingService.createTask(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.housekeeping.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.rooms.all });
+    },
+  });
+}
+
+export function useSyncRoomStatuses() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => RoomsService.syncRoomStatuses(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.housekeeping.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.rooms.all });

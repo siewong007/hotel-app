@@ -13,6 +13,8 @@ export type {
   RoomWithDisplay,
   RoomEvent,
   RoomEventInput,
+  RoomStatusSyncChange,
+  RoomStatusSyncResult,
   RoomStatusUpdateInput,
   RoomDetailedStatus,
   RoomHistory,

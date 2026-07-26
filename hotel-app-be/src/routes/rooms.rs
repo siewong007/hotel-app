@@ -41,6 +41,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/rooms/{id}/history", get(get_room_history))
         .route("/rooms/{id}/end-maintenance", post(end_maintenance))
         .route("/rooms/{id}/end-cleaning", post(end_cleaning))
+        .route("/rooms/sync-statuses", post(sync_room_statuses))
         .route("/rooms/{id}/execute-change", post(execute_room_change))
         .route("/rooms/change-history", get(get_room_change_history))
         // Occupancy endpoints (automatic - derived from bookings)
@@ -221,6 +222,13 @@ async fn end_cleaning(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::rooms::end_cleaning_handler(State(pool), path, headers).await
+}
+
+async fn sync_room_statuses(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    handlers::rooms::sync_room_statuses_handler(State(pool), headers).await
 }
 
 async fn execute_room_change(
