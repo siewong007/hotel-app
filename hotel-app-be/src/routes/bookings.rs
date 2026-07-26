@@ -54,7 +54,6 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/{id}/auto-checkin", post(auto_checkin))
         .route("/bookings/{id}/checkin-advisory", get(checkin_advisory))
         .route("/bookings/{id}/timeline", get(get_booking_timeline))
-        .route("/bookings/{id}/pre-checkin", patch(pre_checkin_update))
         .route("/bookings/{id}/complimentary", post(mark_complimentary))
         .route("/bookings/{id}/complimentary", patch(update_complimentary))
         .route("/bookings/{id}/complimentary", delete(remove_complimentary))
@@ -216,15 +215,6 @@ async fn guest_checkin_advisory(
 ) -> Result<Json<crate::repositories::bookings::CheckInAdvisory>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
     handlers::bookings::guest_checkin_advisory_handler(State(pool), params.guest_id).await
-}
-
-async fn pre_checkin_update(
-    State(pool): State<DbPool>,
-    path: Path<i64>,
-    Json(input): Json<models::PreCheckInUpdateRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Public endpoint - no authentication required for pre-check-in
-    handlers::bookings::pre_checkin_update_handler(State(pool), path, Json(input)).await
 }
 
 async fn get_rate_codes(

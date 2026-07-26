@@ -151,15 +151,6 @@ pub async fn auto_checkin_handler(
     ))
 }
 
-pub async fn pre_checkin_update_handler(
-    State(pool): State<DbPool>,
-    Path(booking_id): Path<i64>,
-    Json(update_data): Json<PreCheckInUpdateRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    booking_service::pre_checkin_update_handler(State(pool), Path(booking_id), Json(update_data))
-        .await
-}
-
 pub async fn mark_complimentary_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

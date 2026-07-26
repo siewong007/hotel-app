@@ -10,7 +10,6 @@ import {
   BookingWithDetails,
   CheckInRequest,
   CheckInAdvisory,
-  PreCheckInUpdateRequest,
 } from '../types';
 import { withRetry } from '../utils/retry';
 import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingUtils';
@@ -234,24 +233,6 @@ export class BookingsService {
         );
       }
       throw new APIError('Failed to load check-in advisory');
-    }
-  }
-
-  static async preCheckInUpdate(bookingId: string, updateData: PreCheckInUpdateRequest): Promise<{ success: boolean; message: string }> {
-    try {
-      return await api
-        .patch(`bookings/${bookingId}/pre-checkin`, { json: updateData })
-        .json<{ success: boolean; message: string }>();
-    } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to update pre-check-in information',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to update pre-check-in information');
     }
   }
 
