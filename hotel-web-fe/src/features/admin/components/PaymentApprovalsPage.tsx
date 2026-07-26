@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   Chip,
@@ -27,14 +28,18 @@ import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { PaymentApprovalsService, PendingPaymentEntry } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
+import { useAuth } from '../../../auth/AuthContext';
 import {
   useApprovePayment,
   usePendingPayments,
   usePaymentApprovalHistory,
+  usePaypalConflictEvents,
   useRejectPayment,
   useRequestPaymentReceipt,
 } from '../hooks/usePaymentApprovalsQueries';
 import { receiptAsPdf } from '../utils/paymentReceiptPdf';
+
+const CONFLICT_EVENTS_SHOWN = 10;
 
 function statusColor(status: string): 'default' | 'warning' | 'success' | 'error' {
   switch (status) {
@@ -52,6 +57,7 @@ function statusColor(status: string): 'default' | 'warning' | 'success' | 'error
 }
 
 const PaymentApprovalsPage: React.FC = () => {
+  const { hasPermission } = useAuth();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [view, setView] = useState<'pending' | 'history'>('pending');
@@ -68,6 +74,15 @@ const PaymentApprovalsPage: React.FC = () => {
   const approveMutation = useApprovePayment();
   const rejectMutation = useRejectPayment();
   const receiptMutation = useRequestPaymentReceipt();
+
+  // Same permission this page's own data already requires (payments:read,
+  // routes/payments.rs); audit:read additionally gates the audit-logs
+  // endpoint this banner reads from, so staff without it just see no banner
+  // instead of an error.
+  const canViewConflicts = hasPermission('payments:read') && hasPermission('audit:read');
+  const conflictQuery = usePaypalConflictEvents(canViewConflicts);
+  const conflictEvents = conflictQuery.data?.events ?? [];
+  const conflictTotal = conflictQuery.data?.total ?? 0;
 
   const activeQuery = view === 'pending' ? pendingQuery : historyQuery;
   const items = activeQuery.data?.items ?? [];
@@ -186,6 +201,43 @@ const PaymentApprovalsPage: React.FC = () => {
         the payment complete and confirms the booking. For bank transfers, request a receipt when
         proof is needed; a claim without a receipt is automatically rejected after 24 hours.
       </Typography>
+
+      {canViewConflicts && conflictEvents.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <AlertTitle>
+            {conflictTotal} PayPal payment {conflictTotal === 1 ? 'conflict' : 'conflicts'} in the last 30 days
+          </AlertTitle>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Money moved at PayPal but did not match the local payment record. Do not charge the
+            guest again — review each entry below before taking action.
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+            {conflictEvents.slice(0, CONFLICT_EVENTS_SHOWN).map((event) => {
+              const details = (event.details ?? {}) as Record<string, unknown>;
+              const bookingId = details.booking_id;
+              const reason = details.reason;
+              return (
+                <Box component="li" key={event.id}>
+                  <Typography variant="body2">
+                    {new Date(event.created_at).toLocaleString()} — payment #{event.resource_id ?? '—'}
+                    {typeof bookingId === 'number' || typeof bookingId === 'string'
+                      ? `, booking #${bookingId}`
+                      : ''}
+                    {typeof reason === 'string' ? `: ${reason}` : ''}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+          {conflictTotal > Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN) && (
+            <Typography variant="caption" color="text.secondary">
+              Showing {Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN)} of {conflictTotal}. See
+              the Audit Log for the full history.
+            </Typography>
+          )}
+        </Alert>
+      )}
+
       <Tabs value={view} onChange={(_, value: 'pending' | 'history') => { setView(value); setPage(0); }} sx={{ mb: 2 }}>
         <Tab value="pending" label="Pending claims" />
         <Tab value="history" label="Approval history" />
