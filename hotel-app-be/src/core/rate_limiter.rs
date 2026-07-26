@@ -114,7 +114,13 @@ impl RateLimiter {
     pub async fn check_with_retry(&self, ip: IpAddr) -> (bool, u64) {
         let mut entries = self.entries.lock().await;
         let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
-        entry.check_and_record(&self.config)
+        let outcome = entry.check_and_record(&self.config);
+        // Instrumented here rather than at the ~43 call sites: every per-IP
+        // limiter funnels through this method, so one increment covers them all.
+        if !outcome.0 {
+            crate::core::metrics::incr(&crate::core::metrics::RATE_LIMIT_REJECTIONS);
+        }
+        outcome
     }
 
     /// Get the window duration (for Retry-After headers)
@@ -161,7 +167,11 @@ impl KeyedRateLimiter {
         let entry = entries
             .entry(key.into())
             .or_insert_with(RateLimitEntry::new);
-        entry.check_and_record(&self.config)
+        let outcome = entry.check_and_record(&self.config);
+        if !outcome.0 {
+            crate::core::metrics::incr(&crate::core::metrics::RATE_LIMIT_REJECTIONS);
+        }
+        outcome
     }
 }
 

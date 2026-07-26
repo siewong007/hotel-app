@@ -157,6 +157,20 @@ ensure_secrets() {
     || die "POSTGRES_PASSWORD in $SECRETS_FILE must be at least 32 URL-safe characters"
   local jwt_value=${JWT_SECRET:-}
   (( ${#jwt_value} >= 32 )) || die "JWT_SECRET in $SECRETS_FILE must be at least 32 characters"
+
+  # SMTP is optional and deliberately never auto-generated: only the operator
+  # can supply a real mailbox. Report the state loudly instead of failing, so a
+  # deploy is never blocked by it -- but a half-configured pair is a mistake
+  # worth stopping for, since it looks configured and silently sends nothing.
+  if [[ -n "${SMTP_HOST:-}" && -n "${SMTP_FROM_EMAIL:-}" ]]; then
+    log "Email delivery ENABLED (SMTP_HOST=${SMTP_HOST}, from=${SMTP_FROM_EMAIL})"
+  elif [[ -n "${SMTP_HOST:-}" || -n "${SMTP_FROM_EMAIL:-}" ]]; then
+    die "Incomplete SMTP config in $SECRETS_FILE: SMTP_HOST and SMTP_FROM_EMAIL must both be set (or both unset)"
+  else
+    log "Email delivery DISABLED (no SMTP_HOST/SMTP_FROM_EMAIL in $SECRETS_FILE)."
+    log "  Guest email stays queued in email_deliveries and operational alerting cannot send."
+    log "  To enable: append SMTP_HOST/SMTP_PORT/SMTP_USERNAME/SMTP_PASSWORD/SMTP_FROM_EMAIL to $SECRETS_FILE and redeploy."
+  fi
 }
 
 install_release_files() {
@@ -350,6 +364,10 @@ SQL
 
 configure_caddy() {
   local site_tmp main_backup site_backup=""
+  # Caddy runs as the `caddy` user and will fail to start if it cannot open the
+  # access-log file, so the directory must exist and be owned before validate.
+  install -d -m 0750 -o caddy -g caddy /var/log/caddy 2>/dev/null \
+    || install -d -m 0755 /var/log/caddy
   site_tmp=$(mktemp "$APP_DIR/.saliminn.Caddyfile.XXXXXX")
   main_backup=$(mktemp "$APP_DIR/.Caddyfile.XXXXXX")
   cp -p "$CADDY_FILE" "$main_backup"
@@ -365,6 +383,22 @@ saliminn.my {
     # Force HTTPS on repeat visits (prevents SSL-strip downgrade). Set-if-missing
     # so an upstream that also emits HSTS is not duplicated.
     header ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Access log. The application cannot produce one: its TraceLayer spans are
+    # emitted at DEBUG while the backend container runs RUST_LOG=warn, and
+    # raising that would log every SQL statement (including guest PII) into a
+    # file with no rotation. Caddy is the only layer that sees every request,
+    # including ones the backend never routes (404 sweeps, path traversal
+    # probes, scanner traffic). Kept host-side so it survives container
+    # replacement and does not consume the backend's 192MB budget.
+    log {
+        output file /var/log/caddy/saliminn-access.log {
+            roll_size 20MiB
+            roll_keep 5
+            roll_keep_for 336h
+        }
+        format json
+    }
 
     @backend path /api /api/* /uploads /uploads/* /health /ws /ws/*
     handle @backend {

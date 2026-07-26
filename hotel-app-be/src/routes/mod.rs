@@ -121,6 +121,36 @@ async fn enforce_active_session(
     }
 }
 
+/// Count every request's status and latency into `core::metrics`.
+///
+/// This exists instead of raising `RUST_LOG` to capture request telemetry.
+/// `TraceLayer` emits its spans at DEBUG while production runs `RUST_LOG=warn`
+/// (`deploy/docker-compose.prod.yml`), so those events are filtered out; raising
+/// the level globally would instead log every SQL statement, including guest
+/// PII, into a file with no rotation. Counters give the alerter what it needs
+/// (traffic volume, error rate, slow-request rate) at a fixed cost per request
+/// and with no PII.
+///
+/// A 5xx is additionally logged at WARN so it survives production filtering and
+/// leaves a line an operator can correlate with the counter.
+async fn record_request_metrics(request: Request, next: Next) -> Response {
+    let method = request.method().clone();
+    let path = request.uri().path().to_string();
+    let started = std::time::Instant::now();
+
+    let response = next.run(request).await;
+
+    let status = response.status();
+    let elapsed_ms = started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    crate::core::metrics::record_response(status.as_u16(), elapsed_ms);
+
+    if status.is_server_error() {
+        log::warn!("{method} {path} -> {} in {elapsed_ms}ms", status.as_u16());
+    }
+
+    response
+}
+
 /// Health check handler.
 ///
 /// Verifies the database connection pool can actually serve a query rather
@@ -262,6 +292,10 @@ pub fn create_router(pool: DbPool) -> Router {
     app.layer(
         ServiceBuilder::new()
             .layer(TraceLayer::new_for_http())
+            // Sits outside the router and the CORS layer, so it observes every
+            // response on the way out: 404s for unrouted paths, 429s from the
+            // per-route rate limiters, and CORS preflight replies alike.
+            .layer(axum::middleware::from_fn(record_request_metrics))
             .layer(cors)
             // Security headers
             .layer(SetResponseHeaderLayer::if_not_present(

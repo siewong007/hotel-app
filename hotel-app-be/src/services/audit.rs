@@ -35,6 +35,10 @@ impl AuditLog {
 
         // Log to console if database insert fails (table might not exist yet)
         if let Err(e) = &result {
+            // Every alert rule built on audit_logs inherits this swallow, so a
+            // broken audit trail must be observable on its own. Non-zero here
+            // means detection is silently degraded.
+            crate::core::metrics::incr(&crate::core::metrics::AUDIT_WRITE_FAILURES);
             log::warn!(
                 "Audit log failed (table may not exist): {} - Action: {}, Resource: {}",
                 e,

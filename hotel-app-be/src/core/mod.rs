@@ -5,6 +5,7 @@
 //! - `db`: Database connection pool
 //! - `error`: Unified API error types
 //! - `middleware`: Request authentication and authorization middleware
+//! - `metrics`: In-process counters for operational alerting
 //! - `sql_compat`: PostgreSQL SQL helpers
 
 pub mod auth;
@@ -12,6 +13,7 @@ pub mod config;
 #[allow(dead_code)]
 pub mod db;
 pub mod error;
+pub mod metrics;
 pub mod middleware;
 pub mod rate_limiter;
 pub mod rbac_cache;
