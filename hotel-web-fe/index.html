@@ -9,20 +9,7 @@
     <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>Hotel ERP System</title>
-    <script>
-      (() => {
-        const guestPaths = new Set(['/guest-portal', '/offers', '/register']);
-        const params = new URLSearchParams(window.location.search);
-        const isGuestExperience = guestPaths.has(window.location.pathname)
-          || (window.location.pathname === '/login' && params.get('account') === 'guest');
-
-        if (!isGuestExperience) return;
-
-        document.title = 'Salim Inn Sibu - Cozy stays at Farley';
-        const favicon = document.getElementById('app-favicon');
-        if (favicon) favicon.href = '/salim-inn/salim-inn-icon.svg';
-      })();
-    </script>
+    <script src="/guest-branding.js"></script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
