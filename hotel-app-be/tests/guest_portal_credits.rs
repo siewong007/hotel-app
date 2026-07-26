@@ -365,16 +365,25 @@ mod postgres_tests {
         let f = fixture(8);
         seed(&pool, &f).await;
 
-        for (suffix, status) in [("ALPHA", "confirmed"), ("BETA", "pending_payment")] {
+        // Both stays share one room, so their date ranges must not overlap:
+        // bookings_no_room_date_overlap is an exclusion constraint over
+        // (room_id, daterange(check_in_date, check_out_date, '[)')). Keep both inside
+        // 2031-05 so the "2031-05" search below still matches two rows.
+        for (suffix, status, check_in, check_out) in [
+            ("ALPHA", "confirmed", "2031-05-10", "2031-05-12"),
+            ("BETA", "pending_payment", "2031-05-13", "2031-05-15"),
+        ] {
             sqlx::query(
                 "INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, \
                  check_out_date, adults, children, room_rate, subtotal, total_amount, status, \
                  payment_status) \
-                 VALUES ($1, $2, $3, '2031-05-10', '2031-05-12', 1, 0, 100, 200, 200, $4, 'unpaid')",
+                 VALUES ($1, $2, $3, $4::date, $5::date, 1, 0, 100, 200, 200, $6, 'unpaid')",
             )
             .bind(format!("SRCH-{suffix}-{}", f.guest_id))
             .bind(f.guest_id)
             .bind(f.room_id)
+            .bind(check_in)
+            .bind(check_out)
             .bind(status)
             .execute(&pool)
             .await
