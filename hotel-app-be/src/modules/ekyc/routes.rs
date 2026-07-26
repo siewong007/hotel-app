@@ -7,7 +7,7 @@ use axum::{
     extract::{ConnectInfo, Multipart, Path, Query, State},
     http::HeaderMap,
     response::{Json, Response},
-    routing::{get, patch, post},
+    routing::{get, post},
 };
 use std::fs;
 use std::net::SocketAddr;
@@ -60,7 +60,6 @@ pub fn routes() -> Router<DbPool> {
             "/ekyc/verifications/{id}/documents/{kind}",
             get(get_document),
         )
-        .route("/ekyc/verifications/{id}", patch(update_verification))
 }
 
 async fn upload_document(
@@ -375,26 +374,6 @@ async fn get_document(
         .map_err(|e| ApiError::Internal(format!("Failed to build document response: {}", e)))
 }
 
-async fn update_verification(
-    State(pool): State<DbPool>,
-    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
-    Path(id): Path<i64>,
-    Json(input): Json<models::EkycVerificationUpdate>,
-) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
-    let admin_id = require_permission_helper(&pool, &headers, "ekyc:verify").await?;
-    let updated = service::update_ekyc(&pool, id, admin_id, input).await?;
-    Ok(Json(
-        service::get_admin_application(
-            &pool,
-            admin_id,
-            updated.id,
-            client_ip(&headers, peer_addr),
-            user_agent(&headers),
-        )
-        .await?,
-    ))
-}
 
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     headers

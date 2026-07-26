@@ -730,12 +730,24 @@ export function BookingsSection({ token }: { token: string }) {
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancellationSuccess, setCancellationSuccess] = useState<string | null>(null);
+  // `search` is what the guest is typing; `appliedSearch` is what the server was
+  // asked for. Debouncing between them keeps a request off every keystroke.
+  const [search, setSearch] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setAppliedSearch(search.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+  // A narrower filter can leave the current page past the end of the results.
+  useEffect(() => {
+    setPage(0);
+  }, [appliedSearch]);
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await GuestPortalDashboardService.bookings(
-        { page: page + 1, per_page: pageSize },
+        { page: page + 1, per_page: pageSize, search: appliedSearch || undefined },
         token,
       );
       setItems(response.items);
@@ -745,7 +757,7 @@ export function BookingsSection({ token }: { token: string }) {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, token]);
+  }, [appliedSearch, page, pageSize, token]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -788,12 +800,27 @@ export function BookingsSection({ token }: { token: string }) {
       <Box role="status" aria-live="polite" aria-atomic="true">
         {cancellationSuccess ? <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCancellationSuccess(null)}>{cancellationSuccess}</Alert> : null}
       </Box>
+      <TextField
+        label="Search stays"
+        placeholder="Booking number, status, or date"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        size="small"
+        fullWidth
+        sx={{ mb: 2, maxWidth: { sm: 420 } }}
+      />
       {loading ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} retry={() => void load()} />
       ) : items.length === 0 ? (
-        <EmptyState message="You have no bookings on file yet." />
+        <EmptyState
+          message={
+            appliedSearch
+              ? `No stays match “${appliedSearch}”.`
+              : "You have no bookings on file yet."
+          }
+        />
       ) : (
         <>
           {firstReceiptRequest ? (

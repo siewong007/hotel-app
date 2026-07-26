@@ -14,7 +14,7 @@ use crate::modules::ekyc::models::{
     EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDocumentAvailability, EkycListQuery,
     EkycReasonCode, EkycReviewActionRequest, EkycSensitiveRevealRequest,
     EkycSensitiveRevealResponse, EkycStatusResponse, EkycSubmissionRequest, EkycVerification,
-    EkycVerificationUpdate, SelfCheckinRequest,
+    SelfCheckinRequest,
 };
 use crate::repositories::ekyc::{
     AdminApproval, EkycActionUpdate, EkycHistoryInsert, EkycNoteInsert, EkycRepository,
@@ -416,15 +416,6 @@ pub async fn record_document_download(
         },
     )
     .await
-}
-
-pub async fn update_ekyc(
-    pool: &DbPool,
-    id: i64,
-    admin_id: i64,
-    update: EkycVerificationUpdate,
-) -> Result<EkycVerification, ApiError> {
-    EkycRepository::update_verification_legacy(pool, id, admin_id, &update).await
 }
 
 pub async fn apply_review_action(

@@ -108,14 +108,3 @@ export function useRejectEkyc() {
     },
   });
 }
-
-export function useUpdateEkycVerification() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ verificationId, updates }: { verificationId: number; updates: any }) =>
-      EkycService.updateEkycVerification(verificationId, updates),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: queryKeys.ekyc.all });
-    },
-  });
-}

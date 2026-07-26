@@ -35,6 +35,8 @@ import type {
 export interface PortalPageParams {
   page?: number;
   per_page?: number;
+  /** Free-text filter. Server-side, because the pages are server-side. */
+  search?: string;
 }
 
 function authHeaders(token?: string): Record<string, string> {
@@ -50,6 +52,7 @@ function withPageParams(params?: PortalPageParams): URLSearchParams | undefined 
   const search = new URLSearchParams();
   if (params.page !== undefined) search.set('page', String(params.page));
   if (params.per_page !== undefined) search.set('per_page', String(params.per_page));
+  if (params.search) search.set('search', params.search);
   return search;
 }
 

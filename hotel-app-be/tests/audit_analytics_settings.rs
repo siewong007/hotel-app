@@ -838,6 +838,17 @@ mod postgres_tests {
                 .execute(pool)
                 .await
                 .unwrap();
+            // `update_system_setting` now writes an audit row. The FK is
+            // ON DELETE SET NULL, so deleting the actor would orphan it rather
+            // than block -- scope by user_id first, while it is still set, so a
+            // real `system_setting` entry is never touched.
+            sqlx::query(
+                "DELETE FROM audit_logs WHERE user_id = $1 AND resource_type = 'system_setting'",
+            )
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .unwrap();
             sqlx::query("DELETE FROM users WHERE id = $1")
                 .bind(user_id)
                 .execute(pool)
@@ -875,6 +886,26 @@ mod postgres_tests {
             .await
             .expect("reading the setting back must succeed");
         assert_eq!(read_back, "updated-value");
+
+        // A settings change is a privileged mutation, and `system_settings`
+        // records only `updated_by`/`updated_at` -- without this row there is no
+        // record of what the value used to be.
+        let (action, resource_id, details) =
+            sqlx::query_as::<_, (String, Option<i64>, serde_json::Value)>(
+            "SELECT action, resource_id, details FROM audit_logs \
+             WHERE user_id = $1 AND resource_type = 'system_setting' \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("updating a setting must write exactly one system_setting audit row");
+
+        assert_eq!(action, "settings_changed");
+        assert_eq!(resource_id, Some(updated.id));
+        assert_eq!(details["key"], key);
+        assert_eq!(details["old_value"], "original-value");
+        assert_eq!(details["new_value"], "updated-value");
 
         cleanup(&pool, user_id, key).await;
 

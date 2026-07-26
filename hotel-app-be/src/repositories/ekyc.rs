@@ -10,7 +10,7 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
     EkycApplicationSummaryRow, EkycDashboardRow, EkycDecisionHistory, EkycListQuery, EkycNote,
-    EkycReasonCode, EkycVerification, EkycVerificationUpdate,
+    EkycReasonCode, EkycVerification,
 };
 
 pub struct NewEkycVerification<'a> {
@@ -932,67 +932,6 @@ impl EkycRepository {
         .map(|_| ())
         .map_err(|e| ApiError::Database(format!("Failed to record eKYC access event: {}", e)))
     }
-
-    pub async fn update_verification_legacy(
-        pool: &DbPool,
-        id: i64,
-        admin_id: i64,
-        update: &EkycVerificationUpdate,
-    ) -> Result<EkycVerification, ApiError> {
-        let current = Self::find_by_id(pool, id)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("eKYC verification not found".to_string()))?;
-
-        let action = EkycActionUpdate {
-            status: update.status.clone(),
-            set_assignee: false,
-            assigned_reviewer_id: None,
-            verification_notes: update.verification_notes.clone(),
-            set_customer_message: false,
-            customer_message: None,
-            set_self_checkin: update.self_checkin_enabled.is_some(),
-            self_checkin_enabled: update.self_checkin_enabled.unwrap_or(false),
-            set_potential_duplicate: false,
-            potential_duplicate: false,
-            set_fraud_suspected: false,
-            fraud_suspected: false,
-            set_risk_level: false,
-            risk_level: None,
-            set_risk_score: false,
-            risk_score: None,
-            set_risk_flags: false,
-            risk_flags: None,
-            decision_reason_code: update.reason_code.clone(),
-            decision_reason: update.reason.clone(),
-            set_verified: matches!(update.status.as_str(), "approved" | "rejected"),
-        };
-
-        Self::apply_review_action(
-            pool,
-            EkycReviewAction {
-                application_id: id,
-                actor_id: admin_id,
-                expected_version: update.expected_version.unwrap_or(current.version),
-                update: action,
-                history: EkycHistoryInsert {
-                    action: "legacy_update".to_string(),
-                    from_status: Some(current.status),
-                    to_status: Some(update.status.clone()),
-                    reason_code: update.reason_code.clone(),
-                    reason: update.reason.clone(),
-                    details: Some(serde_json::json!({
-                        "face_match_score": update.face_match_score,
-                        "face_match_passed": update.face_match_passed,
-                        "legacy_patch": true
-                    })),
-                },
-                note: None,
-                idempotency_key: None,
-            },
-        )
-        .await
-    }
-
 }
 
 fn list_query(select_clause: &str, order_clause: &str, page_clause: &str) -> String {
