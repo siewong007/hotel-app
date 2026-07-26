@@ -85,11 +85,20 @@ export interface TwoFactorSetupRequest {
 export interface TwoFactorSetupResponse {
   secret: string;
   qr_code_url: string;
+  challenge_code: string;
+}
+
+// Backup codes exist only in the enable response: setup does not persist any,
+// so surfacing codes before enable would hand the user a dead set.
+export interface TwoFactorEnableResponse {
+  message: string;
   backup_codes: string[];
 }
 
 export interface TwoFactorEnableRequest {
   code: string;
+  // Single-use challenge from TwoFactorSetupResponse; expires 10 minutes after setup.
+  challenge_code: string;
 }
 
 export interface TwoFactorDisableRequest {

@@ -953,10 +953,7 @@ pub async fn create_booking_handler(
         is_smoking: None,
     };
 
-    let hotel_today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let today: NaiveDate = hotel_today(&mut *tx).await?;
 
     // Only block rooms that are under maintenance or out of order
     let room_status = room.status.as_deref().unwrap_or("available");
@@ -1026,7 +1023,7 @@ pub async fn create_booking_handler(
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
         Some(bn) if !bn.trim().is_empty() => bn.trim().to_string(),
-        _ => booking_svc::generate_booking_number_for_date(hotel_today),
+        _ => booking_svc::generate_booking_number_for_date(today),
     };
 
     let source = input
@@ -1124,7 +1121,7 @@ pub async fn create_booking_handler(
             booking.booking_number,
             if reserved_status == "reserved_dirty" {
                 "Reservation created, room needs cleaning before check-in"
-            } else if check_in == hotel_today {
+            } else if check_in == today {
                 "Reservation arriving today"
             } else {
                 "Future reservation"
@@ -2346,19 +2343,36 @@ pub async fn manual_checkin_handler(
         payment_recorded = true;
     }
 
-    // Only update room status for current/future bookings (skip back-dated)
+    // Only update room status for current/future bookings (skip back-dated).
+    // SAVEPOINT keeps this best-effort: a failed statement would otherwise
+    // poison the transaction and the commit below would silently roll back the
+    // check-in and any recorded payment (lessons.md 2026-07-10b).
     let today = hotel_today(&mut *tx).await?;
-    if booking.check_out_date >= today
-        && let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
+    if booking.check_out_date >= today {
+        sqlx::query("SAVEPOINT sp_checkin_room_status")
+            .execute(&mut *tx)
+            .await?;
+        match sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
             .bind(booking.room_id)
             .execute(&mut *tx)
             .await
-    {
-        log::warn!(
-            "Failed to update room {} to occupied during check-in: {}",
-            booking.room_id,
-            e
-        );
+        {
+            Ok(_) => {
+                sqlx::query("RELEASE SAVEPOINT sp_checkin_room_status")
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to update room {} to occupied during check-in: {}",
+                    booking.room_id,
+                    e
+                );
+                sqlx::query("ROLLBACK TO SAVEPOINT sp_checkin_room_status")
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
     }
 
     // Everything above is now durable as a single unit.

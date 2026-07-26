@@ -12,6 +12,9 @@ const notifyUnauthorized = () => {
 };
 
 const toGuestApiError = async (error: unknown, fallback: string): Promise<APIError> => {
+  // Already wrapped (e.g. the 401 thrown inside getAllGuests' try block) —
+  // pass it through so an outer catch can't downgrade it to the generic fallback.
+  if (error instanceof APIError) return error;
   if (error instanceof HTTPError) {
     const errorData = await error.response.json().catch(() => ({}));
     if (error.response.status === 401) {

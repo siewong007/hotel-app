@@ -80,14 +80,6 @@ pub fn current_timestamp() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
-pub fn array_to_json<T: serde::Serialize>(arr: &[T]) -> String {
-    serde_json::to_string(arr).unwrap_or_else(|_| "[]".to_string())
-}
-
-pub fn json_to_array<T: serde::de::DeserializeOwned>(json: &str) -> Vec<T> {
-    serde_json::from_str(json).unwrap_or_default()
-}
-
 pub fn decimal_to_db(d: rust_decimal::Decimal) -> rust_decimal::Decimal {
     d
 }
@@ -131,33 +123,6 @@ pub fn opt_f64_to_decimal(f: Option<f64>) -> Option<rust_decimal::Decimal> {
 mod tests {
     use super::*;
     use rust_decimal::Decimal;
-    use serde::{Deserialize, Serialize};
-
-    #[derive(Debug, PartialEq, Serialize, Deserialize)]
-    struct TestCode {
-        code: String,
-    }
-
-    #[test]
-    fn array_json_helpers_round_trip_serializable_values() {
-        let values = vec![
-            TestCode {
-                code: "ABCD-1234".to_string(),
-            },
-            TestCode {
-                code: "WXYZ-9876".to_string(),
-            },
-        ];
-        let json = array_to_json(&values);
-        let decoded: Vec<TestCode> = json_to_array(&json);
-        assert_eq!(decoded, values);
-    }
-
-    #[test]
-    fn json_to_array_returns_empty_vec_for_invalid_json() {
-        let decoded: Vec<String> = json_to_array("not json");
-        assert!(decoded.is_empty());
-    }
 
     #[test]
     fn decimal_parsers_fall_back_safely_for_invalid_values() {

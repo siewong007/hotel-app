@@ -35,7 +35,10 @@ pub async fn setup_2fa(
             log::error!("Failed to generate TOTP secret: {}", error);
             ApiError::Internal(format!("Failed to generate TOTP secret: {}", error))
         })?;
-    let backup_codes = AuthService::generate_backup_codes();
+    UserRepository::update_two_factor_secret(pool, user_id, &secret).await?;
+
+    // Minted after the secret write, so an incomplete setup never leaves a
+    // consumable challenge bound to a stale secret.
     let challenge_code = AuthService::create_2fa_challenge(pool, user_id, "setup")
         .await
         .map_err(|error| {
@@ -43,12 +46,23 @@ pub async fn setup_2fa(
             ApiError::Database(error.to_string())
         })?;
 
-    UserRepository::update_two_factor_secret(pool, user_id, &secret).await?;
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "two_factor_setup_initiated",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
+    // Backup codes are intentionally absent here: enable_2fa mints and persists
+    // its own set, so any codes surfaced at setup time would never work.
     Ok(serde_json::json!({
         "secret": secret,
         "qr_code_url": qr_code_url,
-        "backup_codes": backup_codes,
         "challenge_code": challenge_code
     }))
 }
@@ -72,10 +86,47 @@ pub async fn enable_2fa(
         return Err(ApiError::BadRequest("Invalid 2FA code".to_string()));
     }
 
+    // Consume the setup challenge only after the TOTP code checked out, so a
+    // typo in the code leaves the (single-use) challenge intact for a retry.
+    let challenge_ok =
+        AuthService::consume_2fa_challenge(pool, user_id, "setup", &req.challenge_code)
+            .await
+            .map_err(|error| ApiError::Database(error.to_string()))?;
+
+    if !challenge_ok {
+        // A valid TOTP code with a bad challenge is an attack signal worth keeping.
+        let _ = AuditLog::log_event(
+            pool,
+            Some(user_id),
+            "two_factor_enable_challenge_rejected",
+            "user",
+            Some(user_id),
+            None,
+            None,
+            None,
+        )
+        .await;
+        return Err(ApiError::BadRequest(
+            "2FA setup challenge is invalid or has expired. Restart 2FA setup.".to_string(),
+        ));
+    }
+
     let backup_codes = AuthService::generate_backup_codes();
     AuthService::enable_2fa(pool, user_id, &two_factor_secret, &backup_codes)
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "two_factor_enabled",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
     Ok(serde_json::json!({
         "message": "2FA enabled successfully",
@@ -218,6 +269,18 @@ pub async fn regenerate_backup_codes(
     AuthService::update_recovery_codes(pool, user_id, &new_backup_codes)
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "two_factor_backup_codes_regenerated",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
     Ok(serde_json::json!({
         "message": "Backup codes regenerated successfully",

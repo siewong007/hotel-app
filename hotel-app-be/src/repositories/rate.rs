@@ -1,6 +1,6 @@
 //! Rate plan repository for database operations.
 
-use crate::core::db::{DbPool, DbRow, decimal_to_db};
+use crate::core::db::{DbPool, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -8,7 +8,6 @@ use crate::models::{
     RoomRateUpdateValues, RoomRateWithDetails, RoomType,
 };
 use chrono::NaiveDate;
-use sqlx::Row;
 
 pub struct RateRepository;
 
@@ -51,7 +50,8 @@ impl RateRepository {
             .bind(values.max_nights)
             .bind(values.min_advance_booking)
             .bind(values.max_advance_booking)
-            .bind(&values.blackout_dates)
+            // blackout_dates is jsonb; a bare Vec<String> would bind as TEXT[] and fail at prepare time
+            .bind(values.blackout_dates.as_ref().map(sqlx::types::Json))
             .bind(values.is_active)
             .bind(values.priority)
             .bind(user_id)
@@ -400,7 +400,7 @@ impl RateRepository {
         .await
         .map_err(ApiError::from)?;
 
-        Ok(rows.into_iter().map(row_to_room_type).collect())
+        Ok(rows.iter().map(row_mappers::row_to_room_type).collect())
     }
 
     pub async fn applicable_rate(
@@ -465,7 +465,7 @@ impl RateRepository {
             .bind(room_type_id)
             .fetch_one(pool)
             .await
-            .map(row_to_room_type)
+            .map(|row| row_mappers::row_to_room_type(&row))
             .map_err(map_not_found)
     }
 }
@@ -497,56 +497,6 @@ fn room_rate_details_query(where_clause: Option<&str>) -> String {
 
     query.push_str(" ORDER BY rp.name, rt.sort_order, rt.name, rr.effective_from DESC");
     query
-}
-
-fn row_to_room_type(row: DbRow) -> RoomType {
-    let base_price: String = row
-        .try_get::<String, _>("base_price")
-        .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| f.to_string()))
-        .unwrap_or_else(|_| "0".to_string());
-    let weekday_rate: Option<String> =
-        row.try_get::<String, _>("weekday_rate").ok().or_else(|| {
-            row.try_get::<f64, _>("weekday_rate")
-                .ok()
-                .map(|f| f.to_string())
-        });
-    let weekend_rate: Option<String> =
-        row.try_get::<String, _>("weekend_rate").ok().or_else(|| {
-            row.try_get::<f64, _>("weekend_rate")
-                .ok()
-                .map(|f| f.to_string())
-        });
-    let extra_bed_charge: String = row
-        .try_get::<String, _>("extra_bed_charge")
-        .or_else(|_| {
-            row.try_get::<f64, _>("extra_bed_charge")
-                .map(|f| f.to_string())
-        })
-        .unwrap_or_else(|_| "0".to_string());
-
-    let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
-
-    let is_active: bool = row.try_get("is_active").unwrap_or(true);
-
-    RoomType {
-        id: row.get("id"),
-        name: row.get("name"),
-        code: row.get("code"),
-        description: row.try_get("description").ok(),
-        base_price: base_price.parse().unwrap_or_default(),
-        weekday_rate: weekday_rate.and_then(|s| s.parse().ok()),
-        weekend_rate: weekend_rate.and_then(|s| s.parse().ok()),
-        max_occupancy: row.get("max_occupancy"),
-        bed_type: row.try_get("bed_type").ok(),
-        bed_count: row.try_get("bed_count").ok(),
-        allows_extra_bed,
-        max_extra_beds: row.try_get("max_extra_beds").unwrap_or(0),
-        extra_bed_charge: extra_bed_charge.parse().unwrap_or_default(),
-        is_active,
-        sort_order: row.try_get("sort_order").unwrap_or(0),
-        created_at: row.get("created_at"),
-        updated_at: row.get("updated_at"),
-    }
 }
 
 fn map_not_found(error: sqlx::Error) -> ApiError {

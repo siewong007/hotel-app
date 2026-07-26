@@ -100,12 +100,21 @@ export class AuthService {
   }
 
   // 2FA Management
-  static async setupTwoFactor(): Promise<{ secret: string; qr_code_url: string; backup_codes: string[] }> {
+  static async setupTwoFactor(): Promise<{
+    secret: string;
+    qr_code_url: string;
+    challenge_code: string;
+  }> {
     return await api.post('profile/2fa/setup', { json: {} }).json();
   }
 
-  static async enableTwoFactor(code: string): Promise<void> {
-    await api.post('profile/2fa/enable', { json: { code } });
+  static async enableTwoFactor(
+    code: string,
+    challengeCode: string
+  ): Promise<{ message: string; backup_codes: string[] }> {
+    return await api
+      .post('profile/2fa/enable', { json: { code, challenge_code: challengeCode } })
+      .json();
   }
 
   static async disableTwoFactor(code: string): Promise<void> {

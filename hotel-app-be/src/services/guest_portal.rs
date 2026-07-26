@@ -6,7 +6,7 @@ use rand::Rng;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::{
@@ -62,7 +62,7 @@ pub async fn verify_guest_booking(
     }
 
     let check_in_date = booking.check_in_date;
-    let today = chrono::Local::now().date_naive();
+    let today = hotel_today(pool).await?;
     let days_until_checkin = (check_in_date - today).num_days();
 
     if days_until_checkin < 0 {

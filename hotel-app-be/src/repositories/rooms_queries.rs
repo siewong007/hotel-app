@@ -840,6 +840,66 @@ WHERE from_status = $1 AND to_status = $2 AND is_allowed = true
         .map_err(db_err)
 }
 
+/// Runs the same `validate_room_status_transition()` SQL function the
+/// booking-trigger path executes inside `update_room_status()`, so manual
+/// status updates obey the identical `room_status_transitions` state machine.
+/// A disallowed/undefined transition RAISEs in SQL; surface it as a 400 with
+/// the raise's message (it names only status values), not a generic 500.
+pub async fn validate_room_status_transition(
+    pool: &DbPool,
+    room_id: i64,
+    new_status: &str,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    sqlx::query_scalar::<_, bool>("SELECT validate_room_status_transition($1, $2, $3)")
+        .bind(room_id)
+        .bind(new_status)
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .map(|_| ())
+        .map_err(|e| match &e {
+            sqlx::Error::Database(db) if db.message().starts_with("Transition from") => {
+                ApiError::BadRequest(db.message().to_string())
+            }
+            sqlx::Error::Database(db) if db.message().ends_with("not found") => {
+                ApiError::NotFound("Room not found".to_string())
+            }
+            _ => db_err(e),
+        })
+}
+
+/// Mirrors the `housekeeping_tasks` auto-creation inside the SQL
+/// `update_room_status()` function, with a NOT EXISTS guard instead of its
+/// no-op ON CONFLICT (the table has no unique key besides the id), so a room
+/// flipped dirty twice keeps a single open cleaning task.
+pub async fn ensure_pending_cleaning_task(
+    pool: &DbPool,
+    room_id: i64,
+    created_by: i64,
+    notes: Option<&str>,
+) -> Result<(), ApiError> {
+    sqlx::query(
+        r#"
+INSERT INTO housekeeping_tasks (room_id, task_type, priority, status, created_by, notes)
+SELECT $1, 'cleaning', 'normal', 'pending', $2, $3
+WHERE NOT EXISTS (
+    SELECT 1 FROM housekeeping_tasks
+    WHERE room_id = $1
+      AND task_type = 'cleaning'
+      AND status IN ('pending', 'in_progress')
+)
+"#,
+    )
+    .bind(room_id)
+    .bind(created_by)
+    .bind(notes)
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(db_err)
+}
+
 const UPDATE_ROOM_STATUS_WITH_DATES: &str = r#"
 UPDATE rooms
 SET status = $1,
@@ -1263,7 +1323,7 @@ pub async fn execute_room_change_tx(
             room_id, from_status, to_status,
             changed_by, notes, is_auto_generated
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, false)
     "#;
 
     sqlx::query(history_query)
