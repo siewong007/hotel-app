@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { HotelAPIService } from '../../../../../api';
+import { LedgerService } from '../../../../../api';
 import type { BookingWithDetails, Company, CustomerLedger } from '../../../../../types';
 import { useLedgersPage } from '../../../hooks/useLedgers';
 import { getLedgerUiStatus } from '../helpers';
@@ -168,7 +168,7 @@ export function useCustomerLedgerWorkspace({
   const activeLedgerPageParams = useMemo(() => {
     if (!activeCompany) return undefined;
 
-    const params: Parameters<typeof HotelAPIService.getLedgersPage>[0] = {
+    const params: Parameters<typeof LedgerService.getLedgersPage>[0] = {
       company_name: activeCompany.company_name,
       page: entriesPage + 1,
       page_size: entriesPageSize,

@@ -18,24 +18,6 @@ import {
 } from '../types';
 import { withRetry } from '../utils/retry';
 
-export interface CreateRbacUserInput {
-  username: string;
-  email: string;
-  password: string;
-  full_name?: string;
-  phone?: string;
-  role_ids?: number[];
-}
-
-export interface UpdateRbacUserInput {
-  username?: string;
-  email?: string;
-  full_name?: string;
-  phone?: string;
-  is_active?: boolean;
-  password?: string;
-}
-
 export interface SystemSetting {
   id: number;
   key: string;
@@ -122,18 +104,6 @@ export class AdminService {
     await api.delete(`rbac/permissions/${permissionId}`);
   }
 
-  static async assignRoleToUser(assignData: AssignRoleInput): Promise<void> {
-    await api.post('rbac/users/roles', { json: assignData });
-  }
-
-  static async removeRoleFromUser(userId: string, roleId: string): Promise<void> {
-    await api.delete(`rbac/users/${userId}/roles/${roleId}`);
-  }
-
-  static async replaceUserRoles(userId: string, input: UserRoleIdsInput): Promise<void> {
-    await api.put(`rbac/users/${userId}/roles`, { json: input });
-  }
-
   static async assignPermissionToRole(assignData: AssignPermissionInput): Promise<void> {
     await api.post('rbac/roles/permissions', { json: assignData });
   }
@@ -148,38 +118,6 @@ export class AdminService {
 
   static async getRolePermissions(roleId: string): Promise<RoleWithPermissions> {
     return await api.get(`rbac/roles/${roleId}/permissions`).json<RoleWithPermissions>();
-  }
-
-  static async getAllUsers(): Promise<User[]> {
-    return await withRetry(
-      () => api.get('rbac/users').json<User[]>(),
-      { maxAttempts: 3, initialDelay: 1000 }
-    );
-  }
-
-  static async createUser(userData: CreateRbacUserInput): Promise<User> {
-    return await withRetry(
-      () => api.post('rbac/users', { json: userData }).json<User>(),
-      { maxAttempts: 2, initialDelay: 1000 }
-    );
-  }
-
-  static async getUserRolesAndPermissions(userId: string): Promise<UserWithRolesAndPermissions> {
-    return await withRetry(
-      () => api.get(`rbac/users/${userId}`).json<UserWithRolesAndPermissions>(),
-      { maxAttempts: 3, initialDelay: 1000 }
-    );
-  }
-
-  static async updateUser(userId: string, userData: UpdateRbacUserInput): Promise<User> {
-    return await withRetry(
-      () => api.patch(`rbac/users/${userId}`, { json: userData }).json<User>(),
-      { maxAttempts: 2, initialDelay: 1000 }
-    );
-  }
-
-  static async deleteUser(userId: string): Promise<void> {
-    await api.delete(`rbac/users/${userId}`);
   }
 
   // System Settings

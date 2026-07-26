@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BookingWithDetails, CustomerLedger, CustomerLedgerPayment } from '../../../types';
-import { HotelAPIService } from '../../../api';
+import { GuestsService, RoomsService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
 import { LedgerService } from '../../../api/ledger.service';
 import { queryStaleTime } from '../../../api/queryConfig';
@@ -98,7 +98,7 @@ export function useCheckoutInvoiceData(
     // Fetch room price
     queryClient.ensureQueryData({
       queryKey: queryKeys.rooms.all,
-      queryFn: () => HotelAPIService.getAllRooms(),
+      queryFn: () => RoomsService.getAllRooms(),
       staleTime: queryStaleTime.standard,
     }).then(rooms => {
       const room = rooms.find(r => r.id.toString() === booking.room_id.toString());
@@ -112,7 +112,7 @@ export function useCheckoutInvoiceData(
     // Fetch guest info
     queryClient.ensureQueryData({
       queryKey: queryKeys.guests.list(),
-      queryFn: () => HotelAPIService.getAllGuests(),
+      queryFn: () => GuestsService.getAllGuests(),
       staleTime: queryStaleTime.standard,
     }).then(guests => {
       const guest = guests.find(g => String(g.id) === String(booking.guest_id));

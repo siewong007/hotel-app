@@ -18,7 +18,7 @@ import {
   Close as CloseIcon,
   Add as AddIcon
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { LoyaltyService } from '../../../api';
 
 interface MembershipPointsScannerProps {
   onSuccess?: () => void;
@@ -75,7 +75,7 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
       }
 
       // Add points to the membership
-      await HotelAPIService.addPointsToMembership(
+      await LoyaltyService.addPointsToMembership(
         membershipId,
         points,
         description || `Points added via scanner`

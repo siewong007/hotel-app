@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { BookingWithDetails, CustomerLedger } from '../../../types';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, RoomsService } from '../../../api';
 
 export interface LateCheckoutData {
   penalty: number;
@@ -61,7 +61,7 @@ export interface CheckoutFlow {
  */
 export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutFlow {
   const {
-    updateBooking = (bookingId, payload) => HotelAPIService.updateBooking(String(bookingId), payload),
+    updateBooking = (bookingId, payload) => BookingsService.updateBooking(String(bookingId), payload),
     onAfterCheckout,
     setRoomDirty = true,
     applyLateCheckout = true,
@@ -119,7 +119,7 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
           const dirtyNotes = lateCheckoutData
             ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
             : 'Room requires cleaning after checkout';
-          await HotelAPIService.updateRoomStatus(checkoutBooking.room_id, {
+          await RoomsService.updateRoomStatus(checkoutBooking.room_id, {
             status: 'dirty',
             notes: dirtyNotes,
           });

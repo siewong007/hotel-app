@@ -17,7 +17,7 @@ import {
   CalendarMonth as CalendarIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../types';
-import { HotelAPIService } from '../../../api';
+import { BookingsService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../utils/date';
@@ -95,7 +95,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      await HotelAPIService.updateBooking(String(booking.id), {
+      await BookingsService.updateBooking(String(booking.id), {
         check_out_date: newCheckoutDate,
       });
 

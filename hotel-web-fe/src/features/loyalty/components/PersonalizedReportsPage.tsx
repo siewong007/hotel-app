@@ -30,7 +30,7 @@ import {
   TrendingUp as TrendingUpIcon,
   CalendarToday as CalendarIcon
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { AnalyticsService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 
@@ -68,7 +68,7 @@ const PersonalizedReportsPage: React.FC = () => {
 
   const reportQuery = useQuery({
     queryKey: queryKeys.analytics.personalized(period),
-    queryFn: () => HotelAPIService.getPersonalizedReport(period) as Promise<PersonalizedReport>,
+    queryFn: () => AnalyticsService.getPersonalizedReport(period) as Promise<PersonalizedReport>,
     staleTime: queryStaleTime.short,
   });
 

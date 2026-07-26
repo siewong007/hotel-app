@@ -22,7 +22,7 @@ import {
   PersonAdd as PersonAddIcon,
   EventAvailable as BookIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService } from '../../../api';
 import { Room, Guest, RoomType, TourismType } from '../../../types';
 import { validateEmail } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
@@ -266,7 +266,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     }
 
     try {
-      const newGuest = await HotelAPIService.createGuest({
+      const newGuest = await GuestsService.createGuest({
         first_name: newGuestFirstName,
         last_name: newGuestLastName,
         email: newGuestEmail.trim() || undefined,
@@ -339,7 +339,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 
       // Create the booking - it will be created as 'confirmed' (reserved)
       // Check-in should be done explicitly through the check-in button
-      await HotelAPIService.createBooking({
+      await BookingsService.createBooking({
         guest_id: guestIdToUse,
         room_id: String(room.id),
         check_in_date: checkInDateTime,

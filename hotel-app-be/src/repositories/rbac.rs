@@ -3,9 +3,10 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    Permission, Role, RolePermissionAssignment, RouteAccessPolicy, RouteAccessPolicyInput, User,
-    UserCreateInput, UserRoleAssignment, UserUpdateInput, UserWithRolesAndPermissions,
+    Permission, Role, RolePermissionAssignment, RouteAccessPolicy, RouteAccessPolicyInput,
+    UserRoleAssignment, UserWithRolesAndPermissions,
 };
+use crate::repositories::user::UserRepository;
 use sqlx::FromRow;
 
 pub struct RbacRepository;
@@ -258,15 +259,6 @@ impl RbacRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    pub async fn list_users(pool: &DbPool) -> Result<Vec<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE deleted_at IS NULL ORDER BY username"
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
     pub async fn role_permission_assignments(
         pool: &DbPool,
     ) -> Result<Vec<RolePermissionAssignment>, ApiError> {
@@ -409,17 +401,6 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    pub async fn user_exists(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
-        let id: Option<i64> =
-            sqlx::query_scalar("SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL")
-                .bind(user_id)
-                .fetch_optional(pool)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(id.is_some())
-    }
-
     pub async fn user_role_ids(pool: &DbPool, user_id: i64) -> Result<Vec<i64>, ApiError> {
         sqlx::query_scalar("SELECT role_id FROM user_roles WHERE user_id = $1")
             .bind(user_id)
@@ -496,114 +477,6 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    pub async fn find_user_by_id(pool: &DbPool, user_id: i64) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE id = $1 AND deleted_at IS NULL"
-        )
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    pub async fn username_or_email_exists_for_other(
-        pool: &DbPool,
-        user_id: i64,
-        username: Option<&str>,
-        email: Option<&str>,
-    ) -> Result<bool, ApiError> {
-        let query = r#"
-                SELECT id
-                FROM users
-                WHERE deleted_at IS NULL
-                  AND id != $1
-                  AND (
-                    ($2::text IS NOT NULL AND username = $2)
-                    OR ($3::text IS NOT NULL AND email = $3)
-                  )
-                LIMIT 1
-            "#;
-
-        let id: Option<i64> = sqlx::query_scalar(query)
-            .bind(user_id)
-            .bind(username)
-            .bind(email)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(id.is_some())
-    }
-
-    pub async fn update_user(
-        pool: &DbPool,
-        user_id: i64,
-        input: &UserUpdateInput,
-        password_hash: Option<&str>,
-    ) -> Result<User, ApiError> {
-        let query = r#"
-                UPDATE users
-                SET username = COALESCE($2, username),
-                    email = COALESCE($3, email),
-                    full_name = COALESCE($4, full_name),
-                    phone = COALESCE($5, phone),
-                    is_active = COALESCE($6, is_active),
-                    password_hash = COALESCE($7, password_hash),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1 AND deleted_at IS NULL
-                RETURNING id, username, email, full_name, phone, is_active, is_verified,
-                          user_type, two_factor_enabled, two_factor_secret,
-                          two_factor_recovery_codes, created_at, updated_at
-            "#;
-
-        sqlx::query_as::<_, User>(query)
-            .bind(user_id)
-            .bind(input.username.as_deref())
-            .bind(input.email.as_deref())
-            .bind(input.full_name.as_deref())
-            .bind(input.phone.as_deref())
-            .bind(input.is_active)
-            .bind(password_hash)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?
-            .ok_or_else(|| ApiError::NotFound("User not found".to_string()))
-    }
-
-    pub async fn soft_delete_user(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
-        let delete_roles_query = "DELETE FROM user_roles WHERE user_id = $1";
-        let delete_user_query = r#"
-                UPDATE users
-                SET is_active = false,
-                    deleted_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $1 AND deleted_at IS NULL
-            "#;
-
-        let mut tx = pool
-            .begin()
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        sqlx::query(delete_roles_query)
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        let result = sqlx::query(delete_user_query)
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        tx.commit()
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(result.rows_affected() > 0)
-    }
-
     pub async fn get_user_permissions(
         pool: &DbPool,
         user_id: i64,
@@ -628,7 +501,7 @@ impl RbacRepository {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<UserWithRolesAndPermissions, ApiError> {
-        let user = Self::find_user_by_id(pool, user_id)
+        let user = UserRepository::find_by_id(pool, user_id)
             .await?
             .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
         let roles = Self::get_user_roles(pool, user_id).await?;
@@ -765,50 +638,5 @@ impl RbacRepository {
             .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    pub async fn create_user_with_roles(
-        pool: &DbPool,
-        input: &UserCreateInput,
-        password_hash: &str,
-        role_ids: &[i64],
-    ) -> Result<User, ApiError> {
-        let mut tx = pool
-            .begin()
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            INSERT INTO users (username, email, password_hash, full_name, phone, is_active, is_verified)
-            VALUES ($1, $2, $3, $4, $5, true, true)
-            RETURNING id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at
-            "#,
-        )
-        .bind(&input.username)
-        .bind(&input.email)
-        .bind(password_hash)
-        .bind(&input.full_name)
-        .bind(&input.phone)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        for role_id in role_ids {
-            sqlx::query(
-                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-            )
-            .bind(user.id)
-            .bind(role_id)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-        }
-
-        tx.commit()
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(user)
     }
 }

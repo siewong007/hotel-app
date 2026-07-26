@@ -10,7 +10,7 @@ import {
   Alert,
   CircularProgress,
 } from '@mui/material';
-import { HotelAPIService } from '../../../api';
+import { GuestPortalService } from '../../../api';
 
 export const GuestCheckInLanding: React.FC = () => {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ export const GuestCheckInLanding: React.FC = () => {
     setError(null);
 
     try {
-      const response = await HotelAPIService.guestPortalVerify({
+      const response = await GuestPortalService.verify({
         booking_number: bookingNumber.trim(),
         email: email.trim(),
       });

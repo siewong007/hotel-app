@@ -22,7 +22,7 @@ import {
   CardGiftcard as VoucherIcon,
   Event as EventIcon
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { StatCard } from '../../../components/common/StatCard';
 import { CircularProgress, Box as MuiBox } from '@mui/material';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -52,10 +52,10 @@ const Dashboard: React.FC = () => {
   const loadStats = useCallback(async () => {
     try {
       const [rooms, guests, bookings, myBookings] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllGuests(),
-        HotelAPIService.getAllBookings(),
-        HotelAPIService.getMyBookings().catch(() => []) // Fallback to empty array if fails
+        RoomsService.getAllRooms(),
+        GuestsService.getAllGuests(),
+        BookingsService.getAllBookings(),
+        BookingsService.getMyBookings().catch(() => []) // Fallback to empty array if fails
       ]);
 
       const availableRooms = rooms.filter(room => room.available).length;

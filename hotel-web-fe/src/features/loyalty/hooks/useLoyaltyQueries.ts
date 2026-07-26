@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HotelAPIService } from '../../../api';
+import { LoyaltyService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import type { LoyaltyReward, RedeemRewardInput, RewardInput, RewardUpdateInput } from '../../../types';
@@ -9,7 +9,7 @@ export const loyaltyQueryKeys = queryKeys.loyalty;
 export function useAdminRewards() {
   return useQuery({
     queryKey: loyaltyQueryKeys.rewards(),
-    queryFn: () => HotelAPIService.getRewards(),
+    queryFn: () => LoyaltyService.getRewards(),
     staleTime: queryStaleTime.long,
   });
 }
@@ -17,7 +17,7 @@ export function useAdminRewards() {
 export function useMyLoyaltyRewards(enabled = true) {
   return useQuery({
     queryKey: loyaltyQueryKeys.myRewards(),
-    queryFn: () => HotelAPIService.getLoyaltyRewards(),
+    queryFn: () => LoyaltyService.getLoyaltyRewards(),
     enabled,
     staleTime: queryStaleTime.long,
   });
@@ -26,7 +26,7 @@ export function useMyLoyaltyRewards(enabled = true) {
 export function useMyLoyaltyMembership(enabled = true) {
   return useQuery({
     queryKey: loyaltyQueryKeys.myMembership(),
-    queryFn: () => HotelAPIService.getUserLoyaltyMembership(),
+    queryFn: () => LoyaltyService.getUserLoyaltyMembership(),
     enabled,
     staleTime: queryStaleTime.standard,
   });
@@ -35,7 +35,7 @@ export function useMyLoyaltyMembership(enabled = true) {
 export function useRedeemReward() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: RedeemRewardInput) => HotelAPIService.redeemReward(input),
+    mutationFn: (input: RedeemRewardInput) => LoyaltyService.redeemReward(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: loyaltyQueryKeys.all });
     },
@@ -45,7 +45,7 @@ export function useRedeemReward() {
 export function useCreateReward() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: RewardInput) => HotelAPIService.createReward(input),
+    mutationFn: (input: RewardInput) => LoyaltyService.createReward(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: loyaltyQueryKeys.all });
     },
@@ -56,7 +56,7 @@ export function useUpdateReward() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: RewardUpdateInput }) =>
-      HotelAPIService.updateReward(id, input),
+      LoyaltyService.updateReward(id, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: loyaltyQueryKeys.all });
     },
@@ -66,7 +66,7 @@ export function useUpdateReward() {
 export function useDeleteReward() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => HotelAPIService.deleteReward(id),
+    mutationFn: (id: number) => LoyaltyService.deleteReward(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: loyaltyQueryKeys.all });
     },

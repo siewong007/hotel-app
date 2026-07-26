@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Box, Dialog, Alert, AlertTitle, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Room, Guest, Booking, BookingCreateRequest, RoomType, CheckInAdvisory } from '../../../../types';
-import { HotelAPIService } from '../../../../api';
+import { BookingsService, GuestsService } from '../../../../api';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
@@ -156,7 +156,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       return;
     }
     let cancelled = false;
-    HotelAPIService.getGuestCheckInAdvisory(selectedGuest.id)
+    BookingsService.getGuestCheckInAdvisory(selectedGuest.id)
       .then((advisory) => {
         if (!cancelled) setGuestAdvisory(advisory);
       })
@@ -420,7 +420,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           }
         }
 
-        const newGuest = await HotelAPIService.createGuest({
+        const newGuest = await GuestsService.createGuest({
           first_name: newGuestForm.first_name,
           last_name: newGuestForm.last_name,
           email: newGuestForm.email.trim() || undefined,
@@ -580,7 +580,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         multiRoomNote,
       ].filter(Boolean).join(' | ');
 
-      const created = await HotelAPIService.createBooking({
+      const created = await BookingsService.createBooking({
         ...bookingData,
         room_id: String(bookingRoom.id),
         booking_remarks: bookingRemarks || undefined,
@@ -649,7 +649,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             }
           }
 
-          const newGuest = await HotelAPIService.createGuest({
+          const newGuest = await GuestsService.createGuest({
             first_name: newGuestForm.first_name,
             last_name: newGuestForm.last_name,
             email: newGuestForm.email.trim() || undefined,
@@ -776,7 +776,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           const bookingResults: Array<{ complimentary_nights?: number; [key: string]: unknown }> = [];
           for (const bookingRoom of selectedBookingRooms) {
-            const bookingResult = await HotelAPIService.bookWithCredits({
+            const bookingResult = await BookingsService.bookWithCredits({
               guest_id: selectedGuestWithCredits.id,
               room_id: typeof bookingRoom.id === 'string' ? parseInt(bookingRoom.id) : bookingRoom.id,
               check_in_date: checkInDate,

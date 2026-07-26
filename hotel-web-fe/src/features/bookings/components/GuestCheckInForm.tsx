@@ -17,7 +17,7 @@ import {
   Select,
   MenuItem,
 } from '@mui/material';
-import { HotelAPIService } from '../../../api';
+import { GuestPortalService } from '../../../api';
 import { Booking, Guest, GuestUpdateRequest } from '../../../types';
 import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
 
@@ -60,7 +60,7 @@ export const GuestCheckInForm: React.FC = () => {
 
   const loadBookingData = useCallback(async () => {
     try {
-      const response = await HotelAPIService.guestPortalGetBooking(token!);
+      const response = await GuestPortalService.getBooking(token!);
       setBooking(response.booking);
       setGuest(response.guest);
 
@@ -116,7 +116,7 @@ export const GuestCheckInForm: React.FC = () => {
     setError(null);
 
     try {
-      await HotelAPIService.guestPortalSubmitPreCheckin(token!, {
+      await GuestPortalService.submitPreCheckin(token!, {
         guest_update: formData,
         market_code: marketCode,
         special_requests: specialRequests,

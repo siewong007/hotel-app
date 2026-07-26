@@ -67,7 +67,7 @@ import {
   Business as BusinessIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
-import { HotelAPIService } from '../../../../api';
+import { BookingsService, GuestsService, RoomsService } from '../../../../api';
 import { ReportsService, type BookingChannel } from '../../../../api/reports.service';
 import { queryStaleTime } from '../../../../api/queryConfig';
 import { queryKeys } from '../../../../api/queryKeys';
@@ -413,7 +413,7 @@ const BookingsPage: React.FC = () => {
     // Load room type config for extra bed settings
     queryClient.ensureQueryData({
       queryKey: queryKeys.roomTypes.list(),
-      queryFn: () => HotelAPIService.getAllRoomTypes(),
+      queryFn: () => RoomsService.getAllRoomTypes(),
       staleTime: queryStaleTime.long,
     }).then(roomTypes => {
       const matched = roomTypes.find(rt => rt.name === booking.room_type);
@@ -428,7 +428,7 @@ const BookingsPage: React.FC = () => {
       const bookingId = typeof booking.id === 'string' ? parseInt(booking.id, 10) : booking.id;
       queryClient.ensureQueryData({
         queryKey: queryKeys.rooms.available(checkIn, checkOut, bookingId),
-        queryFn: () => HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut, bookingId),
+        queryFn: () => RoomsService.getAvailableRoomsForDates(checkIn, checkOut, bookingId),
         staleTime: queryStaleTime.short,
       }).then(available => {
         setAvailableRooms(sortRoomsByNumber(available));
@@ -453,7 +453,7 @@ const BookingsPage: React.FC = () => {
     const bookingId = typeof editingBooking.id === 'string' ? parseInt(editingBooking.id, 10) : editingBooking.id;
     queryClient.ensureQueryData({
       queryKey: queryKeys.rooms.available(checkInDate, checkOutDate, bookingId),
-      queryFn: () => HotelAPIService.getAvailableRoomsForDates(checkInDate, checkOutDate, bookingId),
+      queryFn: () => RoomsService.getAvailableRoomsForDates(checkInDate, checkOutDate, bookingId),
       staleTime: queryStaleTime.short,
     }).then(available => {
       setAvailableRooms(sortRoomsByNumber(available));
@@ -535,7 +535,7 @@ const BookingsPage: React.FC = () => {
     if (!voidingBooking) return;
     try {
       setVoiding(true);
-      const result = await HotelAPIService.voidBooking({
+      const result = await BookingsService.voidBooking({
         booking_id: voidingBooking.id,
         reason: voidReason.trim() || 'Voided by admin',
       });
@@ -762,7 +762,7 @@ const BookingsPage: React.FC = () => {
 
       // Back-fill IC / phone from the guest profile (booking summary omits IC).
       if (booking.guest_id !== undefined && booking.guest_id !== null) {
-        HotelAPIService.getGuest(booking.guest_id)
+        GuestsService.getGuest(booking.guest_id)
           .then((guest) => {
             setCiIcNumber((current) => (current.trim() ? current : guest.ic_number || ''));
             setCiPhone((current) => (current.trim() ? current : guest.phone || ''));

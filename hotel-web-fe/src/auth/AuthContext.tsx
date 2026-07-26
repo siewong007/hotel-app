@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken } from '../api/client';
 import { AuthService } from '../api/auth.service';
+import { UsersService } from '../api/users.service';
 import { storage } from '../utils/storage';
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy } from '../types';
@@ -118,7 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // the current access snapshot before flipping isAuthenticated. The
         // `user` object is restored from the (non-sensitive) storage cache set
         // at login; the profile call doubles as a token-validity probe.
-        const profile = await AuthService.getUserProfile();
+        const profile = await UsersService.getUserProfile();
         const access = await AuthService.getAccessSnapshot();
         const cachedUser = storage.getItem<User>('user');
         const user = normalizeAuthUser({ ...cachedUser, ...profile }, access.roles);

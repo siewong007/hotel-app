@@ -33,5 +33,6 @@ pub mod promotion_pricing;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
+pub mod users;
 pub mod search;
 pub mod two_factor;

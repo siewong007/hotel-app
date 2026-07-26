@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService } from '../../../api';
 import type { BookingWithDetails, CheckInRequest } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
@@ -65,7 +65,7 @@ export function useReservedCheckInWorkflow({
     // the fields for staff to complete manually.
     const guestId = nextBooking.guest_id;
     if (guestId !== undefined && guestId !== null) {
-      HotelAPIService.getGuest(guestId)
+      GuestsService.getGuest(guestId)
         .then((guest) => {
           setIcNumber((current) => (current.trim() ? current : guest.ic_number || ''));
           setPhone((current) => (current.trim() ? current : guest.phone || ''));
@@ -132,7 +132,7 @@ export function useReservedCheckInWorkflow({
         updateData.payment_note = `Deposit waived: ${waiveReason}`;
       }
 
-      await HotelAPIService.updateBooking(booking.id, updateData);
+      await BookingsService.updateBooking(booking.id, updateData);
 
       const checkinPayload: CheckInRequest = {
         guest_update: {
@@ -149,7 +149,7 @@ export function useReservedCheckInWorkflow({
         };
       }
 
-      await HotelAPIService.checkInGuest(String(booking.id), checkinPayload);
+      await BookingsService.checkInGuest(String(booking.id), checkinPayload);
 
       showSnackbar(`Guest ${booking.guest_name} checked in successfully to Room ${booking.room_number}`, 'success');
       setDialogOpen(false);

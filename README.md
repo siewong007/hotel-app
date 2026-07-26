@@ -186,7 +186,8 @@ Representative endpoints are listed below; request/response shapes are documente
 | Two-factor auth | `POST /auth/2fa/setup`, `POST /auth/2fa/enable`, `GET /auth/2fa/status` | TOTP setup and verification workflows. |
 | Passkeys | `POST /auth/passkey/register/start`, `POST /auth/passkey/login/start` | Passkey registration and login flow endpoints. |
 | Profile | `GET /profile`, `PATCH /profile`, `POST /profile/password` | User profile and credential management. |
-| RBAC | `GET /rbac/snapshot`, `GET /rbac/roles`, `GET /rbac/permissions`, `GET /rbac/users` | Roles, permissions, users, and assignments. |
+| RBAC | `GET /rbac/snapshot`, `GET /rbac/roles`, `GET /rbac/permissions` | Roles, permissions, and role-permission assignments. |
+| Users | `GET /users`, `POST /users`, `GET /users/{id}`, `PATCH /users/{id}`, `PUT /users/{id}/roles` | User administration and role membership. |
 | Bookings | `GET /bookings`, `POST /bookings`, `GET /bookings/{id}`, `PATCH /bookings/{id}` | Booking records and updates. |
 | Booking operations | `POST /bookings/{id}/checkin`, `GET /bookings/{id}/timeline`, `POST /bookings/void` | Front-desk workflow actions. |
 | Rooms | `GET /rooms`, `POST /rooms`, `PATCH /rooms/{id}`, `PUT /rooms/{id}/status` | Room inventory and status management. |

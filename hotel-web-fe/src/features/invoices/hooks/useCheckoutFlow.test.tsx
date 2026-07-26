@@ -4,14 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingWithDetails, CustomerLedger } from '../../../types';
 
-// Mock the HotelAPIService barrel the hook calls into, following the shared
-// hook-test mocking convention.
+// Mock the api barrel the hook calls into, following the shared hook-test
+// mocking convention.
 const updateBooking = vi.fn();
 const updateRoomStatus = vi.fn();
 
 vi.mock('../../../api', () => ({
-  HotelAPIService: {
+  BookingsService: {
     updateBooking: (...args: any[]) => updateBooking(...args),
+  },
+  RoomsService: {
     updateRoomStatus: (...args: any[]) => updateRoomStatus(...args),
   },
 }));

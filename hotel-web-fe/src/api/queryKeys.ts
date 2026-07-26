@@ -17,6 +17,7 @@ const rbac = ['rbac'] as const;
 const complimentary = ['complimentary'] as const;
 const personalizedReports = ['personalized-reports'] as const;
 const twoFactor = ['two-factor'] as const;
+const profile = ['profile'] as const;
 const loyalty = ['loyalty'] as const;
 const analytics = ['analytics'] as const;
 const reports = ['reports'] as const;
@@ -160,6 +161,12 @@ export const queryKeys = {
   twoFactor: {
     all: twoFactor,
     status: () => [...twoFactor, 'status'] as const,
+  },
+  profile: {
+    all: profile,
+    me: () => [...profile, 'me'] as const,
+    passkeys: () => [...profile, 'passkeys'] as const,
+    sessions: () => [...profile, 'sessions'] as const,
   },
   loyalty: {
     all: loyalty,

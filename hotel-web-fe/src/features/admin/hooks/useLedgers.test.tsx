@@ -4,13 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 
-// Mock the HotelAPIService barrel the hook calls into, following the shared
-// hook-test mocking convention.
+// Mock the api barrel the hook calls into, following the shared hook-test
+// mocking convention.
 const getCustomerLedgers = vi.fn();
 const getLedgersPage = vi.fn();
 
 vi.mock('../../../api', () => ({
-  HotelAPIService: {
+  LedgerService: {
     getCustomerLedgers: (...args: any[]) => getCustomerLedgers(...args),
     getLedgersPage: (...args: any[]) => getLedgersPage(...args),
   },

@@ -176,36 +176,6 @@ describe('AdminService', () => {
     });
   });
 
-  describe('assignRoleToUser', () => {
-    it('posts the assignment as json to rbac/users/roles', async () => {
-      post.mockReturnValue(Promise.resolve(undefined));
-
-      await AdminService.assignRoleToUser({ user_id: '1', role_id: 2 });
-
-      expect(post).toHaveBeenCalledWith('rbac/users/roles', { json: { user_id: '1', role_id: 2 } });
-    });
-  });
-
-  describe('removeRoleFromUser', () => {
-    it('calls DELETE rbac/users/<userId>/roles/<roleId>', async () => {
-      del.mockReturnValue(Promise.resolve(undefined));
-
-      await AdminService.removeRoleFromUser('1', '2');
-
-      expect(del).toHaveBeenCalledWith('rbac/users/1/roles/2');
-    });
-  });
-
-  describe('replaceUserRoles', () => {
-    it('puts the role id list as json to rbac/users/<userId>/roles', async () => {
-      put.mockReturnValue(Promise.resolve(undefined));
-
-      await AdminService.replaceUserRoles('1', { role_ids: [2, 3] });
-
-      expect(put).toHaveBeenCalledWith('rbac/users/1/roles', { json: { role_ids: [2, 3] } });
-    });
-  });
-
   describe('assignPermissionToRole', () => {
     it('posts the assignment as json to rbac/roles/permissions', async () => {
       post.mockReturnValue(Promise.resolve(undefined));
@@ -245,66 +215,6 @@ describe('AdminService', () => {
 
       expect(get).toHaveBeenCalledWith('rbac/roles/2/permissions');
       expect(result).toEqual(response);
-    });
-  });
-
-  describe('getAllUsers', () => {
-    it('calls GET rbac/users', async () => {
-      const users = [{ id: '1', username: 'admin', email: 'a@b.com', is_active: true, created_at: 'x', updated_at: 'x' }];
-      get.mockReturnValue(mockJsonResponse(users));
-
-      const result = await AdminService.getAllUsers();
-
-      expect(get).toHaveBeenCalledWith('rbac/users');
-      expect(result).toEqual(users);
-    });
-  });
-
-  describe('createUser', () => {
-    it('posts the user input as json to rbac/users', async () => {
-      const input = { username: 'newstaff', email: 'staff@example.com', password: 'hunter22' };
-      const created = { id: '2', username: 'newstaff', email: 'staff@example.com', is_active: true, created_at: 'x', updated_at: 'x' };
-      post.mockReturnValue(mockJsonResponse(created));
-
-      const result = await AdminService.createUser(input);
-
-      expect(post).toHaveBeenCalledWith('rbac/users', { json: input });
-      expect(result).toEqual(created);
-    });
-  });
-
-  describe('getUserRolesAndPermissions', () => {
-    it('calls GET rbac/users/<userId>', async () => {
-      const response = { user: { id: '2', username: 'newstaff', email: 'x', is_active: true, created_at: 'x', updated_at: 'x' }, roles: [], permissions: [] };
-      get.mockReturnValue(mockJsonResponse(response));
-
-      const result = await AdminService.getUserRolesAndPermissions('2');
-
-      expect(get).toHaveBeenCalledWith('rbac/users/2');
-      expect(result).toEqual(response);
-    });
-  });
-
-  describe('updateUser', () => {
-    it('patches rbac/users/<userId> with the input as json', async () => {
-      const input = { full_name: 'Updated Name' };
-      const updated = { id: '2', username: 'newstaff', email: 'x', full_name: 'Updated Name', is_active: true, created_at: 'x', updated_at: 'x' };
-      patch.mockReturnValue(mockJsonResponse(updated));
-
-      const result = await AdminService.updateUser('2', input);
-
-      expect(patch).toHaveBeenCalledWith('rbac/users/2', { json: input });
-      expect(result).toEqual(updated);
-    });
-  });
-
-  describe('deleteUser', () => {
-    it('calls DELETE rbac/users/<userId>', async () => {
-      del.mockReturnValue(Promise.resolve(undefined));
-
-      await AdminService.deleteUser('2');
-
-      expect(del).toHaveBeenCalledWith('rbac/users/2');
     });
   });
 

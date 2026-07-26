@@ -36,7 +36,7 @@ import {
 } from '@mui/icons-material';
 import { BookingWithDetails, CustomerLedger } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { HotelAPIService } from '../../../api';
+import { BookingsService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
 import { LedgerService } from '../../../api/ledger.service';
 import { queryKeys } from '../../../api/queryKeys';
@@ -394,7 +394,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     try {
       setSavingRates(true);
       const totalFromRates = Object.values(editableDailyRates).reduce((sum, r) => sum + (r || 0), 0);
-      await HotelAPIService.updateBooking(booking.id, {
+      await BookingsService.updateBooking(booking.id, {
         daily_rates: editableDailyRates,
         room_rate_override: totalFromRates / Object.keys(editableDailyRates).length,
       });

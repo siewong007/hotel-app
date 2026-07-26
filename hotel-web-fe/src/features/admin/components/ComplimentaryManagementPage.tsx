@@ -44,7 +44,7 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import { Autocomplete, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
@@ -95,11 +95,11 @@ export default function ComplimentaryManagementPage() {
     queryKey: queryKeys.complimentary.list(),
     queryFn: async () => {
       const [bookingsData, creditsData, summaryData, guestsData, roomTypesData] = await Promise.all([
-        HotelAPIService.getComplimentaryBookings(),
-        HotelAPIService.getGuestsWithCredits(),
-        HotelAPIService.getComplimentarySummary(),
-        HotelAPIService.getAllGuests(),
-        HotelAPIService.getRoomTypes(),
+        BookingsService.getComplimentaryBookings(),
+        BookingsService.getGuestsWithCredits(),
+        BookingsService.getComplimentarySummary(),
+        GuestsService.getAllGuests(),
+        RoomsService.getRoomTypes(),
       ]);
       return {
         bookings: (bookingsData || []) as BookingWithDetails[],
@@ -265,7 +265,7 @@ export default function ComplimentaryManagementPage() {
     }
     try {
       setProcessing(true);
-      await HotelAPIService.addGuestCredits({
+      await BookingsService.addGuestCredits({
         guest_id: creditFormData.guest_id,
         room_type_id: creditFormData.room_type_id,
         nights: creditFormData.nights,
@@ -285,7 +285,7 @@ export default function ComplimentaryManagementPage() {
     if (!selectedCredit) return;
     try {
       setProcessing(true);
-      await HotelAPIService.updateGuestCredits(
+      await BookingsService.updateGuestCredits(
         selectedCredit.guest_id,
         selectedCredit.room_type_id,
         {
@@ -307,7 +307,7 @@ export default function ComplimentaryManagementPage() {
     if (!selectedCredit) return;
     try {
       setProcessing(true);
-      await HotelAPIService.deleteGuestCredits(selectedCredit.guest_id, selectedCredit.room_type_id);
+      await BookingsService.deleteGuestCredits(selectedCredit.guest_id, selectedCredit.room_type_id);
       showSnackbar('Credits deleted successfully');
       setDeleteCreditDialogOpen(false);
       await loadData();
@@ -392,7 +392,7 @@ export default function ComplimentaryManagementPage() {
     if (!selectedBooking) return;
     try {
       setProcessing(true);
-      await HotelAPIService.updateComplimentary(selectedBooking.id.toString(), editFormData);
+      await BookingsService.updateComplimentary(selectedBooking.id.toString(), editFormData);
       showSnackbar('Complimentary booking updated successfully');
       setEditDialogOpen(false);
       await loadData();
@@ -407,7 +407,7 @@ export default function ComplimentaryManagementPage() {
     if (!selectedBooking) return;
     try {
       setProcessing(true);
-      await HotelAPIService.removeComplimentary(selectedBooking.id.toString());
+      await BookingsService.removeComplimentary(selectedBooking.id.toString());
       showSnackbar('Complimentary status removed successfully');
       setDeleteDialogOpen(false);
       await loadData();
