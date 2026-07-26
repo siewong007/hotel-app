@@ -13,9 +13,15 @@ leftover set.
 ## P0 — broken or security-relevant
 
 - PII in git history: 3 eKYC ID-document JPGs under `uploads/` (needs `git filter-repo`; user call — destructive history rewrite).
+- 2FA is fully broken (found 2026-07-26 by `tests/rbac_profile.rs`): `two_factor_challenges` has no CREATE TABLE anywhere (every `/profile/2fa/setup` 500s), and `core/auth.rs` `enable_2fa`/`update_recovery_codes` bind a JSON string against `users.two_factor_recovery_codes text[]` (task chip spawned).
+- ~~Rate plans cannot be created at all: `repositories/rate.rs` `create_rate_plan` binds `Option<Vec<String>>` against a `jsonb` column — every INSERT fails~~ — DONE 2026-07-26: bind wrapped in `sqlx::types::Json` (None → SQL NULL); `tests/guests_rates_loyalty.rs` now calls the real service (Some-path jsonb round-trip + None-path NULL asserted), 9/9 green 2x live + clippy `--all-features --all-targets` clean.
+- Room-type prices decode as 0: `repositories/rate.rs:502` private `row_to_room_type` shadows the real `models::row_mappers` mapper; `numeric` decode fails and is swallowed to 0/None — confirmed live, DB 50.00 → returned 0 (chip spawned).
 
 ## P1 — decided, not yet executed
 
+- ~~Company-ledger statement void filter is a no-op: `repositories/analytics.rs` (~2241, ~2321) filters `status NOT IN ('voided')` but the legal value is `'void'`~~ — DONE 2026-07-26: both literals fixed to `'void'` (a src/-wide sweep found no other `customer_ledgers` `'voided'` literals; remaining ones target `bookings`, where it's valid); `tests/audit_analytics_settings.rs` now seeds a `status='void'` row and asserts exclusion from both statement shapes — verified failing against the old literal, then 2x green + clippy `--all-features --all-targets` clean.
+- Manual room-status updates skip validation: `services/rooms.rs::update_room_status_handler` never calls `validate_room_status_transition()` and doesn't auto-create a cleaning task when flipping to `dirty` (unlike the booking-trigger path).
+- ~~FE `guests.service.ts:81` double-wraps 401s~~ — DONE 2026-07-26: `toGuestApiError` now passes `APIError` instances through, so the 401/session-expired error reaches callers with its statusCode; test updated to assert 401 (typecheck/lint/28 tests green).
 - Business-day math via `Utc::now().date_naive()` (same class as the fixed `chrono::Local` sites, found by the 2026-07-26 review): `modules/loyalty/service.rs:641` (reward valid_from/valid_to — off by one day 00:00–08:00 local at UTC+8), `repositories/channel_net_revenue.rs:960`, `repositories/payment.rs:1033` (response-only), `modules/guest_booking/repository.rs:53,56` — thread `hotel_today` in the same way.
 
 ## P2 — later
@@ -26,6 +32,8 @@ leftover set.
 
 ## Decisions needed (user)
 
+- Voided bookings leave their receivable open: `services/bookings.rs::void_booking` never touches the auto-posted company/city-ledger row — it stays `pending` with `void_at` NULL. Cascade the void to the ledger row, or keep manual reconciliation? (money-policy; `tests/ledger_service.rs` documents current behavior).
+- Dead-code cleanup batch (found 2026-07-26 by the test pass — delete or wire up): whole `routes/loyalty.rs`+`services/loyalty.rs`+`repositories/loyalty.rs` stack (live one is `modules::loyalty`), `BookingRepository::check_in/check_out`, `GuestRepository::delete` (soft-delete; real path hard-deletes), `GuestUpdateInput.is_active` (accepted, never persisted), unreachable `'draft'` branch in FE `CustomerLedger/helpers.ts::getLedgerUiStatus`.
 - Branch protection on master: no rule exists (verified via `gh api` 2026-07-26); pick required checks / review count / admin bypass, or delegate with the policy stated.
 - PayPal refunds/disputes: `PAYMENT.CAPTURE.REFUNDED` webhooks are signature-verified and audit-logged but never auto-applied — auto-apply vs manual reconciliation is a money-policy call.
 - PayPal conflict banner visibility: the Payment Approvals banner needs `audit:read`, which the `manager` role (the payment approvers) lacks — grant managers `audit:read`, or add a narrower conflicts endpoint.
