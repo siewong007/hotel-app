@@ -208,6 +208,16 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
+        // room_history.changed_by references users with NO cascade, and the
+        // room-status triggers write those rows behind our back, so deleting the
+        // actor fails with a 23503 FK violation once any run has left history
+        // behind. (room_history.room_id DOES cascade from rooms -- it is this
+        // second, actor-side edge that pins the row.)
+        sqlx::query("DELETE FROM room_history WHERE changed_by = $1")
+            .bind(actor_id)
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM users WHERE id = $1")
             .bind(actor_id)
             .execute(pool)
