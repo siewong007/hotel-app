@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { LedgerService } from '../../../../../api';
 import type { BookingWithDetails, Company, CustomerLedger } from '../../../../../types';
 import { useLedgersPage } from '../../../hooks/useLedgers';
-import { getLedgerUiStatus } from '../helpers';
+import { getLedgerUiStatus, isLedgerVoided } from '../helpers';
 import type { EntryStatusFilter } from '../types';
 import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../../utils/money';
 
@@ -73,7 +73,14 @@ export function useCustomerLedgerWorkspace({
     let partial_count = 0;
     let overdue_count = 0;
 
-    ledgers.forEach((ledger) => {
+    // Voided ledgers keep their GENERATED balance_due column as-is (voiding
+    // never zeroes it), so they must be excluded here to match the backend's
+    // own /ledgers/summary (`WHERE status NOT IN ('void')`) and what the Void
+    // dialog promises the operator: a voided charge stops counting toward
+    // what a company owes.
+    const activeLedgers = ledgers.filter((ledger) => !isLedgerVoided(ledger));
+
+    activeLedgers.forEach((ledger) => {
       total_amount = sumMoney([total_amount, ledger.amount]);
       total_paid = sumMoney([total_paid, ledger.paid_amount]);
       total_outstanding = sumMoney([total_outstanding, ledger.balance_due]);
@@ -83,7 +90,7 @@ export function useCustomerLedgerWorkspace({
     });
 
     return {
-      total_entries: ledgers.length,
+      total_entries: activeLedgers.length,
       total_amount,
       total_paid,
       total_outstanding,
@@ -95,7 +102,11 @@ export function useCustomerLedgerWorkspace({
 
   const companyAggregates = useMemo(() => {
     const rows = new Map<string, CompanyLedgerAggregate>();
-    ledgers.forEach((ledger) => {
+    // Same void exclusion as `summary` above: a voided ledger's balance_due
+    // is never zeroed by the void action, so leaving it in would show a
+    // company as still owing (or having billed) money for a charge the Void
+    // dialog told the operator was cancelled.
+    ledgers.filter((ledger) => !isLedgerVoided(ledger)).forEach((ledger) => {
       const current = rows.get(ledger.company_name) || { ...EMPTY_AGGREGATE };
       const uiStatus = getLedgerUiStatus(ledger);
       const amount = toMoneyNumber(ledger.amount);
