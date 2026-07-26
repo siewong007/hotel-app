@@ -727,13 +727,16 @@ impl AuthService {
         None
     }
 
-    /// Create a temporary 2FA challenge for user operations
+    /// Create a temporary 2FA challenge for user operations.
+    /// The plaintext code is returned to the caller (and ultimately the client);
+    /// only its SHA-256 hash is stored, like refresh tokens.
     pub async fn create_2fa_challenge(
         pool: &DbPool,
         user_id: i64,
         purpose: &str,
     ) -> Result<String, sqlx::Error> {
         let challenge_code = Self::generate_refresh_token(); // Reuse for 2FA challenge
+        let challenge_hash = Self::hash_refresh_token(&challenge_code);
         let expires_at = Utc::now() + Duration::minutes(10);
 
         sqlx::query(
@@ -747,13 +750,44 @@ impl AuthService {
             "#,
         )
         .bind(user_id)
-        .bind(&challenge_code)
+        .bind(&challenge_hash)
         .bind(purpose)
         .bind(expires_at)
         .execute(pool)
         .await?;
 
         Ok(challenge_code)
+    }
+
+    /// Atomically consume a pending 2FA challenge: the row is deleted only when
+    /// the hashed code matches and it has not expired, so a successful challenge
+    /// is single-use. Returns whether a matching, unexpired challenge existed.
+    /// A mismatch or an expired row leaves the table untouched — a typo must not
+    /// burn the challenge, and callers treat `false` as "restart setup".
+    pub async fn consume_2fa_challenge(
+        pool: &DbPool,
+        user_id: i64,
+        purpose: &str,
+        challenge_code: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let challenge_hash = Self::hash_refresh_token(challenge_code);
+
+        let result = sqlx::query(
+            r#"
+            DELETE FROM two_factor_challenges
+            WHERE user_id = $1
+              AND purpose = $2
+              AND challenge_code = $3
+              AND expires_at > CURRENT_TIMESTAMP
+            "#,
+        )
+        .bind(user_id)
+        .bind(purpose)
+        .bind(&challenge_hash)
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected() == 1)
     }
 
     /// Enable 2FA for a user

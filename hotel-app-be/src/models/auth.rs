@@ -28,6 +28,11 @@ pub struct AuthResponse {
     pub permissions: Vec<String>,
     pub route_policies: Vec<RouteAccessPolicy>,
     pub is_first_login: bool,
+    /// Set only when this login consumed a 2FA recovery code: how many
+    /// recovery codes remain afterwards, so the client can warn the user
+    /// to regenerate when the supply runs low.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_codes_remaining: Option<usize>,
 }
 
 /// Current user's dynamic access snapshot.
@@ -129,6 +134,10 @@ pub struct TwoFactorSetupRequest {}
 pub struct TwoFactorEnableRequest {
     #[validate(length(min = 6, max = 12, message = "Invalid 2FA code"))]
     pub code: String,
+    // The 64-hex-char challenge minted by /2fa/setup (AuthService::generate_refresh_token);
+    // proves the enable follows a setup on this account within the challenge TTL.
+    #[validate(length(equal = 64, message = "Invalid challenge code"))]
+    pub challenge_code: String,
 }
 
 /// Request to disable 2FA

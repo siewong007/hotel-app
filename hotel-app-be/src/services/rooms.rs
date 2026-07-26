@@ -720,6 +720,11 @@ pub async fn update_room_status_handler(
         }
     }
 
+    // Enforce the room-status state machine on the final target — the same
+    // `validate_room_status_transition()` SQL function the booking-trigger
+    // path runs inside `update_room_status()`.
+    rq::validate_room_status_transition(&pool, room_id, target_status.as_str(), user_id).await?;
+
     enforce_transition_permission(
         &pool,
         user_id,
@@ -776,6 +781,12 @@ pub async fn update_room_status_handler(
         room_id,
     )
     .await?;
+
+    // Mirror the SQL `update_room_status()` behavior the booking-trigger path
+    // gets: a room flipped dirty must surface an open cleaning task.
+    if matches!(target_status.as_str(), "dirty" | "reserved_dirty") {
+        rq::ensure_pending_cleaning_task(&pool, room_id, user_id, input.notes.as_deref()).await?;
+    }
 
     // Only record room history for guest actions (check-in / check-out)
     let is_checkin = target_status == "occupied";

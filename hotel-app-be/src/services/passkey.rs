@@ -330,6 +330,7 @@ pub async fn login_finish(
             permissions,
             route_policies,
             is_first_login,
+            recovery_codes_remaining: None,
         },
         refresh_token,
     ))

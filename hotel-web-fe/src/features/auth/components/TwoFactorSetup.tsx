@@ -46,8 +46,10 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   const [setupData, setSetupData] = useState<{
     secret: string;
     qr_code_url: string;
-    backup_codes: string[];
+    challenge_code: string;
   } | null>(null);
+  // Codes minted by the enable call — the only set that actually works.
+  const [enableBackupCodes, setEnableBackupCodes] = useState<string[]>([]);
   const [verificationCode, setVerificationCode] = useState('');
   const [disableCode, setDisableCode] = useState('');
   const [showSetupDialog, setShowSetupDialog] = useState(false);
@@ -76,12 +78,20 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       showSnackbar('Please enter verification code', 'warning');
       return;
     }
+    if (!setupData) {
+      showSnackbar('Setup session expired. Restart 2FA setup.', 'warning');
+      return;
+    }
 
     try {
-      await enableMutation.mutateAsync(verificationCode);
+      const result = await enableMutation.mutateAsync({
+        code: verificationCode,
+        challengeCode: setupData.challenge_code,
+      });
       setShowSetupDialog(false);
       setVerificationCode('');
       setSetupData(null);
+      setEnableBackupCodes(result.backup_codes);
       showSnackbar('2FA enabled successfully', 'success');
       onSetupComplete?.();
     } catch (error: any) {
@@ -281,35 +291,11 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 inputProps={{ maxLength: 6 }}
-                sx={{ mb: 3 }}
+                sx={{ mb: 1 }}
               />
-
-              <Typography variant="body1" sx={{ mb: 2 }}>
-                4. <strong>Important:</strong> Save these backup codes in a secure place. You can use them to access your account if you lose your device:
+              <Typography variant="body2" color="text.secondary">
+                Your backup codes will be shown after 2FA is enabled.
               </Typography>
-              <Paper sx={{ p: 2, bgcolor: 'warning.light', mb: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-                  ⚠️ Store these codes somewhere safe. Each code can only be used once.
-                </Typography>
-                <Grid container spacing={1}>
-                  {setupData.backup_codes.map((code, index) => (
-                    <Grid key={index} size={6}>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
-                        {code}
-                      </Typography>
-                    </Grid>
-                  ))}
-                </Grid>
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                  <Button
-                    size="small"
-                    startIcon={<CopyIcon />}
-                    onClick={() => copyToClipboard(setupData.backup_codes.join('\n'))}
-                  >
-                    Copy All Codes
-                  </Button>
-                </Box>
-              </Paper>
             </Box>
           )}
         </DialogContent>
@@ -321,6 +307,45 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             disabled={verificationCode.length !== 6 || loading}
           >
             Enable 2FA
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Backup Codes Dialog — shown exactly once, right after 2FA is enabled */}
+      <Dialog open={enableBackupCodes.length > 0} maxWidth="sm" fullWidth>
+        <DialogTitle>Save Your Backup Codes</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            Use these codes to access your account if you lose your device. They will not be
+            shown again.
+          </Typography>
+          <Paper sx={{ p: 2, bgcolor: 'warning.light' }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+              ⚠️ Store these codes somewhere safe. Each code can only be used once.
+            </Typography>
+            <Grid container spacing={1}>
+              {enableBackupCodes.map((code, index) => (
+                <Grid key={index} size={6}>
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
+                    {code}
+                  </Typography>
+                </Grid>
+              ))}
+            </Grid>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <Button
+                size="small"
+                startIcon={<CopyIcon />}
+                onClick={() => copyToClipboard(enableBackupCodes.join('\n'))}
+              >
+                Copy All Codes
+              </Button>
+            </Box>
+          </Paper>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setEnableBackupCodes([])}>
+            I saved my codes
           </Button>
         </DialogActions>
       </Dialog>

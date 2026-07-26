@@ -248,7 +248,6 @@ describe('AuthService', () => {
       const setup = {
         secret: 'abc',
         qr_code_url: 'data:...',
-        backup_codes: ['1', '2'],
         challenge_code: 'c'.repeat(64),
       };
       post.mockReturnValue(mockJsonResponse(setup));
@@ -261,15 +260,17 @@ describe('AuthService', () => {
   });
 
   describe('enableTwoFactor', () => {
-    it('posts the code and setup challenge as json to profile/2fa/enable', async () => {
-      post.mockReturnValue(Promise.resolve(undefined));
+    it('posts the code and setup challenge, returning the minted backup codes', async () => {
+      const enable = { message: '2FA enabled successfully', backup_codes: ['a-b', 'c-d'] };
+      post.mockReturnValue(mockJsonResponse(enable));
 
       const challenge = 'c'.repeat(64);
-      await AuthService.enableTwoFactor('123456', challenge);
+      const result = await AuthService.enableTwoFactor('123456', challenge);
 
       expect(post).toHaveBeenCalledWith('profile/2fa/enable', {
         json: { code: '123456', challenge_code: challenge },
       });
+      expect(result).toEqual(enable);
     });
   });
 
