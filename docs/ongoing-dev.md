@@ -16,8 +16,7 @@ leftover set.
 
 ## P1 — decided, not yet executed
 
-- Prove `desktop-build.yml` green: the ICU/PG-19beta2 fix is committed, but the only dispatch run ever (2026-07-12, run 29187351078) predates it — push, `gh workflow run desktop-build.yml`, then watch the never-yet-executed later steps (provision pgsql, tauri build, artifact upload).
-- Finish hotel-timezone day math where `core/db.rs::hotel_today()` needs a contract change to fit: `services/invoice_numbers.rs:20` + `repositories/maintenance.rs:98` (YYYYMM prefixes on single-use generic executors), `repositories/analytics.rs` aging rows (`created_at.with_timezone(&Local)` ×2), ekyc expiry checks (`modules/ekyc/validation.rs:175` is sync, `services/ekyc.rs:196`).
+- Business-day math via `Utc::now().date_naive()` (same class as the fixed `chrono::Local` sites, found by the 2026-07-26 review): `modules/loyalty/service.rs:641` (reward valid_from/valid_to — off by one day 00:00–08:00 local at UTC+8), `repositories/channel_net_revenue.rs:960`, `repositories/payment.rs:1033` (response-only), `modules/guest_booking/repository.rs:53,56` — thread `hotel_today` in the same way.
 
 ## P2 — later
 
