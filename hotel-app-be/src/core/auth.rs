@@ -1,5 +1,5 @@
 use super::config;
-use super::db::{DbPool, array_to_json};
+use super::db::DbPool;
 use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{Duration, Utc};
 use hex;
@@ -764,7 +764,6 @@ impl AuthService {
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
         let recovery_code_hashes = Self::recovery_codes_for_storage(recovery_codes);
-        let codes_json = array_to_json(&recovery_code_hashes);
 
         sqlx::query(
             r#"
@@ -778,7 +777,7 @@ impl AuthService {
         )
         .bind(user_id)
         .bind(secret)
-        .bind(&codes_json)
+        .bind(&recovery_code_hashes)
         .execute(pool)
         .await?;
 
@@ -811,7 +810,6 @@ impl AuthService {
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
         let recovery_code_hashes = Self::recovery_codes_for_storage(recovery_codes);
-        let codes_json = array_to_json(&recovery_code_hashes);
 
         sqlx::query(
             r#"
@@ -822,7 +820,7 @@ impl AuthService {
             "#,
         )
         .bind(user_id)
-        .bind(&codes_json)
+        .bind(&recovery_code_hashes)
         .execute(pool)
         .await?;
 

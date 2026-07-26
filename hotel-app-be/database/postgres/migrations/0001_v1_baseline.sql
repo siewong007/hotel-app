@@ -4757,6 +4757,26 @@ ALTER TABLE public.system_settings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENT
 
 
 --
+-- Name: two_factor_challenges; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.two_factor_challenges (
+    user_id bigint NOT NULL,
+    challenge_code character varying(255) NOT NULL,
+    purpose character varying(50) NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: TABLE two_factor_challenges; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.two_factor_challenges IS 'Short-lived challenges issued while a user sets up two-factor authentication; one active challenge per (user, purpose)';
+
+
+--
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6011,6 +6031,14 @@ ALTER TABLE ONLY public.system_settings
 
 ALTER TABLE ONLY public.system_settings
     ADD CONSTRAINT system_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: two_factor_challenges two_factor_challenges_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.two_factor_challenges
+    ADD CONSTRAINT two_factor_challenges_pkey PRIMARY KEY (user_id, purpose);
 
 
 --
@@ -9343,6 +9371,14 @@ ALTER TABLE ONLY public.support_messages
 
 ALTER TABLE ONLY public.system_settings
     ADD CONSTRAINT system_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: two_factor_challenges two_factor_challenges_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.two_factor_challenges
+    ADD CONSTRAINT two_factor_challenges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
