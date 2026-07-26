@@ -67,6 +67,28 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
     }
 }
 
+/// Stay/pricing context used to test voucher eligibility.
+pub struct VoucherEligibilityQuery<'a> {
+    pub guest_id: i64,
+    pub room_type_id: i64,
+    pub check_in: NaiveDate,
+    pub check_out: NaiveDate,
+    pub nights: i64,
+    pub subtotal: Decimal,
+    pub currency: &'a str,
+}
+
+/// Amounts recorded when a voucher is redeemed against a booking.
+pub struct VoucherRedemptionValues<'a> {
+    pub voucher: &'a VoucherPricing,
+    pub booking_id: i64,
+    pub guest_id: i64,
+    pub actor_user_id: Option<i64>,
+    pub subtotal: Decimal,
+    pub discount_amount: Decimal,
+    pub total_amount: Decimal,
+}
+
 pub struct GuestBookingRepository;
 
 impl GuestBookingRepository {
@@ -360,18 +382,20 @@ impl GuestBookingRepository {
         }))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn eligible_voucher(
         pool: &DbPool,
         voucher_id: i64,
-        guest_id: i64,
-        room_type_id: i64,
-        check_in: NaiveDate,
-        check_out: NaiveDate,
-        nights: i64,
-        subtotal: Decimal,
-        currency: &str,
+        query: VoucherEligibilityQuery<'_>,
     ) -> Result<VoucherPricing, ApiError> {
+        let VoucherEligibilityQuery {
+            guest_id,
+            room_type_id,
+            check_in,
+            check_out,
+            nights,
+            subtotal,
+            currency,
+        } = query;
         let row = sqlx::query(r#"
                 SELECT v.id AS voucher_id, p.id AS promotion_id, p.name AS promotion_name,
                        p.discount_type, p.discount_value::text AS discount_value,
@@ -413,17 +437,19 @@ impl GuestBookingRepository {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn eligible_voucher_ids(
         pool: &DbPool,
-        guest_id: i64,
-        room_type_id: i64,
-        check_in: NaiveDate,
-        check_out: NaiveDate,
-        nights: i64,
-        subtotal: Decimal,
-        currency: &str,
+        query: VoucherEligibilityQuery<'_>,
     ) -> Result<Vec<i64>, ApiError> {
+        let VoucherEligibilityQuery {
+            guest_id,
+            room_type_id,
+            check_in,
+            check_out,
+            nights,
+            subtotal,
+            currency,
+        } = query;
         sqlx::query_scalar(r#"
                 SELECT v.id
                 FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
@@ -566,17 +592,19 @@ impl GuestBookingRepository {
         .map_err(ApiError::from)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn redeem_voucher_tx(
         tx: &mut DbTransaction<'_>,
-        voucher: &VoucherPricing,
-        booking_id: i64,
-        guest_id: i64,
-        actor_user_id: Option<i64>,
-        subtotal: Decimal,
-        discount_amount: Decimal,
-        total_amount: Decimal,
+        values: VoucherRedemptionValues<'_>,
     ) -> Result<(), ApiError> {
+        let VoucherRedemptionValues {
+            voucher,
+            booking_id,
+            guest_id,
+            actor_user_id,
+            subtotal,
+            discount_amount,
+            total_amount,
+        } = values;
         let updated = sqlx::query("UPDATE vouchers SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND guest_id = $2 AND status = 'available'")
         .bind(voucher.voucher_id)
         .bind(guest_id)

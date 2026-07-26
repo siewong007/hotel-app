@@ -11,7 +11,10 @@ use super::models::{
     GuestSupportMessageRequest, SupportActionInput, SupportConversationDetail,
     SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
 };
-use super::repository::{ConversationMutation, NewConversation, SupportRepository};
+use super::repository::{
+    ConversationFilters, ConversationMutation, NewConversation, SupportEventValues,
+    SupportRepository,
+};
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -19,6 +22,7 @@ use crate::core::middleware::check_permission;
 use crate::core::settings_cache;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
+use crate::models::AuditEvent;
 
 const DEFAULT_REOPEN_WINDOW_DAYS: i64 = 7;
 const DEFAULT_SUPPORT_CATEGORIES: &[&str] = &[
@@ -288,14 +292,16 @@ pub async fn list_staff_conversations(
     let pagination = normalize_pagination(query.page, query.page_size, 20, 100);
     let (total, items) = SupportRepository::list_conversations(
         pool,
-        actor_id,
-        normalized_queue.as_deref(),
-        normalized_status.as_deref(),
-        normalized_priority.as_deref(),
-        query.assigned_to_user_id,
-        query.search.as_deref(),
-        pagination.page_size,
-        pagination.offset,
+        ConversationFilters {
+            viewer_id: actor_id,
+            queue: normalized_queue.as_deref(),
+            status: normalized_status.as_deref(),
+            priority: normalized_priority.as_deref(),
+            assigned_to_user_id: query.assigned_to_user_id,
+            search: query.search.as_deref(),
+            page_size: pagination.page_size,
+            offset: pagination.offset,
+        },
     )
     .await?;
     let metrics = SupportRepository::queue_metrics(pool).await?;
@@ -410,13 +416,15 @@ pub async fn send_staff_message(
     .await?;
     SupportRepository::insert_event(
         &mut *transaction,
-        conversation_id,
-        None,
-        Some(actor_id),
-        "staff_replied",
-        Some(&current.summary.status),
-        Some("waiting_for_guest"),
-        None,
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: None,
+            actor_user_id: Some(actor_id),
+            event_type: "staff_replied",
+            from_status: Some(&current.summary.status),
+            to_status: Some("waiting_for_guest"),
+            details: None,
+        },
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
@@ -427,13 +435,15 @@ pub async fn send_staff_message(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(actor_id),
-        "support.message_sent",
-        "support_conversation",
-        Some(conversation_id),
-        Some(json!({"author_type": "staff"})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "support.message_sent",
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({"author_type": "staff"})),
+            ip_address,
+            user_agent,
+        },
     )
     .await;
     staff_detail(pool, conversation_id).await
@@ -674,16 +684,18 @@ pub async fn apply_staff_action(
     }
     SupportRepository::insert_event(
         &mut *transaction,
-        conversation_id,
-        None,
-        Some(actor_id),
-        &event_type,
-        Some(&current.summary.status),
-        Some(&mutation.status),
-        (!event_details
-            .as_object()
-            .is_some_and(|object| object.is_empty()))
-        .then_some(event_details),
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: None,
+            actor_user_id: Some(actor_id),
+            event_type: &event_type,
+            from_status: Some(&current.summary.status),
+            to_status: Some(&mutation.status),
+            details: (!event_details
+                .as_object()
+                .is_some_and(|object| object.is_empty()))
+            .then_some(event_details),
+        },
     )
     .await?;
     if let Some(key) = input.client_action_id.as_deref() {
@@ -704,13 +716,15 @@ pub async fn apply_staff_action(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(actor_id),
-        &format!("support.{event_type}"),
-        "support_conversation",
-        Some(conversation_id),
-        Some(json!({"from_status": current.summary.status, "to_status": mutation.status, "action": action})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: &format!("support.{event_type}"),
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({"from_status": current.summary.status, "to_status": mutation.status, "action": action})),
+            ip_address,
+            user_agent,
+        },
     )
     .await;
     staff_detail(pool, conversation_id).await
@@ -842,13 +856,15 @@ pub async fn create_guest_conversation(
     .await?;
     SupportRepository::insert_event(
         &mut *transaction,
-        conversation_id,
-        Some(guest_id),
-        None,
-        "created",
-        None,
-        Some("waiting_for_staff"),
-        Some(json!({"category": category})),
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: Some(guest_id),
+            actor_user_id: None,
+            event_type: "created",
+            from_status: None,
+            to_status: Some("waiting_for_staff"),
+            details: Some(json!({"category": category})),
+        },
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
@@ -859,13 +875,15 @@ pub async fn create_guest_conversation(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.support_conversation_created",
-        "support_conversation",
-        Some(conversation_id),
-        Some(json!({"guest_id": guest_id, "category": category})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.support_conversation_created",
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({"guest_id": guest_id, "category": category})),
+            ip_address,
+            user_agent,
+        },
     )
     .await;
     get_guest_conversation(pool, guest_id, conversation_id).await
@@ -960,13 +978,15 @@ pub async fn send_guest_message(
     .await?;
     SupportRepository::insert_event(
         &mut *transaction,
-        conversation_id,
-        Some(guest_id),
-        None,
-        event_type,
-        Some(&from_status),
-        Some(&mutation.status),
-        None,
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: Some(guest_id),
+            actor_user_id: None,
+            event_type,
+            from_status: Some(&from_status),
+            to_status: Some(&mutation.status),
+            details: None,
+        },
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
@@ -977,13 +997,15 @@ pub async fn send_guest_message(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.support_message_sent",
-        "support_conversation",
-        Some(conversation_id),
-        Some(json!({"guest_id": guest_id, "event": event_type})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.support_message_sent",
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({"guest_id": guest_id, "event": event_type})),
+            ip_address,
+            user_agent,
+        },
     )
     .await;
     get_guest_conversation(pool, guest_id, conversation_id).await
@@ -1032,13 +1054,15 @@ pub async fn reopen_guest_conversation(
     }
     SupportRepository::insert_event(
         &mut *transaction,
-        conversation_id,
-        Some(guest_id),
-        None,
-        "reopened_by_guest",
-        Some("resolved"),
-        Some("waiting_for_staff"),
-        None,
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: Some(guest_id),
+            actor_user_id: None,
+            event_type: "reopened_by_guest",
+            from_status: Some("resolved"),
+            to_status: Some("waiting_for_staff"),
+            details: None,
+        },
     )
     .await?;
     transaction.commit().await.map_err(ApiError::from)?;
@@ -1049,13 +1073,15 @@ pub async fn reopen_guest_conversation(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.support_reopened",
-        "support_conversation",
-        Some(conversation_id),
-        Some(json!({"guest_id": guest_id})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.support_reopened",
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({"guest_id": guest_id})),
+            ip_address,
+            user_agent,
+        },
     )
     .await;
     get_guest_conversation(pool, guest_id, conversation_id).await

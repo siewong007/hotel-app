@@ -54,17 +54,18 @@ pub async fn create_customer_ledger(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "customer_ledger_created",
-        "customer_ledger",
-        Some(ledger.id),
-        Some(serde_json::json!({
-            "company_name": ledger.company_name,
-            "amount": ledger.amount,
-            "expense_type": ledger.expense_type,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "customer_ledger_created",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger.id),
+            details: Some(serde_json::json!({
+                "company_name": ledger.company_name,
+                "amount": ledger.amount,
+                "expense_type": ledger.expense_type,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -102,17 +103,18 @@ pub async fn update_customer_ledger(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "customer_ledger_updated",
-        "customer_ledger",
-        Some(ledger_id),
-        Some(serde_json::json!({
-            "company_name": ledger.company_name,
-            "amount": ledger.amount,
-            "status": ledger.status,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "customer_ledger_updated",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: Some(serde_json::json!({
+                "company_name": ledger.company_name,
+                "amount": ledger.amount,
+                "status": ledger.status,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -128,13 +130,14 @@ pub async fn delete_customer_ledger(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "customer_ledger_deleted",
-        "customer_ledger",
-        Some(ledger_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "customer_ledger_deleted",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 
@@ -151,17 +154,18 @@ pub async fn create_ledger_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "ledger_payment_created",
-        "customer_ledger",
-        Some(ledger_id),
-        Some(serde_json::json!({
-            "payment_id": payment.id,
-            "payment_amount": payment.payment_amount,
-            "payment_method": payment.payment_method,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "ledger_payment_created",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: Some(serde_json::json!({
+                "payment_id": payment.id,
+                "payment_amount": payment.payment_amount,
+                "payment_method": payment.payment_method,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -190,13 +194,14 @@ pub async fn void_ledger(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "customer_ledger_voided",
-        "customer_ledger",
-        Some(ledger_id),
-        Some(serde_json::json!({ "reason": reason })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "customer_ledger_voided",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: Some(serde_json::json!({ "reason": reason })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -214,16 +219,17 @@ pub async fn create_ledger_reversal(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "customer_ledger_reversed",
-        "customer_ledger",
-        Some(ledger_id),
-        Some(serde_json::json!({
-            "reason": reason,
-            "reversal_id": reversal.id,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "customer_ledger_reversed",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: Some(serde_json::json!({
+                "reason": reason,
+                "reversal_id": reversal.id,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -241,13 +247,14 @@ pub async fn update_ledger_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "ledger_payment_updated",
-        "customer_ledger",
-        Some(ledger_id),
-        Some(serde_json::json!({ "payment_id": payment_id })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "ledger_payment_updated",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: Some(serde_json::json!({ "payment_id": payment_id })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -264,13 +271,14 @@ pub async fn delete_ledger_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "ledger_payment_deleted",
-        "customer_ledger",
-        Some(ledger_id),
-        Some(serde_json::json!({ "payment_id": payment_id })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "ledger_payment_deleted",
+            resource_type: "customer_ledger",
+            resource_id: Some(ledger_id),
+            details: Some(serde_json::json!({ "payment_id": payment_id })),
+            ..Default::default()
+        },
     )
     .await;
 

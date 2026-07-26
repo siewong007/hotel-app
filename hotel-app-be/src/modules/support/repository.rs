@@ -213,6 +213,29 @@ pub struct ConversationMutation {
     pub expected_version: Option<i64>,
 }
 
+/// Filter and pagination inputs for the support conversation listing.
+pub struct ConversationFilters<'a> {
+    pub viewer_id: i64,
+    pub queue: Option<&'a str>,
+    pub status: Option<&'a str>,
+    pub priority: Option<&'a str>,
+    pub assigned_to_user_id: Option<i64>,
+    pub search: Option<&'a str>,
+    pub page_size: i64,
+    pub offset: i64,
+}
+
+/// Column values for one `support_conversation_events` row.
+pub struct SupportEventValues<'a> {
+    pub conversation_id: i64,
+    pub actor_guest_id: Option<i64>,
+    pub actor_user_id: Option<i64>,
+    pub event_type: &'a str,
+    pub from_status: Option<&'a str>,
+    pub to_status: Option<&'a str>,
+    pub details: Option<Value>,
+}
+
 pub struct SupportRepository;
 
 impl SupportRepository {
@@ -248,18 +271,20 @@ impl SupportRepository {
         Ok(row.as_ref().map(conversation_from_row))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn list_conversations(
         pool: &DbPool,
-        viewer_id: i64,
-        queue: Option<&str>,
-        status: Option<&str>,
-        priority: Option<&str>,
-        assigned_to_user_id: Option<i64>,
-        search: Option<&str>,
-        page_size: i64,
-        offset: i64,
+        filters: ConversationFilters<'_>,
     ) -> Result<(i64, Vec<SupportConversationSummary>), ApiError> {
+        let ConversationFilters {
+            viewer_id,
+            queue,
+            status,
+            priority,
+            assigned_to_user_id,
+            search,
+            page_size,
+            offset,
+        } = filters;
         let filter = r#"
 WHERE (
         $1::text IS NULL
@@ -674,20 +699,22 @@ ON CONFLICT (guest_id, idempotency_key) DO NOTHING
         Ok(result.rows_affected() == 1)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_event<'e, E>(
         executor: E,
-        conversation_id: i64,
-        actor_guest_id: Option<i64>,
-        actor_user_id: Option<i64>,
-        event_type: &str,
-        from_status: Option<&str>,
-        to_status: Option<&str>,
-        details: Option<Value>,
+        values: SupportEventValues<'_>,
     ) -> Result<(), ApiError>
     where
         E: Executor<'e, Database = DbDatabase>,
     {
+        let SupportEventValues {
+            conversation_id,
+            actor_guest_id,
+            actor_user_id,
+            event_type,
+            from_status,
+            to_status,
+            details,
+        } = values;
         let sql = r#"
 INSERT INTO support_events (
     conversation_id, actor_guest_id, actor_user_id, event_type, from_status, to_status, details

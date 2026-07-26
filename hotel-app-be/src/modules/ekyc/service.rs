@@ -18,10 +18,11 @@ use crate::modules::ekyc::models::{
 };
 use crate::repositories::ekyc::{
     AdminApproval, EkycActionUpdate, EkycHistoryInsert, EkycNoteInsert, EkycRepository,
-    NewEkycVerification,
+    EkycReviewAction, NewEkycVerification,
 };
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
+use crate::models::AuditEvent;
 
 pub async fn submit_ekyc(
     pool: &DbPool,
@@ -93,13 +94,15 @@ pub async fn submit_ekyc(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "ekyc_submitted",
-        "ekyc_verification",
-        Some(verification.id),
-        Some(serde_json::json!({ "status": verification.status })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "ekyc_submitted",
+            resource_type: "ekyc_verification",
+            resource_id: Some(verification.id),
+            details: Some(serde_json::json!({ "status": verification.status })),
+            ip_address,
+            user_agent,
+        },
     )
     .await;
 
@@ -214,17 +217,19 @@ pub async fn admin_create_verification(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(actor_id),
-        "ekyc_admin_created",
-        "ekyc_verification",
-        Some(verification.id),
-        Some(serde_json::json!({
-            "guest_id": req.guest_id,
-            "status": verification.status,
-            "self_checkin_enabled": self_checkin_enabled
-        })),
-        ip_address.clone(),
-        user_agent.clone(),
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "ekyc_admin_created",
+            resource_type: "ekyc_verification",
+            resource_id: Some(verification.id),
+            details: Some(serde_json::json!({
+                "guest_id": req.guest_id,
+                "status": verification.status,
+                "self_checkin_enabled": self_checkin_enabled
+            })),
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
+        },
     )
     .await;
 
@@ -400,13 +405,15 @@ pub async fn record_document_download(
 
     AuditLog::log_event(
         pool,
-        Some(actor_id),
-        "ekyc_document_downloaded",
-        "ekyc_verification",
-        Some(application_id),
-        Some(serde_json::json!({ "document_kind": kind })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "ekyc_document_downloaded",
+            resource_type: "ekyc_verification",
+            resource_id: Some(application_id),
+            details: Some(serde_json::json!({ "document_kind": kind })),
+            ip_address,
+            user_agent,
+        },
     )
     .await
 }
@@ -545,69 +552,73 @@ pub async fn apply_review_action(
 
     let updated = EkycRepository::apply_review_action(
         pool,
-        id,
-        actor_id,
-        input.expected_version,
-        EkycActionUpdate {
-            status: next_status.clone(),
-            set_assignee,
-            assigned_reviewer_id,
-            verification_notes: input
-                .note
-                .as_ref()
-                .map(|note| validation::sanitize_text(note, 4000)),
-            set_customer_message,
-            customer_message,
-            set_self_checkin: matches!(action, "approve"),
-            self_checkin_enabled: input.self_checkin_enabled.unwrap_or(false),
-            set_potential_duplicate,
-            potential_duplicate,
-            set_fraud_suspected,
-            fraud_suspected,
-            set_risk_level,
-            risk_level,
-            set_risk_score,
-            risk_score,
-            set_risk_flags,
-            risk_flags: if set_risk_flags {
-                Some(serde_json::json!(risk_flags))
-            } else {
-                None
+        EkycReviewAction {
+            application_id: id,
+            actor_id,
+            expected_version: input.expected_version,
+            update: EkycActionUpdate {
+                status: next_status.clone(),
+                set_assignee,
+                assigned_reviewer_id,
+                verification_notes: input
+                    .note
+                    .as_ref()
+                    .map(|note| validation::sanitize_text(note, 4000)),
+                set_customer_message,
+                customer_message,
+                set_self_checkin: matches!(action, "approve"),
+                self_checkin_enabled: input.self_checkin_enabled.unwrap_or(false),
+                set_potential_duplicate,
+                potential_duplicate,
+                set_fraud_suspected,
+                fraud_suspected,
+                set_risk_level,
+                risk_level,
+                set_risk_score,
+                risk_score,
+                set_risk_flags,
+                risk_flags: if set_risk_flags {
+                    Some(serde_json::json!(risk_flags))
+                } else {
+                    None
+                },
+                decision_reason_code: reason_code.clone(),
+                decision_reason: reason.clone(),
+                set_verified,
             },
-            decision_reason_code: reason_code.clone(),
-            decision_reason: reason.clone(),
-            set_verified,
+            history: EkycHistoryInsert {
+                action: action.to_string(),
+                from_status: Some(current.status.clone()),
+                to_status: Some(next_status.clone()),
+                reason_code,
+                reason,
+                details: Some(serde_json::json!({
+                    "assigned_reviewer_id": assigned_reviewer_id,
+                    "self_checkin_enabled": input.self_checkin_enabled,
+                    "target_status": input.target_status
+                })),
+            },
+            note,
+            idempotency_key: input.idempotency_key,
         },
-        EkycHistoryInsert {
-            action: action.to_string(),
-            from_status: Some(current.status.clone()),
-            to_status: Some(next_status.clone()),
-            reason_code,
-            reason,
-            details: Some(serde_json::json!({
-                "assigned_reviewer_id": assigned_reviewer_id,
-                "self_checkin_enabled": input.self_checkin_enabled,
-                "target_status": input.target_status
-            })),
-        },
-        note,
-        input.idempotency_key,
     )
     .await?;
 
     AuditLog::log_event(
         pool,
-        Some(actor_id),
-        &format!("ekyc_{}", action),
-        "ekyc_verification",
-        Some(id),
-        Some(serde_json::json!({
-            "from_status": current.status,
-            "to_status": updated.status,
-            "reason_code": updated.decision_reason_code
-        })),
-        ip_address.clone(),
-        user_agent.clone(),
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: &format!("ekyc_{}", action),
+            resource_type: "ekyc_verification",
+            resource_id: Some(id),
+            details: Some(serde_json::json!({
+                "from_status": current.status,
+                "to_status": updated.status,
+                "reason_code": updated.decision_reason_code
+            })),
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
+        },
     )
     .await?;
 
@@ -649,17 +660,19 @@ pub async fn reveal_sensitive_field(
 
     AuditLog::log_event(
         pool,
-        Some(actor_id),
-        "ekyc_sensitive_reveal",
-        "ekyc_verification",
-        Some(id),
-        Some(serde_json::json!({
-            "field": field,
-            "reason": validation::sanitize_text(&input.reason, 1000),
-            "value_present": value.is_some()
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "ekyc_sensitive_reveal",
+            resource_type: "ekyc_verification",
+            resource_id: Some(id),
+            details: Some(serde_json::json!({
+                "field": field,
+                "reason": validation::sanitize_text(&input.reason, 1000),
+                "value_present": value.is_some()
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
 
@@ -695,13 +708,15 @@ pub async fn export_admin_applications_csv(
     .await?;
     AuditLog::log_event(
         pool,
-        Some(actor_id),
-        "ekyc_exported",
-        "ekyc_verification",
-        None,
-        Some(serde_json::json!({ "format": "csv" })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "ekyc_exported",
+            resource_type: "ekyc_verification",
+            resource_id: None,
+            details: Some(serde_json::json!({ "format": "csv" })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
 

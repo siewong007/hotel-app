@@ -182,6 +182,45 @@ fn template_from_row(row: &DbRow) -> EmailTemplate {
     }
 }
 
+/// Column values for one `communication_consent_events` row.
+pub struct ConsentEventValues<'a> {
+    pub guest_id: i64,
+    pub channel: &'a str,
+    pub topic: &'a str,
+    pub action: &'a str,
+    pub source: &'a str,
+    pub policy_version: Option<&'a str>,
+    pub actor_type: &'a str,
+    pub actor_user_id: Option<i64>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+/// Column values for one queued outbound delivery.
+pub struct DeliveryValues<'a> {
+    pub campaign_id: Option<i64>,
+    pub kind: &'a str,
+    pub guest_id: i64,
+    pub topic: &'a str,
+    pub recipient_email: &'a str,
+    pub subject: &'a str,
+    pub body_html: &'a str,
+    pub body_text: Option<&'a str>,
+    pub voucher_id: Option<i64>,
+    pub idempotency_key: &'a str,
+}
+
+/// Date-window and promotion inputs for the birthday audience query.
+pub struct BirthdayTargetParams<'a> {
+    pub month1: i32,
+    pub day1: i32,
+    pub month2: i32,
+    pub day2: i32,
+    pub source_reference: &'a str,
+    pub promotion_id: i64,
+    pub limit: i64,
+}
+
 pub struct CommunicationsRepository;
 
 impl CommunicationsRepository {
@@ -241,20 +280,22 @@ impl CommunicationsRepository {
     // Consent events
     // ------------------------------------------------------------------
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_consent_event_tx(
         tx: &mut DbTransaction<'_>,
-        guest_id: i64,
-        channel: &str,
-        topic: &str,
-        action: &str,
-        source: &str,
-        policy_version: Option<&str>,
-        actor_type: &str,
-        actor_user_id: Option<i64>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
+        values: ConsentEventValues<'_>,
     ) -> Result<(), ApiError> {
+        let ConsentEventValues {
+            guest_id,
+            channel,
+            topic,
+            action,
+            source,
+            policy_version,
+            actor_type,
+            actor_user_id,
+            ip_address,
+            user_agent,
+        } = values;
         query(
             r#"
                 INSERT INTO notification_consent_events
@@ -653,20 +694,22 @@ impl CommunicationsRepository {
 
     /// Enqueues one delivery. Returns `None` when a row with the same
     /// idempotency key already exists (duplicate suppressed).
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_delivery_tx(
         tx: &mut DbTransaction<'_>,
-        campaign_id: Option<i64>,
-        kind: &str,
-        guest_id: i64,
-        topic: &str,
-        recipient_email: &str,
-        subject: &str,
-        body_html: &str,
-        body_text: Option<&str>,
-        voucher_id: Option<i64>,
-        idempotency_key: &str,
+        values: DeliveryValues<'_>,
     ) -> Result<Option<i64>, ApiError> {
+        let DeliveryValues {
+            campaign_id,
+            kind,
+            guest_id,
+            topic,
+            recipient_email,
+            subject,
+            body_html,
+            body_text,
+            voucher_id,
+            idempotency_key,
+        } = values;
         query_scalar(
             r#"
                 INSERT INTO email_deliveries
@@ -785,17 +828,19 @@ impl CommunicationsRepository {
     /// when the voucher insert's `(promotion_id, guest_id)` uniqueness guard
     /// rejects it. The second pair covers the Feb-29→Feb-28 policy; pass the
     /// same pair twice when unused.
-    #[allow(clippy::too_many_arguments)]
     pub async fn birthday_targets(
         pool: &DbPool,
-        month1: i32,
-        day1: i32,
-        month2: i32,
-        day2: i32,
-        source_reference: &str,
-        promotion_id: i64,
-        limit: i64,
+        params: BirthdayTargetParams<'_>,
     ) -> Result<Vec<AudienceGuest>, ApiError> {
+        let BirthdayTargetParams {
+            month1,
+            day1,
+            month2,
+            day2,
+            source_reference,
+            promotion_id,
+            limit,
+        } = params;
         let rows = query(r#"
                 SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
                 WHERE g.is_active IS TRUE

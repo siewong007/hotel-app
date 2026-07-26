@@ -7,6 +7,7 @@ use crate::modules::promotions::repository::PromotionRepository;
 use crate::services::audit::AuditLog;
 use uuid::Uuid;
 use validator::Validate;
+use crate::models::AuditEvent;
 
 /// System-managed loyalty reward that issues a voucher immediately after points are redeemed.
 const JULY_DELUXE_VOUCHER_REWARD_NAME: &str = "July Deluxe Room 20% Voucher";
@@ -406,18 +407,19 @@ pub async fn gift_points(
     LoyaltyRepository::add_lifetime_points(&mut tx, member.account_id, input.points).await?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_user_id),
-        "loyalty_gift",
-        "loyalty_member",
-        Some(member.id),
-        Some(serde_json::json!({
-            "guest_id": member.guest_id,
-            "points": input.points,
-            "reason": reason,
-            "transaction_id": transaction.id,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(actor_user_id),
+            action: "loyalty_gift",
+            resource_type: "loyalty_member",
+            resource_id: Some(member.id),
+            details: Some(serde_json::json!({
+                "guest_id": member.guest_id,
+                "points": input.points,
+                "reason": reason,
+                "transaction_id": transaction.id,
+            })),
+            ..Default::default()
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;

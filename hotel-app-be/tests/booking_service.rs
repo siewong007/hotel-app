@@ -228,17 +228,30 @@ mod postgres_tests {
             .unwrap();
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn seed_pg_booking(
-        pool: &PgPool,
+    /// Fixture ids and flags for a seeded PostgreSQL booking.
+    ///
+    /// Deliberately no `Default`: every field must be stated at the call site
+    /// so a forgotten id cannot silently become 0.
+    struct BookingFixture<'a> {
         actor_id: i64,
         booking_id: i64,
         guest_id: i64,
         room_id: i64,
         room_type_id: i64,
-        status: &str,
+        status: &'a str,
         is_complimentary: bool,
-    ) {
+    }
+
+    async fn seed_pg_booking(pool: &PgPool, fixture: BookingFixture<'_>) {
+        let BookingFixture {
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            status,
+            is_complimentary,
+        } = fixture;
         ensure_admin_actor(pool, actor_id).await;
         sqlx::query(
             "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
@@ -341,13 +354,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            false,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: false,
+            },
         )
         .await;
         insert_pg_completed_payment(&pool, booking_id, actor_id).await;
@@ -425,13 +440,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            false,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: false,
+            },
         )
         .await;
 
@@ -492,13 +509,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            voided_booking_id,
-            voided_guest_id,
-            room_id,
-            room_type_id,
-            "voided",
-            false,
+            BookingFixture {
+                actor_id,
+                booking_id: voided_booking_id,
+                guest_id: voided_guest_id,
+                room_id,
+                room_type_id,
+                status: "voided",
+                is_complimentary: false,
+            },
         )
         .await;
         sqlx::query(
@@ -577,13 +596,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            true,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: true,
+            },
         )
         .await;
 
@@ -689,13 +710,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            true,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: true,
+            },
         )
         .await;
         insert_pg_completed_payment(&pool, booking_id, actor_id).await;
@@ -840,13 +863,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            false,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: false,
+            },
         )
         .await;
         // Check-in now requires an IC/passport on file (see
@@ -931,13 +956,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            false,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: false,
+            },
         )
         .await;
         sqlx::query("UPDATE guests SET ic_number = $1 WHERE id = $2")
@@ -1002,13 +1029,15 @@ mod postgres_tests {
         .await;
         seed_pg_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            "confirmed",
-            false,
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                status: "confirmed",
+                is_complimentary: false,
+            },
         )
         .await;
         sqlx::query("UPDATE guests SET ic_number = $1 WHERE id = $2")

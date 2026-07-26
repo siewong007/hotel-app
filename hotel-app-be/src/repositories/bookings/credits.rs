@@ -368,20 +368,21 @@ pub async fn add_guest_credits_handler(
 
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "guest_complimentary_credits_granted",
-        "guest",
-        Some(input.guest_id),
-        Some(serde_json::json!({
-            "guest_id": input.guest_id,
-            "room_type_id": input.room_type_id,
-            "room_type_name": room_type_name,
-            "nights_added": input.nights,
-            "nights_available": nights_available,
-            "reason": reason,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "guest_complimentary_credits_granted",
+            resource_type: "guest",
+            resource_id: Some(input.guest_id),
+            details: Some(serde_json::json!({
+                "guest_id": input.guest_id,
+                "room_type_id": input.room_type_id,
+                "room_type_name": room_type_name,
+                "nights_added": input.nights,
+                "nights_available": nights_available,
+                "reason": reason,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 

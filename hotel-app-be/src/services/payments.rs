@@ -7,14 +7,15 @@ use crate::models::{
     PaypalCreateOrderResponse, PendingPaymentEntry, PendingPaymentPage, RecordPaymentRequest,
     UpdatePaymentRequest,
 };
-use crate::modules::communications::repository::CommunicationsRepository;
+use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::repositories::guest_portal::GuestPortalRepository;
-use crate::repositories::payment::PaymentRepository;
+use crate::repositories::payment::{PaymentRepository, PendingPaymentValues};
 use crate::services::audit::AuditLog;
 use rust_decimal::Decimal;
 use std::fs;
 use std::path::{Path, PathBuf};
+use crate::models::AuditEvent;
 
 const PAYMENT_RECEIPT_UPLOAD_DIR: &str = "private_uploads/payment_receipts";
 const MAX_PAYMENT_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
@@ -60,16 +61,18 @@ pub async fn queue_paid_online_booking_room_assignment(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     CommunicationsRepository::insert_delivery_tx(
         &mut tx,
-        None,
-        "booking_confirmation",
-        assignment.guest_id,
-        "booking_confirmation",
-        &assignment.guest_email,
-        &subject,
-        &body_html,
-        Some(&body_text),
-        None,
-        &format!("online-room-assignment:{}", assignment.booking_id),
+        DeliveryValues {
+            campaign_id: None,
+            kind: "booking_confirmation",
+            guest_id: assignment.guest_id,
+            topic: "booking_confirmation",
+            recipient_email: &assignment.guest_email,
+            subject: &subject,
+            body_html: &body_html,
+            body_text: Some(&body_text),
+            voucher_id: None,
+            idempotency_key: &format!("online-room-assignment:{}", assignment.booking_id),
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -164,16 +167,17 @@ pub async fn create_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "payment_created",
-        "payment",
-        Some(payment.id),
-        Some(serde_json::json!({
-            "booking_id": payment.booking_id,
-            "amount": payment.total_amount,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_created",
+            resource_type: "payment",
+            resource_id: Some(payment.id),
+            details: Some(serde_json::json!({
+                "booking_id": payment.booking_id,
+                "amount": payment.total_amount,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -292,16 +296,17 @@ pub async fn record_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "payment_recorded",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({
-            "booking_id": booking_id,
-            "amount": request.amount,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_recorded",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "amount": request.amount,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -416,17 +421,18 @@ pub async fn refund_deposit(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "payment_refunded",
-        "payment",
-        Some(row.id),
-        Some(serde_json::json!({
-            "booking_id": booking_id,
-            "amount": deposit_amount_f64,
-            "payment_method": payment_method,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_refunded",
+            resource_type: "payment",
+            resource_id: Some(row.id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "amount": deposit_amount_f64,
+                "payment_method": payment_method,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -457,15 +463,16 @@ pub async fn revert_deposit_refund(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "payment_refund_reverted",
-        "payment",
-        Some(reverted_payment_id),
-        Some(serde_json::json!({
-            "booking_id": booking_id,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_refund_reverted",
+            resource_type: "payment",
+            resource_id: Some(reverted_payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -496,16 +503,17 @@ pub async fn generate_invoice(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "invoice_generated",
-        "invoice",
-        Some(invoice.id),
-        Some(serde_json::json!({
-            "booking_id": booking_id,
-            "invoice_number": invoice_number,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "invoice_generated",
+            resource_type: "invoice",
+            resource_id: Some(invoice.id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "invoice_number": invoice_number,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -568,15 +576,16 @@ pub async fn update_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "payment_updated",
-        "payment",
-        Some(row.id),
-        Some(serde_json::json!({
-            "booking_id": row.booking_id,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_updated",
+            resource_type: "payment",
+            resource_id: Some(row.id),
+            details: Some(serde_json::json!({
+                "booking_id": row.booking_id,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -596,15 +605,16 @@ pub async fn delete_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "payment_deleted",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({
-            "booking_id": affected_booking_id,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_deleted",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": affected_booking_id,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -733,15 +743,17 @@ pub async fn create_bank_transfer_claim(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let payment_id = PaymentRepository::insert_pending_payment_tx(
         &mut tx,
-        booking.id,
-        booking.guest_id,
-        booking.total_amount,
-        currency,
-        &PaymentMethod::BankTransfer.to_string(),
-        None,
-        None,
-        Some("Guest-submitted bank transfer claim (pending staff review)"),
-        None,
+        PendingPaymentValues {
+            booking_id: booking.id,
+            guest_id: booking.guest_id,
+            amount: booking.total_amount,
+            currency,
+            payment_method: &PaymentMethod::BankTransfer.to_string(),
+            payment_gateway: None,
+            gateway_order_id: None,
+            description: Some("Guest-submitted bank transfer claim (pending staff review)"),
+            created_by: None,
+        },
     )
     .await?;
 
@@ -763,18 +775,19 @@ pub async fn create_bank_transfer_claim(
 
     AuditLog::log_event_tx(
         &mut tx,
-        None,
-        "payment_created",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({
-            "booking_id": booking.id,
-            "amount": booking.total_amount.to_string(),
-            "method": "bank_transfer",
-            "source": "guest_portal",
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "payment_created",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": booking.id,
+                "amount": booking.total_amount.to_string(),
+                "method": "bank_transfer",
+                "source": "guest_portal",
+            })),
+            ..Default::default()
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -800,31 +813,34 @@ pub async fn create_paypal_order(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let payment_id = PaymentRepository::insert_pending_payment_tx(
         &mut tx,
-        booking.id,
-        booking.guest_id,
-        booking.total_amount,
-        currency,
-        &PaymentMethod::Paypal.to_string(),
-        Some("paypal"),
-        None,
-        Some("PayPal order (awaiting capture)"),
-        None,
+        PendingPaymentValues {
+            booking_id: booking.id,
+            guest_id: booking.guest_id,
+            amount: booking.total_amount,
+            currency,
+            payment_method: &PaymentMethod::Paypal.to_string(),
+            payment_gateway: Some("paypal"),
+            gateway_order_id: None,
+            description: Some("PayPal order (awaiting capture)"),
+            created_by: None,
+        },
     )
     .await?;
     AuditLog::log_event_tx(
         &mut tx,
-        None,
-        "payment_created",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({
-            "booking_id": booking.id,
-            "amount": booking.total_amount.to_string(),
-            "method": "paypal",
-            "source": "guest_portal",
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "payment_created",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": booking.id,
+                "amount": booking.total_amount.to_string(),
+                "method": "paypal",
+                "source": "guest_portal",
+            })),
+            ..Default::default()
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -948,18 +964,19 @@ pub async fn capture_paypal_payment(
         // the webhook path does on the same disagreement.
         AuditLog::log_event(
             pool,
-            None,
-            "paypal_capture_conflict",
-            "payment",
-            Some(payment_id),
-            Some(serde_json::json!({
-                "source": "paypal_capture",
-                "order_id": order_id,
-                "booking_id": booking.id,
-                "reason": reason,
-            })),
-            None,
-            None,
+            AuditEvent {
+                user_id: None,
+                action: "paypal_capture_conflict",
+                resource_type: "payment",
+                resource_id: Some(payment_id),
+                details: Some(serde_json::json!({
+                    "source": "paypal_capture",
+                    "order_id": order_id,
+                    "booking_id": booking.id,
+                    "reason": reason,
+                })),
+                ..Default::default()
+            },
         )
         .await?;
         return Err(ApiError::Conflict(
@@ -1367,20 +1384,22 @@ async fn audit_paypal_webhook(
 ) -> Result<(), ApiError> {
     AuditLog::log_event(
         pool,
-        None,
-        action,
-        "payment",
-        Some(event.payment_id),
-        Some(serde_json::json!({
-            "source": "paypal_webhook",
-            "event_id": event.event_id,
-            "event_type": event.kind.event_type(),
-            "capture_id": event.capture_id,
-            "booking_id": event.booking_id,
-            "reason": reason,
-        })),
-        event.client_ip.clone(),
-        None,
+        AuditEvent {
+            user_id: None,
+            action,
+            resource_type: "payment",
+            resource_id: Some(event.payment_id),
+            details: Some(serde_json::json!({
+                "source": "paypal_webhook",
+                "event_id": event.event_id,
+                "event_type": event.kind.event_type(),
+                "capture_id": event.capture_id,
+                "booking_id": event.booking_id,
+                "reason": reason,
+            })),
+            ip_address: event.client_ip.clone(),
+            user_agent: None,
+        },
     )
     .await
 }
@@ -1434,13 +1453,14 @@ pub async fn request_payment_receipt(
     PaymentRepository::request_receipt(pool, payment_id, actor_user_id, message).await?;
     AuditLog::log_event(
         pool,
-        Some(actor_user_id),
-        "payment_receipt_requested",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({ "booking_id": review.booking_id, "message": message })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(actor_user_id),
+            action: "payment_receipt_requested",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({ "booking_id": review.booking_id, "message": message })),
+            ..Default::default()
+        },
     )
     .await?;
     queue_payment_receipt_request_notification(
@@ -1499,16 +1519,18 @@ async fn queue_payment_receipt_request_notification(
     );
     if let Err(error) = CommunicationsRepository::insert_delivery_tx(
         &mut tx,
-        None,
-        "booking_confirmation",
-        guest_id,
-        "booking_confirmation",
-        &email,
-        &subject,
-        &body_html,
-        Some(&body_text),
-        None,
-        &idempotency_key,
+        DeliveryValues {
+            campaign_id: None,
+            kind: "booking_confirmation",
+            guest_id,
+            topic: "booking_confirmation",
+            recipient_email: &email,
+            subject: &subject,
+            body_html: &body_html,
+            body_text: Some(&body_text),
+            voucher_id: None,
+            idempotency_key: &idempotency_key,
+        },
     )
     .await
     {
@@ -1569,16 +1591,17 @@ async fn complete_and_confirm(
 
     AuditLog::log_event_tx(
         &mut tx,
-        actor_user_id,
-        audit_action,
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({
-            "booking_id": booking_id,
-            "booking_confirmed": confirmed,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: actor_user_id,
+            action: audit_action,
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "booking_confirmed": confirmed,
+            })),
+            ..Default::default()
+        },
     )
     .await?;
 
@@ -1627,16 +1650,18 @@ async fn queue_payment_rejected_notification(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     CommunicationsRepository::insert_delivery_tx(
         &mut tx,
-        None,
-        "booking_confirmation",
-        guest_id,
-        "booking_confirmation",
-        &email,
-        &subject,
-        &body_html,
-        Some(&body_text),
-        None,
-        &format!("payment-rejected:{payment_id}"),
+        DeliveryValues {
+            campaign_id: None,
+            kind: "booking_confirmation",
+            guest_id,
+            topic: "booking_confirmation",
+            recipient_email: &email,
+            subject: &subject,
+            body_html: &body_html,
+            body_text: Some(&body_text),
+            voucher_id: None,
+            idempotency_key: &format!("payment-rejected:{payment_id}"),
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -1761,16 +1786,17 @@ async fn reject_payment_by(
 
     AuditLog::log_event_tx(
         &mut tx,
-        actor_user_id,
-        "payment_rejected",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({
-            "booking_id": review.booking_id,
-            "reason": reason,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: actor_user_id,
+            action: "payment_rejected",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({
+                "booking_id": review.booking_id,
+                "reason": reason,
+            })),
+            ..Default::default()
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -1878,13 +1904,14 @@ pub async fn save_payment_receipt(
     }
     AuditLog::log_event(
         pool,
-        None,
-        "payment_receipt_uploaded",
-        "payment",
-        Some(payment_id),
-        Some(serde_json::json!({ "booking_id": receipt.booking_id })),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "payment_receipt_uploaded",
+            resource_type: "payment",
+            resource_id: Some(payment_id),
+            details: Some(serde_json::json!({ "booking_id": receipt.booking_id })),
+            ..Default::default()
+        },
     )
     .await?;
     Ok(())

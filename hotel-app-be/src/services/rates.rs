@@ -12,6 +12,7 @@ use crate::services::audit::AuditLog;
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use serde_json::json;
+use crate::models::AuditEvent;
 
 pub async fn create_rate_plan(
     pool: &DbPool,
@@ -306,13 +307,14 @@ fn room_rate_audit_details(room_rate: &RoomRate) -> serde_json::Value {
 async fn log_rate_plan_event(pool: &DbPool, user_id: i64, action: &str, rate_plan: &RatePlan) {
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        action,
-        "rate_plan",
-        Some(rate_plan.id),
-        Some(rate_plan_audit_details(rate_plan)),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action,
+            resource_type: "rate_plan",
+            resource_id: Some(rate_plan.id),
+            details: Some(rate_plan_audit_details(rate_plan)),
+            ..Default::default()
+        },
     )
     .await;
 }
@@ -320,13 +322,14 @@ async fn log_rate_plan_event(pool: &DbPool, user_id: i64, action: &str, rate_pla
 async fn log_room_rate_event(pool: &DbPool, user_id: i64, action: &str, room_rate: &RoomRate) {
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        action,
-        "room_rate",
-        Some(room_rate.id),
-        Some(room_rate_audit_details(room_rate)),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action,
+            resource_type: "room_rate",
+            resource_id: Some(room_rate.id),
+            details: Some(room_rate_audit_details(room_rate)),
+            ..Default::default()
+        },
     )
     .await;
 }

@@ -14,6 +14,7 @@ use axum::Json;
 use axum::http::HeaderMap;
 use serde_json::Value;
 use std::net::IpAddr;
+use crate::models::AuditEvent;
 
 /// POST /api/webhooks/paypal — receive one PayPal webhook delivery.
 ///
@@ -78,18 +79,20 @@ pub async fn paypal_webhook(
             // keep the provenance for staff.
             AuditLog::log_event(
                 pool,
-                None,
-                "paypal_webhook_ignored",
-                "payment",
-                None,
-                Some(serde_json::json!({
-                    "source": "paypal_webhook",
-                    "event_id": event_id,
-                    "event_type": event_type,
-                    "reason": "Event type not handled.",
-                })),
-                Some(client_ip.to_string()),
-                None,
+                AuditEvent {
+                    user_id: None,
+                    action: "paypal_webhook_ignored",
+                    resource_type: "payment",
+                    resource_id: None,
+                    details: Some(serde_json::json!({
+                        "source": "paypal_webhook",
+                        "event_id": event_id,
+                        "event_type": event_type,
+                        "reason": "Event type not handled.",
+                    })),
+                    ip_address: Some(client_ip.to_string()),
+                    user_agent: None,
+                },
             )
             .await?;
             return Ok(Json(serde_json::json!({ "received": true })));
@@ -104,18 +107,20 @@ pub async fn paypal_webhook(
     let Some((booking_id, payment_id)) = parse_custom_id(custom_id) else {
         AuditLog::log_event(
             pool,
-            None,
-            "paypal_webhook_ignored",
-            "payment",
-            None,
-            Some(serde_json::json!({
-                "source": "paypal_webhook",
-                "event_id": event_id,
-                "event_type": event_type,
-                "reason": "resource.custom_id is missing or not \"<booking_id>:<payment_id>\".",
-            })),
-            Some(client_ip.to_string()),
-            None,
+            AuditEvent {
+                user_id: None,
+                action: "paypal_webhook_ignored",
+                resource_type: "payment",
+                resource_id: None,
+                details: Some(serde_json::json!({
+                    "source": "paypal_webhook",
+                    "event_id": event_id,
+                    "event_type": event_type,
+                    "reason": "resource.custom_id is missing or not \"<booking_id>:<payment_id>\".",
+                })),
+                ip_address: Some(client_ip.to_string()),
+                user_agent: None,
+            },
         )
         .await?;
         return Ok(Json(serde_json::json!({ "received": true })));

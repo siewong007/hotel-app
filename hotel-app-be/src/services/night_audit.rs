@@ -11,6 +11,7 @@ use crate::models::{
 use crate::repositories::night_audit as repo;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
+use crate::models::AuditEvent;
 
 pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditPreview, ApiError> {
     repo::preview(pool, audit_date).await
@@ -89,17 +90,18 @@ pub async fn run_with_user(
 
     let _ = AuditLog::log_event(
         pool,
-        run_by,
-        "night_audit_run",
-        "night_audit",
-        Some(audit_run_id),
-        Some(serde_json::json!({
-            "audit_date": audit_date.to_string(),
-            "bookings_posted": audit_run.total_bookings_posted,
-            "revenue": audit_run.total_revenue.to_string(),
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: run_by,
+            action: "night_audit_run",
+            resource_type: "night_audit",
+            resource_id: Some(audit_run_id),
+            details: Some(serde_json::json!({
+                "audit_date": audit_date.to_string(),
+                "bookings_posted": audit_run.total_bookings_posted,
+                "revenue": audit_run.total_revenue.to_string(),
+            })),
+            ..Default::default()
+        },
     )
     .await;
 

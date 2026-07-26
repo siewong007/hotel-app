@@ -10,6 +10,7 @@ use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
 use validator::Validate;
+use crate::models::AuditEvent;
 
 const UNCONFIGURED_EMAIL_SUFFIX: &str = "@no-email.invalid";
 
@@ -167,13 +168,14 @@ pub async fn revoke_session(pool: &DbPool, user_id: i64, session_id: &str) -> Re
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "session_revoked",
-        "user",
-        Some(user_id),
-        Some(serde_json::json!({ "session_id": session_id })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "session_revoked",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: Some(serde_json::json!({ "session_id": session_id })),
+            ..Default::default()
+        },
     )
     .await;
 

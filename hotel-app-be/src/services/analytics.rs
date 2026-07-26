@@ -5,6 +5,7 @@ use crate::models::ReportQuery;
 use crate::repositories::analytics;
 use crate::services::audit::AuditLog;
 use std::collections::HashMap;
+use crate::models::AuditEvent;
 
 pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
     analytics::occupancy_report(pool).await
@@ -59,13 +60,14 @@ pub async fn generate_report(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "report_generated",
-        "report",
-        None,
-        Some(details),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "report_generated",
+            resource_type: "report",
+            resource_id: None,
+            details: Some(details),
+            ..Default::default()
+        },
     )
     .await;
 

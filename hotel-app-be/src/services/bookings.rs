@@ -12,6 +12,7 @@ use crate::repositories::bookings as booking_repo;
 use crate::services::audit::AuditLog;
 use crate::services::booking as booking_service;
 use crate::services::payments;
+use crate::models::AuditEvent;
 
 #[derive(Debug, Clone)]
 pub struct SelfCheckinEventInsert {
@@ -434,22 +435,23 @@ async fn checkin_booking_flow_for_booking(
 
     AuditLog::log_event_tx(
         &mut tx,
-        Some(user_id),
-        if context.self_checkin_event.is_some() {
-            "booking_ekyc_auto_checkin"
-        } else {
-            "booking_checkin"
+        AuditEvent {
+            user_id: Some(user_id),
+            action: if context.self_checkin_event.is_some() {
+                "booking_ekyc_auto_checkin"
+            } else {
+                "booking_checkin"
+            },
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(serde_json::json!({
+                "guest_id": booking.guest_id,
+                "room_id": booking.room_id,
+                "source": context.source,
+                "ekyc_verification_id": context.self_checkin_event.as_ref().map(|event| event.ekyc_verification_id),
+            })),
+            ..Default::default()
         },
-        "booking",
-        Some(booking_id),
-        Some(serde_json::json!({
-            "guest_id": booking.guest_id,
-            "room_id": booking.room_id,
-            "source": context.source,
-            "ekyc_verification_id": context.self_checkin_event.as_ref().map(|event| event.ekyc_verification_id),
-        })),
-        None,
-        None,
     )
     .await?;
 
@@ -459,13 +461,15 @@ async fn checkin_booking_flow_for_booking(
         Some(
             booking_repo::record_self_checkin_event_tx(
                 &mut tx,
-                booking_id,
-                event.guest_id,
-                event.ekyc_verification_id,
-                user_id,
-                event.source,
-                event.device_type.as_ref(),
-                event.checkin_location.as_ref(),
+                booking_repo::SelfCheckinEventValues {
+                    booking_id,
+                    guest_id: event.guest_id,
+                    ekyc_verification_id: event.ekyc_verification_id,
+                    user_id,
+                    source: event.source,
+                    device_type: event.device_type.as_ref(),
+                    checkin_location: event.checkin_location.as_ref(),
+                },
             )
             .await?,
         )
@@ -550,17 +554,18 @@ pub async fn reactivate_booking(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "booking_reactivated",
-        "booking",
-        Some(booking_id),
-        Some(serde_json::json!({
-            "guest_id": existing.guest_id,
-            "room_id": existing.room_id,
-            "previous_status": "voided"
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "booking_reactivated",
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(serde_json::json!({
+                "guest_id": existing.guest_id,
+                "room_id": existing.room_id,
+                "previous_status": "voided"
+            })),
+            ..Default::default()
+        },
     )
     .await;
 

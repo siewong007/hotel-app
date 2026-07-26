@@ -21,13 +21,14 @@ use chrono::{Datelike, NaiveDate, Utc};
 use serde_json::json;
 
 use super::models::{AudienceGuest, EmailCampaign};
-use super::repository::CommunicationsRepository as Repo;
+use super::repository::{BirthdayTargetParams, CommunicationsRepository as Repo, DeliveryValues};
 use super::tokens;
 use super::validation::{self, html_escape};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::services::audit::AuditLog;
+use crate::models::AuditEvent;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
 const EXPANSION_BATCH: i64 = 200;
@@ -137,16 +138,18 @@ async fn expand_campaign(pool: &DbPool, campaign: &EmailCampaign) -> Result<usiz
             let mut tx = pool.begin().await.map_err(ApiError::from)?;
             Repo::insert_delivery_tx(
                 &mut tx,
-                Some(campaign.id),
-                "campaign",
-                guest.id,
-                &campaign.topic,
-                &guest.email,
-                &campaign.subject,
-                &body_html,
-                campaign.body_text.as_deref(),
-                None,
-                &idempotency_key,
+                DeliveryValues {
+                    campaign_id: Some(campaign.id),
+                    kind: "campaign",
+                    guest_id: guest.id,
+                    topic: &campaign.topic,
+                    recipient_email: &guest.email,
+                    subject: &campaign.subject,
+                    body_html: &body_html,
+                    body_text: campaign.body_text.as_deref(),
+                    voucher_id: None,
+                    idempotency_key: &idempotency_key,
+                },
             )
             .await?;
             tx.commit().await.map_err(ApiError::from)?;
@@ -233,13 +236,15 @@ pub async fn tick_birthdays(
     loop {
         let targets = Repo::birthday_targets(
             pool,
-            m1,
-            d1,
-            m2,
-            d2,
-            &source_reference,
-            promotion_id,
-            EXPANSION_BATCH,
+            BirthdayTargetParams {
+                month1: m1,
+                day1: d1,
+                month2: m2,
+                day2: d2,
+                source_reference: &source_reference,
+                promotion_id,
+                limit: EXPANSION_BATCH,
+            },
         )
         .await?;
         if targets.is_empty() {
@@ -315,32 +320,35 @@ async fn issue_birthday_voucher(
 
     AuditLog::log_event_tx(
         &mut tx,
-        None,
-        "voucher.birthday_issued",
-        "voucher",
-        Some(voucher_id),
-        Some(json!({
-            "guest_id": guest.id,
-            "promotion_id": promotion_id,
-            "source_reference": source_reference,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "voucher.birthday_issued",
+            resource_type: "voucher",
+            resource_id: Some(voucher_id),
+            details: Some(json!({
+                "guest_id": guest.id,
+                "promotion_id": promotion_id,
+                "source_reference": source_reference,
+            })),
+            ..Default::default()
+        },
     )
     .await?;
 
     Repo::insert_delivery_tx(
         &mut tx,
-        None,
-        "birthday_voucher",
-        guest.id,
-        "birthday_voucher",
-        &guest.email,
-        &subject,
-        &body_html,
-        None,
-        Some(voucher_id),
-        &format!("{source_reference}:guest:{}", guest.id),
+        DeliveryValues {
+            campaign_id: None,
+            kind: "birthday_voucher",
+            guest_id: guest.id,
+            topic: "birthday_voucher",
+            recipient_email: &guest.email,
+            subject: &subject,
+            body_html: &body_html,
+            body_text: None,
+            voucher_id: Some(voucher_id),
+            idempotency_key: &format!("{source_reference}:guest:{}", guest.id),
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;

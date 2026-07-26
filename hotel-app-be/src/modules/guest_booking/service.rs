@@ -10,11 +10,14 @@ use super::models::{
     NightlyRate, OnlineInventoryAllocation, OnlineInventoryQuery, RoomTypeInventory,
     UpdateOnlineInventoryRequest, VoucherPricing,
 };
-use super::repository::GuestBookingRepository as Repository;
+use super::repository::{
+    GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionValues,
+};
 use super::validation::{ValidatedStay, validate_client_request_id, validate_stay};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::modules::communications::repository::CommunicationsRepository;
+use crate::models::AuditEvent;
+use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
@@ -100,13 +103,15 @@ async fn voucher_for_quote(
     Repository::eligible_voucher(
         pool,
         voucher_id,
-        guest_id,
-        room_type_id,
-        stay.check_in_date,
-        stay.check_out_date,
-        (stay.check_out_date - stay.check_in_date).num_days(),
-        subtotal,
-        currency,
+        VoucherEligibilityQuery {
+            guest_id,
+            room_type_id,
+            check_in: stay.check_in_date,
+            check_out: stay.check_out_date,
+            nights: (stay.check_out_date - stay.check_in_date).num_days(),
+            subtotal,
+            currency,
+        },
     )
     .await
     .map(Some)
@@ -289,13 +294,15 @@ pub async fn quote_with_eligible_vouchers(
     .await?;
     let eligible_voucher_ids = Repository::eligible_voucher_ids(
         pool,
-        guest_id,
-        quote.room_type_id,
-        quote.check_in_date,
-        quote.check_out_date,
-        (quote.check_out_date - quote.check_in_date).num_days(),
-        quote.subtotal,
-        &quote.currency,
+        VoucherEligibilityQuery {
+            guest_id,
+            room_type_id: quote.room_type_id,
+            check_in: quote.check_in_date,
+            check_out: quote.check_out_date,
+            nights: (quote.check_out_date - quote.check_in_date).num_days(),
+            subtotal: quote.subtotal,
+            currency: &quote.currency,
+        },
     )
     .await?;
     Ok(GuestBookingVoucherOptions {
@@ -356,7 +363,6 @@ pub async fn update_online_inventory(
         .ok_or_else(|| ApiError::NotFound("Room type not found".to_string()))
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn create(
     pool: &DbPool,
     hub: &AvailabilityHub,
@@ -396,13 +402,15 @@ pub async fn create(
             Repository::eligible_voucher(
                 pool,
                 voucher_id,
-                guest_id,
-                request.room_type_id,
-                quote.check_in_date,
-                quote.check_out_date,
-                (quote.check_out_date - quote.check_in_date).num_days(),
-                quote.subtotal,
-                &quote.currency,
+                VoucherEligibilityQuery {
+                    guest_id,
+                    room_type_id: request.room_type_id,
+                    check_in: quote.check_in_date,
+                    check_out: quote.check_out_date,
+                    nights: (quote.check_out_date - quote.check_in_date).num_days(),
+                    subtotal: quote.subtotal,
+                    currency: &quote.currency,
+                },
             )
             .await?,
         )
@@ -481,13 +489,15 @@ pub async fn create(
     if let Some(voucher) = voucher_to_redeem.as_ref() {
         Repository::redeem_voucher_tx(
             &mut tx,
-            voucher,
-            booking_id,
-            guest_id,
-            contact.actor_user_id,
-            quote.subtotal,
-            quote.discount_amount,
-            quote.total_amount,
+            VoucherRedemptionValues {
+                voucher,
+                booking_id,
+                guest_id,
+                actor_user_id: contact.actor_user_id,
+                subtotal: quote.subtotal,
+                discount_amount: quote.discount_amount,
+                total_amount: quote.total_amount,
+            },
         )
         .await?;
     }
@@ -510,20 +520,22 @@ pub async fn create(
     .await?;
     AuditLog::log_event_tx(
         &mut tx,
-        contact.actor_user_id,
-        "guest_portal.booking_created",
-        "booking",
-        Some(booking_id),
-        Some(json!({
-            "booking_number": booking_number,
-            "room_type_id": request.room_type_id,
-            "check_in_date": quote.check_in_date,
-            "check_out_date": quote.check_out_date,
-            "total_amount": quote.total_amount.to_string(),
-            "currency": quote.currency,
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: contact.actor_user_id,
+            action: "guest_portal.booking_created",
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(json!({
+                "booking_number": booking_number,
+                "room_type_id": request.room_type_id,
+                "check_in_date": quote.check_in_date,
+                "check_out_date": quote.check_out_date,
+                "total_amount": quote.total_amount.to_string(),
+                "currency": quote.currency,
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
 
@@ -547,16 +559,18 @@ pub async fn create(
         );
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
-            None,
-            "booking_confirmation",
-            guest_id,
-            "booking_confirmation",
-            email,
-            &subject,
-            &body_html,
-            None,
-            None,
-            &format!("booking-confirmation:{booking_id}"),
+            DeliveryValues {
+                campaign_id: None,
+                kind: "booking_confirmation",
+                guest_id,
+                topic: "booking_confirmation",
+                recipient_email: email,
+                subject: &subject,
+                body_html: &body_html,
+                body_text: None,
+                voucher_id: None,
+                idempotency_key: &format!("booking-confirmation:{booking_id}"),
+            },
         )
         .await?;
     }

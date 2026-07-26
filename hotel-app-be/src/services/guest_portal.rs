@@ -19,6 +19,7 @@ use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
+use crate::models::AuditEvent;
 
 /// Generate a 256-bit random token as a hex string.
 fn generate_session_token() -> String {
@@ -81,13 +82,14 @@ pub async fn verify_guest_booking(
     GuestPortalRepository::update_precheckin_token(pool, booking.id, &token, expires_at).await?;
     AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.precheckin_token_issued",
-        "booking",
-        Some(booking.id),
-        Some(serde_json::json!({"guest_id": booking.guest_id})),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.precheckin_token_issued",
+            resource_type: "booking",
+            resource_id: Some(booking.id),
+            details: Some(serde_json::json!({"guest_id": booking.guest_id})),
+            ..Default::default()
+        },
     )
     .await?;
 
@@ -128,13 +130,14 @@ pub async fn submit_precheckin_update(
 
     AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.precheckin_submitted",
-        "booking",
-        Some(booking.id),
-        Some(serde_json::json!({"guest_id": booking.guest_id})),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.precheckin_submitted",
+            resource_type: "booking",
+            resource_id: Some(booking.id),
+            details: Some(serde_json::json!({"guest_id": booking.guest_id})),
+            ..Default::default()
+        },
     )
     .await?;
 
@@ -151,13 +154,14 @@ pub async fn auto_checkin_by_token(
     let response = auto_checkin::auto_checkin_for_guest_portal(pool, booking.id).await?;
     AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.auto_checkin",
-        "booking",
-        Some(booking.id),
-        Some(serde_json::json!({"guest_id": booking.guest_id})),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.auto_checkin",
+            resource_type: "booking",
+            resource_id: Some(booking.id),
+            details: Some(serde_json::json!({"guest_id": booking.guest_id})),
+            ..Default::default()
+        },
     )
     .await?;
     Ok(response)
@@ -235,13 +239,15 @@ pub async fn create_authenticated_guest_portal_session(
 
     AuditLog::log_event(
         pool,
-        Some(user_id),
-        "guest_portal.login",
-        "guest",
-        Some(guest_id),
-        None,
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "guest_portal.login",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            details: None,
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
 
@@ -301,13 +307,14 @@ pub async fn logout_guest_session(headers: &HeaderMap, pool: &DbPool) -> Result<
     GuestPortalSessionRepository::delete_session(pool, &token_hash).await?;
     AuditLog::log_event(
         pool,
-        None,
-        "guest_portal.logout",
-        "guest",
-        Some(guest_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.logout",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await
 }

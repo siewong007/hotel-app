@@ -28,7 +28,7 @@ mod postgres_tests {
     use chrono::{Duration, NaiveDate, Utc};
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{
-        AuditLogQuery, BookingChannelInput, BookingChannelUpdate, ReportQuery,
+        AuditEvent, AuditLogQuery, BookingChannelInput, BookingChannelUpdate, ReportQuery,
         RunNightAuditRequest,
     };
     use hotel_app_be::modules::settings::models::SystemSettingUpdate;
@@ -186,26 +186,28 @@ mod postgres_tests {
 
         AuditLog::log_event(
             &pool,
-            Some(user_id),
-            "aud990_action_only",
-            resource_type,
-            Some(user_id),
-            None,
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "aud990_action_only",
+                resource_type,
+                resource_id: Some(user_id),
+                details: None,
+                ..Default::default()
+            },
         )
         .await
         .expect("action-only log_event must not error");
 
         AuditLog::log_event(
             &pool,
-            Some(user_id),
-            "aud990_field_change",
-            resource_type,
-            Some(user_id),
-            Some(serde_json::json!({"old_value": "A", "new_value": "B"})),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "aud990_field_change",
+                resource_type,
+                resource_id: Some(user_id),
+                details: Some(serde_json::json!({"old_value": "A", "new_value": "B"})),
+                ..Default::default()
+            },
         )
         .await
         .expect("field-change log_event must not error");

@@ -123,16 +123,18 @@ pub async fn complete_housekeeping_cleaning_tx(
 
     rq::update_room_status_with_dates(
         &mut **tx,
-        &target_status,
-        notes,
-        &status_notes,
-        reserved_start,
-        reserved_end,
-        None,
-        None,
-        None,
-        Some(Utc::now()),
-        room_id,
+        rq::RoomStatusUpdateValues {
+            target_status: &target_status,
+            notes,
+            status_notes: &status_notes,
+            reserved_start,
+            reserved_end,
+            maintenance_start: None,
+            maintenance_end: None,
+            cleaning_start: None,
+            cleaning_end: Some(Utc::now()),
+            room_id,
+        },
     )
     .await?;
 
@@ -282,13 +284,14 @@ pub async fn update_room_handler(
 
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_updated",
-        "room",
-        Some(updated_room.id),
-        Some(serde_json::json!({"room_number": &updated_room.room_number})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_updated",
+            resource_type: "room",
+            resource_id: Some(updated_room.id),
+            details: Some(serde_json::json!({"room_number": &updated_room.room_number})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -317,13 +320,15 @@ pub async fn create_room_handler(
 
     let room_id = rq::insert_room(
         &pool,
-        &input.room_number,
-        input.room_type_id,
-        input.floor,
-        &input.building,
-        custom_price_decimal,
-        input.is_accessible.unwrap_or(false),
-        input.is_smoking.unwrap_or(false),
+        rq::RoomInsertValues {
+            room_number: &input.room_number,
+            room_type_id: input.room_type_id,
+            floor: input.floor,
+            building: &input.building,
+            custom_price: custom_price_decimal,
+            is_accessible: input.is_accessible.unwrap_or(false),
+            is_smoking: input.is_smoking.unwrap_or(false),
+        },
     )
     .await?;
 
@@ -331,13 +336,14 @@ pub async fn create_room_handler(
 
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_created",
-        "room",
-        Some(created_room.id),
-        Some(serde_json::json!({"room_number": &created_room.room_number})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_created",
+            resource_type: "room",
+            resource_id: Some(created_room.id),
+            details: Some(serde_json::json!({"room_number": &created_room.room_number})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -366,13 +372,14 @@ pub async fn delete_room_handler(
 
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_deleted",
-        "room",
-        Some(room_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_deleted",
+            resource_type: "room",
+            resource_id: Some(room_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 
@@ -454,17 +461,18 @@ pub async fn create_room_type_handler(
     // Audit log: room type created
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_type_created",
-        "room_type",
-        Some(room_type.id),
-        Some(serde_json::json!({
-            "name": room_type.name,
-            "code": room_type.code,
-            "base_price": input.base_price
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_type_created",
+            resource_type: "room_type",
+            resource_id: Some(room_type.id),
+            details: Some(serde_json::json!({
+                "name": room_type.name,
+                "code": room_type.code,
+                "base_price": input.base_price
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -521,18 +529,19 @@ pub async fn update_room_type_handler(
     // Audit log: room type updated
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_type_updated",
-        "room_type",
-        Some(id),
-        Some(serde_json::json!({
-            "name": room_type.name,
-            "code": room_type.code,
-            "is_active": room_type.is_active,
-            "changes": input
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_type_updated",
+            resource_type: "room_type",
+            resource_id: Some(id),
+            details: Some(serde_json::json!({
+                "name": room_type.name,
+                "code": room_type.code,
+                "is_active": room_type.is_active,
+                "changes": input
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -565,16 +574,17 @@ pub async fn delete_room_type_handler(
     if let Some((name, code)) = room_type_info {
         let _ = AuditLog::log_event(
             &pool,
-            Some(user_id),
-            "room_type_deleted",
-            "room_type",
-            Some(id),
-            Some(serde_json::json!({
-                "name": name,
-                "code": code
-            })),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "room_type_deleted",
+                resource_type: "room_type",
+                resource_id: Some(id),
+                details: Some(serde_json::json!({
+                    "name": name,
+                    "code": code
+                })),
+                ..Default::default()
+            },
         )
         .await;
     }
@@ -769,16 +779,18 @@ pub async fn update_room_status_handler(
 
     rq::update_room_status_with_dates(
         &pool,
-        &target_status,
-        input.notes.as_deref(),
-        &status_notes,
-        reserved_start,
-        reserved_end,
-        maintenance_start,
-        maintenance_end,
-        cleaning_start,
-        cleaning_end,
-        room_id,
+        rq::RoomStatusUpdateValues {
+            target_status: &target_status,
+            notes: input.notes.as_deref(),
+            status_notes: &status_notes,
+            reserved_start,
+            reserved_end,
+            maintenance_start,
+            maintenance_end,
+            cleaning_start,
+            cleaning_end,
+            room_id,
+        },
     )
     .await?;
 
@@ -798,13 +810,15 @@ pub async fn update_room_status_handler(
 
         let _ = rq::insert_room_history(
             &pool,
-            room_id,
-            &current_status,
-            &target_status,
-            history_start,
-            history_end,
-            user_id,
-            &input.notes,
+            rq::RoomHistoryValues {
+                room_id,
+                from_status: &current_status,
+                to_status: &target_status,
+                start: history_start,
+                end: history_end,
+                user_id,
+                notes: &input.notes,
+            },
         )
         .await;
     }
@@ -823,18 +837,19 @@ pub async fn update_room_status_handler(
     // Audit log: room status change
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_status_changed",
-        "room",
-        Some(room_id),
-        Some(serde_json::json!({
-            "room_number": room.room_number,
-            "from_status": current_status,
-            "to_status": target_status,
-            "notes": input.notes
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_status_changed",
+            resource_type: "room",
+            resource_id: Some(room_id),
+            details: Some(serde_json::json!({
+                "room_number": room.room_number,
+                "from_status": current_status,
+                "to_status": target_status,
+                "notes": input.notes
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -883,17 +898,18 @@ pub async fn end_maintenance_handler(
     // Audit log: maintenance ended
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "maintenance_ended",
-        "room",
-        Some(room_id),
-        Some(serde_json::json!({
-            "room_number": room.room_number,
-            "from_status": status_label,
-            "to_status": "available"
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "maintenance_ended",
+            resource_type: "room",
+            resource_id: Some(room_id),
+            details: Some(serde_json::json!({
+                "room_number": room.room_number,
+                "from_status": status_label,
+                "to_status": "available"
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -940,17 +956,18 @@ pub async fn end_cleaning_handler(
     // Audit log: cleaning completed
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "cleaning_completed",
-        "room",
-        Some(room_id),
-        Some(serde_json::json!({
-            "room_number": room_number,
-            "from_status": "cleaning",
-            "to_status": next_status
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "cleaning_completed",
+            resource_type: "room",
+            resource_id: Some(room_id),
+            details: Some(serde_json::json!({
+                "room_number": room_number,
+                "from_status": "cleaning",
+                "to_status": next_status
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -986,16 +1003,17 @@ pub async fn sync_room_statuses_handler(
     // Audit log: bulk room-status sync
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_statuses_synced",
-        "room",
-        None,
-        Some(serde_json::json!({
-            "synced_count": changes.len(),
-            "changes": changes.clone(),
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_statuses_synced",
+            resource_type: "room",
+            resource_id: None,
+            details: Some(serde_json::json!({
+                "synced_count": changes.len(),
+                "changes": changes.clone(),
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -1079,14 +1097,16 @@ pub async fn execute_room_change_handler(
 
     rq::execute_room_change_tx(
         &mut tx,
-        booking_id,
-        room_id,
-        target_id,
-        guest_id,
-        &reason,
-        user_id,
-        &from_room_number,
-        &to_room_number,
+        rq::RoomChangeValues {
+            booking_id,
+            room_id,
+            target_id,
+            guest_id,
+            reason: &reason,
+            user_id,
+            from_room_number: &from_room_number,
+            to_room_number: &to_room_number,
+        },
     )
     .await?;
 
@@ -1097,21 +1117,22 @@ pub async fn execute_room_change_handler(
     // Audit log: room change
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "room_changed",
-        "room",
-        Some(room_id),
-        Some(serde_json::json!({
-            "from_room_id": room_id,
-            "from_room_number": from_room_number,
-            "to_room_id": target_id,
-            "to_room_number": to_room_number,
-            "booking_id": booking_id,
-            "guest_id": guest_id,
-            "reason": reason
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_changed",
+            resource_type: "room",
+            resource_id: Some(room_id),
+            details: Some(serde_json::json!({
+                "from_room_id": room_id,
+                "from_room_number": from_room_number,
+                "to_room_id": target_id,
+                "to_room_number": to_room_number,
+                "booking_id": booking_id,
+                "guest_id": guest_id,
+                "reason": reason
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -1223,13 +1244,15 @@ pub async fn create_room_event_handler(
 
     let event = rq::insert_room_event_full(
         &pool,
-        room_id,
-        &input.event_type,
-        &input.status,
-        priority,
-        &input.notes,
-        scheduled_date,
-        user_id,
+        rq::RoomEventValues {
+            room_id,
+            event_type: &input.event_type,
+            status: &input.status,
+            priority,
+            notes: &input.notes,
+            scheduled_date,
+            user_id,
+        },
     )
     .await?;
 

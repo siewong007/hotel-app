@@ -75,6 +75,17 @@ pub struct EkycNoteInsert {
     pub customer_visible: bool,
 }
 
+/// One reviewer decision applied to an eKYC application.
+pub struct EkycReviewAction {
+    pub application_id: i64,
+    pub actor_id: i64,
+    pub expected_version: i32,
+    pub update: EkycActionUpdate,
+    pub history: EkycHistoryInsert,
+    pub note: Option<EkycNoteInsert>,
+    pub idempotency_key: Option<String>,
+}
+
 /// Extra fields applied when an admin creates an already-approved verification.
 pub struct AdminApproval {
     pub self_checkin_enabled: bool,
@@ -721,17 +732,19 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(format!("Failed to check idempotency key: {}", e)))
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn apply_review_action(
         pool: &DbPool,
-        application_id: i64,
-        actor_id: i64,
-        expected_version: i32,
-        update: EkycActionUpdate,
-        history: EkycHistoryInsert,
-        note: Option<EkycNoteInsert>,
-        idempotency_key: Option<String>,
+        action: EkycReviewAction,
     ) -> Result<EkycVerification, ApiError> {
+        let EkycReviewAction {
+            application_id,
+            actor_id,
+            expected_version,
+            update,
+            history,
+            note,
+            idempotency_key,
+        } = action;
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
         let updated = sqlx::query_as::<_, EkycVerification>(
@@ -976,24 +989,26 @@ impl EkycRepository {
 
         Self::apply_review_action(
             pool,
-            id,
-            admin_id,
-            update.expected_version.unwrap_or(current.version),
-            action,
-            EkycHistoryInsert {
-                action: "legacy_update".to_string(),
-                from_status: Some(current.status),
-                to_status: Some(update.status.clone()),
-                reason_code: update.reason_code.clone(),
-                reason: update.reason.clone(),
-                details: Some(serde_json::json!({
-                    "face_match_score": update.face_match_score,
-                    "face_match_passed": update.face_match_passed,
-                    "legacy_patch": true
-                })),
+            EkycReviewAction {
+                application_id: id,
+                actor_id: admin_id,
+                expected_version: update.expected_version.unwrap_or(current.version),
+                update: action,
+                history: EkycHistoryInsert {
+                    action: "legacy_update".to_string(),
+                    from_status: Some(current.status),
+                    to_status: Some(update.status.clone()),
+                    reason_code: update.reason_code.clone(),
+                    reason: update.reason.clone(),
+                    details: Some(serde_json::json!({
+                        "face_match_score": update.face_match_score,
+                        "face_match_passed": update.face_match_passed,
+                        "legacy_patch": true
+                    })),
+                },
+                note: None,
+                idempotency_key: None,
             },
-            None,
-            None,
         )
         .await
     }

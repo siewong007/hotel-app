@@ -4,9 +4,9 @@ use crate::core::db::{DbPool, DbRow, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
-    Guest, GuestBookingRow, GuestCreditRow, GuestPaginationParams, GuestProfileBooking,
-    GuestRoomCreditRow, GuestSummary, GuestTourismTaxSignal, GuestUpdateState, GuestUpdateValues,
-    LinkGuestInput, LinkedGuestCreditRow,
+    Guest, GuestBookingRow, GuestCreateValues, GuestCreditRow, GuestPaginationParams,
+    GuestProfileBooking, GuestRoomCreditRow, GuestSummary, GuestTourismTaxSignal, GuestUpdateState,
+    GuestUpdateValues, LinkGuestInput, LinkedGuestCreditRow,
 };
 use crate::utils::pagination::Pagination;
 use chrono::{DateTime, NaiveDate, Utc};
@@ -31,26 +31,6 @@ fn unique_violation_matches(error: &sqlx::Error, constraint_name: &str) -> bool 
             .contains("UNIQUE constraint failed");
 
     is_unique_violation && database_error.message().contains(constraint_name)
-}
-
-struct GuestCreateValues<'a> {
-    full_name: &'a str,
-    first_name: &'a str,
-    last_name: &'a str,
-    email: Option<&'a str>,
-    phone: Option<String>,
-    ic_number: Option<String>,
-    nationality: Option<String>,
-    address_line1: Option<String>,
-    city: Option<String>,
-    state_province: Option<String>,
-    postal_code: Option<String>,
-    country: Option<String>,
-    guest_type: &'a crate::constants::GuestType,
-    tourism_type: &'a Option<crate::constants::TourismType>,
-    discount_percentage: i32,
-    company_name: Option<String>,
-    created_by: i64,
 }
 
 impl GuestRepository {
@@ -388,47 +368,10 @@ impl GuestRepository {
         Ok(id)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn create_detailed(
         pool: &DbPool,
-        full_name: &str,
-        first_name: &str,
-        last_name: &str,
-        email: Option<&str>,
-        phone: Option<String>,
-        ic_number: Option<String>,
-        nationality: Option<String>,
-        address_line1: Option<String>,
-        city: Option<String>,
-        state_province: Option<String>,
-        postal_code: Option<String>,
-        country: Option<String>,
-        guest_type: &crate::constants::GuestType,
-        tourism_type: &Option<crate::constants::TourismType>,
-        discount_percentage: i32,
-        company_name: Option<String>,
-        created_by: i64,
+        values: GuestCreateValues<'_>,
     ) -> Result<Guest, ApiError> {
-        let values = GuestCreateValues {
-            full_name,
-            first_name,
-            last_name,
-            email,
-            phone,
-            ic_number,
-            nationality,
-            address_line1,
-            city,
-            state_province,
-            postal_code,
-            country,
-            guest_type,
-            tourism_type,
-            discount_percentage,
-            company_name,
-            created_by,
-        };
-
         for attempt in 0..2 {
             let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
