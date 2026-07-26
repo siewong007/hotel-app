@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
 import {
   Box,
+  ButtonBase,
   Container,
   Paper,
   TextField,
@@ -17,7 +18,6 @@ import {
   CardContent,
 } from '@mui/material';
 import {
-  Hotel as HotelIcon,
   Lock as LockIcon,
   Fingerprint as FingerprintIcon,
   ArrowBack as ArrowBackIcon,
@@ -219,9 +219,10 @@ const LoginPage: React.FC = () => {
     // Safari can leave an automatic WebAuthn request pending without showing
     // a usable prompt, trapping password users on "Checking for passkey".
     // Keep the explicit passkey button available, but make Next reliably open
-    // the password step in Apple WebKit browsers.
+    // the password step in Apple WebKit browsers. passkeyAttempted stays false
+    // here — no WebAuthn call was made, so the password step must still offer
+    // the passkey as a choice rather than claiming it is unavailable.
     if (isAppleWebKitBrowser()) {
-      setPasskeyAttempted(true);
       setShowPasswordField(true);
       return;
     }
@@ -299,8 +300,10 @@ const LoginPage: React.FC = () => {
   if (show2FAPrompt) {
     return (
       <Box
+        className="auth-page auth-page--2fa"
         sx={{
           minHeight: '100vh',
+          '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -309,10 +312,17 @@ const LoginPage: React.FC = () => {
       >
         <Container maxWidth="sm">
           <Fade in timeout={800}>
-            <Paper elevation={24} sx={{ p: 5, borderRadius: 3 }}>
-              <Box sx={{ textAlign: 'center', mb: 4 }}>
-                <VpnKeyIcon sx={{ fontSize: 60, color: 'var(--hotel-primary)', mb: 2 }} />
-                <Typography variant="h4" gutterBottom fontWeight="bold">
+            <Paper elevation={24} sx={{ p: { xs: 3, sm: 5 }, borderRadius: 3 }}>
+              <Box sx={{ textAlign: 'center', mb: { xs: 2.5, sm: 4 } }}>
+                <VpnKeyIcon
+                  sx={{ fontSize: { xs: 40, sm: 60 }, color: 'var(--hotel-primary)', mb: { xs: 1, sm: 2 } }}
+                />
+                <Typography
+                  variant="h4"
+                  gutterBottom
+                  fontWeight="bold"
+                  sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}
+                >
                   Two-Factor Authentication
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -397,6 +407,9 @@ const LoginPage: React.FC = () => {
       className="auth-page auth-page--signin"
       sx={{
         minHeight: '100vh',
+        // Mobile browsers count the collapsing URL bar in 100vh, which pushes the
+        // sign-in button under the toolbar. dvh tracks the visible viewport.
+        '@supports (min-height: 100dvh)': { minHeight: '100dvh' },
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -436,15 +449,15 @@ const LoginPage: React.FC = () => {
             }}
           >
             {/* Header - Modern Bold Typography */}
-            <Box className="auth-heading" sx={{ textAlign: 'left', mb: 5 }}>
+            <Box className="auth-heading" sx={{ textAlign: 'left', mb: { xs: 2.5, sm: 5 } }}>
               <Typography
                 variant="h1"
                 sx={{
-                  fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
+                  fontSize: { xs: '2.75rem', sm: '4rem', md: '5rem' },
                   fontWeight: 900,
                   letterSpacing: '-0.02em',
                   lineHeight: 0.9,
-                  mb: 1,
+                  mb: { xs: 0.75, sm: 1 },
                   textTransform: 'uppercase',
                   background: 'var(--hotel-action-gradient)',
                   WebkitBackgroundClip: 'text',
@@ -454,25 +467,15 @@ const LoginPage: React.FC = () => {
               >
                 Welcome
               </Typography>
+              {/* The hotel name is already the card's eyebrow (.auth-card::before,
+                  fed by --auth-brand-eyebrow from the same settings), so it is
+                  deliberately not repeated here. */}
               <Box sx={{
                 width: '60px',
                 height: '4px',
                 background: 'var(--hotel-action-gradient)',
-                mb: 2,
+                mb: { xs: 1.25, sm: 2 },
               }} />
-              <Typography
-                variant="h5"
-                sx={{
-                  fontWeight: 600,
-                  letterSpacing: '0.1em',
-                  color: 'var(--hotel-accent-text)',
-                  textTransform: 'uppercase',
-                  fontSize: '0.9rem',
-                  mb: 1,
-                }}
-              >
-                {hotelSettings.hotel_name}
-              </Typography>
               <Typography
                 variant="body2"
                 sx={{
@@ -481,31 +484,10 @@ const LoginPage: React.FC = () => {
                   letterSpacing: '0.02em',
                 }}
               >
-                {!userType && 'Choose how you use Salim Inn'}
+                {!userType && `Choose how you use ${hotelSettings.hotel_name}`}
                 {userType && `Continue to your ${userType === 'guest' ? 'guest stay' : 'staff workspace'}`}
               </Typography>
             </Box>
-
-            {/* Back Button */}
-            {userType && (
-              <Fade in>
-                <Box sx={{ mb: 2 }}>
-                  <IconButton
-                    onClick={handleBackToUserType}
-                    sx={{
-                      color: 'var(--hotel-primary)',
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateX(-4px)',
-                        backgroundColor: 'var(--hotel-muted-bg)',
-                      },
-                    }}
-                  >
-                    <ArrowBackIcon />
-                  </IconButton>
-                </Box>
-              </Fade>
-            )}
 
             {/* Error Alert */}
             <Collapse in={!!error}>
@@ -624,16 +606,30 @@ const LoginPage: React.FC = () => {
             {userType && (
               <Slide direction="left" in timeout={400}>
                 <Box>
-                  <Box sx={{ mb: 3, textAlign: 'center' }}>
+                  {/* Identity row — back control, step icon and step label on a
+                      single line so the form stays above the fold on phones. */}
+                  <Box sx={{ mb: { xs: 2, sm: 3 }, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <IconButton
+                      onClick={handleBackToUserType}
+                      aria-label="Back to account type"
+                      sx={{
+                        ml: -1,
+                        color: 'var(--hotel-primary)',
+                        transition: 'transform 0.3s',
+                        '&:hover': {
+                          transform: 'translateX(-4px)',
+                          backgroundColor: 'var(--hotel-muted-bg)',
+                        },
+                      }}
+                    >
+                      <ArrowBackIcon />
+                    </IconButton>
                     <Box
                       sx={{
-                        display: 'inline-flex',
-                        p: 2,
+                        display: { xs: 'none', sm: 'inline-flex' },
+                        p: 1,
                         borderRadius: '50%',
-                        background: passkeyCheckInProgress
-                          ? 'linear-gradient(135deg, var(--hotel-primary) 0%, var(--hotel-secondary) 100%)'
-                          : 'var(--hotel-action-gradient)',
-                        mb: 2,
+                        background: 'var(--hotel-action-gradient)',
                         animation: passkeyCheckInProgress ? 'pulse 1.5s ease-in-out infinite' : 'none',
                         '@keyframes pulse': {
                           '0%, 100%': { transform: 'scale(1)', opacity: 1 },
@@ -642,23 +638,30 @@ const LoginPage: React.FC = () => {
                       }}
                     >
                       {passkeyCheckInProgress ? (
-                        <FingerprintIcon sx={{ fontSize: 32, color: 'white' }} />
+                        <FingerprintIcon sx={{ fontSize: 22, color: 'white' }} />
                       ) : usernameSubmitted ? (
-                        <PersonIcon sx={{ fontSize: 32, color: 'white' }} />
+                        <PersonIcon sx={{ fontSize: 22, color: 'white' }} />
                       ) : (
-                        <LockIcon sx={{ fontSize: 32, color: 'white' }} />
+                        <LockIcon sx={{ fontSize: 22, color: 'white' }} />
                       )}
                     </Box>
-                    <Typography variant="h6" fontWeight={600} color="var(--hotel-accent-text)">
-                      {passkeyCheckInProgress ? 'Authenticating...' : 'Sign In'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      {passkeyCheckInProgress
-                        ? 'Checking for passkey'
-                        : userType === 'guest'
-                          ? 'Guest Account'
-                          : 'Admin Account'}
-                    </Typography>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
+                        variant="h6"
+                        fontWeight={700}
+                        color="var(--hotel-accent-text)"
+                        sx={{ lineHeight: 1.2, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}
+                      >
+                        {passkeyCheckInProgress ? 'Authenticating…' : 'Sign in'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                        {passkeyCheckInProgress
+                          ? 'Checking for a passkey'
+                          : userType === 'guest'
+                            ? 'Guest account'
+                            : 'Staff account'}
+                      </Typography>
+                    </Box>
                   </Box>
 
                   {/* Step 1: Username Entry */}
@@ -671,7 +674,7 @@ const LoginPage: React.FC = () => {
                         autoComplete="username"
                         value={username}
                         onChange={(e) => setUsername(e.target.value)}
-                        margin="normal"
+                        margin="dense"
                         required
                         autoFocus
                         sx={{
@@ -696,8 +699,8 @@ const LoginPage: React.FC = () => {
                         fullWidth
                         variant="contained"
                         sx={{
-                          mt: 3,
-                          mb: 2,
+                          mt: 2,
+                          mb: 1.5,
                           py: 1.5,
                           background: 'var(--hotel-action-gradient)',
                           fontWeight: 600,
@@ -740,44 +743,49 @@ const LoginPage: React.FC = () => {
                   {/* Step 2: Passkey Check or Password Entry */}
                   {(usernameSubmitted || passkeyCheckInProgress) && (
                     <Box>
-                      {/* Show username with edit option */}
-                      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box
+                      {/* Account chip — the whole row is the "use a different
+                          account" control, so it costs one line instead of a
+                          two-line panel plus a separate button. */}
+                      <ButtonBase
+                        onClick={handleEditUsername}
+                        disabled={passkeyCheckInProgress}
+                        aria-label={`Signed in as ${username}. Change account`}
+                        sx={{
+                          width: '100%',
+                          mb: 2,
+                          px: 1.5,
+                          py: 1,
+                          gap: 1,
+                          borderRadius: 2,
+                          justifyContent: 'flex-start',
+                          textAlign: 'left',
+                          background: 'var(--hotel-muted-bg)',
+                          border: '1px solid var(--hotel-divider)',
+                          '&:hover': { borderColor: 'var(--hotel-primary)' },
+                        }}
+                      >
+                        <PersonIcon sx={{ fontSize: 20, color: 'var(--hotel-primary)' }} />
+                        <Typography
+                          noWrap
                           sx={{
                             flex: 1,
-                            p: 2,
-                            borderRadius: 2,
-                            background: 'var(--hotel-muted-bg)',
-                            border: '1px solid var(--hotel-divider)',
+                            minWidth: 0,
+                            fontWeight: 600,
+                            fontSize: '0.95rem',
+                            color: 'var(--hotel-accent-text)',
                           }}
                         >
-                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                            Username
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600} color="var(--hotel-accent-text)">
-                            {username}
-                          </Typography>
-                        </Box>
+                          {username}
+                        </Typography>
                         {!passkeyCheckInProgress && (
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            onClick={handleEditUsername}
-                            sx={{
-                              minWidth: 'auto',
-                              px: 2,
-                              borderColor: 'var(--hotel-primary)',
-                              color: 'var(--hotel-primary)',
-                              '&:hover': {
-                                borderColor: 'var(--hotel-primary-dark)',
-                                backgroundColor: 'var(--hotel-muted-bg)',
-                              },
-                            }}
+                          <Typography
+                            component="span"
+                            sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--hotel-primary)' }}
                           >
-                            Edit
-                          </Button>
+                            Change
+                          </Typography>
                         )}
-                      </Box>
+                      </ButtonBase>
 
                       {/* Loading state during passkey check */}
                       {passkeyCheckInProgress && (
@@ -804,7 +812,7 @@ const LoginPage: React.FC = () => {
                               autoComplete="current-password"
                               value={password}
                               onChange={(e) => setPassword(e.target.value)}
-                              margin="normal"
+                              margin="dense"
                               required
                               autoFocus
                               sx={{
@@ -829,8 +837,8 @@ const LoginPage: React.FC = () => {
                               fullWidth
                               variant="contained"
                               sx={{
-                                mt: 3,
-                                mb: 2,
+                                mt: 2,
+                                mb: 1.5,
                                 py: 1.5,
                                 background: 'var(--hotel-action-gradient)',
                                 fontWeight: 600,
@@ -850,10 +858,31 @@ const LoginPage: React.FC = () => {
                               {loading ? <LoadingSpinner size={24} color="inherit" /> : 'Sign In'}
                             </Button>
 
+                            {/* Apple WebKit skips the automatic passkey attempt, so
+                                passkey users land here with their credential unused.
+                                Offer it as an action instead of declaring it absent. */}
                             <Box sx={{ textAlign: 'center' }}>
-                              <Typography variant="caption" color="text.secondary">
-                                Passkey not available. Using password instead.
-                              </Typography>
+                              {passkeyAttempted ? (
+                                <Typography variant="caption" color="text.secondary">
+                                  Passkey not available. Using password instead.
+                                </Typography>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="text"
+                                  startIcon={<FingerprintIcon />}
+                                  onClick={handlePasskeyLogin}
+                                  disabled={loading}
+                                  sx={{
+                                    fontSize: '0.85rem',
+                                    fontWeight: 600,
+                                    color: 'var(--hotel-primary)',
+                                    '&:hover': { backgroundColor: 'var(--hotel-muted-bg)' },
+                                  }}
+                                >
+                                  Use a passkey instead
+                                </Button>
+                              )}
                             </Box>
                           </form>
                         </Fade>

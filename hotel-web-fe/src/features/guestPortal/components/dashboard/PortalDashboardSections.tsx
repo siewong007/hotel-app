@@ -318,14 +318,14 @@ function RefundBookingDialog({
   );
 }
 
+// Booking is reached only from the shell navigation ("Book a stay" on web, the
+// "Book" tab on phones), so no section renders its own book button.
 export function OverviewSection({
   token,
   onSectionChange,
-  onBook,
 }: {
   token: string;
   onSectionChange: (section: PortalSection) => void;
-  onBook: () => void;
 }) {
   const [me, setMe] = useState<GuestPortalMeResponse | null>(null);
   const [bookings, setBookings] = useState<GuestPortalBookingSummary[]>([]);
@@ -465,18 +465,20 @@ export function OverviewSection({
                 </Box>
                 <CalendarMonthOutlinedIcon sx={{ color: GOLD, fontSize: 34 }} />
               </Stack>
-              <Button
-                endIcon={<EastOutlinedIcon />}
-                onClick={nextStay ? () => onSectionChange("stays") : onBook}
-                sx={{
-                  color: "white",
-                  mt: 3,
-                  px: 0,
-                  "&:hover": { bgcolor: "transparent", color: GOLD },
-                }}
-              >
-                {nextStay ? "View my stays" : "Book a stay"}
-              </Button>
+              {nextStay ? (
+                <Button
+                  endIcon={<EastOutlinedIcon />}
+                  onClick={() => onSectionChange("stays")}
+                  sx={{
+                    color: "white",
+                    mt: 3,
+                    px: 0,
+                    "&:hover": { bgcolor: "transparent", color: GOLD },
+                  }}
+                >
+                  View my stays
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         </Grid>
@@ -544,7 +546,7 @@ export function OverviewSection({
               Plan another visit
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Search live availability, or browse an offer before you book.
+              Browse current offers before your next stay.
             </Typography>
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
@@ -553,18 +555,6 @@ export function OverviewSection({
               onClick={() => onSectionChange("offers")}
             >
               View offers
-            </Button>
-            <Button
-              variant="contained"
-              onClick={onBook}
-              sx={{
-                bgcolor: GOLD,
-                color: FOREST,
-                fontWeight: 700,
-                "&:hover": { bgcolor: "#e4c487" },
-              }}
-            >
-              Book a stay
             </Button>
           </Stack>
         </Stack>
