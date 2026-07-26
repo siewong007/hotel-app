@@ -13,7 +13,7 @@ this doc described a two-layer handlers-only design that no longer exists):
 - `repositories/bookings/lifecycle.rs` (3454 lines) — where almost all booking business logic actually lives: room locking, rate calculation, daily_rates rebuild, checkout accounting, city-ledger posting.
 - `repositories/bookings/{checkin_advisory,complimentary,credits}.rs` — split-out sub-areas (checkin advisories, complimentary stays, guest credits); not covered in detail here.
 
-**Routes** (`hotel-app-be/src/routes/bookings.rs`) — gated by `bookings:<read|create|update|delete|manage>` per-route via `require_permission_helper` (e.g. `delete_booking` requires `bookings:delete`, `void_booking`/`manual_checkin` require `bookings:update`); `my-bookings`, and code lookups (`/rate-codes`, `/market-codes`) are auth-only/public. Lifecycle status: `pending` → `confirmed` → `checked_in`/`auto_checked_in` → `checked_out`/`completed`; off-paths `voided`, `late_checkout`.
+**Routes** (`hotel-app-be/src/routes/bookings.rs`) — gated by `bookings:<read|create|update|delete|manage>` per-route via `require_permission_helper` (e.g. `delete_booking` requires `bookings:delete`, `void_booking`/`manual_checkin` require `bookings:update`); code lookups (`/rate-codes`, `/market-codes`) are auth-only/public. Guests reach their own bookings only through the guest portal (`/guest-portal/me/bookings`, `routes/guest_portal.rs`) — the legacy `/bookings/my-bookings` endpoints were removed 2026-07-27. Lifecycle status: `pending` → `confirmed` → `checked_in`/`auto_checked_in` → `checked_out`/`completed`; off-paths `voided`, `late_checkout`.
 
 Key logic in `repositories/bookings/lifecycle.rs`:
 

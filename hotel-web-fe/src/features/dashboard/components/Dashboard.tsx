@@ -51,11 +51,10 @@ const Dashboard: React.FC = () => {
 
   const loadStats = useCallback(async () => {
     try {
-      const [rooms, guests, bookings, myBookings] = await Promise.all([
+      const [rooms, guests, bookings] = await Promise.all([
         RoomsService.getAllRooms(),
         GuestsService.getAllGuests(),
-        BookingsService.getAllBookings(),
-        BookingsService.getMyBookings().catch(() => []) // Fallback to empty array if fails
+        BookingsService.getAllBookings()
       ]);
 
       const availableRooms = rooms.filter(room => room.available).length;
@@ -65,7 +64,7 @@ const Dashboard: React.FC = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const upcoming = (myBookings as any[]).filter((booking: any) => {
+      const upcoming = (bookings as any[]).filter((booking: any) => {
         const checkInDate = new Date(booking.check_in_date);
         checkInDate.setHours(0, 0, 0, 0);
         return (

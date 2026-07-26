@@ -84,15 +84,6 @@ export function useMyGuests(enabled = true) {
   });
 }
 
-export function useMyGuestsWithCredits(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.guests.mineWithCredits(),
-    queryFn: () => GuestsService.getMyGuestsWithCredits(),
-    enabled,
-    staleTime: queryStaleTime.standard,
-  });
-}
-
 export function useCreateGuest() {
   const queryClient = useQueryClient();
   return useMutation({

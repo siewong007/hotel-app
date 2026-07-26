@@ -11,7 +11,6 @@ import {
 } from '@mui/material';
 import {
   EventNote as EventNoteIcon,
-  Book as BookIcon,
   People as PeopleIcon,
   Hotel as HotelIcon,
   Category as CategoryIcon,
@@ -30,7 +29,6 @@ import type { RouteAccessPolicy } from '../../../../../types';
 // Icon mapping by backend route id.
 const NAV_ICON_MAP: Record<string, React.ElementType> = {
   timeline: EventNoteIcon,
-  'my-bookings': BookIcon,
   'guest-config': PeopleIcon,
   bookings: CalendarIcon,
   'room-management': HomeWorkIcon,

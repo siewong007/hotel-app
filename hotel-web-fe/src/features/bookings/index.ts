@@ -5,4 +5,3 @@ export { default as GuestCheckInVerify } from './components/GuestCheckInVerify';
 export { default as GuestCheckInConfirmation } from './components/GuestCheckInConfirmation';
 export { default as GuestCheckInForm } from './components/GuestCheckInForm';
 export { default as BookingsPage } from './components/Bookings';
-export { default as MyBookingsPage } from './components/MyBookingsPage';

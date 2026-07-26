@@ -23,7 +23,6 @@ guests see only their own pages.
 
 ### Main (daily front-desk work)
 - `/bookings` — Bookings: search, create, edit, check-in/out; the busiest screen
-- `/my-bookings` — a user's own bookings (guest-role view)
 - `/timeline` — room-reservation timeline: rooms × dates calendar grid
 - `/guest-config` — guest profiles and guest data management
 - `/room-management` — room status board (occupancy, housekeeping state)
@@ -48,7 +47,7 @@ guests see only their own pages.
 
 ### Not in the sidebar
 - `/` — logged-out landing page; when authenticated, redirects by role
-  (admin → analytics, employee → profile, guest → my-bookings)
+  (admin → analytics, employee → profile, guest → guest-portal)
 - `/profile`, `/help` — user account and help/support pages
 - `/guest-checkin` → `/guest-checkin/verify` → `/guest-checkin/form` →
   `/guest-checkin/confirm` — the four-step guest self-check-in wizard

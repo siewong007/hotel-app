@@ -38,7 +38,6 @@ export const queryKeys = {
     list: (params?: KeyParams) => [...bookings, 'list', paramsOrEmpty(params)] as const,
     page: (params?: KeyParams) => [...bookings, 'page', paramsOrEmpty(params)] as const,
     withDetails: (filters?: KeyParams) => [...bookings, 'with-details', paramsOrEmpty(filters)] as const,
-    mine: () => [...bookings, 'mine'] as const,
     stats: () => [...bookings, 'stats'] as const,
     detail: (id: string | number) => [...bookings, 'detail', String(id)] as const,
     timeline: (id: string | number) => [...bookings, 'timeline', String(id)] as const,

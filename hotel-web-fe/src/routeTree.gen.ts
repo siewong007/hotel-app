@@ -9,218 +9,52 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VerifyEmailRouteImport } from './routes/verify-email'
-import { Route as TimelineRouteImport } from './routes/timeline'
-import { Route as SupportRouteImport } from './routes/support'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as RoomManagementRouteImport } from './routes/room-management'
-import { Route as RoomConfigRouteImport } from './routes/room-config'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as RbacRouteImport } from './routes/rbac'
-import { Route as PromotionsRouteImport } from './routes/promotions'
-import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
-import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
-import { Route as OffersRouteImport } from './routes/offers'
-import { Route as NightAuditRouteImport } from './routes/night-audit'
-import { Route as MyRewardsRouteImport } from './routes/my-rewards'
-import { Route as MyBookingsRouteImport } from './routes/my-bookings'
-import { Route as LoyaltyRouteImport } from './routes/loyalty'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as HousekeepingRouteImport } from './routes/housekeeping'
-import { Route as HelpRouteImport } from './routes/help'
-import { Route as GuestPortalRouteImport } from './routes/guest-portal'
-import { Route as GuestConfigRouteImport } from './routes/guest-config'
-import { Route as EkycAdminRouteImport } from './routes/ekyc-admin'
-import { Route as EkycRouteImport } from './routes/ekyc'
-import { Route as DataTransferRouteImport } from './routes/data-transfer'
-import { Route as ComplimentaryRouteImport } from './routes/complimentary'
-import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
-import { Route as CommunicationsRouteImport } from './routes/communications'
-import { Route as BookingsRouteImport } from './routes/bookings'
-import { Route as AuditLogRouteImport } from './routes/audit-log'
-import { Route as AdminPortalRouteImport } from './routes/admin-portal'
-import { Route as R423RouteImport } from './routes/423'
-import { Route as R403RouteImport } from './routes/403'
-import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as PortalIndexRouteImport } from './routes/portal/index'
+import { Route as SplatRouteImport } from './routes/$'
+import { Route as R403RouteImport } from './routes/403'
+import { Route as R423RouteImport } from './routes/423'
+import { Route as AdminPortalRouteImport } from './routes/admin-portal'
+import { Route as AuditLogRouteImport } from './routes/audit-log'
+import { Route as BookingsRouteImport } from './routes/bookings'
+import { Route as CommunicationsRouteImport } from './routes/communications'
+import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
+import { Route as ComplimentaryRouteImport } from './routes/complimentary'
+import { Route as DataTransferRouteImport } from './routes/data-transfer'
+import { Route as EkycRouteImport } from './routes/ekyc'
+import { Route as EkycAdminRouteImport } from './routes/ekyc-admin'
+import { Route as GuestConfigRouteImport } from './routes/guest-config'
+import { Route as GuestPortalRouteImport } from './routes/guest-portal'
+import { Route as HelpRouteImport } from './routes/help'
+import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as LoyaltyRouteImport } from './routes/loyalty'
+import { Route as MyRewardsRouteImport } from './routes/my-rewards'
+import { Route as NightAuditRouteImport } from './routes/night-audit'
+import { Route as OffersRouteImport } from './routes/offers'
+import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
+import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as PromotionsRouteImport } from './routes/promotions'
+import { Route as RbacRouteImport } from './routes/rbac'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as RoomConfigRouteImport } from './routes/room-config'
+import { Route as RoomManagementRouteImport } from './routes/room-management'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SupportRouteImport } from './routes/support'
+import { Route as TimelineRouteImport } from './routes/timeline'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
-import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
-import { Route as PortalBookRouteImport } from './routes/portal/book'
-import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
-import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
+import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
+import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
+import { Route as PortalIndexRouteImport } from './routes/portal/index'
+import { Route as PortalBookRouteImport } from './routes/portal/book'
+import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
 
-const VerifyEmailRoute = VerifyEmailRouteImport.update({
-  id: '/verify-email',
-  path: '/verify-email',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TimelineRoute = TimelineRouteImport.update({
-  id: '/timeline',
-  path: '/timeline',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SupportRoute = SupportRouteImport.update({
-  id: '/support',
-  path: '/support',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoomManagementRoute = RoomManagementRouteImport.update({
-  id: '/room-management',
-  path: '/room-management',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoomConfigRoute = RoomConfigRouteImport.update({
-  id: '/room-config',
-  path: '/room-config',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportsRoute = ReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RbacRoute = RbacRouteImport.update({
-  id: '/rbac',
-  path: '/rbac',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PromotionsRoute = PromotionsRouteImport.update({
-  id: '/promotions',
-  path: '/promotions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PaymentApprovalsRoute = PaymentApprovalsRouteImport.update({
-  id: '/payment-approvals',
-  path: '/payment-approvals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnlineInventoryRoute = OnlineInventoryRouteImport.update({
-  id: '/online-inventory',
-  path: '/online-inventory',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OffersRoute = OffersRouteImport.update({
-  id: '/offers',
-  path: '/offers',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NightAuditRoute = NightAuditRouteImport.update({
-  id: '/night-audit',
-  path: '/night-audit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyRewardsRoute = MyRewardsRouteImport.update({
-  id: '/my-rewards',
-  path: '/my-rewards',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MyBookingsRoute = MyBookingsRouteImport.update({
-  id: '/my-bookings',
-  path: '/my-bookings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoyaltyRoute = LoyaltyRouteImport.update({
-  id: '/loyalty',
-  path: '/loyalty',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HousekeepingRoute = HousekeepingRouteImport.update({
-  id: '/housekeeping',
-  path: '/housekeeping',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HelpRoute = HelpRouteImport.update({
-  id: '/help',
-  path: '/help',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GuestPortalRoute = GuestPortalRouteImport.update({
-  id: '/guest-portal',
-  path: '/guest-portal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GuestConfigRoute = GuestConfigRouteImport.update({
-  id: '/guest-config',
-  path: '/guest-config',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EkycAdminRoute = EkycAdminRouteImport.update({
-  id: '/ekyc-admin',
-  path: '/ekyc-admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EkycRoute = EkycRouteImport.update({
-  id: '/ekyc',
-  path: '/ekyc',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DataTransferRoute = DataTransferRouteImport.update({
-  id: '/data-transfer',
-  path: '/data-transfer',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ComplimentaryRoute = ComplimentaryRouteImport.update({
-  id: '/complimentary',
-  path: '/complimentary',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CompanyLedgerRoute = CompanyLedgerRouteImport.update({
-  id: '/company-ledger',
-  path: '/company-ledger',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CommunicationsRoute = CommunicationsRouteImport.update({
-  id: '/communications',
-  path: '/communications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookingsRoute = BookingsRouteImport.update({
-  id: '/bookings',
-  path: '/bookings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuditLogRoute = AuditLogRouteImport.update({
-  id: '/audit-log',
-  path: '/audit-log',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminPortalRoute = AdminPortalRouteImport.update({
-  id: '/admin-portal',
-  path: '/admin-portal',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R423Route = R423RouteImport.update({
-  id: '/423',
-  path: '/423',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const R403Route = R403RouteImport.update({
-  id: '/403',
-  path: '/403',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SplatRoute = SplatRouteImport.update({
@@ -228,14 +62,169 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const R403Route = R403RouteImport.update({
+  id: '/403',
+  path: '/403',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PortalIndexRoute = PortalIndexRouteImport.update({
-  id: '/portal/',
-  path: '/portal/',
+const R423Route = R423RouteImport.update({
+  id: '/423',
+  path: '/423',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPortalRoute = AdminPortalRouteImport.update({
+  id: '/admin-portal',
+  path: '/admin-portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditLogRoute = AuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingsRoute = BookingsRouteImport.update({
+  id: '/bookings',
+  path: '/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommunicationsRoute = CommunicationsRouteImport.update({
+  id: '/communications',
+  path: '/communications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompanyLedgerRoute = CompanyLedgerRouteImport.update({
+  id: '/company-ledger',
+  path: '/company-ledger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComplimentaryRoute = ComplimentaryRouteImport.update({
+  id: '/complimentary',
+  path: '/complimentary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DataTransferRoute = DataTransferRouteImport.update({
+  id: '/data-transfer',
+  path: '/data-transfer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EkycRoute = EkycRouteImport.update({
+  id: '/ekyc',
+  path: '/ekyc',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EkycAdminRoute = EkycAdminRouteImport.update({
+  id: '/ekyc-admin',
+  path: '/ekyc-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestConfigRoute = GuestConfigRouteImport.update({
+  id: '/guest-config',
+  path: '/guest-config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestPortalRoute = GuestPortalRouteImport.update({
+  id: '/guest-portal',
+  path: '/guest-portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HousekeepingRoute = HousekeepingRouteImport.update({
+  id: '/housekeeping',
+  path: '/housekeeping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoyaltyRoute = LoyaltyRouteImport.update({
+  id: '/loyalty',
+  path: '/loyalty',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyRewardsRoute = MyRewardsRouteImport.update({
+  id: '/my-rewards',
+  path: '/my-rewards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NightAuditRoute = NightAuditRouteImport.update({
+  id: '/night-audit',
+  path: '/night-audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OffersRoute = OffersRouteImport.update({
+  id: '/offers',
+  path: '/offers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnlineInventoryRoute = OnlineInventoryRouteImport.update({
+  id: '/online-inventory',
+  path: '/online-inventory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentApprovalsRoute = PaymentApprovalsRouteImport.update({
+  id: '/payment-approvals',
+  path: '/payment-approvals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromotionsRoute = PromotionsRouteImport.update({
+  id: '/promotions',
+  path: '/promotions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RbacRoute = RbacRouteImport.update({
+  id: '/rbac',
+  path: '/rbac',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomConfigRoute = RoomConfigRouteImport.update({
+  id: '/room-config',
+  path: '/room-config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoomManagementRoute = RoomManagementRouteImport.update({
+  id: '/room-management',
+  path: '/room-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TimelineRoute = TimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuestCheckinIndexRoute = GuestCheckinIndexRouteImport.update({
@@ -243,19 +232,9 @@ const GuestCheckinIndexRoute = GuestCheckinIndexRouteImport.update({
   path: '/guest-checkin/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const UnsubscribeTokenRoute = UnsubscribeTokenRouteImport.update({
-  id: '/unsubscribe/$token',
-  path: '/unsubscribe/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortalBookRoute = PortalBookRouteImport.update({
-  id: '/portal/book',
-  path: '/portal/book',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
-  id: '/guest-checkin/verify',
-  path: '/guest-checkin/verify',
+const GuestCheckinConfirmRoute = GuestCheckinConfirmRouteImport.update({
+  id: '/guest-checkin/confirm',
+  path: '/guest-checkin/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuestCheckinFormRoute = GuestCheckinFormRouteImport.update({
@@ -263,9 +242,24 @@ const GuestCheckinFormRoute = GuestCheckinFormRouteImport.update({
   path: '/guest-checkin/form',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GuestCheckinConfirmRoute = GuestCheckinConfirmRouteImport.update({
-  id: '/guest-checkin/confirm',
-  path: '/guest-checkin/confirm',
+const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
+  id: '/guest-checkin/verify',
+  path: '/guest-checkin/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
+  id: '/portal/',
+  path: '/portal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalBookRoute = PortalBookRouteImport.update({
+  id: '/portal/book',
+  path: '/portal/book',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeTokenRoute = UnsubscribeTokenRouteImport.update({
+  id: '/unsubscribe/$token',
+  path: '/unsubscribe/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -289,7 +283,6 @@ export interface FileRoutesByFullPath {
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
-  '/my-bookings': typeof MyBookingsRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
   '/offers': typeof OffersRoute
@@ -334,7 +327,6 @@ export interface FileRoutesByTo {
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
-  '/my-bookings': typeof MyBookingsRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
   '/offers': typeof OffersRoute
@@ -380,7 +372,6 @@ export interface FileRoutesById {
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
-  '/my-bookings': typeof MyBookingsRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
   '/offers': typeof OffersRoute
@@ -427,7 +418,6 @@ export interface FileRouteTypes {
     | '/housekeeping'
     | '/login'
     | '/loyalty'
-    | '/my-bookings'
     | '/my-rewards'
     | '/night-audit'
     | '/offers'
@@ -472,7 +462,6 @@ export interface FileRouteTypes {
     | '/housekeeping'
     | '/login'
     | '/loyalty'
-    | '/my-bookings'
     | '/my-rewards'
     | '/night-audit'
     | '/offers'
@@ -517,7 +506,6 @@ export interface FileRouteTypes {
     | '/housekeeping'
     | '/login'
     | '/loyalty'
-    | '/my-bookings'
     | '/my-rewards'
     | '/night-audit'
     | '/offers'
@@ -563,7 +551,6 @@ export interface RootRouteChildren {
   HousekeepingRoute: typeof HousekeepingRoute
   LoginRoute: typeof LoginRoute
   LoyaltyRoute: typeof LoyaltyRoute
-  MyBookingsRoute: typeof MyBookingsRoute
   MyRewardsRoute: typeof MyRewardsRoute
   NightAuditRoute: typeof NightAuditRoute
   OffersRoute: typeof OffersRoute
@@ -591,242 +578,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/verify-email': {
-      id: '/verify-email'
-      path: '/verify-email'
-      fullPath: '/verify-email'
-      preLoaderRoute: typeof VerifyEmailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/timeline': {
-      id: '/timeline'
-      path: '/timeline'
-      fullPath: '/timeline'
-      preLoaderRoute: typeof TimelineRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/support': {
-      id: '/support'
-      path: '/support'
-      fullPath: '/support'
-      preLoaderRoute: typeof SupportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/room-management': {
-      id: '/room-management'
-      path: '/room-management'
-      fullPath: '/room-management'
-      preLoaderRoute: typeof RoomManagementRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/room-config': {
-      id: '/room-config'
-      path: '/room-config'
-      fullPath: '/room-config'
-      preLoaderRoute: typeof RoomConfigRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports': {
-      id: '/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rbac': {
-      id: '/rbac'
-      path: '/rbac'
-      fullPath: '/rbac'
-      preLoaderRoute: typeof RbacRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/promotions': {
-      id: '/promotions'
-      path: '/promotions'
-      fullPath: '/promotions'
-      preLoaderRoute: typeof PromotionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/payment-approvals': {
-      id: '/payment-approvals'
-      path: '/payment-approvals'
-      fullPath: '/payment-approvals'
-      preLoaderRoute: typeof PaymentApprovalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/online-inventory': {
-      id: '/online-inventory'
-      path: '/online-inventory'
-      fullPath: '/online-inventory'
-      preLoaderRoute: typeof OnlineInventoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/offers': {
-      id: '/offers'
-      path: '/offers'
-      fullPath: '/offers'
-      preLoaderRoute: typeof OffersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/night-audit': {
-      id: '/night-audit'
-      path: '/night-audit'
-      fullPath: '/night-audit'
-      preLoaderRoute: typeof NightAuditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-rewards': {
-      id: '/my-rewards'
-      path: '/my-rewards'
-      fullPath: '/my-rewards'
-      preLoaderRoute: typeof MyRewardsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/my-bookings': {
-      id: '/my-bookings'
-      path: '/my-bookings'
-      fullPath: '/my-bookings'
-      preLoaderRoute: typeof MyBookingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/loyalty': {
-      id: '/loyalty'
-      path: '/loyalty'
-      fullPath: '/loyalty'
-      preLoaderRoute: typeof LoyaltyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/housekeeping': {
-      id: '/housekeeping'
-      path: '/housekeeping'
-      fullPath: '/housekeeping'
-      preLoaderRoute: typeof HousekeepingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/help': {
-      id: '/help'
-      path: '/help'
-      fullPath: '/help'
-      preLoaderRoute: typeof HelpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/guest-portal': {
-      id: '/guest-portal'
-      path: '/guest-portal'
-      fullPath: '/guest-portal'
-      preLoaderRoute: typeof GuestPortalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/guest-config': {
-      id: '/guest-config'
-      path: '/guest-config'
-      fullPath: '/guest-config'
-      preLoaderRoute: typeof GuestConfigRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ekyc-admin': {
-      id: '/ekyc-admin'
-      path: '/ekyc-admin'
-      fullPath: '/ekyc-admin'
-      preLoaderRoute: typeof EkycAdminRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ekyc': {
-      id: '/ekyc'
-      path: '/ekyc'
-      fullPath: '/ekyc'
-      preLoaderRoute: typeof EkycRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/data-transfer': {
-      id: '/data-transfer'
-      path: '/data-transfer'
-      fullPath: '/data-transfer'
-      preLoaderRoute: typeof DataTransferRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/complimentary': {
-      id: '/complimentary'
-      path: '/complimentary'
-      fullPath: '/complimentary'
-      preLoaderRoute: typeof ComplimentaryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/company-ledger': {
-      id: '/company-ledger'
-      path: '/company-ledger'
-      fullPath: '/company-ledger'
-      preLoaderRoute: typeof CompanyLedgerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/communications': {
-      id: '/communications'
-      path: '/communications'
-      fullPath: '/communications'
-      preLoaderRoute: typeof CommunicationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookings': {
-      id: '/bookings'
-      path: '/bookings'
-      fullPath: '/bookings'
-      preLoaderRoute: typeof BookingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/audit-log': {
-      id: '/audit-log'
-      path: '/audit-log'
-      fullPath: '/audit-log'
-      preLoaderRoute: typeof AuditLogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin-portal': {
-      id: '/admin-portal'
-      path: '/admin-portal'
-      fullPath: '/admin-portal'
-      preLoaderRoute: typeof AdminPortalRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/423': {
-      id: '/423'
-      path: '/423'
-      fullPath: '/423'
-      preLoaderRoute: typeof R423RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/403': {
-      id: '/403'
-      path: '/403'
-      fullPath: '/403'
-      preLoaderRoute: typeof R403RouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$': {
@@ -836,18 +592,235 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/403': {
+      id: '/403'
+      path: '/403'
+      fullPath: '/403'
+      preLoaderRoute: typeof R403RouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/portal/': {
-      id: '/portal/'
-      path: '/portal'
-      fullPath: '/portal/'
-      preLoaderRoute: typeof PortalIndexRouteImport
+    '/423': {
+      id: '/423'
+      path: '/423'
+      fullPath: '/423'
+      preLoaderRoute: typeof R423RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-portal': {
+      id: '/admin-portal'
+      path: '/admin-portal'
+      fullPath: '/admin-portal'
+      preLoaderRoute: typeof AdminPortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit-log': {
+      id: '/audit-log'
+      path: '/audit-log'
+      fullPath: '/audit-log'
+      preLoaderRoute: typeof AuditLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bookings': {
+      id: '/bookings'
+      path: '/bookings'
+      fullPath: '/bookings'
+      preLoaderRoute: typeof BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/communications': {
+      id: '/communications'
+      path: '/communications'
+      fullPath: '/communications'
+      preLoaderRoute: typeof CommunicationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/company-ledger': {
+      id: '/company-ledger'
+      path: '/company-ledger'
+      fullPath: '/company-ledger'
+      preLoaderRoute: typeof CompanyLedgerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/complimentary': {
+      id: '/complimentary'
+      path: '/complimentary'
+      fullPath: '/complimentary'
+      preLoaderRoute: typeof ComplimentaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/data-transfer': {
+      id: '/data-transfer'
+      path: '/data-transfer'
+      fullPath: '/data-transfer'
+      preLoaderRoute: typeof DataTransferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ekyc': {
+      id: '/ekyc'
+      path: '/ekyc'
+      fullPath: '/ekyc'
+      preLoaderRoute: typeof EkycRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ekyc-admin': {
+      id: '/ekyc-admin'
+      path: '/ekyc-admin'
+      fullPath: '/ekyc-admin'
+      preLoaderRoute: typeof EkycAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-config': {
+      id: '/guest-config'
+      path: '/guest-config'
+      fullPath: '/guest-config'
+      preLoaderRoute: typeof GuestConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-portal': {
+      id: '/guest-portal'
+      path: '/guest-portal'
+      fullPath: '/guest-portal'
+      preLoaderRoute: typeof GuestPortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/housekeeping': {
+      id: '/housekeeping'
+      path: '/housekeeping'
+      fullPath: '/housekeeping'
+      preLoaderRoute: typeof HousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/loyalty': {
+      id: '/loyalty'
+      path: '/loyalty'
+      fullPath: '/loyalty'
+      preLoaderRoute: typeof LoyaltyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-rewards': {
+      id: '/my-rewards'
+      path: '/my-rewards'
+      fullPath: '/my-rewards'
+      preLoaderRoute: typeof MyRewardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/night-audit': {
+      id: '/night-audit'
+      path: '/night-audit'
+      fullPath: '/night-audit'
+      preLoaderRoute: typeof NightAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offers': {
+      id: '/offers'
+      path: '/offers'
+      fullPath: '/offers'
+      preLoaderRoute: typeof OffersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/online-inventory': {
+      id: '/online-inventory'
+      path: '/online-inventory'
+      fullPath: '/online-inventory'
+      preLoaderRoute: typeof OnlineInventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-approvals': {
+      id: '/payment-approvals'
+      path: '/payment-approvals'
+      fullPath: '/payment-approvals'
+      preLoaderRoute: typeof PaymentApprovalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/promotions': {
+      id: '/promotions'
+      path: '/promotions'
+      fullPath: '/promotions'
+      preLoaderRoute: typeof PromotionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rbac': {
+      id: '/rbac'
+      path: '/rbac'
+      fullPath: '/rbac'
+      preLoaderRoute: typeof RbacRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room-config': {
+      id: '/room-config'
+      path: '/room-config'
+      fullPath: '/room-config'
+      preLoaderRoute: typeof RoomConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/room-management': {
+      id: '/room-management'
+      path: '/room-management'
+      fullPath: '/room-management'
+      preLoaderRoute: typeof RoomManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/timeline': {
+      id: '/timeline'
+      path: '/timeline'
+      fullPath: '/timeline'
+      preLoaderRoute: typeof TimelineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guest-checkin/': {
@@ -857,25 +830,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestCheckinIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/unsubscribe/$token': {
-      id: '/unsubscribe/$token'
-      path: '/unsubscribe/$token'
-      fullPath: '/unsubscribe/$token'
-      preLoaderRoute: typeof UnsubscribeTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/portal/book': {
-      id: '/portal/book'
-      path: '/portal/book'
-      fullPath: '/portal/book'
-      preLoaderRoute: typeof PortalBookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/guest-checkin/verify': {
-      id: '/guest-checkin/verify'
-      path: '/guest-checkin/verify'
-      fullPath: '/guest-checkin/verify'
-      preLoaderRoute: typeof GuestCheckinVerifyRouteImport
+    '/guest-checkin/confirm': {
+      id: '/guest-checkin/confirm'
+      path: '/guest-checkin/confirm'
+      fullPath: '/guest-checkin/confirm'
+      preLoaderRoute: typeof GuestCheckinConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guest-checkin/form': {
@@ -885,11 +844,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestCheckinFormRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/guest-checkin/confirm': {
-      id: '/guest-checkin/confirm'
-      path: '/guest-checkin/confirm'
-      fullPath: '/guest-checkin/confirm'
-      preLoaderRoute: typeof GuestCheckinConfirmRouteImport
+    '/guest-checkin/verify': {
+      id: '/guest-checkin/verify'
+      path: '/guest-checkin/verify'
+      fullPath: '/guest-checkin/verify'
+      preLoaderRoute: typeof GuestCheckinVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/': {
+      id: '/portal/'
+      path: '/portal'
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/book': {
+      id: '/portal/book'
+      path: '/portal/book'
+      fullPath: '/portal/book'
+      preLoaderRoute: typeof PortalBookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe/$token': {
+      id: '/unsubscribe/$token'
+      path: '/unsubscribe/$token'
+      fullPath: '/unsubscribe/$token'
+      preLoaderRoute: typeof UnsubscribeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -915,7 +895,6 @@ const rootRouteChildren: RootRouteChildren = {
   HousekeepingRoute: HousekeepingRoute,
   LoginRoute: LoginRoute,
   LoyaltyRoute: LoyaltyRoute,
-  MyBookingsRoute: MyBookingsRoute,
   MyRewardsRoute: MyRewardsRoute,
   NightAuditRoute: NightAuditRoute,
   OffersRoute: OffersRoute,

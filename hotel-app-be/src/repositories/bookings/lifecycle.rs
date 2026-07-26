@@ -4,7 +4,6 @@
 use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, DbTransaction, decimal_to_db, hotel_today};
 use crate::core::error::ApiError;
-use crate::core::middleware::require_auth;
 use crate::core::settings_cache;
 use crate::models::*;
 use crate::repositories::booking::BookingRepository;
@@ -17,7 +16,6 @@ use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, Path, Query, State},
-    http::HeaderMap,
     response::Json,
 };
 use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
@@ -881,33 +879,6 @@ pub async fn get_booking_stats_handler(
         total_revenue,
         revenue_last_7_days,
     }))
-}
-
-pub async fn get_my_bookings_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<BookingWithDetails>>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    let user_email: String = sqlx::query_scalar(GET_USER_EMAIL_QUERY)
-        .bind(user_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let rows = sqlx::query(GET_USER_BOOKINGS_QUERY)
-        .bind(&user_email)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let mut bookings: Vec<BookingWithDetails> = rows
-        .iter()
-        .map(row_mappers::row_to_booking_with_details)
-        .collect();
-    crate::services::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
-
-    Ok(Json(bookings))
 }
 
 pub async fn create_booking_handler(
@@ -1938,7 +1909,6 @@ pub async fn update_booking_handler(
     Ok(Json(booking))
 }
 
-#[allow(dead_code)]
 pub async fn delete_booking_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
@@ -2102,7 +2072,6 @@ pub async fn delete_booking_handler(
     })))
 }
 
-#[allow(dead_code)]
 pub async fn manual_checkin_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
@@ -2462,7 +2431,6 @@ pub async fn manual_checkin_handler(
 
 /// Reactivate a voided booking
 /// Changes status from 'voided' to 'confirmed' and reserves the room
-#[allow(dead_code)]
 pub async fn reactivate_booking_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

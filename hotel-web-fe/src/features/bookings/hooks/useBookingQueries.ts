@@ -44,15 +44,6 @@ export function useAllBookings(filters?: { room_number?: string; company_billed?
   });
 }
 
-export function useMyBookings(enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.bookings.mine(),
-    queryFn: () => BookingsService.getMyBookings(),
-    enabled,
-    staleTime: queryStaleTime.short,
-  });
-}
-
 export function useBookingStats(enabled = true) {
   return useQuery({
     queryKey: queryKeys.bookings.stats(),
@@ -202,17 +193,6 @@ export function useMarkBookingComplimentaryMutation() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(variables.bookingId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.invoices.preview(variables.bookingId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.guests.all });
-      invalidateBookingDependencies(queryClient);
-    },
-  });
-}
-
-export function useBookWithCreditsMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: Parameters<typeof BookingsService.bookWithCredits>[0]) => BookingsService.bookWithCredits(data),
-    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.guests.all });
       invalidateBookingDependencies(queryClient);
     },
