@@ -31,6 +31,7 @@ pub mod rbac;
 pub mod rooms;
 pub mod search;
 pub mod two_factor;
+pub mod webhooks;
 
 use crate::core::config::{self, AllowedOrigins};
 use crate::core::db::DbPool;
@@ -234,6 +235,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(data_transfer::routes())
         .merge(passkey::routes())
         .merge(two_factor::routes())
+        .merge(webhooks::routes())
         .layer(axum::middleware::from_fn_with_state(
             pool.clone(),
             enforce_active_session,

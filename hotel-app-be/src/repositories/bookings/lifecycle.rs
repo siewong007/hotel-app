@@ -2,7 +2,7 @@
 //! transitions) plus their shared private helpers.
 
 use crate::core::auth::AuthService;
-use crate::core::db::{DbPool, DbTransaction, decimal_to_db};
+use crate::core::db::{DbPool, DbTransaction, decimal_to_db, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::settings_cache;
@@ -590,7 +590,7 @@ async fn auto_post_company_ledger(
     .map(i64::from)
     .unwrap_or(default_terms_days);
 
-    let today = chrono::Local::now().date_naive();
+    let today = hotel_today(pool).await?;
     let due_date = today + chrono::Duration::days(terms_days);
 
     // Reuse the booking's existing invoice number when one already exists,
@@ -801,7 +801,7 @@ async fn booking_revenue_for_date(pool: &DbPool, date: NaiveDate) -> Result<f64,
 pub async fn get_booking_stats_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<BookingStats>, ApiError> {
-    let today = chrono::Local::now().date_naive();
+    let today = hotel_today(&pool).await?;
 
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE status != 'voided'")
         .fetch_one(&pool)
@@ -2347,7 +2347,7 @@ pub async fn manual_checkin_handler(
     }
 
     // Only update room status for current/future bookings (skip back-dated)
-    let today = chrono::Local::now().date_naive();
+    let today = hotel_today(&mut *tx).await?;
     if booking.check_out_date >= today
         && let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
             .bind(booking.room_id)

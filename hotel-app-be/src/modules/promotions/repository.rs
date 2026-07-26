@@ -3,7 +3,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{Row, query, query_scalar};
 
-use super::models::{Promotion, Voucher};
+use super::models::{Promotion, PublicPromotion, Voucher};
 use super::validation::PromotionDraft;
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
@@ -36,6 +36,39 @@ const PROMOTION_COLUMNS: &str = r#"
     CAST(p.version AS BIGINT) AS version,
     p.created_by,
     p.updated_by,
+    p.created_at,
+    p.updated_at
+"#;
+
+/// Same projection as [`PROMOTION_COLUMNS`] but WITHOUT the staff-only
+/// `created_by`/`updated_by` actor columns. Guest-facing and public catalogue
+/// queries must use this list so staff user IDs never leave the database for
+/// those code paths, not just get stripped at the JSON boundary.
+const PROMOTION_COLUMNS_PUBLIC: &str = r#"
+    p.id,
+    p.slug,
+    p.name,
+    p.description,
+    p.terms,
+    p.status,
+    p.promotion_kind,
+    p.discount_type,
+    p.discount_value,
+    p.max_discount_amount,
+    p.currency,
+    p.claim_starts_at,
+    p.claim_ends_at,
+    p.stay_starts_on,
+    p.stay_ends_on,
+    p.min_nights,
+    p.max_nights,
+    p.min_subtotal,
+    p.claim_limit,
+    p.claimed_count,
+    p.per_guest_limit,
+    p.is_public,
+    p.is_cancellable,
+    CAST(p.version AS BIGINT) AS version,
     p.created_at,
     p.updated_at
 "#;
@@ -111,6 +144,57 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
     }
 }
 
+/// Row mapper for [`PROMOTION_COLUMNS_PUBLIC`] — the row never contains
+/// `created_by`/`updated_by`, so there is no field to accidentally read here.
+fn public_promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> PublicPromotion {
+    PublicPromotion {
+        id: row.try_get("id").unwrap_or_default(),
+        slug: row.try_get("slug").unwrap_or_default(),
+        name: row.try_get("name").unwrap_or_default(),
+        description: row
+            .try_get::<Option<String>, _>("description")
+            .ok()
+            .flatten(),
+        terms: row.try_get::<Option<String>, _>("terms").ok().flatten(),
+        status: row.try_get("status").unwrap_or_default(),
+        promotion_kind: row.try_get("promotion_kind").unwrap_or_default(),
+        discount_type: row.try_get("discount_type").unwrap_or_default(),
+        discount_value: decimal_to_f64(get_decimal(row, "discount_value")),
+        max_discount_amount: get_opt_decimal(row, "max_discount_amount").map(decimal_to_f64),
+        currency: row
+            .try_get("currency")
+            .unwrap_or_else(|_| "USD".to_string()),
+        claim_starts_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("claim_starts_at")
+            .ok()
+            .flatten(),
+        claim_ends_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("claim_ends_at")
+            .ok()
+            .flatten(),
+        stay_starts_on: row
+            .try_get::<Option<NaiveDate>, _>("stay_starts_on")
+            .ok()
+            .flatten(),
+        stay_ends_on: row
+            .try_get::<Option<NaiveDate>, _>("stay_ends_on")
+            .ok()
+            .flatten(),
+        min_nights: row.try_get::<Option<i32>, _>("min_nights").ok().flatten(),
+        max_nights: row.try_get::<Option<i32>, _>("max_nights").ok().flatten(),
+        min_subtotal: get_opt_decimal(row, "min_subtotal").map(decimal_to_f64),
+        claim_limit: row.try_get::<Option<i64>, _>("claim_limit").ok().flatten(),
+        claimed_count: row.try_get("claimed_count").unwrap_or_default(),
+        per_guest_limit: row.try_get("per_guest_limit").unwrap_or(1),
+        is_public: get_bool(row, "is_public"),
+        is_cancellable: get_bool(row, "is_cancellable"),
+        room_type_ids,
+        version: row.try_get("version").unwrap_or(1),
+        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+        updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
+    }
+}
+
 fn mask_voucher_code(code: &str) -> String {
     let suffix = code.chars().rev().take(4).collect::<Vec<_>>();
     let suffix = suffix.into_iter().rev().collect::<String>();
@@ -179,11 +263,26 @@ impl PromotionRepository {
         Ok(promotions)
     }
 
+    async fn public_promotions_from_rows(
+        pool: &DbPool,
+        rows: Vec<DbRow>,
+    ) -> Result<Vec<PublicPromotion>, ApiError> {
+        let mut promotions = Vec::with_capacity(rows.len());
+        for row in rows {
+            let promotion_id = row.try_get("id").map_err(ApiError::from)?;
+            promotions.push(public_promotion_from_row(
+                &row,
+                Self::room_type_ids(pool, promotion_id).await?,
+            ));
+        }
+        Ok(promotions)
+    }
+
     pub async fn list_public(
         pool: &DbPool,
         page_size: i64,
         offset: i64,
-    ) -> Result<(i64, Vec<Promotion>), ApiError> {
+    ) -> Result<(i64, Vec<PublicPromotion>), ApiError> {
         let count_sql = r#"
                 SELECT COUNT(*)
                 FROM promotions p
@@ -208,14 +307,14 @@ impl PromotionRepository {
                     ORDER BY p.claim_ends_at NULLS LAST, p.created_at DESC
                     LIMIT $1 OFFSET $2
                 "#
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
         let rows = query(&sql)
             .bind(page_size)
             .bind(offset)
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
-        Ok((total, Self::promotions_from_rows(pool, rows).await?))
+        Ok((total, Self::public_promotions_from_rows(pool, rows).await?))
     }
 
     pub async fn list_admin(
@@ -299,7 +398,7 @@ impl PromotionRepository {
     pub async fn find_public_by_slug(
         pool: &DbPool,
         slug: &str,
-    ) -> Result<Option<Promotion>, ApiError> {
+    ) -> Result<Option<PublicPromotion>, ApiError> {
         let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
@@ -309,7 +408,7 @@ impl PromotionRepository {
                       AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= CURRENT_TIMESTAMP)
                       AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= CURRENT_TIMESTAMP)
                 "#
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
         let row = query(&sql)
             .bind(slug)
             .fetch_optional(pool)
@@ -319,7 +418,7 @@ impl PromotionRepository {
             return Ok(None);
         };
         let id = row.try_get("id").map_err(ApiError::from)?;
-        Ok(Some(promotion_from_row(
+        Ok(Some(public_promotion_from_row(
             &row,
             Self::room_type_ids(pool, id).await?,
         )))

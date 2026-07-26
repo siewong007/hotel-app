@@ -740,7 +740,7 @@ pub async fn create_ledger_payment(
             let amount = get_decimal(&row, "amount");
             let paid = get_decimal(&row, "paid_amount");
             let status: String = row.try_get("status").unwrap_or_default();
-            let void_at: Option<chrono::NaiveDateTime> = row.try_get("void_at").ok();
+            let void_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("void_at").ok();
             (amount, paid, status, void_at.is_some())
         }
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
@@ -799,13 +799,13 @@ pub async fn create_ledger_payment(
         "pending"
     };
 
-    // Resolve payment date: use provided date or default to now
-    let payment_date_ts: Option<chrono::NaiveDateTime> =
-        request.payment_date.as_ref().and_then(|d| {
-            chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d")
-                .ok()
-                .map(|date| date.and_hms_opt(12, 0, 0).unwrap())
-        });
+    // Resolve payment date: an explicit YYYY-MM-DD is stored by the SQL below
+    // as noon in the connection (hotel) timezone — the same interpretation the
+    // 2026-07-26 pg19 patch applied to historical rows — otherwise now.
+    let payment_date_ts: Option<chrono::NaiveDate> = request
+        .payment_date
+        .as_ref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
     let payment_row = sqlx::query(
         r#"
@@ -813,7 +813,7 @@ pub async fn create_ledger_payment(
             ledger_id, payment_amount, payment_method, payment_reference,
             payment_date, receipt_number, receipt_file_url, notes, processed_by
         )
-        VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_TIMESTAMP), $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, COALESCE($5 + INTERVAL '12 hours', CURRENT_TIMESTAMP), $6, $7, $8, $9)
         RETURNING id, ledger_id, payment_amount, payment_method, payment_reference,
                   payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
         "#,
@@ -840,7 +840,7 @@ pub async fn create_ledger_payment(
             status = $2,
             payment_method = $3,
             payment_reference = $4,
-            payment_date = COALESCE($5, CURRENT_TIMESTAMP),
+            payment_date = COALESCE($5 + INTERVAL '12 hours', CURRENT_TIMESTAMP),
             updated_at = CURRENT_TIMESTAMP,
             updated_by = $6
         WHERE id = $7
@@ -1083,9 +1083,7 @@ pub async fn update_ledger_payment(
     request: UpdateLedgerPaymentRequest,
 ) -> Result<CustomerLedgerPayment, ApiError> {
     let payment_date_ts = chrono::NaiveDate::parse_from_str(&request.payment_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?
-        .and_hms_opt(12, 0, 0)
-        .unwrap();
+        .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?;
 
     // Verify the payment belongs to this ledger
     let exists =
@@ -1142,7 +1140,7 @@ pub async fn update_ledger_payment(
     let payment_row = sqlx::query(
         r#"
         UPDATE customer_ledger_payments
-        SET payment_date = $1,
+        SET payment_date = $1 + INTERVAL '12 hours',
             payment_amount = COALESCE($2::numeric, payment_amount),
             payment_method = COALESCE($3::text, payment_method),
             payment_reference = COALESCE($4::text, payment_reference),

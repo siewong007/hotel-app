@@ -95,6 +95,38 @@ fn postgres_schema_requires_pg19_and_uses_native_uuidv7() {
 }
 
 #[test]
+fn postgres_schema_uses_identity_columns_not_serial_sequences() {
+    assert!(
+        !POSTGRES_SCHEMA.contains("CREATE SEQUENCE"),
+        "baseline must declare identity columns, not standalone serial sequences"
+    );
+    assert!(
+        !POSTGRES_SCHEMA.contains("DEFAULT nextval"),
+        "baseline must not use serial-style nextval defaults"
+    );
+    assert!(
+        POSTGRES_SCHEMA.matches("ADD GENERATED ALWAYS AS IDENTITY").count() >= 70,
+        "every bigint surrogate key must be a GENERATED ALWAYS identity column"
+    );
+    assert!(
+        !POSTGRES_SCHEMA.contains("timestamp without time zone"),
+        "all persisted timestamps must be timestamptz"
+    );
+    assert!(
+        !POSTGRES_SCHEMA.contains(" STORED"),
+        "generated columns are virtual in the PostgreSQL 19 baseline"
+    );
+}
+
+#[test]
+fn postgres_schema_defines_the_hotel_property_graph() {
+    assert!(
+        POSTGRES_SCHEMA.contains("CREATE PROPERTY GRAPH public.hotel_graph"),
+        "baseline must define the SQL/PGQ hotel_graph property graph"
+    );
+}
+
+#[test]
 fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
     assert!(
         POSTGRES_SCHEMA.contains("SPLIT PARTITION audit_logs_default"),

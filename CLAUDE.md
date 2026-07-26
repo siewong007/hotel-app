@@ -43,7 +43,7 @@ Backend (`hotel-app-be/`):
 ```bash
 cargo check --all-features                    # minimum bar before claiming done
 cargo clippy --all-features -- -D warnings    # what CI actually runs
-cargo run                                     # PostgreSQL mode, port 3030
+cargo run --bin hotel-app-be                  # PostgreSQL mode, port 3030 (bare `cargo run` errors: multiple bins)
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
 psql "$DATABASE_URL" -f database/postgres/data.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql                 # one-time V1 initialization

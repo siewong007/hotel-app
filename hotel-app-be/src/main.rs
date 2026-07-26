@@ -169,6 +169,31 @@ async fn main() {
         }
     };
 
+    // The 2026-07-26 pg19 patch retyped the customer-ledger timestamp columns
+    // to timestamptz; against an unpatched database those reads degrade
+    // silently (epoch fallbacks, voided-ledger balances no longer zeroed), so
+    // refuse to start instead. A missing column means the schema is not
+    // installed yet and is left to the normal install flow.
+    match sqlx::query_scalar::<_, String>(
+        "SELECT data_type FROM information_schema.columns \
+         WHERE table_schema = 'public' AND table_name = 'customer_ledgers' \
+           AND column_name = 'payment_date'",
+    )
+    .fetch_optional(&pool)
+    .await
+    {
+        Ok(Some(t)) if t != "timestamp with time zone" => {
+            log::error!(
+                "✗ customer_ledgers.payment_date is '{}': this database predates the PG19 physical-design patch; apply database/postgres/patches/2026-07-26-pg19-native-physical-design.sql before starting this backend",
+                t
+            );
+            eprintln!("FATAL: database schema predates the 2026-07-26 pg19 patch");
+            std::process::exit(1);
+        }
+        Ok(_) => {}
+        Err(e) => log::warn!("Ledger schema-generation probe failed: {}", e),
+    }
+
     // One-shot backfill: ensure every booking has an invoice row.
     match services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
         Ok(0) => {}

@@ -25,7 +25,6 @@ const manifestPath = join(pgsqlDir, '.provision-manifest.json');
 // hotel-desktop/src-tauri/src/postgres.rs must have its binary listed here:
 // pg_dump (backups) and pg_restore (guided upgrade restore) included.
 const REQUIRED_BIN_NAMES = [
-  'createdb',
   'initdb',
   'pg_ctl',
   'pg_dump',
@@ -92,10 +91,15 @@ function checkExistingInstall(expected) {
   const initdbBin = join(pgsqlDir, 'bin', 'initdb');
   const pgCtlBin = join(pgsqlDir, 'bin', 'pg_ctl');
 
+  // `hard: true` marks a tree that is CONFIRMED unusable (wrong build, broken
+  // or incomplete binaries) — if provisioning then fails, the build must not
+  // fall back to it. `hard: false` covers states where the tree may still be
+  // fine (e.g. manifest predates its introduction).
   const missing = REQUIRED_BIN_NAMES.filter((name) => !existsSync(join(pgsqlDir, 'bin', name)));
   if (!existsSync(pgsqlDir) || missing.length > 0) {
     return {
       ok: false,
+      hard: existsSync(pgsqlDir),
       reason: `pgsql/ tree or required binaries are missing${missing.length ? ` (${missing.join(', ')})` : ''}`,
     };
   }
@@ -109,33 +113,36 @@ function checkExistingInstall(expected) {
   const pgCtlBuildIdentity = extractBuildIdentity(pgCtlVersion);
 
   if (!foundMajor || !foundBuildIdentity) {
-    return { ok: false, reason: 'could not determine bundled PostgreSQL version' };
+    return { ok: false, hard: true, reason: 'could not determine bundled PostgreSQL version' };
   }
 
   if (foundMajor !== expected.major || foundBuildIdentity !== expected.buildIdentity) {
     return {
       ok: false,
+      hard: true,
       reason: `bundled PostgreSQL build ${foundBuildIdentity} (major ${foundMajor}) does not match expected ${expected.buildIdentity} (major ${expected.major})`,
     };
   }
 
   if (!initdbBuildIdentity || !pgCtlBuildIdentity) {
-    return { ok: false, reason: 'initdb/pg_ctl --version failed to run' };
+    return { ok: false, hard: true, reason: 'initdb/pg_ctl --version failed to run' };
   }
   if (initdbBuildIdentity !== foundBuildIdentity || pgCtlBuildIdentity !== foundBuildIdentity) {
     return {
       ok: false,
+      hard: true,
       reason: `bundled binaries report inconsistent builds (postgres ${foundBuildIdentity}, initdb ${initdbBuildIdentity}, pg_ctl ${pgCtlBuildIdentity})`,
     };
   }
 
   const manifest = readJson(manifestPath);
   if (!manifest) {
-    return { ok: false, reason: 'full-build provision manifest is missing' };
+    return { ok: false, hard: false, reason: 'full-build provision manifest is missing' };
   }
   if (manifest.majorVersion !== expected.major || manifest.buildIdentity !== expected.buildIdentity) {
     return {
       ok: false,
+      hard: true,
       reason: `provision manifest build ${manifest.buildIdentity ?? '<missing>'} (major ${manifest.majorVersion ?? '<missing>'}) does not match expected ${expected.buildIdentity} (major ${expected.major})`,
     };
   }
@@ -178,14 +185,14 @@ function computeTreeStats(rootDir) {
   return { fileCount: files.length, totalBytes };
 }
 
-function provisionFromPrefix(expected) {
+function provisionFromPrefix(expected, failExitCode = 1) {
   const postgresPrefix = locatePostgresPrefix(expected.major);
   if (!postgresPrefix) {
     console.error(
       `Could not locate a Homebrew postgresql@${expected.major} installation via 'brew --prefix postgresql@${expected.major}'.\n` +
         `Fix: install it with 'brew install postgresql@${expected.major}', or set POSTGRES_PREFIX to a PostgreSQL ${expected.buildIdentity} installation, and re-run this script.`,
     );
-    process.exit(1);
+    process.exit(failExitCode);
   }
 
   console.log(`Provisioning embedded PostgreSQL ${expected.buildIdentity} from ${postgresPrefix}`);
@@ -239,7 +246,7 @@ function provisionFromPrefix(expected) {
   } catch (error) {
     rmSync(pgsqlTmpDir, { recursive: true, force: true });
     console.error(`Failed to copy PostgreSQL tree: ${error.message}`);
-    process.exit(1);
+    process.exit(failExitCode);
   }
 
   // Verify before swapping the tmp tree into place.
@@ -258,7 +265,7 @@ function provisionFromPrefix(expected) {
   if (!initdbBuildIdentity || !pgCtlBuildIdentity || !foundMajor || !foundBuildIdentity) {
     rmSync(pgsqlTmpDir, { recursive: true, force: true });
     console.error('Verification failed: initdb/pg_ctl/postgres --version did not run correctly in the copied tree.');
-    process.exit(1);
+    process.exit(failExitCode);
   }
 
   if (
@@ -271,7 +278,7 @@ function provisionFromPrefix(expected) {
     console.error(
       `Verification failed: copied tree reports postgres ${foundBuildIdentity}, initdb ${initdbBuildIdentity}, pg_ctl ${pgCtlBuildIdentity}; expected ${expected.buildIdentity}.`,
     );
-    process.exit(1);
+    process.exit(failExitCode);
   }
 
   // Atomic swap: remove old tree, rename tmp into place.
@@ -297,9 +304,9 @@ function provisionFromPrefix(expected) {
 }
 
 const expected = readExpectedVersion();
+const existing = checkExistingInstall(expected);
 
 if (!force) {
-  const existing = checkExistingInstall(expected);
   if (existing.ok) {
     console.log(
       `pgsql/ up to date (PostgreSQL ${existing.foundBuildIdentity}, full-build manifest verified).`,
@@ -311,11 +318,16 @@ if (!force) {
   console.log('Force re-provisioning requested.');
 }
 
+// Exit 2 tells callers (desktop-prepare.mjs) the on-disk tree is confirmed
+// unusable and MUST NOT be shipped; exit 1 means provisioning failed but the
+// existing tree was not proven wrong (safe to warn and continue).
+const failExitCode = existing.hard ? 2 : 1;
+
 if (process.platform === 'darwin') {
-  provisionFromPrefix(expected);
+  provisionFromPrefix(expected, failExitCode);
 } else {
   console.error(
     'Windows/Linux pgsql provisioning source not configured — to be filled in by user.',
   );
-  process.exit(1);
+  process.exit(failExitCode);
 }

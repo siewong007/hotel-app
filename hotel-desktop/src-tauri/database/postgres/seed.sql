@@ -46,6 +46,7 @@ INSERT INTO users (
     id, username, email, password_hash, full_name, is_active, is_verified,
     is_super_admin, created_at, updated_at
 )
+OVERRIDING SYSTEM VALUE
 SELECT
     1000, 'admin', 'admin@hotel.com',
     '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',

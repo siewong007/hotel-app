@@ -2351,10 +2351,11 @@ async fn generate_company_ledger_statement(
         let invoice_number: Option<String> = entry.try_get("invoice_number").ok();
         let invoice_date: Option<NaiveDate> = entry.try_get("invoice_date").ok();
         let due_date: Option<NaiveDate> = entry.try_get("due_date").ok();
-        let created_at: chrono::NaiveDateTime = entry.get("created_at");
+        let created_at: chrono::DateTime<chrono::Utc> = entry.get("created_at");
 
         // Calculate days old
-        let entry_date = invoice_date.unwrap_or(created_at.date());
+        let entry_date =
+            invoice_date.unwrap_or_else(|| created_at.with_timezone(&Local).date_naive());
         let days_old = (today - entry_date).num_days();
 
         // Categorize into aging buckets
@@ -2412,8 +2413,11 @@ async fn generate_company_ledger_statement(
         .as_ref()
         .map(|row| {
             let amount = row_mappers::get_decimal(row, "payment_amount");
-            let date: chrono::NaiveDateTime = row.get("created_at");
-            (amount, Some(date.format("%d/%m/%Y").to_string()))
+            let date: chrono::DateTime<chrono::Utc> = row.get("created_at");
+            (
+                amount,
+                Some(date.with_timezone(&Local).format("%d/%m/%Y").to_string()),
+            )
         })
         .unwrap_or((Decimal::ZERO, None));
 

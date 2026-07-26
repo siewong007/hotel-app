@@ -50,7 +50,8 @@
       "pgsql/share/**/*",
       "database/postgres/migrations/0001_v1_baseline.sql",
       "database/postgres/data.sql",
-      "database/postgres/seed.sql"
+      "database/postgres/seed.sql",
+      "database/postgres/patches/2026-07-26-pg19-native-physical-design.sql"
     ],
     "createUpdaterArtifacts": false,
     "windows": {

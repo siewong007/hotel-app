@@ -4,10 +4,12 @@ use crate::core::error::ApiError;
 use crate::models::{
     Booking, GuestBankDetails, GuestPaymentConfig, Invoice, InvoicePreview, Payment,
     PaymentActionResponse, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
-    PaypalCreateOrderResponse, PendingPaymentPage, RecordPaymentRequest, UpdatePaymentRequest,
+    PaypalCreateOrderResponse, PendingPaymentEntry, PendingPaymentPage, RecordPaymentRequest,
+    UpdatePaymentRequest,
 };
 use crate::modules::communications::repository::CommunicationsRepository;
 use crate::modules::communications::validation::html_escape;
+use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::payment::PaymentRepository;
 use crate::services::audit::AuditLog;
 use rust_decimal::Decimal;
@@ -932,34 +934,77 @@ pub async fn capture_paypal_payment(
         }
     }
 
-    // Verify the money that actually moved matches the stored pending payment.
-    // A tampered or partial capture (wrong amount/currency) must never complete
-    // the booking: mark the payment `failed` and reject instead.
-    let expected_currency = booking_currency(booking);
-    if let Err(reason) = verify_captured_amount(&outcome, booking.total_amount, expected_currency) {
+    // Verify the money that actually moved against the payment row's stored
+    // amount — the amount the PayPal order was created for — not the booking
+    // total, which staff may have edited while the order was outstanding.
+    // Currency still comes from the booking (payments do not store one).
+    if let Err(reason) =
+        verify_captured_against_stored(&outcome, &review.amount, booking_currency(booking))
+    {
         log::error!("PayPal capture amount/currency mismatch for payment {payment_id}: {reason}");
-        release_failed_paypal_payment(pool, payment_id, &reason).await?;
-        return Err(ApiError::BadRequest(
-            "PayPal captured amount does not match the booking total.".to_string(),
+        // The capture already settled at PayPal — do NOT mark the payment
+        // failed: a failed row reopens payment creation and would invite a
+        // second charge. Leave it pending and flag it for staff, exactly like
+        // the webhook path does on the same disagreement.
+        AuditLog::log_event(
+            pool,
+            None,
+            "paypal_capture_conflict",
+            "payment",
+            Some(payment_id),
+            Some(serde_json::json!({
+                "source": "paypal_capture",
+                "order_id": order_id,
+                "booking_id": booking.id,
+                "reason": reason,
+            })),
+            None,
+            None,
+        )
+        .await?;
+        return Err(ApiError::Conflict(
+            "The captured PayPal payment does not match this booking's payment record. It has been flagged for hotel staff to review — please do not pay again.".to_string(),
         ));
     }
 
-    complete_and_confirm(pool, payment_id, booking.id, None, "payment_captured").await
+    match complete_and_confirm(pool, payment_id, booking.id, None, "payment_captured").await {
+        Err(ApiError::BadRequest(_)) => {
+            // The webhook reconciliation path can complete this payment between
+            // our capture call and this transaction. Losing that race is
+            // success, not an error, from the guest's point of view.
+            let now = PaymentRepository::get_payment_for_review(pool, payment_id).await?;
+            if now.as_ref().is_some_and(|p| p.status == "completed") {
+                Ok(PaymentActionResponse {
+                    payment_id,
+                    status: "completed".to_string(),
+                    booking_status: Some("confirmed".to_string()),
+                })
+            } else {
+                Err(ApiError::BadRequest(
+                    "This PayPal payment is no longer available for capture.".to_string(),
+                ))
+            }
+        }
+        other => other,
+    }
 }
 
 /// Release a PayPal attempt that definitively did not complete. This is kept
 /// separate from network/transport failures: when the outcome is unknown we
 /// retain the pending row, because marking it failed could invite a duplicate
 /// charge. A concrete non-COMPLETED response, malformed matching data, or a
-/// failed order creation can safely become retryable.
+/// failed order creation can safely become retryable. Returns whether the
+/// payment actually transitioned to `failed` (false when a concurrent update
+/// already moved it out of pending/processing).
 async fn release_failed_paypal_payment(
     pool: &DbPool,
     payment_id: i64,
     reason: &str,
-) -> Result<(), ApiError> {
+) -> Result<bool, ApiError> {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    PaymentRepository::mark_payment_failed_tx(&mut tx, payment_id, reason).await?;
-    tx.commit().await.map_err(ApiError::from)
+    let updated = PaymentRepository::mark_payment_failed_tx(&mut tx, payment_id, reason).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(updated.is_some())
 }
 
 /// Compare a PayPal capture's echoed amount/currency against what we expect for
@@ -993,6 +1038,351 @@ fn verify_captured_amount(
         ));
     }
     Ok(())
+}
+
+/// Verify a capture against the payment row's stored text amount. The stored
+/// amount is authoritative for PayPal captures: it is what the order was
+/// created for, immune to booking edits made while the order was outstanding.
+fn verify_captured_against_stored(
+    outcome: &crate::services::paypal_client::PaypalCaptureOutcome,
+    stored_amount: &str,
+    expected_currency: &str,
+) -> Result<(), String> {
+    let expected = Decimal::from_str_exact(stored_amount.trim())
+        .map_err(|_| "Stored payment amount is unparseable.".to_string())?;
+    verify_captured_amount(outcome, expected, expected_currency)
+}
+
+/// The webhook event types this system acts on. Everything else is
+/// acknowledged and audit-logged by the handler without reaching here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaypalWebhookKind {
+    CaptureCompleted,
+    CaptureDenied,
+}
+
+impl PaypalWebhookKind {
+    fn event_type(self) -> &'static str {
+        match self {
+            Self::CaptureCompleted => "PAYMENT.CAPTURE.COMPLETED",
+            Self::CaptureDenied => "PAYMENT.CAPTURE.DENIED",
+        }
+    }
+}
+
+/// A signature-verified PayPal webhook event reduced to the fields this system
+/// acts on. `booking_id`/`payment_id` come from the order's `custom_id`
+/// (`"<booking_id>:<payment_id>"`) that `create_paypal_order` set.
+pub struct PaypalWebhookEvent {
+    pub kind: PaypalWebhookKind,
+    pub event_id: String,
+    pub capture_id: Option<String>,
+    pub booking_id: i64,
+    pub payment_id: i64,
+    pub captured_amount: Option<String>,
+    pub captured_currency: Option<String>,
+    pub client_ip: Option<String>,
+}
+
+/// Outcome of applying a verified PayPal webhook event to local records. Every
+/// variant answers HTTP 200 to PayPal — redelivery cannot fix any of the
+/// non-`Applied` cases, and the audit trail is the operator-facing flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PaypalWebhookApplyOutcome {
+    /// The event changed local state (payment completed or marked failed).
+    Applied,
+    /// Local state already reflected the event (duplicate delivery, or the
+    /// synchronous capture path won the race).
+    AlreadyApplied,
+    /// The event references a payment this system cannot act on; the reason
+    /// is in the audit log.
+    Ignored,
+    /// The event disagrees with local money state in a way that needs staff
+    /// review; the reason is in the audit log. Money state is deliberately
+    /// left untouched — never guess on a disagreement about funds.
+    ConflictFlagged,
+}
+
+impl PaypalWebhookApplyOutcome {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Applied => "applied",
+            Self::AlreadyApplied => "already_applied",
+            Self::Ignored => "ignored",
+            Self::ConflictFlagged => "conflict_flagged",
+        }
+    }
+}
+
+/// Apply a signature-verified PayPal webhook event to local payment state.
+///
+/// This is the asynchronous counterpart to `capture_paypal_payment`: it closes
+/// the gap where PayPal finished a capture but the synchronous response never
+/// reached us (crash, timeout), leaving money moved with the local payment
+/// still `pending`. All transitions are idempotent, and any disagreement with
+/// local money state is audited and left for staff instead of guessed at.
+pub async fn apply_paypal_webhook_event(
+    pool: &DbPool,
+    event: &PaypalWebhookEvent,
+) -> Result<PaypalWebhookApplyOutcome, ApiError> {
+    let Some(review) = PaymentRepository::get_payment_for_review(pool, event.payment_id).await?
+    else {
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_ignored",
+            "No payment with this id exists.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::Ignored);
+    };
+    if review.booking_id != event.booking_id {
+        log::warn!(
+            "PayPal webhook {}: custom_id names booking {} but payment {} belongs to booking {}",
+            event.event_id,
+            event.booking_id,
+            event.payment_id,
+            review.booking_id
+        );
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_ignored",
+            "custom_id booking does not match the payment's booking.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::Ignored);
+    }
+    if review.payment_method != PaymentMethod::Paypal.to_string() {
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_ignored",
+            "Payment is not a PayPal payment.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::Ignored);
+    }
+
+    match event.kind {
+        PaypalWebhookKind::CaptureCompleted => {
+            apply_webhook_capture_completed(pool, event, &review).await
+        }
+        PaypalWebhookKind::CaptureDenied => {
+            apply_webhook_capture_denied(pool, event, &review).await
+        }
+    }
+}
+
+/// `PAYMENT.CAPTURE.COMPLETED`: the money already moved at PayPal. Make the
+/// local records reflect that via the same completion path the synchronous
+/// capture uses, after re-verifying the amount against the booking.
+async fn apply_webhook_capture_completed(
+    pool: &DbPool,
+    event: &PaypalWebhookEvent,
+    review: &PendingPaymentEntry,
+) -> Result<PaypalWebhookApplyOutcome, ApiError> {
+    if review.status == "completed" {
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_duplicate",
+            "Payment already completed.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::AlreadyApplied);
+    }
+    if review.status != "pending" && review.status != "processing" {
+        // Money moved at PayPal but the local row is terminal (for example
+        // marked failed after a non-COMPLETED synchronous response). Staff
+        // must reconcile; silently un-failing a payment is not this system's
+        // call to make.
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_conflict",
+            &format!(
+                "Capture completed at PayPal but the local payment is '{}'.",
+                review.status
+            ),
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
+    }
+
+    // Verify against the payment row's own amount — the amount the PayPal
+    // order was created for — not the booking total, which staff may have
+    // edited while the order was outstanding. Currency still comes from the
+    // booking (payments do not store one).
+    let Ok(expected_amount) = Decimal::from_str_exact(review.amount.trim()) else {
+        audit_paypal_webhook(
+            pool,
+            event,
+            "paypal_webhook_conflict",
+            "Stored payment amount is unparseable.",
+        )
+        .await?;
+        return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
+    };
+    let booking = GuestPortalRepository::find_booking_by_id(pool, event.booking_id).await?;
+    let echoed = crate::services::paypal_client::PaypalCaptureOutcome {
+        status: "COMPLETED".to_string(),
+        // verify_captured_amount ignores custom_id; the ids were already
+        // derived from it upstream.
+        custom_id: None,
+        captured_amount: event.captured_amount.clone(),
+        captured_currency: event.captured_currency.clone(),
+    };
+    if let Err(reason) = verify_captured_amount(&echoed, expected_amount, booking_currency(&booking))
+    {
+        log::error!(
+            "PayPal webhook {} amount mismatch for payment {}: {reason}",
+            event.event_id,
+            event.payment_id
+        );
+        // Unlike the synchronous path, the capture has already settled — do
+        // NOT mark the payment failed; flag it for staff instead.
+        audit_paypal_webhook(pool, event, "paypal_webhook_conflict", &reason).await?;
+        return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
+    }
+
+    match complete_and_confirm(pool, event.payment_id, event.booking_id, None, "payment_captured")
+        .await
+    {
+        Ok(_) => {
+            audit_paypal_webhook(
+                pool,
+                event,
+                "paypal_webhook_applied",
+                "Capture completed; payment completed and booking confirmed.",
+            )
+            .await?;
+            Ok(PaypalWebhookApplyOutcome::Applied)
+        }
+        Err(ApiError::BadRequest(_)) => {
+            // The completion CAS lost a race between our status read and the
+            // transaction. Re-read to tell "sync path won" from a real conflict.
+            let now = PaymentRepository::get_payment_for_review(pool, event.payment_id).await?;
+            if now.as_ref().is_some_and(|p| p.status == "completed") {
+                audit_paypal_webhook(
+                    pool,
+                    event,
+                    "paypal_webhook_duplicate",
+                    "Payment was completed concurrently.",
+                )
+                .await?;
+                Ok(PaypalWebhookApplyOutcome::AlreadyApplied)
+            } else {
+                audit_paypal_webhook(
+                    pool,
+                    event,
+                    "paypal_webhook_conflict",
+                    "Payment left pending concurrently with a completed capture.",
+                )
+                .await?;
+                Ok(PaypalWebhookApplyOutcome::ConflictFlagged)
+            }
+        }
+        Err(ApiError::Conflict(_)) => {
+            // A different completed payment already covers this booking, yet
+            // PayPal verified a second settled capture: possible double charge.
+            audit_paypal_webhook(
+                pool,
+                event,
+                "paypal_webhook_conflict",
+                "Booking already has a different completed payment; possible double capture.",
+            )
+            .await?;
+            Ok(PaypalWebhookApplyOutcome::ConflictFlagged)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// `PAYMENT.CAPTURE.DENIED`: PayPal definitively refused the capture, so a
+/// still-open local payment can safely become retryable (`failed`), exactly
+/// like the synchronous path's handling of a non-COMPLETED response.
+async fn apply_webhook_capture_denied(
+    pool: &DbPool,
+    event: &PaypalWebhookEvent,
+    review: &PendingPaymentEntry,
+) -> Result<PaypalWebhookApplyOutcome, ApiError> {
+    match review.status.as_str() {
+        "pending" | "processing" => {
+            if release_failed_paypal_payment(pool, event.payment_id, "PayPal denied the capture.")
+                .await?
+            {
+                audit_paypal_webhook(
+                    pool,
+                    event,
+                    "paypal_webhook_applied",
+                    "Capture denied; payment marked failed.",
+                )
+                .await?;
+                Ok(PaypalWebhookApplyOutcome::Applied)
+            } else {
+                // The payment left pending/processing between our read and the
+                // update — most likely completed concurrently, which now
+                // disagrees with a verified denial. Flag it, don't guess.
+                audit_paypal_webhook(
+                    pool,
+                    event,
+                    "paypal_webhook_conflict",
+                    "Payment changed state concurrently; denial was not applied.",
+                )
+                .await?;
+                Ok(PaypalWebhookApplyOutcome::ConflictFlagged)
+            }
+        }
+        "completed" => {
+            audit_paypal_webhook(
+                pool,
+                event,
+                "paypal_webhook_conflict",
+                "Capture denied at PayPal but the local payment is completed.",
+            )
+            .await?;
+            Ok(PaypalWebhookApplyOutcome::ConflictFlagged)
+        }
+        other => {
+            audit_paypal_webhook(
+                pool,
+                event,
+                "paypal_webhook_duplicate",
+                &format!("Payment already in terminal state '{other}'."),
+            )
+            .await?;
+            Ok(PaypalWebhookApplyOutcome::AlreadyApplied)
+        }
+    }
+}
+
+/// One audit row per webhook delivery outcome, carrying full provenance so
+/// staff can trace any decision back to the exact PayPal event.
+async fn audit_paypal_webhook(
+    pool: &DbPool,
+    event: &PaypalWebhookEvent,
+    action: &str,
+    reason: &str,
+) -> Result<(), ApiError> {
+    AuditLog::log_event(
+        pool,
+        None,
+        action,
+        "payment",
+        Some(event.payment_id),
+        Some(serde_json::json!({
+            "source": "paypal_webhook",
+            "event_id": event.event_id,
+            "event_type": event.kind.event_type(),
+            "capture_id": event.capture_id,
+            "booking_id": event.booking_id,
+            "reason": reason,
+        })),
+        event.client_ip.clone(),
+        None,
+    )
+    .await
 }
 
 /// Staff action: approve a pending payment. Completes the payment AND confirms
@@ -1541,5 +1931,54 @@ mod receipt_tests {
             Some(("pdf", "application/pdf"))
         );
         assert_eq!(receipt_extension(b"not a receipt"), None);
+    }
+}
+
+#[cfg(test)]
+mod paypal_capture_verification_tests {
+    use super::verify_captured_against_stored;
+    use crate::services::paypal_client::PaypalCaptureOutcome;
+
+    fn outcome(amount: &str, currency: &str) -> PaypalCaptureOutcome {
+        PaypalCaptureOutcome {
+            status: "COMPLETED".to_string(),
+            custom_id: None,
+            captured_amount: Some(amount.to_string()),
+            captured_currency: Some(currency.to_string()),
+        }
+    }
+
+    #[test]
+    fn accepts_matching_amount_regardless_of_formatting_and_case() {
+        assert_eq!(
+            verify_captured_against_stored(&outcome("450.00", "MYR"), "450", "MYR"),
+            Ok(())
+        );
+        assert_eq!(
+            verify_captured_against_stored(&outcome("450", "myr"), " 450.00 ", "MYR"),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn rejects_amount_mismatch() {
+        assert!(
+            verify_captured_against_stored(&outcome("449.99", "MYR"), "450.00", "MYR").is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_currency_mismatch() {
+        assert!(
+            verify_captured_against_stored(&outcome("450.00", "USD"), "450.00", "MYR").is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_unparseable_stored_amount() {
+        assert_eq!(
+            verify_captured_against_stored(&outcome("450.00", "MYR"), "not-a-number", "MYR"),
+            Err("Stored payment amount is unparseable.".to_string())
+        );
     }
 }

@@ -408,7 +408,7 @@ impl DataTransferRepository {
         let quoted_table = quote_identifier(table);
 
         let insert_sql = format!(
-            "INSERT INTO {quoted_table} ({column_list}) SELECT {column_list} FROM jsonb_populate_record(NULL::{quoted_table}, $1::jsonb) ON CONFLICT DO NOTHING"
+            "INSERT INTO {quoted_table} ({column_list}) OVERRIDING SYSTEM VALUE SELECT {column_list} FROM jsonb_populate_record(NULL::{quoted_table}, $1::jsonb) ON CONFLICT DO NOTHING"
         );
 
         sqlx::query(&insert_sql)

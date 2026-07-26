@@ -68,8 +68,9 @@ pub struct PaypalConfig {
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
     pub api_base: String,
-    /// Reserved for the follow-up webhook signature-verification work.
-    #[allow(dead_code)]
+    /// Webhook id from the PayPal developer dashboard; required input to the
+    /// verify-webhook-signature call that authenticates `/api/webhooks/paypal`
+    /// deliveries. When absent, the webhook endpoint refuses events (503).
     pub webhook_id: Option<String>,
 }
 

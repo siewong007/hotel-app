@@ -44,7 +44,7 @@ import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
-import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
+import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 interface CheckoutInvoiceModalProps {
@@ -73,23 +73,13 @@ const getPaymentTimestamp = (payment: CheckoutPaymentRecord): string => (
   payment.payment_date || payment.created_at || ''
 );
 
-const isDateOnlyValue = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value);
+// Payment timestamps are instants (timestamptz); derive their calendar date /
+// wall time in the hotel timezone so every viewer sees the same business date.
+const formatPaymentDateForInput = (payment: CheckoutPaymentRecord): string =>
+  toHotelDateString(getPaymentTimestamp(payment)) || formatLocalDate();
 
-const formatPaymentDateForInput = (payment: CheckoutPaymentRecord): string => {
-  const timestamp = getPaymentTimestamp(payment);
-  if (!timestamp) return formatLocalDate();
-  if (isDateOnlyValue(timestamp)) return timestamp;
-  const date = new Date(timestamp);
-  return isNaN(date.getTime()) ? formatLocalDate() : formatLocalDate(date);
-};
-
-const formatPaymentDateTime = (payment: CheckoutPaymentRecord): string => {
-  const timestamp = getPaymentTimestamp(payment);
-  if (!timestamp) return '-';
-  if (isDateOnlyValue(timestamp)) return parseLocalDate(timestamp).toLocaleDateString();
-  const date = new Date(timestamp);
-  return isNaN(date.getTime()) ? '-' : date.toLocaleString();
-};
+const formatPaymentDateTime = (payment: CheckoutPaymentRecord): string =>
+  formatHotelDateTime(getPaymentTimestamp(payment));
 
 const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   open,

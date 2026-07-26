@@ -10,6 +10,7 @@
 import type { CustomerLedger, Company } from '../../../../types';
 import type { HotelSettings } from '../../../../utils/hotelSettings';
 import { formatDateForDisplay } from './helpers';
+import { formatHotelDate } from '../../../../utils/date';
 import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 
 type FormatCurrency = (value: number) => string;
@@ -339,7 +340,7 @@ export function printCompanyStatement(params: {
         </div>
         <div class="company-info">
           <h3>${companyName}</h3>
-          <p>Statement Date: ${new Date().toLocaleDateString()}</p>
+          <p>Statement Date: ${formatHotelDate(new Date())}</p>
         </div>
         <div class="summary">
           <div class="summary-item">
@@ -376,7 +377,7 @@ export function printCompanyStatement(params: {
             ${entries.map(entry => `
               <tr>
                 <td>${entry.invoice_number || '-'}</td>
-                <td>${new Date(entry.created_at).toLocaleDateString()}</td>
+                <td>${formatDateForDisplay(entry.created_at)}</td>
                 <td>${entry.description}</td>
                 <td>${entry.expense_type}</td>
                 <td class="text-right">${formatCurrency(toMoneyNumber(entry.amount))}</td>
@@ -455,12 +456,12 @@ export function printSingleReceipt(params: {
           </div>
           <div class="receipt-row">
             <span class="label">Date Created</span>
-            <span class="value">${new Date(entry.created_at).toLocaleDateString()}</span>
+            <span class="value">${formatDateForDisplay(entry.created_at)}</span>
           </div>
           ${entry.payment_date ? `
           <div class="receipt-row">
             <span class="label">Payment Date</span>
-            <span class="value">${new Date(entry.payment_date).toLocaleDateString()}</span>
+            <span class="value">${formatDateForDisplay(entry.payment_date)}</span>
           </div>` : ''}
           ${entry.payment_method ? `
           <div class="receipt-row">

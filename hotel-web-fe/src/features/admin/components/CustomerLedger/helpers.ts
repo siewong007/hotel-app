@@ -2,44 +2,20 @@
 
 import type { CustomerLedger } from '../../../../types';
 import type { LedgerUiStatus, ToneName } from './types';
-import { formatLocalDate } from '../../../../utils/date';
+import { formatHotelDate, isHotelDatePast, toHotelDateString } from '../../../../utils/date';
 import { isPositiveMoney, toMoneyNumber } from '../../../../utils/money';
 
-// Date-only ISO 8601 (YYYY-MM-DD): date columns from the backend arrive
-// without a time/offset. Plain `new Date("YYYY-MM-DD")` parses as UTC midnight,
-// which shifts the date by one day in UTC-negative timezones; build the Date
-// in local time instead.
-export const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+// Ledger business dates are derived in the hotel's timezone (utils/date.ts):
+// timestamptz columns (payment_date, created_at, void_at) arrive as Z-suffixed
+// instants whose calendar date shifts by a day for viewers outside the hotel's
+// zone if read in the viewer's zone; date-only columns (due_date, posting_date,
+// ...) pass through as-is.
 
-export const formatDateForInput = (dateString: string | null | undefined): string => {
-  if (!dateString) return '';
-  if (DATE_ONLY_RE.test(dateString)) return dateString;
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    return formatLocalDate(date);
-  } catch {
-    return '';
-  }
-};
+export const formatDateForInput = (dateString: string | null | undefined): string =>
+  toHotelDateString(dateString);
 
-export const formatDateForDisplay = (dateString: string | null | undefined): string => {
-  if (!dateString) return '-';
-  try {
-    const m = DATE_ONLY_RE.exec(dateString);
-    const date = m
-      ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-      : new Date(dateString);
-    if (isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return '-';
-  }
-};
+export const formatDateForDisplay = (dateString: string | null | undefined): string =>
+  formatHotelDate(dateString);
 
 export const getStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
   switch (status) {
@@ -85,11 +61,10 @@ export const companyInitials = (name: string): string => {
 
 export const isLedgerVoided = (ledger: CustomerLedger) => Boolean(ledger.void_at) || ledger.status === 'void';
 
-export const isDateOverdue = (dateString: string | null | undefined) => {
-  if (!dateString) return false;
-  const due = new Date(`${formatDateForInput(dateString)}T23:59:59`);
-  return !isNaN(due.getTime()) && due.getTime() < Date.now();
-};
+// Overdue = the hotel calendar has moved past the due date (the due day itself
+// is not overdue), so the badge agrees for every viewer regardless of zone.
+export const isDateOverdue = (dateString: string | null | undefined) =>
+  isHotelDatePast(dateString);
 
 export const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
   const balance = asMoney(ledger.balance_due);

@@ -208,6 +208,11 @@ pub struct RateLimiters {
     /// General API: 200 per minute per IP (lenient - normal usage)
     #[allow(dead_code)]
     pub api: RateLimiter,
+    /// Inbound webhooks (`/api/webhooks/*`): unauthenticated by design and
+    /// each request can cost an upstream verification call, so keep the
+    /// per-IP ceiling well below the general API limit while still clearing
+    /// any realistic provider redelivery burst.
+    pub webhook: RateLimiter,
 }
 
 impl Default for RateLimiters {
@@ -233,6 +238,7 @@ impl RateLimiters {
             guest_portal_booking_create: KeyedRateLimiter::new(RateLimitConfig::new(10, 900)),
             guest_portal_booking_create_ip: RateLimiter::new(RateLimitConfig::new(30, 900)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
+            webhook: RateLimiter::new(RateLimitConfig::new(60, 60)),
         }
     }
 

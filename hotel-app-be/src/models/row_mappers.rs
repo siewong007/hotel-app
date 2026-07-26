@@ -1,7 +1,7 @@
 //!
 //! for models that contain Decimal fields when using `sqlx::query()` instead of `query_as`.
 
-use chrono::{NaiveDate, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -399,10 +399,10 @@ pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
         updated_by: row.try_get("updated_by").ok(),
         created_at: row
             .try_get("created_at")
-            .unwrap_or_else(|_| NaiveDateTime::default()),
+            .unwrap_or_else(|_| DateTime::<Utc>::default()),
         updated_at: row
             .try_get("updated_at")
-            .unwrap_or_else(|_| NaiveDateTime::default()),
+            .unwrap_or_else(|_| DateTime::<Utc>::default()),
         folio_number: row.try_get("folio_number").ok(),
         folio_type: row.try_get("folio_type").ok(),
         transaction_type: row.try_get("transaction_type").ok(),
@@ -437,14 +437,14 @@ pub fn row_to_customer_ledger_payment(row: &DbRow) -> CustomerLedgerPayment {
         payment_reference: row.try_get("payment_reference").ok(),
         payment_date: row
             .try_get("payment_date")
-            .unwrap_or_else(|_| NaiveDateTime::default()),
+            .unwrap_or_else(|_| DateTime::<Utc>::default()),
         receipt_number: row.try_get("receipt_number").ok(),
         receipt_file_url: row.try_get("receipt_file_url").ok(),
         notes: row.try_get("notes").ok(),
         processed_by: row.try_get("processed_by").ok(),
         created_at: row
             .try_get("created_at")
-            .unwrap_or_else(|_| NaiveDateTime::default()),
+            .unwrap_or_else(|_| DateTime::<Utc>::default()),
     }
 }
 

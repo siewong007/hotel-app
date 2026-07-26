@@ -13,9 +13,9 @@ The desktop build has two stages:
 
 1. Provision the embedded PostgreSQL tree into `src-tauri/pgsql/`.
    - Skipped (fast path) when `pgsql/` already contains binaries matching the major version parsed from `CONFIGURED_POSTGRES_MAJOR_VERSION` in `src-tauri/src/postgres.rs`.
-   - This step is non-fatal in `desktop:prepare`: if provisioning fails but `pgsql/` already exists, the existing tree is used and the build continues.
+   - Partially non-fatal in `desktop:prepare`: if provisioning fails but `pgsql/` already exists and was not proven wrong (e.g. no Homebrew, offline machine), the existing tree is used and the build continues. If the existing tree is CONFIRMED to be the wrong PostgreSQL build (version/build mismatch, inconsistent or missing binaries, mismatched manifest), provisioning exits 2 and `desktop:prepare` refuses to continue — the app cannot start with that tree, so shipping it would only defer the failure to the user's machine.
 2. Sync backend database resources into `src-tauri/database/`.
-   - PostgreSQL V1 baseline plus one-time data and seed resources are copied only when content changes.
+   - PostgreSQL V1 baseline plus one-time data and seed resources, and the pg19 physical-design patch for existing V1 databases, are copied only when content changes.
 3. Build the Tauri frontend bundle.
    - The Vite build is skipped when frontend source, public assets, build config, package files, and `VITE_`/`TAURI_ENV_` environment inputs are unchanged and `hotel-web-fe/dist/index.html` exists.
 4. Build the backend sidecar.
@@ -23,6 +23,12 @@ The desktop build has two stages:
    - `build:fast` and `build:debug` set `DESKTOP_BACKEND_PROFILE=debug`, so those local builds use the faster debug sidecar instead of forcing a release backend rebuild.
 5. Copy the backend sidecar into `src-tauri/binaries/`.
    - The sidecar copy is skipped when the target binary already matches the source binary.
+
+`bun run dev` first runs `desktop-prepare.mjs --dev`, which prepares only what
+`tauri dev` consumes: provisioning check, synced SQL resources, and a
+debug-profile sidecar (the frontend is served by Vite, so its bundle build is
+skipped). This keeps the dev sidecar from silently lagging behind
+`hotel-app-be/src`. `bun run dev:no-prepare` skips the prepare step entirely.
 
 Cache stamps are stored under `src-tauri/target/desktop-build-cache/`, so they are local build artifacts and are not committed.
 

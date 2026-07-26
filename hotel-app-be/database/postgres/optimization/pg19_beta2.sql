@@ -6,6 +6,11 @@
 -- benchmark-validated environment. This script deliberately avoids host-wide
 -- memory and worker settings; those require workload and hardware evidence.
 -- Run pg19_beta2_benchmark.sql before and after applying this script.
+--
+-- NOTE: the per-table autovacuum_parallel_workers settings below are inert
+-- until the cluster GUC autovacuum_max_parallel_workers is above zero. The
+-- `make db-pg19-tune` target raises it via ALTER SYSTEM (and
+-- `make db-pg19-tune-rollback` resets it); this file alone does not.
 
 BEGIN;
 
