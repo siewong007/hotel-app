@@ -720,6 +720,30 @@ fn sort_direction(sort_order: Option<&str>) -> &'static str {
     }
 }
 
+/// SQL migration for creating the audit_logs table
+/// This should be run as a database migration
+pub const AUDIT_LOGS_MIGRATION: &str = r#"
+-- Migration: Create audit_logs table
+-- Run this with: psql $DATABASE_URL < migration.sql
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    resource_type VARCHAR(100) NOT NULL,
+    resource_id BIGINT,
+    details JSONB,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
+CREATE INDEX idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
+"#;
+
 #[cfg(test)]
 mod tests {
     use super::details_has_changes;
@@ -791,27 +815,3 @@ mod tests {
         assert!(report_types.contains(&"export".to_string()));
     }
 }
-
-/// SQL migration for creating the audit_logs table
-/// This should be run as a database migration
-pub const AUDIT_LOGS_MIGRATION: &str = r#"
--- Migration: Create audit_logs table
--- Run this with: psql $DATABASE_URL < migration.sql
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    action VARCHAR(100) NOT NULL,
-    resource_type VARCHAR(100) NOT NULL,
-    resource_id BIGINT,
-    details JSONB,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
-"#;

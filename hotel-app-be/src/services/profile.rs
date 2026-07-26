@@ -6,6 +6,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate, UserSessionInfo};
 use crate::repositories::user::UserRepository;
+use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
 use validator::Validate;
@@ -126,7 +127,11 @@ pub async fn update_password(
             ApiError::Database(format!(
                 "Failed to revoke password-change sessions: {error}"
             ))
-        })
+        })?;
+
+    let _ = AuditLog::log_password_changed(pool, user_id).await;
+
+    Ok(())
 }
 
 pub async fn list_sessions(
@@ -159,6 +164,19 @@ pub async fn revoke_session(pool: &DbPool, user_id: i64, session_id: &str) -> Re
     if !revoked {
         return Err(ApiError::NotFound("Active session not found".to_string()));
     }
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "session_revoked",
+        "user",
+        Some(user_id),
+        Some(serde_json::json!({ "session_id": session_id })),
+        None,
+        None,
+    )
+    .await;
+
     Ok(())
 }
 

@@ -202,16 +202,16 @@ pub fn build_booking_list_query(
         // We compute the last day of the month for the range check.
         let year = ms.year();
         let month = ms.month();
+        // Clamp instead of unwrap: chrono parses extended years from the query
+        // string (e.g. +262142-12-01), and from_ymd_opt(MAX_YEAR + 1, ..) is None.
         let last_day = if month == 12 {
             chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
-                .unwrap()
-                .pred_opt()
-                .unwrap()
+                .and_then(|d| d.pred_opt())
+                .unwrap_or(chrono::NaiveDate::MAX)
         } else {
             chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
-                .unwrap()
-                .pred_opt()
-                .unwrap()
+                .and_then(|d| d.pred_opt())
+                .unwrap_or(chrono::NaiveDate::MAX)
         };
         param_idx += 1;
         let last_p = param_placeholder(param_idx);

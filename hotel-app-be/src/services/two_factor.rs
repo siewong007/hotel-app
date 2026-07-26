@@ -9,6 +9,7 @@ use crate::models::{
     TwoFactorSetupRequest, TwoFactorStatusResponse, TwoFactorVerifyRequest, User,
 };
 use crate::repositories::user::UserRepository;
+use crate::services::audit::AuditLog;
 use serde_json::Value;
 use validator::Validate;
 
@@ -126,6 +127,18 @@ pub async fn disable_2fa(
     AuthService::revoke_all_user_tokens(pool, user_id)
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "two_factor_disabled",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
     Ok(serde_json::json!({
         "message": "2FA disabled successfully. All sessions have been revoked for security."

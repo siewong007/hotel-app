@@ -228,6 +228,7 @@ mod postgres_tests {
             .unwrap();
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn seed_pg_booking(
         pool: &PgPool,
         actor_id: i64,
