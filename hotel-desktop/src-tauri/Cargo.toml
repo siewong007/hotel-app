@@ -21,7 +21,11 @@ tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full", "process"] }
-reqwest = { version = "0.12", features = ["json"] }
+# rustls-only: default features would pull native-tls/OpenSSL into the lockfile.
+# Keep the remaining defaults (charset/http2/system-proxy) — tauri-plugin-updater
+# shares this reqwest instance via feature unification, so dropping them would
+# change the auto-updater's transport (e.g. lose OS proxy support on Windows).
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "charset", "http2", "system-proxy"] }
 log = "0.4"
 env_logger = "0.11"
 dirs = "5"
