@@ -21,8 +21,8 @@ struct GeneratedInvoiceBookingDetailsRow {
     customer_name: String,
     customer_email: Option<String>,
     customer_phone: Option<String>,
-    check_in: chrono::NaiveDateTime,
-    check_out: chrono::NaiveDateTime,
+    check_in: chrono::NaiveDate,
+    check_out: chrono::NaiveDate,
     room_id: i64,
     room_number: String,
     room_type: String,
@@ -942,7 +942,7 @@ impl PaymentRepository {
         let service_charge_pct =
             row_mappers::get_decimal(&pricing_row, "service_charge_percentage");
 
-        let nights = (check_out.date() - check_in.date()).num_days() as i32;
+        let nights = (check_out - check_in).num_days() as i32;
         let subtotal = base_price * Decimal::from(nights);
         let service_charge = (subtotal * service_charge_pct) / Decimal::from(100);
         let tax_amount = Decimal::ZERO;
@@ -1032,8 +1032,8 @@ impl PaymentRepository {
             invoice_date: None,
             issue_date: chrono::Utc::now().date_naive(),
             due_date: None,
-            check_in_date: Some(check_in.date()),
-            check_out_date: Some(check_out.date()),
+            check_in_date: Some(check_in),
+            check_out_date: Some(check_out),
             number_of_nights: Some(nights),
             room_number: Some(room_number),
             room_type: Some(room_type),

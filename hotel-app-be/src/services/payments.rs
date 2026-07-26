@@ -104,7 +104,7 @@ pub async fn calculate_payment_summary(
     let stay = PaymentRepository::payment_booking_stay(pool, booking_id).await?;
     let pricing = PaymentRepository::room_pricing(pool, stay.room_id).await?;
 
-    let nights = (stay.check_out.date() - stay.check_in.date()).num_days();
+    let nights = (stay.check_out - stay.check_in).num_days();
     let subtotal = pricing.base_price * Decimal::from(nights);
     let service_charge = (subtotal * pricing.service_charge_percentage) / Decimal::from(100);
     let tax_amount = Decimal::ZERO;

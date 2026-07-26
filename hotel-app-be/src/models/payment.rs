@@ -203,8 +203,8 @@ pub struct PaymentWorkflowSummary {
 #[derive(Debug, Clone)]
 pub struct PaymentBookingStay {
     pub room_id: i64,
-    pub check_in: chrono::NaiveDateTime,
-    pub check_out: chrono::NaiveDateTime,
+    pub check_in: NaiveDate,
+    pub check_out: NaiveDate,
 }
 
 #[derive(Debug, Clone, FromRow)]
