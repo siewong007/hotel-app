@@ -101,7 +101,56 @@ pub struct CustomerLedgerCreateRequest {
     pub service_charge: Option<f64>,
 }
 
+/// Post types accepted by the `valid_post_type` CHECK constraint on
+/// `customer_ledgers` (see `database/postgres/migrations/0001_v1_baseline.sql`).
+///
+/// Kept in sync with that constraint so an unknown value is rejected as a 400
+/// by the service layer instead of surfacing as a database 500.
+pub const VALID_POST_TYPES: &[&str] = &[
+    "room_charge",
+    "room_tax",
+    "service_charge",
+    "tourism_tax",
+    "fnb_restaurant",
+    "fnb_room_service",
+    "fnb_minibar",
+    "fnb_banquet",
+    "laundry",
+    "telephone",
+    "internet",
+    "parking",
+    "spa",
+    "gym",
+    "transportation",
+    "miscellaneous",
+    "advance_deposit",
+    "payment",
+    "adjustment",
+    "rebate",
+    "discount",
+    "commission",
+    "refund",
+    "transfer_in",
+    "transfer_out",
+    "city_ledger_transfer",
+];
+
 /// Input for updating a customer ledger entry.
+///
+/// Every field here is applied by `repositories::ledger::update_customer_ledger`.
+/// Fields that exist on `CustomerLedgerCreateRequest` but are deliberately
+/// absent here are immutable after posting, and are corrected by voiding and
+/// re-posting the entry rather than by editing it in place:
+///
+/// * `booking_id` / `guest_id` — re-parenting a posted charge would break the
+///   audit trail linking it to the stay it belongs to.
+/// * `folio_type` — `folio_number`'s prefix is derived from it by the
+///   `generate_folio_number` BEFORE INSERT trigger and is never regenerated.
+/// * `transaction_type` — flipping debit/credit would invert the accounting
+///   sign of a posted row; use a credit note / reversal instead.
+/// * `posting_date` / `transaction_date` — `posting_date` keys the invoice
+///   number sequence (`services::invoice_numbers`), so moving it would desync
+///   an already-issued invoice number from its accounting period.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CustomerLedgerUpdateRequest {
     pub company_name: Option<String>,
@@ -119,21 +168,15 @@ pub struct CustomerLedgerUpdateRequest {
     pub amount: Option<f64>,
     pub currency: Option<String>,
     pub status: Option<String>,
-    pub booking_id: Option<i64>,
-    pub guest_id: Option<i64>,
     pub invoice_date: Option<String>,
     pub due_date: Option<String>,
     pub notes: Option<String>,
     pub internal_notes: Option<String>,
     // Ledger accounting fields
-    pub folio_type: Option<String>,
-    pub transaction_type: Option<String>,
     pub post_type: Option<String>,
     pub department_code: Option<String>,
     pub transaction_code: Option<String>,
     pub room_number: Option<String>,
-    pub posting_date: Option<String>,
-    pub transaction_date: Option<String>,
     pub reference_number: Option<String>,
     pub tax_amount: Option<f64>,
     pub service_charge: Option<f64>,

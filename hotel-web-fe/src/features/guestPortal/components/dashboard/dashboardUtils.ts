@@ -8,6 +8,7 @@ export const PORTAL_SECTIONS = [
   'points-history',
   'offers',
   'vouchers',
+  'credits',
   'support',
   'preferences',
 ] as const;

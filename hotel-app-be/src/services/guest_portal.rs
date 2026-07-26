@@ -11,9 +11,9 @@ use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::{
     Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
-    GuestPortalLoginResponse, GuestPortalMeResponse, GuestPortalMembershipResponse,
-    GuestPortalPage, GuestPortalTransaction, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
-    PreCheckInUpdateRequest,
+    GuestPortalCreditsResponse, GuestPortalLoginResponse, GuestPortalMeResponse,
+    GuestPortalMembershipResponse, GuestPortalPage, GuestPortalTransaction,
+    GuestPortalVerifyRequest, GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
 use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
@@ -446,6 +446,28 @@ pub async fn get_my_benefits(
     Ok(GuestPortalBenefitsResponse {
         tier_benefits,
         rewards,
+    })
+}
+
+/// GET /guest-portal/me/credits
+///
+/// Complimentary-night credits the guest can redeem in the portal booking
+/// funnel. `total_nights_available` is the sum across room types; credits are
+/// not fungible between room types, so the per-room-type breakdown is what the
+/// guest actually spends.
+pub async fn get_my_credits(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<GuestPortalCreditsResponse, ApiError> {
+    let credits_by_room_type =
+        GuestPortalSessionRepository::complimentary_credits(pool, guest_id).await?;
+    let total_nights_available = credits_by_room_type
+        .iter()
+        .map(|credit| credit.nights_available)
+        .sum();
+    Ok(GuestPortalCreditsResponse {
+        total_nights_available,
+        credits_by_room_type,
     })
 }
 

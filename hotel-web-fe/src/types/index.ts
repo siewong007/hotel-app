@@ -193,6 +193,8 @@ export type {
   GuestPortalTierBenefit,
   GuestPortalReward,
   GuestPortalBenefitsResponse,
+  GuestPortalRoomTypeCredit,
+  GuestPortalCreditsResponse,
 } from './guestPortal.types';
 
 // Reports types

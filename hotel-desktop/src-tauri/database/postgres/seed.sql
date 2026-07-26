@@ -372,6 +372,24 @@ WHERE u.username = 'admin'
       WHERE action = 'system.seed' AND resource_type = 'system'
   );
 
+-- ============================================================================
+-- STARTER TEAMS
+-- ============================================================================
+-- Three obvious hotel departments so the Teams page is not empty on first run.
+-- These are sample data, not bootstrap data: nothing reads them with fetch_one
+-- and an empty teams table is a valid state, so they live here rather than in
+-- data.sql. `created_by` resolves the admin by username -- the seeded admin is
+-- id 1000, and hardcoding an id here has broken this file before.
+INSERT INTO teams (code, name, description, created_by, updated_by)
+SELECT v.code, v.name, v.description, u.id, u.id
+FROM (VALUES
+    ('front_desk',  'Front Desk',  'Reception, check-in/out and guest relations'),
+    ('housekeeping','Housekeeping','Room cleaning, turndown and laundry'),
+    ('maintenance', 'Maintenance', 'Engineering, repairs and preventive upkeep')
+) AS v(code, name, description)
+LEFT JOIN users u ON u.username = 'admin'
+ON CONFLICT DO NOTHING;
+
 -- The revision row is deliberately the last persistent action: it certifies
 -- that schema, required data, and fresh bootstrap data all succeeded.
 INSERT INTO public.hotel_schema_revisions (

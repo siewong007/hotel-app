@@ -111,3 +111,17 @@ export interface GuestPortalBenefitsResponse {
   tier_benefits: GuestPortalTierBenefit[];
   rewards: GuestPortalReward[];
 }
+
+/** One room type's complimentary-night balance. Credits are not transferable
+ *  between room types, so the breakdown is what the guest actually spends. */
+export interface GuestPortalRoomTypeCredit {
+  room_type_id: number;
+  room_type_code: string;
+  room_type_name: string;
+  nights_available: number;
+}
+
+export interface GuestPortalCreditsResponse {
+  total_nights_available: number;
+  credits_by_room_type: GuestPortalRoomTypeCredit[];
+}

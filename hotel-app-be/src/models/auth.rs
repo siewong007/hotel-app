@@ -177,6 +177,15 @@ pub struct RegenerateBackupCodesRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PasskeyRegistrationStart {
     pub username: String,
+    /// Step-up re-authentication. A passkey is a permanent credential that
+    /// satisfies 2FA on its own, so minting one must cost more than an
+    /// already-open session — otherwise any hijacked session becomes a
+    /// durable, 2FA-bypassing account takeover.
+    #[serde(default)]
+    pub password: Option<String>,
+    /// Alternative to `password` for accounts with 2FA enabled.
+    #[serde(default)]
+    pub totp_code: Option<String>,
 }
 
 /// Finish passkey registration

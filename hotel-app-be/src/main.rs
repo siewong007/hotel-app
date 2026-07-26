@@ -194,6 +194,31 @@ async fn main() {
         Err(e) => log::warn!("Ledger schema-generation probe failed: {}", e),
     }
 
+    // Permission resolution now UNIONs team-conferred roles, so `team_roles`
+    // and `team_members` are read on EVERY authorization check. Against a
+    // database that has `users` but not those tables, the join fails and every
+    // permission check in the application returns an error — an app-wide
+    // authorization outage, not a degraded feature. Refuse to start and name
+    // the patch instead. `users` absent means the schema is not installed at
+    // all, which the normal install flow handles.
+    match sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM information_schema.tables \
+         WHERE table_schema = 'public' AND table_name IN ('users', 'team_roles', 'team_members')",
+    )
+    .fetch_one(&pool)
+    .await
+    {
+        Ok(count) if (1..3).contains(&count) => {
+            log::error!(
+                "✗ this database has the users table but not team_roles/team_members: permission resolution reads them on every request; apply database/postgres/patches/2026-07-27-teams.sql before starting this backend"
+            );
+            eprintln!("FATAL: database schema predates the 2026-07-27 teams patch");
+            std::process::exit(1);
+        }
+        Ok(_) => {}
+        Err(e) => log::warn!("Teams schema-generation probe failed: {}", e),
+    }
+
     // One-shot backfill: ensure every booking has an invoice row.
     match services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
         Ok(0) => {}

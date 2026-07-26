@@ -12,16 +12,6 @@ use axum::{
 };
 use std::collections::HashMap;
 
-#[allow(dead_code)]
-pub async fn websocket_status_handler() -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(serde_json::json!({
-        "status": "available",
-        "protocol": "ws",
-        "endpoint": "/ws",
-        "message": "WebSocket server is running"
-    })))
-}
-
 pub async fn get_occupancy_report_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {

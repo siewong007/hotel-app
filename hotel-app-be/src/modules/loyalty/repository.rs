@@ -91,17 +91,6 @@ impl LoyaltyRepository {
         Ok(row_to_rules(&row))
     }
 
-    #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
-    pub async fn list_tiers(pool: &DbPool) -> Result<Vec<LoyaltyTier>, ApiError> {
-        let rows = sqlx::query(
-            "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE is_active = true ORDER BY sort_order",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(ApiError::from)?;
-        Ok(rows.iter().map(row_to_tier).collect())
-    }
-
     pub async fn default_tier_id(pool: &DbPool) -> Result<i64, ApiError> {
         sqlx::query_scalar(
             "SELECT id FROM loyalty_tiers WHERE is_active = true ORDER BY sort_order LIMIT 1",
@@ -284,17 +273,6 @@ impl LoyaltyRepository {
             .ok_or_else(|| ApiError::Internal("Created loyalty member was not found".to_string()))
     }
 
-    #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
-    pub async fn available_balance(pool: &DbPool, member_id: i64) -> Result<i32, ApiError> {
-        sqlx::query_scalar(
-            "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = $1",
-        )
-        .bind(member_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)
-    }
-
     pub async fn has_source_transaction(
         pool: &DbPool,
         member_id: i64,
@@ -450,21 +428,6 @@ impl LoyaltyRepository {
         .bind(points)
         .bind(account_id)
         .execute(&mut **tx)
-        .await
-        .map_err(ApiError::from)?;
-        Ok(())
-    }
-
-    #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
-    pub async fn update_account_tier(
-        pool: &DbPool,
-        account_id: i64,
-        tier_id: i64,
-    ) -> Result<(), ApiError> {
-        sqlx::query("UPDATE loyalty_accounts SET current_tier_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-        .bind(tier_id)
-        .bind(account_id)
-        .execute(pool)
         .await
         .map_err(ApiError::from)?;
         Ok(())

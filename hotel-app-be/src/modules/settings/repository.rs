@@ -6,7 +6,6 @@ use crate::core::error::ApiError;
 
 pub struct SettingsRepository;
 
-#[allow(dead_code)]
 impl SettingsRepository {
     /// Find all settings
     pub async fn find_all(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
@@ -40,26 +39,8 @@ impl SettingsRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    /// Find settings by category
-    pub async fn find_by_category(
-        pool: &DbPool,
-        category: &str,
-    ) -> Result<Vec<SystemSetting>, ApiError> {
-        sqlx::query_as::<_, SystemSetting>(
-            r#"
-            SELECT id, key, value, description, category, created_at, updated_at
-            FROM system_settings
-            WHERE category = $1
-            ORDER BY key
-            "#,
-        )
-        .bind(category)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
     /// Find setting by key
+    #[allow(dead_code)] // used by tests/audit_analytics_settings.rs
     pub async fn find_by_key(pool: &DbPool, key: &str) -> Result<Option<SystemSetting>, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
@@ -81,27 +62,6 @@ impl SettingsRepository {
             .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    /// Update setting value
-    pub async fn update_value(
-        pool: &DbPool,
-        key: &str,
-        value: &str,
-    ) -> Result<SystemSetting, ApiError> {
-        sqlx::query_as::<_, SystemSetting>(
-            r#"
-            UPDATE system_settings
-            SET value = $1, updated_at = CURRENT_TIMESTAMP
-            WHERE key = $2
-            RETURNING id, key, value, description, category, created_at, updated_at
-            "#,
-        )
-        .bind(value)
-        .bind(key)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     /// Update setting value and stamp the user that changed it.
@@ -214,6 +174,7 @@ impl SettingsRepository {
     }
 
     /// Create or update setting
+    #[allow(dead_code)] // used by tests/audit_analytics_settings.rs
     pub async fn upsert(
         pool: &DbPool,
         key: &str,
@@ -238,24 +199,4 @@ impl SettingsRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    /// Get rate codes from settings
-    pub async fn get_rate_codes(pool: &DbPool) -> Result<Vec<String>, ApiError> {
-        let codes: Vec<(String,)> = sqlx::query_as(
-            "SELECT DISTINCT code FROM rate_plans WHERE is_active = true ORDER BY code",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(codes.into_iter().map(|(code,)| code).collect())
-    }
-
-    /// Get market codes from settings
-    pub async fn get_market_codes(pool: &DbPool) -> Result<Vec<String>, ApiError> {
-        let value = Self::get_value(pool, "market_codes").await?;
-
-        Ok(value
-            .map(|v| v.split(',').map(|s| s.trim().to_string()).collect())
-            .unwrap_or_default())
-    }
 }

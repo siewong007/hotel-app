@@ -6,7 +6,6 @@
 pub mod handlers;
 pub mod hub;
 pub mod models;
-pub mod queries;
 pub mod repository;
 pub mod routes;
 pub mod service;

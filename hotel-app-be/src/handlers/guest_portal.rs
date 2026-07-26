@@ -13,9 +13,9 @@ use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::{
     AutoCheckinResponse, GuestPortalBenefitsResponse, GuestPortalBookingResponse,
-    GuestPortalBookingSummary, GuestPortalMeResponse, GuestPortalMembershipResponse,
-    GuestPortalPage, GuestPortalPageQuery, GuestPortalTransaction, GuestPortalVerifyRequest,
-    GuestPortalVerifyResponse, PreCheckInUpdateRequest,
+    GuestPortalBookingSummary, GuestPortalCreditsResponse, GuestPortalMeResponse,
+    GuestPortalMembershipResponse, GuestPortalPage, GuestPortalPageQuery, GuestPortalTransaction,
+    GuestPortalVerifyRequest, GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
 use crate::services::guest_portal as guest_portal_service;
 
@@ -147,6 +147,19 @@ pub async fn get_my_benefits(
         guest_portal_service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
     Ok(Json(
         guest_portal_service::get_my_benefits(&pool, guest_id).await?,
+    ))
+}
+
+/// GET /guest-portal/me/credits
+pub async fn get_my_credits(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+) -> Result<Json<GuestPortalCreditsResponse>, ApiError> {
+    let guest_id =
+        guest_portal_service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
+    Ok(Json(
+        guest_portal_service::get_my_credits(&pool, guest_id).await?,
     ))
 }
 

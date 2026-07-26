@@ -80,7 +80,7 @@ Backend request flow: `routes/<domain>.rs` → auth middleware → `handlers/<do
 - `core/auth.rs` + `core/middleware.rs` — `require_auth(&headers)`; `check_permission(pool, user_id, "<resource>:<action>")`; `<resource>:manage` implies all actions of that resource.
 - `core/db.rs` — PostgreSQL pool creation and database value helpers; each connection receives the timezone from `system_settings.timezone`.
 - `core/rate_limiter.rs` — in-memory rate limiting, injected as an Extension.
-- `services/audit.rs` — call from every mutating handler; `utils/sanitization.rs::Sanitizer` for free-text input; `utils/validation.rs` for shape validation.
+- `services/audit.rs` — call from every mutating handler; `utils/sanitization.rs::Sanitizer` for free-text input; `validator` derives on the request models for shape validation.
 
 PostgreSQL is the only database engine. Every SQL change must compile under
 `--all-features`. PostgreSQL V1 initialization is the baseline migration,

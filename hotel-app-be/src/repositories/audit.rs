@@ -110,7 +110,7 @@ impl AuditRepository {
         let data_query = format!(
             r#"
             SELECT a.id, a.user_id, u.username, a.action, a.resource_type, a.resource_id,
-                   a.details, a.ip_address, a.user_agent, a.created_at
+                   a.details, host(a.ip_address) AS ip_address, a.user_agent, a.created_at
             FROM audit_logs a
             LEFT JOIN users u ON a.user_id = u.id
             {}
@@ -196,7 +196,7 @@ impl AuditRepository {
         let query = format!(
             r#"
             SELECT a.id, a.user_id, u.username, a.action, a.resource_type, a.resource_id,
-                   a.details, a.ip_address, a.user_agent, a.created_at
+                   a.details, host(a.ip_address) AS ip_address, a.user_agent, a.created_at
             FROM audit_logs a
             LEFT JOIN users u ON a.user_id = u.id
             {}

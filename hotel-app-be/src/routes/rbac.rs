@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_any_permission_helper;
+use crate::core::middleware::{ensure_super_admin, require_any_permission_helper};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -141,7 +141,11 @@ async fn create_permission(
     headers: HeaderMap,
     Json(input): Json<models::PermissionInput>,
 ) -> Result<Json<models::Permission>, ApiError> {
-    require_any_permission_helper(&pool, &headers, PERMISSION_CREATE_PERMISSIONS).await?;
+    // The permission catalogue defines the vocabulary every other gate is
+    // written in, so editing it sits above the role hierarchy entirely.
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_CREATE_PERMISSIONS).await?;
+    ensure_super_admin(&pool, actor_user_id).await?;
     handlers::rbac::create_permission_handler(State(pool), Json(input)).await
 }
 
@@ -216,7 +220,9 @@ async fn update_permission(
     path: Path<i64>,
     Json(input): Json<models::PermissionInput>,
 ) -> Result<Json<models::Permission>, ApiError> {
-    require_any_permission_helper(&pool, &headers, PERMISSION_UPDATE_PERMISSIONS).await?;
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_UPDATE_PERMISSIONS).await?;
+    ensure_super_admin(&pool, actor_user_id).await?;
     handlers::rbac::update_permission_handler(State(pool), path, Json(input)).await
 }
 
@@ -225,6 +231,8 @@ async fn delete_permission(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_any_permission_helper(&pool, &headers, PERMISSION_DELETE_PERMISSIONS).await?;
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_DELETE_PERMISSIONS).await?;
+    ensure_super_admin(&pool, actor_user_id).await?;
     handlers::rbac::delete_permission_handler(State(pool), path).await
 }

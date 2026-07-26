@@ -102,8 +102,8 @@ impl RateLimiter {
         limiter
     }
 
+    #[allow(dead_code)] // used by tests/rate_limiter_tests.rs
     /// Check if a request from this IP is allowed. Returns true if allowed.
-    #[allow(dead_code)]
     pub async fn check(&self, ip: IpAddr) -> bool {
         let mut entries = self.entries.lock().await;
         let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
@@ -123,11 +123,6 @@ impl RateLimiter {
         outcome
     }
 
-    /// Get the window duration (for Retry-After headers)
-    #[allow(dead_code)]
-    pub fn window_secs(&self) -> u64 {
-        self.config.window.as_secs()
-    }
 }
 
 /// Thread-safe rate limiter keyed by caller-provided text identifiers.
@@ -215,9 +210,6 @@ pub struct RateLimiters {
     pub guest_portal_booking_create: KeyedRateLimiter,
     /// Shared ceiling for direct-booking submissions from one origin IP.
     pub guest_portal_booking_create_ip: RateLimiter,
-    /// General API: 200 per minute per IP (lenient - normal usage)
-    #[allow(dead_code)]
-    pub api: RateLimiter,
     /// Inbound webhooks (`/api/webhooks/*`): unauthenticated by design and
     /// each request can cost an upstream verification call, so keep the
     /// per-IP ceiling well below the general API limit while still clearing
@@ -247,29 +239,10 @@ impl RateLimiters {
             guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
             guest_portal_booking_create: KeyedRateLimiter::new(RateLimitConfig::new(10, 900)),
             guest_portal_booking_create_ip: RateLimiter::new(RateLimitConfig::new(30, 900)),
-            api: RateLimiter::new(RateLimitConfig::new(200, 60)),
             webhook: RateLimiter::new(RateLimitConfig::new(60, 60)),
         }
     }
 
-    /// Check an endpoint-specific rate limit by category.
-    ///
-    /// This helper is primarily used by legacy tests and simple route checks.
-    #[allow(dead_code)]
-    pub async fn check_rate_limit(&self, category: &str, ip: &IpAddr) -> bool {
-        match category {
-            "auth:login" | "auth:register" | "auth:passkey" => self.auth.check(*ip).await,
-            "register" => self.register.check(*ip).await,
-            "sensitive" => self.sensitive.check(*ip).await,
-            "guest_portal:verify" => self.guest_portal_verify.check(*ip).await,
-            _ if category.starts_with("guest_portal:booking:") => {
-                let key = category.trim_start_matches("guest_portal:booking:");
-                self.guest_portal_booking.check_with_retry(key).await.0
-            }
-            "api:generic" | "api" => self.api.check(*ip).await,
-            _ => self.api.check(*ip).await,
-        }
-    }
 }
 
 #[cfg(test)]

@@ -118,7 +118,3 @@ pub fn invalidate_key(key: &str) {
     CACHE.entries.lock().unwrap().remove(key);
 }
 
-#[allow(dead_code)]
-pub fn invalidate_all() {
-    CACHE.entries.lock().unwrap().clear();
-}

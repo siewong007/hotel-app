@@ -51,6 +51,7 @@ import { PortalSupportTab } from "../PortalSupportTab";
 import { GuestPaymentPanel } from "../GuestPaymentPanel";
 import type {
   GuestPortalBookingSummary,
+  GuestPortalCreditsResponse,
   GuestPortalMeResponse,
   GuestPortalMembershipResponse,
   GuestPortalTransaction,
@@ -1306,6 +1307,104 @@ export function PaymentsSection({ token }: { token: string }) {
               setPage(0);
             }}
           />
+        </>
+      )}
+    </>
+  );
+}
+
+/**
+ * Complimentary-night credits, broken down by room type.
+ *
+ * Credits are granted per room type and are not interchangeable, so the
+ * breakdown — not the headline total — is what the guest can actually spend.
+ * Redemption happens in the booking funnel, where the nights to comp are
+ * chosen against real availability and rates.
+ */
+export function CreditsSection({ token }: { token: string }) {
+  const [credits, setCredits] = useState<GuestPortalCreditsResponse | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setCredits(await GuestPortalDashboardService.credits(token));
+    } catch {
+      setError("Unable to load your complimentary nights right now.");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading) return <LoadingState label="Loading your complimentary nights…" />;
+  if (error) return <ErrorState message={error} retry={() => void load()} />;
+
+  const rows = credits?.credits_by_room_type ?? [];
+  const total = credits?.total_nights_available ?? 0;
+
+  return (
+    <>
+      <SectionHeading
+        eyebrow="Complimentary"
+        title="Free nights"
+        description="Nights the hotel has gifted you. Each one is tied to a room type and can be applied when you book that room."
+      />
+      {rows.length === 0 ? (
+        <EmptyState message="You have no complimentary nights right now. The hotel will let you know when you earn some." />
+      ) : (
+        <>
+          <Card sx={{ mb: 3, bgcolor: FOREST, color: "white" }}>
+            <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+              <Typography
+                variant="overline"
+                sx={{ color: GOLD, fontWeight: 700 }}
+              >
+                Nights available
+              </Typography>
+              <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {total.toLocaleString()}
+              </Typography>
+              <Typography sx={{ color: "rgba(255,255,255,.76)", mt: 1 }}>
+                Across {rows.length} room{" "}
+                {rows.length === 1 ? "type" : "types"}
+              </Typography>
+            </CardContent>
+          </Card>
+          <List disablePadding>
+            {rows.map((credit) => (
+              <ListItem
+                key={credit.room_type_id}
+                divider
+                secondaryAction={
+                  <Button
+                    size="small"
+                    variant="contained"
+                    endIcon={<EastOutlinedIcon />}
+                    href="/guest-portal?view=booking"
+                  >
+                    Book
+                  </Button>
+                }
+                sx={{ px: 0 }}
+              >
+                <ListItemText
+                  primary={credit.room_type_name}
+                  secondary={`${credit.room_type_code} · ${credit.nights_available} free night${credit.nights_available === 1 ? "" : "s"}`}
+                  primaryTypographyProps={{ fontWeight: 700, color: FOREST }}
+                />
+              </ListItem>
+            ))}
+          </List>
+          <Alert severity="info" sx={{ mt: 3 }}>
+            Choose your dates and room in the booking flow, then pick which
+            nights to cover with your free nights before you pay.
+          </Alert>
         </>
       )}
     </>

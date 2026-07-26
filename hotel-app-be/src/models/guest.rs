@@ -352,39 +352,6 @@ pub struct TransferGuestPortalAccountInput {
     pub username: String,
 }
 
-/// User-Guest relationship
-#[derive(Debug, Serialize, Deserialize, FromRow)]
-pub struct UserGuestLink {
-    pub user_id: i64,
-    pub guest_id: i64,
-    pub relationship_type: String,
-    pub can_book_for: bool,
-    pub can_view_bookings: bool,
-    pub can_modify: bool,
-}
-
-/// Guest complimentary credits by room type
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct GuestComplimentaryCredit {
-    pub id: i64,
-    pub guest_id: i64,
-    pub room_type_id: i64,
-    pub room_type_name: String,
-    pub room_type_code: String,
-    pub nights_available: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-/// Summary of guest complimentary credits
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GuestCreditsSummary {
-    pub guest_id: i64,
-    pub guest_name: String,
-    pub total_nights: i32,
-    pub credits_by_room_type: Vec<GuestComplimentaryCredit>,
-}
-
 /// Pagination parameters for guest listing.
 #[derive(Debug, Deserialize)]
 pub struct GuestPaginationParams {

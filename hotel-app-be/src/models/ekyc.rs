@@ -395,24 +395,3 @@ pub struct SelfCheckinRequest {
     pub checkin_location: Option<String>,
 }
 
-/// Self check-in event record.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct SelfCheckinEvent {
-    pub id: i64,
-    pub booking_id: i64,
-    pub guest_id: Option<i64>,
-    pub ekyc_verification_id: Option<i64>,
-    pub user_id: Option<i64>,
-    pub checked_in_at: Option<DateTime<Utc>>,
-    pub room_key_issued: Option<bool>,
-    pub digital_key_sent: Option<bool>,
-    pub device_type: Option<String>,
-    pub checkin_location: Option<String>,
-    pub event_type: Option<String>,
-    pub source: Option<String>,
-    pub event_data: Option<String>,
-    pub ip_address: Option<String>,
-    pub user_agent: Option<String>,
-    pub created_at: DateTime<Utc>,
-}

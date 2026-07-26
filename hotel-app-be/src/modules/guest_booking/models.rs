@@ -43,6 +43,12 @@ pub struct BookingQuoteRequest {
     pub adults: Option<i32>,
     pub children: Option<i32>,
     pub voucher_id: Option<i64>,
+    /// Nights the guest wants to fund with complimentary-night credits, as
+    /// `YYYY-MM-DD` strings. The guest picks the specific nights (mirroring the
+    /// staff `book-with-credits` flow) because nightly rates vary, so which
+    /// night is comped changes what is owed.
+    #[serde(default)]
+    pub complimentary_dates: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -54,6 +60,8 @@ pub struct CreateGuestBookingRequest {
     pub adults: Option<i32>,
     pub children: Option<i32>,
     pub voucher_id: Option<i64>,
+    #[serde(default)]
+    pub complimentary_dates: Option<Vec<String>>,
     pub expected_total: Decimal,
     pub special_requests: Option<String>,
     pub cleaning_preference: Option<bool>,
@@ -98,11 +106,20 @@ pub struct GuestBookingQuote {
     pub currency: String,
     pub nightly_rates: Vec<NightlyRate>,
     pub subtotal: Decimal,
+    /// Total discount: complimentary nights plus any voucher. `total_amount`
+    /// is always `subtotal - discount_amount + tax_amount`.
     pub discount_amount: Decimal,
     pub tax_amount: Decimal,
     pub total_amount: Decimal,
     pub voucher_id: Option<i64>,
     pub voucher_name: Option<String>,
+    /// The nights being funded by credits, and what they are worth. Broken out
+    /// of `discount_amount` so the guest can see credits and voucher separately.
+    pub complimentary_dates: Vec<NaiveDate>,
+    pub complimentary_nights: i32,
+    pub complimentary_discount: Decimal,
+    /// Credits the guest currently holds for this room type (not this quote).
+    pub credits_available: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -182,4 +199,10 @@ pub struct BookingInsert {
     pub cleaning_preference: Option<bool>,
     pub booking_channel_id: Option<i64>,
     pub nightly_rates: serde_json::Value,
+    /// Set when credits funded at least one night; drives `is_complimentary`
+    /// and the staff-visible `complimentary_reason` on the booking row.
+    pub complimentary_reason: Option<String>,
+    /// A stay fully covered by credits has nothing to pay, so it is booked
+    /// straight to confirmed/paid instead of the normal pending-payment flow.
+    pub settled_by_credits: bool,
 }

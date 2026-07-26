@@ -553,6 +553,14 @@ impl GuestBookingRepository {
         input: &BookingInsert,
     ) -> Result<i64, ApiError> {
         let nightly_rates = &input.nightly_rates;
+        // A stay fully covered by credits has a zero balance, so sending it
+        // through pending_payment/unpaid would strand the guest on a payment
+        // step for nothing. This mirrors the staff book-with-credits flow.
+        let (status, payment_status) = if input.settled_by_credits {
+            ("confirmed", "paid")
+        } else {
+            ("pending_payment", "unpaid")
+        };
 
         sqlx::query_scalar(
             r#"
@@ -561,11 +569,13 @@ impl GuestBookingRepository {
                     check_in_date, check_out_date, adults, children,
                     room_rate, subtotal, tax_amount, discount_amount, total_amount,
                     currency, status, payment_status, source, booking_channel_id,
-                    special_requests, cleaning_preference, daily_rates, created_by
+                    special_requests, cleaning_preference, daily_rates, created_by,
+                    is_complimentary, complimentary_reason
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
-                    $9, $10, 0, $11, $12, $13, 'pending_payment', 'unpaid',
-                    'website', $14, $15, $16, $17, $18
+                    $9, $10, 0, $11, $12, $13, $14, $15,
+                    'website', $16, $17, $18, $19, $20,
+                    $21, $22
                 ) RETURNING id
             "#,
         )
@@ -582,14 +592,68 @@ impl GuestBookingRepository {
         .bind(decimal_to_db(input.discount_amount))
         .bind(decimal_to_db(input.total_amount))
         .bind(&input.currency)
+        .bind(status)
+        .bind(payment_status)
         .bind(input.booking_channel_id)
         .bind(input.special_requests.as_deref())
         .bind(input.cleaning_preference)
         .bind(nightly_rates)
         .bind(input.actor_user_id)
+        .bind(input.complimentary_reason.is_some())
+        .bind(input.complimentary_reason.as_deref())
         .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)
+    }
+
+    /// Complimentary nights this guest holds for one room type (0 when none).
+    pub async fn complimentary_credits_available(
+        pool: &DbPool,
+        guest_id: i64,
+        room_type_id: i64,
+    ) -> Result<i32, ApiError> {
+        sqlx::query_scalar(
+            "SELECT nights_available FROM guest_complimentary_credits \
+             WHERE guest_id = $1 AND room_type_id = $2",
+        )
+        .bind(guest_id)
+        .bind(room_type_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
+        .map(|nights| nights.unwrap_or(0))
+    }
+
+    /// Spend `nights` of the guest's credits for one room type.
+    ///
+    /// The balance check lives in the `WHERE` clause so two concurrent bookings
+    /// cannot both pass a read-then-write check and overdraw: whichever
+    /// statement runs second matches no row and is rejected. The quote-time
+    /// check is only there to fail early with a friendlier message.
+    pub async fn redeem_complimentary_credits_tx(
+        tx: &mut DbTransaction<'_>,
+        guest_id: i64,
+        room_type_id: i64,
+        nights: i32,
+    ) -> Result<(), ApiError> {
+        let updated = sqlx::query(
+            "UPDATE guest_complimentary_credits \
+             SET nights_available = nights_available - $1, updated_at = CURRENT_TIMESTAMP \
+             WHERE guest_id = $2 AND room_type_id = $3 AND nights_available >= $1",
+        )
+        .bind(nights)
+        .bind(guest_id)
+        .bind(room_type_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?
+        .rows_affected();
+        if updated != 1 {
+            return Err(ApiError::Conflict(
+                "Your complimentary nights for this room type are no longer available".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     pub async fn redeem_voucher_tx(

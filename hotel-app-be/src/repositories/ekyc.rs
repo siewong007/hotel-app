@@ -10,8 +10,7 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
     EkycApplicationSummaryRow, EkycDashboardRow, EkycDecisionHistory, EkycListQuery, EkycNote,
-    EkycReasonCode, EkycVerification, EkycVerificationUpdate, GuestEkycStatusSummary,
-    SelfCheckinEvent,
+    EkycReasonCode, EkycVerification, EkycVerificationUpdate,
 };
 
 pub struct NewEkycVerification<'a> {
@@ -215,25 +214,6 @@ impl EkycRepository {
             })
             .collect::<Result<Vec<_>, sqlx::Error>>()
             .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    #[allow(dead_code)]
-    pub async fn latest_guest_summary(
-        pool: &DbPool,
-        guest_id: i64,
-    ) -> Result<GuestEkycStatusSummary, ApiError> {
-        Ok(Self::latest_guest_summary_record(pool, guest_id)
-            .await?
-            .map(|record| GuestEkycStatusSummary {
-                guest_id: record.guest_id,
-                ekyc_verification_id: Some(record.verification_id),
-                status: record.status,
-                self_checkin_enabled: record.self_checkin_enabled,
-                verified_at: record.verified_at,
-                can_auto_checkin: false,
-                auto_checkin_block_reason: None,
-            })
-            .unwrap_or_else(|| GuestEkycStatusSummary::not_submitted(guest_id)))
     }
 
     pub async fn exists_open_for_guest(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
@@ -1013,102 +993,6 @@ impl EkycRepository {
         .await
     }
 
-    #[allow(dead_code)]
-    pub async fn approved_self_checkin_for_user(
-        pool: &DbPool,
-        user_id: i64,
-    ) -> Result<Option<(i64, bool)>, ApiError> {
-        sqlx::query_as(
-            "SELECT id, self_checkin_enabled FROM ekyc_verifications WHERE user_id = $1 AND status = 'approved'",
-        )
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    #[allow(dead_code)]
-    pub async fn confirmed_booking_for_user(
-        pool: &DbPool,
-        booking_id: i64,
-        user_id: i64,
-    ) -> Result<Option<(i64, i64)>, ApiError> {
-        sqlx::query_as(
-            r#"
-            SELECT b.id, b.room_id
-            FROM bookings b
-            INNER JOIN guests g ON b.guest_id = g.id
-            INNER JOIN users u ON g.email = u.email
-            WHERE b.id = $1 AND u.id = $2 AND b.status = 'confirmed'
-            "#,
-        )
-        .bind(booking_id)
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    #[allow(dead_code)]
-    pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
-        let query = "SELECT room_number FROM rooms WHERE id = $1";
-
-        sqlx::query_scalar(query)
-            .bind(room_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    #[allow(dead_code)]
-    pub async fn mark_booking_checked_in(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
-        sqlx::query(
-            r#"
-            UPDATE bookings
-            SET status = 'checked_in',
-                actual_checkin = CURRENT_TIMESTAMP
-            WHERE id = $1
-            "#,
-        )
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .map(|_| ())
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    #[allow(dead_code)]
-    pub async fn insert_self_checkin_event(
-        pool: &DbPool,
-        booking_id: i64,
-        ekyc_id: i64,
-        user_id: i64,
-        checked_in_at: DateTime<Utc>,
-        device_type: &Option<String>,
-        checkin_location: &Option<String>,
-    ) -> Result<SelfCheckinEvent, ApiError> {
-        sqlx::query_as(
-            r#"
-            INSERT INTO self_checkin_events (
-                booking_id, ekyc_verification_id, user_id, checked_in_at,
-                room_key_issued, digital_key_sent, device_type, checkin_location, created_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-            RETURNING *
-            "#,
-        )
-        .bind(booking_id)
-        .bind(ekyc_id)
-        .bind(user_id)
-        .bind(checked_in_at)
-        .bind(true)
-        .bind(true)
-        .bind(device_type)
-        .bind(checkin_location)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
 }
 
 fn list_query(select_clause: &str, order_clause: &str, page_clause: &str) -> String {

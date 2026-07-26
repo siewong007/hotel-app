@@ -56,14 +56,6 @@ impl std::fmt::Debug for User {
     }
 }
 
-/// User with their roles
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserWithRoles {
-    pub user: User,
-    pub roles: Vec<String>,
-    pub permissions: Vec<String>,
-}
-
 /// User response for API (excludes sensitive fields)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserResponse {

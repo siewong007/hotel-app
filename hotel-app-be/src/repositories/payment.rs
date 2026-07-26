@@ -5,7 +5,7 @@ use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
-    Invoice, InvoiceBookingDetails, PaidOnlineBookingRoomAssignment, Payment, PaymentBookingStay,
+    Invoice, PaidOnlineBookingRoomAssignment, Payment, PaymentBookingStay,
     PaymentEntryRow, PaymentReceiptFile, PaymentRequest, PaymentRoomPricing, PaymentSummary,
     PaymentWorkflowSummaryRow, PendingPaymentEntry, RecordPaymentRequest, UpdatePaymentRequest,
 };
@@ -1325,89 +1325,6 @@ impl PaymentRepository {
         Ok(())
     }
 
-    /// Find invoice by invoice number, enriched with stay/room detail joined at
-    /// read time (LEFT JOIN — absent joins degrade to NULL).
-    pub async fn find_invoice_by_number(
-        pool: &DbPool,
-        invoice_number: &str,
-    ) -> Result<Option<Invoice>, ApiError> {
-        let sql = r#"
-                SELECT i.*, i.created_by AS user_id,
-                       b.check_in_date::date AS check_in_date,
-                       b.check_out_date::date AS check_out_date,
-                       (b.check_out_date::date - b.check_in_date::date) AS number_of_nights,
-                       r.room_number, rt.name AS room_type
-                FROM invoices i
-                LEFT JOIN bookings b ON b.id = i.booking_id
-                LEFT JOIN rooms r ON r.id = b.room_id
-                LEFT JOIN room_types rt ON rt.id = r.room_type_id
-                WHERE i.invoice_number = $1
-                LIMIT 1
-            "#;
-        let row = sqlx::query(sql)
-            .bind(invoice_number)
-            .fetch_optional(pool)
-            .await
-            .map_err(ApiError::from)?;
-
-        Ok(row.as_ref().map(row_mappers::row_to_invoice))
-    }
-
-    #[allow(dead_code)]
-    pub async fn invoice_booking_details(
-        pool: &DbPool,
-        booking_id: i64,
-    ) -> Result<InvoiceBookingDetails, ApiError> {
-        let (
-            _booking_id,
-            _guest_id,
-            customer_name,
-            customer_email,
-            customer_phone,
-            check_in,
-            check_out,
-            room_id,
-            room_number,
-            room_type,
-        ): (
-            i64,
-            i64,
-            String,
-            String,
-            Option<String>,
-            chrono::NaiveDateTime,
-            chrono::NaiveDateTime,
-            i64,
-            String,
-            String,
-        ) = sqlx::query_as(
-            r#"
-            SELECT b.id, b.guest_id, u.full_name, u.email, u.phone,
-                   b.check_in_date, b.check_out_date,
-                   r.id as room_id, r.room_number, rt.name as room_type
-            FROM bookings b
-            JOIN users u ON b.guest_id = u.id
-            JOIN rooms r ON b.room_id = r.id
-            JOIN room_types rt ON r.room_type_id = rt.id
-            WHERE b.id = $1
-            "#,
-        )
-        .bind(booking_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
-
-        Ok(InvoiceBookingDetails {
-            customer_name,
-            customer_email,
-            customer_phone,
-            check_in,
-            check_out,
-            room_id,
-            room_number,
-            room_type,
-        })
-    }
 }
 
 fn map_workflow_summary_row(row: &DbRow) -> PaymentWorkflowSummaryRow {

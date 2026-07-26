@@ -129,38 +129,6 @@ impl AuthService {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn generate_jwt(
-        user_id: i64,
-        username: String,
-        roles: Vec<String>,
-    ) -> Result<String, jsonwebtoken::errors::Error> {
-        let now = Utc::now();
-        let exp = access_token_expiration(now, is_desktop_mode());
-        let iat = now.timestamp() as usize;
-
-        let claims = Claims {
-            sub: user_id.to_string(),
-            username,
-            iss: config::try_get()
-                .map(|config| config.jwt_issuer.clone())
-                .unwrap_or_else(|| "hotel-app-be".to_string()),
-            aud: config::try_get()
-                .map(|config| config.jwt_audience.clone())
-                .unwrap_or_else(|| "hotel-web".to_string()),
-            exp,
-            iat,
-            roles,
-            sid: None,
-        };
-
-        encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(jwt_secret().as_ref()),
-        )
-    }
-
     /// Generates an access token bound to one persisted refresh session.
     pub fn generate_session_jwt(
         user_id: i64,
@@ -451,15 +419,16 @@ impl AuthService {
         pool: &DbPool,
         user_id: i64,
     ) -> Result<Vec<String>, sqlx::Error> {
-        let permissions = sqlx::query_scalar::<_, String>(
-            r#"
-            SELECT DISTINCT p.name
-            FROM permissions p
-            INNER JOIN role_permissions rp ON p.id = rp.permission_id
-            INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-            WHERE ur.user_id = $1
-            "#,
-        )
+        // Same definition of "effective" as the RBAC cache — direct roles
+        // UNION team-conferred roles, both filtered on expiry. Sharing the
+        // constants keeps the two from drifting apart, which would show up as
+        // a permission check that answers differently depending on which
+        // resolver ran.
+        let permissions = sqlx::query_scalar::<_, String>(&format!(
+            "{}{}",
+            crate::core::rbac_cache::EFFECTIVE_ROLES_CTE,
+            crate::core::rbac_cache::EFFECTIVE_PERMISSIONS_SQL
+        ))
         .bind(user_id)
         .fetch_all(pool)
         .await?;
@@ -468,14 +437,11 @@ impl AuthService {
     }
 
     pub async fn get_user_roles(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
-        let roles = sqlx::query_scalar::<_, String>(
-            r#"
-            SELECT r.name
-            FROM roles r
-            INNER JOIN user_roles ur ON r.id = ur.role_id
-            WHERE ur.user_id = $1
-            "#,
-        )
+        let roles = sqlx::query_scalar::<_, String>(&format!(
+            "{}{}",
+            crate::core::rbac_cache::EFFECTIVE_ROLES_CTE,
+            crate::core::rbac_cache::EFFECTIVE_ROLE_NAMES_SQL
+        ))
         .bind(user_id)
         .fetch_all(pool)
         .await?;
@@ -495,7 +461,6 @@ impl AuthService {
     }
 
     /// Check whether a user holds a role. Backed by the same RBAC cache.
-    #[allow(dead_code)]
     pub async fn check_role(
         pool: &DbPool,
         user_id: i64,
@@ -560,29 +525,6 @@ impl AuthService {
         .await?;
 
         Ok(result)
-    }
-
-    /// Get user by email for verification
-    #[allow(dead_code)]
-    pub async fn get_user_by_email(
-        pool: &DbPool,
-        email: &str,
-    ) -> Result<Option<crate::models::User>, sqlx::Error> {
-        let user = sqlx::query_as::<_, crate::models::User>(
-            r#"
-            SELECT id, username, email, full_name, is_active, is_verified,
-                   email_verification_token, email_token_expires_at,
-                   two_factor_enabled, two_factor_secret, two_factor_recovery_codes,
-                   created_at, updated_at
-            FROM users
-            WHERE email = $1 AND deleted_at IS NULL
-            "#,
-        )
-        .bind(email)
-        .fetch_optional(pool)
-        .await?;
-
-        Ok(user)
     }
 
     // ============================================================================

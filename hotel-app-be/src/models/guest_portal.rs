@@ -234,6 +234,22 @@ pub struct GuestPortalBenefitsResponse {
     pub rewards: Vec<GuestPortalReward>,
 }
 
+/// One room type's complimentary-night balance for the signed-in guest.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalRoomTypeCredit {
+    pub room_type_id: i64,
+    pub room_type_code: String,
+    pub room_type_name: String,
+    pub nights_available: i32,
+}
+
+/// Response for GET /guest-portal/me/credits.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalCreditsResponse {
+    pub total_nights_available: i32,
+    pub credits_by_room_type: Vec<GuestPortalRoomTypeCredit>,
+}
+
 /// Pagination query params for the guest history endpoints.
 #[derive(Debug, Deserialize)]
 pub struct GuestPortalPageQuery {

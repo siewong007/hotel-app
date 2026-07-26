@@ -8,6 +8,7 @@ use crate::models::{
 };
 use crate::repositories::user::UserRepository;
 use sqlx::FromRow;
+use std::collections::HashSet;
 
 pub struct RbacRepository;
 
@@ -79,17 +80,6 @@ impl RbacRepository {
             "SELECT id, name, description, created_at FROM roles WHERE id = $1",
         )
         .bind(id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-    }
-
-    /// Find role by name
-    pub async fn find_role_by_name(pool: &DbPool, name: &str) -> Result<Option<Role>, ApiError> {
-        sqlx::query_as::<_, Role>(
-            "SELECT id, name, description, created_at FROM roles WHERE name = $1",
-        )
-        .bind(name)
         .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
@@ -497,6 +487,76 @@ impl RbacRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Permission *names* the user effectively holds, as a set.
+    ///
+    /// Cheaper than [`Self::get_user_permissions`] (one text column, no
+    /// ordering, no row mapping) because the escalation guard only ever asks
+    /// membership questions.
+    pub async fn permission_names_for_user(
+        pool: &DbPool,
+        user_id: i64,
+    ) -> Result<HashSet<String>, ApiError> {
+        let names: Vec<String> = sqlx::query_scalar(
+            r#"
+            SELECT DISTINCT p.name
+            FROM permissions p
+            INNER JOIN role_permissions rp ON p.id = rp.permission_id
+            INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+            WHERE ur.user_id = $1
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(names.into_iter().collect())
+    }
+
+    /// Permission names conferred by any of `role_ids`, as a set.
+    pub async fn permission_names_for_roles(
+        pool: &DbPool,
+        role_ids: &[i64],
+    ) -> Result<HashSet<String>, ApiError> {
+        if role_ids.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let names: Vec<String> = sqlx::query_scalar(
+            r#"
+            SELECT DISTINCT p.name
+            FROM permissions p
+            INNER JOIN role_permissions rp ON p.id = rp.permission_id
+            WHERE rp.role_id = ANY($1)
+            "#,
+        )
+        .bind(role_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(names.into_iter().collect())
+    }
+
+    /// Permission names for a set of permission ids, as a set. Used when the
+    /// grant names permissions directly rather than through a role.
+    pub async fn permission_names_for_ids(
+        pool: &DbPool,
+        permission_ids: &[i64],
+    ) -> Result<HashSet<String>, ApiError> {
+        if permission_ids.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let names: Vec<String> = sqlx::query_scalar("SELECT name FROM permissions WHERE id = ANY($1)")
+            .bind(permission_ids)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(names.into_iter().collect())
+    }
+
     pub async fn user_with_roles_permissions(
         pool: &DbPool,
         user_id: i64,
@@ -632,11 +692,4 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    pub async fn role_name_by_id(pool: &DbPool, role_id: i64) -> Result<Option<String>, ApiError> {
-        sqlx::query_scalar("SELECT name FROM roles WHERE id = $1")
-            .bind(role_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))
-    }
 }

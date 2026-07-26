@@ -82,6 +82,37 @@ fn validate_stay_for_today(
     })
 }
 
+/// Parse the nights a guest asked to fund with complimentary credits.
+///
+/// Returns them sorted and de-duplicated. Every date must fall inside the stay
+/// (`check_in <= date < check_out`) — a comped night is a night actually being
+/// stayed, so check-out day is never eligible.
+pub fn validate_complimentary_dates(
+    values: Option<&[String]>,
+    stay: ValidatedStay,
+) -> Result<Vec<NaiveDate>, ApiError> {
+    let Some(values) = values else {
+        return Ok(Vec::new());
+    };
+    let mut dates: Vec<NaiveDate> = Vec::with_capacity(values.len());
+    for value in values {
+        let date = NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest(format!("Invalid complimentary night date: {value}"))
+        })?;
+        if date < stay.check_in_date || date >= stay.check_out_date {
+            return Err(ApiError::BadRequest(format!(
+                "{date} is not a night of this stay ({} to {})",
+                stay.check_in_date, stay.check_out_date
+            )));
+        }
+        if !dates.contains(&date) {
+            dates.push(date);
+        }
+    }
+    dates.sort_unstable();
+    Ok(dates)
+}
+
 pub fn validate_client_request_id(value: &str) -> Result<String, ApiError> {
     let value = value.trim();
     if value.is_empty() || value.chars().count() > 128 {
@@ -125,6 +156,60 @@ mod tests {
         )
         .unwrap();
         assert_eq!(stay.adults + stay.children, 3);
+    }
+
+    fn three_night_stay() -> ValidatedStay {
+        ValidatedStay {
+            check_in_date: NaiveDate::from_ymd_opt(2026, 8, 10).unwrap(),
+            check_out_date: NaiveDate::from_ymd_opt(2026, 8, 13).unwrap(),
+            adults: 1,
+            children: 0,
+        }
+    }
+
+    #[test]
+    fn complimentary_dates_are_sorted_and_deduplicated() {
+        let dates = validate_complimentary_dates(
+            Some(&[
+                "2026-08-12".to_string(),
+                "2026-08-10".to_string(),
+                "2026-08-12".to_string(),
+            ]),
+            three_night_stay(),
+        )
+        .unwrap();
+        assert_eq!(
+            dates,
+            vec![
+                NaiveDate::from_ymd_opt(2026, 8, 10).unwrap(),
+                NaiveDate::from_ymd_opt(2026, 8, 12).unwrap(),
+            ]
+        );
+    }
+
+    #[test]
+    fn checkout_day_is_not_a_night_of_the_stay() {
+        assert!(
+            validate_complimentary_dates(Some(&["2026-08-13".to_string()]), three_night_stay())
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn complimentary_dates_outside_the_stay_are_rejected() {
+        assert!(
+            validate_complimentary_dates(Some(&["2026-08-09".to_string()]), three_night_stay())
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn no_complimentary_selection_yields_no_dates() {
+        assert!(
+            validate_complimentary_dates(None, three_night_stay())
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

@@ -26,16 +26,6 @@ pub struct Room {
     pub is_smoking: Option<bool>,
 }
 
-/// Input for creating a room (simple)
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RoomInput {
-    pub room_number: String,
-    pub room_type: String,
-    pub price_per_night: f64,
-    pub description: Option<String>,
-    pub max_occupancy: i32,
-}
-
 /// Input for creating a room (full)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RoomCreateInput {

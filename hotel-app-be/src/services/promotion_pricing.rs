@@ -3,6 +3,11 @@
 //! This module deliberately has no database, route, or booking-lifecycle dependencies so a
 //! future promotion workflow can use the same deterministic calculation for quotes and commits.
 
+// Exercised end-to-end by tests/promotion_pricing.rs but not yet called from a
+// production path. `main.rs` re-declares every module, so the bin recompiles this
+// crate and reports the whole module dead even though the lib target's tests use it.
+#![allow(dead_code)]
+
 use rust_decimal::{Decimal, RoundingStrategy};
 use thiserror::Error;
 
