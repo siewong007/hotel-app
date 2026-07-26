@@ -84,6 +84,7 @@ import {
   Room,
   Guest,
   BookingWithDetails,
+  Booking,
 } from '../../../../types';
 import type { Company } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
@@ -428,7 +429,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       const companiesData = await HotelAPIService.getCompanies({ is_active: true });
       setCompanies(companiesData);
-      const options: CompanyOption[] = companiesData.map((company: any) => ({
+      const options: CompanyOption[] = companiesData.map((company) => ({
         company_name: company.company_name,
         company_registration_number: company.registration_number,
         contact_person: company.contact_person,
@@ -446,7 +447,7 @@ const CustomerLedgerPage: React.FC = () => {
   const loadGuests = async () => {
     try {
       const guestsData = await HotelAPIService.getAllGuests();
-      setGuests(guestsData.sort((a: any, b: any) => a.full_name.localeCompare(b.full_name)));
+      setGuests(guestsData.sort((a, b) => a.full_name.localeCompare(b.full_name)));
     } catch (err) {
       console.error('Failed to load guests:', err);
     }
@@ -590,8 +591,10 @@ const CustomerLedgerPage: React.FC = () => {
         return;
       }
 
-      // Get room_id - handle both 'id' and potential 'room_id' field names
-      const roomId = checkInRoom.id || (checkInRoom as any).room_id;
+      // Get room_id - handle both 'id' and potential 'room_id' field names. The
+      // `Room` type only ever declares `id`; `room_id` is a defensive fallback for
+      // a differently-shaped payload that has never been observed from the API.
+      const roomId = checkInRoom.id || (checkInRoom as unknown as { room_id?: string }).room_id;
       if (!roomId) {
         showSnackbar('Room ID not found. Please select a different room.', 'warning');
         setProcessingCheckIn(false);
@@ -611,7 +614,7 @@ const CustomerLedgerPage: React.FC = () => {
           booking_remarks: `Company Billing: ${checkInCompany.company_name}`,
           room_rate_override: roomRateOverride,
         },
-      }).json<any>();
+      }).json<Booking>();
 
       // Update booking with company info
       await HotelAPIService.updateBooking(booking.id, {
@@ -638,9 +641,9 @@ const CustomerLedgerPage: React.FC = () => {
       await loadData();
       await loadCompanies();
       await loadAllCompanyBookings();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to perform company check-in:', err);
-      showSnackbar(err.message || 'Failed to perform company check-in', 'error');
+      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to perform company check-in', 'error');
     } finally {
       setProcessingCheckIn(false);
     }
@@ -767,9 +770,9 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Reload companies
       await loadCompanies();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to register company:', error);
-      showSnackbar(error.message || 'Failed to register company', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to register company', 'error');
     } finally {
       setCreatingCompany(false);
     }
@@ -845,9 +848,9 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Reload companies
       await loadCompanies();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to update company:', error);
-      showSnackbar(error.message || 'Failed to update company', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update company', 'error');
     } finally {
       setUpdatingCompany(false);
     }
@@ -874,9 +877,9 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Reload companies
       await loadCompanies();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to delete company:', error);
-      showSnackbar(error.message || 'Failed to delete company', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to delete company', 'error');
     } finally {
       setDeletingCompany(false);
     }
@@ -1011,9 +1014,9 @@ const CustomerLedgerPage: React.FC = () => {
           payment_date: formatLocalDate(),
         }));
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to record payment:', error);
-      showSnackbar(error.message || 'Failed to record payment', 'error');
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to record payment', 'error');
     } finally {
       setProcessingCompanyPayment(false);
     }
@@ -1220,8 +1223,8 @@ const CustomerLedgerPage: React.FC = () => {
       setPossibleDuplicateLedger(null);
       resetCreateForm();
       await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create ledger entry');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to create ledger entry');
     } finally {
       setCreating(false);
     }
@@ -1307,8 +1310,8 @@ const CustomerLedgerPage: React.FC = () => {
       setEditBookingRoomRate('');
       await loadData();
       await loadAllCompanyBookings();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update ledger entry');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to update ledger entry');
     } finally {
       setUpdating(false);
     }
@@ -1384,8 +1387,8 @@ const CustomerLedgerPage: React.FC = () => {
           payment_date: formatLocalDate(),
         });
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to record payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to record payment');
     } finally {
       setProcessingPayment(false);
     }
@@ -1413,8 +1416,8 @@ const CustomerLedgerPage: React.FC = () => {
       setEditingPaymentId(null);
       showSnackbar('Payment date updated successfully');
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to update payment date', 'error');
+    } catch (err) {
+      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to update payment date', 'error');
     } finally {
       setSavingPaymentDate(false);
     }
@@ -1432,8 +1435,8 @@ const CustomerLedgerPage: React.FC = () => {
       const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
       setPaymentHistory(payments);
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to delete payment', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to delete payment', 'error');
     }
   };
 
@@ -1456,8 +1459,8 @@ const CustomerLedgerPage: React.FC = () => {
       setVoidingLedger(null);
       setVoidReason('');
       await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to void ledger entry');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to void ledger entry');
     } finally {
       setVoiding(false);
     }
@@ -1469,8 +1472,8 @@ const CustomerLedgerPage: React.FC = () => {
       setLoadingLedgerInvoice(true);
       const booking = await api.get(`bookings/${ledger.booking_id}`).json<BookingWithDetails>();
       checkoutFlow.openReceipt(enhanceBookingDetails(booking), ledger);
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to load invoice', 'error');
+    } catch (err) {
+      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to load invoice', 'error');
     } finally {
       setLoadingLedgerInvoice(false);
     }
@@ -1662,8 +1665,8 @@ const CustomerLedgerPage: React.FC = () => {
       setCreditNoteReason('');
       setCreditNoteNotes('');
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err?.message || 'Failed to issue credit note', 'error');
+    } catch (err) {
+      showSnackbar(err instanceof Error && err.message ? err.message : 'Failed to issue credit note', 'error');
     } finally {
       setProcessingCreditNote(false);
     }

@@ -47,6 +47,7 @@ import {
   MeetingRoom as RoomIcon,
 } from '@mui/icons-material';
 import { ReportsService, type BookingChannel } from '../../../api/reports.service';
+import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { formatLocalDate } from '../../../utils/date';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -56,6 +57,32 @@ import {
   createReportPrintStyles,
   createReportTypography,
 } from '../utils/reportTypography';
+import type {
+  BalanceSheetAccount,
+  ChannelNetRevenueRow,
+  ChannelRevenueSummary,
+  CompanyLedgerTransaction,
+  ComplimentaryBooking,
+  DailyOperationsGuestEntry,
+  DailyOperationsInHouseEntry,
+  GeneralJournalEntry,
+  GeneralJournalSection,
+  NationalityStat,
+  OtaStatement,
+  OtaStatementRow,
+  OverduePayment,
+  PaymentStatusBreakdown,
+  RevenueByPaymentStatusStat,
+  RevenueBySourceStat,
+  RoomPerformanceStat,
+  RoomsSoldBooking,
+  RoomTypePerformanceStat,
+  RoomTypeRevenueStat,
+  ShiftReportPayment,
+  ShiftReportPaymentMethodSummary,
+  TopGuestStat,
+  UnderperformingRoomStat,
+} from '../../../types/report.types';
 
 type ReportType =
   // New hotel management reports
@@ -282,8 +309,8 @@ const ModernReportsPage: React.FC = () => {
     try {
       const channels = await ReportsService.listBookingChannels();
       setBookingChannels(channels);
-    } catch (err: any) {
-      setChannelSaveError(err?.message || 'Failed to load booking channels');
+    } catch (err: unknown) {
+      setChannelSaveError(getQueryErrorMessage(err, 'Failed to load booking channels') ?? 'Failed to load booking channels');
     } finally {
       setChannelsLoading(false);
     }
@@ -314,8 +341,8 @@ const ModernReportsPage: React.FC = () => {
         is_active: channel.is_active,
       });
       setBookingChannels((channels) => channels.map((item) => item.id === updated.id ? updated : item));
-    } catch (err: any) {
-      setChannelSaveError(err?.response?.data?.error || err?.message || 'Failed to save booking channel');
+    } catch (err: unknown) {
+      setChannelSaveError(getQueryErrorMessage(err, 'Failed to save booking channel') ?? 'Failed to save booking channel');
     } finally {
       setSavingChannelId(null);
     }
@@ -338,8 +365,8 @@ const ModernReportsPage: React.FC = () => {
       setBookingChannels((channels) => [...channels, created].sort((a, b) => a.name.localeCompare(b.name)));
       setNewChannelName('');
       setNewChannelType('ota');
-    } catch (err: any) {
-      setChannelSaveError(err?.response?.data?.error || err?.message || 'Failed to add booking channel');
+    } catch (err: unknown) {
+      setChannelSaveError(getQueryErrorMessage(err, 'Failed to add booking channel') ?? 'Failed to add booking channel');
     } finally {
       setSavingChannelId(null);
     }
@@ -447,7 +474,7 @@ const ModernReportsPage: React.FC = () => {
     const rows = [...(reportData?.rows || [])];
     const direction = channelSort.direction === 'asc' ? 1 : -1;
 
-    return rows.sort((a: any, b: any) => {
+    return rows.sort((a: ChannelNetRevenueRow, b: ChannelNetRevenueRow) => {
       const left = a[channelSort.key];
       const right = b[channelSort.key];
       if (typeof left === 'number' || typeof right === 'number') {
@@ -482,7 +509,7 @@ const ModernReportsPage: React.FC = () => {
     const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const lines = [
       headers.map(escapeCsv).join(','),
-      ...getSortedChannelRows().map((row: any) => [
+      ...getSortedChannelRows().map((row: ChannelNetRevenueRow) => [
         row.business_date,
         row.booking_number,
         row.guest_name,
@@ -526,7 +553,7 @@ const ModernReportsPage: React.FC = () => {
           </Typography>
         </Box>
 
-        {reportData.sections.map((section: any, idx: number) => (
+        {reportData.sections.map((section: GeneralJournalSection, idx: number) => (
           <Box key={idx} sx={{ mb: 3 }}>
             <Typography variant="h6" sx={{ bgcolor: 'grey.200', p: 1 }}>{section.name}</Typography>
             <TableContainer>
@@ -541,7 +568,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {section.entries?.map((entry: any, i: number) => (
+                  {section.entries?.map((entry: GeneralJournalEntry, i: number) => (
                     <TableRow key={i}>
                       <TableCell>{entry.date}</TableCell>
                       <TableCell>{entry.room_number || '-'}</TableCell>
@@ -651,7 +678,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {transactions?.map((txn: any, idx: number) => (
+              {transactions?.map((txn: CompanyLedgerTransaction, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{txn.invoice_date || '-'}</TableCell>
                   <TableCell>{txn.voucher}</TableCell>
@@ -697,7 +724,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.accounts.map((acc: any, idx: number) => (
+              {reportData.accounts.map((acc: BalanceSheetAccount, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{acc.account_name || acc.name}</TableCell>
                   <TableCell align="right">{currencySymbol}{Number(acc.debit || 0).toFixed(2)}</TableCell>
@@ -804,7 +831,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {by_payment_method.map((pm: any, idx: number) => (
+                  {by_payment_method.map((pm: ShiftReportPaymentMethodSummary, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{formatPaymentMethod(pm.method)}</TableCell>
                       <TableCell align="center">{pm.count}</TableCell>
@@ -837,7 +864,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {payments && payments.length > 0 ? payments.map((p: any, idx: number) => (
+              {payments && payments.length > 0 ? payments.map((p: ShiftReportPayment, idx: number) => (
                 <TableRow key={idx} sx={{ '&:nth-of-type(odd)': { bgcolor: 'grey.50' } }}>
                   <TableCell>{p.date}</TableCell>
                   <TableCell>{p.booking_number}</TableCell>
@@ -928,7 +955,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.bookings.map((b: any, idx: number) => (
+              {reportData.bookings.map((b: RoomsSoldBooking, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{b.folio || '-'}</TableCell>
                   <TableCell>{b.room_number || '-'}</TableCell>
@@ -1011,7 +1038,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.arrivals?.length > 0 ? reportData.arrivals.map((a: any, idx: number) => (
+              {reportData.arrivals?.length > 0 ? reportData.arrivals.map((a: DailyOperationsGuestEntry, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{a.booking_number}</TableCell>
                   <TableCell>{a.guest_name}</TableCell>
@@ -1043,7 +1070,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.departures?.length > 0 ? reportData.departures.map((d: any, idx: number) => (
+              {reportData.departures?.length > 0 ? reportData.departures.map((d: DailyOperationsGuestEntry, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{d.booking_number}</TableCell>
                   <TableCell>{d.guest_name}</TableCell>
@@ -1076,7 +1103,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.in_house?.length > 0 ? reportData.in_house.map((g: any, idx: number) => (
+              {reportData.in_house?.length > 0 ? reportData.in_house.map((g: DailyOperationsInHouseEntry, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{g.booking_number}</TableCell>
                   <TableCell>{g.guest_name}</TableCell>
@@ -1162,7 +1189,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {by_room_type?.map((rt: any, idx: number) => (
+              {by_room_type?.map((rt: RoomTypeRevenueStat, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{rt.room_type}</TableCell>
                   <TableCell align="right">{rt.bookings}</TableCell>
@@ -1210,7 +1237,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.by_room_type?.map((rt: any, idx: number) => (
+                  {reportData.by_room_type?.map((rt: RoomTypeRevenueStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{rt.room_type}</TableCell>
                       <TableCell align="right">{currencySymbol}{rt.revenue?.toFixed(2)}</TableCell>
@@ -1233,7 +1260,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.by_source?.map((s: any, idx: number) => (
+                  {reportData.by_source?.map((s: RevenueBySourceStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{s.source}</TableCell>
                       <TableCell align="right">{currencySymbol}{s.revenue?.toFixed(2)}</TableCell>
@@ -1256,7 +1283,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.by_payment_status?.map((ps: any, idx: number) => (
+                  {reportData.by_payment_status?.map((ps: RevenueByPaymentStatusStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{ps.payment_status}</TableCell>
                       <TableCell align="right">{currencySymbol}{ps.revenue?.toFixed(2)}</TableCell>
@@ -1435,7 +1462,7 @@ const ModernReportsPage: React.FC = () => {
     </TableCell>
   );
 
-  const renderCommissionLabel = (row: any) => {
+  const renderCommissionLabel = (row: ChannelNetRevenueRow) => {
     if (row.commission_type === 'percentage') {
       return `${Number(row.commission_value || 0).toFixed(2)}%`;
     }
@@ -1528,7 +1555,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.by_channel?.map((channel: any) => (
+              {reportData.by_channel?.map((channel: ChannelRevenueSummary) => (
                 <TableRow key={channel.channel_name}>
                   <TableCell>{channel.channel_name}</TableCell>
                   <TableCell>{channel.channel_type}</TableCell>
@@ -1562,7 +1589,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {detailRows.length > 0 ? detailRows.map((row: any) => (
+              {detailRows.length > 0 ? detailRows.map((row: ChannelNetRevenueRow) => (
                 <TableRow key={`${row.booking_id}-${row.business_date}-${row.posted_status}`}>
                   <TableCell>{row.business_date}</TableCell>
                   <TableCell>{row.booking_number}</TableCell>
@@ -1604,7 +1631,7 @@ const ModernReportsPage: React.FC = () => {
 
     return (
       <Box>
-        {statements.length > 0 ? statements.map((statement: any) => {
+        {statements.length > 0 ? statements.map((statement: OtaStatement) => {
           const commissionLabel = statement.commission_type === 'percentage'
             ? `Comm(${Number(statement.commission_value || 0).toFixed(2)}%)`
             : 'Comm';
@@ -1632,7 +1659,7 @@ const ModernReportsPage: React.FC = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {statement.rows.map((row: any) => (
+                    {statement.rows.map((row: OtaStatementRow) => (
                       <TableRow key={`${statement.platform}-${row.booking_id}`}>
                         <TableCell>{row.ref_no}</TableCell>
                         <TableCell>{row.name}</TableCell>
@@ -1712,7 +1739,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.by_status?.map((s: any, idx: number) => (
+              {reportData.by_status?.map((s: PaymentStatusBreakdown, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>
                     <Chip label={s.payment_status} size="small"
@@ -1742,7 +1769,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.overdue.map((o: any, idx: number) => (
+                  {reportData.overdue.map((o: OverduePayment, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{o.booking_number}</TableCell>
                       <TableCell>{o.guest_name}</TableCell>
@@ -1832,7 +1859,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.bookings?.length > 0 ? reportData.bookings.map((b: any, idx: number) => (
+              {reportData.bookings?.length > 0 ? reportData.bookings.map((b: ComplimentaryBooking, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{b.booking_number}</TableCell>
                   <TableCell>{b.guest_name}</TableCell>
@@ -1922,7 +1949,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.top_guests?.map((g: any, idx: number) => (
+                  {reportData.top_guests?.map((g: TopGuestStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{g.name}</TableCell>
                       <TableCell align="right">{g.bookings}</TableCell>
@@ -1946,7 +1973,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.by_nationality?.length > 0 ? reportData.by_nationality.map((n: any, idx: number) => (
+                  {reportData.by_nationality?.length > 0 ? reportData.by_nationality.map((n: NationalityStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{n.nationality}</TableCell>
                       <TableCell align="right">{n.count}</TableCell>
@@ -1992,7 +2019,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.by_type?.map((rt: any, idx: number) => (
+                  {reportData.by_type?.map((rt: RoomTypePerformanceStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{rt.room_type}</TableCell>
                       <TableCell align="right">{rt.room_count}</TableCell>
@@ -2018,7 +2045,7 @@ const ModernReportsPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.underperforming?.length > 0 ? reportData.underperforming.map((r: any, idx: number) => (
+                  {reportData.underperforming?.length > 0 ? reportData.underperforming.map((r: UnderperformingRoomStat, idx: number) => (
                     <TableRow key={idx}>
                       <TableCell>{r.room_number}</TableCell>
                       <TableCell>{r.room_type}</TableCell>
@@ -2046,7 +2073,7 @@ const ModernReportsPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {reportData.by_room?.map((r: any, idx: number) => (
+              {reportData.by_room?.map((r: RoomPerformanceStat, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{r.room_number}</TableCell>
                   <TableCell>{r.room_type}</TableCell>

@@ -31,7 +31,8 @@ Single live tracker for open work. Replaces the deleted enhancement docs
 ## P2 — later
 
 - Characterization tests for `BookingsPage.tsx` (~2.6k ln) and `CustomerLedgerPage.tsx` (~2.3k ln).
-- `any`-type burn-down (463 sites; worst `dataTransfer.types.ts`).
+- `any`-type burn-down (243 sites as of 2026-07-26, of which 43 in generated `routeTree.gen.ts`; top offenders `RoomEventDialog.tsx`/`RoomConfigurationPage.tsx` (10 each), `LoyaltyDashboard.tsx` (9). 5 sites deliberately kept in dead-code hooks `useBookingsPageState.ts`/`useCheckoutInvoiceModalState.ts` — they mask real broken service calls, see P2 dead-code item below).
+- Dead-code hooks with broken service calls (found 2026-07-26 during any burn-down): `useBookingsPageState.ts` (calls `voidBooking` with wrong positional args, nonexistent `markComplimentary`) and `useCheckoutInvoiceModalState.ts` (wrong-signature `refundDeposit`, nonexistent `updateDailyRates`) are imported only by their own tests; decide delete vs wire-up.
 - WebSocket: log lagged-event drops; FE reconnect backoff/jitter; honor Retry-After.
 - Desktop: Windows/Linux CI packaging; upgrade embedded PostgreSQL 18.4 → 19 (src-tauri/pgsql/ bundle); automate `pgsql/` provisioning (fetch script); scheduled backups + retention; arm or hide the updater (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists; desktop session persistence (SameSite boundary).
 - Portal test coverage: concurrent-booking race, integration tests, portal page components.

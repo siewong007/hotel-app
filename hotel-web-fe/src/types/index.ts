@@ -48,6 +48,7 @@ export type {
   BookingWithDetails,
   BookingCreateRequest,
   BookingUpdateRequest,
+  BookingEditFormData,
   BookingCancellationRequest,
   BookingVoidResponse,
   BookingTimelineEntry,
@@ -193,6 +194,35 @@ export type {
   GuestPortalReward,
   GuestPortalBenefitsResponse,
 } from './guestPortal.types';
+
+// Reports types
+export type {
+  GeneralJournalEntry,
+  GeneralJournalSection,
+  CompanyLedgerTransaction,
+  BalanceSheetAccount,
+  ShiftReportPaymentMethodSummary,
+  ShiftReportPayment,
+  RoomsSoldBooking,
+  DailyOperationsGuestEntry,
+  DailyOperationsInHouseEntry,
+  RoomTypeRevenueStat,
+  RevenueBySourceStat,
+  RevenueByPaymentStatusStat,
+  ChannelNetRevenueRow,
+  ChannelRevenueSummary,
+  OtaStatementRow,
+  OtaStatementTotals,
+  OtaStatement,
+  PaymentStatusBreakdown,
+  OverduePayment,
+  ComplimentaryBooking,
+  TopGuestStat,
+  NationalityStat,
+  RoomTypePerformanceStat,
+  UnderperformingRoomStat,
+  RoomPerformanceStat,
+} from './report.types';
 
 // Ledger types
 export type {
