@@ -1455,39 +1455,6 @@ pub async fn end_cleaning_handler(
     })))
 }
 
-pub async fn sync_room_statuses_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
-
-    let rows = sqlx::query("SELECT * FROM sync_all_room_statuses()")
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let mut changes = Vec::new();
-    for row in &rows {
-        changes.push(serde_json::json!({
-            "room_id": row.get::<i64, _>("room_id"),
-            "room_number": row.get::<String, _>("room_number"),
-            "old_status": row.get::<String, _>("old_status"),
-            "new_status": row.get::<String, _>("new_status"),
-        }));
-    }
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "synced_count": rows.len(),
-        "changes": changes,
-        "message": if !rows.is_empty() {
-            format!("Successfully synchronized {} room(s)", rows.len())
-        } else {
-            "All room statuses are already consistent".to_string()
-        }
-    })))
-}
-
 pub async fn execute_room_change_handler(
     State(pool): State<DbPool>,
     Path(room_id): Path<i64>,

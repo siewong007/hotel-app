@@ -121,13 +121,6 @@ pub async fn end_cleaning_handler(
     room_service::end_cleaning_handler(State(pool), Path(room_id), headers).await
 }
 
-pub async fn sync_room_statuses_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    room_service::sync_room_statuses_handler(State(pool), headers).await
-}
-
 pub async fn execute_room_change_handler(
     State(pool): State<DbPool>,
     Path(room_id): Path<i64>,

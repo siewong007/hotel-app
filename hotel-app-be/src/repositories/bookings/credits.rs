@@ -422,29 +422,6 @@ fn normalize_credit_reason(reason: Option<&str>) -> Result<String, ApiError> {
     Ok(reason)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::normalize_credit_reason;
-
-    #[test]
-    fn complimentary_credit_reason_is_required() {
-        assert!(normalize_credit_reason(None).is_err());
-        assert!(normalize_credit_reason(Some("   ")).is_err());
-    }
-
-    #[test]
-    fn complimentary_credit_reason_is_sanitized_and_trimmed() {
-        let reason = normalize_credit_reason(Some("  Loyalty reward\u{0007}  ")).unwrap();
-        assert_eq!(reason, "Loyalty reward");
-    }
-
-    #[test]
-    fn complimentary_credit_reason_is_limited_to_five_hundred_characters() {
-        assert!(normalize_credit_reason(Some(&"a".repeat(500))).is_ok());
-        assert!(normalize_credit_reason(Some(&"a".repeat(501))).is_err());
-    }
-}
-
 /// Update guest complimentary credits
 pub async fn update_guest_credits_handler(
     State(pool): State<DbPool>,
@@ -604,4 +581,27 @@ pub async fn delete_guest_credits_handler(
             "nights_deleted": nights_deleted
         }
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_credit_reason;
+
+    #[test]
+    fn complimentary_credit_reason_is_required() {
+        assert!(normalize_credit_reason(None).is_err());
+        assert!(normalize_credit_reason(Some("   ")).is_err());
+    }
+
+    #[test]
+    fn complimentary_credit_reason_is_sanitized_and_trimmed() {
+        let reason = normalize_credit_reason(Some("  Loyalty reward\u{0007}  ")).unwrap();
+        assert_eq!(reason, "Loyalty reward");
+    }
+
+    #[test]
+    fn complimentary_credit_reason_is_limited_to_five_hundred_characters() {
+        assert!(normalize_credit_reason(Some(&"a".repeat(500))).is_ok());
+        assert!(normalize_credit_reason(Some(&"a".repeat(501))).is_err());
+    }
 }
