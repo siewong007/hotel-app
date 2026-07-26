@@ -1257,9 +1257,9 @@ mod postgres_tests {
                 points_cost: 100,
                 minimum_tier_id: None,
                 requires_approval: Some(false),
-                // is_active must be Some(true): the repository binds
-                // input.is_active directly (not .unwrap_or(true)) despite the
-                // column being NOT NULL DEFAULT true -- see the report.
+                // is_active: the modules::loyalty repository INSERT wraps this
+                // bind in COALESCE($n, true), so None would also store true —
+                // Some(true) is explicitness, not a requirement.
                 is_active: Some(true),
                 inventory_count: None,
                 valid_from: None,
