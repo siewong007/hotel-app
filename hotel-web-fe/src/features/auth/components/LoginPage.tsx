@@ -32,6 +32,12 @@ import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 import { LoadingSpinner } from '../../../components';
 import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDashboard.service';
 import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
+import {
+  isCompleteTwoFactorCode,
+  notifyRecoveryCodeUsed,
+  sanitizeTwoFactorCode,
+  TOTP_CODE_LENGTH,
+} from '../utils/twoFactorCode';
 
 type UserType = 'guest' | 'admin' | null;
 
@@ -105,7 +111,14 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const isFirstLogin = await login(username, password, totpCode || undefined);
+      const { isFirstLogin, recoveryCodesRemaining } = await login(
+        username,
+        password,
+        totpCode || undefined
+      );
+      if (recoveryCodesRemaining !== undefined) {
+        notifyRecoveryCodeUsed(recoveryCodesRemaining);
+      }
       if (isFirstLogin) {
         setShowFirstLoginPrompt(true);
         setLoading(false);
@@ -130,8 +143,8 @@ const LoginPage: React.FC = () => {
 
   const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!totpCode || totpCode.length !== 6) {
-      setError('Please enter a valid 6-digit code');
+    if (!isCompleteTwoFactorCode(totpCode)) {
+      setError('Enter the 6-digit code from your authenticator app, or a full recovery code');
       return;
     }
     await handlePasswordLogin(e);
@@ -303,23 +316,27 @@ const LoginPage: React.FC = () => {
                   Two-Factor Authentication
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Enter the 6-digit code from your authenticator app
+                  Enter the 6-digit code from your authenticator app, or one of your recovery codes
+                  if you no longer have it
                 </Typography>
               </Box>
 
               <form onSubmit={handle2FASubmit}>
                 <TextField
                   fullWidth
-                  label="6-Digit Code"
+                  label="Authentication or recovery code"
                   value={totpCode}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setTotpCode(value);
-                  }}
+                  onChange={(e) => setTotpCode(sanitizeTwoFactorCode(e.target.value))}
                   placeholder="000000"
+                  helperText="6-digit authenticator code, or a recovery code (XXXXX-XXXXX-XXXXX-XXXXX). Each recovery code works once."
                   inputProps={{
-                    maxLength: 6,
-                    style: { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' }
+                    maxLength: 25,
+                    // Recovery codes are nearly four times as long as a TOTP code,
+                    // so the wide-tracked display used for six digits overflows.
+                    style:
+                      totpCode.length > TOTP_CODE_LENGTH
+                        ? { textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }
+                        : { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' },
                   }}
                   sx={{ mb: 3 }}
                   autoFocus
@@ -336,7 +353,7 @@ const LoginPage: React.FC = () => {
                   type="submit"
                   variant="contained"
                   size="large"
-                  disabled={loading || totpCode.length !== 6}
+                  disabled={loading || !isCompleteTwoFactorCode(totpCode)}
                   sx={{
                     mb: 2,
                     background: 'var(--hotel-action-gradient)',

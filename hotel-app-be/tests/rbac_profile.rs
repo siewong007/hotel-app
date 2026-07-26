@@ -1299,6 +1299,17 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
         matches!(wrong, Err(ApiError::Unauthorized(_))),
         "an unknown recovery code must be rejected, got {wrong:?}"
     );
+    let (stored_after_reject,): (Option<Vec<String>>,) =
+        sqlx::query_as("SELECT two_factor_recovery_codes FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("reading codes after a rejected attempt must succeed");
+    assert_eq!(
+        stored_after_reject.as_deref(),
+        Some(hashed_backup_codes.as_slice()),
+        "a rejected code must not consume or reorder anything"
+    );
 
     // (c) A live TOTP login still works and does not touch the recovery codes.
     let totp = build_totp(&secret);
