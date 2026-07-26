@@ -6,7 +6,7 @@ Every rule here is executable — no judgment required.
 ## Leak #1: Reading large files whole (biggest token leak)
 
 The hot files in this repo are huge. `hotel-app-be/src/repositories/bookings/lifecycle.rs`
-(~4.3k lines) and `repositories/ledger.rs` (~2.3k; handlers are thin wrappers now) are the worst; `database/postgres/migrations/0001_v1_baseline.sql` is large;
+(~3.5k lines) and `repositories/ledger.rs` (~1.3k; handlers are thin wrappers now) are the worst; `database/postgres/migrations/0001_v1_baseline.sql` is large;
 so are `BookingsPage.tsx` and `CustomerLedgerPage.tsx`. Reading one of these whole
 can burn 30–60k tokens in a single call.
 
@@ -18,7 +18,7 @@ can burn 30–60k tokens in a single call.
 3. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
    function name first to get a line number, then Read ±80 lines around it.
 4. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
-   (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:1181). Start from those, but verify
+   (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:900). Start from those, but verify
    with Grep — anchors rot as code moves.
 5. If you need a broad sweep ("where is X handled across the repo"), delegate to an
    Explore subagent (see `model-dispatch.md`) instead of reading files yourself.
