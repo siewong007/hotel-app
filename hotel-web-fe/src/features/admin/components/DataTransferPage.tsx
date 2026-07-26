@@ -204,6 +204,21 @@ const formatWhen = (at: number) =>
     minute: '2-digit',
   });
 
+// Copies one category's rows from `source` into `target` (or `[]` when unselected).
+// A plain `target[id] = keep ? source[id] ?? [] : []` does not type-check when `id`
+// is a plain `CategoryId`-typed value: TypeScript can only correlate the read/write
+// element types on both sides of a keyed assignment through a generic type
+// parameter, not a concrete union type. Keeping `id` generic here is what lets
+// `target[id]`/`source[id]` line up per category without an `any`/`as any` escape.
+function assignCategoryRows<K extends CategoryId>(
+  target: Partial<BookingDataExport>,
+  source: BookingDataExport,
+  id: K,
+  keep: boolean
+): void {
+  target[id] = keep ? source[id] ?? [] : [];
+}
+
 const DataTransferPage: React.FC = () => {
   const theme = useTheme();
   const { hasPermission, user } = useAuth();
@@ -250,7 +265,7 @@ const DataTransferPage: React.FC = () => {
   // Record count for a category: from the parsed file in import context,
   // otherwise from the last preview/export's cached counts.
   const countOf = (id: CategoryId): number | null => {
-    if (isImportContext) return (importFile as any)?.[id]?.length ?? 0;
+    if (isImportContext) return importFile?.[id]?.length ?? 0;
     if (exportCounts) return exportCounts[id] ?? 0;
     return null;
   };
@@ -259,7 +274,7 @@ const DataTransferPage: React.FC = () => {
     () =>
       selectedIds.reduce((sum, id) => {
         let n = 0;
-        if (isImportContext) n = (importFile as any)?.[id]?.length ?? 0;
+        if (isImportContext) n = importFile?.[id]?.length ?? 0;
         else if (exportCounts) n = exportCounts[id] ?? 0;
         return sum + n;
       }, 0),
@@ -275,7 +290,7 @@ const DataTransferPage: React.FC = () => {
 
   const countsFromExportData = (data: BookingDataExport): Record<string, number> => {
     const counts: Record<string, number> = {};
-    ALL_CATEGORY_IDS.forEach((id) => (counts[id] = (data as any)[id]?.length ?? 0));
+    ALL_CATEGORY_IDS.forEach((id) => (counts[id] = data[id]?.length ?? 0));
     return counts;
   };
 
@@ -389,8 +404,8 @@ const DataTransferPage: React.FC = () => {
       setExportCounts(preview.counts);
       const records = selectedRecordCountFromCounts(preview.counts);
       notify(`Preview ready — ${formatNum(records)} records will be exported.`, 'info');
-    } catch (err: any) {
-      notify(err?.message || 'Failed to preview export data.', 'error');
+    } catch (err) {
+      notify(err instanceof Error && err.message ? err.message : 'Failed to preview export data.', 'error');
     }
   };
 
@@ -407,9 +422,9 @@ const DataTransferPage: React.FC = () => {
       setExportCounts(counts);
 
       // filter the payload down to the selected categories (client-side)
-      const filtered: any = { version: data.version, exported_at: data.exported_at };
+      const filtered: Partial<BookingDataExport> = { version: data.version, exported_at: data.exported_at };
       ALL_CATEGORY_IDS.forEach((id) => {
-        filtered[id] = selected[id] ? (data as any)[id] ?? [] : [];
+        assignCategoryRows(filtered, data, id, selected[id]);
       });
 
       const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
@@ -425,9 +440,10 @@ const DataTransferPage: React.FC = () => {
       const records = selectedRecordCountFromCounts(counts);
       pushHistory({ type: 'export', categories: selectedCategoryNames(), records, status: 'success' });
       notify(`Export ready — ${formatNum(records)} records downloaded.`);
-    } catch (err: any) {
-      pushHistory({ type: 'export', categories: selectedCategoryNames(), records: 0, status: 'failed', error: err?.message });
-      notify(err?.message || 'Failed to export data.', 'error');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : undefined;
+      pushHistory({ type: 'export', categories: selectedCategoryNames(), records: 0, status: 'failed', error: message });
+      notify(message || 'Failed to export data.', 'error');
     }
   };
 
@@ -441,7 +457,7 @@ const DataTransferPage: React.FC = () => {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target?.result as string) as BookingDataExport;
-        if (!data.version || !Array.isArray((data as any).bookings)) {
+        if (!data.version || !Array.isArray(data.bookings)) {
           notify('Invalid file format — please select a valid export file.', 'error');
           return;
         }
@@ -449,7 +465,7 @@ const DataTransferPage: React.FC = () => {
         setImportFileName(file.name);
         // pre-select every category that has rows, then close over their
         // dependencies so the initial selection is referentially complete.
-        const present = ALL_CATEGORY_IDS.filter((id) => ((data as any)[id]?.length ?? 0) > 0);
+        const present = ALL_CATEGORY_IDS.filter((id) => (data[id]?.length ?? 0) > 0);
         let sel = emptySelection();
         present.forEach((id) => {
           sel = selectWithDependencies(sel, id).selection;
@@ -495,15 +511,15 @@ const DataTransferPage: React.FC = () => {
       return;
     }
     // build a payload with only the selected categories' rows
-    const payload: any = { version: importFile.version, exported_at: importFile.exported_at };
+    const payload: Partial<BookingDataExport> = { version: importFile.version, exported_at: importFile.exported_at };
     ALL_CATEGORY_IDS.forEach((id) => {
-      payload[id] = selected[id] ? (importFile as any)[id] ?? [] : [];
+      assignCategoryRows(payload, importFile, id, selected[id]);
     });
 
     const records = selectedRecords;
     const names = selectedCategoryNames();
     try {
-      const result = await importMutation.mutateAsync({ mode: importMode, data: payload, tables: selectedIds });
+      const result = await importMutation.mutateAsync({ mode: importMode, data: payload as BookingDataExport, tables: selectedIds });
       setImportResult(result);
       const failed = result.errors ? Object.values(result.errors).reduce((a, e) => a + (e.failed || 0), 0) : 0;
       pushHistory({
@@ -518,16 +534,17 @@ const DataTransferPage: React.FC = () => {
       removeFile();
       setTab('history');
       notify(failed > 0 ? `Import completed with ${failed} skipped record(s).` : 'Import committed successfully.', failed > 0 ? 'warning' : 'success');
-    } catch (err: any) {
-      pushHistory({ type: 'import', mode: importMode, categories: names, records: 0, status: 'failed', error: err?.message });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : undefined;
+      pushHistory({ type: 'import', mode: importMode, categories: names, records: 0, status: 'failed', error: message });
       closeConfirm();
-      notify(err?.message || 'Failed to import data.', 'error');
+      notify(message || 'Failed to import data.', 'error');
     }
   };
 
   // -- template -------------------------------------------------------------
   const downloadTemplate = () => {
-    const template: any = { version: '1.0', exported_at: new Date().toISOString() };
+    const template: Partial<BookingDataExport> = { version: '1.0', exported_at: new Date().toISOString() };
     ALL_CATEGORY_IDS.forEach((id) => (template[id] = []));
     const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -920,7 +937,7 @@ const DataTransferPage: React.FC = () => {
   );
 
   const renderImportLoaded = () => {
-    const detected = ALL_CATEGORY_IDS.filter((id) => ((importFile as any)[id]?.length ?? 0) > 0).length;
+    const detected = ALL_CATEGORY_IDS.filter((id) => (importFile?.[id]?.length ?? 0) > 0).length;
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Paper elevation={0} sx={{ ...cardSx, p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>

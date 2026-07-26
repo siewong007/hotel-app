@@ -249,8 +249,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPaymentReference('');
       setPaymentNotes('');
       setPaymentDate(formatLocalDate());
-    } catch (err: any) {
-      setError(err.message || 'Failed to record payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to record payment');
     } finally {
       setRecordingPayment(false);
     }
@@ -300,8 +300,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         invalidateInvoiceState();
       }
       handleCancelEdit();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to update payment');
     } finally {
       setUpdatingPayment(false);
     }
@@ -326,8 +326,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       if (deletedPayment?.payment_status === 'refunded') {
         setDepositRefunded(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to delete payment');
     } finally {
       setDeletingPaymentId(null);
     }
@@ -341,8 +341,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPayments(prev => [...prev, refundPayment]);
       setDepositRefunded(true);
       invalidateInvoiceState();
-    } catch (err: any) {
-      setError(err.message || 'Failed to refund deposit');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to refund deposit');
     } finally {
       setRefundingDeposit(false);
     }
@@ -358,8 +358,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPayments(prev => prev.filter(p => p.payment_status !== 'refunded' && p.payment_type !== 'refund'));
       setDepositRefunded(false);
       invalidateInvoiceState();
-    } catch (err: any) {
-      setError(err.message || 'Failed to revert deposit refund');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to revert deposit refund');
     } finally {
       setRevertingRefund(false);
     }
@@ -382,8 +382,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
       await onConfirmCheckout?.(undefined, paymentMethod);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to process checkout');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to process checkout');
     } finally {
       setLoading(false);
     }
@@ -400,8 +400,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       });
       invalidateInvoiceState();
       setEditingRates(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save daily rates');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to save daily rates');
     } finally {
       setSavingRates(false);
     }

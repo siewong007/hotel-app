@@ -7,7 +7,7 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 import type { CustomerLedger } from '../../../../../types';
 import type { CustomerLedgerSummary } from '../hooks/useCustomerLedgerWorkspace';
 import { asMoney, getLedgerUiStatus } from '../helpers';
@@ -47,7 +47,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
     {
       key: 'billed',
       icon: <MoneyIcon fontSize="small" />,
-      iconBg: (theme: any) => alpha(theme.palette.info.main, 0.12),
+      iconBg: (theme: Theme) => alpha(theme.palette.info.main, 0.12),
       iconColor: 'info.main',
       label: 'Total Billed',
       value: formatCurrency(totalAmount).replace(currencySymbol, '').trim(),
@@ -57,7 +57,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
     {
       key: 'collected',
       icon: <CheckCircleIcon fontSize="small" />,
-      iconBg: (theme: any) => alpha(theme.palette.success.main, 0.12),
+      iconBg: (theme: Theme) => alpha(theme.palette.success.main, 0.12),
       iconColor: 'success.main',
       label: 'Collected',
       value: formatCurrency(totalPaid).replace(currencySymbol, '').trim(),
@@ -67,7 +67,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
     {
       key: 'outstanding',
       icon: <WarningIcon fontSize="small" />,
-      iconBg: (theme: any) => alpha(theme.palette.warning.main, 0.14),
+      iconBg: (theme: Theme) => alpha(theme.palette.warning.main, 0.14),
       iconColor: 'warning.main',
       label: 'Outstanding',
       value: formatCurrency(totalDue).replace(currencySymbol, '').trim(),
@@ -77,7 +77,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
     {
       key: 'overdue',
       icon: <WarningIcon fontSize="small" />,
-      iconBg: (theme: any) => alpha(theme.palette.error.main, 0.12),
+      iconBg: (theme: Theme) => alpha(theme.palette.error.main, 0.12),
       iconColor: isPositiveMoney(overdueAmount) ? 'error.main' : 'text.secondary',
       label: 'Overdue',
       value: formatCurrency(overdueAmount).replace(currencySymbol, '').trim(),
@@ -127,7 +127,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
               borderRadius: 1.5,
               display: 'grid',
               placeItems: 'center',
-              bgcolor: s.iconBg as any,
+              bgcolor: s.iconBg,
               color: s.iconColor,
               flexShrink: 0,
             }}

@@ -65,23 +65,23 @@ const AdminOverviewDashboard: React.FC = () => {
 
       // Calculate statistics
       const totalRooms = rooms.length;
-      const availableRooms = rooms.filter((r: any) => r.available).length;
-      const occupiedRooms = rooms.filter((r: any) => r.status === 'occupied').length;
+      const availableRooms = rooms.filter((r) => r.available).length;
+      const occupiedRooms = rooms.filter((r) => r.status === 'occupied').length;
       const occupancyRate = totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayStr = formatLocalDate(today);
 
-      const todayCheckIns = bookings.filter((b: any) =>
+      const todayCheckIns = bookings.filter((b) =>
         b.check_in_date?.startsWith(todayStr) && (b.status === 'confirmed' || b.status === 'pending')
       ).length;
 
-      const todayCheckOuts = bookings.filter((b: any) =>
+      const todayCheckOuts = bookings.filter((b) =>
         b.check_out_date?.startsWith(todayStr) && b.status === 'checked_in'
       ).length;
 
-      const activeBookings = bookings.filter((b: any) =>
+      const activeBookings = bookings.filter((b) =>
         ['confirmed', 'pending', 'checked_in'].includes(b.status)
       ).length;
 
@@ -90,22 +90,22 @@ const AdminOverviewDashboard: React.FC = () => {
       const weekStart = new Date(today);
       weekStart.setDate(today.getDate() - 7);
 
-      const monthlyBookings = bookings.filter((b: any) =>
-        new Date(b.created_at) >= monthStart && b.status !== 'voided'
+      const monthlyBookings = bookings.filter((b) =>
+        new Date(b.created_at as string) >= monthStart && b.status !== 'voided'
       );
-      const weeklyBookings = bookings.filter((b: any) =>
-        new Date(b.created_at) >= weekStart && b.status !== 'voided'
+      const weeklyBookings = bookings.filter((b) =>
+        new Date(b.created_at as string) >= weekStart && b.status !== 'voided'
       );
 
-      const monthlyRevenue = monthlyBookings.reduce((sum: number, b: any) =>
-        sum + parseFloat(b.total_amount || 0), 0
+      const monthlyRevenue = monthlyBookings.reduce((sum: number, b) =>
+        sum + parseFloat(String(b.total_amount || 0)), 0
       );
-      const weeklyRevenue = weeklyBookings.reduce((sum: number, b: any) =>
-        sum + parseFloat(b.total_amount || 0), 0
+      const weeklyRevenue = weeklyBookings.reduce((sum: number, b) =>
+        sum + parseFloat(String(b.total_amount || 0)), 0
       );
       const totalRevenue = bookings
-        .filter((b: any) => b.status !== 'voided')
-        .reduce((sum: number, b: any) => sum + parseFloat(b.total_amount || 0), 0);
+        .filter((b) => b.status !== 'voided')
+        .reduce((sum: number, b) => sum + parseFloat(String(b.total_amount || 0)), 0);
 
       const averageBookingValue = activeBookings > 0
         ? totalRevenue / activeBookings
@@ -125,9 +125,14 @@ const AdminOverviewDashboard: React.FC = () => {
         averageBookingValue,
         totalRevenue,
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
-      setError(err.response?.data?.error || 'Failed to load dashboard data');
+      // NOTE: this app's API client (ky) never throws an axios-style
+      // `{ response: { data: { error } } }` shape — see src/api/client.ts
+      // `APIError`/ky `HTTPError`. This branch is preserved as-is (type-only
+      // change) but is suspected dead code; flagged in the task report.
+      const legacyMessage = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(legacyMessage || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }

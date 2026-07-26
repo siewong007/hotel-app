@@ -5,11 +5,23 @@
  */
 import { useState, useCallback } from 'react';
 import { HotelAPIService } from '../../../api';
-import { Room, BookingWithDetails } from '../../../types';
+import {
+  Room,
+  RoomType,
+  BookingWithDetails,
+  BookingUpdateRequest,
+  BookingEditFormData,
+  BookingTimelineEntry,
+  PaymentWorkflowSummary,
+} from '../../../types';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../api/queryKeys';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+
+function getErrorMessage(err: unknown): string | undefined {
+  return err instanceof Error ? err.message : undefined;
+}
 
 export interface BookingsPageState {
   // Dialog states
@@ -47,14 +59,14 @@ export interface BookingsPageState {
   ciWaiveReason: string;
 
   // Workflow state
-  workflowSummary: any;
-  workflowTimeline: any[];
+  workflowSummary: PaymentWorkflowSummary | null;
+  workflowTimeline: BookingTimelineEntry[];
   workflowLoading: boolean;
 
   // Edit state
   editingBooking: BookingWithDetails | null;
-  editFormData: any;
-  editRoomTypeConfig: any;
+  editFormData: BookingEditFormData;
+  editRoomTypeConfig: RoomType | null;
   availableRooms: Room[];
   updating: boolean;
 
@@ -108,7 +120,7 @@ export interface BookingsPageState {
   setCiDepositMethod: (v: string) => void;
   setCiWaiveReason: (v: string) => void;
   setEditingBooking: (v: BookingWithDetails | null) => void;
-  setEditFormData: (v: any) => void;
+  setEditFormData: (v: BookingEditFormData) => void;
   setAvailableRooms: (v: Room[]) => void;
   setVoidingBooking: (v: BookingWithDetails | null) => void;
   setVoidReason: (v: string) => void;
@@ -126,7 +138,7 @@ export interface BookingsPageState {
   handleCheckIn: (bookingId: string) => Promise<void>;
   handleConfirmCheckIn: () => Promise<void>;
   handleCheckOut: (booking: BookingWithDetails) => void;
-  handleConfirmCheckout: (lateCheckoutData?: any, paymentMethod?: string) => Promise<void>;
+  handleConfirmCheckout: (lateCheckoutData?: unknown, paymentMethod?: string) => Promise<void>;
   handleVoidBooking: (booking: BookingWithDetails) => void;
   handleConfirmVoid: () => Promise<void>;
   handleReactivateBooking: (booking: BookingWithDetails) => void;
@@ -182,14 +194,14 @@ export function useBookingsPageState(): BookingsPageState {
   const [ciWaiveReason, setCiWaiveReason] = useState('');
 
   // Workflow state
-  const [workflowSummary, setWorkflowSummary] = useState<any>(null);
-  const [workflowTimeline, setWorkflowTimeline] = useState<any[]>([]);
+  const [workflowSummary, setWorkflowSummary] = useState<PaymentWorkflowSummary | null>(null);
+  const [workflowTimeline, setWorkflowTimeline] = useState<BookingTimelineEntry[]>([]);
   const [workflowLoading, setWorkflowLoading] = useState(false);
 
   // Edit state
   const [editingBooking, setEditingBooking] = useState<BookingWithDetails | null>(null);
-  const [editFormData, setEditFormData] = useState<any>({});
-  const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState<BookingEditFormData>({});
+  const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<RoomType | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [updating, setUpdating] = useState(false);
 
@@ -227,6 +239,11 @@ export function useBookingsPageState(): BookingsPageState {
     if (!checkinBooking) return;
     try {
       setProcessingCheckIn(true);
+      // NOTE: `actual_check_in` is not a field of BookingUpdateRequest / the
+      // backend's BookingUpdateInput (models/booking.rs) — the server sets it
+      // itself on the checked_in transition. Sending it here is a no-op
+      // (unknown JSON fields are ignored server-side), so this stays untyped
+      // rather than silently dropping the field (see report: suspected bug).
       const updateData: any = { status: 'checked_in', actual_check_in: new Date().toISOString() };
       await HotelAPIService.updateBooking(checkinBooking.id, updateData);
       showSnackbar(`Booking checked in successfully`);
@@ -234,8 +251,8 @@ export function useBookingsPageState(): BookingsPageState {
       setCheckinBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to check in');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to check in');
     } finally {
       setProcessingCheckIn(false);
     }
@@ -246,18 +263,18 @@ export function useBookingsPageState(): BookingsPageState {
     setShowCheckoutModal(true);
   }, []);
 
-  const handleConfirmCheckout = useCallback(async (_lateCheckoutData?: any, checkoutPaymentMethod?: string) => {
+  const handleConfirmCheckout = useCallback(async (_lateCheckoutData?: unknown, checkoutPaymentMethod?: string) => {
     if (!checkoutBooking) return;
     try {
-      const updatePayload: any = { status: 'checked_out' };
+      const updatePayload: BookingUpdateRequest = { status: 'checked_out' };
       await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
       showSnackbar(`Booking checked out successfully`);
       setShowCheckoutModal(false);
       setCheckoutBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to check out');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to check out');
     }
   }, [checkoutBooking, queryClient]);
 
@@ -271,14 +288,20 @@ export function useBookingsPageState(): BookingsPageState {
     if (!voidingBooking) return;
     try {
       setVoiding(true);
+      // SKIPPED (see report): HotelAPIService.voidBooking takes a single
+      // BookingCancellationRequest object ({ booking_id, reason }), not two
+      // positional args — this call passes (id, reason) instead, so `reason`
+      // is silently dropped and `cancellationData` becomes the raw id string.
+      // Typing this correctly means fixing the call, which is a behavior
+      // change out of scope for a type-only pass; left as `any` deliberately.
       await (HotelAPIService as any).voidBooking(voidingBooking.id, voidReason);
       showSnackbar(`Booking voided successfully`);
       setVoidDialogOpen(false);
       setVoidingBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to void booking');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to void booking');
     } finally {
       setVoiding(false);
     }
@@ -299,8 +322,8 @@ export function useBookingsPageState(): BookingsPageState {
       setReactivatingBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to reactivate booking');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to reactivate booking');
     } finally {
       setReactivating(false);
     }
@@ -318,14 +341,20 @@ export function useBookingsPageState(): BookingsPageState {
     if (!complimentaryBooking) return;
     try {
       setMarkingComplimentary(true);
+      // SKIPPED (see report): HotelAPIService has no `markComplimentary`
+      // method at all — the real API is `markBookingComplimentary` (returns a
+      // detailed summary object, not void). Calling a nonexistent method
+      // would throw "not a function" at runtime; fixing the method name is a
+      // behavior change out of scope for a type-only pass, so this is left
+      // as `any` deliberately rather than typed against a made-up shape.
       await (HotelAPIService as any).markComplimentary(complimentaryBooking.id, complimentaryReason);
       showSnackbar(`Booking marked as complimentary`);
       setComplimentaryDialogOpen(false);
       setComplimentaryBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to mark as complimentary');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to mark as complimentary');
     } finally {
       setMarkingComplimentary(false);
     }
@@ -346,19 +375,23 @@ export function useBookingsPageState(): BookingsPageState {
     }
     try {
       setUpdatingPayment(true);
+      // booking_id is typed as `number` on recordPayment; paymentBooking.id is
+      // `string`. Converting here is a no-op at the network level — the real
+      // service (invoices.service.ts) already does `Number(data.booking_id)`
+      // internally before sending, so the payload is unchanged either way.
       await HotelAPIService.recordPayment({
-        booking_id: paymentBooking.id,
+        booking_id: Number(paymentBooking.id),
         amount: toMoneyNumber(paymentAmount),
         payment_method: paymentMethod,
         notes: paymentNote,
-      } as any);
+      });
       showSnackbar(`Payment recorded: ${paymentAmount}`);
       setPaymentDialogOpen(false);
       setPaymentBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to record payment');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to record payment');
     } finally {
       setUpdatingPayment(false);
     }
@@ -398,14 +431,22 @@ export function useBookingsPageState(): BookingsPageState {
     if (!editingBooking) return;
     try {
       setUpdating(true);
-      await HotelAPIService.updateBooking(editingBooking.id, editFormData);
+      // BookingEditFormData.company_id allows `null`/`string` (BookingsPage's
+      // edit form uses null for "cleared" and defensively checks for '');
+      // BookingUpdateRequest.company_id is `number | undefined`. This hook
+      // never actually sets company_id (see handleEditBooking below), so
+      // normalizing here is a no-op in practice.
+      await HotelAPIService.updateBooking(editingBooking.id, {
+        ...editFormData,
+        company_id: editFormData.company_id != null ? Number(editFormData.company_id) : undefined,
+      });
       showSnackbar(`Booking updated successfully`);
       setEditDialogOpen(false);
       setEditingBooking(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.list(), exact: false });
-    } catch (err: any) {
-      showSnackbarError(err.message || 'Failed to update booking');
+    } catch (err: unknown) {
+      showSnackbarError(getErrorMessage(err) || 'Failed to update booking');
     } finally {
       setUpdating(false);
     }

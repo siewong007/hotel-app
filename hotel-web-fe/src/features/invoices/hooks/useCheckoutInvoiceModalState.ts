@@ -10,13 +10,15 @@ import { queryKeys } from '../../../api/queryKeys';
 import { InvoicesService } from '../../../api/invoices.service';
 import { formatLocalDate, toHotelDateString } from '../../../utils/date';
 import { isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import type { CheckoutPaymentRecord } from '../types';
+import type { LateCheckoutData } from './useCheckoutFlow';
 
 interface UseCheckoutInvoiceModalStateProps {
   booking: BookingWithDetails | null;
   open: boolean;
-  onConfirmCheckout: (data?: any, paymentMethod?: string) => Promise<void>;
-  payments: any[];
-  setPayments: React.Dispatch<React.SetStateAction<any[]>>;
+  onConfirmCheckout: (data?: LateCheckoutData, paymentMethod?: string) => Promise<void>;
+  payments: CheckoutPaymentRecord[];
+  setPayments: React.Dispatch<React.SetStateAction<CheckoutPaymentRecord[]>>;
   depositRefunded: boolean;
   setDepositRefunded: (v: boolean) => void;
   editableDailyRates: Record<string, number>;
@@ -40,7 +42,7 @@ export interface CheckoutInvoiceModalState {
   recordingPayment: boolean;
 
   // Payment editing
-  editingPayment: any | null;
+  editingPayment: CheckoutPaymentRecord | null;
   editAmount: number;
   editMethod: string;
   editReference: string;
@@ -75,7 +77,7 @@ export interface CheckoutInvoiceModalState {
   setPaymentReference: (v: string) => void;
   setPaymentNotes: (v: string) => void;
   setPaymentDate: (v: string) => void;
-  setEditingPayment: (v: any | null) => void;
+  setEditingPayment: (v: CheckoutPaymentRecord | null) => void;
   setEditAmount: (v: number) => void;
   setEditMethod: (v: string) => void;
   setEditReference: (v: string) => void;
@@ -90,7 +92,7 @@ export interface CheckoutInvoiceModalState {
 
   // Handlers
   handleRecordPayment: () => Promise<void>;
-  handleStartEdit: (payment: any) => void;
+  handleStartEdit: (payment: CheckoutPaymentRecord) => void;
   handleCancelEdit: () => void;
   handleUpdatePayment: () => Promise<void>;
   handleDeletePayment: (paymentId: number) => Promise<void>;
@@ -122,7 +124,7 @@ export function useCheckoutInvoiceModalState(
   const [recordingPayment, setRecordingPayment] = useState(false);
 
   // Payment editing
-  const [editingPayment, setEditingPayment] = useState<any | null>(null);
+  const [editingPayment, setEditingPayment] = useState<CheckoutPaymentRecord | null>(null);
   const [editAmount, setEditAmount] = useState<number>(0);
   const [editMethod, setEditMethod] = useState('Cash');
   const [editReference, setEditReference] = useState('');
@@ -145,8 +147,8 @@ export function useCheckoutInvoiceModalState(
 
   // Computed
   const totalPayments: number = payments
-    .filter((p: any) => p.payment_status === 'completed')
-    .reduce((sum: number, p: any) => sumMoney([sum, p.total_amount]), 0);
+    .filter((p) => p.payment_status === 'completed')
+    .reduce((sum: number, p) => sumMoney([sum, p.total_amount]), 0);
   const balanceDue = subtractMoney(booking?.total_amount, totalPayments);
 
   const invalidateInvoiceState = () => {
@@ -205,14 +207,14 @@ export function useCheckoutInvoiceModalState(
       setPaymentReference('');
       setPaymentNotes('');
       setPaymentDate(formatLocalDate());
-    } catch (err: any) {
-      setError(err.message || 'Failed to record payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to record payment');
     } finally {
       setRecordingPayment(false);
     }
   };
 
-  const handleStartEdit = (payment: any) => {
+  const handleStartEdit = (payment: CheckoutPaymentRecord) => {
     setEditingPayment(payment);
     setEditAmount(toMoneyNumber(payment.total_amount));
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
@@ -247,8 +249,8 @@ export function useCheckoutInvoiceModalState(
       setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
       invalidateInvoiceState();
       handleCancelEdit();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to update payment');
     } finally {
       setUpdatingPayment(false);
     }
@@ -265,8 +267,8 @@ export function useCheckoutInvoiceModalState(
       if (deletedPayment?.payment_status === 'refunded') {
         setDepositRefunded(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete payment');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to delete payment');
     } finally {
       setDeletingPaymentId(null);
     }
@@ -276,6 +278,11 @@ export function useCheckoutInvoiceModalState(
     if (!booking) return;
     try {
       setRefundingDeposit(true);
+      // any left in place on purpose: InvoicesService.refundDeposit's real signature is
+      // (bookingId, paymentMethod, amount) positional, not an object — this call site
+      // does not match it (and passes no amount). This hook is unused in production
+      // (see report), so the mismatch has never executed; flagged rather than silently
+      // "fixed" per task instructions, since changing the call shape changes behavior.
       const refundPayment = await (InvoicesService as any).refundDeposit({
         booking_id: Number(booking.id),
         payment_method: refundPaymentMethod,
@@ -283,8 +290,8 @@ export function useCheckoutInvoiceModalState(
       setPayments(prev => [...prev, refundPayment]);
       setDepositRefunded(true);
       invalidateInvoiceState();
-    } catch (err: any) {
-      setError(err.message || 'Failed to refund deposit');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to refund deposit');
     } finally {
       setRefundingDeposit(false);
     }
@@ -296,8 +303,8 @@ export function useCheckoutInvoiceModalState(
       setLoading(true);
       await onConfirmCheckout();
       invalidateInvoiceState();
-    } catch (err: any) {
-      setError(err.message || 'Failed to checkout');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to checkout');
     } finally {
       setLoading(false);
     }
@@ -307,14 +314,19 @@ export function useCheckoutInvoiceModalState(
     if (!booking) return;
     try {
       setSavingRates(true);
+      // any left in place on purpose: InvoicesService has no updateDailyRates method
+      // (no such route exists in hotel-app-be either) — this call throws at runtime.
+      // This hook is unused in production (see report), so it has never executed;
+      // flagged rather than silently "fixed" per task instructions, since implementing
+      // or removing this needs a product decision, not a type-only edit.
       await (InvoicesService as any).updateDailyRates({
         booking_id: Number(booking.id),
         daily_rates: editableDailyRates,
       });
       invalidateInvoiceState();
       setEditingRates(false);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save rates');
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to save rates');
     } finally {
       setSavingRates(false);
     }

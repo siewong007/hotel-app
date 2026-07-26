@@ -73,7 +73,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../../api';
 
-import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, TourismType } from '../../../../types';
+import { Room, Guest, Booking, BookingWithDetails, BookingCreateRequest, RoomHistory, TourismType } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import {
   useBookingNotes,
@@ -161,6 +161,15 @@ const validateGuestInformationDraft = (guest: GuestInformationDraft): string | n
   // and contact details are collected at check-in. Do not block booking creation.
   return null;
 };
+
+// UnifiedBookingModal's onBookingCreated forwards the raw booking/guest objects it built
+// (see UnifiedBookingModal.tsx:41 `onBookingCreated?: (booking: Booking, guest: Guest) => void`),
+// but that booking object has `room_number` bolted onto it beyond the declared `Booking`
+// shape (UnifiedBookingModal.tsx:503 `(bookingForCheckIn as any).room_number = ...`).
+// `first_name`/`last_name` are NOT part of the real `Guest` API type (only `full_name` is) —
+// kept optional here since the fallback that reads them is effectively dead code today.
+type BookingCreatedPayload = Booking & { room_number?: string };
+type GuestCreatedPayload = Guest & { first_name?: string; last_name?: string };
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -401,9 +410,16 @@ const RoomManagementPage: React.FC = () => {
     showSnackbar(message, 'error');
   }, [showSnackbar]);
 
-  const handleUnifiedBookingCreated = useCallback((booking: any, guest: any) => {
-    // Convert to BookingWithDetails for the reserved check-in dialog
-    const bwd: BookingWithDetails = {
+  const handleUnifiedBookingCreated = useCallback((booking: BookingCreatedPayload, guest: GuestCreatedPayload) => {
+    // Convert to BookingWithDetails for the reserved check-in dialog. `booking`/`guest`
+    // are the raw objects UnifiedBookingModal passes through onBookingCreated — they can
+    // carry fields beyond the declared Booking/Guest shapes (see
+    // UnifiedBookingModal.tsx:503, which bolts `room_number` onto the booking object).
+    // `as BookingWithDetails` mirrors that: BookingWithDetails requires fields (e.g.
+    // `price_per_night`) that Booking/booking here does not carry, so this was already
+    // an incomplete object before typing (previously masked by `any`) — flagged in the
+    // task report rather than invented here.
+    const bwd = {
       ...booking,
       guest_name: guest.full_name || `${guest.first_name || ''} ${guest.last_name || ''}`.trim(),
       guest_email: guest.email || '',
@@ -411,7 +427,7 @@ const RoomManagementPage: React.FC = () => {
       room_number: booking.room_number || String(booking.room_id),
       room_type: booking.room_type || '',
       booking_number: booking.folio_number || booking.booking_number || '',
-    };
+    } as BookingWithDetails;
     openReservedCheckIn(bwd, booking.payment_method || 'Cash');
   }, [openReservedCheckIn]);
 
@@ -529,8 +545,8 @@ const RoomManagementPage: React.FC = () => {
       setComplimentaryCheckOutDate('');
       setComplimentaryNumberOfNights(1);
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to create reservation', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to create reservation', 'error');
     } finally {
       setCreatingBooking(false);
     }
@@ -680,8 +696,8 @@ const RoomManagementPage: React.FC = () => {
       };
       setWalkInDialogOpen(false);
       reservedCheckIn.openWithBooking(bwd, walkInPaymentMethod || 'Cash');
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to create guest', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to create guest', 'error');
     } finally {
       setCreatingBooking(false);
     }
@@ -724,8 +740,8 @@ const RoomManagementPage: React.FC = () => {
       setWalkInBookingChannel('');
       setWalkInReference('');
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to check in guest', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to check in guest', 'error');
     } finally {
       setCreatingBooking(false);
     }
@@ -776,8 +792,8 @@ const RoomManagementPage: React.FC = () => {
 
       // Reload data
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to collect deposit', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to collect deposit', 'error');
     } finally {
       setProcessingPayment(false);
     }
@@ -946,8 +962,8 @@ const RoomManagementPage: React.FC = () => {
       });
 
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to create guest', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to create guest', 'error');
     } finally {
       setCreatingBooking(false);
     }
@@ -1000,8 +1016,8 @@ const RoomManagementPage: React.FC = () => {
 
       showSnackbar(`Room ${room.room_number} marked as dirty`, 'success');
       await loadData(); // Reload all data including rooms and bookings
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update room status', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
     }
     handleMenuClose();
   };
@@ -1017,8 +1033,8 @@ const RoomManagementPage: React.FC = () => {
 
       showSnackbar(`Room ${room.room_number} updated to ${updated?.status ?? 'available'}`, 'success');
       await loadData(); // Reload all data including rooms and bookings
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update room status', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
     }
     handleMenuClose();
   };
@@ -1031,8 +1047,8 @@ const RoomManagementPage: React.FC = () => {
       });
       showSnackbar(`Room ${room.room_number} set to maintenance`, 'success');
       await loadData(); // Reload all data including rooms and bookings
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update room status', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
     }
     handleMenuClose();
   };
@@ -1049,8 +1065,8 @@ const RoomManagementPage: React.FC = () => {
       setLoadingHistory(true);
       const history = await HotelAPIService.getRoomHistory(room.id);
       setRoomHistory(history);
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to load room history', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to load room history', 'error');
       setRoomHistory([]);
     } finally {
       setLoadingHistory(false);
@@ -1151,8 +1167,8 @@ const RoomManagementPage: React.FC = () => {
       setChangeRoomDialogOpen(false);
       setNewSelectedRoom(null);
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to change room', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to change room', 'error');
     } finally {
       setChangingRoom(false);
     }
@@ -1189,8 +1205,8 @@ const RoomManagementPage: React.FC = () => {
       setComplimentaryReason('');
       setSelectedBooking(null);
       await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to mark booking as complimentary', 'error');
+    } catch (error) {
+      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to mark booking as complimentary', 'error');
     } finally {
       setMarkingComplimentary(false);
     }

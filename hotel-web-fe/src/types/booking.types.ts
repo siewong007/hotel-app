@@ -46,6 +46,10 @@ export interface Booking {
   cancellation_reason?: string;
   special_requests?: string;
   number_of_guests?: number;
+  // Occupancy breakdown; present on the backend Booking/BookingWithDetails
+  // model (models/booking.rs) but not all list endpoints populate it.
+  adults?: number;
+  children?: number;
   is_complimentary?: boolean;
   complimentary_reason?: string;
   complimentary_start_date?: string;
@@ -188,6 +192,39 @@ export interface BookingUpdateRequest {
   extra_bed_charge?: number;
   daily_rates?: Record<string, number>;
   cleaning_preference?: boolean | null;
+}
+
+/**
+ * Local edit-dialog form state for the admin "Edit Booking" flow
+ * (BookingsPage / useBookingsPageState). This is a superset of
+ * BookingUpdateRequest: it also carries a couple of UI-only fields
+ * (`has_override`) that the page strips out before calling the API, plus
+ * `price_per_night` which is translated into `room_rate_override` on submit.
+ */
+export interface BookingEditFormData {
+  status?: string;
+  payment_status?: string;
+  payment_method?: string;
+  source?: string;
+  booking_channel_id?: number | string | null;
+  ota_reference?: string | null;
+  check_in_date?: string;
+  check_out_date?: string;
+  actual_check_out?: string;
+  post_type?: string;
+  rate_code?: string;
+  deposit_paid?: boolean;
+  remarks?: string;
+  special_requests?: string;
+  price_per_night?: number;
+  has_override?: boolean;
+  extra_bed_count?: number;
+  extra_bed_charge?: number;
+  room_id?: string;
+  // number|null is what this component ever assigns; string is accepted too
+  // because the edit form's own code checks `company_id === ''` defensively.
+  company_id?: number | string | null;
+  company_name?: string;
 }
 
 export interface BookingCancellationRequest {

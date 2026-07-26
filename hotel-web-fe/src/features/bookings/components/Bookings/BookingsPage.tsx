@@ -72,7 +72,17 @@ import { ReportsService, type BookingChannel } from '../../../../api/reports.ser
 import { queryStaleTime } from '../../../../api/queryConfig';
 import { queryKeys } from '../../../../api/queryKeys';
 
-import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room, Guest, RoomType } from '../../../../types';
+import {
+  BookingTimelineEntry,
+  BookingWithDetails,
+  BookingUpdateRequest,
+  BookingEditFormData,
+  CheckInRequest,
+  PaymentWorkflowSummary,
+  Room,
+  Guest,
+  RoomType,
+} from '../../../../types';
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../../utils/bookingUtils';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useCurrency } from '../../../../hooks/useCurrency';
@@ -113,6 +123,10 @@ type SummaryStatCard = {
   alert?: boolean;
 };
 const COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT = 1;
+
+function getErrorMessage(err: unknown): string | undefined {
+  return err instanceof Error ? err.message : undefined;
+}
 
 const addMonthsToDateOnly = (dateOnly: string, months: number) => {
   const base = parseLocalDate(dateOnly);
@@ -262,7 +276,7 @@ const BookingsPage: React.FC = () => {
   // Edit booking dialog (admin only)
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<BookingWithDetails | null>(null);
-  const [editFormData, setEditFormData] = useState<any>({});
+  const [editFormData, setEditFormData] = useState<BookingEditFormData>({});
   const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<RoomType | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
@@ -430,14 +444,16 @@ const BookingsPage: React.FC = () => {
   // Re-fetch available rooms when dates change in the edit dialog
   useEffect(() => {
     if (!editDialogOpen || !editingBooking) return;
-    if (!editFormData.check_in_date || !editFormData.check_out_date) return;
+    const checkInDate = editFormData.check_in_date;
+    const checkOutDate = editFormData.check_out_date;
+    if (!checkInDate || !checkOutDate) return;
     const isNotCheckedIn = !['checked_in', 'auto_checked_in', 'checked_out', 'completed'].includes(editingBooking.status);
     if (!isNotCheckedIn) return;
 
     const bookingId = typeof editingBooking.id === 'string' ? parseInt(editingBooking.id, 10) : editingBooking.id;
     queryClient.ensureQueryData({
-      queryKey: queryKeys.rooms.available(editFormData.check_in_date, editFormData.check_out_date, bookingId),
-      queryFn: () => HotelAPIService.getAvailableRoomsForDates(editFormData.check_in_date, editFormData.check_out_date, bookingId),
+      queryKey: queryKeys.rooms.available(checkInDate, checkOutDate, bookingId),
+      queryFn: () => HotelAPIService.getAvailableRoomsForDates(checkInDate, checkOutDate, bookingId),
       staleTime: queryStaleTime.short,
     }).then(available => {
       setAvailableRooms(sortRoomsByNumber(available));
@@ -500,8 +516,8 @@ const BookingsPage: React.FC = () => {
       showSnackbar('Booking updated successfully!');
       setEditDialogOpen(false);
       await reloadBookingData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update booking');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to update booking');
     } finally {
       setUpdating(false);
     }
@@ -533,8 +549,8 @@ const BookingsPage: React.FC = () => {
       setVoidingBooking(null);
       setVoidReason('');
       await reloadBookingData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to void booking');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to void booking');
     } finally {
       setVoiding(false);
     }
@@ -555,8 +571,8 @@ const BookingsPage: React.FC = () => {
       setReactivateDialogOpen(false);
       setReactivatingBooking(null);
       await reloadBookingData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to reactivate booking');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to reactivate booking');
     } finally {
       setReactivating(false);
     }
@@ -628,8 +644,8 @@ const BookingsPage: React.FC = () => {
       setComplimentaryStartDate('');
       setComplimentaryEndDate('');
       await reloadBookingData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to mark booking as complimentary');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to mark booking as complimentary');
     } finally {
       setMarkingComplimentary(false);
     }
@@ -714,8 +730,8 @@ const BookingsPage: React.FC = () => {
         setPaymentAmount(remainingBalance);
         setPaymentNote('');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to accept payment');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to accept payment');
     } finally {
       setUpdatingPayment(false);
     }
@@ -753,8 +769,8 @@ const BookingsPage: React.FC = () => {
           })
           .catch(() => { /* leave for manual entry */ });
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load check-in data');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to load check-in data');
     }
   };
 
@@ -774,7 +790,7 @@ const BookingsPage: React.FC = () => {
       // through the check-in endpoint, which commits them in one transaction.
       // (Don't push payment_status — recording the payments row is what flips the
       // derived status; an override would be overwritten by the backend anyway.)
-      const bookingUpdate: any = {};
+      const bookingUpdate: BookingUpdateRequest = {};
       if (ciPaymentChoice === 'pay_now') {
         bookingUpdate.payment_method = ciPaymentMethod;
       }
@@ -787,7 +803,7 @@ const BookingsPage: React.FC = () => {
         bookingUpdate.deposit_amount = 0;
         bookingUpdate.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
-      const checkinPayload: any = {
+      const checkinPayload: CheckInRequest = {
         booking_update: bookingUpdate,
         guest_update: {
           ic_number: ciIcNumber.trim(),
@@ -807,8 +823,8 @@ const BookingsPage: React.FC = () => {
       setCheckinBooking(null);
       showSnackbar('Guest checked in successfully!');
       await reloadBookingData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to check in guest');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to check in guest');
     } finally {
       setProcessingCheckIn(false);
     }
@@ -847,8 +863,8 @@ const BookingsPage: React.FC = () => {
       const [summary, timeline] = await fetchBookingWorkflow(booking.id);
       setWorkflowSummary(summary);
       setWorkflowTimeline(timeline);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load booking workflow');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to load booking workflow');
     } finally {
       setWorkflowLoading(false);
     }
@@ -1129,7 +1145,7 @@ const BookingsPage: React.FC = () => {
     }
   }, [bookingDetailsOpen, selectedBookingId, visibleBookings]);
 
-  const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
+  const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number(booking.adults || 1) + Number(booking.children || 0), 0);
   const roomCount = rooms.length || 0;
   const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
   const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
@@ -2031,7 +2047,7 @@ const BookingsPage: React.FC = () => {
                 label="Check-In Date"
                 type="date"
                 value={editFormData.check_in_date || ''}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, check_in_date: e.target.value }))}
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, check_in_date: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
@@ -2041,18 +2057,18 @@ const BookingsPage: React.FC = () => {
                 label="Scheduled Check-Out Date"
                 type="date"
                 value={editFormData.check_out_date || ''}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, check_out_date: e.target.value }))}
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, check_out_date: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            {(['checked_out', 'late_checkout', 'completed'].includes(editFormData.status) || editingBooking?.actual_check_out) && (
+            {(['checked_out', 'late_checkout', 'completed'].includes(editFormData.status || '') || editingBooking?.actual_check_out) && (
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Actual Check-Out Date"
                   type="date"
                   value={editFormData.actual_check_out || ''}
-                  onChange={(e) => setEditFormData((prev: any) => ({ ...prev, actual_check_out: e.target.value }))}
+                  onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, actual_check_out: e.target.value }))}
                   InputLabelProps={{ shrink: true }}
                   helperText="The date the guest actually checked out (shown on the invoice)"
                 />
@@ -2064,7 +2080,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Status"
                 value={editFormData.status || 'pending'}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, status: e.target.value }))}
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, status: e.target.value }))}
 
               >
                 <MenuItem value="pending">Pending</MenuItem>
@@ -2082,7 +2098,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Channel"
                 value={editFormData.source || 'walk_in'}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, source: e.target.value }))}
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, source: e.target.value }))}
               >
                 <MenuItem value="walk_in">Walk-in</MenuItem>
                 <MenuItem value="phone">Phone Reservation</MenuItem>
@@ -2102,7 +2118,7 @@ const BookingsPage: React.FC = () => {
                 value={editFormData.booking_channel_id || ''}
                 onChange={(e) => {
                   const channel = bookingChannels.find((item) => String(item.id) === e.target.value);
-                  setEditFormData((prev: any) => ({
+                  setEditFormData((prev: BookingEditFormData) => ({
                     ...prev,
                     booking_channel_id: e.target.value ? Number(e.target.value) : '',
                     source: channel?.channel_type === 'ota' ? 'online' : prev.source,
@@ -2123,7 +2139,7 @@ const BookingsPage: React.FC = () => {
                   fullWidth
                   label="OTA Ref No"
                   value={editFormData.ota_reference || ''}
-                  onChange={(e) => setEditFormData((prev: any) => ({ ...prev, ota_reference: e.target.value }))}
+                  onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, ota_reference: e.target.value }))}
                 />
               </Grid>
             )}
@@ -2132,7 +2148,7 @@ const BookingsPage: React.FC = () => {
                 options={activeCompanies}
                 value={selectedEditCompany}
                 loading={activeCompaniesQuery.isLoading || activeCompaniesQuery.isFetching}
-                onChange={(_, company) => setEditFormData((prev: any) => ({
+                onChange={(_, company) => setEditFormData((prev: BookingEditFormData) => ({
                   ...prev,
                   company_id: company?.id ?? null,
                   company_name: company?.company_name || '',
@@ -2199,7 +2215,7 @@ const BookingsPage: React.FC = () => {
                 label="Room Rate (Before Tax)"
                 type="number"
                 value={editFormData.price_per_night || 0}
-                onChange={(e) => setEditFormData((prev: any) => ({
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({
                   ...prev,
                   price_per_night: toMoneyNumber(e.target.value),
                 }))}
@@ -2221,7 +2237,7 @@ const BookingsPage: React.FC = () => {
                       const maxBeds = editRoomTypeConfig?.max_extra_beds || 0;
                       const chargePerBed = editRoomTypeConfig ? toMoneyNumber(editRoomTypeConfig.extra_bed_charge) : 0;
                       const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxBeds);
-                      setEditFormData((prev: any) => ({
+                      setEditFormData((prev: BookingEditFormData) => ({
                         ...prev,
                         extra_bed_count: count,
                         extra_bed_charge: multiplyMoney(chargePerBed, count),
@@ -2239,7 +2255,7 @@ const BookingsPage: React.FC = () => {
                     label="Extra Bed Charge"
                     type="number"
                     value={editFormData.extra_bed_charge || 0}
-                    onChange={(e) => setEditFormData((prev: any) => ({
+                    onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({
                       ...prev,
                       extra_bed_charge: toMoneyNumber(e.target.value),
                     }))}
@@ -2258,7 +2274,7 @@ const BookingsPage: React.FC = () => {
                 multiline
                 rows={2}
                 value={editFormData.remarks || ''}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, remarks: e.target.value }))}
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, remarks: e.target.value }))}
                 placeholder="Enter any notes or remarks for this booking..."
               />
             </Grid>
@@ -2269,7 +2285,7 @@ const BookingsPage: React.FC = () => {
                 multiline
                 rows={2}
                 value={editFormData.special_requests || ''}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, special_requests: e.target.value }))}
+                onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, special_requests: e.target.value }))}
                 placeholder="Enter any special requests..."
               />
             </Grid>
@@ -2286,7 +2302,7 @@ const BookingsPage: React.FC = () => {
                       const newRate = selectedRoom
                         ? toMoneyNumber(selectedRoom.price_per_night)
                         : editFormData.price_per_night;
-                      setEditFormData((prev: any) => ({
+                      setEditFormData((prev: BookingEditFormData) => ({
                         ...prev,
                         room_id: e.target.value,
                         price_per_night: newRate,
