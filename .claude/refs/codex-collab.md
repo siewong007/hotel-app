@@ -6,9 +6,12 @@ Audience: future Claude sessions (sonnet-level and below). Follow it literally.
 
 ## Verified facts (2026-07-07)
 
-- Codex is installed as a desktop app: `/Applications/Codex.app` (VERIFIED).
+- Codex is installed as a desktop app: `/Applications/Codex.app` (VERIFIED 2026-07-07;
+  **NOT FOUND 2026-07-26** — app removed or relocated; this whole recipe is unusable
+  until the CLI is located again).
 - It bundles a headless CLI: `/Applications/Codex.app/Contents/Resources/codex`,
-  version `codex-cli 0.142.5` (VERIFIED). It is NOT on PATH — always use the full path.
+  version `codex-cli 0.142.5` (VERIFIED 2026-07-07; NOT FOUND 2026-07-26 — check
+  `ls /Applications/Codex.app` and `which codex` before relying on this path).
 - `codex exec` works from this repo with no trust prompt; default model `gpt-5.5`,
   approval `never` (VERIFIED by live smoke test — replied `CODEX-CHANNEL-OK`,
   10,750 tokens, sandbox `read-only` honored).
