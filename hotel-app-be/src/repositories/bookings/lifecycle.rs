@@ -537,25 +537,43 @@ mod timeline_description_tests {
 /// Auto-create a `customer_ledgers` room-charge row for a company-billing
 /// booking on checkout. Idempotent: returns Ok(()) without inserting if a
 /// non-reversal `room_charge` row already exists for the booking.
+/// Runs entirely on `tx` (money-critical: the same transaction as the
+/// booking status change that triggers it) — the caller reads the
+/// `default_payment_terms_days` setting via the non-transactional
+/// `settings_cache` (which may hit `pool` on a TTL miss) BEFORE opening the
+/// transaction and passes the resolved value in, so no second pool
+/// connection is ever acquired while `tx` holds the first (see F7 in
+/// money-rework review: a TTL-miss lookup from inside `tx` starved the pool
+/// under concurrent checkouts and its `.ok().flatten().flatten()` fallback
+/// silently produced a wrong due_date on failure).
 async fn auto_post_company_ledger(
-    pool: &DbPool,
+    tx: &mut DbTransaction<'_>,
     booking: &Booking,
     company_name: &str,
     check_in: NaiveDate,
     check_out: NaiveDate,
     user_id: i64,
+    default_terms_days: i64,
 ) -> Result<(), ApiError> {
     let booking_id = booking.id;
 
+    // All reads below run inside the money-critical `tx`. In Postgres a
+    // failed statement aborts the whole transaction regardless of whether
+    // Rust looks at the Result, so swallowing these (as `.unwrap_or`/`.ok()`
+    // previously did) only delayed the failure to the INSERT below with a
+    // misleading "current transaction is aborted" error and, once callers
+    // started propagating with `?`, rolled back the entire checkout for no
+    // visible reason. Propagate real failures here instead: they are cheap
+    // reads and a failure genuinely means this money post cannot proceed.
     let exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
          WHERE booking_id = $1 AND post_type = 'room_charge' \
          AND COALESCE(is_reversal, false) = false)",
     )
     .bind(booking_id)
-    .fetch_one(pool)
+    .fetch_one(&mut **tx)
     .await
-    .unwrap_or(false);
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if exists {
         return Ok(());
@@ -569,10 +587,9 @@ async fn auto_post_company_ledger(
          LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = $1",
     )
     .bind(booking_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await
-    .ok()
-    .flatten();
+    .map_err(|e| ApiError::Database(e.to_string()))?;
     let (room_number, guest_name) = detail.unwrap_or((None, None));
 
     let description = format!(
@@ -585,22 +602,18 @@ async fn auto_post_company_ledger(
         check_out,
     );
 
-    let default_terms_days =
-        settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await as i64;
-
     let terms_days: i64 = sqlx::query_scalar::<_, Option<i32>>(
         "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
     )
     .bind(company_name)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await
-    .ok()
-    .flatten()
+    .map_err(|e| ApiError::Database(e.to_string()))?
     .flatten()
     .map(i64::from)
     .unwrap_or(default_terms_days);
 
-    let today = hotel_today(pool).await?;
+    let today = hotel_today(&mut **tx).await?;
     let due_date = today + chrono::Duration::days(terms_days);
 
     // Reuse the booking's existing invoice number when one already exists,
@@ -612,16 +625,42 @@ async fn auto_post_company_ledger(
          ORDER BY created_at LIMIT 1",
     )
     .bind(booking_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut **tx)
     .await
-    .ok()
-    .flatten();
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let invoice_number = match existing_invoice {
         Some(n) => Some(n),
-        None => crate::services::invoice_numbers::next_invoice_number(pool)
-            .await
-            .ok(),
+        None => {
+            // F5: `next_invoice_number` is an unlocked `MAX(invoice_number)+1`
+            // scan (repositories/invoice_numbers.rs), and
+            // `customer_ledgers_invoice_number_key` is a UNIQUE constraint.
+            // Two concurrent checkouts in the same calendar month can both
+            // read the same MAX and then race the INSERT below, so the
+            // loser hits a 23505 unique-violation that (correctly, per F2)
+            // now propagates and rolls back its whole checkout instead of
+            // silently posting with a NULL invoice number. Rather than
+            // swallowing that error again (which would contradict the
+            // "checkout must not fail because invoice numbering hiccuped"
+            // intent this code documents elsewhere), close the race itself:
+            // take a transaction-scoped advisory lock keyed on this
+            // booking's `today`-derived YYYYMM before allocating. The lock
+            // is released automatically on commit/rollback, so a second
+            // concurrent checkout in the same month simply waits for the
+            // first to finish (commit or rollback) before it reads MAX(...),
+            // by which point it will observe the first's insert (if any) and
+            // compute a genuinely-next number. This does not touch
+            // invoice_numbers.rs (out of scope for this file) — it only
+            // serializes allocation at this call site.
+            let lock_key = format!("invoice_number:{}", today.format("%Y%m"));
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(&lock_key)
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            Some(crate::services::invoice_numbers::next_invoice_number(&mut **tx).await?)
+        }
     };
 
     sqlx::query(
@@ -650,7 +689,7 @@ async fn auto_post_company_ledger(
     .bind(&room_number)
     .bind(user_id)
     .bind(&invoice_number)
-    .execute(pool)
+    .execute(&mut **tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1478,7 +1517,44 @@ pub async fn update_booking_handler(
     )
     .await?;
 
-    // PostgreSQL version: UPDATE with RETURNING
+    // PostgreSQL version: UPDATE with RETURNING, transaction-scoped.
+    //
+    // Money-critical steps that must commit or roll back together with the
+    // booking row itself run on `tx` below: the booking UPDATE, voiding
+    // linked payments + resyncing payment_status when voiding, the
+    // customer_ledgers auto-post on checkout, the customer_ledgers delta
+    // sync, and the booking_history/audit/booking_modifications rows that
+    // record the change. Previously each of these was an independent `&pool`
+    // call swallowed behind `log::warn!`, so a partial failure (e.g. payments
+    // voided but the ledger post failing) left booking/payment/ledger state
+    // inconsistent with nothing surfaced to the caller.
+    //
+    // Room-status reconciliation, loyalty point award/reversal, housekeeping
+    // task creation, and night-audit backfill remain best-effort calls AFTER
+    // commit, on the pool: none of them expose a transaction-scoped variant
+    // today (they live in modules/loyalty/service.rs, services/housekeeping.rs,
+    // services/night_audit.rs — out of scope for this fix), so joining them to
+    // `tx` would require changing those files. Checkout invoice numbering
+    // (`ensure_invoice_for_booking`) is deliberately kept on its own
+    // connection, AFTER commit, for the same reason it always was: a checkout
+    // must not fail just because invoice numbering hiccuped. It still ends up
+    // consistent with the company ledger row: when `auto_post_company_ledger`
+    // runs inside `tx` it allocates (or reuses) the invoice number and stores
+    // it on the new customer_ledgers row, and `ensure_invoice_for_booking`
+    // reuses that same number via `ledger_invoice_number` once it runs.
+    //
+    // F7: `default_payment_terms_days` is read here, BEFORE `tx` opens, via
+    // the non-transactional `settings_cache` (which issues real SQL on its
+    // own pool connection on a TTL miss). Reading it once `tx` already holds
+    // a connection risked starving the pool under concurrent checkouts and
+    // silently falling back to a wrong due_date on acquire-timeout; reading
+    // it up front and passing the value into `auto_post_company_ledger`
+    // avoids ever needing a second connection while `tx` is open.
+    let default_terms_days =
+        settings_cache::get_positive_i32(&pool, "default_payment_terms_days", 30).await as i64;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     let booking: Booking = {
         let deposit_amount =
             deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
@@ -1546,13 +1622,195 @@ pub async fn update_booking_handler(
             .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)))
         .bind(input.booking_channel_id)
         .bind(ota_reference.as_deref())
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
 
     let old_status = existing_booking.status.as_str();
     let updated_status = booking.status.as_str();
+
+    if old_status != updated_status {
+        record_booking_history_tx(
+            &mut tx,
+            booking_id,
+            Some(old_status),
+            updated_status,
+            Some(user_id),
+            input.remarks.as_deref().or(input.payment_note.as_deref()),
+            serde_json::json!({
+                "room_id": booking.room_id,
+                "payment_status": &booking.payment_status,
+                "balance_affecting_total": booking.total_amount.to_string(),
+            }),
+        )
+        .await?;
+
+        match updated_status {
+            "voided" => {
+                // Void all linked payments so they don't appear in night audit,
+                // then resync payment_status so the stored chip flips back to
+                // 'voided'/'unpaid'. Both run on `tx`: if either fails the whole
+                // update rolls back instead of leaving a voided booking with
+                // still-active payments.
+                void_booking_payments_tx(&mut tx, booking_id).await?;
+                crate::services::payments::recompute_payment_status_tx(&mut tx, booking_id)
+                    .await?;
+            }
+            "checked_out" | "completed" => {
+                // Auto-post company room charges to customer_ledgers on checkout.
+                //
+                // Why: when a booking with company billing transitions to
+                // checked_out, the receivable must land on the city ledger so
+                // it shows on the company's account. Doing this server-side
+                // ensures every checkout path (Bookings page, Rooms grid,
+                // future paths) gets the same behavior — prior to this only
+                // the Rooms-grid frontend handler created the row, so checkouts
+                // initiated from the Bookings page silently skipped it.
+                //
+                // Idempotent: skip if a non-reversal room_charge row already
+                // exists for this booking. Skip silently when company info is
+                // missing or total_amount is non-positive. Runs on `tx` (money
+                // path): if the ledger post fails, the checkout rolls back
+                // rather than completing with the receivable silently missing.
+                if let Some(co_name) = booking.company_name.as_deref()
+                    && !co_name.trim().is_empty()
+                    && booking.total_amount > rust_decimal::Decimal::ZERO
+                {
+                    auto_post_company_ledger(
+                        &mut tx,
+                        &booking,
+                        co_name,
+                        check_in,
+                        check_out,
+                        user_id,
+                        default_terms_days,
+                    )
+                    .await?;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Sync customer_ledgers.amount when the booking total changes.
+    //
+    // Why: company-billing bookings auto-create a room-charge ledger row at
+    // checkout (RoomManagementPage.handleCheckOut) using the booking's
+    // total_amount at that moment. If the booking is later edited (dates,
+    // daily_rates, rate override), the ledger row's amount drifts and the
+    // ledger UI shows a balance that no longer matches the receipt. We apply
+    // the delta — not the raw new total — so any extras already on the row
+    // (e.g. late-checkout penalty) are preserved. Skip rows that are paid,
+    // partial-with-too-much-already-paid, or void to respect DB
+    // constraints (positive_amount, paid_amount <= amount). Runs on `tx`
+    // (money path): a failed sync now rolls back the booking edit instead of
+    // leaving the ledger silently out of sync with the new total.
+    if let Some(new_total) = new_total_amount {
+        let delta = new_total - existing_booking.total_amount;
+        if !delta.is_zero() {
+            let sync_res = sqlx::query(
+                r#"UPDATE customer_ledgers
+                    SET amount = amount + $1
+                  WHERE booking_id = $2
+                    AND status IN ('pending', 'partial')
+                    AND post_type = 'room_charge'
+                    AND amount + $1 > 0
+                    AND amount + $1 >= paid_amount"#,
+            )
+            .bind(delta)
+            .bind(booking_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            if sync_res.rows_affected() > 0 {
+                log::info!(
+                    "Synced customer_ledgers.amount by delta {} on {} row(s) for booking {}",
+                    delta,
+                    sync_res.rows_affected(),
+                    booking_id
+                );
+            }
+        }
+    }
+
+    // Log booking update. Runs on `tx` so the audit row commits atomically
+    // with the mutation it describes (a rejected/rolled-back mutation must
+    // not leave an audit row behind).
+    let changes = serde_json::json!({
+        "room_id": if new_room_id != existing_booking.room_id { Some(new_room_id) } else { None },
+        "status": if old_status != updated_status { Some(&new_status) } else { None },
+        "check_in_date": &input.check_in_date,
+        "check_out_date": &input.check_out_date,
+        "payment_status": &input.payment_status,
+    });
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "booking_updated",
+            resource_type: "booking",
+            resource_id: Some(booking.id),
+            details: Some(changes),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    // Record in booking_modifications audit trail
+    let modification_type = if old_status != updated_status {
+        "status_change"
+    } else if new_room_rate.is_some() {
+        "rate_change"
+    } else if input.check_in_date.is_some() || input.check_out_date.is_some() {
+        "date_change"
+    } else if new_room_id != existing_booking.room_id {
+        "room_change"
+    } else {
+        "general_update"
+    };
+    let old_value = serde_json::json!({
+        "status": &existing_booking.status,
+        "room_id": existing_booking.room_id,
+        "room_rate": existing_booking.room_rate.to_string(),
+        "check_in_date": existing_booking.check_in_date.to_string(),
+        "check_out_date": existing_booking.check_out_date.to_string(),
+        "payment_status": &existing_booking.payment_status,
+        "total_amount": existing_booking.total_amount.to_string(),
+    });
+    let new_value = serde_json::json!({
+        "status": &booking.status,
+        "room_id": booking.room_id,
+        "room_rate": booking.room_rate.to_string(),
+        "check_in_date": booking.check_in_date.to_string(),
+        "check_out_date": booking.check_out_date.to_string(),
+        "payment_status": &booking.payment_status,
+        "total_amount": booking.total_amount.to_string(),
+    });
+    let price_adj = new_total_amount
+        .map(|t| t - existing_booking.total_amount)
+        .unwrap_or(rust_decimal::Decimal::ZERO);
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(booking_id)
+    .bind(modification_type)
+    .bind(&old_value)
+    .bind(&new_value)
+    .bind(crate::core::db::decimal_to_db(price_adj))
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
+
+    // ------------------------------------------------------------------
+    // Best-effort side effects, on their own connection AFTER commit. See
+    // the comment above `let mut tx = pool.begin()...` for why these are not
+    // part of the transaction.
+    // ------------------------------------------------------------------
 
     if new_room_id != existing_booking.room_id {
         if let Err(e) =
@@ -1585,21 +1843,6 @@ pub async fn update_booking_handler(
     }
 
     if old_status != updated_status {
-        record_booking_history(
-            &pool,
-            booking_id,
-            Some(old_status),
-            updated_status,
-            Some(user_id),
-            input.remarks.as_deref().or(input.payment_note.as_deref()),
-            serde_json::json!({
-                "room_id": booking.room_id,
-                "payment_status": &booking.payment_status,
-                "balance_affecting_total": booking.total_amount.to_string(),
-            }),
-        )
-        .await;
-
         match updated_status {
             "voided" => {
                 if let Err(e) =
@@ -1612,26 +1855,6 @@ pub async fn update_booking_handler(
                         booking_id,
                         e
                     );
-                }
-
-                // Void all linked payments so they don't appear in night audit.
-                let void_payments = sqlx::query(
-                    "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'"
-                )
-                .bind(booking_id)
-                .execute(&pool)
-                .await;
-                if let Err(e) = void_payments {
-                    log::warn!(
-                        "Failed to void payments for voided booking {}: {}",
-                        booking_id,
-                        e
-                    );
-                } else {
-                    // Void payments no longer count toward total_paid —
-                    // resync so the stored chip flips back to 'voided'/'unpaid'.
-                    let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id)
-                        .await;
                 }
 
                 if let Err(e) = crate::modules::loyalty::service::reverse_booking_points(
@@ -1744,34 +1967,6 @@ pub async fn update_booking_handler(
                         e
                     );
                 }
-
-                // Auto-post company room charges to customer_ledgers on checkout.
-                //
-                // Why: when a booking with company billing transitions to
-                // checked_out, the receivable must land on the city ledger so
-                // it shows on the company's account. Doing this server-side
-                // ensures every checkout path (Bookings page, Rooms grid,
-                // future paths) gets the same behavior — prior to this only
-                // the Rooms-grid frontend handler created the row, so checkouts
-                // initiated from the Bookings page silently skipped it.
-                //
-                // Idempotent: skip if a non-reversal room_charge row already
-                // exists for this booking. Skip silently when company info is
-                // missing or total_amount is non-positive.
-                if let Some(co_name) = booking.company_name.as_deref()
-                    && !co_name.trim().is_empty()
-                    && booking.total_amount > rust_decimal::Decimal::ZERO
-                    && let Err(e) = auto_post_company_ledger(
-                        &pool, &booking, co_name, check_in, check_out, user_id,
-                    )
-                    .await
-                {
-                    log::warn!(
-                        "Failed to auto-post company ledger for booking {}: {}",
-                        booking_id,
-                        e
-                    );
-                }
             }
             "checked_in" | "auto_checked_in" => {
                 let _ = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
@@ -1798,107 +1993,6 @@ pub async fn update_booking_handler(
             );
         }
     }
-
-    // Sync customer_ledgers.amount when the booking total changes.
-    //
-    // Why: company-billing bookings auto-create a room-charge ledger row at
-    // checkout (RoomManagementPage.handleCheckOut) using the booking's
-    // total_amount at that moment. If the booking is later edited (dates,
-    // daily_rates, rate override), the ledger row's amount drifts and the
-    // ledger UI shows a balance that no longer matches the receipt. We apply
-    // the delta — not the raw new total — so any extras already on the row
-    // (e.g. late-checkout penalty) are preserved. Skip rows that are paid,
-    // partial-with-too-much-already-paid, or void to respect DB
-    // constraints (positive_amount, paid_amount <= amount).
-    if let Some(new_total) = new_total_amount {
-        let delta = new_total - existing_booking.total_amount;
-        if !delta.is_zero() {
-            let sync_res = sqlx::query(
-                r#"UPDATE customer_ledgers
-                    SET amount = amount + $1
-                  WHERE booking_id = $2
-                    AND status IN ('pending', 'partial')
-                    AND post_type = 'room_charge'
-                    AND amount + $1 > 0
-                    AND amount + $1 >= paid_amount"#,
-            )
-            .bind(delta)
-            .bind(booking_id)
-            .execute(&pool)
-            .await;
-
-            match sync_res {
-                Ok(r) if r.rows_affected() > 0 => log::info!(
-                    "Synced customer_ledgers.amount by delta {} on {} row(s) for booking {}",
-                    delta,
-                    r.rows_affected(),
-                    booking_id
-                ),
-                Ok(_) => {}
-                Err(e) => log::warn!(
-                    "Failed to sync customer_ledgers.amount for booking {}: {}",
-                    booking_id,
-                    e
-                ),
-            }
-        }
-    }
-
-    // Log booking update
-    let changes = serde_json::json!({
-        "room_id": if new_room_id != existing_booking.room_id { Some(new_room_id) } else { None },
-        "status": if old_status != updated_status { Some(&new_status) } else { None },
-        "check_in_date": &input.check_in_date,
-        "check_out_date": &input.check_out_date,
-        "payment_status": &input.payment_status,
-    });
-    let _ = AuditLog::log_booking_updated(&pool, user_id, booking.id, changes).await;
-
-    // Record in booking_modifications audit trail
-    let modification_type = if old_status != updated_status {
-        "status_change"
-    } else if new_room_rate.is_some() {
-        "rate_change"
-    } else if input.check_in_date.is_some() || input.check_out_date.is_some() {
-        "date_change"
-    } else if new_room_id != existing_booking.room_id {
-        "room_change"
-    } else {
-        "general_update"
-    };
-    let old_value = serde_json::json!({
-        "status": &existing_booking.status,
-        "room_id": existing_booking.room_id,
-        "room_rate": existing_booking.room_rate.to_string(),
-        "check_in_date": existing_booking.check_in_date.to_string(),
-        "check_out_date": existing_booking.check_out_date.to_string(),
-        "payment_status": &existing_booking.payment_status,
-        "total_amount": existing_booking.total_amount.to_string(),
-    });
-    let new_value = serde_json::json!({
-        "status": &booking.status,
-        "room_id": booking.room_id,
-        "room_rate": booking.room_rate.to_string(),
-        "check_in_date": booking.check_in_date.to_string(),
-        "check_out_date": booking.check_out_date.to_string(),
-        "payment_status": &booking.payment_status,
-        "total_amount": booking.total_amount.to_string(),
-    });
-    let price_adj = new_total_amount
-        .map(|t| t - existing_booking.total_amount)
-        .unwrap_or(rust_decimal::Decimal::ZERO);
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
-    )
-    .bind(booking_id)
-    .bind(modification_type)
-    .bind(&old_value)
-    .bind(&new_value)
-    .bind(crate::core::db::decimal_to_db(price_adj))
-    .bind(user_id)
-    .execute(&pool)
-    .await
-    .ok();
 
     // total_amount may have changed (rate override, dates, daily_rates rebuild,
     // tourism tax, extra bed) — re-derive payment_status against the unchanged
