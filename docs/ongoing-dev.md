@@ -20,8 +20,7 @@ leftover set.
 
 ## P2 — later
 
-- Characterization tests for `BookingsPage.tsx` (~2.6k ln) and `CustomerLedgerPage.tsx` (~2.3k ln).
-- `any`-type burn-down (463 sites; worst `dataTransfer.types.ts`).
+- `any`-type burn-down (~389 non-test sites as of 2026-07-26; worst hand-written file is now `ModernReportsPage.tsx` — `dataTransfer.types.ts` was cleaned; the dead `useBookingsPageState`/`useCheckoutInvoiceModalState` hooks + their tests were deleted 2026-07-26, removing their 5 deliberately-skipped sites).
 - Desktop: Windows/Linux CI packaging; upgrade embedded PostgreSQL 18.4 → 19 in `src-tauri/pgsql/` (ask-first dir; requires a source build — Homebrew ships no PG19); network-fetch pgsql provisioning (today Homebrew-local only); arm or hide the updater (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists; desktop session persistence (SameSite boundary).
 - Portal test coverage: portal page component tests + broader portal integration tests (the concurrent double-booking race is covered — `tests/booking_service.rs::postgres_guest_portal_race_tests`).
 
@@ -36,4 +35,5 @@ leftover set.
 ## Housekeeping
 
 - 2026-07-17: both dirty worktrees resolved and removed — angry-ellis was superseded by master (user_id audit threading landed 2026-07-12); unruffled-hellman's refs rewrite + lesson were salvaged onto master. Patches in `.claude/backups/*.patch`.
+- 2026-07-26: characterization tests for `BookingsPage.tsx` and `CustomerLedgerPage.tsx` landed (28 tests: `src/features/bookings/components/Bookings/BookingsPage.test.tsx`, `src/features/admin/components/CustomerLedger/CustomerLedgerPage.test.tsx`) — pin rendering/filter-sort-pagination params/modal opens/permission gating ahead of any refactor.
 - `pg18_4_to_v1.sql` is intentionally kept — wired into tests, Makefile, and desktop recovery messaging; docs no longer describe it as a workflow.
