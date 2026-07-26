@@ -132,7 +132,7 @@ pub async fn list_public_promotions(
     let (page, page_size, offset) = pagination(&query);
     let (total, items) = PromotionRepository::list_public(pool, page_size, offset).await?;
     Ok(PublicPromotionListResponse {
-        items: items.into_iter().map(PublicPromotion::from).collect(),
+        items,
         total,
         page,
         page_size,
@@ -143,7 +143,6 @@ pub async fn get_public_promotion(pool: &DbPool, slug: &str) -> Result<PublicPro
     let slug = validation::normalize_slug(slug)?;
     PromotionRepository::find_public_by_slug(pool, &slug)
         .await?
-        .map(PublicPromotion::from)
         .ok_or_else(|| ApiError::NotFound("Promotion not found".to_string()))
 }
 

@@ -7,14 +7,19 @@
 //! When the integration is not fully configured, every entry point returns a
 //! `ServiceUnavailable` (HTTP 503) rather than fabricating a working gateway.
 //! Capture is synchronous — the server calls PayPal directly, so a client
-//! cannot forge a captured order; the async webhook path is a deliberate
-//! follow-up (see the plan) and is not built here.
+//! cannot forge a captured order. The async webhook path complements it:
+//! `/api/webhooks/paypal` (handlers/webhooks.rs) receives PayPal's event
+//! deliveries, authenticates them via `verify_webhook_signature` below
+//! (requires `PAYPAL_WEBHOOK_ID`), and reconciles captures our synchronous
+//! response never reached — see `services::payments::apply_paypal_webhook_event`.
 
 use crate::core::config::{self, PaypalConfig};
 use crate::core::error::ApiError;
 use base64::Engine;
 use rust_decimal::Decimal;
 use serde_json::Value;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 /// Result of capturing a PayPal order.
 pub struct PaypalCaptureOutcome {
@@ -57,11 +62,32 @@ fn http_client() -> Result<reqwest::Client, ApiError> {
         .map_err(|e| ApiError::Internal(format!("Failed to build HTTP client: {e}")))
 }
 
-/// Fetch an OAuth2 access token via `client_credentials` (Basic auth).
+/// Process-wide OAuth token cache. PayPal `client_credentials` tokens live for
+/// hours; re-fetching one per API call doubles latency and, on the
+/// unauthenticated webhook endpoint, hands strangers an outbound-call
+/// amplifier. Credentials are fixed for the process lifetime (env-derived
+/// config), so a single slot with an expiry is enough.
+struct CachedToken {
+    token: String,
+    expires_at: Instant,
+}
+
+static TOKEN_CACHE: OnceLock<Mutex<Option<CachedToken>>> = OnceLock::new();
+
+/// Fetch an OAuth2 access token via `client_credentials` (Basic auth),
+/// reusing the cached token until shortly before it expires.
 async fn get_access_token(
     cfg: &PaypalConfig,
     client: &reqwest::Client,
 ) -> Result<String, ApiError> {
+    let cache = TOKEN_CACHE.get_or_init(|| Mutex::new(None));
+    if let Ok(guard) = cache.lock()
+        && let Some(cached) = guard.as_ref()
+        && cached.expires_at > Instant::now()
+    {
+        return Ok(cached.token.clone());
+    }
+
     let client_id = cfg.client_id.as_deref().unwrap_or_default();
     let client_secret = cfg.client_secret.as_deref().unwrap_or_default();
     let basic =
@@ -74,7 +100,10 @@ async fn get_access_token(
         .body("grant_type=client_credentials")
         .send()
         .await
-        .map_err(|e| ApiError::ServiceUnavailable(format!("PayPal token request failed: {e}")))?;
+        .map_err(|e| {
+            log::error!("PayPal token request failed: {e}");
+            ApiError::ServiceUnavailable("PayPal is unreachable.".to_string())
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -85,17 +114,32 @@ async fn get_access_token(
         ));
     }
 
-    let json: Value = response
-        .json()
-        .await
-        .map_err(|e| ApiError::ServiceUnavailable(format!("PayPal token decode failed: {e}")))?;
+    let json: Value = response.json().await.map_err(|e| {
+        log::error!("PayPal token decode failed: {e}");
+        ApiError::ServiceUnavailable("PayPal returned an unreadable response.".to_string())
+    })?;
 
-    json.get("access_token")
+    let token = json
+        .get("access_token")
         .and_then(Value::as_str)
         .map(str::to_string)
         .ok_or_else(|| {
             ApiError::ServiceUnavailable("PayPal token response missing access_token.".to_string())
-        })
+        })?;
+
+    // Cache with a two-minute safety margin; skip caching implausibly short
+    // lifetimes. A poisoned lock just means every call fetches fresh.
+    let expires_in = json.get("expires_in").and_then(Value::as_u64).unwrap_or(0);
+    if expires_in > 300
+        && let Ok(mut guard) = cache.lock()
+    {
+        *guard = Some(CachedToken {
+            token: token.clone(),
+            expires_at: Instant::now() + Duration::from_secs(expires_in - 120),
+        });
+    }
+
+    Ok(token)
 }
 
 /// Create an Orders v2 order (`intent: CAPTURE`) and return the PayPal order id.
@@ -237,4 +281,99 @@ pub async fn capture_order(order_id: &str) -> Result<PaypalCaptureOutcome, ApiEr
         captured_amount,
         captured_currency,
     })
+}
+
+/// The five headers PayPal attaches to every webhook delivery; all are
+/// required inputs to the verify-webhook-signature call.
+pub struct PaypalWebhookHeaders {
+    pub transmission_id: String,
+    pub transmission_time: String,
+    pub transmission_sig: String,
+    pub cert_url: String,
+    pub auth_algo: String,
+}
+
+/// Ask PayPal to verify a webhook delivery's signature
+/// (`POST /v1/notifications/verify-webhook-signature`). Returns `Ok(true)`
+/// only when PayPal answers `verification_status: "SUCCESS"`.
+///
+/// Verification is delegated to PayPal's API rather than checking the
+/// certificate locally, so the attacker-controllable `cert_url` header is
+/// never fetched by this server. `raw_event_body` must be the body exactly as
+/// PayPal delivered it: re-serializing parsed JSON can reorder keys and break
+/// the signature, so the JSON value is spliced in unmodified via `RawValue`
+/// (surrounding whitespace is not preserved, which PayPal tolerates).
+pub async fn verify_webhook_signature(
+    headers: &PaypalWebhookHeaders,
+    raw_event_body: &str,
+) -> Result<bool, ApiError> {
+    let cfg = require_configured()?;
+    let webhook_id = cfg
+        .webhook_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| {
+            ApiError::ServiceUnavailable(
+                "PayPal webhook verification is not configured.".to_string(),
+            )
+        })?;
+
+    let webhook_event: &serde_json::value::RawValue = serde_json::from_str(raw_event_body)
+        .map_err(|_| ApiError::BadRequest("Webhook body is not valid JSON.".to_string()))?;
+
+    #[derive(serde::Serialize)]
+    struct VerifyRequest<'a> {
+        auth_algo: &'a str,
+        cert_url: &'a str,
+        transmission_id: &'a str,
+        transmission_sig: &'a str,
+        transmission_time: &'a str,
+        webhook_id: &'a str,
+        webhook_event: &'a serde_json::value::RawValue,
+    }
+
+    let client = http_client()?;
+    let token = get_access_token(cfg, &client).await?;
+
+    let response = client
+        .post(format!(
+            "{}/v1/notifications/verify-webhook-signature",
+            cfg.api_base
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .json(&VerifyRequest {
+            auth_algo: &headers.auth_algo,
+            cert_url: &headers.cert_url,
+            transmission_id: &headers.transmission_id,
+            transmission_sig: &headers.transmission_sig,
+            transmission_time: &headers.transmission_time,
+            webhook_id,
+            webhook_event,
+        })
+        .send()
+        .await
+        .map_err(|e| {
+            log::error!("PayPal verify request failed: {e}");
+            ApiError::ServiceUnavailable(
+                "PayPal could not verify the webhook signature.".to_string(),
+            )
+        })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        log::error!("PayPal webhook verify failed ({status}): {body}");
+        return Err(ApiError::ServiceUnavailable(
+            "PayPal could not verify the webhook signature.".to_string(),
+        ));
+    }
+
+    let json: Value = response.json().await.map_err(|e| {
+        log::error!("PayPal verify decode failed: {e}");
+        ApiError::ServiceUnavailable("PayPal could not verify the webhook signature.".to_string())
+    })?;
+
+    Ok(json.get("verification_status").and_then(Value::as_str) == Some("SUCCESS"))
 }

@@ -1,6 +1,6 @@
 //! Customer ledger models
 
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,7 @@ pub struct CustomerLedger {
     pub balance_due: Decimal,
     pub payment_method: Option<String>,
     pub payment_reference: Option<String>,
-    pub payment_date: Option<NaiveDateTime>,
+    pub payment_date: Option<DateTime<Utc>>,
     pub booking_id: Option<i64>,
     pub guest_id: Option<i64>,
     pub invoice_number: Option<String>,
@@ -37,8 +37,8 @@ pub struct CustomerLedger {
     pub internal_notes: Option<String>,
     pub created_by: Option<i64>,
     pub updated_by: Option<i64>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     // Ledger accounting fields
     pub folio_number: Option<String>,
     pub folio_type: Option<String>,
@@ -58,8 +58,8 @@ pub struct CustomerLedger {
     pub service_charge: Option<Decimal>,
     pub net_amount: Option<Decimal>,
     pub is_posted: Option<bool>,
-    pub posted_at: Option<NaiveDateTime>,
-    pub void_at: Option<NaiveDateTime>,
+    pub posted_at: Option<DateTime<Utc>>,
+    pub void_at: Option<DateTime<Utc>>,
     pub void_by: Option<i64>,
     pub void_reason: Option<String>,
 }
@@ -147,12 +147,12 @@ pub struct CustomerLedgerPayment {
     pub payment_amount: Decimal,
     pub payment_method: String,
     pub payment_reference: Option<String>,
-    pub payment_date: NaiveDateTime,
+    pub payment_date: DateTime<Utc>,
     pub receipt_number: Option<String>,
     pub receipt_file_url: Option<String>,
     pub notes: Option<String>,
     pub processed_by: Option<i64>,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 /// Input for creating a ledger payment

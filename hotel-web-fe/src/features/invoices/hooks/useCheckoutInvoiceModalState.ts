@@ -8,7 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BookingWithDetails } from '../../../types';
 import { queryKeys } from '../../../api/queryKeys';
 import { InvoicesService } from '../../../api/invoices.service';
-import { formatLocalDate } from '../../../utils/date';
+import { formatLocalDate, toHotelDateString } from '../../../utils/date';
 import { isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 interface UseCheckoutInvoiceModalStateProps {
@@ -218,16 +218,10 @@ export function useCheckoutInvoiceModalState(
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
+    // Hotel-timezone calendar date of the payment instant (utils/date.ts) —
+    // the viewer's zone would prefill a date one day off outside the hotel zone.
     const rawPaymentDate = payment.payment_date || payment.created_at;
-    if (rawPaymentDate && /^\d{4}-\d{2}-\d{2}$/.test(rawPaymentDate)) {
-      setEditDate(rawPaymentDate);
-      return;
-    }
-    const parsedPaymentDate = rawPaymentDate ? new Date(rawPaymentDate) : null;
-    const paymentDate = parsedPaymentDate && !isNaN(parsedPaymentDate.getTime())
-      ? formatLocalDate(parsedPaymentDate)
-      : formatLocalDate();
-    setEditDate(paymentDate);
+    setEditDate(toHotelDateString(rawPaymentDate) || formatLocalDate());
   };
 
   const handleCancelEdit = () => {

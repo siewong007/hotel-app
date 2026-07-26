@@ -25,6 +25,8 @@ Single live tracker for open work. Replaces the deleted enhancement docs
 - CI hardening: branch protection on master, `lint:strict`, vitest coverage threshold, dependency audit; prove `desktop-build.yml` with a `workflow_dispatch` run.
 - Delete dead duplicate `src/routes/ekyc.rs` (never merged).
 - Booking validation uses UTC; should use `system_settings.timezone` for local-day math.
+- Sync PayPal capture (`services/payments.rs::capture_paypal_payment`): verify against the payment row's amount (not the editable booking total) and stop marking payments failed after money moved — the webhook path (2026-07-26) already does both; mirror it.
+- PayPal webhook follow-ups: staff-facing surfacing of `paypal_webhook_conflict` audit events (currently audit-log only); decide refund/dispute event handling (`PAYMENT.CAPTURE.REFUNDED` is verified+logged, never auto-applied).
 
 ## P2 — later
 

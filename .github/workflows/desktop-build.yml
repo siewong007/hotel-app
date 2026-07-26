@@ -65,10 +65,15 @@ jobs:
 
       # PostgreSQL 19 is still pre-release, so Homebrew does not provide a
       # versioned formula yet. Build the official beta source and pass its
-      # installation prefix to the resource provisioning script.
-      - name: Build PostgreSQL 19 Beta 1
+      # installation prefix to the resource provisioning script. This MUST
+      # track CONFIGURED_POSTGRES_BUILD_IDENTITY in
+      # hotel-desktop/src-tauri/src/postgres.rs — provision:pgsql reads that
+      # constant directly and refuses a POSTGRES_PREFIX build that doesn't
+      # match it (see hotel-desktop/scripts/provision-pgsql.mjs
+      # readExpectedVersion()).
+      - name: Build PostgreSQL 19 Beta 2
         env:
-          POSTGRES_VERSION: 19beta1
+          POSTGRES_VERSION: 19beta2
         run: |
           # PostgreSQL 16+ enables ICU by default, but Homebrew's icu4c is
           # keg-only and not on the default PKG_CONFIG_PATH — configure fails
@@ -90,7 +95,7 @@ jobs:
 
       - name: Provision embedded PostgreSQL tree
         env:
-          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta1
+          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta2
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)

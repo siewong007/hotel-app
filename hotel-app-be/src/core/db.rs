@@ -52,6 +52,25 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
         .await
 }
 
+/// Today's business date as the database sees it.
+///
+/// Every pooled connection has its `timezone` set from `system_settings.timezone`
+/// (see `create_pool`), so `CURRENT_DATE` is the hotel's business day rather than
+/// the server OS's local day. Use this for any date math that ends up stored or
+/// compared against `bookings`/`customer_ledgers` dates — never
+/// `chrono::Local::now().date_naive()`.
+///
+/// Pass the pool (`&pool`) outside a transaction, or the transaction itself
+/// (`&mut *tx`) inside one, so the date matches the rest of that unit of work.
+pub async fn hotel_today<'e, E>(executor: E) -> Result<chrono::NaiveDate, sqlx::Error>
+where
+    E: sqlx::Executor<'e, Database = DbDatabase>,
+{
+    sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(executor)
+        .await
+}
+
 /// Generate a time-ordered UUIDv7 string for application-generated identifiers.
 pub fn generate_uuid() -> String {
     uuid::Uuid::now_v7().to_string()

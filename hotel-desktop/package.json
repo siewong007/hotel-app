@@ -4,7 +4,8 @@
   "description": "Hotel Management System - Desktop Application",
   "scripts": {
     "tauri": "bun scripts/tauri-cli.mjs",
-    "dev": "bun scripts/tauri-cli.mjs dev",
+    "dev": "bun scripts/desktop-prepare.mjs --dev && bun scripts/tauri-cli.mjs dev",
+    "dev:no-prepare": "bun scripts/tauri-cli.mjs dev",
     "build": "bun scripts/tauri-build.mjs",
     "build:debug": "bun scripts/tauri-build.mjs --debug --backend-profile debug",
     "build:fast": "bun scripts/tauri-build.mjs --debug --no-bundle --backend-profile debug",

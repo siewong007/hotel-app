@@ -1019,7 +1019,9 @@ enum DatabaseSetupState {
 /// Initialize an empty desktop database at V1.
 ///
 /// `data.sql` and `seed.sql` are part of first initialization only. An existing
-/// V1 database is verified and left untouched on later starts.
+/// V1 database is verified and, when it predates the 2026-07-26 pg19
+/// physical-design patch, patched in place (after a backup) — the backend
+/// sidecar refuses to start against an unpatched schema.
 pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresError> {
     create_database_if_needed(app_handle).await?;
     let resource_dir = clean_resource_dir(app_handle);
@@ -1046,7 +1048,9 @@ pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresEr
                     .to_string(),
             ));
         }
-        DatabaseSetupState::V1 => {}
+        DatabaseSetupState::V1 => {
+            apply_pg19_physical_design_patch_if_needed(app_handle, &resource_dir).await?;
+        }
     }
 
     if setup_state == DatabaseSetupState::Fresh {
@@ -1056,6 +1060,73 @@ pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresEr
     repair_bootstrap_password_hashes_if_needed(app_handle).await?;
 
     log::info!("Database setup completed successfully");
+    Ok(())
+}
+
+/// Bring an existing V1 database up to the 2026-07-26 pg19 physical design.
+///
+/// The updated backend decodes the customer-ledger timestamp columns as
+/// timestamptz and exits at startup when they are not, so the patch must run
+/// here, before the sidecar launches. Detection mirrors the backend's own
+/// schema guard. The patch file is a single transaction and idempotent; a
+/// pre-patch backup is taken and the patch is refused if the backup fails.
+async fn apply_pg19_physical_design_patch_if_needed(
+    app_handle: &AppHandle,
+    resource_dir: &Path,
+) -> Result<(), PostgresError> {
+    let probe = run_psql_scalar_sql(
+        app_handle,
+        "psql detect pg19 physical design",
+        "SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'customer_ledgers' AND column_name = 'payment_date';",
+    )
+    .await?;
+    let data_type = trimmed_lossy(&probe.stdout);
+
+    if data_type == "timestamp with time zone" {
+        return Ok(());
+    }
+    if data_type == "<empty>" {
+        return Err(PostgresError::MigrationFailed(
+            "customer_ledgers.payment_date not found; this database does not look like a V1 install — refusing to patch automatically".to_string(),
+        ));
+    }
+    if data_type != "timestamp without time zone" {
+        return Err(PostgresError::MigrationFailed(format!(
+            "customer_ledgers.payment_date reports type '{}'; expected a V1 schema — refusing to patch automatically",
+            data_type
+        )));
+    }
+
+    // Confirm the bundled patch exists before taking the backup, so a
+    // packaging mistake cannot leave a fresh dump behind on every launch.
+    let patch_path =
+        resource_dir.join("database/postgres/patches/2026-07-26-pg19-native-physical-design.sql");
+    if !patch_path.exists() {
+        return Err(PostgresError::MigrationFailed(format!(
+            "bundled pg19 physical-design patch resource is missing: {:?}",
+            patch_path
+        )));
+    }
+
+    log::info!(
+        "Existing V1 database predates the pg19 physical-design patch; backing up before patching..."
+    );
+    // Distinct name keeps this dump out of the scheduled-backup rotation
+    // (is_managed_backup_file is false for it), so it is never pruned.
+    let backup_destination = get_data_directory().join("backups").join(format!(
+        "pre-pg19-patch-{}.dump",
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    ));
+    let backup_path = backup_database(
+        app_handle,
+        Some(backup_destination.to_string_lossy().to_string()),
+    )
+    .await?;
+    log::info!("Pre-patch backup written to {:?}", backup_path);
+
+    log::info!("Applying the pg19 physical-design patch...");
+    run_sql_file(app_handle, &patch_path).await?;
+    log::info!("pg19 physical-design patch applied successfully");
     Ok(())
 }
 

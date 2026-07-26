@@ -116,7 +116,7 @@ mod postgres_tests {
         .unwrap();
         sqlx::query(
             "INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) \
-             VALUES ($1, $2, $3, $4, 'staff', true, true) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'staff', true, true) \
              ON CONFLICT (id) DO UPDATE SET \
                  username = EXCLUDED.username, \
                  email = EXCLUDED.email, \
@@ -242,7 +242,7 @@ mod postgres_tests {
         ensure_admin_actor(pool, actor_id).await;
         sqlx::query(
             "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
-             VALUES ($1, $2, $3, 150.00, 2) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 150.00, 2) \
              ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name, base_price = EXCLUDED.base_price",
         )
         .bind(room_type_id)
@@ -253,7 +253,7 @@ mod postgres_tests {
         .unwrap();
         sqlx::query(
             "INSERT INTO rooms (id, room_number, room_type_id, status) \
-             VALUES ($1, $2, $3, 'reserved') \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 'reserved') \
              ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, room_type_id = EXCLUDED.room_type_id, status = EXCLUDED.status",
         )
         .bind(room_id)
@@ -264,7 +264,7 @@ mod postgres_tests {
         .unwrap();
         sqlx::query(
             "INSERT INTO guests (id, full_name, first_name, last_name, email) \
-             VALUES ($1, $2, 'Postgres', $3, $4) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Postgres', $3, $4) \
              ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, email = EXCLUDED.email",
         )
         .bind(guest_id)
@@ -281,7 +281,7 @@ mod postgres_tests {
                 room_rate, subtotal, total_amount, status, payment_status,
                 is_complimentary, created_by
              )
-             VALUES ($1, $2, $3, $4, $5, $6, '2031-01-10', '2031-01-12', 1, 0,
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, '2031-01-10', '2031-01-12', 1, 0,
                      150.00, 300.00, 300.00, $7, 'partial', $8, $9)",
         )
         .bind(booking_id)
@@ -503,7 +503,7 @@ mod postgres_tests {
         .await;
         sqlx::query(
             "INSERT INTO guests (id, full_name, first_name, last_name, email) \
-             VALUES ($1, $2, 'Conflict', $3, $4)",
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Conflict', $3, $4)",
         )
         .bind(conflicting_guest_id)
         .bind(format!("Conflict Guest {conflicting_guest_id}"))
@@ -518,7 +518,7 @@ mod postgres_tests {
                 check_in_date, check_out_date, adults, children,
                 room_rate, subtotal, total_amount, status, payment_status, created_by
              )
-             VALUES ($1, $2, $3, $4, $5, $6, '2031-01-11', '2031-01-13', 1, 0,
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, '2031-01-11', '2031-01-13', 1, 0,
                      150.00, 300.00, 300.00, 'confirmed', 'partial', $7)",
         )
         .bind(conflicting_booking_id)
@@ -1124,6 +1124,14 @@ mod postgres_reactivation_tests {
             .execute(pool)
             .await
             .ok();
+        // The room-status sync trigger logs to room_status_change_log (FK on
+        // room_id, no cascade) during reactivation; without this delete the
+        // rooms/room_types deletes below are FK-blocked and reruns collide.
+        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .ok();
         sqlx::query("DELETE FROM rooms WHERE id = $1")
             .bind(room_id)
             .execute(pool)
@@ -1175,9 +1183,17 @@ mod postgres_reactivation_tests {
         guest_id: i64,
         booking_id: i64,
     ) {
+        // Every fixed-id insert below is an upsert that RESETS the row to its
+        // pre-test state, so a rerun against the same database starts from a
+        // 'voided' booking even when cleanup was FK-blocked by leftover rows.
         sqlx::query(
             "INSERT INTO users (id, username, email, full_name, is_active, is_verified) \
-             VALUES ($1, $2, $3, 'Reactivation Actor', true, true)",
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 'Reactivation Actor', true, true) \
+             ON CONFLICT (id) DO UPDATE SET \
+                 username = EXCLUDED.username, \
+                 email = EXCLUDED.email, \
+                 is_active = true, \
+                 is_verified = true",
         )
         .bind(actor_id)
         .bind(format!("reactivation_actor_{actor_id}"))
@@ -1195,9 +1211,12 @@ mod postgres_reactivation_tests {
         .await
         .unwrap();
 
+        // DO UPDATE (not DO NOTHING) so RETURNING still yields the id when the
+        // role survived a previous run.
         let role_id: i64 = sqlx::query_scalar(
             "INSERT INTO roles (name, display_name, is_system_role) \
              VALUES ($1, 'Reactivation Test Role', false) \
+             ON CONFLICT (name) DO UPDATE SET display_name = EXCLUDED.display_name \
              RETURNING id",
         )
         .bind(role_name)
@@ -1207,27 +1226,35 @@ mod postgres_reactivation_tests {
 
         sqlx::query(
             "INSERT INTO role_permissions (role_id, permission_id) \
-             SELECT $1, id FROM permissions WHERE name = 'bookings:update'",
+             SELECT $1, id FROM permissions WHERE name = 'bookings:update' \
+             ON CONFLICT DO NOTHING",
         )
         .bind(role_id)
         .execute(pool)
         .await
         .unwrap();
 
-        sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)")
-            .bind(actor_id)
-            .bind(role_id)
-            .execute(pool)
-            .await
-            .unwrap();
-
-        sqlx::query("INSERT INTO guests (id, full_name) VALUES ($1, 'Reactivation Guest')")
-            .bind(guest_id)
-            .execute(pool)
-            .await
-            .unwrap();
         sqlx::query(
-            "INSERT INTO room_types (id, code, name, base_price) VALUES ($1, $2, $3, 100.00)",
+            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(actor_id)
+        .bind(role_id)
+        .execute(pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO guests (id, full_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Reactivation Guest') \
+             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+        )
+        .bind(guest_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO room_types (id, code, name, base_price) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 100.00) \
+             ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name, base_price = EXCLUDED.base_price",
         )
         .bind(room_type_id)
         .bind(format!("RCT{room_type_id}"))
@@ -1235,19 +1262,36 @@ mod postgres_reactivation_tests {
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status) VALUES ($1, $2, $3, 'available')")
-            .bind(room_id)
-            .bind(format!("RCT-{room_id}"))
-            .bind(room_type_id)
-            .execute(pool)
-            .await
-            .unwrap();
+        // Room reset to 'available' must run before the booking upsert below:
+        // re-voiding the booking only leaves the room untouched when the room
+        // is not still 'reserved' from a previous run.
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 'available') \
+             ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, room_type_id = EXCLUDED.room_type_id, status = EXCLUDED.status",
+        )
+        .bind(room_id)
+        .bind(format!("RCT-{room_id}"))
+        .bind(room_type_id)
+        .execute(pool)
+        .await
+        .unwrap();
         sqlx::query(
             "INSERT INTO bookings (
                 id, booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, total_amount, status, payment_status
              )
-             VALUES ($1, $2, $3, $4, CURRENT_DATE + 30, CURRENT_DATE + 32, 100.00, 200.00, 200.00, 'voided', 'void')",
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, CURRENT_DATE + 30, CURRENT_DATE + 32, 100.00, 200.00, 200.00, 'voided', 'void')
+             ON CONFLICT (id) DO UPDATE SET
+                 booking_number = EXCLUDED.booking_number,
+                 guest_id = EXCLUDED.guest_id,
+                 room_id = EXCLUDED.room_id,
+                 check_in_date = EXCLUDED.check_in_date,
+                 check_out_date = EXCLUDED.check_out_date,
+                 room_rate = EXCLUDED.room_rate,
+                 subtotal = EXCLUDED.subtotal,
+                 total_amount = EXCLUDED.total_amount,
+                 status = EXCLUDED.status,
+                 payment_status = EXCLUDED.payment_status",
         )
         .bind(booking_id)
         .bind(format!("BK-RCT-{booking_id}"))
@@ -1444,16 +1488,16 @@ mod postgres_creation_tests {
     }
 
     async fn seed_data(pool: &PgPool, room_id: i64, guest_id: i64, actor_id: i64) {
-        sqlx::query("INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) VALUES ($1, $2, $3, $4, 'staff', true, true) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'staff', true, true) ON CONFLICT DO NOTHING")
             .bind(actor_id).bind(format!("pg_creation_actor_{actor_id}")).bind(format!("pg-create-{actor_id}@hotel.local")).bind(format!("Actor {actor_id}")).execute(pool).await.unwrap();
 
-        sqlx::query("INSERT INTO guests (id, first_name, last_name, full_name) VALUES ($1, 'Create', 'Guest', 'Create Guest') ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO guests (id, first_name, last_name, full_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Create', 'Guest', 'Create Guest') ON CONFLICT DO NOTHING")
             .bind(guest_id).execute(pool).await.unwrap();
 
-        sqlx::query("INSERT INTO room_types (id, name, code, base_price) VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO room_types (id, name, code, base_price) OVERRIDING SYSTEM VALUE VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
             .execute(pool).await.unwrap();
 
-        sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status, is_active) VALUES ($1, $2, 1, 'available', true) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status, is_active) OVERRIDING SYSTEM VALUE VALUES ($1, $2, 1, 'available', true) ON CONFLICT DO NOTHING")
             .bind(room_id).bind(format!("R{room_id}")).execute(pool).await.unwrap();
     }
 

@@ -17,7 +17,13 @@ const repoRoot = resolve(desktopRoot, '..');
 const frontendRoot = join(repoRoot, 'hotel-web-fe');
 const cachePath = join(desktopRoot, 'src-tauri', 'target', 'desktop-build-cache', 'frontend-tauri.json');
 const distIndex = join(frontendRoot, 'dist', 'index.html');
-const requiredOutputs = [distIndex, join(frontendRoot, 'dist', 'assets')];
+const requiredOutputs = [
+  distIndex,
+  join(frontendRoot, 'dist', 'assets'),
+  // Second Vite entry point (vite.config.ts rolldown inputs) — the desktop
+  // landing page redirects to it, so a build missing it ships a dead home page.
+  join(frontendRoot, 'dist', 'salim-inn', 'index.html'),
+];
 const bunExecPath = process.env.npm_execpath && /bun(?:\.exe)?$/i.test(process.env.npm_execpath)
   ? process.env.npm_execpath
   : 'bun';
@@ -26,6 +32,7 @@ const buildCommand = [bunExecPath, 'run', 'build:tauri'];
 const inputs = [
   join(frontendRoot, 'src'),
   join(frontendRoot, 'public'),
+  join(frontendRoot, 'salim-inn'),
   join(frontendRoot, 'index.html'),
   join(frontendRoot, 'package.json'),
   join(frontendRoot, 'bun.lock'),

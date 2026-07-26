@@ -28,7 +28,9 @@ const isWindows = process.platform === 'win32';
 const targetProfileDir = profile === 'release' ? 'release' : profile === 'debug' ? 'debug' : profile;
 const binaryPath = join(backendRoot, 'target', targetProfileDir, `hotel-app-be${isWindows ? '.exe' : ''}`);
 const cargoCommand = process.platform === 'win32' ? 'cargo.exe' : 'cargo';
-const buildArgs = ['build', '--manifest-path', join(backendRoot, 'Cargo.toml')];
+// --all-features keeps the sidecar build in lockstep with the CI gate
+// (cargo check/clippy --all-features) if a second feature is ever added.
+const buildArgs = ['build', '--manifest-path', join(backendRoot, 'Cargo.toml'), '--all-features'];
 
 if (profile === 'release') {
   buildArgs.push('--release');

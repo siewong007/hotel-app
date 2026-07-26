@@ -5,7 +5,7 @@ pub use crate::repositories::bookings::*;
 use chrono::{DateTime, Utc};
 
 use crate::core::auth::AuthService;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::{Booking, CheckInRequest};
 use crate::repositories::bookings as booking_repo;
@@ -403,7 +403,7 @@ async fn checkin_booking_flow_for_booking(
         };
 
     // Only occupy the room for current/future stays (skip back-dated check-ins).
-    let today = chrono::Local::now().date_naive();
+    let today = hotel_today(&mut *tx).await?;
     if booking.check_out_date >= today {
         booking_repo::set_room_occupied_tx(&mut tx, booking.room_id).await?;
     }

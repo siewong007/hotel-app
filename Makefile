@@ -11,6 +11,7 @@ BUN ?= $(shell command -v bun 2>/dev/null || printf '%s' "$$HOME/.bun/bin/bun")
         test-be test-fe \
         docker-up docker-up-pg19-tuned docker-down docker-build \
         db-setup db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
+        db-repack db-repack-full \
         prepare-desktop docs \
         fmt fmt-all \
         clean clean-all
@@ -140,12 +141,23 @@ db-reset: ## Reset and re-create PostgreSQL database
 
 db-pg19-tune: ## Apply opt-in PostgreSQL 19 Beta 2 physical/planner tuning
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2.sql
+	psql "$(DATABASE_URL)" -c "ALTER SYSTEM SET autovacuum_max_parallel_workers = 4;"
+	psql "$(DATABASE_URL)" -c "SELECT pg_reload_conf();"
 
 db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 Beta 2 schema tuning
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2_rollback.sql
+	psql "$(DATABASE_URL)" -c "ALTER SYSTEM RESET autovacuum_max_parallel_workers;"
+	psql "$(DATABASE_URL)" -c "SELECT pg_reload_conf();"
 
 db-pg19-benchmark: ## Collect PostgreSQL 19 Beta 2 settings and representative query plans
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2_benchmark.sql
+
+db-repack: ## Online-rebuild one table (PostgreSQL 19 REPACK CONCURRENTLY); usage: make db-repack TABLE=public.bookings
+	@test -n "$(TABLE)" || { echo "Usage: make db-repack TABLE=public.bookings"; exit 1; }
+	psql "$(DATABASE_URL)" -c "REPACK (CONCURRENTLY, ANALYZE, VERBOSE) $(TABLE);"
+
+db-repack-full: ## Rebuild and analyze every table (locking REPACK; maintenance window only)
+	psql "$(DATABASE_URL)" -c "REPACK (ANALYZE, VERBOSE);"
 
 # ─── Desktop Preparation ──────────────────────────────────────────────────────
 

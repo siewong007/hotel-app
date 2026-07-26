@@ -1101,23 +1101,11 @@ ALTER TABLE app.invalid_data_quarantine ALTER COLUMN quarantine_id ADD GENERATED
 
 
 --
--- Name: amenities_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.amenities_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: amenities; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.amenities (
-    id bigint DEFAULT nextval('public.amenities_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(100) NOT NULL,
     category character varying(50) NOT NULL,
     icon character varying(50),
@@ -1134,6 +1122,20 @@ CREATE TABLE public.amenities (
 --
 
 COMMENT ON TABLE public.amenities IS 'Available amenities catalog';
+
+
+--
+-- Name: amenities_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.amenities ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.amenities_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -1193,23 +1195,11 @@ ALTER TABLE public.audit_logs ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
--- Name: booking_channels_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.booking_channels_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: booking_channels; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.booking_channels (
-    id bigint DEFAULT nextval('public.booking_channels_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(120) NOT NULL,
     channel_type character varying(30) DEFAULT 'ota'::character varying NOT NULL,
     default_commission_type character varying(30) DEFAULT 'none'::character varying NOT NULL,
@@ -1227,15 +1217,17 @@ CREATE TABLE public.booking_channels (
 
 
 --
--- Name: booking_guests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: booking_channels_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.booking_guests_id_seq
+ALTER TABLE public.booking_channels ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.booking_channels_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -1243,7 +1235,7 @@ CREATE SEQUENCE public.booking_guests_id_seq
 --
 
 CREATE TABLE public.booking_guests (
-    id bigint DEFAULT nextval('public.booking_guests_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     booking_id bigint NOT NULL,
     guest_id bigint,
     first_name character varying(100),
@@ -1260,6 +1252,20 @@ CREATE TABLE public.booking_guests (
 --
 
 COMMENT ON TABLE public.booking_guests IS 'Additional guests in a booking';
+
+
+--
+-- Name: booking_guests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.booking_guests ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.booking_guests_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -1338,23 +1344,11 @@ COMMENT ON TABLE public.booking_services IS 'Services ordered by guests';
 
 
 --
--- Name: bookings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.bookings_id_seq
-    START WITH 1000
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: bookings; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.bookings (
-    id bigint DEFAULT nextval('public.bookings_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
     booking_number character varying(50) NOT NULL,
     folio_number character varying(50),
@@ -1366,11 +1360,9 @@ CREATE TABLE public.bookings (
     room_id bigint NOT NULL,
     check_in_date date NOT NULL,
     check_out_date date NOT NULL,
-    nights integer GENERATED ALWAYS AS ((check_out_date - check_in_date)) STORED,
     adults integer DEFAULT 1 NOT NULL,
     children integer DEFAULT 0,
     infants integer DEFAULT 0,
-    total_guests integer GENERATED ALWAYS AS (((adults + children) + infants)) STORED,
     rate_plan_id bigint,
     room_rate numeric(10,2) NOT NULL,
     subtotal numeric(12,2) NOT NULL,
@@ -1447,6 +1439,8 @@ END),
     commission_amount numeric(12,2),
     net_revenue numeric(12,2),
     portal_request_id character varying(128),
+    nights integer GENERATED ALWAYS AS ((check_out_date - check_in_date)),
+    total_guests integer GENERATED ALWAYS AS (((adults + children) + infants)),
     CONSTRAINT bookings_payment_status_check CHECK (((payment_status)::text = ANY ((ARRAY['unpaid'::character varying, 'unpaid_deposit'::character varying, 'paid_rate'::character varying, 'partial'::character varying, 'paid'::character varying, 'refunded'::character varying, 'void'::character varying])::text[]))),
     CONSTRAINT bookings_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'pending_payment'::character varying, 'pending_confirmation'::character varying, 'confirmed'::character varying, 'checked_in'::character varying, 'auto_checked_in'::character varying, 'checked_out'::character varying, 'no_show'::character varying, 'completed'::character varying, 'comp_void'::character varying, 'partial_complimentary'::character varying, 'fully_complimentary'::character varying, 'voided'::character varying])::text[]))),
     CONSTRAINT valid_complimentary_dates CHECK ((((complimentary_start_date IS NULL) AND (complimentary_end_date IS NULL)) OR ((complimentary_start_date IS NOT NULL) AND (complimentary_end_date IS NOT NULL) AND (complimentary_start_date >= check_in_date) AND (complimentary_end_date <= check_out_date) AND (complimentary_start_date < complimentary_end_date)))),
@@ -1540,15 +1534,17 @@ COMMENT ON COLUMN public.bookings.tourism_billable_amount IS 'Virtual generated 
 
 
 --
--- Name: guests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: bookings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.guests_id_seq
-    START WITH 1
+ALTER TABLE public.bookings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.bookings_id_seq
+    START WITH 1000
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -1556,7 +1552,7 @@ CREATE SEQUENCE public.guests_id_seq
 --
 
 CREATE TABLE public.guests (
-    id bigint DEFAULT nextval('public.guests_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
     full_name character varying(255) NOT NULL,
     first_name character varying(100),
@@ -1650,15 +1646,17 @@ COMMENT ON COLUMN public.guests.tourism_type IS 'Tourism type: local (no tourism
 
 
 --
--- Name: room_types_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: guests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.room_types_id_seq
+ALTER TABLE public.guests ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guests_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -1666,7 +1664,7 @@ CREATE SEQUENCE public.room_types_id_seq
 --
 
 CREATE TABLE public.room_types (
-    id bigint DEFAULT nextval('public.room_types_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     code character varying(20) NOT NULL,
     name character varying(100) NOT NULL,
     description text,
@@ -1724,15 +1722,17 @@ COMMENT ON COLUMN public.room_types.extra_bed_charge IS 'Charge per extra bed pe
 
 
 --
--- Name: rooms_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: room_types_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.rooms_id_seq
+ALTER TABLE public.room_types ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.room_types_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -1740,7 +1740,7 @@ CREATE SEQUENCE public.rooms_id_seq
 --
 
 CREATE TABLE public.rooms (
-    id bigint DEFAULT nextval('public.rooms_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     room_number character varying(20) NOT NULL,
     room_type_id bigint NOT NULL,
     floor integer,
@@ -1778,6 +1778,20 @@ CREATE TABLE public.rooms (
 --
 
 COMMENT ON TABLE public.rooms IS 'Individual room inventory';
+
+
+--
+-- Name: rooms_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.rooms ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.rooms_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -1861,31 +1875,14 @@ COMMENT ON TABLE public.companies IS 'Companies for direct billing and corporate
 -- Name: companies_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.companies_id_seq
+ALTER TABLE public.companies ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.companies_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: companies_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.companies_id_seq OWNED BY public.companies.id;
-
-
---
--- Name: corporate_account_contacts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.corporate_account_contacts_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -1893,7 +1890,7 @@ CREATE SEQUENCE public.corporate_account_contacts_id_seq
 --
 
 CREATE TABLE public.corporate_account_contacts (
-    id bigint DEFAULT nextval('public.corporate_account_contacts_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     corporate_account_id uuid NOT NULL,
     name character varying(255) NOT NULL,
     email character varying(255),
@@ -1901,6 +1898,20 @@ CREATE TABLE public.corporate_account_contacts (
     role character varying(100),
     is_primary boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: corporate_account_contacts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.corporate_account_contacts ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.corporate_account_contacts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 
@@ -1939,18 +1950,6 @@ COMMENT ON TABLE public.corporate_accounts IS 'Corporate accounts for business c
 
 
 --
--- Name: corporate_accounts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.corporate_accounts_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: customer_ledger_payments; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1960,12 +1959,12 @@ CREATE TABLE public.customer_ledger_payments (
     payment_amount numeric(10,2) NOT NULL,
     payment_method character varying(50) NOT NULL,
     payment_reference character varying(255),
-    payment_date timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    payment_date timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     receipt_number character varying(100),
     receipt_file_url character varying(500),
     notes text,
     processed_by bigint,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT positive_payment CHECK ((payment_amount > (0)::numeric))
 );
 
@@ -1981,19 +1980,14 @@ COMMENT ON TABLE public.customer_ledger_payments IS 'Tracks payment history for 
 -- Name: customer_ledger_payments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.customer_ledger_payments_id_seq
+ALTER TABLE public.customer_ledger_payments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.customer_ledger_payments_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: customer_ledger_payments_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.customer_ledger_payments_id_seq OWNED BY public.customer_ledger_payments.id;
+    CACHE 1
+);
 
 
 --
@@ -2018,10 +2012,9 @@ CREATE TABLE public.customer_ledgers (
     currency character varying(3) DEFAULT 'MYR'::character varying,
     status character varying(50) DEFAULT 'pending'::character varying NOT NULL,
     paid_amount numeric(10,2) DEFAULT 0.00,
-    balance_due numeric(10,2) GENERATED ALWAYS AS ((amount - paid_amount)) STORED,
     payment_method character varying(50),
     payment_reference character varying(255),
-    payment_date timestamp without time zone,
+    payment_date timestamp with time zone,
     booking_id bigint,
     guest_id bigint,
     invoice_number character varying(100),
@@ -2047,14 +2040,15 @@ CREATE TABLE public.customer_ledgers (
     service_charge numeric(10,2) DEFAULT 0.00,
     net_amount numeric(10,2),
     is_posted boolean DEFAULT true,
-    posted_at timestamp without time zone,
-    void_at timestamp without time zone,
+    posted_at timestamp with time zone,
+    void_at timestamp with time zone,
     void_by bigint,
     void_reason text,
     created_by bigint,
     updated_by bigint,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    balance_due numeric(10,2) GENERATED ALWAYS AS ((amount - paid_amount)),
     CONSTRAINT positive_amount CHECK ((amount > (0)::numeric)),
     CONSTRAINT valid_folio_type CHECK (((folio_type)::text = ANY ((ARRAY['guest_folio'::character varying, 'master_folio'::character varying, 'city_ledger'::character varying, 'group_folio'::character varying, 'ar_ledger'::character varying])::text[]))),
     CONSTRAINT valid_paid_amount CHECK (((paid_amount >= (0)::numeric) AND (paid_amount <= amount))),
@@ -2096,19 +2090,14 @@ COMMENT ON COLUMN public.customer_ledgers.folio_type IS 'Type: guest_folio, mast
 -- Name: customer_ledgers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.customer_ledgers_id_seq
+ALTER TABLE public.customer_ledgers ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.customer_ledgers_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: customer_ledgers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.customer_ledgers_id_seq OWNED BY public.customer_ledgers.id;
+    CACHE 1
+);
 
 
 --
@@ -2142,23 +2131,11 @@ CREATE VIEW public.daily_departures AS
 
 
 --
--- Name: ekyc_access_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.ekyc_access_events_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: ekyc_access_events; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.ekyc_access_events (
-    id bigint DEFAULT nextval('public.ekyc_access_events_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     application_id bigint,
     actor_id bigint NOT NULL,
     action character varying(100) NOT NULL,
@@ -2170,15 +2147,17 @@ CREATE TABLE public.ekyc_access_events (
 
 
 --
--- Name: ekyc_decision_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: ekyc_access_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.ekyc_decision_history_id_seq
+ALTER TABLE public.ekyc_access_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ekyc_access_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2186,7 +2165,7 @@ CREATE SEQUENCE public.ekyc_decision_history_id_seq
 --
 
 CREATE TABLE public.ekyc_decision_history (
-    id bigint DEFAULT nextval('public.ekyc_decision_history_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     application_id bigint NOT NULL,
     actor_id bigint,
     action character varying(100) NOT NULL,
@@ -2200,15 +2179,17 @@ CREATE TABLE public.ekyc_decision_history (
 
 
 --
--- Name: ekyc_idempotency_keys_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: ekyc_decision_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.ekyc_idempotency_keys_id_seq
+ALTER TABLE public.ekyc_decision_history ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ekyc_decision_history_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2216,7 +2197,7 @@ CREATE SEQUENCE public.ekyc_idempotency_keys_id_seq
 --
 
 CREATE TABLE public.ekyc_idempotency_keys (
-    id bigint DEFAULT nextval('public.ekyc_idempotency_keys_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     application_id bigint NOT NULL,
     actor_id bigint NOT NULL,
     idempotency_key character varying(160) NOT NULL,
@@ -2226,15 +2207,17 @@ CREATE TABLE public.ekyc_idempotency_keys (
 
 
 --
--- Name: ekyc_notes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: ekyc_idempotency_keys_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.ekyc_notes_id_seq
+ALTER TABLE public.ekyc_idempotency_keys ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ekyc_idempotency_keys_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2242,7 +2225,7 @@ CREATE SEQUENCE public.ekyc_notes_id_seq
 --
 
 CREATE TABLE public.ekyc_notes (
-    id bigint DEFAULT nextval('public.ekyc_notes_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     application_id bigint NOT NULL,
     note_type character varying(40) DEFAULT 'internal'::character varying NOT NULL,
     body text NOT NULL,
@@ -2250,6 +2233,20 @@ CREATE TABLE public.ekyc_notes (
     created_by bigint NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: ekyc_notes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ekyc_notes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ekyc_notes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
 );
 
 
@@ -2270,23 +2267,11 @@ CREATE TABLE public.ekyc_reason_codes (
 
 
 --
--- Name: ekyc_sensitive_reveals_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.ekyc_sensitive_reveals_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: ekyc_sensitive_reveals; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.ekyc_sensitive_reveals (
-    id bigint DEFAULT nextval('public.ekyc_sensitive_reveals_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     application_id bigint NOT NULL,
     actor_id bigint NOT NULL,
     field_name character varying(80) NOT NULL,
@@ -2296,15 +2281,17 @@ CREATE TABLE public.ekyc_sensitive_reveals (
 
 
 --
--- Name: ekyc_verifications_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: ekyc_sensitive_reveals_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.ekyc_verifications_id_seq
+ALTER TABLE public.ekyc_sensitive_reveals ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ekyc_sensitive_reveals_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2312,7 +2299,7 @@ CREATE SEQUENCE public.ekyc_verifications_id_seq
 --
 
 CREATE TABLE public.ekyc_verifications (
-    id bigint DEFAULT nextval('public.ekyc_verifications_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     uuid uuid DEFAULT uuidv7() NOT NULL,
     user_id bigint NOT NULL,
     guest_id bigint,
@@ -2377,6 +2364,20 @@ CREATE TABLE public.ekyc_verifications (
 
 
 --
+-- Name: ekyc_verifications_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ekyc_verifications ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.ekyc_verifications_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: email_campaigns; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2415,19 +2416,14 @@ CREATE TABLE public.email_campaigns (
 -- Name: email_campaigns_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.email_campaigns_id_seq
+ALTER TABLE public.email_campaigns ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.email_campaigns_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: email_campaigns_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.email_campaigns_id_seq OWNED BY public.email_campaigns.id;
+    CACHE 1
+);
 
 
 --
@@ -2469,19 +2465,14 @@ CREATE TABLE public.email_deliveries (
 -- Name: email_deliveries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.email_deliveries_id_seq
+ALTER TABLE public.email_deliveries ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.email_deliveries_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: email_deliveries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.email_deliveries_id_seq OWNED BY public.email_deliveries.id;
+    CACHE 1
+);
 
 
 --
@@ -2504,31 +2495,14 @@ CREATE TABLE public.email_suppressions (
 -- Name: email_suppressions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.email_suppressions_id_seq
+ALTER TABLE public.email_suppressions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.email_suppressions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: email_suppressions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.email_suppressions_id_seq OWNED BY public.email_suppressions.id;
-
-
---
--- Name: email_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.email_templates_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2536,7 +2510,7 @@ CREATE SEQUENCE public.email_templates_id_seq
 --
 
 CREATE TABLE public.email_templates (
-    id bigint DEFAULT nextval('public.email_templates_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     code character varying(50) NOT NULL,
     name character varying(100) NOT NULL,
     subject character varying(255) NOT NULL,
@@ -2554,6 +2528,20 @@ CREATE TABLE public.email_templates (
 --
 
 COMMENT ON TABLE public.email_templates IS 'Transactional email templates with variable support';
+
+
+--
+-- Name: email_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.email_templates ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.email_templates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -2582,31 +2570,14 @@ COMMENT ON TABLE public.guest_complimentary_credits IS 'Room-type specific compl
 -- Name: guest_complimentary_credits_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.guest_complimentary_credits_id_seq
+ALTER TABLE public.guest_complimentary_credits ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_complimentary_credits_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: guest_complimentary_credits_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.guest_complimentary_credits_id_seq OWNED BY public.guest_complimentary_credits.id;
-
-
---
--- Name: guest_documents_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.guest_documents_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2614,7 +2585,7 @@ CREATE SEQUENCE public.guest_documents_id_seq
 --
 
 CREATE TABLE public.guest_documents (
-    id bigint DEFAULT nextval('public.guest_documents_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     guest_id bigint NOT NULL,
     document_type character varying(50) NOT NULL,
     document_number character varying(100),
@@ -2635,15 +2606,17 @@ COMMENT ON TABLE public.guest_documents IS 'Identity documents and files attache
 
 
 --
--- Name: guest_notes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: guest_documents_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.guest_notes_id_seq
+ALTER TABLE public.guest_documents ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_documents_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2651,7 +2624,7 @@ CREATE SEQUENCE public.guest_notes_id_seq
 --
 
 CREATE TABLE public.guest_notes (
-    id bigint DEFAULT nextval('public.guest_notes_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     guest_id bigint NOT NULL,
     note_type character varying(50) DEFAULT 'general'::character varying,
     content text NOT NULL,
@@ -2668,6 +2641,20 @@ CREATE TABLE public.guest_notes (
 --
 
 COMMENT ON TABLE public.guest_notes IS 'Staff notes and alerts about guests';
+
+
+--
+-- Name: guest_notes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.guest_notes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_notes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -2695,31 +2682,14 @@ COMMENT ON TABLE public.guest_portal_sessions IS 'Bearer-token sessions for the 
 -- Name: guest_portal_sessions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.guest_portal_sessions_id_seq
+ALTER TABLE public.guest_portal_sessions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_portal_sessions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: guest_portal_sessions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.guest_portal_sessions_id_seq OWNED BY public.guest_portal_sessions.id;
-
-
---
--- Name: guest_preferences_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.guest_preferences_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2727,7 +2697,7 @@ CREATE SEQUENCE public.guest_preferences_id_seq
 --
 
 CREATE TABLE public.guest_preferences (
-    id bigint DEFAULT nextval('public.guest_preferences_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     guest_id bigint NOT NULL,
     category character varying(50) NOT NULL,
     preference_key character varying(100) NOT NULL,
@@ -2745,15 +2715,17 @@ COMMENT ON TABLE public.guest_preferences IS 'Guest preferences organized by cat
 
 
 --
--- Name: guest_reviews_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: guest_preferences_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.guest_reviews_id_seq
+ALTER TABLE public.guest_preferences ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_preferences_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2761,7 +2733,7 @@ CREATE SEQUENCE public.guest_reviews_id_seq
 --
 
 CREATE TABLE public.guest_reviews (
-    id bigint DEFAULT nextval('public.guest_reviews_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     guest_id bigint NOT NULL,
     booking_id bigint,
     overall_rating numeric(3,2) NOT NULL,
@@ -2794,6 +2766,20 @@ CREATE TABLE public.guest_reviews (
 --
 
 COMMENT ON TABLE public.guest_reviews IS 'Guest reviews and feedback';
+
+
+--
+-- Name: guest_reviews_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.guest_reviews ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_reviews_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -2852,23 +2838,11 @@ CREATE VIEW public.hotel_occupancy_summary AS
 
 
 --
--- Name: housekeeping_tasks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.housekeeping_tasks_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: housekeeping_tasks; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.housekeeping_tasks (
-    id bigint DEFAULT nextval('public.housekeeping_tasks_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     room_id bigint NOT NULL,
     task_type character varying(50) DEFAULT 'cleaning'::character varying NOT NULL,
     priority character varying(20) DEFAULT 'normal'::character varying,
@@ -2897,15 +2871,17 @@ COMMENT ON TABLE public.housekeeping_tasks IS 'Housekeeping task assignments';
 
 
 --
--- Name: invoices_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: housekeeping_tasks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.invoices_id_seq
+ALTER TABLE public.housekeeping_tasks ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.housekeeping_tasks_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2913,7 +2889,7 @@ CREATE SEQUENCE public.invoices_id_seq
 --
 
 CREATE TABLE public.invoices (
-    id bigint DEFAULT nextval('public.invoices_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
     invoice_number character varying(50) NOT NULL,
     booking_id bigint NOT NULL,
@@ -2930,7 +2906,6 @@ CREATE TABLE public.invoices (
     discount_amount numeric(12,2) DEFAULT 0,
     total_amount numeric(12,2) NOT NULL,
     paid_amount numeric(12,2) DEFAULT 0,
-    balance_due numeric(12,2) GENERATED ALWAYS AS ((total_amount - paid_amount)) STORED,
     currency character varying(3) DEFAULT 'USD'::character varying,
     line_items jsonb NOT NULL,
     status character varying(20) DEFAULT 'draft'::character varying,
@@ -2947,6 +2922,7 @@ CREATE TABLE public.invoices (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     sent_at timestamp with time zone,
     paid_at timestamp with time zone,
+    balance_due numeric(12,2) GENERATED ALWAYS AS ((total_amount - paid_amount)),
     CONSTRAINT invoices_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'issued'::character varying, 'paid'::character varying, 'overdue'::character varying, 'void'::character varying, 'refunded'::character varying])::text[])))
 );
 
@@ -2966,15 +2942,17 @@ COMMENT ON COLUMN public.invoices.line_items IS 'Invoice line items as JSON arra
 
 
 --
--- Name: loyalty_accounts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: invoices_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_accounts_id_seq
+ALTER TABLE public.invoices ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.invoices_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -2982,7 +2960,7 @@ CREATE SEQUENCE public.loyalty_accounts_id_seq
 --
 
 CREATE TABLE public.loyalty_accounts (
-    id bigint DEFAULT nextval('public.loyalty_accounts_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     member_id bigint NOT NULL,
     current_tier_id bigint NOT NULL,
     lifetime_points integer DEFAULT 0 NOT NULL,
@@ -2996,15 +2974,17 @@ CREATE TABLE public.loyalty_accounts (
 
 
 --
--- Name: loyalty_members_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_accounts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_members_id_seq
+ALTER TABLE public.loyalty_accounts ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_accounts_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3012,7 +2992,7 @@ CREATE SEQUENCE public.loyalty_members_id_seq
 --
 
 CREATE TABLE public.loyalty_members (
-    id bigint DEFAULT nextval('public.loyalty_members_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     guest_id bigint NOT NULL,
     member_number character varying(50) NOT NULL,
     status character varying(20) DEFAULT 'active'::character varying NOT NULL,
@@ -3025,15 +3005,17 @@ CREATE TABLE public.loyalty_members (
 
 
 --
--- Name: loyalty_memberships_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_members_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_memberships_id_seq
+ALTER TABLE public.loyalty_members ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_members_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3041,7 +3023,7 @@ CREATE SEQUENCE public.loyalty_memberships_id_seq
 --
 
 CREATE TABLE public.loyalty_memberships (
-    id bigint DEFAULT nextval('public.loyalty_memberships_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     guest_id bigint NOT NULL,
     program_id bigint NOT NULL,
     tier_id bigint,
@@ -3066,6 +3048,20 @@ COMMENT ON TABLE public.loyalty_memberships IS 'Guest memberships in loyalty pro
 
 
 --
+-- Name: loyalty_memberships_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.loyalty_memberships ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_memberships_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: loyalty_program_rules; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3085,23 +3081,11 @@ CREATE TABLE public.loyalty_program_rules (
 
 
 --
--- Name: loyalty_programs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.loyalty_programs_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: loyalty_programs; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.loyalty_programs (
-    id bigint DEFAULT nextval('public.loyalty_programs_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(100) NOT NULL,
     description text,
     points_per_dollar numeric(10,4) DEFAULT 1.0,
@@ -3120,15 +3104,17 @@ COMMENT ON TABLE public.loyalty_programs IS 'Loyalty program definitions';
 
 
 --
--- Name: loyalty_redemptions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_programs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_redemptions_id_seq
+ALTER TABLE public.loyalty_programs ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_programs_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3136,7 +3122,7 @@ CREATE SEQUENCE public.loyalty_redemptions_id_seq
 --
 
 CREATE TABLE public.loyalty_redemptions (
-    id bigint DEFAULT nextval('public.loyalty_redemptions_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     member_id bigint NOT NULL,
     reward_id bigint NOT NULL,
     transaction_id bigint,
@@ -3155,15 +3141,17 @@ CREATE TABLE public.loyalty_redemptions (
 
 
 --
--- Name: loyalty_rewards_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_redemptions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_rewards_id_seq
+ALTER TABLE public.loyalty_redemptions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_redemptions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3171,7 +3159,7 @@ CREATE SEQUENCE public.loyalty_rewards_id_seq
 --
 
 CREATE TABLE public.loyalty_rewards (
-    id bigint DEFAULT nextval('public.loyalty_rewards_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(120) NOT NULL,
     description text,
     category character varying(50) NOT NULL,
@@ -3190,15 +3178,17 @@ CREATE TABLE public.loyalty_rewards (
 
 
 --
--- Name: loyalty_tiers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_rewards_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_tiers_id_seq
+ALTER TABLE public.loyalty_rewards ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_rewards_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3206,7 +3196,7 @@ CREATE SEQUENCE public.loyalty_tiers_id_seq
 --
 
 CREATE TABLE public.loyalty_tiers (
-    id bigint DEFAULT nextval('public.loyalty_tiers_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     program_id bigint NOT NULL,
     name character varying(50) NOT NULL,
     min_points integer DEFAULT 0 NOT NULL,
@@ -3234,15 +3224,17 @@ COMMENT ON TABLE public.loyalty_tiers IS 'Tier levels within loyalty programs';
 
 
 --
--- Name: loyalty_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_tiers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.loyalty_transactions_id_seq
+ALTER TABLE public.loyalty_tiers ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_tiers_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3250,7 +3242,7 @@ CREATE SEQUENCE public.loyalty_transactions_id_seq
 --
 
 CREATE TABLE public.loyalty_transactions (
-    id bigint DEFAULT nextval('public.loyalty_transactions_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     member_id bigint NOT NULL,
     account_id bigint NOT NULL,
     transaction_type character varying(20) NOT NULL,
@@ -3272,15 +3264,17 @@ CREATE TABLE public.loyalty_transactions (
 
 
 --
--- Name: maintenance_tickets_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: loyalty_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.maintenance_tickets_id_seq
+ALTER TABLE public.loyalty_transactions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.loyalty_transactions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3288,7 +3282,7 @@ CREATE SEQUENCE public.maintenance_tickets_id_seq
 --
 
 CREATE TABLE public.maintenance_tickets (
-    id bigint DEFAULT nextval('public.maintenance_tickets_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     room_id bigint,
     ticket_number character varying(50) NOT NULL,
     title character varying(255) NOT NULL,
@@ -3322,6 +3316,20 @@ COMMENT ON TABLE public.maintenance_tickets IS 'Maintenance work orders';
 
 
 --
+-- Name: maintenance_tickets_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.maintenance_tickets ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.maintenance_tickets_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: night_audit_details; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3348,19 +3356,14 @@ COMMENT ON TABLE public.night_audit_details IS 'Detailed records of what was pos
 -- Name: night_audit_details_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.night_audit_details_id_seq
+ALTER TABLE public.night_audit_details ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.night_audit_details_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: night_audit_details_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.night_audit_details_id_seq OWNED BY public.night_audit_details.id;
+    CACHE 1
+);
 
 
 --
@@ -3395,19 +3398,14 @@ COMMENT ON TABLE public.night_audit_posted_nights IS 'Tracks per-night posting f
 -- Name: night_audit_posted_nights_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.night_audit_posted_nights_id_seq
+ALTER TABLE public.night_audit_posted_nights ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.night_audit_posted_nights_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: night_audit_posted_nights_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.night_audit_posted_nights_id_seq OWNED BY public.night_audit_posted_nights.id;
+    CACHE 1
+);
 
 
 --
@@ -3451,31 +3449,14 @@ COMMENT ON TABLE public.night_audit_runs IS 'Tracks each night audit run with st
 -- Name: night_audit_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.night_audit_runs_id_seq
+ALTER TABLE public.night_audit_runs ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.night_audit_runs_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: night_audit_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.night_audit_runs_id_seq OWNED BY public.night_audit_runs.id;
-
-
---
--- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.users_id_seq
-    START WITH 1000
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3483,7 +3464,7 @@ CREATE SEQUENCE public.users_id_seq
 --
 
 CREATE TABLE public.users (
-    id bigint DEFAULT nextval('public.users_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
     username character varying(100) NOT NULL,
     email character varying(255) NOT NULL,
@@ -3524,6 +3505,20 @@ CREATE TABLE public.users (
 --
 
 COMMENT ON TABLE public.users IS 'Core user accounts for system authentication';
+
+
+--
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.users ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.users_id_seq
+    START WITH 1000
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -3579,19 +3574,14 @@ CREATE TABLE public.notification_consent_events (
 -- Name: notification_consent_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.notification_consent_events_id_seq
+ALTER TABLE public.notification_consent_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.notification_consent_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: notification_consent_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.notification_consent_events_id_seq OWNED BY public.notification_consent_events.id;
+    CACHE 1
+);
 
 
 --
@@ -3617,19 +3607,14 @@ CREATE TABLE public.notification_subscriptions (
 -- Name: notification_subscriptions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.notification_subscriptions_id_seq
+ALTER TABLE public.notification_subscriptions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.notification_subscriptions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: notification_subscriptions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.notification_subscriptions_id_seq OWNED BY public.notification_subscriptions.id;
+    CACHE 1
+);
 
 
 --
@@ -3746,23 +3731,11 @@ COMMENT ON TABLE public.passkeys IS 'WebAuthn passkey credentials for passwordle
 
 
 --
--- Name: payments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.payments_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: payments; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.payments (
-    id bigint DEFAULT nextval('public.payments_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
     booking_id bigint NOT NULL,
     amount numeric(12,2) NOT NULL,
@@ -3801,6 +3774,20 @@ CREATE TABLE public.payments (
 COMMENT ON TABLE public.payments IS 'Payment transactions';
 
 --
+-- Name: payments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.payments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.payments_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: payment_receipt_requests; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3831,23 +3818,11 @@ COMMENT ON COLUMN public.payments.payment_gateway IS 'Payment gateway used (stri
 
 
 --
--- Name: permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.permissions_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: permissions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.permissions (
-    id bigint DEFAULT nextval('public.permissions_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(100) NOT NULL,
     resource character varying(50) NOT NULL,
     action character varying(20) NOT NULL,
@@ -3868,15 +3843,17 @@ COMMENT ON TABLE public.permissions IS 'Granular permissions for resources';
 
 
 --
--- Name: points_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: permissions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.points_transactions_id_seq
+ALTER TABLE public.permissions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.permissions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -3884,7 +3861,7 @@ CREATE SEQUENCE public.points_transactions_id_seq
 --
 
 CREATE TABLE public.points_transactions (
-    id bigint DEFAULT nextval('public.points_transactions_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     membership_id bigint NOT NULL,
     transaction_type character varying(20) NOT NULL,
     points integer NOT NULL,
@@ -3903,6 +3880,20 @@ CREATE TABLE public.points_transactions (
 --
 
 COMMENT ON TABLE public.points_transactions IS 'Points earning and redemption history';
+
+
+--
+-- Name: points_transactions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.points_transactions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.points_transactions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -3972,31 +3963,14 @@ CREATE TABLE public.promotions (
 -- Name: promotions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.promotions_id_seq
+ALTER TABLE public.promotions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.promotions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: promotions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.promotions_id_seq OWNED BY public.promotions.id;
-
-
---
--- Name: rate_plans_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.rate_plans_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4004,7 +3978,7 @@ CREATE SEQUENCE public.rate_plans_id_seq
 --
 
 CREATE TABLE public.rate_plans (
-    id bigint DEFAULT nextval('public.rate_plans_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(100) NOT NULL,
     code character varying(20) NOT NULL,
     description text,
@@ -4040,6 +4014,20 @@ CREATE TABLE public.rate_plans (
 --
 
 COMMENT ON TABLE public.rate_plans IS 'Rate plan definitions for pricing strategies';
+
+
+--
+-- Name: rate_plans_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.rate_plans ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.rate_plans_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -4092,23 +4080,11 @@ CREATE VIEW public.revenue_summary AS
 
 
 --
--- Name: reward_catalog_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.reward_catalog_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: reward_catalog; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.reward_catalog (
-    id bigint DEFAULT nextval('public.reward_catalog_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     program_id bigint NOT NULL,
     name character varying(100) NOT NULL,
     description text,
@@ -4133,15 +4109,17 @@ COMMENT ON TABLE public.reward_catalog IS 'Available rewards for redemption';
 
 
 --
--- Name: reward_redemptions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: reward_catalog_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.reward_redemptions_id_seq
+ALTER TABLE public.reward_catalog ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.reward_catalog_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4149,7 +4127,7 @@ CREATE SEQUENCE public.reward_redemptions_id_seq
 --
 
 CREATE TABLE public.reward_redemptions (
-    id bigint DEFAULT nextval('public.reward_redemptions_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     membership_id bigint NOT NULL,
     reward_id bigint NOT NULL,
     booking_id bigint,
@@ -4172,6 +4150,20 @@ COMMENT ON TABLE public.reward_redemptions IS 'Reward redemption records';
 
 
 --
+-- Name: reward_redemptions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.reward_redemptions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.reward_redemptions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: role_permissions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4184,23 +4176,11 @@ CREATE TABLE public.role_permissions (
 
 
 --
--- Name: roles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.roles_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: roles; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.roles (
-    id bigint DEFAULT nextval('public.roles_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(50) NOT NULL,
     display_name character varying(100) NOT NULL,
     description text,
@@ -4221,15 +4201,17 @@ COMMENT ON TABLE public.roles IS 'Role definitions for role-based access control
 
 
 --
--- Name: room_changes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: roles_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.room_changes_id_seq
+ALTER TABLE public.roles ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.roles_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4237,7 +4219,7 @@ CREATE SEQUENCE public.room_changes_id_seq
 --
 
 CREATE TABLE public.room_changes (
-    id bigint DEFAULT nextval('public.room_changes_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     booking_id bigint NOT NULL,
     from_room_id bigint NOT NULL,
     to_room_id bigint NOT NULL,
@@ -4292,15 +4274,17 @@ COMMENT ON COLUMN public.room_changes.changed_by IS 'Staff member who processed 
 
 
 --
--- Name: room_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: room_changes_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.room_events_id_seq
+ALTER TABLE public.room_changes ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.room_changes_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4308,7 +4292,7 @@ CREATE SEQUENCE public.room_events_id_seq
 --
 
 CREATE TABLE public.room_events (
-    id bigint DEFAULT nextval('public.room_events_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     room_id bigint NOT NULL,
     event_type character varying(50) DEFAULT 'status_change'::character varying NOT NULL,
     status character varying(20),
@@ -4322,15 +4306,17 @@ CREATE TABLE public.room_events (
 
 
 --
--- Name: room_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: room_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.room_history_id_seq
+ALTER TABLE public.room_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.room_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4338,7 +4324,7 @@ CREATE SEQUENCE public.room_history_id_seq
 --
 
 CREATE TABLE public.room_history (
-    id bigint DEFAULT nextval('public.room_history_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     room_id bigint NOT NULL,
     from_status character varying(20),
     to_status character varying(20) NOT NULL,
@@ -4359,15 +4345,17 @@ COMMENT ON TABLE public.room_history IS 'History of room status changes';
 
 
 --
--- Name: room_rates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: room_history_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.room_rates_id_seq
+ALTER TABLE public.room_history ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.room_history_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4375,7 +4363,7 @@ CREATE SEQUENCE public.room_rates_id_seq
 --
 
 CREATE TABLE public.room_rates (
-    id bigint DEFAULT nextval('public.room_rates_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     rate_plan_id bigint NOT NULL,
     room_type_id bigint NOT NULL,
     price numeric(10,2) NOT NULL,
@@ -4390,6 +4378,20 @@ CREATE TABLE public.room_rates (
 --
 
 COMMENT ON TABLE public.room_rates IS 'Specific prices for room types under rate plans';
+
+
+--
+-- Name: room_rates_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.room_rates ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.room_rates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -4480,23 +4482,11 @@ CREATE TABLE public.route_access_policies (
 
 
 --
--- Name: self_checkin_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.self_checkin_events_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: self_checkin_events; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.self_checkin_events (
-    id bigint DEFAULT nextval('public.self_checkin_events_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     booking_id bigint NOT NULL,
     guest_id bigint,
     ekyc_verification_id bigint,
@@ -4516,15 +4506,17 @@ CREATE TABLE public.self_checkin_events (
 
 
 --
--- Name: services_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: self_checkin_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.services_id_seq
+ALTER TABLE public.self_checkin_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.self_checkin_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4532,7 +4524,7 @@ CREATE SEQUENCE public.services_id_seq
 --
 
 CREATE TABLE public.services (
-    id bigint DEFAULT nextval('public.services_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     name character varying(100) NOT NULL,
     category character varying(50) NOT NULL,
     description text,
@@ -4555,6 +4547,20 @@ COMMENT ON TABLE public.services IS 'Additional service catalog';
 
 
 --
+-- Name: services_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.services ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.services_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: support_action_idempotency_keys; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4572,19 +4578,14 @@ CREATE TABLE public.support_action_idempotency_keys (
 -- Name: support_action_idempotency_keys_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.support_action_idempotency_keys_id_seq
+ALTER TABLE public.support_action_idempotency_keys ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.support_action_idempotency_keys_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: support_action_idempotency_keys_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.support_action_idempotency_keys_id_seq OWNED BY public.support_action_idempotency_keys.id;
+    CACHE 1
+);
 
 
 --
@@ -4629,19 +4630,14 @@ CREATE TABLE public.support_conversations (
 -- Name: support_conversations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.support_conversations_id_seq
+ALTER TABLE public.support_conversations ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.support_conversations_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: support_conversations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.support_conversations_id_seq OWNED BY public.support_conversations.id;
+    CACHE 1
+);
 
 
 --
@@ -4665,19 +4661,14 @@ CREATE TABLE public.support_events (
 -- Name: support_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.support_events_id_seq
+ALTER TABLE public.support_events ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.support_events_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: support_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.support_events_id_seq OWNED BY public.support_events.id;
+    CACHE 1
+);
 
 
 --
@@ -4713,31 +4704,14 @@ CREATE TABLE public.support_messages (
 -- Name: support_messages_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.support_messages_id_seq
+ALTER TABLE public.support_messages ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.support_messages_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: support_messages_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.support_messages_id_seq OWNED BY public.support_messages.id;
-
-
---
--- Name: system_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.system_settings_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
+    CACHE 1
+);
 
 
 --
@@ -4745,7 +4719,7 @@ CREATE SEQUENCE public.system_settings_id_seq
 --
 
 CREATE TABLE public.system_settings (
-    id bigint DEFAULT nextval('public.system_settings_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     key character varying(100) NOT NULL,
     value text NOT NULL,
     value_type character varying(20) DEFAULT 'string'::character varying,
@@ -4766,6 +4740,20 @@ CREATE TABLE public.system_settings (
 --
 
 COMMENT ON TABLE public.system_settings IS 'System-wide configuration settings including tax rates';
+
+
+--
+-- Name: system_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.system_settings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.system_settings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -4837,19 +4825,14 @@ COMMENT ON TABLE public.user_guests IS 'Links users to guests they can book/mana
 -- Name: user_guests_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.user_guests_id_seq
+ALTER TABLE public.user_guests ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.user_guests_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: user_guests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.user_guests_id_seq OWNED BY public.user_guests.id;
+    CACHE 1
+);
 
 
 --
@@ -4865,23 +4848,11 @@ CREATE TABLE public.user_permissions (
 
 
 --
--- Name: user_sessions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.user_sessions_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
 -- Name: user_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
 CREATE TABLE public.user_sessions (
-    id bigint DEFAULT nextval('public.user_sessions_id_seq'::regclass) NOT NULL,
+    id bigint NOT NULL,
     session_id uuid DEFAULT public.gen_uuidv7() NOT NULL,
     user_id bigint NOT NULL,
     ip_address inet,
@@ -4899,6 +4870,20 @@ CREATE TABLE public.user_sessions (
 --
 
 COMMENT ON TABLE public.user_sessions IS 'Active user sessions for tracking';
+
+
+--
+-- Name: user_sessions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_sessions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.user_sessions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
 
 
 --
@@ -4924,19 +4909,14 @@ CREATE TABLE public.voucher_redemption_allocations (
 -- Name: voucher_redemption_allocations_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.voucher_redemption_allocations_id_seq
+ALTER TABLE public.voucher_redemption_allocations ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.voucher_redemption_allocations_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: voucher_redemption_allocations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.voucher_redemption_allocations_id_seq OWNED BY public.voucher_redemption_allocations.id;
+    CACHE 1
+);
 
 
 --
@@ -4975,19 +4955,14 @@ CREATE TABLE public.voucher_redemptions (
 -- Name: voucher_redemptions_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.voucher_redemptions_id_seq
+ALTER TABLE public.voucher_redemptions ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.voucher_redemptions_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: voucher_redemptions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.voucher_redemptions_id_seq OWNED BY public.voucher_redemptions.id;
+    CACHE 1
+);
 
 
 --
@@ -5021,19 +4996,14 @@ CREATE TABLE public.vouchers (
 -- Name: vouchers_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.vouchers_id_seq
+ALTER TABLE public.vouchers ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.vouchers_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
     NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: vouchers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.vouchers_id_seq OWNED BY public.vouchers.id;
+    CACHE 1
+);
 
 
 --
@@ -5041,160 +5011,6 @@ ALTER SEQUENCE public.vouchers_id_seq OWNED BY public.vouchers.id;
 --
 
 ALTER TABLE ONLY public.audit_logs ATTACH PARTITION public.audit_logs_default DEFAULT;
-
-
---
--- Name: companies id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.companies ALTER COLUMN id SET DEFAULT nextval('public.companies_id_seq'::regclass);
-
-
---
--- Name: customer_ledger_payments id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_ledger_payments ALTER COLUMN id SET DEFAULT nextval('public.customer_ledger_payments_id_seq'::regclass);
-
-
---
--- Name: customer_ledgers id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_ledgers ALTER COLUMN id SET DEFAULT nextval('public.customer_ledgers_id_seq'::regclass);
-
-
---
--- Name: email_campaigns id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.email_campaigns ALTER COLUMN id SET DEFAULT nextval('public.email_campaigns_id_seq'::regclass);
-
-
---
--- Name: email_deliveries id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.email_deliveries ALTER COLUMN id SET DEFAULT nextval('public.email_deliveries_id_seq'::regclass);
-
-
---
--- Name: email_suppressions id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.email_suppressions ALTER COLUMN id SET DEFAULT nextval('public.email_suppressions_id_seq'::regclass);
-
-
---
--- Name: guest_complimentary_credits id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.guest_complimentary_credits ALTER COLUMN id SET DEFAULT nextval('public.guest_complimentary_credits_id_seq'::regclass);
-
-
---
--- Name: guest_portal_sessions id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.guest_portal_sessions ALTER COLUMN id SET DEFAULT nextval('public.guest_portal_sessions_id_seq'::regclass);
-
-
---
--- Name: night_audit_details id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.night_audit_details ALTER COLUMN id SET DEFAULT nextval('public.night_audit_details_id_seq'::regclass);
-
-
---
--- Name: night_audit_posted_nights id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.night_audit_posted_nights ALTER COLUMN id SET DEFAULT nextval('public.night_audit_posted_nights_id_seq'::regclass);
-
-
---
--- Name: night_audit_runs id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.night_audit_runs ALTER COLUMN id SET DEFAULT nextval('public.night_audit_runs_id_seq'::regclass);
-
-
---
--- Name: notification_consent_events id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.notification_consent_events ALTER COLUMN id SET DEFAULT nextval('public.notification_consent_events_id_seq'::regclass);
-
-
---
--- Name: notification_subscriptions id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.notification_subscriptions ALTER COLUMN id SET DEFAULT nextval('public.notification_subscriptions_id_seq'::regclass);
-
-
---
--- Name: promotions id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.promotions ALTER COLUMN id SET DEFAULT nextval('public.promotions_id_seq'::regclass);
-
-
---
--- Name: support_action_idempotency_keys id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.support_action_idempotency_keys ALTER COLUMN id SET DEFAULT nextval('public.support_action_idempotency_keys_id_seq'::regclass);
-
-
---
--- Name: support_conversations id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.support_conversations ALTER COLUMN id SET DEFAULT nextval('public.support_conversations_id_seq'::regclass);
-
-
---
--- Name: support_events id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.support_events ALTER COLUMN id SET DEFAULT nextval('public.support_events_id_seq'::regclass);
-
-
---
--- Name: support_messages id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.support_messages ALTER COLUMN id SET DEFAULT nextval('public.support_messages_id_seq'::regclass);
-
-
---
--- Name: user_guests id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_guests ALTER COLUMN id SET DEFAULT nextval('public.user_guests_id_seq'::regclass);
-
-
---
--- Name: voucher_redemption_allocations id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.voucher_redemption_allocations ALTER COLUMN id SET DEFAULT nextval('public.voucher_redemption_allocations_id_seq'::regclass);
-
-
---
--- Name: voucher_redemptions id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.voucher_redemptions ALTER COLUMN id SET DEFAULT nextval('public.voucher_redemptions_id_seq'::regclass);
-
-
---
--- Name: vouchers id; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.vouchers ALTER COLUMN id SET DEFAULT nextval('public.vouchers_id_seq'::regclass);
 
 
 --
@@ -9720,6 +9536,22 @@ ALTER TABLE ONLY public.vouchers
 ALTER TABLE ONLY public.vouchers
     ADD CONSTRAINT vouchers_revoked_by_fkey FOREIGN KEY (revoked_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
+
+--
+-- Name: hotel_graph; Type: PROPERTY GRAPH; Schema: public; Owner: -
+--
+
+CREATE PROPERTY GRAPH public.hotel_graph
+    VERTEX TABLES (
+        public.companies KEY (id) LABEL company PROPERTIES (company_name, id),
+        public.guests KEY (id) LABEL guest PROPERTIES (email, full_name, id),
+        public.rooms KEY (id) LABEL room PROPERTIES (id, room_number),
+        public.users KEY (id) LABEL staff PROPERTIES (id, username)
+    )
+    EDGE TABLES (
+        public.bookings KEY (id) SOURCE KEY (guest_id) REFERENCES guests (id) DESTINATION KEY (room_id) REFERENCES rooms (id) LABEL stayed_in PROPERTIES (check_in_date, check_out_date, id, status),
+        public.user_guests KEY (id) SOURCE KEY (user_id) REFERENCES users (id) DESTINATION KEY (guest_id) REFERENCES guests (id) LABEL manages PROPERTIES (id, relationship_type)
+    );
 
 
 -- The partition function is defined above. Pre-create this month plus the next 11.

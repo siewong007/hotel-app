@@ -24,6 +24,11 @@ const syncFiles = [
     source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'seed.sql'),
     target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'seed.sql'),
   },
+  {
+    label: 'PostgreSQL pg19 physical-design patch',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'patches', '2026-07-26-pg19-native-physical-design.sql'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'patches', '2026-07-26-pg19-native-physical-design.sql'),
+  },
 ];
 
 for (const { label, source, target } of syncFiles) {
