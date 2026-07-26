@@ -58,7 +58,6 @@ change this — see Unresolved).
 | /portal/login | PortalLoginPage | Guest Portal | Guest session auth | Web (guest device) |
 | /portal | PortalDashboardPage | Guest Portal | Guest session auth | Web (guest device) |
 | /bookings | BookingsPage | Main | Staff (access-controlled) | Web+Desktop |
-| /my-bookings | MyBookingsPage | Main | Auth user (access-controlled) | Web+Desktop |
 | /timeline | RoomReservationTimeline | Main | Staff (access-controlled) | Web+Desktop |
 | /guest-config | GuestConfigurationPage | Main | Staff (access-controlled) | Web+Desktop |
 | /room-management | RoomManagementPage | Main | Staff (access-controlled) | Web+Desktop |

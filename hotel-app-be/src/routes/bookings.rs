@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -21,11 +21,6 @@ pub fn routes() -> Router<DbPool> {
         // Static routes MUST come before parameterized routes
         .route("/bookings", get(get_bookings))
         .route("/bookings", post(create_booking))
-        .route("/bookings/my-bookings", get(get_my_bookings))
-        .route(
-            "/bookings/my-bookings/{id}/cancel",
-            post(cancel_my_pending_booking),
-        )
         .route("/bookings/checkin-advisory", get(guest_checkin_advisory))
         .route("/bookings/stats", get(get_booking_stats))
         .route("/bookings/complimentary", get(get_complimentary_bookings))
@@ -84,30 +79,6 @@ async fn create_booking(
 ) -> Result<Json<models::Booking>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:create").await?;
     handlers::bookings::create_booking_handler(State(pool), Extension(user_id), Json(input)).await
-}
-
-async fn get_my_bookings(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
-    // Only requires authentication, not specific permissions
-    handlers::bookings::get_my_bookings_handler(State(pool), headers).await
-}
-
-async fn cancel_my_pending_booking(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(booking_id): Path<i64>,
-    Json(input): Json<models::BookingCancellationRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-    handlers::bookings::cancel_my_pending_booking_handler(
-        State(pool),
-        Extension(user_id),
-        Path(booking_id),
-        Json(input),
-    )
-    .await
 }
 
 async fn get_booking_stats(

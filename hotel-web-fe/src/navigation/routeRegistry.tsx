@@ -53,7 +53,6 @@ export interface AppRouteDefinition {
 const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
 const DashboardRouter = lazyRoute(() => import('../features/dashboard/components/DashboardRouter'));
 const BookingsPage = lazyRoute(() => import('../features/bookings/components/Bookings'));
-const MyBookingsPage = lazyRoute(() => import('../features/bookings/components/MyBookingsPage'));
 const ModernReportsPage = lazyRoute(() => import('../features/reports/components/ModernReportsPage'));
 const LoyaltyPortal = lazyRoute(() => import('../features/loyalty/components/LoyaltyPortal'));
 const LoyaltyDashboard = lazyRoute(() => import('../features/loyalty/components/LoyaltyDashboard'));
@@ -136,18 +135,6 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: EventNoteIcon,
     breadcrumbLabel: 'Bookings',
     navLabel: 'Bookings',
-    navGroup: 'main',
-    accessControlled: true,
-  },
-  {
-    id: 'my-bookings',
-    path: '/my-bookings',
-    component: MyBookingsPage,
-    animationType: 'slide',
-    visibility: 'auth',
-    icon: EventNoteIcon,
-    breadcrumbLabel: 'My Bookings',
-    navLabel: 'My Bookings',
     navGroup: 'main',
     accessControlled: true,
   },

@@ -88,43 +88,6 @@ export class BookingsService {
     }
   }
 
-  static async getMyBookings(): Promise<BookingWithDetails[]> {
-    try {
-      return await withRetry(
-        () => api.get('bookings/my-bookings').json<BookingWithDetails[]>(),
-        { maxAttempts: 3, initialDelay: 1000 }
-      );
-    } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to fetch your bookings',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch your bookings');
-    }
-  }
-
-  static async cancelMyPendingBooking(bookingId: string | number, reason?: string): Promise<BookingVoidResponse> {
-    try {
-      return await api
-        .post(`bookings/my-bookings/${bookingId}/cancel`, { json: { booking_id: Number(bookingId), reason } })
-        .json<BookingVoidResponse>();
-    } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to cancel booking',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to cancel booking');
-    }
-  }
-
   static async createBooking(bookingData: BookingCreateRequest): Promise<Booking> {
     const validation = validateBookingRequest(bookingData);
     if (!validation.isValid) {
