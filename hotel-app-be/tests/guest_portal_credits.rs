@@ -354,6 +354,77 @@ mod postgres_tests {
         );
     }
 
+    /// The stays list filters server-side. The predicate binds the term as NULL
+    /// when absent instead of branching the SQL, so it can only be trusted once
+    /// PostgreSQL has actually planned both shapes.
+    #[tokio::test]
+    async fn stays_search_filters_server_side_and_escapes_wildcards() {
+        let Some(pool) = pool().await else {
+            return;
+        };
+        let f = fixture(8);
+        seed(&pool, &f).await;
+
+        for (suffix, status) in [("ALPHA", "confirmed"), ("BETA", "pending_payment")] {
+            sqlx::query(
+                "INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, \
+                 check_out_date, adults, children, room_rate, subtotal, total_amount, status, \
+                 payment_status) \
+                 VALUES ($1, $2, $3, '2031-05-10', '2031-05-12', 1, 0, 100, 200, 200, $4, 'unpaid')",
+            )
+            .bind(format!("SRCH-{suffix}-{}", f.guest_id))
+            .bind(f.guest_id)
+            .bind(f.room_id)
+            .bind(status)
+            .execute(&pool)
+            .await
+            .expect("seed searchable booking");
+        }
+
+        let all = GuestPortalSessionRepository::list_bookings(&pool, f.guest_id, 20, 0, None)
+            .await
+            .expect("unfiltered list");
+        assert_eq!(all.1, 2, "no search term returns every booking");
+
+        let by_number =
+            GuestPortalSessionRepository::list_bookings(&pool, f.guest_id, 20, 0, Some("ALPHA"))
+                .await
+                .expect("search by booking number");
+        assert_eq!(by_number.1, 1, "total reflects the filter, not the page");
+        assert!(by_number.0[0].booking_number.contains("ALPHA"));
+
+        let by_status = GuestPortalSessionRepository::list_bookings(
+            &pool,
+            f.guest_id,
+            20,
+            0,
+            Some("pending_payment"),
+        )
+        .await
+        .expect("search by status");
+        assert_eq!(by_status.1, 1);
+
+        let by_date =
+            GuestPortalSessionRepository::list_bookings(&pool, f.guest_id, 20, 0, Some("2031-05"))
+                .await
+                .expect("search by stay date");
+        assert_eq!(by_date.1, 2, "both stays fall in that month");
+
+        // A blank term must not be treated as a filter.
+        let blank =
+            GuestPortalSessionRepository::list_bookings(&pool, f.guest_id, 20, 0, Some("   "))
+                .await
+                .expect("blank search");
+        assert_eq!(blank.1, 2);
+
+        // A bare wildcard is a literal character, not "match everything".
+        let wildcard =
+            GuestPortalSessionRepository::list_bookings(&pool, f.guest_id, 20, 0, Some("%"))
+                .await
+                .expect("wildcard search");
+        assert_eq!(wildcard.1, 0, "'%' is escaped, so it matches nothing");
+    }
+
     #[tokio::test]
     async fn a_booking_with_no_credits_is_not_flagged_complimentary() {
         let Some(pool) = pool().await else {

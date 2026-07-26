@@ -6,5 +6,5 @@ pub use crate::models::ekyc::{
     EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDashboardRow, EkycDocumentAvailability,
     EkycFieldComparison, EkycListQuery, EkycReasonCode, EkycReviewActionRequest,
     EkycSensitiveRevealRequest, EkycSensitiveRevealResponse, EkycStatusResponse,
-    EkycSubmissionRequest, EkycVerification, EkycVerificationUpdate, SelfCheckinRequest,
+    EkycSubmissionRequest, EkycVerification, SelfCheckinRequest,
 };

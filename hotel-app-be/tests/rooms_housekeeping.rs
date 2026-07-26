@@ -208,6 +208,19 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
+        // `room_history.room_id` cascades from `rooms`, but `changed_by` does
+        // NOT cascade from `users` (`room_history_changed_by_fkey`), so
+        // `cleanup_room` cannot cover every row this actor wrote:
+        // `sync_all_room_statuses` scans EVERY active room and passes the
+        // actor through to `update_room_status`, which writes a history row
+        // per reconciled room. Drifted rooms outside the fixture set therefore
+        // pin the actor and block the delete below -- permanently, since
+        // nothing else keys on `changed_by`. Must precede `DELETE FROM users`.
+        sqlx::query("DELETE FROM room_history WHERE changed_by = $1")
+            .bind(actor_id)
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM users WHERE id = $1")
             .bind(actor_id)
             .execute(pool)

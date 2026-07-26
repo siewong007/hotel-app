@@ -6,6 +6,13 @@ const mocks = vi.hoisted(() => ({
   cancelBooking: vi.fn(),
 }));
 
+/** Params of the most recent bookings() call. (`Array.prototype.at` is outside
+ *  this project's configured `lib`, so index arithmetic it is.) */
+function lastBookingsParams(): Record<string, unknown> {
+  const { calls } = mocks.bookings.mock;
+  return calls[calls.length - 1][0];
+}
+
 vi.mock('../../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
     bookings: (...args: unknown[]) => mocks.bookings(...args),
@@ -80,6 +87,60 @@ describe('BookingsSection cancellation', () => {
     expect((await screen.findAllByText('Refund unavailable')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('This rate is non-refundable.').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Refund' })).toBeNull();
+  });
+});
+
+describe('BookingsSection search', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.bookings.mockReset();
+    mocks.bookings.mockResolvedValue({ items: [booking], total: 1 });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+  });
+
+  it('filters on the server, because pagination is server-side', async () => {
+    render(<BookingsSection token="guest-token" />);
+    await vi.waitFor(() => expect(mocks.bookings).toHaveBeenCalled());
+    expect(mocks.bookings.mock.calls[0][0]).toMatchObject({ page: 1, per_page: 10 });
+    expect(mocks.bookings.mock.calls[0][0].search).toBeUndefined();
+
+    fireEvent.change(screen.getByLabelText('Search stays'), { target: { value: 'SI-1007' } });
+    await vi.advanceTimersByTimeAsync(300);
+
+    await vi.waitFor(() => expect(lastBookingsParams()).toMatchObject({ search: 'SI-1007' }));
+  });
+
+  it('debounces so a request is not sent per keystroke', async () => {
+    render(<BookingsSection token="guest-token" />);
+    await vi.waitFor(() => expect(mocks.bookings).toHaveBeenCalledTimes(1));
+
+    const field = screen.getByLabelText('Search stays');
+    fireEvent.change(field, { target: { value: 'S' } });
+    await vi.advanceTimersByTimeAsync(100);
+    fireEvent.change(field, { target: { value: 'SI' } });
+    await vi.advanceTimersByTimeAsync(100);
+    fireEvent.change(field, { target: { value: 'SI-' } });
+    expect(mocks.bookings).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(300);
+    await vi.waitFor(() => expect(mocks.bookings).toHaveBeenCalledTimes(2));
+    expect(lastBookingsParams()).toMatchObject({ search: 'SI-' });
+  });
+
+  it('names the term when nothing matches, instead of claiming there are no bookings', async () => {
+    render(<BookingsSection token="guest-token" />);
+    await vi.waitFor(() => expect(mocks.bookings).toHaveBeenCalled());
+
+    mocks.bookings.mockResolvedValue({ items: [], total: 0 });
+    fireEvent.change(screen.getByLabelText('Search stays'), { target: { value: 'ZZZ' } });
+    await vi.advanceTimersByTimeAsync(300);
+
+    await vi.waitFor(() => expect(screen.getByText('No stays match “ZZZ”.')).toBeTruthy());
+    expect(screen.queryByText('You have no bookings on file yet.')).toBeNull();
   });
 });
 

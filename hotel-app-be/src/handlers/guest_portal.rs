@@ -91,7 +91,8 @@ pub async fn get_my_bookings(
         guest_portal_service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
     let (limit, offset) = page.limit_offset();
     Ok(Json(
-        guest_portal_service::get_my_bookings(&pool, guest_id, limit, offset).await?,
+        guest_portal_service::get_my_bookings(&pool, guest_id, limit, offset, page.search.as_deref())
+            .await?,
     ))
 }
 

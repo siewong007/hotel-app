@@ -253,10 +253,6 @@ export class EkycService {
     return await api.get(`ekyc/admin/applications/export${paramsToSearch(params)}`).blob();
   }
 
-  static async updateEkycVerification(verificationId: number, updates: any): Promise<void> {
-    await api.patch(`ekyc/verifications/${verificationId}`, { json: updates });
-  }
-
   static async approveEkycVerification(verificationId: number): Promise<void> {
     await this.performReviewAction(verificationId, {
       action: 'approve',

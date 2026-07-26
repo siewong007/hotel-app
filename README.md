@@ -197,7 +197,7 @@ Representative endpoints are listed below; request/response shapes are documente
 | Invoices | `GET /invoices/preview/{booking_id}`, `POST /invoices/generate/{booking_id}`, `GET /invoices` | Invoice preview and generation. |
 | Ledgers | `GET /ledgers`, `POST /ledgers`, `GET /ledgers/summary`, `POST /ledgers/{id}/reverse` | Customer/company ledger management. |
 | Loyalty | `GET /loyalty/programs`, `GET /loyalty/memberships`, `POST /loyalty/rewards/redeem` | Memberships, points, and rewards. |
-| eKYC | `POST /ekyc/upload-document`, `POST /ekyc/submit`, `GET /ekyc/status`, `PATCH /ekyc/verifications/{id}` | Identity document submission and review. |
+| eKYC | `POST /ekyc/upload-document`, `POST /ekyc/submit`, `GET /ekyc/status`, `POST /ekyc/admin/applications/{id}/actions` | Identity document submission and review. |
 | Guest portal | `POST /guest-portal/verify`, `GET /guest-portal/booking/{token}`, `POST /guest-portal/pre-checkin/{token}` | Public guest pre-check-in workflow. |
 | Analytics and reports | `GET /analytics/occupancy`, `GET /analytics/bookings`, `GET /reports/generate` | Reports, analytics, and generated report data. |
 | Audit and settings | `GET /audit-logs`, `GET /settings`, `PATCH /settings/{key}` | Administrative observability and configuration. |

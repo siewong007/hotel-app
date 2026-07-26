@@ -18,6 +18,18 @@ use crate::models::{
 };
 use crate::{core::sql_compat::current_timestamp, param};
 
+/// Free-text booking filter, shared by the count and page queries so the total
+/// always describes the same rows the guest is being shown. `$2` is the
+/// already-wrapped `%term%`, or NULL to match everything.
+const BOOKING_SEARCH_PREDICATE: &str = concat!(
+    "(", param!(2), " IS NULL",
+    " OR b.booking_number ILIKE ", param!(2),
+    " OR b.status ILIKE ", param!(2),
+    " OR b.check_in_date::text ILIKE ", param!(2),
+    " OR b.check_out_date::text ILIKE ", param!(2),
+    ")"
+);
+
 pub struct GuestPortalSessionRepository;
 
 impl GuestPortalSessionRepository {
@@ -110,18 +122,36 @@ impl GuestPortalSessionRepository {
     }
 
     /// Bookings owned by the guest, newest first, paginated. Returns (items, total).
+    ///
+    /// `search` matches booking number, status, or stay dates. The pages are
+    /// server-side, so filtering has to happen here — a client-side filter would
+    /// only ever search the page the guest is looking at.
     pub async fn list_bookings(
         pool: &DbPool,
         guest_id: i64,
         limit: i64,
         offset: i64,
+        search: Option<&str>,
     ) -> Result<(Vec<GuestPortalBookingSummary>, i64), ApiError> {
+        // Bound as NULL when absent rather than branching the SQL, so the
+        // placeholder positions never shift between the two shapes. `%` and `_`
+        // are escaped so a guest typing them searches for the character instead
+        // of matching every booking.
+        let search_term = search.map(str::trim).filter(|v| !v.is_empty()).map(|v| {
+            let escaped = v
+                .replace('\\', r"\\")
+                .replace('%', r"\%")
+                .replace('_', r"\_");
+            format!("%{escaped}%")
+        });
         let count_sql = format!(
-            "SELECT COUNT(*) AS c FROM bookings WHERE guest_id = {}",
-            param!(1)
+            "SELECT COUNT(*) AS c FROM bookings b WHERE b.guest_id = {} AND {}",
+            param!(1),
+            BOOKING_SEARCH_PREDICATE
         );
         let total: i64 = sqlx::query(&count_sql)
             .bind(guest_id)
+            .bind(search_term.as_deref())
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(format!("Booking count failed: {}", e)))?
@@ -155,15 +185,17 @@ impl GuestPortalSessionRepository {
                     EXISTS(SELECT 1 FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id \
                         WHERE p.booking_id = b.id AND p.status = 'pending' AND pr.uploaded_at IS NOT NULL) \
                         AS receipt_uploaded \
-             FROM bookings b WHERE b.guest_id = {} \
+             FROM bookings b WHERE b.guest_id = {} AND {} \
              ORDER BY b.check_in_date DESC, b.id DESC LIMIT {} OFFSET {}",
             false,
             param!(1),
-            param!(2),
-            param!(3)
+            BOOKING_SEARCH_PREDICATE,
+            param!(3),
+            param!(4)
         );
         let rows = sqlx::query(&sql)
             .bind(guest_id)
+            .bind(search_term.as_deref())
             .bind(limit)
             .bind(offset)
             .fetch_all(pool)

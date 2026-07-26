@@ -206,16 +206,6 @@ describe('EkycService', () => {
     });
   });
 
-  describe('updateEkycVerification', () => {
-    it('patches ekyc/verifications/<id> with the updates as json', async () => {
-      patch.mockReturnValue(Promise.resolve(undefined));
-
-      await EkycService.updateEkycVerification(5, { status: 'approved' });
-
-      expect(patch).toHaveBeenCalledWith('ekyc/verifications/5', { json: { status: 'approved' } });
-    });
-  });
-
   describe('approveEkycVerification', () => {
     it('delegates to performReviewAction with a legacy manual-override approve payload', async () => {
       post.mockReturnValue(mockJsonResponse({ summary: {} }));

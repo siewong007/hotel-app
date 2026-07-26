@@ -130,19 +130,6 @@ pub struct EkycStatusResponse {
     pub verification: Option<EkycVerification>,
 }
 
-/// Legacy input for updating an eKYC verification.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EkycVerificationUpdate {
-    pub status: String,
-    pub verification_notes: Option<String>,
-    pub face_match_score: Option<f32>,
-    pub face_match_passed: Option<bool>,
-    pub self_checkin_enabled: Option<bool>,
-    pub reason_code: Option<String>,
-    pub reason: Option<String>,
-    pub expected_version: Option<i32>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct EkycListQuery {
     pub status: Option<String>,

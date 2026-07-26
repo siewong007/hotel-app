@@ -255,6 +255,8 @@ pub struct GuestPortalCreditsResponse {
 pub struct GuestPortalPageQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    /// Free-text filter, used by the guest's stays list.
+    pub search: Option<String>,
 }
 
 impl GuestPortalPageQuery {

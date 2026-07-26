@@ -7,6 +7,8 @@ use super::repository::SettingsRepository;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
+use crate::models::AuditEvent;
+use crate::services::audit::AuditLog;
 
 pub async fn list_system_settings(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
     SettingsRepository::find_all(pool).await
@@ -22,10 +24,34 @@ pub async fn update_system_setting(
     input: SystemSettingUpdate,
     user_id: i64,
 ) -> Result<SystemSetting, ApiError> {
+    // Read before the write: `system_settings` keeps only `updated_by`/`updated_at`,
+    // so the row itself cannot say what a value was replaced with. Two admins
+    // racing the same key could make the recorded `old_value` one revision stale,
+    // which is acceptable for a trail gated behind `settings:update`.
+    let old_value = SettingsRepository::get_value(pool, key).await?;
+
     let setting = SettingsRepository::update_value_by_user(pool, key, &input.value, user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
     settings_cache::invalidate_key(key);
+
+    AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "settings_changed",
+            resource_type: "system_setting",
+            resource_id: Some(setting.id),
+            details: Some(serde_json::json!({
+                "key": key,
+                "old_value": old_value,
+                "new_value": setting.value
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+
     Ok(setting)
 }
 

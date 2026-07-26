@@ -81,7 +81,6 @@ VALUES
     ('ekyc:request_resubmission'),
     ('ekyc:reveal_sensitive'),
     ('ekyc:review'),
-    ('ekyc:verify'),
     ('ekyc:view_provider_raw'),
     ('ekyc:view_sensitive'),
     ('guests:create'),
@@ -521,8 +520,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('ekyc:manage_reason_codes', 'ekyc', 'manage_reason_codes', 'Manage eKYC reason codes', true),
 ('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', true),
 ('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', true),
-('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true),
-('ekyc:verify', 'ekyc', 'verify', 'Legacy eKYC approve or reject permission', true)
+('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true)
 ON CONFLICT (name) DO UPDATE SET
     description = EXCLUDED.description,
     resource = EXCLUDED.resource,

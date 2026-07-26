@@ -341,9 +341,10 @@ pub async fn get_my_bookings(
     guest_id: i64,
     limit: i64,
     offset: i64,
+    search: Option<&str>,
 ) -> Result<GuestPortalPage<GuestPortalBookingSummary>, ApiError> {
     let (mut items, total) =
-        GuestPortalSessionRepository::list_bookings(pool, guest_id, limit, offset).await?;
+        GuestPortalSessionRepository::list_bookings(pool, guest_id, limit, offset, search).await?;
     for booking in &mut items {
         if booking.cancellation_unavailable_reason.is_none() {
             booking.cancellation_unavailable_reason = if !matches!(
@@ -377,7 +378,7 @@ pub async fn cancel_my_booking(
             "Cancellation reason must be 1,000 characters or fewer".to_string(),
         ));
     }
-    let (items, _) = get_my_bookings(pool, guest_id, 10_000, 0)
+    let (items, _) = get_my_bookings(pool, guest_id, 10_000, 0, None)
         .await
         .map(|page| (page.items, page.total))?;
     let booking = items
@@ -637,6 +638,7 @@ mod tests {
         let (limit, offset) = GuestPortalPageQuery {
             page: None,
             per_page: None,
+            search: None,
         }
         .limit_offset();
         assert_eq!((limit, offset), (20, 0));
@@ -645,6 +647,7 @@ mod tests {
         let (limit, offset) = GuestPortalPageQuery {
             page: Some(0),
             per_page: Some(500),
+            search: None,
         }
         .limit_offset();
         assert_eq!((limit, offset), (100, 0));
@@ -653,6 +656,7 @@ mod tests {
         let (limit, _) = GuestPortalPageQuery {
             page: Some(3),
             per_page: Some(0),
+            search: None,
         }
         .limit_offset();
         assert_eq!(limit, 1);
@@ -661,6 +665,7 @@ mod tests {
         let (_, offset) = GuestPortalPageQuery {
             page: Some(3),
             per_page: Some(20),
+            search: None,
         }
         .limit_offset();
         assert_eq!(offset, 40);
