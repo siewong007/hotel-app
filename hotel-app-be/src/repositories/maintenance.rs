@@ -90,26 +90,26 @@ fn row_to_ticket(row: DbRow) -> MaintenanceTicket {
 
 /// Compute the next ticket number for the current month.
 ///
-/// Format: `MT-YYYYMM-XXXX` (e.g. `MT-202607-0001`).
+/// Format: `MT-YYYYMM-XXXX` (e.g. `MT-202607-0001`). `YYYYMM` is the hotel
+/// business month — `CURRENT_DATE` under the per-connection session timezone —
+/// computed in the same SQL statement as the sequence scan so the single-use
+/// executor is consumed exactly once.
 pub(crate) async fn next_ticket_number<'e, E>(executor: E) -> Result<String, ApiError>
 where
     E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
 {
-    let now = chrono::Local::now();
-    let yyyymm = now.format("%Y%m").to_string();
-    let prefix = format!("MT-{}-", yyyymm);
-    let pattern = format!("{}%", prefix);
+    let query = "SELECT TO_CHAR(CURRENT_DATE, 'YYYYMM'), \
+                 MAX(CAST(SUBSTRING(ticket_number FROM 11) AS BIGINT)) \
+                 FROM maintenance_tickets \
+                 WHERE ticket_number LIKE 'MT-' || TO_CHAR(CURRENT_DATE, 'YYYYMM') || '-%'";
 
-    let query = "SELECT MAX(CAST(SUBSTRING(ticket_number FROM 11) AS BIGINT)) FROM maintenance_tickets WHERE ticket_number LIKE $1";
-
-    let max_seq: Option<i64> = sqlx::query_scalar(query)
-        .bind(&pattern)
+    let (yyyymm, max_seq): (String, Option<i64>) = sqlx::query_as(query)
         .fetch_one(executor)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let next = max_seq.unwrap_or(0) + 1;
-    Ok(format!("{}{:04}", prefix, next))
+    Ok(format!("MT-{}-{:04}", yyyymm, next))
 }
 
 pub async fn find_ticket(

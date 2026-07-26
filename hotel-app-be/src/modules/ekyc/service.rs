@@ -6,7 +6,7 @@ use chrono::Utc;
 
 use super::validation;
 use crate::core::auth::AuthService;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::modules::ekyc::models::{
@@ -47,7 +47,8 @@ pub async fn submit_ekyc(
         ));
     }
 
-    let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_dates(&req)?;
+    let today = hotel_today(pool).await?;
+    let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_dates(&req, today)?;
 
     let id_front_path =
         validation::prepare_ekyc_image_reference(&req.id_front_image, user_id, "id_front")?;
@@ -129,10 +130,12 @@ pub async fn admin_create_verification(
         ));
     }
 
+    let today = hotel_today(pool).await?;
     let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_date_strings(
         &req.date_of_birth,
         &req.id_expiry_date,
         &req.id_issue_date,
+        today,
     )?;
 
     // Images are uploaded by the admin via /ekyc/upload-document, so the stored
