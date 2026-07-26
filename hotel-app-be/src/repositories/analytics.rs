@@ -9,7 +9,7 @@ use crate::models::ReportQuery;
 use crate::models::row_mappers;
 use crate::utils::date::parse_date_flexible;
 use crate::utils::report_labels::payment_account_label;
-use chrono::{Local, NaiveDate};
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -2315,7 +2315,8 @@ async fn generate_company_ledger_statement(
         r#"
         SELECT
             id, description, expense_type, amount, paid_amount, balance_due, status,
-            invoice_number, invoice_date, due_date, created_at
+            invoice_number, invoice_date, due_date,
+            (created_at AT TIME ZONE current_setting('TimeZone'))::date AS created_date
         FROM customer_ledgers
         WHERE company_name = $1 AND status NOT IN ('voided')
         ORDER BY created_at DESC
@@ -2351,11 +2352,10 @@ async fn generate_company_ledger_statement(
         let invoice_number: Option<String> = entry.try_get("invoice_number").ok();
         let invoice_date: Option<NaiveDate> = entry.try_get("invoice_date").ok();
         let due_date: Option<NaiveDate> = entry.try_get("due_date").ok();
-        let created_at: chrono::DateTime<chrono::Utc> = entry.get("created_at");
+        let created_date: NaiveDate = entry.get("created_date");
 
         // Calculate days old
-        let entry_date =
-            invoice_date.unwrap_or_else(|| created_at.with_timezone(&Local).date_naive());
+        let entry_date = invoice_date.unwrap_or(created_date);
         let days_old = (today - entry_date).num_days();
 
         // Categorize into aging buckets
@@ -2396,11 +2396,12 @@ async fn generate_company_ledger_statement(
     // Get last payment info
     let last_payment = sqlx::query(
         r#"
-        SELECT payment_amount, clp.created_at
+        SELECT payment_amount,
+               clp.payment_date::date AS payment_date
         FROM customer_ledger_payments clp
         INNER JOIN customer_ledgers cl ON clp.ledger_id = cl.id
         WHERE cl.company_name = $1
-        ORDER BY clp.created_at DESC
+        ORDER BY clp.payment_date DESC, clp.created_at DESC
         LIMIT 1
         "#,
     )
@@ -2413,11 +2414,8 @@ async fn generate_company_ledger_statement(
         .as_ref()
         .map(|row| {
             let amount = row_mappers::get_decimal(row, "payment_amount");
-            let date: chrono::DateTime<chrono::Utc> = row.get("created_at");
-            (
-                amount,
-                Some(date.with_timezone(&Local).format("%d/%m/%Y").to_string()),
-            )
+            let date: NaiveDate = row.get("payment_date");
+            (amount, Some(date.format("%d/%m/%Y").to_string()))
         })
         .unwrap_or((Decimal::ZERO, None));
 
