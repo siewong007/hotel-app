@@ -28,6 +28,7 @@ leftover set.
 
 - `any`-type burn-down (~389 non-test sites as of 2026-07-26; worst hand-written file is now `ModernReportsPage.tsx` — `dataTransfer.types.ts` was cleaned; the dead `useBookingsPageState`/`useCheckoutInvoiceModalState` hooks + their tests were deleted 2026-07-26, removing their 5 deliberately-skipped sites).
 - Desktop: Windows/Linux CI packaging; upgrade embedded PostgreSQL 18.4 → 19 in `src-tauri/pgsql/` (ask-first dir; requires a source build — Homebrew ships no PG19); network-fetch pgsql provisioning (today Homebrew-local only); arm or hide the updater (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists; desktop session persistence (SameSite boundary).
+- Desktop robustness: `postgres.rs` hardcodes port 5433 and treats ANY listener there as its own instance — a foreign postgres (e.g. a docker container publishing 5433) yields a confusing "password authentication failed" instead of a clear port-conflict error (found 2026-07-26 testing the CI artifact locally); probe the data-dir/pidfile or verify server identity before adopting a running server.
 - Portal test coverage: portal page component tests + broader portal integration tests (the concurrent double-booking race is covered — `tests/booking_service.rs::postgres_guest_portal_race_tests`).
 
 ## Decisions needed (user)
