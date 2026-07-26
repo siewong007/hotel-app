@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Box,
   Card,
@@ -251,12 +252,10 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               </Typography>
 
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
-                <Box
-                  component="img"
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupData.qr_code_url)}`}
-                  alt="QR Code"
-                  sx={{ width: 200, height: 200, border: '1px solid', borderColor: 'divider' }}
-                />
+                {/* Rendered locally: the otpauth URI contains the TOTP secret and must not be sent to a third-party QR service */}
+                <Box sx={{ border: '1px solid', borderColor: 'divider', lineHeight: 0 }}>
+                  <QRCodeSVG value={setupData.qr_code_url} size={200} marginSize={4} title="QR Code" />
+                </Box>
               </Box>
 
               <Typography variant="body1" sx={{ mb: 1 }}>
