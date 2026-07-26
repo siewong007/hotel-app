@@ -51,6 +51,26 @@ secrets, generated outputs, design-sync files, and deployment infrastructure dir
 
 ## Keep the index current
 
-The MCP integration normally syncs automatically. Run `codegraph sync .` after a
-meaningful local change or before a fresh investigation when `status` reports pending
-files. Use `codegraph index . --force` only to rebuild a missing or corrupted index.
+Auto-sync IS wired up as of 2026-07-27 (`codegraph install -t claude -l local`).
+`.mcp.json` runs `codegraph serve --mcp`, whose shared engine starts a file watcher
+that re-indexes on change — verified end-to-end: a new file became queryable within
+seconds and `status` stayed "up to date" with no manual sync. A background daemon
+(`.codegraph/daemon.sock`, 5-min idle timeout) holds the watcher.
+
+Manual `codegraph sync .` is now only needed when the daemon is not running — most
+often for CLI-only work in a shell with no MCP session attached. `codegraph status .`
+is still the cheap first move for any investigation; it tells you which case you are in.
+Use `codegraph index . --force` only to rebuild a missing or corrupted index.
+
+Requires the `codegraph` binary on PATH. Because `.mcp.json` and `.claude/settings.json`
+are committed, a machine without it gets a failed MCP server at startup — install with
+`npm i -g @colbymchenry/codegraph@1.5.0` there, or delete those two files locally.
+
+The installer also writes a `UserPromptSubmit` hook (`codegraph prompt-hook`) that
+injects graph context into structural prompts. It was REMOVED deliberately on
+2026-07-27 — it fires on any prompt with a symbol-like word and matches on token
+overlap, not intent, so it spent ~16KB of context on unrelated symbols. Auto-sync does
+not depend on it. `codegraph install --refresh` (run automatically by
+`codegraph upgrade`) rewrites what a previous install configured and will re-add the
+hook — after any upgrade, check `.claude/settings.json` and delete the `hooks` block
+again, or re-run the install with `--no-permissions`.
