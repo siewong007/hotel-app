@@ -163,6 +163,49 @@ impl EkycRepository {
         .map_err(|e: sqlx::Error| ApiError::Database(e.to_string()))
     }
 
+    /// Batched form of `latest_guest_summary_record` — one round trip for a set
+    /// of guest ids instead of one query per guest. Returns only the guests
+    /// that have at least one verification row; callers fall back to
+    /// `GuestEkycStatusSummary::not_submitted` for ids missing from the result.
+    pub async fn latest_guest_summary_records(
+        pool: &DbPool,
+        guest_ids: &[i64],
+    ) -> Result<Vec<GuestEkycSummaryRecord>, ApiError> {
+        if guest_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let query = r#"
+                SELECT DISTINCT ON (guest_id)
+                       id, user_id, guest_id, status,
+                       COALESCE(self_checkin_enabled, false) AS self_checkin_enabled,
+                       verified_at
+                FROM ekyc_verifications
+                WHERE guest_id = ANY($1)
+                ORDER BY guest_id, COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
+            "#;
+
+        let rows = sqlx::query(query)
+            .bind(guest_ids)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        rows.into_iter()
+            .map(|row| {
+                Ok(GuestEkycSummaryRecord {
+                    verification_id: row.try_get("id")?,
+                    user_id: row.try_get("user_id")?,
+                    guest_id: row.try_get("guest_id")?,
+                    status: row.try_get("status")?,
+                    self_checkin_enabled: row_mappers::get_bool(&row, "self_checkin_enabled"),
+                    verified_at: row.try_get("verified_at").ok().flatten(),
+                })
+            })
+            .collect::<Result<Vec<_>, sqlx::Error>>()
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
     #[allow(dead_code)]
     pub async fn latest_guest_summary(
         pool: &DbPool,
@@ -453,7 +496,21 @@ impl EkycRepository {
     ) -> Result<Option<EkycVerification>, ApiError> {
         sqlx::query_as(
             r#"
-            SELECT *
+            SELECT
+                id, user_id, guest_id, status, assigned_reviewer_id, reviewer_claimed_at,
+                full_name, date_of_birth, nationality, phone, email, current_address,
+                id_type, id_number, id_issuing_country, id_issue_date, id_expiry_date,
+                id_front_image_path, id_back_image_path, selfie_image_path, proof_of_address_path,
+                provider_name, provider_verification_result, provider_raw_response,
+                ocr_data, user_entered_data, document_authenticity_result,
+                face_match_score, face_match_passed, liveness_score, liveness_passed,
+                duplicate_check_result, watchlist_result, ip_address, device_fingerprint,
+                geolocation, submission_metadata, auto_verified, auto_verification_details,
+                manual_review_required, risk_level, risk_score, risk_flags, recommended_action,
+                potential_duplicate, fraud_suspected, verification_notes, customer_message,
+                decision_reason_code, decision_reason, verified_by, verified_at,
+                self_checkin_enabled, self_checkin_activated_at, submitted_at, version,
+                created_at, updated_at
             FROM ekyc_verifications
             WHERE guest_id = $1
             ORDER BY submitted_at DESC, id DESC
@@ -467,7 +524,26 @@ impl EkycRepository {
     }
 
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<EkycVerification>, ApiError> {
-        sqlx::query_as("SELECT * FROM ekyc_verifications WHERE id = $1")
+        sqlx::query_as(
+            r#"
+            SELECT
+                id, user_id, guest_id, status, assigned_reviewer_id, reviewer_claimed_at,
+                full_name, date_of_birth, nationality, phone, email, current_address,
+                id_type, id_number, id_issuing_country, id_issue_date, id_expiry_date,
+                id_front_image_path, id_back_image_path, selfie_image_path, proof_of_address_path,
+                provider_name, provider_verification_result, provider_raw_response,
+                ocr_data, user_entered_data, document_authenticity_result,
+                face_match_score, face_match_passed, liveness_score, liveness_passed,
+                duplicate_check_result, watchlist_result, ip_address, device_fingerprint,
+                geolocation, submission_metadata, auto_verified, auto_verification_details,
+                manual_review_required, risk_level, risk_score, risk_flags, recommended_action,
+                potential_duplicate, fraud_suspected, verification_notes, customer_message,
+                decision_reason_code, decision_reason, verified_by, verified_at,
+                self_checkin_enabled, self_checkin_activated_at, submitted_at, version,
+                created_at, updated_at
+            FROM ekyc_verifications WHERE id = $1
+            "#,
+        )
             .bind(id)
             .fetch_optional(pool)
             .await

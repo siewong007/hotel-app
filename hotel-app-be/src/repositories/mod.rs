@@ -39,7 +39,6 @@ pub mod rate;
 pub mod rbac;
 #[allow(dead_code)]
 pub mod room;
-#[allow(dead_code)]
 pub mod rooms_queries;
 pub mod search;
 #[allow(dead_code)]
