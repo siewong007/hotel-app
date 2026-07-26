@@ -60,9 +60,15 @@ if (!force && previous?.digest === cacheKey.digest && requiredOutputs.every((pat
 }
 
 const startedAt = Date.now();
-const result = spawnSync(buildCommand[0], buildCommand.slice(1), {
+const useShell = process.platform === 'win32';
+// cmd.exe does not quote spawn arguments; an npm_execpath under a directory
+// with a space (e.g. C:\Users\SALIM INN\...) breaks without explicit quotes.
+const shellSafeCommand = useShell && buildCommand[0].includes(' ')
+  ? `"${buildCommand[0]}"`
+  : buildCommand[0];
+const result = spawnSync(shellSafeCommand, buildCommand.slice(1), {
   cwd: frontendRoot,
-  shell: process.platform === 'win32',
+  shell: useShell,
   stdio: 'inherit',
 });
 
