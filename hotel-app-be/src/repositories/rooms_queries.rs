@@ -1263,7 +1263,7 @@ pub async fn execute_room_change_tx(
             room_id, from_status, to_status,
             changed_by, notes, is_auto_generated
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, false)
     "#;
 
     sqlx::query(history_query)

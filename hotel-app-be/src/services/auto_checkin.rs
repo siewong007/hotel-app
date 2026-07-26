@@ -1,8 +1,8 @@
 //! eKYC-backed auto check-in workflows.
 
-use chrono::{Local, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::{
     AutoCheckinResponse, Booking, BookingWithDetails, CheckInRequest, Guest, GuestEkycStatusSummary,
@@ -286,7 +286,7 @@ async fn apply_booking_constraints(
         return Ok(());
     }
 
-    let today = Local::now().date_naive();
+    let today = hotel_today(pool).await?;
     if check_in_date > today {
         block(
             summary,

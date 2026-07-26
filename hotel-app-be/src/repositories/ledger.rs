@@ -6,7 +6,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::row_mappers::{
@@ -354,7 +354,11 @@ pub async fn create_customer_ledger(
             .flatten()
             .flatten()
             .unwrap_or(default_terms_days as i32);
-            let base = posting_date.unwrap_or_else(|| chrono::Local::now().date_naive());
+            let base = match posting_date {
+                Some(date) => date,
+                // Hotel business day, not server OS time (see core/db.rs::hotel_today)
+                None => hotel_today(pool).await?,
+            };
             Some(base + chrono::Duration::days(terms_days as i64))
         }
     };

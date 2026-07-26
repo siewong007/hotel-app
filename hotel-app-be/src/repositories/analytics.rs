@@ -2,7 +2,7 @@
 //!
 //! Query-heavy report generation for analytics dashboards.
 
-use crate::core::db::{DbPool, DbRow};
+use crate::core::db::{DbPool, DbRow, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::ReportQuery;
@@ -302,8 +302,7 @@ pub async fn benchmark_report(pool: &DbPool) -> Result<serde_json::Value, ApiErr
     }))
 }
 
-fn report_period_start(period: &str) -> NaiveDate {
-    let today = Local::now().date_naive();
+fn report_period_start(today: NaiveDate, period: &str) -> NaiveDate {
     let days = match period {
         "week" => 7,
         "quarter" => 90,
@@ -339,7 +338,7 @@ pub async fn personalized_report(
         "personal"
     };
     let period = params.get("period").map(String::as_str).unwrap_or("month");
-    let period_start = report_period_start(period);
+    let period_start = report_period_start(hotel_today(pool).await?, period);
 
     let user_roles: Vec<String> = sqlx::query(
         r#"
@@ -2327,8 +2326,9 @@ async fn generate_company_ledger_statement(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Calculate aging buckets based on invoice_date or created_at
-    let today = Local::now().date_naive();
+    // Calculate aging buckets based on invoice_date or created_at,
+    // anchored to the hotel business day (session timezone), not server OS time
+    let today = hotel_today(pool).await?;
     let mut open_balance = Decimal::ZERO;
     let mut days_31_60 = Decimal::ZERO;
     let mut days_61_90 = Decimal::ZERO;
