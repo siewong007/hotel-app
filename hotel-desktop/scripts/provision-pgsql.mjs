@@ -1,13 +1,22 @@
 import { execFileSync } from 'node:child_process';
 import {
+  chmodSync,
+  closeSync,
   cpSync,
   existsSync,
+  openSync,
   readFileSync,
+  readSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
   renameSync,
   rmSync,
   statSync,
+  symlinkSync,
+  unlinkSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectInputFiles, readJson, writeJson } from './lib/build-cache.mjs';
 
@@ -147,6 +156,32 @@ function checkExistingInstall(expected) {
     };
   }
 
+  // A tree whose binaries reference dylibs outside the bundle (Homebrew, the
+  // source-build prefix) or that carries absolute symlinks runs on the dev
+  // machine but is dead on arrival on end-user machines.
+  try {
+    const externalRefs = REQUIRED_BIN_NAMES.flatMap((name) => {
+      const binPath = join(pgsqlDir, 'bin', name);
+      const id = machOId(binPath);
+      return machODeps(binPath)
+        .filter((dep) => dep !== id && !isSystemDep(dep) && !dep.startsWith('@'))
+        .map((dep) => `${name} -> ${dep}`);
+    });
+    const absoluteSymlinks = walkTree(pgsqlDir)
+      .symlinks.filter((linkPath) => readlinkSync(linkPath).startsWith('/'))
+      .map((linkPath) => `absolute symlink ${linkPath}`);
+    const issues = [...externalRefs, ...absoluteSymlinks];
+    if (issues.length > 0) {
+      return {
+        ok: false,
+        hard: true,
+        reason: `bundled tree is not self-contained (${issues.slice(0, 3).join('; ')}${issues.length > 3 ? '; …' : ''})`,
+      };
+    }
+  } catch (error) {
+    return { ok: false, hard: false, reason: `could not verify bundled tree self-containment (${error.message})` };
+  }
+
   return { ok: true, foundMajor, foundBuildIdentity, manifest };
 }
 
@@ -183,6 +218,201 @@ function computeTreeStats(rootDir) {
     totalBytes += statSync(file).size;
   }
   return { fileCount: files.length, totalBytes };
+}
+
+// ---------------------------------------------------------------------------
+// Self-containment (relocatability): the source build links libpq/libecpg by
+// absolute prefix path and postgres links Homebrew openssl@3/icu4c dylibs, so a
+// straight copy of the tree only runs on machines that have those exact paths.
+// After copying, we bundle every external dylib into lib/, rewrite all install
+// names to @loader_path-relative references, replace absolute symlinks, and
+// ad-hoc re-sign (arm64 requires it after install_name_tool).
+
+const MACHO_MAGICS = new Set([
+  'feedface', 'cefaedfe', // 32-bit
+  'feedfacf', 'cffaedfe', // 64-bit
+  'cafebabe', 'bebafeca', // fat
+]);
+
+function isMachOFile(filePath) {
+  const fd = openSync(filePath, 'r');
+  try {
+    const magic = Buffer.alloc(4);
+    if (readSync(fd, magic, 0, 4, 0) < 4) {
+      return false;
+    }
+    return MACHO_MAGICS.has(magic.toString('hex'));
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function walkTree(rootDir) {
+  const files = [];
+  const symlinks = [];
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const entryPath = join(dir, entry.name);
+      if (entry.isSymbolicLink()) {
+        symlinks.push(entryPath);
+      } else if (entry.isDirectory()) {
+        stack.push(entryPath);
+      } else if (entry.isFile()) {
+        files.push(entryPath);
+      }
+    }
+  }
+  return { files, symlinks };
+}
+
+function machOId(filePath) {
+  // otool -D prints "<file>:\n<id>" for dylibs, just "<file>:" otherwise.
+  const lines = execFileSync('otool', ['-D', filePath], { encoding: 'utf8' }).trim().split('\n');
+  return lines.length >= 2 ? lines[1].trim() : undefined;
+}
+
+function machODeps(filePath) {
+  // For dylibs the LC_ID_DYLIB row is included — callers filter it via machOId.
+  const out = execFileSync('otool', ['-L', filePath], { encoding: 'utf8' });
+  return out
+    .split('\n')
+    .slice(1)
+    .map((line) => line.match(/^\s+(.+?)\s+\(compatibility/))
+    .filter(Boolean)
+    .map((match) => match[1]);
+}
+
+function isSystemDep(dep) {
+  return dep.startsWith('/usr/lib/') || dep.startsWith('/System/');
+}
+
+function relinkBundledTree(treeRoot) {
+  const libDir = join(treeRoot, 'lib');
+  const { files, symlinks } = walkTree(treeRoot);
+
+  // Keg-style unversioned names (libpq.dylib -> libpq.5.dylib) are copied as
+  // absolute symlinks into the source prefix; re-point them at the in-tree
+  // sibling of the same basename.
+  let rewrittenSymlinks = 0;
+  for (const linkPath of symlinks) {
+    const target = readlinkSync(linkPath);
+    if (!target.startsWith('/')) {
+      continue;
+    }
+    const sibling = join(dirname(linkPath), basename(target));
+    if (sibling === linkPath || !existsSync(sibling)) {
+      throw new Error(`absolute symlink ${linkPath} -> ${target} has no in-tree replacement`);
+    }
+    unlinkSync(linkPath);
+    symlinkSync(basename(target), linkPath);
+    rewrittenSymlinks += 1;
+  }
+
+  const machOFiles = files.filter(isMachOFile);
+  const byBasename = new Map(machOFiles.map((filePath) => [basename(filePath), filePath]));
+  const copiedFrom = new Map(); // in-tree path of a copied dylib -> its source dir
+  const copiedLibs = [];
+  const rewrittenFiles = [];
+
+  const copyDepIntoTree = (sourceReal, name) => {
+    const target = join(libDir, name);
+    cpSync(sourceReal, target);
+    chmodSync(target, 0o755); // Cellar dylibs can be read-only; install_name_tool needs write
+    byBasename.set(name, target);
+    copiedFrom.set(target, dirname(sourceReal));
+    copiedLibs.push(name);
+    return target;
+  };
+
+  const queue = [...machOFiles];
+  while (queue.length > 0) {
+    const filePath = queue.shift();
+    const id = machOId(filePath);
+    const args = [];
+
+    for (const dep of machODeps(filePath)) {
+      if (dep === id || isSystemDep(dep)) {
+        continue;
+      }
+      if (dep.startsWith('@')) {
+        // Already relative (Homebrew ICU uses @loader_path internally). If this
+        // file was copied in, its companion must be copied alongside it.
+        if (dep.startsWith('@loader_path/')) {
+          const rest = dep.slice('@loader_path/'.length);
+          if (!existsSync(resolve(dirname(filePath), rest))) {
+            const sourceDir = copiedFrom.get(filePath);
+            const sourceCompanion = sourceDir ? join(sourceDir, rest) : undefined;
+            if (!sourceCompanion || !existsSync(sourceCompanion)) {
+              throw new Error(`${filePath}: unresolvable reference ${dep}`);
+            }
+            queue.push(copyDepIntoTree(realpathSync(sourceCompanion), basename(rest)));
+          }
+        }
+        continue;
+      }
+      const name = basename(dep);
+      let target = byBasename.get(name);
+      if (!target) {
+        target = copyDepIntoTree(realpathSync(dep), name); // throws if missing on this machine
+        queue.push(target);
+      }
+      args.push('-change', dep, `@loader_path/${relative(dirname(filePath), target)}`);
+    }
+
+    // Dylib IDs from the source build are absolute install paths; nothing links
+    // against the bundle, but shipped binaries should not carry machine paths.
+    if (id && id.startsWith('/') && !isSystemDep(id)) {
+      args.unshift('-id', `@rpath/${basename(filePath)}`);
+    }
+
+    if (args.length > 0) {
+      execFileSync('install_name_tool', [...args, filePath], { stdio: 'pipe' });
+      execFileSync('codesign', ['--force', '--sign', '-', filePath], { stdio: 'pipe' });
+      rewrittenFiles.push(filePath);
+    }
+  }
+
+  return { rewrittenFiles, copiedLibs, rewrittenSymlinks };
+}
+
+function assertRelocatable(treeRoot) {
+  const problems = [];
+  const { files, symlinks } = walkTree(treeRoot);
+  for (const linkPath of symlinks) {
+    const target = readlinkSync(linkPath);
+    if (target.startsWith('/')) {
+      problems.push(`absolute symlink: ${linkPath} -> ${target}`);
+    } else if (!existsSync(linkPath)) {
+      problems.push(`dangling symlink: ${linkPath} -> ${target}`);
+    }
+  }
+  for (const filePath of files) {
+    if (!isMachOFile(filePath)) {
+      continue;
+    }
+    const id = machOId(filePath);
+    for (const dep of machODeps(filePath)) {
+      if (dep === id || isSystemDep(dep)) {
+        continue;
+      }
+      if (dep.startsWith('@loader_path/')) {
+        if (!existsSync(resolve(dirname(filePath), dep.slice('@loader_path/'.length)))) {
+          problems.push(`${filePath}: missing @loader_path target ${dep}`);
+        }
+      } else if (dep.startsWith('@executable_path/')) {
+        if (!existsSync(resolve(join(treeRoot, 'bin'), dep.slice('@executable_path/'.length)))) {
+          problems.push(`${filePath}: missing @executable_path target ${dep}`);
+        }
+      } else {
+        problems.push(`${filePath}: external reference ${dep}`);
+      }
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(`tree is not self-contained:\n${problems.join('\n')}`);
+  }
 }
 
 function provisionFromPrefix(expected, failExitCode = 1) {
@@ -249,7 +479,23 @@ function provisionFromPrefix(expected, failExitCode = 1) {
     process.exit(failExitCode);
   }
 
-  // Verify before swapping the tmp tree into place.
+  let relink;
+  try {
+    relink = relinkBundledTree(pgsqlTmpDir);
+    assertRelocatable(pgsqlTmpDir);
+  } catch (error) {
+    rmSync(pgsqlTmpDir, { recursive: true, force: true });
+    console.error(`Failed to make the copied PostgreSQL tree self-contained: ${error.message}`);
+    process.exit(failExitCode);
+  }
+  console.log(
+    `Relinked ${relink.rewrittenFiles.length} Mach-O files, bundled ${relink.copiedLibs.length} external dylibs` +
+      `${relink.copiedLibs.length ? ` (${relink.copiedLibs.join(', ')})` : ''}, ` +
+      `re-pointed ${relink.rewrittenSymlinks} absolute symlinks.`,
+  );
+
+  // Verify before swapping the tmp tree into place. This runs the RELINKED
+  // binaries, so it also smoke-tests @loader_path resolution inside the tree.
   const verifyPostgresBin = join(pgsqlTmpDir, 'bin', 'postgres');
   const verifyInitdbBin = join(pgsqlTmpDir, 'bin', 'initdb');
   const verifyPgCtlBin = join(pgsqlTmpDir, 'bin', 'pg_ctl');
@@ -296,6 +542,8 @@ function provisionFromPrefix(expected, failExitCode = 1) {
     date: new Date().toISOString(),
     fileCount: stats.fileCount,
     totalBytes: stats.totalBytes,
+    relocatable: true,
+    bundledDylibs: relink.copiedLibs,
   });
 
   console.log(
