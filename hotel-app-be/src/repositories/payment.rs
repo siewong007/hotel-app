@@ -858,7 +858,9 @@ impl PaymentRepository {
         booking_id: i64,
     ) -> Result<Option<Payment>, ApiError> {
         let row = sqlx::query(
-            "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
+            "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
+             transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at \
+             FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
         )
         .bind(booking_id)
         .fetch_optional(pool)

@@ -72,8 +72,29 @@ pub async fn attach_booking_ekyc_summaries(
     pool: &DbPool,
     bookings: &mut [BookingWithDetails],
 ) -> Result<(), ApiError> {
+    if bookings.is_empty() {
+        return Ok(());
+    }
+
+    let guest_ids: Vec<i64> = bookings
+        .iter()
+        .map(|booking| booking.guest_id)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    let records_by_guest: std::collections::HashMap<i64, GuestEkycSummaryRecord> =
+        EkycRepository::latest_guest_summary_records(pool, &guest_ids)
+            .await?
+            .into_iter()
+            .map(|record| (record.guest_id, record))
+            .collect();
+
     for booking in bookings {
-        let mut summary = guest_ekyc_summary(pool, booking.guest_id).await?;
+        let mut summary = records_by_guest
+            .get(&booking.guest_id)
+            .map(summary_from_record)
+            .unwrap_or_else(|| GuestEkycStatusSummary::not_submitted(booking.guest_id));
         apply_booking_constraints(
             pool,
             &mut summary,

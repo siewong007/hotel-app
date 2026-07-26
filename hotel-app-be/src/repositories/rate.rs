@@ -66,7 +66,12 @@ impl RateRepository {
     pub async fn list_rate_plans(pool: &DbPool) -> Result<Vec<RatePlan>, ApiError> {
         let rows = sqlx::query(
             r#"
-            SELECT * FROM rate_plans
+            SELECT id, name, code, description, plan_type, adjustment_type, adjustment_value,
+                   valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday,
+                   applies_thursday, applies_friday, applies_saturday, applies_sunday,
+                   min_nights, max_nights, min_advance_booking, max_advance_booking,
+                   is_active, priority, created_at, updated_at
+            FROM rate_plans
             ORDER BY priority DESC, name ASC
             "#,
         )
@@ -78,7 +83,14 @@ impl RateRepository {
     }
 
     pub async fn find_rate_plan(pool: &DbPool, rate_plan_id: i64) -> Result<RatePlan, ApiError> {
-        sqlx::query("SELECT * FROM rate_plans WHERE id = $1")
+        sqlx::query(
+            "SELECT id, name, code, description, plan_type, adjustment_type, adjustment_value, \
+             valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday, \
+             applies_thursday, applies_friday, applies_saturday, applies_sunday, \
+             min_nights, max_nights, min_advance_booking, max_advance_booking, \
+             is_active, priority, created_at, updated_at \
+             FROM rate_plans WHERE id = $1",
+        )
             .bind(rate_plan_id)
             .fetch_one(pool)
             .await
@@ -212,7 +224,14 @@ impl RateRepository {
     }
 
     pub async fn delete_rate_plan(pool: &DbPool, rate_plan_id: i64) -> Result<RatePlan, ApiError> {
-        let existing = sqlx::query("SELECT * FROM rate_plans WHERE id = $1")
+        let existing = sqlx::query(
+            "SELECT id, name, code, description, plan_type, adjustment_type, adjustment_value, \
+             valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday, \
+             applies_thursday, applies_friday, applies_saturday, applies_sunday, \
+             min_nights, max_nights, min_advance_booking, max_advance_booking, \
+             is_active, priority, created_at, updated_at \
+             FROM rate_plans WHERE id = $1",
+        )
             .bind(rate_plan_id)
             .fetch_optional(pool)
             .await
@@ -342,7 +361,10 @@ impl RateRepository {
     }
 
     pub async fn delete_room_rate(pool: &DbPool, rate_id: i64) -> Result<RoomRate, ApiError> {
-        let existing = sqlx::query("SELECT * FROM room_rates WHERE id = $1")
+        let existing = sqlx::query(
+            "SELECT id, rate_plan_id, room_type_id, price, effective_from, effective_to, created_at \
+             FROM room_rates WHERE id = $1",
+        )
             .bind(rate_id)
             .fetch_optional(pool)
             .await
@@ -366,7 +388,10 @@ impl RateRepository {
     pub async fn active_room_types(pool: &DbPool) -> Result<Vec<RoomType>, ApiError> {
         let rows = sqlx::query(
             r#"
-            SELECT * FROM room_types
+            SELECT id, name, code, description, base_price, weekday_rate, weekend_rate,
+                   max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
+                   extra_bed_charge, is_active, sort_order, created_at, updated_at
+            FROM room_types
             WHERE is_active = true
             ORDER BY sort_order, name
             "#,
@@ -431,7 +456,12 @@ impl RateRepository {
     }
 
     pub async fn find_room_type(pool: &DbPool, room_type_id: i64) -> Result<RoomType, ApiError> {
-        sqlx::query("SELECT * FROM room_types WHERE id = $1")
+        sqlx::query(
+            "SELECT id, name, code, description, base_price, weekday_rate, weekend_rate, \
+             max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds, \
+             extra_bed_charge, is_active, sort_order, created_at, updated_at \
+             FROM room_types WHERE id = $1",
+        )
             .bind(room_type_id)
             .fetch_one(pool)
             .await

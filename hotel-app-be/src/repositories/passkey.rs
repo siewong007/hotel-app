@@ -178,7 +178,8 @@ impl PasskeyRepository {
 
     pub async fn active_passkeys(pool: &DbPool, user_id: i64) -> Result<Vec<Passkey>, ApiError> {
         sqlx::query_as::<_, Passkey>(
-            "SELECT * FROM passkeys WHERE user_id = $1 AND is_active = true",
+            "SELECT id, user_id, credential_id, public_key, counter, device_name, created_at, last_used_at \
+             FROM passkeys WHERE user_id = $1 AND is_active = true",
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -192,7 +193,8 @@ impl PasskeyRepository {
         credential_id: &[u8],
     ) -> Result<Option<Passkey>, ApiError> {
         sqlx::query_as::<_, Passkey>(
-            "SELECT * FROM passkeys WHERE user_id = $1 AND credential_id = $2 AND is_active = true",
+            "SELECT id, user_id, credential_id, public_key, counter, device_name, created_at, last_used_at \
+             FROM passkeys WHERE user_id = $1 AND credential_id = $2 AND is_active = true",
         )
         .bind(user_id)
         .bind(credential_id)
