@@ -573,13 +573,16 @@ pub async fn update_customer_ledger(
         param_index += 1;
     }
 
+    // Checked BEFORE the unconditional updated_by/updated_at pushes below:
+    // those always add two entries, so any check placed after them can never
+    // fire and an all-`None` request would silently no-op instead of erroring.
+    if updates.is_empty() {
+        return Err(ApiError::BadRequest("No fields to update".to_string()));
+    }
+
     updates.push(format!("updated_by = ${}", param_index));
     param_index += 1;
     updates.push("updated_at = CURRENT_TIMESTAMP".to_string());
-
-    if updates.len() < 2 {
-        return Err(ApiError::BadRequest("No fields to update".to_string()));
-    }
 
     let query = format!(
         r#"
