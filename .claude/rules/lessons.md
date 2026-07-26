@@ -351,3 +351,33 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 - Wrong: assuming a fresh fixed id is free by picking max-seen+1 from the scenarios I'd read; and initially suspecting the volume/concurrent-session ghosts before checking id collisions INSIDE the same file.
 - Right: grep the whole test file for the candidate id (`grep -on "920_0[0-9][0-9]" tests/rbac_profile.rs | sort -u`) before claiming it; 920_010 and 920_011 were taken by Scenarios 4/5 as ACTOR ids (easy to miss — they aren't the scenario's headline user). Also: a service that reads the same row twice per request turns cross-test races into deterministic failures — useful diagnostic signature (row fields in the response predate the anomaly, branch behavior postdates it).
 - Rule: when adding a scenario to a shared-fixture test file, grep the file for EVERY fixed id you intend to use (users, roles, actors) and pick one with zero hits; when a test fails with "state I just wrote reads as unwritten", list all ids the file uses BEFORE blaming storage or concurrent sessions — cargo test-fn concurrency inside one binary is the nearest suspect.
+
+## 2026-07-27 — the SQLite removal dropped the loyalty bootstrap rows; a fresh PG V1 install has a dead loyalty module
+- Trigger: CI run 30210501626 "Backend — PostgreSQL Smoke" failed on the two new
+  tests/guests_rates_loyalty.rs loyalty scenarios — `enroll must succeed:
+  Database("no rows returned by a query that expected to return at least one row")`.
+  Both passed locally. `LoyaltyRepository::default_tier_id` does `fetch_one` on
+  `loyalty_tiers WHERE is_active`, and a CI database (baseline + data.sql + seed.sql)
+  has ZERO tiers: `grep -rn loyalty_tiers database/postgres/{data,seed}.sql` is empty.
+- Wrong: assuming a table that a routed, working feature reads is populated by the
+  install set. The rows existed only in the deleted `database/sqlite/data.sql`
+  (`git log -S "INSERT INTO loyalty_tiers" -- "*.sql"` → bfb0562f1, the SQLite
+  removal); the PostgreSQL data.sql never carried them over. The dev DB has them
+  because it came through `upgrade/pg18_4_to_v1.sql`, so every local run passed.
+  `loyalty_program_rules` id=1 was missing the same way — `update_rules` is
+  `UPDATE ... WHERE id = 1`, so the whole rules surface was a silent no-op too.
+- Right: restored program + 3 tiers + rules into `database/postgres/data.sql`
+  (verbatim values from the deleted SQLite data.sql — restoration, not invented
+  policy), mirrored to hotel-desktop, and shipped
+  `patches/2026-07-27-loyalty-bootstrap-data.sql` for existing DBs. The tiers MUST
+  be inserted one statement per tier in rank order: `loyalty_tiers.id` is
+  GENERATED ALWAYS AS IDENTITY and `rewards()` gates on `minimum_tier_id <=
+  member.tier_id`, so id order encodes tier rank. A single `CROSS JOIN (VALUES ...)`
+  insert produced silver=3/gold=1/platinum=2 on the first scratch install — which
+  compiles, installs, and makes every reward visible to every member.
+- Rule: a table read with `fetch_one` and never written by any handler is bootstrap
+  data — grep `database/postgres/{data,seed}.sql` for it, and if empty check
+  `git log -S "INSERT INTO <table>" -- "*.sql"` for a version that was dropped in a
+  migration/engine removal. When seeding rows whose generated ids are compared with
+  `<=`/`>=` anywhere in Rust, insert them one statement per row in rank order and
+  assert the ids on a scratch install — set-based inserts do not preserve VALUES order.
