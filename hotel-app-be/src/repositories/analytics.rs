@@ -2237,7 +2237,7 @@ async fn generate_company_ledger_statement(
             r#"
             SELECT company_name, COUNT(*) as entry_count, COALESCE(SUM(balance_due), 0) as total_balance
             FROM customer_ledgers
-            WHERE status NOT IN ('voided')
+            WHERE status NOT IN ('void')
             GROUP BY company_name
             ORDER BY company_name
             "#
@@ -2318,7 +2318,7 @@ async fn generate_company_ledger_statement(
             invoice_number, invoice_date, due_date,
             (created_at AT TIME ZONE current_setting('TimeZone'))::date AS created_date
         FROM customer_ledgers
-        WHERE company_name = $1 AND status NOT IN ('voided')
+        WHERE company_name = $1 AND status NOT IN ('void')
         ORDER BY created_at DESC
         "#,
     )
