@@ -879,7 +879,6 @@ mod postgres_tests {
     // from amount/tax_amount/service_charge.
     // -----------------------------------------------------------------
     #[tokio::test]
-    #[ignore = "update_customer_ledger's dynamic SET builder covers only 15 fields (company_name..status) and NEVER persists any accounting field the request accepts — post_type, department_code, transaction_code, room_number, reference_number, folio_type, transaction_type, posting_date, transaction_date, booking_id, guest_id, and the money fields tax_amount/service_charge are all silently discarded with a 200 OK; net_amount is also never recomputed on UPDATE (only the BEFORE INSERT trigger seeds it), so it drifts from amount/tax/service — pending fix: persist the accounting fields and recompute net_amount in update_customer_ledger"]
     async fn postgres_update_customer_ledger_persists_accounting_fields() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
@@ -1039,7 +1038,6 @@ mod postgres_tests {
     // "Block voiding a ledger that has collected payments".
     // -----------------------------------------------------------------
     #[tokio::test]
-    #[ignore = "void_ledger does not check paid_amount before voiding — pending fix: task #19 Block voiding a ledger that has collected payments"]
     async fn postgres_void_ledger_refuses_when_paid_amount_positive() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
@@ -1106,7 +1104,6 @@ mod postgres_tests {
     // without the void permission".
     // -----------------------------------------------------------------
     #[tokio::test]
-    #[ignore = "update_customer_ledger applies status='void' without stamping void_at/void_by/void_reason — pending fix: task #11 Stop update_customer_ledger from voiding without the void permission. The rejection MUST live in the service/repository layer (allow-list update_customer_ledger's mutable columns and reject status='void' there, forcing voids through POST /ledgers/{id}/void), NOT only as a route-level permission gate — a route-only fix (e.g. requiring ledgers:void on PATCH /ledgers/{id}) would leave this exact service-layer call, and this test, permanently red"]
     async fn postgres_update_customer_ledger_refuses_status_void() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
