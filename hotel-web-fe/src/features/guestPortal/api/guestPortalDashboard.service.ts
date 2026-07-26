@@ -22,6 +22,7 @@ import { getPortalToken } from './portalTokenStore';
 import type {
   GuestPortalBenefitsResponse,
   GuestPortalBookingSummary,
+  GuestPortalCreditsResponse,
   GuestPortalLoginResponse,
   GuestPortalMeResponse,
   GuestPortalMembershipResponse,
@@ -110,6 +111,12 @@ export class GuestPortalDashboardService {
   static async benefits(token?: string): Promise<GuestPortalBenefitsResponse> {
     return await api
       .get('guest-portal/me/benefits', { headers: authHeaders(token) })
+      .json();
+  }
+
+  static async credits(token?: string): Promise<GuestPortalCreditsResponse> {
+    return await api
+      .get('guest-portal/me/credits', { headers: authHeaders(token) })
       .json();
   }
 

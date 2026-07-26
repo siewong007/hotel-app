@@ -3,7 +3,6 @@
 //! Services that encapsulate complex business logic.
 
 pub mod analytics;
-#[allow(dead_code)]
 pub mod audit;
 pub mod auth;
 pub mod auto_checkin;
@@ -18,7 +17,7 @@ pub mod guests;
 pub mod housekeeping;
 pub mod invoice_numbers;
 pub mod ledgers;
-pub mod loyalty;
+// Loyalty service logic lives in modules::loyalty::service.
 pub mod maintenance;
 pub mod night_audit;
 pub mod night_audit_scheduler;
@@ -27,7 +26,6 @@ pub mod payment_receipt_scheduler;
 pub mod payments;
 pub mod paypal_client;
 pub mod profile;
-#[allow(dead_code)]
 pub mod promotion_pricing;
 pub mod rates;
 pub mod rbac;

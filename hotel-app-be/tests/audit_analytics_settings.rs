@@ -35,6 +35,7 @@ mod postgres_tests {
     use hotel_app_be::modules::settings::repository::SettingsRepository;
     use hotel_app_be::modules::settings::service as settings_service;
     use hotel_app_be::repositories::analytics as analytics_repo;
+    use hotel_app_be::repositories::audit::AuditRepository;
     use hotel_app_be::repositories::search::SearchRepository;
     use hotel_app_be::services::audit as audit_service;
     use hotel_app_be::services::audit::AuditLog;
@@ -153,6 +154,89 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
+    }
+
+    // -----------------------------------------------------------------
+    // Regression: audit rows carrying a non-null `ip_address` must be
+    // readable. `audit_logs.ip_address` is `inet`; the INSERT casts
+    // (`$6::inet`) but both SELECTs used to read it back bare into
+    // `Option<String>`, which sqlx cannot decode from INET without the
+    // `ipnetwork` feature. Every row written so far had a NULL ip, so the
+    // audit viewer worked -- until the PayPal webhook handler started
+    // writing a real address, at which point the list and the CSV export
+    // both 500 for good. Fixture ids use the `991_xxx` block.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn audit_rows_with_a_non_null_ip_address_are_readable() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let user_id = 991_001;
+        let resource_type = "aud991_inet_resource";
+
+        async fn cleanup(pool: &PgPool, user_id: i64, resource_type: &str) {
+            sqlx::query("DELETE FROM audit_logs WHERE resource_type = $1 AND user_id = $2")
+                .bind(resource_type)
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM users WHERE id = $1")
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        cleanup(&pool, user_id, resource_type).await;
+        upsert_actor(&pool, user_id, "aud991_inet_actor").await;
+
+        AuditLog::log_event(
+            &pool,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "aud991_with_ip",
+                resource_type,
+                resource_id: Some(user_id),
+                ip_address: Some("203.0.113.42".to_string()),
+                user_agent: Some("regression-test/1.0".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("writing an audit row with an ip_address must succeed");
+
+        let params = AuditLogQuery {
+            user_id: Some(user_id),
+            ..Default::default()
+        };
+
+        // The list path: this is what `GET /api/audit-logs` runs.
+        let (total, rows) =
+            AuditRepository::list_logs(&pool, &params, None, "created_at", "DESC", 50, 0)
+                .await
+                .expect("listing audit logs with a non-null inet row must not fail to decode");
+        assert!(total >= 1, "the seeded row must be counted, got {total}");
+        let row = rows
+            .iter()
+            .find(|r| r.action == "aud991_with_ip")
+            .expect("the seeded row must come back from list_logs");
+        assert_eq!(
+            row.ip_address.as_deref(),
+            Some("203.0.113.42"),
+            "host() must render the inet as a bare address, unchanged in shape"
+        );
+
+        // The export path: same SELECT, separate function, same bug class.
+        let exported = AuditRepository::list_logs_for_export(&pool, &params, None)
+            .await
+            .expect("exporting audit logs with a non-null inet row must not fail to decode");
+        assert!(
+            exported.iter().any(|r| r.action == "aud991_with_ip"),
+            "the seeded row must appear in the CSV export query"
+        );
+
+        cleanup(&pool, user_id, resource_type).await;
     }
 
     // -----------------------------------------------------------------

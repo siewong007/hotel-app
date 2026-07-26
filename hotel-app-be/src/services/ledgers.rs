@@ -98,6 +98,30 @@ pub async fn update_customer_ledger(
         .internal_notes
         .as_deref()
         .map(Sanitizer::sanitize_notes);
+    request.department_code = request
+        .department_code
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
+    request.transaction_code = request
+        .transaction_code
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
+    request.room_number = request.room_number.as_deref().map(Sanitizer::sanitize_text);
+    request.reference_number = request
+        .reference_number
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
+
+    // `post_type` is constrained by the `valid_post_type` CHECK on
+    // customer_ledgers. Reject an unknown value as a 400 here rather than
+    // letting it surface as an opaque database 500.
+    if let Some(post_type) = request.post_type.as_deref()
+        && !VALID_POST_TYPES.contains(&post_type)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "Invalid post type '{post_type}'"
+        )));
+    }
 
     let ledger = repo::update_customer_ledger(pool, ledger_id, user_id, request).await?;
 

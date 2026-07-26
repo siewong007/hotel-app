@@ -1847,6 +1847,7 @@ mod postgres_guest_portal_race_tests {
                 adults: Some(1),
                 children: Some(0),
                 voucher_id: None,
+                complimentary_dates: None,
             },
         )
         .await
@@ -1860,6 +1861,7 @@ mod postgres_guest_portal_race_tests {
             adults: Some(1),
             children: Some(0),
             voucher_id: None,
+            complimentary_dates: None,
             expected_total: quote.total_amount,
             special_requests: None,
             cleaning_preference: None,

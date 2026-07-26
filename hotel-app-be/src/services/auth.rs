@@ -17,6 +17,88 @@ use serde_json::json;
 use validator::Validate;
 use crate::models::AuditEvent;
 
+/// Re-authenticate an already-authenticated user before a high-value account
+/// change (currently: registering a passkey).
+///
+/// Accepts the account password, or a TOTP code when 2FA is enabled. An
+/// account with neither is refused rather than waved through — a credential
+/// that can be minted from a bare session is not a second factor.
+pub(crate) async fn ensure_step_up(
+    pool: &DbPool,
+    user_id: i64,
+    password: Option<&str>,
+    totp_code: Option<&str>,
+) -> Result<(), ApiError> {
+    let stored_hash = AuthRepository::password_hash(pool, user_id).await.ok();
+
+    if let (Some(supplied), Some(hash)) = (password, stored_hash.as_deref())
+        && AuthService::verify_password(supplied, hash)
+            .await
+            .unwrap_or(false)
+    {
+        return Ok(());
+    }
+
+    let (enabled, secret) = AuthRepository::two_factor_state(pool, user_id).await?;
+    let two_factor_enabled = enabled.unwrap_or(false);
+    if two_factor_enabled
+        && let (Some(code), Some(secret)) = (totp_code, secret.as_deref())
+        && AuthService::verify_totp_code(secret, code).unwrap_or(false)
+    {
+        return Ok(());
+    }
+
+    if stored_hash.is_none() && !two_factor_enabled {
+        return Err(ApiError::BadRequest(
+            "Set a password or enable two-factor authentication before registering a passkey."
+                .to_string(),
+        ));
+    }
+
+    Err(ApiError::Unauthorized(
+        "Re-enter your password (or a two-factor code) to register a passkey.".to_string(),
+    ))
+}
+
+/// Reject a login attempt against a locked account, clearing the lock when it
+/// has already elapsed.
+///
+/// Shared by the password and passkey login paths. Passkey login previously
+/// had no lock check at all, so a locked-out account stayed fully usable
+/// through that entry point — the two paths must apply the same rule or the
+/// lockout is only as strong as its weakest door.
+pub(crate) async fn ensure_not_locked(
+    pool: &DbPool,
+    user_id: i64,
+    username: &str,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(), ApiError> {
+    let (is_locked, locked_until, _) = AuthRepository::login_lock_state(pool, user_id).await?;
+    if is_locked.unwrap_or(false)
+        && let Some(until) = locked_until
+    {
+        let now = Utc::now();
+        if now < until {
+            let remaining_mins = (until - now).num_minutes() + 1;
+            let _ = AuditLog::log_login_failure(
+                pool,
+                username,
+                "Account locked",
+                ip_address.map(str::to_string),
+                user_agent.map(str::to_string),
+            )
+            .await;
+            return Err(ApiError::TooManyRequests(format!(
+                "Account is locked due to too many failed attempts. Try again in {} minute(s).",
+                remaining_mins
+            )));
+        }
+        let _ = AuthRepository::unlock_user(pool, user_id).await;
+    }
+    Ok(())
+}
+
 /// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
 /// the freshly minted refresh token as a separate `String`; the route handler
 /// sets that token on an `HttpOnly` cookie and never includes it in the JSON body.
@@ -29,39 +111,31 @@ pub async fn login(
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
+    // The caller already resolved these (routes/auth.rs uses extract_client_ip)
+    // and they are passed to `store_refresh_token` below. Every login audit row
+    // used to discard them, which made "one IP against many accounts"
+    // unanswerable from audit_logs -- only "many attempts on one account".
+    let audit_ip = || ip_address.map(str::to_string);
+    let audit_ua = || user_agent.map(str::to_string);
+
     let user = AuthRepository::find_user_by_login(pool, &req.username).await?;
     let user = match user {
         Some(user) if user.is_active => user,
         Some(_) => {
             let _ =
-                AuditLog::log_login_failure(pool, &req.username, "Account is inactive", None, None)
+                AuditLog::log_login_failure(pool, &req.username, "Account is inactive", audit_ip(), audit_ua())
                     .await;
             return Err(ApiError::Unauthorized("Account is inactive".to_string()));
         }
         None => {
-            let _ = AuditLog::log_login_failure(pool, &req.username, "User not found", None, None)
+            let _ = AuditLog::log_login_failure(pool, &req.username, "User not found", audit_ip(), audit_ua())
                 .await;
             return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
         }
     };
 
-    let (is_locked, locked_until, failed_attempts) =
-        AuthRepository::login_lock_state(pool, user.id).await?;
-    if is_locked.unwrap_or(false)
-        && let Some(until) = locked_until
-    {
-        let now = Utc::now();
-        if now < until {
-            let remaining_mins = (until - now).num_minutes() + 1;
-            let _ = AuditLog::log_login_failure(pool, &req.username, "Account locked", None, None)
-                .await;
-            return Err(ApiError::TooManyRequests(format!(
-                "Account is locked due to too many failed attempts. Try again in {} minute(s).",
-                remaining_mins
-            )));
-        }
-        let _ = AuthRepository::unlock_user(pool, user.id).await;
-    }
+    ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent).await?;
+    let (_, _, failed_attempts) = AuthRepository::login_lock_state(pool, user.id).await?;
 
     let skip_email_verification = crate::core::config::get().skip_email_verification;
 
@@ -100,8 +174,8 @@ pub async fn login(
                 pool,
                 &req.username,
                 "Account locked after max attempts",
-                None,
-                None,
+                audit_ip(),
+                audit_ua(),
             )
             .await;
             return Err(ApiError::TooManyRequests(
@@ -113,7 +187,8 @@ pub async fn login(
         let _ = AuthRepository::update_failed_login_attempts(pool, user.id, new_attempts).await;
         let remaining = max_attempts - new_attempts;
         let _ =
-            AuditLog::log_login_failure(pool, &req.username, "Invalid password", None, None).await;
+            AuditLog::log_login_failure(pool, &req.username, "Invalid password", audit_ip(), audit_ua())
+                .await;
         return Err(ApiError::Unauthorized(format!(
             "Invalid credentials. {} attempt(s) remaining before account lockout.",
             remaining
@@ -131,8 +206,8 @@ pub async fn login(
                 pool,
                 &req.username,
                 "2FA code not provided",
-                None,
-                None,
+                audit_ip(),
+                audit_ua(),
             )
             .await;
             return Err(ApiError::Unauthorized(
@@ -199,8 +274,8 @@ pub async fn login(
                         pool,
                         &req.username,
                         "Invalid 2FA code",
-                        None,
-                        None,
+                        audit_ip(),
+                        audit_ua(),
                     )
                     .await;
                     return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
@@ -245,7 +320,7 @@ pub async fn login(
     } else {
         "password"
     };
-    let _ = AuditLog::log_login_success(pool, user.id, login_method, None, None).await;
+    let _ = AuditLog::log_login_success(pool, user.id, login_method, audit_ip(), audit_ua()).await;
 
     Ok((
         AuthResponse {

@@ -287,18 +287,6 @@ impl PaymentWorkflowSummaryRow {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct InvoiceBookingDetails {
-    pub customer_name: String,
-    pub customer_email: String,
-    pub customer_phone: Option<String>,
-    pub check_in: chrono::NaiveDateTime,
-    pub check_out: chrono::NaiveDateTime,
-    pub room_id: i64,
-    pub room_number: String,
-    pub room_type: String,
-}
-
 /// Invoice record
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Invoice {
@@ -339,15 +327,6 @@ pub struct InvoicePreview {
     pub booking_details: serde_json::Value,
 }
 
-/// Invoice line item
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InvoiceLineItem {
-    pub description: String,
-    pub quantity: i32,
-    pub unit_price: Decimal,
-    pub total: Decimal,
-}
-
 /// Record payment request (explicit payment recording)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecordPaymentRequest {
@@ -372,19 +351,6 @@ pub struct UpdatePaymentRequest {
     pub payment_date: Option<String>,
 }
 
-/// Keycard deposit record
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeycardDeposit {
-    pub id: i64,
-    pub booking_id: i64,
-    pub payment_id: i64,
-    pub deposit_amount: Decimal,
-    pub deposit_status: String,
-    pub returned_at: Option<DateTime<Utc>>,
-    pub returned_by: Option<i64>,
-    pub created_at: DateTime<Utc>,
-}
-
 // This manual `FromRow` is currently unreachable (no `query_as::<_, Payment>`
 // call sites exist), but is kept so any future adoption maps the SAME real
 // columns as `row_mappers::row_to_payment`. Delegating keeps a single source of
@@ -400,21 +366,5 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         Ok(crate::models::row_mappers::row_to_invoice(row))
-    }
-}
-
-impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for KeycardDeposit {
-    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
-        use sqlx::Row;
-        Ok(KeycardDeposit {
-            id: row.try_get("id")?,
-            booking_id: row.try_get("booking_id")?,
-            payment_id: row.try_get("payment_id")?,
-            deposit_amount: { row.try_get("deposit_amount")? },
-            deposit_status: row.try_get("deposit_status")?,
-            returned_at: row.try_get("returned_at")?,
-            returned_by: row.try_get("returned_by")?,
-            created_at: row.try_get("created_at")?,
-        })
     }
 }

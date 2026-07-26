@@ -13,7 +13,8 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
     GuestPortalBookingSummary, GuestPortalGuestView, GuestPortalMembership,
-    GuestPortalPointsActivity, GuestPortalReward, GuestPortalTierBenefit, GuestPortalTransaction,
+    GuestPortalPointsActivity, GuestPortalReward, GuestPortalRoomTypeCredit, GuestPortalTierBenefit,
+    GuestPortalTransaction,
 };
 use crate::{core::sql_compat::current_timestamp, param};
 
@@ -447,6 +448,42 @@ impl GuestPortalSessionRepository {
             .map(|row| GuestPortalTierBenefit {
                 tier_name: row.try_get("tier_name").unwrap_or_default(),
                 discount_percentage: rust_decimal::Decimal::ZERO,
+            })
+            .collect())
+    }
+
+    /// Complimentary-night credits held by one guest, per room type.
+    ///
+    /// Scoped by the caller's session `guest_id` — the portal never resolves
+    /// credit ownership through the guest's email address. Exhausted rows are
+    /// filtered out, and `notes` is deliberately not selected: it is a
+    /// staff-facing remark on the grant, not guest-facing copy.
+    pub async fn complimentary_credits(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Vec<GuestPortalRoomTypeCredit>, ApiError> {
+        let sql = format!(
+            "SELECT rt.id AS room_type_id, rt.code AS room_type_code, rt.name AS room_type_name, \
+                    gc.nights_available \
+             FROM guest_complimentary_credits gc \
+             JOIN room_types rt ON rt.id = gc.room_type_id \
+             WHERE gc.guest_id = {} AND gc.nights_available > 0 \
+             ORDER BY rt.name ASC, rt.id ASC",
+            param!(1)
+        );
+        let rows = sqlx::query(&sql)
+            .bind(guest_id)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Complimentary credit lookup failed: {}", e)))?;
+
+        Ok(rows
+            .iter()
+            .map(|row| GuestPortalRoomTypeCredit {
+                room_type_id: row.try_get("room_type_id").unwrap_or_default(),
+                room_type_code: row.try_get("room_type_code").unwrap_or_default(),
+                room_type_name: row.try_get("room_type_name").unwrap_or_default(),
+                nights_available: row.try_get("nights_available").unwrap_or_default(),
             })
             .collect())
     }

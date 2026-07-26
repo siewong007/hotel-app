@@ -103,42 +103,6 @@ impl Sanitizer {
         }
     }
 
-    /// Sanitize file paths to prevent directory traversal attacks
-    ///
-    /// Removes ../ sequences and leading/trailing slashes.
-    ///
-    /// # Arguments
-    /// * `input` - Raw file path input
-    ///
-    /// # Returns
-    /// * Safe file path without directory traversal sequences
-    pub fn sanitize_file_path(input: &str) -> String {
-        input
-            .replace("../", "")
-            .replace("..\\", "")
-            .trim_matches('/')
-            .trim_matches('\\')
-            .to_string()
-    }
-
-    /// Sanitize SQL identifiers (table names, column names)
-    ///
-    /// Allows only alphanumeric characters and underscores.
-    /// This is a defense-in-depth measure; parameterized queries are still required.
-    ///
-    /// # Arguments
-    /// * `input` - Raw identifier input
-    ///
-    /// # Returns
-    /// * Option<String> - Some(identifier) if valid, None if contains invalid characters
-    pub fn sanitize_sql_identifier(input: &str) -> Option<String> {
-        if input.chars().all(|c| c.is_alphanumeric() || c == '_') {
-            Some(input.to_string())
-        } else {
-            None
-        }
-    }
-
     /// Comprehensive sanitization for guest input
     ///
     /// Applies appropriate sanitization based on field type.
@@ -234,28 +198,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_sanitize_file_path() {
-        assert_eq!(
-            Sanitizer::sanitize_file_path("../../../etc/passwd"),
-            "etc/passwd"
-        );
-        assert_eq!(
-            Sanitizer::sanitize_file_path("/safe/path/file.txt"),
-            "safe/path/file.txt"
-        );
-    }
-
-    #[test]
-    fn test_sanitize_sql_identifier() {
-        assert_eq!(
-            Sanitizer::sanitize_sql_identifier("valid_table_name"),
-            Some("valid_table_name".to_string())
-        );
-        assert_eq!(Sanitizer::sanitize_sql_identifier("invalid-name"), None);
-        assert_eq!(
-            Sanitizer::sanitize_sql_identifier("table; DROP TABLE users;"),
-            None
-        );
-    }
 }

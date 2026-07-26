@@ -1394,3 +1394,162 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
 
     cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }
+
+// ---------------------------------------------------------------------------
+// Scenario 11: the permission-superset guard on role grants.
+//
+// Fixture ids use the `921_xxx` block (users `921_0xx`, roles `921_1xx`),
+// verified collision-free against every other id in tests/ before use.
+//
+// This reproduces the escalation that priority-only checking allowed: the
+// seeded `manager` role (priority 80) outranks `senior_reviewer` (75) but
+// holds none of its `ekyc:*` permissions, so a manager could assign the role
+// to *themselves* and acquire powers nobody granted them. The fixture roles
+// below mirror that shape with seeded housekeeping/rooms permissions.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn postgres_actor_cannot_grant_a_role_conferring_permissions_they_lack() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 921_001;
+    let actor_role = 921_101; // priority 80, holds housekeeping:update
+    let foreign_role = 921_102; // priority 75, holds rooms:update (actor lacks it)
+    let subset_role = 921_103; // priority 75, holds housekeeping:update only
+
+    let all_roles = [actor_role, foreign_role, subset_role];
+    cleanup_rbac_fixture(&pool, &[actor_id], &all_roles).await;
+
+    upsert_test_user(
+        &pool,
+        actor_id,
+        "rbac_esc_actor",
+        "rbac_esc_actor@example.com",
+        "Password123!",
+    )
+    .await;
+
+    upsert_custom_role(&pool, actor_role, "rbac_esc_actor_role", 80).await;
+    upsert_custom_role(&pool, foreign_role, "rbac_esc_foreign_role", 75).await;
+    upsert_custom_role(&pool, subset_role, "rbac_esc_subset_role", 75).await;
+
+    let housekeeping_update = permission_id(&pool, "housekeeping:update").await;
+    let rooms_update = permission_id(&pool, "rooms:update").await;
+
+    set_role_permission_fixture(&pool, actor_role, housekeeping_update).await;
+    set_role_permission_fixture(&pool, subset_role, housekeeping_update).await;
+    set_role_permission_fixture(&pool, foreign_role, rooms_update).await;
+
+    assign_user_role_fixture(&pool, actor_id, actor_role).await;
+    rbac_cache::invalidate_all();
+
+    // (a) The exploit. Priority passes (75 < 80) but the role confers
+    // `rooms:update`, which the actor does not hold. Must be refused.
+    let escalation = rbac_service::assign_role_to_user(
+        &pool,
+        actor_id,
+        AssignRoleInput {
+            user_id: actor_id,
+            role_id: foreign_role,
+        },
+    )
+    .await;
+    assert!(
+        matches!(escalation, Err(ApiError::Forbidden(_))),
+        "granting a role that confers an unheld permission must be Forbidden, got {escalation:?}"
+    );
+
+    // The refusal must be a refusal, not a partially-applied write.
+    let landed: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM user_roles WHERE user_id = $1 AND role_id = $2")
+            .bind(actor_id)
+            .bind(foreign_role)
+            .fetch_one(&pool)
+            .await
+            .expect("counting user_roles must succeed");
+    assert_eq!(landed, 0, "a refused grant must leave no user_roles row");
+
+    // (b) Positive control: identical priority, but every permission it
+    // confers is already held. This must still succeed, or the guard has
+    // broken legitimate delegation rather than just the escalation.
+    let allowed = rbac_service::assign_role_to_user(
+        &pool,
+        actor_id,
+        AssignRoleInput {
+            user_id: actor_id,
+            role_id: subset_role,
+        },
+    )
+    .await;
+    assert!(
+        allowed.is_ok(),
+        "granting a role whose permissions the actor already holds must succeed, got {allowed:?}"
+    );
+
+    cleanup_rbac_fixture(&pool, &[actor_id], &all_roles).await;
+}
+
+#[tokio::test]
+async fn postgres_non_super_admin_cannot_rewrite_a_system_role_permission_set() {
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 921_002;
+    let actor_role = 921_104; // priority 80: outranks the seeded `guest` role (20)
+
+    cleanup_rbac_fixture(&pool, &[actor_id], &[actor_role]).await;
+
+    upsert_test_user(
+        &pool,
+        actor_id,
+        "rbac_sysrole_actor",
+        "rbac_sysrole_actor@example.com",
+        "Password123!",
+    )
+    .await;
+    upsert_custom_role(&pool, actor_role, "rbac_sysrole_actor_role", 80).await;
+    let housekeeping_update = permission_id(&pool, "housekeeping:update").await;
+    set_role_permission_fixture(&pool, actor_role, housekeeping_update).await;
+    assign_user_role_fixture(&pool, actor_id, actor_role).await;
+    rbac_cache::invalidate_all();
+
+    let guest_role = role_id_by_name(&pool, "guest").await;
+    let before: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM role_permissions WHERE role_id = $1")
+            .bind(guest_role)
+            .fetch_one(&pool)
+            .await
+            .expect("counting the guest role's permissions must succeed");
+
+    // Outranking a system role on priority used to be enough to empty its
+    // permission set; `update_role`/`delete_role` refused system roles but the
+    // permission-membership paths had no equivalent guard.
+    let wiped = rbac_service::replace_role_permissions(
+        &pool,
+        actor_id,
+        guest_role,
+        RolePermissionIdsInput {
+            permission_ids: vec![],
+        },
+    )
+    .await;
+    assert!(
+        matches!(wiped, Err(ApiError::Forbidden(_))),
+        "a non-super-admin must not rewrite a system role's permissions, got {wiped:?}"
+    );
+
+    let after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM role_permissions WHERE role_id = $1")
+        .bind(guest_role)
+        .fetch_one(&pool)
+        .await
+        .expect("counting the guest role's permissions must succeed");
+    assert_eq!(
+        before, after,
+        "the seeded guest role's permission set must be untouched"
+    );
+
+    cleanup_rbac_fixture(&pool, &[actor_id], &[actor_role]).await;
+}

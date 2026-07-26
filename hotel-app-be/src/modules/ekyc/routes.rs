@@ -4,12 +4,13 @@ use axum::body::Body;
 use axum::http::header;
 use axum::{
     Router,
-    extract::{Multipart, Path, Query, State},
+    extract::{ConnectInfo, Multipart, Path, Query, State},
     http::HeaderMap,
     response::{Json, Response},
     routing::{get, patch, post},
 };
 use std::fs;
+use std::net::SocketAddr;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -129,11 +130,12 @@ async fn upload_document(
 
 async fn submit_ekyc(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::EkycSubmissionRequest>,
 ) -> Result<Json<models::EkycStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    let ip = client_ip(&headers);
+    let ip = client_ip(&headers, peer_addr);
     let ua = user_agent(&headers);
     Ok(Json(
         service::submit_ekyc(&pool, user_id, input, ip, ua).await?,
@@ -167,6 +169,7 @@ async fn get_dashboard(
 
 async fn list_admin_applications(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Query(params): Query<models::EkycListQuery>,
 ) -> Result<Json<models::EkycAdminListResponse>, ApiError> {
@@ -176,7 +179,7 @@ async fn list_admin_applications(
             &pool,
             actor_id,
             params,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -185,6 +188,7 @@ async fn list_admin_applications(
 
 async fn get_admin_application(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
@@ -194,7 +198,7 @@ async fn get_admin_application(
             &pool,
             actor_id,
             id,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -203,6 +207,7 @@ async fn get_admin_application(
 
 async fn create_admin_application(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::EkycAdminCreateRequest>,
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
@@ -212,7 +217,7 @@ async fn create_admin_application(
             &pool,
             actor_id,
             input,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -221,6 +226,7 @@ async fn create_admin_application(
 
 async fn apply_review_action(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<models::EkycReviewActionRequest>,
@@ -232,7 +238,7 @@ async fn apply_review_action(
             actor_id,
             id,
             input,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -241,6 +247,7 @@ async fn apply_review_action(
 
 async fn reveal_sensitive(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<models::EkycSensitiveRevealRequest>,
@@ -252,7 +259,7 @@ async fn reveal_sensitive(
             actor_id,
             id,
             input,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -269,6 +276,7 @@ async fn reason_codes(
 
 async fn export_admin_applications(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Query(params): Query<models::EkycListQuery>,
 ) -> Result<Response, ApiError> {
@@ -277,7 +285,7 @@ async fn export_admin_applications(
         &pool,
         actor_id,
         params,
-        client_ip(&headers),
+        client_ip(&headers, peer_addr),
         user_agent(&headers),
     )
     .await?;
@@ -303,6 +311,7 @@ async fn get_all_verifications(
 
 async fn get_verification(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
@@ -312,7 +321,7 @@ async fn get_verification(
             &pool,
             actor_id,
             id,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -321,6 +330,7 @@ async fn get_verification(
 
 async fn get_document(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path((id, kind)): Path<(i64, String)>,
 ) -> Result<Response, ApiError> {
@@ -331,7 +341,7 @@ async fn get_document(
         actor_id,
         id,
         &kind,
-        client_ip(&headers),
+        client_ip(&headers, peer_addr),
         user_agent(&headers),
     )
     .await?;
@@ -367,6 +377,7 @@ async fn get_document(
 
 async fn update_verification(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<models::EkycVerificationUpdate>,
@@ -378,7 +389,7 @@ async fn update_verification(
             &pool,
             admin_id,
             updated.id,
-            client_ip(&headers),
+            client_ip(&headers, peer_addr),
             user_agent(&headers),
         )
         .await?,
@@ -392,15 +403,12 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
         .map(|value| value.chars().take(512).collect())
 }
 
-fn client_ip(headers: &HeaderMap) -> Option<String> {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|value| value.to_str().ok())
-        })
-        .map(|value| value.trim().chars().take(64).collect())
+/// Resolve the caller's address through the canonical helper, which only
+/// consults `X-Forwarded-For`/`X-Real-IP` when `trust_proxy_headers` is set.
+///
+/// This module previously read those headers unconditionally and never looked
+/// at the socket, so identity-verification audit rows recorded whatever
+/// address the client claimed.
+fn client_ip(headers: &HeaderMap, peer_addr: SocketAddr) -> Option<String> {
+    Some(crate::routes::extract_client_ip(headers, peer_addr).to_string())
 }

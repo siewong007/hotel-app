@@ -137,11 +137,6 @@ const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = $1";
 const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
     "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1";
 
-// PostgreSQL query for checking if ledger is voided
-#[allow(dead_code)]
-const CHECK_LEDGER_VOIDED_QUERY: &str =
-    "SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1";
-
 /// List all customer ledgers with optional filters
 pub async fn list_customer_ledgers(
     pool: &DbPool,
@@ -495,6 +490,12 @@ pub async fn update_customer_ledger(
 
     let mut updates = Vec::new();
     let mut param_index = 1;
+    // Placeholder numbers for the three inputs of `net_amount`, so the derived
+    // clause below can reference the NEW value of any input this request
+    // changes without binding that value a second time.
+    let mut amount_param: Option<i32> = None;
+    let mut tax_amount_param: Option<i32> = None;
+    let mut service_charge_param: Option<i32> = None;
 
     if request.company_name.is_some() {
         updates.push(format!("company_name = ${}", param_index));
@@ -545,6 +546,7 @@ pub async fn update_customer_ledger(
         param_index += 1;
     }
     if request.amount.is_some() {
+        amount_param = Some(param_index);
         updates.push(format!("amount = ${}", param_index));
         param_index += 1;
     }
@@ -572,12 +574,67 @@ pub async fn update_customer_ledger(
         updates.push(format!("internal_notes = ${}", param_index));
         param_index += 1;
     }
+    if request.post_type.is_some() {
+        updates.push(format!("post_type = ${}", param_index));
+        param_index += 1;
+    }
+    if request.department_code.is_some() {
+        updates.push(format!("department_code = ${}", param_index));
+        param_index += 1;
+    }
+    if request.transaction_code.is_some() {
+        updates.push(format!("transaction_code = ${}", param_index));
+        param_index += 1;
+    }
+    if request.room_number.is_some() {
+        updates.push(format!("room_number = ${}", param_index));
+        param_index += 1;
+    }
+    if request.reference_number.is_some() {
+        updates.push(format!("reference_number = ${}", param_index));
+        param_index += 1;
+    }
+    if request.tax_amount.is_some() {
+        tax_amount_param = Some(param_index);
+        updates.push(format!("tax_amount = ${}", param_index));
+        param_index += 1;
+    }
+    if request.service_charge.is_some() {
+        service_charge_param = Some(param_index);
+        updates.push(format!("service_charge = ${}", param_index));
+        param_index += 1;
+    }
 
-    // Checked BEFORE the unconditional updated_by/updated_at pushes below:
-    // those always add two entries, so any check placed after them can never
-    // fire and an all-`None` request would silently no-op instead of erroring.
+    // Checked BEFORE the derived/unconditional pushes below: those always add
+    // entries, so any check placed after them can never fire and an all-`None`
+    // request would silently no-op instead of erroring. `updates` must still
+    // hold only caller-supplied fields at this point.
     if updates.is_empty() {
         return Err(ApiError::BadRequest("No fields to update".to_string()));
+    }
+
+    // `net_amount` is populated only by the `generate_folio_number` BEFORE
+    // INSERT trigger (and only when it is NULL); nothing recomputes it on
+    // UPDATE. Whenever this request changes one of its three inputs, recompute
+    // it in the same statement so the stored total cannot drift away from
+    // amount/tax_amount/service_charge.
+    //
+    // SQL evaluates every SET expression against the OLD row, so a bare column
+    // name below reads the pre-update value — exactly what is wanted for an
+    // input this request is NOT changing. For an input it IS changing, the
+    // field's own placeholder is reused, so no extra bind is added and the
+    // bind order stays in step with the clause order.
+    if amount_param.is_some() || tax_amount_param.is_some() || service_charge_param.is_some() {
+        let input_expr = |param: Option<i32>, column: &str| match param {
+            Some(index) => format!("${}", index),
+            None => column.to_string(),
+        };
+        updates.push(format!(
+            "net_amount = {} - COALESCE({}, 0) - COALESCE({}, 0)",
+            input_expr(amount_param, "amount"),
+            input_expr(tax_amount_param, "tax_amount"),
+            input_expr(service_charge_param, "service_charge"),
+        ));
     }
 
     updates.push(format!("updated_by = ${}", param_index));
@@ -661,6 +718,31 @@ pub async fn update_customer_ledger(
     }
     if let Some(ref v) = request.internal_notes {
         query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.post_type {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.department_code {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.transaction_code {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.room_number {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.reference_number {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(tax_amount) = request.tax_amount {
+        let decimal_tax = Decimal::from_f64_retain(tax_amount)
+            .ok_or_else(|| ApiError::BadRequest("Invalid tax amount".to_string()))?;
+        query_builder = query_builder.bind(decimal_tax);
+    }
+    if let Some(service_charge) = request.service_charge {
+        let decimal_service_charge = Decimal::from_f64_retain(service_charge)
+            .ok_or_else(|| ApiError::BadRequest("Invalid service charge".to_string()))?;
+        query_builder = query_builder.bind(decimal_service_charge);
     }
 
     query_builder = query_builder.bind(user_id);

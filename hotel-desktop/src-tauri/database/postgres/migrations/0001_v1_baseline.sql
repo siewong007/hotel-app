@@ -4759,6 +4759,80 @@ ALTER TABLE public.system_settings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENT
 
 
 --
+-- Name: team_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.team_members (
+    team_id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    is_lead boolean DEFAULT false NOT NULL,
+    joined_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    added_by bigint,
+    expires_at timestamp with time zone
+);
+
+
+--
+-- Name: COLUMN team_members.expires_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.team_members.expires_at IS 'Membership lapses at this instant; the permission-resolution query filters on it.';
+
+
+--
+-- Name: team_roles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.team_roles (
+    team_id bigint NOT NULL,
+    role_id bigint NOT NULL,
+    granted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    granted_by bigint
+);
+
+
+--
+-- Name: teams; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.teams (
+    id bigint NOT NULL,
+    uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
+    code character varying(50) NOT NULL,
+    name character varying(100) NOT NULL,
+    description text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by bigint,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_by bigint,
+    deleted_at timestamp with time zone,
+    CONSTRAINT valid_team_code CHECK (((code)::text ~ '^[a-z][a-z0-9_]*$'::text))
+);
+
+
+--
+-- Name: TABLE teams; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.teams IS 'Departments / working teams. Membership confers the roles in team_roles.';
+
+
+--
+-- Name: teams_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.teams ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.teams_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: two_factor_challenges; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6033,6 +6107,30 @@ ALTER TABLE ONLY public.system_settings
 
 ALTER TABLE ONLY public.system_settings
     ADD CONSTRAINT system_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: team_members team_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_members
+    ADD CONSTRAINT team_members_pkey PRIMARY KEY (team_id, user_id);
+
+
+--
+-- Name: team_roles team_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_roles
+    ADD CONSTRAINT team_roles_pkey PRIMARY KEY (team_id, role_id);
+
+
+--
+-- Name: teams teams_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.teams
+    ADD CONSTRAINT teams_pkey PRIMARY KEY (id);
 
 
 --
@@ -7543,6 +7641,27 @@ CREATE INDEX idx_system_settings_category ON public.system_settings USING btree 
 --
 
 CREATE INDEX idx_system_settings_public ON public.system_settings USING btree (is_public) WHERE (is_public = true);
+
+
+--
+-- Name: idx_team_members_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_team_members_user_id ON public.team_members USING btree (user_id);
+
+
+--
+-- Name: idx_team_roles_role_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_team_roles_role_id ON public.team_roles USING btree (role_id);
+
+
+--
+-- Name: teams_code_live_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX teams_code_live_key ON public.teams USING btree (code) WHERE (deleted_at IS NULL);
 
 
 --
@@ -9373,6 +9492,70 @@ ALTER TABLE ONLY public.support_messages
 
 ALTER TABLE ONLY public.system_settings
     ADD CONSTRAINT system_settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: team_members team_members_added_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_members
+    ADD CONSTRAINT team_members_added_by_fkey FOREIGN KEY (added_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: team_members team_members_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_members
+    ADD CONSTRAINT team_members_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: team_members team_members_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_members
+    ADD CONSTRAINT team_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: team_roles team_roles_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_roles
+    ADD CONSTRAINT team_roles_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: team_roles team_roles_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_roles
+    ADD CONSTRAINT team_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: team_roles team_roles_team_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.team_roles
+    ADD CONSTRAINT team_roles_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id) ON DELETE CASCADE;
+
+
+--
+-- Name: teams teams_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.teams
+    ADD CONSTRAINT teams_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: teams teams_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.teams
+    ADD CONSTRAINT teams_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --

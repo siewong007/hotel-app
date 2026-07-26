@@ -195,7 +195,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
 // Payment mapper
 // =============================================================================
 
-use super::payment::{Invoice, KeycardDeposit, Payment};
+use super::payment::{Invoice, Payment};
 
 // Maps a `payments` row to the `Payment` model against the REAL columns of the
 // table. NOTE: `payments` stores only a single `amount`; there is no column for
@@ -269,19 +269,6 @@ pub fn row_to_invoice(row: &DbRow) -> Invoice {
         notes: row.try_get("notes").ok(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
-    }
-}
-
-pub fn row_to_keycard_deposit(row: &DbRow) -> KeycardDeposit {
-    KeycardDeposit {
-        id: row.try_get("id").unwrap_or_default(),
-        booking_id: row.try_get("booking_id").unwrap_or_default(),
-        payment_id: row.try_get("payment_id").unwrap_or_default(),
-        deposit_amount: get_decimal(row, "deposit_amount"),
-        deposit_status: row.try_get("deposit_status").unwrap_or_default(),
-        returned_at: row.try_get("returned_at").ok(),
-        returned_by: row.try_get("returned_by").ok(),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
     }
 }
 
@@ -472,90 +459,6 @@ pub fn row_to_company(row: &DbRow) -> Company {
         payment_terms_days: row.try_get("payment_terms_days").ok(),
         notes: row.try_get("notes").ok(),
         created_by: row.try_get("created_by").ok(),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
-        updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
-    }
-}
-
-// =============================================================================
-// Loyalty mappers
-// =============================================================================
-
-use super::loyalty::{LoyaltyMembership, LoyaltyMembershipWithDetails, LoyaltyProgram};
-
-pub fn row_to_loyalty_program(row: &DbRow) -> LoyaltyProgram {
-    LoyaltyProgram {
-        id: row.try_get("id").unwrap_or_default(),
-        name: row.try_get("name").unwrap_or_default(),
-        description: row.try_get("description").ok(),
-        tier_level: row.try_get("tier_level").unwrap_or_default(),
-        points_multiplier: get_decimal(row, "points_multiplier"),
-        minimum_points_required: row.try_get("minimum_points_required").unwrap_or_default(),
-        is_active: get_bool(row, "is_active"),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
-        updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
-    }
-}
-
-pub fn row_to_loyalty_membership(row: &DbRow) -> LoyaltyMembership {
-    LoyaltyMembership {
-        id: row.try_get("id").unwrap_or_default(),
-        guest_id: row.try_get("guest_id").unwrap_or_default(),
-        program_id: row.try_get("program_id").unwrap_or_default(),
-        membership_number: row.try_get("membership_number").unwrap_or_default(),
-        points_balance: row.try_get("points_balance").unwrap_or_default(),
-        lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
-        tier_level: row.try_get("tier_level").unwrap_or_default(),
-        status: row.try_get("status").unwrap_or_default(),
-        enrolled_date: row
-            .try_get("enrolled_date")
-            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
-        expiry_date: row.try_get("expiry_date").ok(),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
-        updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
-    }
-}
-
-pub fn row_to_loyalty_membership_with_details(row: &DbRow) -> LoyaltyMembershipWithDetails {
-    LoyaltyMembershipWithDetails {
-        id: row.try_get("id").unwrap_or_default(),
-        guest_id: row.try_get("guest_id").unwrap_or_default(),
-        guest_name: row.try_get("guest_name").unwrap_or_default(),
-        guest_email: row.try_get("guest_email").unwrap_or_default(),
-        program_id: row.try_get("program_id").unwrap_or_default(),
-        program_name: row.try_get("program_name").unwrap_or_default(),
-        program_description: row.try_get("program_description").ok(),
-        membership_number: row.try_get("membership_number").unwrap_or_default(),
-        points_balance: row.try_get("points_balance").unwrap_or_default(),
-        lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
-        tier_level: row.try_get("tier_level").unwrap_or_default(),
-        points_multiplier: get_decimal(row, "points_multiplier"),
-        status: row.try_get("status").unwrap_or_default(),
-        enrolled_date: row
-            .try_get("enrolled_date")
-            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
-    }
-}
-
-// =============================================================================
-// Rewards mapper
-// =============================================================================
-
-use super::rewards::LoyaltyReward;
-
-pub fn row_to_loyalty_reward(row: &DbRow) -> LoyaltyReward {
-    LoyaltyReward {
-        id: row.try_get("id").unwrap_or_default(),
-        name: row.try_get("name").unwrap_or_default(),
-        description: row.try_get("description").ok(),
-        category: row.try_get("category").unwrap_or_default(),
-        points_cost: row.try_get("points_cost").unwrap_or_default(),
-        monetary_value: get_opt_decimal(row, "monetary_value"),
-        minimum_tier_level: row.try_get("minimum_tier_level").unwrap_or_default(),
-        is_active: get_bool(row, "is_active"),
-        stock_quantity: row.try_get("stock_quantity").ok(),
-        image_url: row.try_get("image_url").ok(),
-        terms_conditions: row.try_get("terms_conditions").ok(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
     }

@@ -22,6 +22,7 @@ import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
+import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
 import MoreHorizOutlinedIcon from '@mui/icons-material/MoreHorizOutlined';
@@ -58,6 +59,7 @@ const primarySections = [
 const secondarySections = [
   { label: 'Offers', section: 'offers', to: '/guest-portal?section=offers', icon: <LocalOfferOutlinedIcon /> },
   { label: 'Vouchers', section: 'vouchers', to: '/guest-portal?section=vouchers', icon: <ConfirmationNumberOutlinedIcon /> },
+  { label: 'Free nights', section: 'credits', to: '/guest-portal?section=credits', icon: <CardGiftcardOutlinedIcon /> },
   { label: 'Preferences', section: 'preferences', to: '/guest-portal?section=preferences', icon: <TuneOutlinedIcon /> },
 ] as const;
 
@@ -81,6 +83,8 @@ function currentGuestSection(search: string): GuestSection {
       return 'offers';
     case 'vouchers':
       return 'vouchers';
+    case 'credits':
+      return 'credits';
     case 'preferences':
       return 'preferences';
     case 'support':

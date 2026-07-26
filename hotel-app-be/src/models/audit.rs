@@ -6,7 +6,10 @@ use serde_json::Value;
 use sqlx::FromRow;
 
 /// Query parameters for audit log listing.
-#[derive(Debug, Deserialize)]
+///
+/// Every field is optional, so `Default` (all-`None` = "no filter") lets
+/// callers and tests name only the filter they care about.
+#[derive(Debug, Default, Deserialize)]
 pub struct AuditLogQuery {
     pub user_id: Option<i64>,
     pub action: Option<String>,

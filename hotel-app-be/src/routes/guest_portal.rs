@@ -55,6 +55,10 @@ pub fn routes() -> Router<DbPool> {
             "/guest-portal/me/benefits",
             get(handlers::guest_portal::get_my_benefits),
         )
+        .route(
+            "/guest-portal/me/credits",
+            get(handlers::guest_portal::get_my_credits),
+        )
         // Public payment configuration (PayPal client id + bank details).
         .route(
             "/guest-portal/payment-config",

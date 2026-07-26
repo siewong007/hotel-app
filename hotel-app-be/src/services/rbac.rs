@@ -113,7 +113,9 @@ pub async fn assign_permission_to_role(
     actor_user_id: i64,
     input: AssignPermissionInput,
 ) -> Result<(), ApiError> {
+    ensure_can_mutate_role_permissions(pool, actor_user_id, input.role_id).await?;
     ensure_actor_can_manage_roles(pool, actor_user_id, &[input.role_id]).await?;
+    ensure_actor_can_grant_permissions(pool, actor_user_id, &[input.permission_id]).await?;
     RbacRepository::assign_permission_to_role(pool, input.role_id, input.permission_id).await?;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
@@ -125,6 +127,7 @@ pub async fn remove_permission_from_role(
     role_id: i64,
     permission_id: i64,
 ) -> Result<(), ApiError> {
+    ensure_can_mutate_role_permissions(pool, actor_user_id, role_id).await?;
     ensure_actor_can_manage_roles(pool, actor_user_id, &[role_id]).await?;
     RbacRepository::remove_permission_from_role(pool, role_id, permission_id).await?;
     crate::core::rbac_cache::invalidate_all();
@@ -140,9 +143,11 @@ pub async fn replace_role_permissions(
     if !RbacRepository::role_exists(pool, role_id).await? {
         return Err(ApiError::NotFound("Role not found".to_string()));
     }
+    ensure_can_mutate_role_permissions(pool, actor_user_id, role_id).await?;
     ensure_actor_can_manage_roles(pool, actor_user_id, &[role_id]).await?;
 
     let permission_ids = unique_ids(input.permission_ids);
+    ensure_actor_can_grant_permissions(pool, actor_user_id, &permission_ids).await?;
     RbacRepository::replace_role_permissions(pool, role_id, &permission_ids).await?;
     crate::core::rbac_cache::invalidate_all();
     Ok(permission_ids.len())
@@ -327,7 +332,23 @@ fn validate_route_policy_input(input: &RouteAccessPolicyInput) -> Result<(), Api
     validate_access_codes(&input.nav_excluded_roles, "role")
 }
 
-/// Reject any attempt to act on a role at or above the actor's own priority.
+/// Reject any attempt to act on a role the actor may not manage.
+///
+/// Two independent conditions, both required:
+///
+/// 1. **Priority** — the actor must strictly outrank the role.
+/// 2. **Superset** — the actor must already hold every permission the role
+///    confers.
+///
+/// Priority alone is not sufficient, and that gap was exploitable: the seeded
+/// `manager` role (priority 80) outranks `senior_reviewer` (priority 75) but
+/// holds none of its `ekyc:*` permissions, so a manager could assign
+/// *themselves* `senior_reviewer` and acquire `ekyc:override`. The superset
+/// rule is what makes "you cannot hand out what you do not have" true.
+///
+/// Super admins bypass both conditions — they are the ceiling of the
+/// hierarchy, not a participant in it.
+///
 /// Shared with [`crate::services::users`], which applies it to user records.
 pub(crate) async fn ensure_actor_can_manage_roles(
     pool: &DbPool,
@@ -335,6 +356,10 @@ pub(crate) async fn ensure_actor_can_manage_roles(
     role_ids: &[i64],
 ) -> Result<(), ApiError> {
     if role_ids.is_empty() {
+        return Ok(());
+    }
+
+    if crate::core::middleware::is_super_admin(pool, actor_user_id).await? {
         return Ok(());
     }
 
@@ -353,7 +378,75 @@ pub(crate) async fn ensure_actor_can_manage_roles(
         }
     }
 
-    Ok(())
+    let conferred = RbacRepository::permission_names_for_roles(pool, role_ids).await?;
+    ensure_actor_holds_all(pool, actor_user_id, &conferred).await
+}
+
+/// Reject a direct permission grant the actor does not itself hold.
+///
+/// The role-shaped guard above cannot cover this path: `assign_permission_to_role`
+/// and `replace_role_permissions` name permissions by id, not through a role.
+pub(crate) async fn ensure_actor_can_grant_permissions(
+    pool: &DbPool,
+    actor_user_id: i64,
+    permission_ids: &[i64],
+) -> Result<(), ApiError> {
+    if permission_ids.is_empty() {
+        return Ok(());
+    }
+
+    if crate::core::middleware::is_super_admin(pool, actor_user_id).await? {
+        return Ok(());
+    }
+
+    let conferred = RbacRepository::permission_names_for_ids(pool, permission_ids).await?;
+    ensure_actor_holds_all(pool, actor_user_id, &conferred).await
+}
+
+/// A system role's permission set may only be changed by a super admin.
+///
+/// `update_role` and `delete_role` already refuse system roles outright; the
+/// three permission-membership paths had no equivalent guard, so any actor who
+/// merely outranked a system role could empty its permission set.
+async fn ensure_can_mutate_role_permissions(
+    pool: &DbPool,
+    actor_user_id: i64,
+    role_id: i64,
+) -> Result<(), ApiError> {
+    match RbacRepository::role_system_status(pool, role_id).await? {
+        None => Err(ApiError::NotFound("Role not found".to_string())),
+        Some(true) => crate::core::middleware::ensure_super_admin(pool, actor_user_id).await,
+        Some(false) => Ok(()),
+    }
+}
+
+/// The superset rule: every permission in `conferred` must already be held by
+/// the actor.
+async fn ensure_actor_holds_all(
+    pool: &DbPool,
+    actor_user_id: i64,
+    conferred: &HashSet<String>,
+) -> Result<(), ApiError> {
+    if conferred.is_empty() {
+        return Ok(());
+    }
+
+    let held = RbacRepository::permission_names_for_user(pool, actor_user_id).await?;
+    match conferred.iter().find(|name| !holds(&held, name)) {
+        Some(missing) => Err(ApiError::Forbidden(format!(
+            "Cannot grant a permission you do not hold: {missing}"
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// Membership test mirroring [`crate::core::rbac_cache::has_permission`]:
+/// holding `<resource>:manage` implies every action on that resource.
+fn holds(held: &HashSet<String>, permission: &str) -> bool {
+    held.contains(permission)
+        || permission
+            .split_once(':')
+            .is_some_and(|(resource, _)| held.contains(&format!("{resource}:manage")))
 }
 
 /// Priority guard for a whole user: the actor must outrank every role the

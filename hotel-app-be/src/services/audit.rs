@@ -220,26 +220,6 @@ impl AuditLog {
         .await
     }
 
-    /// Log booking voiding with the legacy audit action name.
-    pub async fn log_booking_cancelled(
-        pool: &DbPool,
-        user_id: i64,
-        booking_id: i64,
-    ) -> Result<(), ApiError> {
-        Self::log_event(
-            pool,
-            AuditEvent {
-                user_id: Some(user_id),
-                action: "booking_cancelled",
-                resource_type: "booking",
-                resource_id: Some(booking_id),
-                details: None,
-                ..Default::default()
-            },
-        )
-        .await
-    }
-
     /// Log booking voiding with the current audit action name.
     pub async fn log_booking_voided_tx(
         tx: &mut DbTransaction<'_>,
@@ -254,62 +234,6 @@ impl AuditLog {
                 resource_type: "booking",
                 resource_id: Some(booking_id),
                 details: None,
-                ..Default::default()
-            },
-        )
-        .await
-    }
-
-    /// Log eKYC approval
-    pub async fn log_ekyc_approved(
-        pool: &DbPool,
-        admin_id: i64,
-        verification_id: i64,
-        guest_id: i64,
-    ) -> Result<(), ApiError> {
-        let details = serde_json::json!({
-            "verification_id": verification_id,
-            "guest_id": guest_id,
-            "approved_by": admin_id
-        });
-
-        Self::log_event(
-            pool,
-            AuditEvent {
-                user_id: Some(admin_id),
-                action: "ekyc_approved",
-                resource_type: "ekyc_verification",
-                resource_id: Some(verification_id),
-                details: Some(details),
-                ..Default::default()
-            },
-        )
-        .await
-    }
-
-    /// Log eKYC rejection
-    pub async fn log_ekyc_rejected(
-        pool: &DbPool,
-        admin_id: i64,
-        verification_id: i64,
-        guest_id: i64,
-        reason: &str,
-    ) -> Result<(), ApiError> {
-        let details = serde_json::json!({
-            "verification_id": verification_id,
-            "guest_id": guest_id,
-            "rejected_by": admin_id,
-            "reason": reason
-        });
-
-        Self::log_event(
-            pool,
-            AuditEvent {
-                user_id: Some(admin_id),
-                action: "ekyc_rejected",
-                resource_type: "ekyc_verification",
-                resource_id: Some(verification_id),
-                details: Some(details),
                 ..Default::default()
             },
         )
@@ -332,33 +256,6 @@ impl AuditLog {
         .await
     }
 
-    /// Log system settings change
-    pub async fn log_settings_changed(
-        pool: &DbPool,
-        admin_id: i64,
-        setting_key: &str,
-        old_value: Option<&str>,
-        new_value: &str,
-    ) -> Result<(), ApiError> {
-        let details = serde_json::json!({
-            "key": setting_key,
-            "old_value": old_value,
-            "new_value": new_value
-        });
-
-        Self::log_event(
-            pool,
-            AuditEvent {
-                user_id: Some(admin_id),
-                action: "settings_changed",
-                resource_type: "system_setting",
-                resource_id: None,
-                details: Some(details),
-                ..Default::default()
-            },
-        )
-        .await
-    }
 }
 
 /// Single source of truth mapping an activity stream to the `resource_type`
@@ -703,30 +600,6 @@ fn sort_direction(sort_order: Option<&str>) -> &'static str {
         "DESC"
     }
 }
-
-/// SQL migration for creating the audit_logs table
-/// This should be run as a database migration
-pub const AUDIT_LOGS_MIGRATION: &str = r#"
--- Migration: Create audit_logs table
--- Run this with: psql $DATABASE_URL < migration.sql
-
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    action VARCHAR(100) NOT NULL,
-    resource_type VARCHAR(100) NOT NULL,
-    resource_id BIGINT,
-    details JSONB,
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
-CREATE INDEX idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
-"#;
 
 #[cfg(test)]
 mod tests {

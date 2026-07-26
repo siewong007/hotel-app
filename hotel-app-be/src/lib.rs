@@ -5,17 +5,15 @@
 pub mod constants;
 pub mod core;
 pub mod handlers;
-#[allow(dead_code)]
 pub mod models;
 pub mod modules;
 pub mod repositories;
 pub mod routes;
 pub mod services;
-#[allow(dead_code)]
 pub mod utils;
 
 // Re-export commonly used types from core
 pub use core::{
-    ApiError, AuthService, Claims, create_pool, require_admin_helper, require_auth,
-    require_permission_helper, require_super_admin_helper,
+    ApiError, AuthService, Claims, create_pool, ensure_super_admin, require_auth,
+    require_permission_helper,
 };

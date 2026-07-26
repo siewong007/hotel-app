@@ -13,7 +13,9 @@ use super::models::{
 use super::repository::{
     GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionValues,
 };
-use super::validation::{ValidatedStay, validate_client_request_id, validate_stay};
+use super::validation::{
+    ValidatedStay, validate_client_request_id, validate_complimentary_dates, validate_stay,
+};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
@@ -75,6 +77,71 @@ async fn nightly_rates(
     Ok(rates)
 }
 
+/// The complimentary-night credits in play for one quote.
+#[derive(Debug, Clone, Default)]
+struct ComplimentaryContext {
+    /// Nights the guest chose to fund with credits (validated, sorted, unique).
+    dates: Vec<NaiveDate>,
+    /// Credits the guest holds for this room type right now.
+    credits_available: i32,
+}
+
+/// What the comped nights are worth, at the rates actually quoted for them.
+///
+/// Nightly rates vary (weekday/weekend, rate plans, online custom prices), so a
+/// credit is worth exactly the night it is spent on — never an average.
+fn complimentary_discount(nightly_rates: &[NightlyRate], dates: &[NaiveDate]) -> Decimal {
+    nightly_rates
+        .iter()
+        .filter(|rate| dates.contains(&rate.date))
+        .fold(Decimal::ZERO, |total, rate| total + rate.amount)
+        .round_dp(2)
+}
+
+/// Resolve and bounds-check the guest's complimentary-night selection.
+async fn complimentary_context(
+    pool: &DbPool,
+    guest_id: i64,
+    room_type_id: i64,
+    stay: ValidatedStay,
+    requested_dates: Option<&[String]>,
+) -> Result<ComplimentaryContext, ApiError> {
+    let credits_available =
+        Repository::complimentary_credits_available(pool, guest_id, room_type_id).await?;
+    let dates = validate_complimentary_dates(requested_dates, stay)?;
+    if dates.len() as i32 > credits_available {
+        return Err(ApiError::BadRequest(format!(
+            "You have {credits_available} complimentary night(s) for this room type but selected {}",
+            dates.len()
+        )));
+    }
+    Ok(ComplimentaryContext {
+        dates,
+        credits_available,
+    })
+}
+
+/// What the guest owes once credits and any voucher are applied.
+///
+/// Credits settle their nights first, then the voucher discounts whatever is
+/// still payable — so the two can never combine to push the total below zero.
+/// Returns `(discount_amount, total_amount)`, where `discount_amount` is the
+/// combined discount that keeps `total = subtotal - discount` true for the
+/// booking row.
+fn settlement(
+    subtotal: Decimal,
+    complimentary_discount: Decimal,
+    voucher: Option<&VoucherPricing>,
+) -> (Decimal, Decimal) {
+    let payable_subtotal = (subtotal - complimentary_discount).max(Decimal::ZERO);
+    let voucher_amount = voucher
+        .map(|voucher| voucher_discount(payable_subtotal, voucher))
+        .unwrap_or(Decimal::ZERO);
+    let discount_amount = (complimentary_discount + voucher_amount).round_dp(2);
+    let total_amount = (subtotal - discount_amount).round_dp(2);
+    (discount_amount, total_amount)
+}
+
 fn voucher_discount(subtotal: Decimal, voucher: &VoucherPricing) -> Decimal {
     let discount = if voucher.discount_type == "percentage" {
         subtotal * voucher.discount_value / Decimal::from(100)
@@ -123,6 +190,7 @@ async fn quote_for_inventory(
     room_type: RoomTypeInventory,
     stay: ValidatedStay,
     voucher_id: Option<i64>,
+    complimentary: &ComplimentaryContext,
 ) -> Result<GuestBookingQuote, ApiError> {
     if stay.adults + stay.children > room_type.max_occupancy {
         return Err(ApiError::BadRequest(
@@ -135,6 +203,9 @@ async fn quote_for_inventory(
         .iter()
         .fold(Decimal::ZERO, |total, rate| total + rate.amount)
         .round_dp(2);
+    let complimentary_discount = complimentary_discount(&nightly_rates, &complimentary.dates);
+    // Voucher eligibility (min-spend and the like) still reads the gross
+    // subtotal, so applying credits never changes which vouchers qualify.
     let voucher = voucher_for_quote(
         pool,
         guest_id,
@@ -145,14 +216,11 @@ async fn quote_for_inventory(
         voucher_id,
     )
     .await?;
-    let discount_amount = voucher
-        .as_ref()
-        .map(|voucher| voucher_discount(subtotal, voucher))
-        .unwrap_or(Decimal::ZERO);
+    let (discount_amount, total_amount) =
+        settlement(subtotal, complimentary_discount, voucher.as_ref());
     // Room prices are configured tax-inclusive throughout the existing booking
     // workflow. Keep the tax component explicit without charging it twice.
     let tax_amount = Decimal::ZERO;
-    let total_amount = (subtotal - discount_amount + tax_amount).round_dp(2);
     Ok(GuestBookingQuote {
         room_type_id: room_type.id,
         room_type_code: room_type.code,
@@ -169,6 +237,10 @@ async fn quote_for_inventory(
         total_amount,
         voucher_id: voucher.as_ref().map(|voucher| voucher.voucher_id),
         voucher_name: voucher.map(|voucher| voucher.promotion_name),
+        complimentary_nights: complimentary.dates.len() as i32,
+        complimentary_dates: complimentary.dates.clone(),
+        complimentary_discount,
+        credits_available: complimentary.credits_available,
     })
 }
 
@@ -225,7 +297,17 @@ pub async fn search(
         let bed_type = room_type.bed_type.clone();
         let bed_count = room_type.bed_count;
         let available_rooms = room_type.available_rooms;
-        let quote = quote_for_inventory(pool, guest_id, room_type, stay, None).await?;
+        // Search prices the stay as-is; credits are chosen later, on the
+        // selected room type, so no per-room-type credit lookup happens here.
+        let quote = quote_for_inventory(
+            pool,
+            guest_id,
+            room_type,
+            stay,
+            None,
+            &ComplimentaryContext::default(),
+        )
+        .await?;
         offers.push(GuestBookingOffer {
             room_type_id: quote.room_type_id,
             room_type_code: quote.room_type_code,
@@ -275,7 +357,23 @@ pub async fn quote(
             "This room type is reserved for walk-in guests or unavailable online".to_string(),
         ));
     }
-    quote_for_inventory(pool, guest_id, room_type, stay, request.voucher_id).await
+    let complimentary = complimentary_context(
+        pool,
+        guest_id,
+        room_type.id,
+        stay,
+        request.complimentary_dates.as_deref(),
+    )
+    .await?;
+    quote_for_inventory(
+        pool,
+        guest_id,
+        room_type,
+        stay,
+        request.voucher_id,
+        &complimentary,
+    )
+    .await
 }
 
 pub async fn quote_with_eligible_vouchers(
@@ -386,6 +484,7 @@ pub async fn create(
             adults: request.adults,
             children: request.children,
             voucher_id: request.voucher_id,
+            complimentary_dates: request.complimentary_dates.clone(),
         },
     )
     .await?;
@@ -437,6 +536,26 @@ pub async fn create(
     );
     let booking_number =
         crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
+    let stay_nights = (quote.check_out_date - quote.check_in_date).num_days();
+    let complimentary_reason = (quote.complimentary_nights > 0).then(|| {
+        let dates = quote
+            .complimentary_dates
+            .iter()
+            .map(|date| date.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "Guest portal: {} of {} night(s) funded by complimentary credits for {} (dates: {})",
+            quote.complimentary_nights, stay_nights, quote.room_type_name, dates
+        )
+    });
+    let settled_by_credits =
+        quote.complimentary_nights > 0 && quote.total_amount <= Decimal::ZERO;
+    let booking_status = if settled_by_credits {
+        "confirmed"
+    } else {
+        "pending_payment"
+    };
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     Repository::ensure_online_room_available_tx(
@@ -472,6 +591,8 @@ pub async fn create(
         cleaning_preference: request.cleaning_preference,
         booking_channel_id,
         nightly_rates: daily_rates,
+        complimentary_reason,
+        settled_by_credits,
     };
     let booking_id = match Repository::insert_booking_tx(&mut tx, &insert).await {
         Ok(booking_id) => booking_id,
@@ -485,6 +606,16 @@ pub async fn create(
             return Err(error);
         }
     };
+
+    if quote.complimentary_nights > 0 {
+        Repository::redeem_complimentary_credits_tx(
+            &mut tx,
+            guest_id,
+            request.room_type_id,
+            quote.complimentary_nights,
+        )
+        .await?;
+    }
 
     if let Some(voucher) = voucher_to_redeem.as_ref() {
         Repository::redeem_voucher_tx(
@@ -507,14 +638,19 @@ pub async fn create(
         &mut tx,
         booking_id,
         None,
-        "pending_payment",
+        booking_status,
         contact.actor_user_id,
-        Some("Booking created in guest portal (pending payment)"),
+        Some(if settled_by_credits {
+            "Booking created in guest portal (settled with complimentary credits)"
+        } else {
+            "Booking created in guest portal (pending payment)"
+        }),
         json!({
             "source": PORTAL_SOURCE,
             "guest_id": guest_id,
             "room_type_id": request.room_type_id,
             "portal_request_id": request_id,
+            "complimentary_nights": quote.complimentary_nights,
         }),
     )
     .await?;
@@ -532,6 +668,8 @@ pub async fn create(
                 "check_out_date": quote.check_out_date,
                 "total_amount": quote.total_amount.to_string(),
                 "currency": quote.currency,
+                "complimentary_nights": quote.complimentary_nights,
+                "complimentary_discount": quote.complimentary_discount.to_string(),
             })),
             ip_address,
             user_agent,
@@ -544,18 +682,39 @@ pub async fn create(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        let subject = format!("Booking received {booking_number}");
+        let subject = if settled_by_credits {
+            format!("Booking confirmed {booking_number}")
+        } else {
+            format!("Booking received {booking_number}")
+        };
+        let opening = if settled_by_credits {
+            format!(
+                "Your reservation <strong>{}</strong> is confirmed, fully covered by your complimentary nights.",
+                html_escape(&booking_number)
+            )
+        } else {
+            format!(
+                "Your reservation <strong>{}</strong> has been received and is pending payment.",
+                html_escape(&booking_number)
+            )
+        };
+        let closing = if settled_by_credits {
+            "There is nothing left to pay. You can view this booking any time in your guest portal."
+        } else {
+            "Please complete payment to confirm your booking. You can pay online from your guest portal or complete a bank transfer."
+        };
         let body_html = format!(
-            "<p>Dear {},</p><p>Your reservation <strong>{}</strong> has been received and is pending payment.</p>\
+            "<p>Dear {},</p><p>{}</p>\
              <p>{} · {} to {} · {} {}</p>\
-             <p>Please complete payment to confirm your booking. You can pay online from your guest portal or complete a bank transfer.</p>",
+             <p>{}</p>",
             html_escape(&contact.full_name),
-            html_escape(&booking_number),
+            opening,
             html_escape(&quote.room_type_name),
             quote.check_in_date,
             quote.check_out_date,
             html_escape(&quote.currency),
             quote.total_amount,
+            closing,
         );
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
@@ -630,5 +789,89 @@ mod tests {
             voucher_discount(Decimal::from(100), &voucher),
             Decimal::from(100)
         );
+    }
+
+    fn date(day: u32) -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 8, day).expect("valid test date")
+    }
+
+    fn rate(day: u32, amount: i64) -> NightlyRate {
+        NightlyRate {
+            date: date(day),
+            rate_plan_code: "BASE".to_string(),
+            amount: Decimal::from(amount),
+        }
+    }
+
+    #[test]
+    fn complimentary_discount_uses_the_rate_of_each_comped_night() {
+        // A weekend night costs more than a weekday night, so comping night 2
+        // must credit 300 — not the 200 average of the three nights.
+        let rates = vec![rate(10, 100), rate(11, 300), rate(12, 200)];
+        assert_eq!(
+            complimentary_discount(&rates, &[date(11)]),
+            Decimal::from(300)
+        );
+    }
+
+    #[test]
+    fn complimentary_discount_ignores_dates_outside_the_quoted_nights() {
+        let rates = vec![rate(10, 100), rate(11, 300)];
+        assert_eq!(complimentary_discount(&rates, &[date(20)]), Decimal::ZERO);
+    }
+
+    #[test]
+    fn credits_covering_every_night_leave_nothing_to_pay() {
+        let rates = vec![rate(10, 100), rate(11, 300)];
+        let comped = complimentary_discount(&rates, &[date(10), date(11)]);
+        let (discount, total) = settlement(Decimal::from(400), comped, None);
+        assert_eq!(discount, Decimal::from(400));
+        assert_eq!(total, Decimal::ZERO);
+    }
+
+    #[test]
+    fn percentage_voucher_discounts_only_what_credits_left_payable() {
+        // 400 stay, one 300 night comped -> 100 payable, 25% off that is 25.
+        let voucher = VoucherPricing {
+            voucher_id: 1,
+            promotion_id: 2,
+            promotion_name: "Deal".to_string(),
+            discount_type: "percentage".to_string(),
+            discount_value: Decimal::from(25),
+            max_discount_amount: None,
+        };
+        let (discount, total) = settlement(Decimal::from(400), Decimal::from(300), Some(&voucher));
+        assert_eq!(discount, Decimal::from(325));
+        assert_eq!(total, Decimal::from(75));
+    }
+
+    #[test]
+    fn credits_and_voucher_together_never_produce_a_negative_total() {
+        let voucher = VoucherPricing {
+            voucher_id: 1,
+            promotion_id: 2,
+            promotion_name: "Deal".to_string(),
+            discount_type: "fixed_amount".to_string(),
+            discount_value: Decimal::from(500),
+            max_discount_amount: None,
+        };
+        let (discount, total) = settlement(Decimal::from(400), Decimal::from(300), Some(&voucher));
+        assert_eq!(discount, Decimal::from(400));
+        assert_eq!(total, Decimal::ZERO);
+    }
+
+    #[test]
+    fn a_stay_with_no_credits_prices_exactly_as_before() {
+        let voucher = VoucherPricing {
+            voucher_id: 1,
+            promotion_id: 2,
+            promotion_name: "Deal".to_string(),
+            discount_type: "percentage".to_string(),
+            discount_value: Decimal::from(10),
+            max_discount_amount: None,
+        };
+        let (discount, total) = settlement(Decimal::from(400), Decimal::ZERO, Some(&voucher));
+        assert_eq!(discount, Decimal::from(40));
+        assert_eq!(total, Decimal::from(360));
     }
 }

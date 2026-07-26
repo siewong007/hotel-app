@@ -71,6 +71,16 @@ pub async fn register_start(
     .await?
     .ok_or_else(|| ApiError::Forbidden("Cannot register a passkey for another user".to_string()))?;
 
+    // A passkey satisfies 2FA on its own, so registering one is a step-up
+    // operation — a live session alone must not be enough to mint one.
+    crate::services::auth::ensure_step_up(
+        pool,
+        user.id,
+        req.password.as_deref(),
+        req.totp_code.as_deref(),
+    )
+    .await?;
+
     let passkey_count = PasskeyRepository::passkey_count(pool, user.id).await?;
     if passkey_count >= 10 {
         return Err(ApiError::BadRequest(
@@ -249,6 +259,10 @@ pub async fn login_finish(
     let user = PasskeyRepository::find_active_user_by_username(pool, &req.username)
         .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    // Account lockout applies to every login door, not just the password one.
+    crate::services::auth::ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent)
+        .await?;
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
     let challenge_exists =

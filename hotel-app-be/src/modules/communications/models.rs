@@ -57,7 +57,9 @@ pub struct EmailCampaign {
 /// Full outbox row. Deliberately NOT Serialize: rendered bodies and raw
 /// recipient addresses must never reach an HTTP response or audit payload.
 /// API responses use [`DeliverySummary`].
-#[allow(dead_code)] // lease/idempotency fields are DB-managed; not all are read in Rust
+// Lease/idempotency bookkeeping is driven entirely in SQL; those columns are
+// mapped here for completeness but never read in Rust.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct EmailDelivery {
     pub id: i64,

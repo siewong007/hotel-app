@@ -15,8 +15,7 @@ pub mod guest_portal;
 pub mod guests;
 pub mod housekeeping;
 pub mod ledgers;
-#[allow(dead_code)]
-pub mod loyalty;
+// Loyalty handlers live in modules::loyalty::handlers.
 pub mod maintenance;
 pub mod night_audit;
 pub mod passkey;

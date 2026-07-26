@@ -10,7 +10,6 @@
 
 pub mod auth;
 pub mod config;
-#[allow(dead_code)]
 pub mod db;
 pub mod error;
 pub mod metrics;
@@ -18,19 +17,19 @@ pub mod middleware;
 pub mod rate_limiter;
 pub mod rbac_cache;
 pub mod settings_cache;
-#[allow(dead_code)]
 pub mod sql_compat;
 
-// Re-export commonly used types
+// Re-export commonly used types. `main.rs` re-declares every module, so the bin
+// recompiles this crate without ever going through these re-exports; the lib
+// target (and `tests/`, which link it) are the real consumers, which is why the
+// bin compile reports several of them unused.
 #[allow(unused_imports)]
 pub use auth::{AuthService, Claims};
-#[allow(unused_imports)]
 pub use config::AppConfig;
 pub use db::create_pool;
 #[allow(unused_imports)]
 pub use error::ApiError;
 #[allow(unused_imports)]
 pub use middleware::{
-    require_admin_helper, require_any_permission_helper, require_auth, require_permission_helper,
-    require_super_admin_helper,
+    ensure_super_admin, require_any_permission_helper, require_auth, require_permission_helper,
 };

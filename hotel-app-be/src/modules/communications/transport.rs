@@ -1,11 +1,9 @@
 //! Email transport abstraction.
 //!
 //! `Transport::from_env()` builds the configured provider (SMTP via lettre);
-//! `Transport::fake()` records messages in memory for tests. Credentials come
 //! exclusively from environment variables — never from system_settings or any
 //! client-visible surface.
 
-use std::sync::{Arc, Mutex};
 
 use lettre::message::{Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
@@ -53,16 +51,8 @@ impl SmtpConfig {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct FakeMailer {
-    pub sent: Mutex<Vec<OutgoingEmail>>,
-    /// When set, every send fails with this message (retry-path testing).
-    pub fail_with: Option<String>,
-}
-
 pub enum Transport {
     Smtp(Box<SmtpMailer>),
-    Fake(Arc<FakeMailer>),
 }
 
 pub struct SmtpMailer {
@@ -107,27 +97,11 @@ impl Transport {
         }
     }
 
-    #[allow(dead_code)] // test helper
-    pub fn fake() -> (Self, Arc<FakeMailer>) {
-        let mailer = Arc::new(FakeMailer::default());
-        (Transport::Fake(mailer.clone()), mailer)
-    }
-
     /// Sends one message; returns a provider message id when available.
     /// Errors are returned as strings so callers can persist them as
     /// `last_error` without leaking typed internals.
     pub async fn send(&self, email: &OutgoingEmail) -> Result<Option<String>, String> {
         match self {
-            Transport::Fake(fake) => {
-                if let Some(reason) = &fake.fail_with {
-                    return Err(reason.clone());
-                }
-                fake.sent
-                    .lock()
-                    .map_err(|_| "fake mailer poisoned".to_string())?
-                    .push(email.clone());
-                Ok(Some(format!("fake-{}", email.to.len())))
-            }
             Transport::Smtp(smtp) => {
                 let to: Mailbox = email
                     .to

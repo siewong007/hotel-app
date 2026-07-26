@@ -103,6 +103,15 @@ export interface CustomerLedgerCreateRequest {
   service_charge?: number;
 }
 
+/**
+ * Mirrors the backend `CustomerLedgerUpdateRequest`. Fields present on
+ * `CustomerLedgerCreateRequest` but deliberately absent here are immutable
+ * after posting and are corrected by voiding and re-posting the entry:
+ * `booking_id`/`guest_id` (re-parenting breaks the audit trail),
+ * `folio_type` (`folio_number`'s prefix is derived from it at insert),
+ * `transaction_type` (would invert a posted row's accounting sign), and
+ * `posting_date`/`transaction_date` (`posting_date` keys invoice numbering).
+ */
 export interface CustomerLedgerUpdateRequest {
   company_name?: string;
   company_registration_number?: string;
@@ -119,21 +128,15 @@ export interface CustomerLedgerUpdateRequest {
   amount?: number;
   currency?: string;
   status?: string;
-  booking_id?: number;
-  guest_id?: number;
   invoice_date?: string;
   due_date?: string;
   notes?: string;
   internal_notes?: string;
   // Ledger accounting fields
-  folio_type?: FolioType;
-  transaction_type?: TransactionType;
   post_type?: PostType;
   department_code?: string;
   transaction_code?: string;
   room_number?: string;
-  posting_date?: string;
-  transaction_date?: string;
   reference_number?: string;
   tax_amount?: number;
   service_charge?: number;

@@ -76,10 +76,6 @@ pub fn generate_uuid() -> String {
     uuid::Uuid::now_v7().to_string()
 }
 
-pub fn current_timestamp() -> String {
-    chrono::Utc::now().to_rfc3339()
-}
-
 pub fn decimal_to_db(d: rust_decimal::Decimal) -> rust_decimal::Decimal {
     d
 }
@@ -103,45 +99,9 @@ impl DbRowExt for DbRow {
     }
 }
 
-pub fn parse_decimal(s: &str) -> rust_decimal::Decimal {
-    s.parse().unwrap_or_default()
-}
-
-pub fn parse_opt_decimal(s: Option<String>) -> Option<rust_decimal::Decimal> {
-    s.and_then(|v| v.parse().ok())
-}
-
-pub fn f64_to_decimal(f: f64) -> rust_decimal::Decimal {
-    rust_decimal::Decimal::from_f64_retain(f).unwrap_or_default()
-}
-
-pub fn opt_f64_to_decimal(f: Option<f64>) -> Option<rust_decimal::Decimal> {
-    f.and_then(rust_decimal::Decimal::from_f64_retain)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::Decimal;
-
-    #[test]
-    fn decimal_parsers_fall_back_safely_for_invalid_values() {
-        assert_eq!(parse_decimal("12.34"), Decimal::new(1234, 2));
-        assert_eq!(parse_decimal("not-a-decimal"), Decimal::ZERO);
-        assert_eq!(
-            parse_opt_decimal(Some("9.99".to_string())),
-            Some(Decimal::new(999, 2))
-        );
-        assert_eq!(parse_opt_decimal(Some("invalid".to_string())), None);
-        assert_eq!(parse_opt_decimal(None), None);
-    }
-
-    #[test]
-    fn float_decimal_helpers_preserve_valid_values_and_ignore_none() {
-        assert_eq!(f64_to_decimal(12.5), Decimal::new(125, 1));
-        assert_eq!(opt_f64_to_decimal(Some(1.25)), Some(Decimal::new(125, 2)));
-        assert_eq!(opt_f64_to_decimal(None), None);
-    }
 
     #[test]
     fn generate_uuid_returns_parseable_uuid_string() {

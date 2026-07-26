@@ -13,16 +13,6 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-#[allow(dead_code)]
-pub async fn websocket_status() -> Result<serde_json::Value, ApiError> {
-    Ok(serde_json::json!({
-        "status": "available",
-        "protocol": "ws",
-        "endpoint": "/ws",
-        "message": "WebSocket server is running"
-    }))
-}
-
 fn decimal_to_f64(value: Decimal) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(0.0)
 }

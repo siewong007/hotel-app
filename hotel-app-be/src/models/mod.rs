@@ -7,32 +7,22 @@ pub mod audit;
 pub mod auth;
 pub mod booking;
 pub mod booking_channel;
-#[allow(dead_code)]
 pub mod common;
 pub mod company;
 pub mod data_transfer;
 pub mod ekyc;
-#[allow(dead_code)]
 pub mod guest;
 pub mod guest_portal;
 pub mod housekeeping;
 pub mod ledger;
-#[allow(dead_code)]
-pub mod loyalty;
 pub mod maintenance;
 pub mod night_audit;
-#[allow(dead_code)]
 pub mod payment;
 pub mod rate;
 pub mod rbac;
-#[allow(dead_code)]
-pub mod rewards;
-#[allow(dead_code)]
 pub mod room;
-#[allow(dead_code)]
 pub mod row_mappers;
 pub mod search;
-#[allow(dead_code)]
 pub mod user;
 
 // Re-export all models for convenience
@@ -49,13 +39,11 @@ pub use guest::*;
 pub use guest_portal::*;
 pub use housekeeping::*;
 pub use ledger::*;
-pub use loyalty::*;
 pub use maintenance::*;
 pub use night_audit::*;
 pub use payment::*;
 pub use rate::*;
 pub use rbac::*;
-pub use rewards::*;
 pub use room::*;
 pub use search::*;
 pub use user::*;

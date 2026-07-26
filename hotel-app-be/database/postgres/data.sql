@@ -103,24 +103,8 @@ VALUES
     ('maintenance:manage'),
     ('maintenance:read'),
     ('maintenance:write'),
-    ('navigation_audit_log:read'),
-    ('navigation_bookings:read'),
-    ('navigation_company_ledger:read'),
-    ('navigation_complimentary:read'),
-    ('navigation_data_transfer:read'),
-    ('navigation_ekyc_admin:read'),
-    ('navigation_guest_config:read'),
     ('navigation_housekeeping:read'),
-    ('navigation_loyalty:read'),
-    ('navigation_my_rewards:read'),
-    ('navigation_night_audit:read'),
     ('navigation_promotions:read'),
-    ('navigation_rbac:read'),
-    ('navigation_reports:read'),
-    ('navigation_room_config:read'),
-    ('navigation_room_management:read'),
-    ('navigation_settings:read'),
-    ('navigation_timeline:read'),
     ('night_audit:execute'),
     ('night_audit:read'),
     ('payments:approve'),
@@ -149,7 +133,6 @@ VALUES
     ('reviews:manage'),
     ('reviews:read'),
     ('reviews:update'),
-    ('rewards:read'),
     ('roles:create'),
     ('roles:delete'),
     ('roles:manage'),
@@ -175,6 +158,12 @@ VALUES
     ('support:read'),
     ('support:write'),
     ('navigation_support:read'),
+    ('teams:assign'),
+    ('teams:create'),
+    ('teams:delete'),
+    ('teams:manage'),
+    ('teams:read'),
+    ('teams:update'),
     ('users:create'),
     ('users:delete'),
     ('users:manage'),
@@ -263,6 +252,7 @@ VALUES
     ('room-management'),
     ('settings'),
     ('support'),
+    ('teams'),
     ('timeline');
 
 -- Quarantine invalid system-owned roles before canonical upserts.
@@ -410,6 +400,26 @@ WHERE roles.display_name IS DISTINCT FROM EXCLUDED.display_name
 -- ============================================================================
 
 INSERT INTO permissions (name, resource, action, description, is_system_permission) VALUES
+-- Gated by live routes but never seeded until now. `audit:export` and the
+-- two `loyalty:*` names made their endpoints permanently 403 for EVERY role
+-- including super_admin, because the `<resource>:manage` fallback resolves
+-- to a name that was equally absent. `rooms:write` and the `permissions:*`
+-- four were rescued by their `:manage` sibling, so they worked -- but at a
+-- wider privilege than the code declared it needed.
+('audit:export', 'audit', 'export', 'Export audit logs', true),
+('loyalty:read', 'loyalty', 'read', 'View loyalty programme data', true),
+('loyalty:manage', 'loyalty', 'manage', 'Full control over the loyalty programme', true),
+('rooms:write', 'rooms', 'write', 'Create or modify rooms', true),
+('permissions:create', 'permissions', 'create', 'Create permissions', true),
+('permissions:read', 'permissions', 'read', 'View permissions', true),
+('permissions:update', 'permissions', 'update', 'Update permissions', true),
+('permissions:delete', 'permissions', 'delete', 'Delete permissions', true),
+('teams:create', 'teams', 'create', 'Create teams', true),
+('teams:read', 'teams', 'read', 'View teams and their membership', true),
+('teams:update', 'teams', 'update', 'Update team details', true),
+('teams:delete', 'teams', 'delete', 'Delete teams', true),
+('teams:assign', 'teams', 'assign', 'Add or remove team members', true),
+('teams:manage', 'teams', 'manage', 'Full control over teams', true),
 ('users:create', 'users', 'create', 'Create new users', true),
 ('users:read', 'users', 'read', 'View user information', true),
 ('users:update', 'users', 'update', 'Update user information', true),
@@ -532,6 +542,13 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name IN ('admin', 'super_admin')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
+-- Auditor: the role exists for compliance review, and audit:export is the
+-- one action that job needs beyond reading.
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p
+WHERE r.name = 'auditor' AND p.name IN ('audit:read', 'audit:export')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
 -- Manager permissions
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager' AND p.name IN (
@@ -542,7 +559,8 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'navigation_support:read',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
-    'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read'
+    'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',
+    'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Receptionist permissions
@@ -555,7 +573,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptio
     'payments:update', 'payments:delete', 'payments:refund',
     'ledgers:read', 'ledgers:create', 'companies:read', 'companies:create',
     'services:read', 'services:create', 'reviews:read', 'settings:read',
-    'analytics:read', 'reports:execute'
+    'analytics:read', 'reports:execute', 'teams:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Housekeeping permissions
@@ -564,7 +582,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'housekee
     'rooms:read', 'rooms:update',
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
     'maintenance:read', 'maintenance:write',
-    'navigation_housekeeping:read', 'navigation_room_management:read'
+    'navigation_housekeeping:read', 'navigation_room_management:read', 'teams:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Staff permissions
@@ -799,6 +817,14 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('timezone', 'Asia/Kuala_Lumpur', 'string', 'general', 'Hotel timezone', false),
 ('deposit_amount', '50', 'number', 'payments', 'Default room card or check-in deposit amount', false),
 ('tourism_tax_rate', '10', 'number', 'tax', 'Tourism tax amount charged per night for foreign guests', false),
+-- Declared expected since V1 but never actually seeded, which the newly-armed
+-- missing-seed guard caught. Six backend call sites silently fell back to 8
+-- (settings_cache::get_positive_decimal default), while the frontend invoice
+-- calculator reads it as `hotelSettings.service_tax_rate / 100` with no
+-- fallback -- an absent row yields NaN. 8 matches the backend default, so
+-- seeding it changes no server-side number; it makes the value real, editable
+-- from Settings, and consistent across the two halves.
+('service_tax_rate', '8', 'number', 'tax', 'Service tax percentage applied to room charges', true),
 ('default_payment_terms_days', '30', 'number', 'ledger', 'Default ledger due-date offset in days when a company has no payment terms', false),
 ('max_login_attempts', '5', 'number', 'security', 'Maximum failed login attempts before lockout', false),
 ('session_timeout', '3600', 'number', 'security', 'Session timeout in seconds', false),
@@ -1066,7 +1092,8 @@ VALUES
     ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('help', '/help', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
-    ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true)
+    ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
+    ('teams', '/teams', 'Teams', 'config', '["teams:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["teams:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true)
 ON CONFLICT (route_id) DO UPDATE SET
     path = EXCLUDED.path,
     nav_label = EXCLUDED.nav_label,
@@ -1086,6 +1113,7 @@ DO $$
 DECLARE
     invalid_count INTEGER;
     missing_seed_count INTEGER;
+    missing_seed_detail TEXT;
     unknown_route_permission_count INTEGER;
     unknown_route_role_count INTEGER;
     obsolete_assigned_role_count INTEGER;
@@ -1157,6 +1185,38 @@ BEGIN
         FROM expected_route_access_policies expected
         WHERE NOT EXISTS (SELECT 1 FROM route_access_policies actual WHERE actual.route_id = expected.route_id)
     ) missing_seed_records;
+
+    -- This count was computed and then discarded for the whole life of the V1
+    -- seed, while its three siblings below all raised. That is how three
+    -- permissions gating live endpoints (audit:export, loyalty:read,
+    -- loyalty:manage) shipped absent -- their routes returned 403 to every
+    -- role including super_admin, and nothing anywhere reported it. Arming the
+    -- guard is the actual fix; seeding those three is just today's instance.
+    IF missing_seed_count > 0 THEN
+        SELECT string_agg(seed_key, ', ' ORDER BY seed_key)
+        INTO missing_seed_detail
+        FROM (
+            SELECT 'role:' || expected.name AS seed_key
+            FROM expected_system_roles expected
+            WHERE NOT EXISTS (SELECT 1 FROM roles actual WHERE actual.name = expected.name)
+            UNION ALL
+            SELECT 'permission:' || expected.name
+            FROM expected_system_permissions expected
+            WHERE NOT EXISTS (SELECT 1 FROM permissions actual WHERE actual.name = expected.name)
+            UNION ALL
+            SELECT 'setting:' || expected.key
+            FROM expected_system_settings expected
+            WHERE NOT EXISTS (SELECT 1 FROM system_settings actual WHERE actual.key = expected.key)
+            UNION ALL
+            SELECT 'route_policy:' || expected.route_id
+            FROM expected_route_access_policies expected
+            WHERE NOT EXISTS (SELECT 1 FROM route_access_policies actual WHERE actual.route_id = expected.route_id)
+        ) missing_seed_records;
+
+        RAISE EXCEPTION
+            'Database bootstrap validation failed: % expected system record(s) were never seeded: %',
+            missing_seed_count, missing_seed_detail;
+    END IF;
 
     -- Some route policies and permissions are intentionally feature-optional;
     -- validate their references when present, but do not reject a V1 install

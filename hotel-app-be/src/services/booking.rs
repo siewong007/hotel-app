@@ -18,7 +18,7 @@ pub fn generate_booking_number_for_date(date: NaiveDate) -> String {
 }
 
 /// Generate a unique booking number using the current UTC date.
-#[allow(dead_code)]
+#[allow(dead_code)] // used by tests/booking_service.rs
 pub fn generate_booking_number() -> String {
     generate_booking_number_for_date(chrono::Utc::now().date_naive())
 }

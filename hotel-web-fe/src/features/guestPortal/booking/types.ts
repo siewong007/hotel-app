@@ -33,6 +33,9 @@ export interface GuestBookingOffer {
 export interface GuestBookingQuoteRequest extends GuestBookingSearch {
   room_type_id: number;
   voucher_id?: number;
+  /** Nights (YYYY-MM-DD) the guest wants to fund with complimentary credits.
+   *  Rates vary per night, so the guest picks which nights are comped. */
+  complimentary_dates?: string[];
 }
 
 export interface GuestBookingQuote {
@@ -46,11 +49,18 @@ export interface GuestBookingQuote {
   currency: string;
   nightly_rates: GuestNightlyRate[];
   subtotal: string | number;
+  /** Combined discount (complimentary nights + voucher). Always
+   *  `subtotal - discount_amount + tax_amount === total_amount`. */
   discount_amount: string | number;
   tax_amount: string | number;
   total_amount: string | number;
   voucher_id?: number | null;
   voucher_name?: string | null;
+  complimentary_dates: string[];
+  complimentary_nights: number;
+  complimentary_discount: string | number;
+  /** Credits the guest holds for this room type right now. */
+  credits_available: number;
 }
 
 export interface GuestBookingVoucherOptions {
