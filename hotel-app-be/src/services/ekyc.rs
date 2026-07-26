@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use base64::{Engine as _, engine::general_purpose};
-use chrono::{Local, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 use serde_json::Value;
 
 use crate::core::auth::AuthService;
@@ -193,7 +193,8 @@ pub async fn submit_ekyc(
         None
     };
 
-    if id_expiry_date <= Local::now().date_naive() {
+    let today = crate::core::db::hotel_today(pool).await?;
+    if id_expiry_date <= today {
         return Err(ApiError::BadRequest(
             "ID expiry date must be in the future".to_string(),
         ));
