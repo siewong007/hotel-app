@@ -22,8 +22,15 @@ export interface AuthState {
   shouldPromptPasskey: boolean;
 }
 
+export interface LoginResult {
+  isFirstLogin: boolean;
+  // Set only when the submitted 2FA code was a recovery code, which the backend
+  // consumes; the caller warns the user to regenerate their codes.
+  recoveryCodesRemaining?: number;
+}
+
 interface AuthContextType extends AuthState {
-  login: (username: string, password: string, totpCode?: string) => Promise<boolean>;
+  login: (username: string, password: string, totpCode?: string) => Promise<LoginResult>;
   register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
@@ -56,6 +63,7 @@ type AuthLoginResponse = {
   permissions: string[];
   route_policies: RouteAccessPolicy[];
   is_first_login: boolean;
+  recovery_codes_remaining?: number;
 };
 
 const EMPTY_AUTH_STATE: AuthState = {
@@ -211,7 +219,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const login = useCallback(async (username: string, password: string, totpCode?: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string, totpCode?: string): Promise<LoginResult> => {
     try {
       // A user can sign back in before Safari finishes the previous logout
       // request. Always let that request settle first so it cannot revoke the
@@ -222,7 +230,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         json: { username, password, totp_code: totpCode },
       }).json<AuthLoginResponse>();
 
-      const { access_token, user: responseUser, roles, permissions, route_policies, is_first_login } = data;
+      const {
+        access_token,
+        user: responseUser,
+        roles,
+        permissions,
+        route_policies,
+        is_first_login,
+        recovery_codes_remaining,
+      } = data;
       const user = normalizeAuthUser(responseUser, roles);
 
       // Access token goes to the in-memory store (never persisted). The refresh
@@ -271,7 +287,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.warn('Failed to check passkeys, skipping passkey prompt:', error);
         });
 
-      return is_first_login;
+      return { isFirstLogin: is_first_login, recoveryCodesRemaining: recovery_codes_remaining };
     } catch (error: any) {
       console.error('Login error:', error);
 

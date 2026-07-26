@@ -20,6 +20,9 @@ export interface AuthResponse {
   permissions: string[];
   route_policies: RouteAccessPolicy[];
   is_first_login: boolean;
+  // Present only when the login consumed a 2FA recovery code: how many remain
+  // afterwards, so the client can prompt the user to regenerate them.
+  recovery_codes_remaining?: number;
 }
 
 export interface AccessSnapshot {

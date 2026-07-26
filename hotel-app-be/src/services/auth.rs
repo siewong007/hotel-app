@@ -145,22 +145,36 @@ pub async fn login(
         // 2FA-disable flow uses. Recovery codes must work here: this is the
         // only unauthenticated surface, so without it a user who lost their
         // authenticator is locked out despite holding valid codes.
-        let valid_totp = AuthService::verify_totp_code(&secret, submitted_code).unwrap_or(false);
+        let valid_totp = match AuthService::verify_totp_code(&secret, submitted_code) {
+            Ok(valid) => valid,
+            Err(error) => {
+                log::warn!("TOTP verification errored for user {}: {error}", user.id);
+                false
+            }
+        };
         if !valid_totp {
             let recovery_codes = user.two_factor_recovery_codes.clone().unwrap_or_default();
-            match AuthService::check_recovery_code(submitted_code, &recovery_codes) {
+            // check_recovery_code identifies the matching stored entry
+            // (constant-time, hash or legacy plaintext); the guarded
+            // consume_recovery_code then spends that exact entry atomically,
+            // so a concurrent login replaying the same code loses the race
+            // and falls through to the failure path below.
+            let consumed = match AuthService::check_recovery_code(submitted_code, &recovery_codes)
+            {
                 Some(index) => {
-                    let mut updated_codes = recovery_codes;
-                    updated_codes.remove(index);
-                    AuthService::update_recovery_codes(pool, user.id, &updated_codes)
+                    AuthService::consume_recovery_code(pool, user.id, &recovery_codes[index])
                         .await
-                        .map_err(|e| ApiError::Database(e.to_string()))?;
-                    recovery_codes_remaining = Some(updated_codes.len());
-                    if updated_codes.len() <= 3 {
+                        .map_err(|e| ApiError::Database(e.to_string()))?
+                }
+                None => None,
+            };
+            match consumed {
+                Some(remaining) => {
+                    recovery_codes_remaining = Some(remaining);
+                    if remaining <= 3 {
                         log::warn!(
-                            "User {} logged in with a 2FA recovery code; only {} recovery code(s) remain",
-                            user.id,
-                            updated_codes.len()
+                            "User {} logged in with a 2FA recovery code; only {remaining} recovery code(s) remain",
+                            user.id
                         );
                     }
                     let _ = AuditLog::log_event(
@@ -171,7 +185,7 @@ pub async fn login(
                         Some(user.id),
                         Some(json!({
                             "context": "login",
-                            "recovery_codes_remaining": updated_codes.len(),
+                            "recovery_codes_remaining": remaining,
                         })),
                         None,
                         None,

@@ -861,6 +861,34 @@ impl AuthService {
         Ok(())
     }
 
+    /// Atomically consume one stored recovery-code entry (pass the entry
+    /// exactly as stored -- hash or legacy plaintext). The guarded
+    /// `array_remove` spends the code only if it is still present, so two
+    /// concurrent logins can never both accept the same code, and a
+    /// concurrent regeneration (full-array rewrite) is never clobbered.
+    /// Returns the remaining count, or `None` if the entry was already gone.
+    pub async fn consume_recovery_code(
+        pool: &DbPool,
+        user_id: i64,
+        stored_entry: &str,
+    ) -> Result<Option<usize>, sqlx::Error> {
+        let row: Option<(Option<i32>,)> = sqlx::query_as(
+            r#"
+            UPDATE users
+            SET two_factor_recovery_codes = array_remove(two_factor_recovery_codes, $2),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND $2 = ANY(two_factor_recovery_codes)
+            RETURNING array_length(two_factor_recovery_codes, 1)
+            "#,
+        )
+        .bind(user_id)
+        .bind(stored_entry)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(row.map(|(remaining,)| remaining.unwrap_or(0).max(0) as usize))
+    }
+
     /// Get user 2FA status
     pub async fn get_user_2fa_status(
         pool: &DbPool,
