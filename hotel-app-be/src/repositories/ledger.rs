@@ -133,9 +133,11 @@ const DELETE_LEDGER_PAYMENTS_QUERY: &str =
 // PostgreSQL query for deleting ledger
 const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = $1";
 
-// PostgreSQL query for getting ledger info for payment
-const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
-    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1";
+// PostgreSQL query for getting ledger info for payment - locks the row for
+// the duration of the enclosing transaction so a concurrent payment write
+// cannot read a stale paid_amount.
+const GET_LEDGER_FOR_PAYMENT_LOCKED_QUERY: &str =
+    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1 FOR UPDATE";
 
 // PostgreSQL query for checking if ledger is voided
 #[allow(dead_code)]
@@ -475,6 +477,39 @@ pub async fn create_customer_ledger(
     Ok(ledger)
 }
 
+// Mirrors the `valid_post_type` CHECK constraint on `customer_ledgers`
+// (database/postgres/migrations/0001_v1_baseline.sql). Kept in sync by hand -
+// an unknown value must be refused here as a 400, not left to hit the
+// database CHECK as an opaque 500.
+const VALID_POST_TYPES: &[&str] = &[
+    "room_charge",
+    "room_tax",
+    "service_charge",
+    "tourism_tax",
+    "fnb_restaurant",
+    "fnb_room_service",
+    "fnb_minibar",
+    "fnb_banquet",
+    "laundry",
+    "telephone",
+    "internet",
+    "parking",
+    "spa",
+    "gym",
+    "transportation",
+    "miscellaneous",
+    "advance_deposit",
+    "payment",
+    "adjustment",
+    "rebate",
+    "discount",
+    "commission",
+    "refund",
+    "transfer_in",
+    "transfer_out",
+    "city_ledger_transfer",
+];
+
 /// Update a customer ledger entry (PostgreSQL version)
 pub async fn update_customer_ledger(
     pool: &DbPool,
@@ -482,16 +517,70 @@ pub async fn update_customer_ledger(
     user_id: i64,
     request: CustomerLedgerUpdateRequest,
 ) -> Result<CustomerLedger, ApiError> {
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM customer_ledgers WHERE id = $1)")
+    let current_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM customer_ledgers WHERE id = $1")
             .bind(ledger_id)
-            .fetch_one(pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if !exists {
+    let Some(current_status) = current_status else {
         return Err(ApiError::NotFound("Customer ledger not found".to_string()));
+    };
+
+    // Only `void_ledger` may TRANSITION status to 'void' - that path stamps
+    // void_at/void_by/void_reason. This generic update is gated by
+    // `ledgers:update` at the route layer (not `ledgers:void`), so letting a
+    // pending/other row flip to status='void' through here would produce an
+    // unattributable void. An already-void row echoing status='void' back
+    // unchanged (e.g. editing notes on a voided ledger) is not a transition
+    // and must be allowed through.
+    if request.status.as_deref() == Some("void") && current_status != "void" {
+        return Err(ApiError::BadRequest(
+            "Cannot set status to 'void' via update; use the void endpoint instead".to_string(),
+        ));
     }
+
+    if let Some(post_type) = request.post_type.as_deref()
+        && !VALID_POST_TYPES.contains(&post_type)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "Invalid post_type '{post_type}'"
+        )));
+    }
+
+    let amount_value = match request.amount {
+        Some(a) => Some(
+            Decimal::from_f64_retain(a).ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?,
+        ),
+        None => None,
+    };
+    let tax_amount_value = match request.tax_amount {
+        Some(a) => Some(
+            Decimal::from_f64_retain(a)
+                .ok_or_else(|| ApiError::BadRequest("Invalid tax_amount".to_string()))?,
+        ),
+        None => None,
+    };
+    let service_charge_value = match request.service_charge {
+        Some(a) => Some(
+            Decimal::from_f64_retain(a)
+                .ok_or_else(|| ApiError::BadRequest("Invalid service_charge".to_string()))?,
+        ),
+        None => None,
+    };
+    let posting_date_value = match request.posting_date.as_deref() {
+        Some(v) => Some(NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest("Invalid posting date. Use YYYY-MM-DD".to_string())
+        })?),
+        None => None,
+    };
+    let transaction_date_value = match request.transaction_date.as_deref() {
+        Some(v) => Some(NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest("Invalid transaction date. Use YYYY-MM-DD".to_string())
+        })?),
+        None => None,
+    };
 
     let mut updates = Vec::new();
     let mut param_index = 1;
@@ -544,10 +633,6 @@ pub async fn update_customer_ledger(
         updates.push(format!("expense_type = ${}", param_index));
         param_index += 1;
     }
-    if request.amount.is_some() {
-        updates.push(format!("amount = ${}", param_index));
-        param_index += 1;
-    }
     if request.currency.is_some() {
         updates.push(format!("currency = ${}", param_index));
         param_index += 1;
@@ -572,6 +657,76 @@ pub async fn update_customer_ledger(
         updates.push(format!("internal_notes = ${}", param_index));
         param_index += 1;
     }
+    if request.booking_id.is_some() {
+        updates.push(format!("booking_id = ${}", param_index));
+        param_index += 1;
+    }
+    if request.guest_id.is_some() {
+        updates.push(format!("guest_id = ${}", param_index));
+        param_index += 1;
+    }
+    if request.folio_type.is_some() {
+        updates.push(format!("folio_type = ${}", param_index));
+        param_index += 1;
+    }
+    if request.transaction_type.is_some() {
+        updates.push(format!("transaction_type = ${}", param_index));
+        param_index += 1;
+    }
+    if request.post_type.is_some() {
+        updates.push(format!("post_type = ${}", param_index));
+        param_index += 1;
+    }
+    if request.department_code.is_some() {
+        updates.push(format!("department_code = ${}", param_index));
+        param_index += 1;
+    }
+    if request.transaction_code.is_some() {
+        updates.push(format!("transaction_code = ${}", param_index));
+        param_index += 1;
+    }
+    if request.room_number.is_some() {
+        updates.push(format!("room_number = ${}", param_index));
+        param_index += 1;
+    }
+    if posting_date_value.is_some() {
+        updates.push(format!("posting_date = ${}", param_index));
+        param_index += 1;
+    }
+    if transaction_date_value.is_some() {
+        updates.push(format!("transaction_date = ${}", param_index));
+        param_index += 1;
+    }
+    if request.reference_number.is_some() {
+        updates.push(format!("reference_number = ${}", param_index));
+        param_index += 1;
+    }
+
+    // amount/tax_amount/service_charge are always included, via a no-op
+    // `COALESCE(param, column)` when the caller did not supply them, so that
+    // net_amount can be recomputed below from one consistent set of
+    // "new-value-or-existing-column" placeholders in the SAME statement -
+    // Postgres evaluates every SET expression against the pre-update row, so
+    // referencing the same bound placeholder twice (once for the column,
+    // once inside the net_amount expression) is safe and needs no extra
+    // round-trip to read the current row first. The `, 0` fallback in the
+    // net_amount expression mirrors the `generate_folio_number` BEFORE INSERT
+    // trigger's `COALESCE(NEW.tax_amount, 0)` handling of a NULL tax/service
+    // column.
+    let amount_idx = param_index;
+    updates.push(format!("amount = COALESCE(${amount_idx}, amount)"));
+    param_index += 1;
+    let tax_idx = param_index;
+    updates.push(format!("tax_amount = COALESCE(${tax_idx}, tax_amount)"));
+    param_index += 1;
+    let service_idx = param_index;
+    updates.push(format!(
+        "service_charge = COALESCE(${service_idx}, service_charge)"
+    ));
+    param_index += 1;
+    updates.push(format!(
+        "net_amount = COALESCE(${amount_idx}, amount) - COALESCE(${tax_idx}, tax_amount, 0) - COALESCE(${service_idx}, service_charge, 0)"
+    ));
 
     updates.push(format!("updated_by = ${}", param_index));
     param_index += 1;
@@ -631,11 +786,6 @@ pub async fn update_customer_ledger(
     if let Some(ref v) = request.expense_type {
         query_builder = query_builder.bind(v);
     }
-    if let Some(amount) = request.amount {
-        let decimal_amount = Decimal::from_f64_retain(amount)
-            .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
-        query_builder = query_builder.bind(decimal_amount);
-    }
     if let Some(ref v) = request.currency {
         query_builder = query_builder.bind(v);
     }
@@ -659,6 +809,43 @@ pub async fn update_customer_ledger(
     if let Some(ref v) = request.internal_notes {
         query_builder = query_builder.bind(v);
     }
+    if let Some(v) = request.booking_id {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(v) = request.guest_id {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.folio_type {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.transaction_type {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.post_type {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.department_code {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.transaction_code {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.room_number {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(v) = posting_date_value {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(v) = transaction_date_value {
+        query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.reference_number {
+        query_builder = query_builder.bind(v);
+    }
+
+    query_builder = query_builder.bind(amount_value);
+    query_builder = query_builder.bind(tax_amount_value);
+    query_builder = query_builder.bind(service_charge_value);
 
     query_builder = query_builder.bind(user_id);
     query_builder = query_builder.bind(ledger_id);
@@ -733,9 +920,16 @@ pub async fn create_ledger_payment(
     user_id: i64,
     request: CustomerLedgerPaymentRequest,
 ) -> Result<CustomerLedgerPayment, ApiError> {
-    let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_QUERY)
+    // The whole read-modify-write of customer_ledgers.paid_amount/status must
+    // be one transaction with the ledger row locked FOR UPDATE - otherwise two
+    // concurrent payments on the same ledger both read the same current_paid,
+    // and the second write clobbers the first's contribution (money collected
+    // that never reaches the recorded receivable).
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+    let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_LOCKED_QUERY)
         .bind(ledger_id)
-        .fetch_optional(pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -782,7 +976,7 @@ pub async fn create_ledger_payment(
             "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER($1))",
         )
         .bind(receipt_number)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -831,7 +1025,7 @@ pub async fn create_ledger_payment(
     .bind(&request.receipt_file_url)
     .bind(&request.notes)
     .bind(user_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -857,9 +1051,11 @@ pub async fn create_ledger_payment(
     .bind(payment_date_ts)
     .bind(user_id)
     .bind(ledger_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(payment)
 }
@@ -938,18 +1134,43 @@ pub async fn void_ledger(
     user_id: i64,
     request: LedgerVoidRequest,
 ) -> Result<CustomerLedger, ApiError> {
-    // Check if ledger exists and is not already voided
-    let exists: Option<bool> =
-        sqlx::query_scalar("SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1")
-            .bind(ledger_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+    // Check if ledger exists, is not already voided, and has not already
+    // collected any payments - get_ledger_summary excludes status = 'void'
+    // rows entirely, so voiding a ledger with paid_amount > 0 would make
+    // collected money vanish from every outstanding/collected total.
+    //
+    // The probe and the UPDATE must run in one transaction against a row
+    // locked FOR UPDATE - otherwise a concurrent create_ledger_payment can
+    // insert a payment (taking the row lock first) while this probe reads
+    // the pre-payment paid_amount = 0 under MVCC and passes the guard; the
+    // UPDATE would then block on the payment's lock and, once released,
+    // apply against the new row version - voiding a ledger that now has
+    // paid_amount > 0, exactly the state this guard exists to forbid.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-    match exists {
+    let existing_row = sqlx::query(
+        "SELECT void_at IS NOT NULL AS is_voided, paid_amount FROM customer_ledgers WHERE id = $1 FOR UPDATE",
+    )
+    .bind(ledger_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let row = match existing_row {
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
-        Some(true) => return Err(ApiError::BadRequest("Ledger is already voided".to_string())),
-        Some(false) => {}
+        Some(row) => row,
+    };
+
+    let is_voided: bool = row.try_get("is_voided").unwrap_or(false);
+    if is_voided {
+        return Err(ApiError::BadRequest("Ledger is already voided".to_string()));
+    }
+
+    let paid_amount = get_decimal(&row, "paid_amount");
+    if paid_amount > Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Cannot void a ledger with a paid_amount greater than zero; collected payments cannot be voided away".to_string(),
+        ));
     }
 
     let query_str = format!(
@@ -971,11 +1192,13 @@ pub async fn void_ledger(
         .bind(user_id)
         .bind(&request.reason)
         .bind(ledger_id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(ledger)
 }
@@ -1089,18 +1312,33 @@ pub async fn update_ledger_payment(
     let payment_date_ts = chrono::NaiveDate::parse_from_str(&request.payment_date, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?;
 
+    // One transaction for the whole read-modify-write, with the ledger row
+    // locked FOR UPDATE up front, so a concurrent payment write on the same
+    // ledger cannot read a stale total/paid_amount and lose a contribution.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     // Verify the payment belongs to this ledger
     let exists =
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if exists.is_none() {
         return Err(ApiError::NotFound("Payment not found".to_string()));
     }
+
+    // Lock the ledger row now; its amount is used both for the over-payment
+    // guard below and for the final status recompute.
+    let total_amount: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1 FOR UPDATE",
+    )
+    .bind(ledger_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Validate the optional new amount and guard against over-payment (the sum
     // of the other payments plus this one must not exceed the ledger total).
@@ -1113,19 +1351,12 @@ pub async fn update_ledger_payment(
                     "Payment amount must be positive".to_string(),
                 ));
             }
-            let total_amount: Decimal = sqlx::query_scalar(
-                "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1",
-            )
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
             let others_paid: Decimal = sqlx::query_scalar(
                 "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1 AND id <> $2",
             )
             .bind(ledger_id)
             .bind(payment_id)
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
             if others_paid + dec > total_amount {
@@ -1160,7 +1391,7 @@ pub async fn update_ledger_payment(
     .bind(request.payment_reference.as_deref())
     .bind(request.notes.as_deref())
     .bind(payment_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1169,16 +1400,9 @@ pub async fn update_ledger_payment(
         "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1",
     )
     .bind(ledger_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let total_amount: Decimal =
-        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1")
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let new_status = if new_paid >= total_amount {
         "paid"
@@ -1201,9 +1425,11 @@ pub async fn update_ledger_payment(
     .bind(new_paid)
     .bind(new_status)
     .bind(ledger_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(row_to_customer_ledger_payment(&payment_row))
 }
@@ -1214,12 +1440,17 @@ pub async fn delete_ledger_payment(
     ledger_id: i64,
     payment_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
+    // One transaction for the whole read-modify-write, with the ledger row
+    // locked FOR UPDATE before the delete, so a concurrent payment write on
+    // the same ledger cannot read a stale paid_amount.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     // Verify the payment belongs to this ledger
     let exists =
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1227,10 +1458,18 @@ pub async fn delete_ledger_payment(
         return Err(ApiError::NotFound("Payment not found".to_string()));
     }
 
+    let total_amount: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1 FOR UPDATE",
+    )
+    .bind(ledger_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
     // Delete the payment
     sqlx::query("DELETE FROM customer_ledger_payments WHERE id = $1")
         .bind(payment_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1239,16 +1478,9 @@ pub async fn delete_ledger_payment(
         "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1"
     )
     .bind(ledger_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let total_amount: Decimal =
-        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1")
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let new_status = if new_paid >= total_amount {
         "paid"
@@ -1271,9 +1503,11 @@ pub async fn delete_ledger_payment(
     .bind(new_paid)
     .bind(new_status)
     .bind(ledger_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({
         "message": "Payment deleted successfully",
