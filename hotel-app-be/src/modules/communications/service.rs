@@ -20,13 +20,14 @@ use super::models::{
     PreferencesResponse, PreviewResponse, ScheduleCampaignInput, SuppressionInput,
     SuppressionListResponse, TestSendInput, TopicPreference, UnsubscribeApplyInput, mask_email,
 };
-use super::repository::CommunicationsRepository as Repo;
+use super::repository::{CommunicationsRepository as Repo, ConsentEventValues};
 use super::tokens;
 use super::transport::{OutgoingEmail, SmtpConfig, Transport};
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::services::audit::AuditLog;
+use crate::models::AuditEvent;
 
 const CHANNEL_EMAIL: &str = "email";
 
@@ -95,17 +96,19 @@ pub async fn create_campaign(
     let id = Repo::insert_campaign_tx(&mut tx, &draft, actor_id).await?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "campaign.created",
-        "email_campaign",
-        Some(id),
-        Some(json!({
-            "campaign_type": draft.campaign_type,
-            "topic": draft.topic,
-            "promotion_id": draft.promotion_id,
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "campaign.created",
+            resource_type: "email_campaign",
+            resource_id: Some(id),
+            details: Some(json!({
+                "campaign_type": draft.campaign_type,
+                "topic": draft.topic,
+                "promotion_id": draft.promotion_id,
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -136,16 +139,18 @@ pub async fn update_campaign(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "campaign.updated",
-        "email_campaign",
-        Some(id),
-        Some(json!({
-            "campaign_type": draft.campaign_type,
-            "topic": draft.topic,
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "campaign.updated",
+            resource_type: "email_campaign",
+            resource_id: Some(id),
+            details: Some(json!({
+                "campaign_type": draft.campaign_type,
+                "topic": draft.topic,
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -220,13 +225,15 @@ pub async fn test_send_campaign(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "campaign.test_sent",
-        "email_campaign",
-        Some(id),
-        None,
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "campaign.test_sent",
+            resource_type: "email_campaign",
+            resource_id: Some(id),
+            details: None,
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -281,13 +288,15 @@ pub async fn schedule_campaign(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "campaign.scheduled",
-        "email_campaign",
-        Some(id),
-        Some(json!({ "scheduled_at": scheduled_at.to_rfc3339() })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "campaign.scheduled",
+            resource_type: "email_campaign",
+            resource_id: Some(id),
+            details: Some(json!({ "scheduled_at": scheduled_at.to_rfc3339() })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -311,13 +320,15 @@ pub async fn cancel_campaign(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "campaign.cancelled",
-        "email_campaign",
-        Some(id),
-        None,
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "campaign.cancelled",
+            resource_type: "email_campaign",
+            resource_id: Some(id),
+            details: None,
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -386,13 +397,15 @@ pub async fn create_template(
     let id = Repo::insert_template_tx(&mut tx, &draft).await?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "email_template.created",
-        "email_template",
-        Some(id),
-        Some(json!({ "code": draft.code })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "email_template.created",
+            resource_type: "email_template",
+            resource_id: Some(id),
+            details: Some(json!({ "code": draft.code })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -424,13 +437,15 @@ pub async fn update_template(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "email_template.updated",
-        "email_template",
-        Some(id),
-        Some(json!({ "code": draft.code })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "email_template.updated",
+            resource_type: "email_template",
+            resource_id: Some(id),
+            details: Some(json!({ "code": draft.code })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -453,13 +468,15 @@ pub async fn deactivate_template(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "email_template.deactivated",
-        "email_template",
-        Some(id),
-        None,
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "email_template.deactivated",
+            resource_type: "email_template",
+            resource_id: Some(id),
+            details: None,
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -502,16 +519,18 @@ pub async fn add_suppression(
     Repo::insert_suppression_tx(&mut tx, &draft, Some("staff")).await?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "suppression.added",
-        "email_suppression",
-        None,
-        Some(json!({
-            "email_masked": mask_email(&draft.email),
-            "reason": draft.reason,
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "suppression.added",
+            resource_type: "email_suppression",
+            resource_id: None,
+            details: Some(json!({
+                "email_masked": mask_email(&draft.email),
+                "reason": draft.reason,
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -533,13 +552,15 @@ pub async fn remove_suppression(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "suppression.removed",
-        "email_suppression",
-        None,
-        Some(json!({ "email_masked": mask_email(&email) })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "suppression.removed",
+            resource_type: "email_suppression",
+            resource_id: None,
+            details: Some(json!({ "email_masked": mask_email(&email) })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -578,18 +599,32 @@ pub async fn get_preferences(
 }
 
 /// Shared by guest self-service, staff-recorded consent, and unsubscribe.
-#[allow(clippy::too_many_arguments)]
-async fn apply_preference_changes(
-    pool: &DbPool,
+/// One batch of subscription preference changes plus its consent provenance.
+struct PreferenceChangeRequest<'a> {
     guest_id: i64,
-    changes: &[(String, bool)],
-    source: &str,
-    policy_version: Option<&str>,
-    actor_type: &str,
+    changes: &'a [(String, bool)],
+    source: &'a str,
+    policy_version: Option<&'a str>,
+    actor_type: &'a str,
     actor_user_id: Option<i64>,
     ip_address: Option<String>,
     user_agent: Option<String>,
+}
+
+async fn apply_preference_changes(
+    pool: &DbPool,
+    request: PreferenceChangeRequest<'_>,
 ) -> Result<(), ApiError> {
+    let PreferenceChangeRequest {
+        guest_id,
+        changes,
+        source,
+        policy_version,
+        actor_type,
+        actor_user_id,
+        ip_address,
+        user_agent,
+    } = request;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     for (topic, subscribed) in changes {
         Repo::upsert_subscription_tx(
@@ -604,34 +639,38 @@ async fn apply_preference_changes(
         .await?;
         Repo::insert_consent_event_tx(
             &mut tx,
-            guest_id,
-            CHANNEL_EMAIL,
-            topic,
-            if *subscribed { "opt_in" } else { "opt_out" },
-            source,
-            policy_version,
-            actor_type,
-            actor_user_id,
-            ip_address.clone(),
-            user_agent.clone(),
+            ConsentEventValues {
+                guest_id,
+                channel: CHANNEL_EMAIL,
+                topic,
+                action: if *subscribed { "opt_in" } else { "opt_out" },
+                source,
+                policy_version,
+                actor_type,
+                actor_user_id,
+                ip_address: ip_address.clone(),
+                user_agent: user_agent.clone(),
+            },
         )
         .await?;
     }
     AuditLog::log_event_tx(
         &mut tx,
-        actor_user_id,
-        "subscription.updated",
-        "guest",
-        Some(guest_id),
-        Some(json!({
-            "source": source,
-            "changes": changes
-                .iter()
-                .map(|(topic, subscribed)| json!({ "topic": topic, "subscribed": subscribed }))
-                .collect::<Vec<_>>(),
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: actor_user_id,
+            action: "subscription.updated",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            details: Some(json!({
+                "source": source,
+                "changes": changes
+                    .iter()
+                    .map(|(topic, subscribed)| json!({ "topic": topic, "subscribed": subscribed }))
+                    .collect::<Vec<_>>(),
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -667,14 +706,16 @@ pub async fn update_my_preferences(
     Repo::get_guest_email(pool, guest_id).await?;
     apply_preference_changes(
         pool,
-        guest_id,
-        &changes,
-        "guest_portal",
-        input.policy_version.as_deref(),
-        "guest",
-        None,
-        ip_address,
-        user_agent,
+        PreferenceChangeRequest {
+            guest_id,
+            changes: &changes,
+            source: "guest_portal",
+            policy_version: input.policy_version.as_deref(),
+            actor_type: "guest",
+            actor_user_id: None,
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     get_preferences(pool, guest_id).await
@@ -692,14 +733,16 @@ pub async fn record_staff_consent(
     Repo::get_guest_email(pool, guest_id).await?;
     apply_preference_changes(
         pool,
-        guest_id,
-        &changes,
-        "staff",
-        input.policy_version.as_deref(),
-        "staff",
-        Some(actor_id),
-        ip_address,
-        user_agent,
+        PreferenceChangeRequest {
+            guest_id,
+            changes: &changes,
+            source: "staff",
+            policy_version: input.policy_version.as_deref(),
+            actor_type: "staff",
+            actor_user_id: Some(actor_id),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     guest_consent_status(pool, guest_id).await
@@ -756,14 +799,16 @@ pub async fn unsubscribe_apply(
     };
     apply_preference_changes(
         pool,
-        guest_id,
-        &changes,
-        "unsubscribe_link",
-        None,
-        "guest",
-        None,
-        ip_address.clone(),
-        user_agent.clone(),
+        PreferenceChangeRequest {
+            guest_id,
+            changes: &changes,
+            source: "unsubscribe_link",
+            policy_version: None,
+            actor_type: "guest",
+            actor_user_id: None,
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
+        },
     )
     .await?;
     if global
@@ -779,13 +824,15 @@ pub async fn unsubscribe_apply(
         Repo::insert_suppression_tx(&mut tx, &draft, Some("unsubscribe_link")).await?;
         AuditLog::log_event_tx(
             &mut tx,
-            None,
-            "consent.opt_out",
-            "guest",
-            Some(guest_id),
-            Some(json!({ "global": true })),
-            ip_address,
-            user_agent,
+            AuditEvent {
+                user_id: None,
+                action: "consent.opt_out",
+                resource_type: "guest",
+                resource_id: Some(guest_id),
+                details: Some(json!({ "global": true })),
+                ip_address,
+                user_agent,
+            },
         )
         .await?;
         tx.commit().await.map_err(ApiError::from)?;

@@ -56,13 +56,14 @@ pub async fn update_route_policy(
     let policy = RbacRepository::update_route_access_policy(pool, &route_id, &input).await?;
     let _ = AuditLog::log_event(
         pool,
-        Some(actor_user_id),
-        "route_policy_updated",
-        "route_access_policy",
-        None,
-        Some(serde_json::json!({ "route_id": policy.route_id })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(actor_user_id),
+            action: "route_policy_updated",
+            resource_type: "route_access_policy",
+            resource_id: None,
+            details: Some(serde_json::json!({ "route_id": policy.route_id })),
+            ..Default::default()
+        },
     )
     .await;
     Ok(policy)

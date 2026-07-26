@@ -112,26 +112,28 @@ pub async fn create_guest(
 
     let guest = GuestRepository::create_detailed(
         pool,
-        &full_name,
-        &first_name,
-        &last_name,
-        email.as_deref(),
-        phone,
-        ic_number,
-        input.nationality.as_deref().map(Sanitizer::sanitize_text),
-        input.address_line1.as_deref().map(Sanitizer::sanitize_text),
-        input.city.as_deref().map(Sanitizer::sanitize_text),
-        input
-            .state_province
-            .as_deref()
-            .map(Sanitizer::sanitize_text),
-        input.postal_code.as_deref().map(Sanitizer::sanitize_text),
-        input.country.as_deref().map(Sanitizer::sanitize_text),
-        &guest_type,
-        &tourism_type,
-        discount_percentage,
-        input.company_name.as_deref().map(Sanitizer::sanitize_text),
-        user_id,
+        GuestCreateValues {
+            full_name: &full_name,
+            first_name: &first_name,
+            last_name: &last_name,
+            email: email.as_deref(),
+            phone,
+            ic_number,
+            nationality: input.nationality.as_deref().map(Sanitizer::sanitize_text),
+            address_line1: input.address_line1.as_deref().map(Sanitizer::sanitize_text),
+            city: input.city.as_deref().map(Sanitizer::sanitize_text),
+            state_province: input
+                .state_province
+                .as_deref()
+                .map(Sanitizer::sanitize_text),
+            postal_code: input.postal_code.as_deref().map(Sanitizer::sanitize_text),
+            country: input.country.as_deref().map(Sanitizer::sanitize_text),
+            guest_type: &guest_type,
+            tourism_type: &tourism_type,
+            discount_percentage,
+            company_name: input.company_name.as_deref().map(Sanitizer::sanitize_text),
+            created_by: user_id,
+        },
     )
     .await?;
 
@@ -139,13 +141,14 @@ pub async fn create_guest(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "guest_created",
-        "guest",
-        Some(guest.id),
-        Some(serde_json::json!({"name": &guest.full_name, "email": &guest.email})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "guest_created",
+            resource_type: "guest",
+            resource_id: Some(guest.id),
+            details: Some(serde_json::json!({"name": &guest.full_name, "email": &guest.email})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -224,13 +227,14 @@ pub async fn update_guest(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "guest_updated",
-        "guest",
-        Some(guest_id),
-        Some(serde_json::json!({"name": &updated_guest.full_name})),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "guest_updated",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            details: Some(serde_json::json!({"name": &updated_guest.full_name})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -278,23 +282,24 @@ pub async fn apply_tourism_type_from_last_check_in(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "guest_tourism_type_inferred",
-        "guest",
-        Some(guest_id),
-        Some(serde_json::json!({
-            "tourism_type": guest.tourism_type.as_ref().map(|value| match value {
-                TourismType::Local => "local",
-                TourismType::Foreign => "foreign",
-            }),
-            "booking_id": source.booking_id,
-            "booking_number": &source.booking_number,
-            "tourism_tax_amount": source.tourism_tax_amount.to_string(),
-            "net_paid_amount": source.net_paid_amount.to_string(),
-            "paid_tourism_tax": source.paid_tourism_tax,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "guest_tourism_type_inferred",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            details: Some(serde_json::json!({
+                "tourism_type": guest.tourism_type.as_ref().map(|value| match value {
+                    TourismType::Local => "local",
+                    TourismType::Foreign => "foreign",
+                }),
+                "booking_id": source.booking_id,
+                "booking_number": &source.booking_number,
+                "tourism_tax_amount": source.tourism_tax_amount.to_string(),
+                "net_paid_amount": source.net_paid_amount.to_string(),
+                "paid_tourism_tax": source.paid_tourism_tax,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -327,13 +332,14 @@ pub async fn delete_guest(pool: &DbPool, guest_id: i64) -> Result<(), ApiError> 
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "guest_deleted",
-        "guest",
-        Some(guest_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "guest_deleted",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 
@@ -439,17 +445,18 @@ pub async fn transfer_guest_portal_account(
         .await?;
     let _ = AuditLog::log_event(
         pool,
-        Some(actor_user_id),
-        "guest_portal_account_transferred",
-        "guest",
-        Some(target_guest_id),
-        Some(serde_json::json!({
-            "portal_user_id": transfer.user_id,
-            "portal_username": username,
-            "previous_guest_id": transfer.previous_guest_id,
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(actor_user_id),
+            action: "guest_portal_account_transferred",
+            resource_type: "guest",
+            resource_id: Some(target_guest_id),
+            details: Some(serde_json::json!({
+                "portal_user_id": transfer.user_id,
+                "portal_username": username,
+                "previous_guest_id": transfer.previous_guest_id,
+            })),
+            ..Default::default()
+        },
     )
     .await;
 

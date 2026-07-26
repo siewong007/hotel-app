@@ -12,6 +12,17 @@ use crate::models::{
 
 pub struct LoyaltyRepository;
 
+/// Inputs for redeeming a loyalty reward on behalf of a guest.
+pub struct RewardRedemptionParams<'a> {
+    pub guest_id: i64,
+    pub reward_id: i64,
+    pub booking_id: Option<i64>,
+    pub notes: Option<String>,
+    pub reward_not_found_message: &'a str,
+    pub use_detailed_points_error: bool,
+    pub touch_reward_updated_at: bool,
+}
+
 impl LoyaltyRepository {
     pub async fn find_user_email(pool: &DbPool, user_id: i64) -> Result<Option<String>, ApiError> {
         sqlx::query_scalar("SELECT email FROM users WHERE id = $1")
@@ -595,17 +606,19 @@ impl LoyaltyRepository {
         Ok(transaction)
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn redeem_reward_for_guest(
         pool: &DbPool,
-        guest_id: i64,
-        reward_id: i64,
-        booking_id: Option<i64>,
-        notes: Option<String>,
-        reward_not_found_message: &str,
-        use_detailed_points_error: bool,
-        touch_reward_updated_at: bool,
+        params: RewardRedemptionParams<'_>,
     ) -> Result<RewardRedemptionResponse, ApiError> {
+        let RewardRedemptionParams {
+            guest_id,
+            reward_id,
+            booking_id,
+            notes,
+            reward_not_found_message,
+            use_detailed_points_error,
+            touch_reward_updated_at,
+        } = params;
         let mut tx = pool
             .begin()
             .await

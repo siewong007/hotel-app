@@ -104,7 +104,6 @@ async fn ensure_admin_actor(pool: &PgPool, actor_id: i64) {
 
 /// Seeds a single confirmed booking (with its room/room-type/guest) that has
 /// no invoice yet. Mirrors `seed_pg_booking` in tests/booking_service.rs.
-#[allow(clippy::too_many_arguments)]
 async fn seed_booking(
     pool: &PgPool,
     room_type_id: i64,

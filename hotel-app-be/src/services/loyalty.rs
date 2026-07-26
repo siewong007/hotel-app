@@ -8,7 +8,7 @@ use crate::models::{
     RewardRedemptionWithDetails, RewardUpdateInput, RewardUpdateValues, TierInfo,
     UserLoyaltyMembership,
 };
-use crate::repositories::loyalty::LoyaltyRepository;
+use crate::repositories::loyalty::{LoyaltyRepository, RewardRedemptionParams};
 use rust_decimal::Decimal;
 
 const VALID_REWARD_CATEGORIES: [&str; 7] = [
@@ -201,13 +201,15 @@ pub async fn redeem_reward(
 
     LoyaltyRepository::redeem_reward_for_guest(
         pool,
-        guest_id,
-        input.reward_id,
-        input.booking_id,
-        input.notes,
-        "Reward not found",
-        false,
-        false,
+        RewardRedemptionParams {
+            guest_id,
+            reward_id: input.reward_id,
+            booking_id: input.booking_id,
+            notes: input.notes,
+            reward_not_found_message: "Reward not found",
+            use_detailed_points_error: false,
+            touch_reward_updated_at: false,
+        },
     )
     .await
 }
@@ -289,13 +291,15 @@ pub async fn redeem_reward_by_id(
 
     LoyaltyRepository::redeem_reward_for_guest(
         pool,
-        guest_id,
-        reward_id,
-        input.booking_id,
-        input.notes,
-        "Reward not found or inactive",
-        true,
-        true,
+        RewardRedemptionParams {
+            guest_id,
+            reward_id,
+            booking_id: input.booking_id,
+            notes: input.notes,
+            reward_not_found_message: "Reward not found or inactive",
+            use_detailed_points_error: true,
+            touch_reward_updated_at: true,
+        },
     )
     .await
 }

@@ -18,6 +18,7 @@ use crate::modules::loyalty::repository::LoyaltyRepository;
 use crate::modules::loyalty::service as loyalty_service;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
+use crate::models::AuditEvent;
 
 /// System-managed campaign used when a guest portal account is activated.
 pub const WELCOME_DELUXE_PROMOTION_SLUG: &str = "welcome-deluxe-10";
@@ -263,17 +264,18 @@ pub async fn issue_welcome_deluxe_voucher(
         }
         AuditLog::log_event_tx(
             &mut tx,
-            None,
-            "voucher.welcome_issued",
-            "voucher",
-            Some(voucher_id),
-            Some(json!({
-                "promotion_id": promotion.id,
-                "guest_id": guest_id,
-                "source": "guest_activation",
-            })),
-            None,
-            None,
+            AuditEvent {
+                user_id: None,
+                action: "voucher.welcome_issued",
+                resource_type: "voucher",
+                resource_id: Some(voucher_id),
+                details: Some(json!({
+                    "promotion_id": promotion.id,
+                    "guest_id": guest_id,
+                    "source": "guest_activation",
+                })),
+                ..Default::default()
+            },
         )
         .await?;
         tx.commit().await.map_err(ApiError::from)?;
@@ -361,17 +363,19 @@ pub async fn claim_guest_promotion(
         }
         AuditLog::log_event_tx(
             &mut tx,
-            None,
-            "promotion.claimed",
-            "voucher",
-            Some(voucher_id),
-            Some(json!({
-                "promotion_id": promotion_id,
-                "guest_id": guest_id,
-                "source": "guest_portal",
-            })),
-            ip_address,
-            user_agent,
+            AuditEvent {
+                user_id: None,
+                action: "promotion.claimed",
+                resource_type: "voucher",
+                resource_id: Some(voucher_id),
+                details: Some(json!({
+                    "promotion_id": promotion_id,
+                    "guest_id": guest_id,
+                    "source": "guest_portal",
+                })),
+                ip_address,
+                user_agent,
+            },
         )
         .await?;
         tx.commit().await.map_err(ApiError::from)?;
@@ -431,13 +435,15 @@ pub async fn create_admin_promotion(
         .await?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "promotion.created",
-        "promotion",
-        Some(promotion_id),
-        Some(json!({"status": "draft", "promotion_kind": draft.promotion_kind})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "promotion.created",
+            resource_type: "promotion",
+            resource_id: Some(promotion_id),
+            details: Some(json!({"status": "draft", "promotion_kind": draft.promotion_kind})),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -482,13 +488,15 @@ pub async fn update_admin_promotion(
         .await?;
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "promotion.updated",
-        "promotion",
-        Some(promotion_id),
-        Some(json!({"previous_version": existing.version})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "promotion.updated",
+            resource_type: "promotion",
+            resource_id: Some(promotion_id),
+            details: Some(json!({"previous_version": existing.version})),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -543,13 +551,15 @@ async fn transition_admin_promotion(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        &format!("promotion.{next_status}"),
-        "promotion",
-        Some(promotion_id),
-        Some(json!({"previous_status": current.status, "previous_version": current.version})),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: &format!("promotion.{next_status}"),
+            resource_type: "promotion",
+            resource_id: Some(promotion_id),
+            details: Some(json!({"previous_status": current.status, "previous_version": current.version})),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -692,17 +702,19 @@ pub async fn issue_admin_voucher(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "voucher.issued",
-        "voucher",
-        Some(voucher_id),
-        Some(json!({
-            "promotion_id": input.promotion_id,
-            "guest_id": input.guest_id,
-            "source": "admin_issue",
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "voucher.issued",
+            resource_type: "voucher",
+            resource_id: Some(voucher_id),
+            details: Some(json!({
+                "promotion_id": input.promotion_id,
+                "guest_id": input.guest_id,
+                "source": "admin_issue",
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -739,17 +751,19 @@ pub async fn revoke_admin_voucher(
     }
     AuditLog::log_event_tx(
         &mut tx,
-        Some(actor_id),
-        "voucher.revoked",
-        "voucher",
-        Some(voucher_id),
-        Some(json!({
-            "promotion_id": existing.promotion_id,
-            "guest_id": existing.guest_id,
-            "reason": reason,
-        })),
-        ip_address,
-        user_agent,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "voucher.revoked",
+            resource_type: "voucher",
+            resource_id: Some(voucher_id),
+            details: Some(json!({
+                "promotion_id": existing.promotion_id,
+                "guest_id": existing.guest_id,
+                "reason": reason,
+            })),
+            ip_address,
+            user_agent,
+        },
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;

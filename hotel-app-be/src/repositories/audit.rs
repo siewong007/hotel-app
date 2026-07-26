@@ -5,25 +5,29 @@ use serde_json::Value;
 
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
-use crate::models::{AuditLogQuery, AuditLogRow, AuditResourceTypeCount, AuditUserOption};
+use crate::models::{
+    AuditEvent, AuditLogQuery, AuditLogRow, AuditResourceTypeCount, AuditUserOption,
+};
 
 type AuditQueryAs<'q, O> = sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>;
 
 pub struct AuditRepository;
 
 impl AuditRepository {
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_event(
         pool: &DbPool,
-        user_id: Option<i64>,
-        action: &str,
-        resource_type: &str,
-        resource_id: Option<i64>,
-        details: Option<Value>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
+        event: AuditEvent<'_>,
         created_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
+        let AuditEvent {
+            user_id,
+            action,
+            resource_type,
+            resource_id,
+            details,
+            ip_address,
+            user_agent,
+        } = event;
         sqlx::query(
             r#"
             INSERT INTO audit_logs
@@ -45,18 +49,20 @@ impl AuditRepository {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_event_tx(
         tx: &mut DbTransaction<'_>,
-        user_id: Option<i64>,
-        action: &str,
-        resource_type: &str,
-        resource_id: Option<i64>,
-        details: Option<Value>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
+        event: AuditEvent<'_>,
         created_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
+        let AuditEvent {
+            user_id,
+            action,
+            resource_type,
+            resource_id,
+            details,
+            ip_address,
+            user_agent,
+        } = event;
         {
             sqlx::query(
                 r#"
@@ -80,7 +86,6 @@ impl AuditRepository {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn list_logs(
         pool: &DbPool,
         params: &AuditLogQuery,

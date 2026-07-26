@@ -28,6 +28,19 @@ struct GeneratedInvoiceBookingDetailsRow {
     room_type: String,
 }
 
+/// Column values for a `status='pending'` payment row.
+pub struct PendingPaymentValues<'a> {
+    pub booking_id: i64,
+    pub guest_id: i64,
+    pub amount: Decimal,
+    pub currency: &'a str,
+    pub payment_method: &'a str,
+    pub payment_gateway: Option<&'a str>,
+    pub gateway_order_id: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub created_by: Option<i64>,
+}
+
 impl PaymentRepository {
     pub async fn paid_online_booking_room_assignment(
         pool: &DbPool,
@@ -377,19 +390,21 @@ impl PaymentRepository {
     /// `payment_number` (a generated uuid) for its unique key, and records the
     /// initiating `guest_id`. Both persist `payment_type='booking'` and
     /// `status='pending'`.
-    #[allow(clippy::too_many_arguments)]
     pub async fn insert_pending_payment_tx(
         tx: &mut DbTransaction<'_>,
-        booking_id: i64,
-        guest_id: i64,
-        amount: Decimal,
-        currency: &str,
-        payment_method: &str,
-        payment_gateway: Option<&str>,
-        gateway_order_id: Option<&str>,
-        description: Option<&str>,
-        created_by: Option<i64>,
+        values: PendingPaymentValues<'_>,
     ) -> Result<i64, ApiError> {
+        let PendingPaymentValues {
+            booking_id,
+            guest_id,
+            amount,
+            currency,
+            payment_method,
+            payment_gateway,
+            gateway_order_id,
+            description,
+            created_by,
+        } = values;
         {
             let _ = guest_id;
             sqlx::query_scalar::<_, i64>(

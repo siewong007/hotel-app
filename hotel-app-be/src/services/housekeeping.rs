@@ -13,6 +13,7 @@ use crate::repositories::housekeeping::{self, NewHousekeepingTask};
 use crate::services::{audit::AuditLog, rooms};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
+use crate::models::AuditEvent;
 
 const VALID_PRIORITIES: &[&str] = &["low", "normal", "high", "urgent"];
 const VALID_TASK_TYPES: &[&str] = &[
@@ -166,17 +167,18 @@ pub async fn create_task(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "housekeeping_task_created",
-        "housekeeping",
-        Some(task.id),
-        Some(serde_json::json!({
-            "room_id": task.room_id,
-            "task_type": task.task_type,
-            "priority": task.priority
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "housekeeping_task_created",
+            resource_type: "housekeeping",
+            resource_id: Some(task.id),
+            details: Some(serde_json::json!({
+                "room_id": task.room_id,
+                "task_type": task.task_type,
+                "priority": task.priority
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -218,16 +220,17 @@ pub async fn update_task(
 
         AuditLog::log_event_tx(
             &mut tx,
-            Some(user_id),
-            "housekeeping_task_completed",
-            "housekeeping",
-            Some(task_id),
-            Some(serde_json::json!({
-                "room_id": existing.room_id,
-                "room_status": room_status
-            })),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "housekeeping_task_completed",
+                resource_type: "housekeeping",
+                resource_id: Some(task_id),
+                details: Some(serde_json::json!({
+                    "room_id": existing.room_id,
+                    "room_status": room_status
+                })),
+                ..Default::default()
+            },
         )
         .await?;
 
@@ -243,17 +246,18 @@ pub async fn update_task(
     let task = housekeeping::patch_task(pool, task_id, &patch).await?;
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "housekeeping_task_updated",
-        "housekeeping",
-        Some(task_id),
-        Some(serde_json::json!({
-            "previous_status": existing.status,
-            "status": task.status,
-            "room_id": task.room_id
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "housekeeping_task_updated",
+            resource_type: "housekeeping",
+            resource_id: Some(task_id),
+            details: Some(serde_json::json!({
+                "previous_status": existing.status,
+                "status": task.status,
+                "room_id": task.room_id
+            })),
+            ..Default::default()
+        },
     )
     .await;
 

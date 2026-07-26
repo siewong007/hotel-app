@@ -338,17 +338,30 @@ mod postgres_tests {
             .unwrap();
     }
 
-    #[allow(clippy::too_many_arguments)]
-    async fn seed_booking(
-        pool: &PgPool,
+    /// Fixture ids and stay details for a seeded booking.
+    ///
+    /// Deliberately no `Default`: every field must be stated at the call site
+    /// so a forgotten id cannot silently become 0.
+    struct BookingFixture<'a> {
         actor_id: i64,
         booking_id: i64,
         guest_id: i64,
         room_id: i64,
-        status: &str,
+        status: &'a str,
         check_in: NaiveDate,
         check_out: NaiveDate,
-    ) {
+    }
+
+    async fn seed_booking(pool: &PgPool, fixture: BookingFixture<'_>) {
+        let BookingFixture {
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            status,
+            check_in,
+            check_out,
+        } = fixture;
         sqlx::query(
             "INSERT INTO bookings (
                 id, booking_number, guest_id, guest_name, guest_email, room_id,
@@ -468,13 +481,15 @@ mod postgres_tests {
         seed_guest(&pool, guest_id).await;
         seed_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            "confirmed",
-            NaiveDate::from_ymd_opt(2031, 1, 10).unwrap(),
-            NaiveDate::from_ymd_opt(2031, 1, 12).unwrap(),
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                status: "confirmed",
+                check_in: NaiveDate::from_ymd_opt(2031, 1, 10).unwrap(),
+                check_out: NaiveDate::from_ymd_opt(2031, 1, 12).unwrap(),
+            },
         )
         .await;
         // Check-in requires an IC/passport on file (see
@@ -551,13 +566,15 @@ mod postgres_tests {
         seed_guest(&pool, guest_id).await;
         seed_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            "confirmed",
-            NaiveDate::from_ymd_opt(2031, 2, 10).unwrap(),
-            NaiveDate::from_ymd_opt(2031, 2, 12).unwrap(),
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                status: "confirmed",
+                check_in: NaiveDate::from_ymd_opt(2031, 2, 10).unwrap(),
+                check_out: NaiveDate::from_ymd_opt(2031, 2, 12).unwrap(),
+            },
         )
         .await;
 
@@ -787,13 +804,15 @@ mod postgres_tests {
         let today = Utc::now().date_naive();
         seed_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_a,
-            "checked_in",
-            today - Duration::days(1),
-            today + Duration::days(1),
+            BookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id: room_a,
+                status: "checked_in",
+                check_in: today - Duration::days(1),
+                check_out: today + Duration::days(1),
+            },
         )
         .await;
         // The trigger just set room_a to "occupied" (correct); force it back

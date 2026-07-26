@@ -17,6 +17,7 @@ use crate::services::audit::AuditLog;
 use crate::services::rbac::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
 use crate::utils::sanitization::Sanitizer;
 use validator::Validate;
+use crate::models::AuditEvent;
 
 pub async fn users(pool: &DbPool) -> Result<Vec<UserResponse>, ApiError> {
     Ok(UserRepository::list_all(pool)
@@ -61,13 +62,14 @@ pub async fn create_user(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(admin_user_id),
-        "user_created",
-        "user",
-        Some(user.id),
-        Some(serde_json::json!({"username": &input.username, "email": &input.email})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(admin_user_id),
+            action: "user_created",
+            resource_type: "user",
+            resource_id: Some(user.id),
+            details: Some(serde_json::json!({"username": &input.username, "email": &input.email})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -151,13 +153,14 @@ pub async fn update_user(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(admin_user_id),
-        "user_updated",
-        "user",
-        Some(user_id),
-        Some(serde_json::json!({"changed_fields": changed_fields})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(admin_user_id),
+            action: "user_updated",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: Some(serde_json::json!({"changed_fields": changed_fields})),
+            ..Default::default()
+        },
     )
     .await;
     crate::core::rbac_cache::invalidate_all();
@@ -191,13 +194,14 @@ pub async fn delete_user(pool: &DbPool, admin_user_id: i64, user_id: i64) -> Res
 
     let _ = AuditLog::log_event(
         pool,
-        Some(admin_user_id),
-        "user_deleted",
-        "user",
-        Some(user_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(admin_user_id),
+            action: "user_deleted",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
     crate::core::rbac_cache::invalidate_all();

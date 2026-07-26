@@ -101,17 +101,30 @@ pub async fn record_booking_history_tx(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Details recorded when a guest completes self check-in.
+pub struct SelfCheckinEventValues<'a> {
+    pub booking_id: i64,
+    pub guest_id: i64,
+    pub ekyc_verification_id: i64,
+    pub user_id: i64,
+    pub source: &'a str,
+    pub device_type: Option<&'a String>,
+    pub checkin_location: Option<&'a String>,
+}
+
 pub async fn record_self_checkin_event_tx(
     tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-    guest_id: i64,
-    ekyc_verification_id: i64,
-    user_id: i64,
-    source: &str,
-    device_type: Option<&String>,
-    checkin_location: Option<&String>,
+    values: SelfCheckinEventValues<'_>,
 ) -> Result<DateTime<Utc>, ApiError> {
+    let SelfCheckinEventValues {
+        booking_id,
+        guest_id,
+        ekyc_verification_id,
+        user_id,
+        source,
+        device_type,
+        checkin_location,
+    } = values;
     let checked_in_at = Utc::now();
     let event_data = serde_json::json!({
         "source": source,
@@ -2400,13 +2413,14 @@ pub async fn manual_checkin_handler(
     // Log check-in
     let _ = AuditLog::log_event(
         &pool,
-        Some(user_id),
-        "booking_checkin",
-        "booking",
-        Some(booking_id),
-        Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "booking_checkin",
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
+            ..Default::default()
+        },
     )
     .await;
     record_booking_history(
@@ -2635,13 +2649,14 @@ pub async fn reactivate_booking_handler(
 
     AuditLog::log_event_tx(
         &mut tx,
-        Some(user_id),
-        "booking_reactivated",
-        "booking",
-        Some(booking_id),
-        Some(serde_json::json!({"guest_id": guest_id, "room_id": room_id, "previous_status": "voided"})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "booking_reactivated",
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(serde_json::json!({"guest_id": guest_id, "room_id": room_id, "previous_status": "voided"})),
+            ..Default::default()
+        },
     )
     .await?;
     record_booking_history_tx(

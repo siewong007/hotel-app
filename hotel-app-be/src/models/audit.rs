@@ -22,6 +22,22 @@ pub struct AuditLogQuery {
     pub sort_order: Option<String>,
 }
 
+/// Fields written to `audit_logs` for a single event.
+///
+/// `Default` exists so call sites can omit the request-context fields
+/// (`ip_address`/`user_agent`) with `..Default::default()` — most internal
+/// callers have no HTTP request in scope.
+#[derive(Debug, Default)]
+pub struct AuditEvent<'a> {
+    pub user_id: Option<i64>,
+    pub action: &'a str,
+    pub resource_type: &'a str,
+    pub resource_id: Option<i64>,
+    pub details: Option<Value>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+}
+
 /// Extended audit log entry with username.
 #[derive(Debug, Serialize)]
 pub struct AuditLogEntryWithUser {

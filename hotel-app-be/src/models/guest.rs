@@ -227,6 +227,28 @@ pub struct GuestUpdateValues {
     pub company_name: Option<String>,
 }
 
+/// Fully resolved guest creation values.
+#[derive(Debug)]
+pub struct GuestCreateValues<'a> {
+    pub full_name: &'a str,
+    pub first_name: &'a str,
+    pub last_name: &'a str,
+    pub email: Option<&'a str>,
+    pub phone: Option<String>,
+    pub ic_number: Option<String>,
+    pub nationality: Option<String>,
+    pub address_line1: Option<String>,
+    pub city: Option<String>,
+    pub state_province: Option<String>,
+    pub postal_code: Option<String>,
+    pub country: Option<String>,
+    pub guest_type: &'a GuestType,
+    pub tourism_type: &'a Option<TourismType>,
+    pub discount_percentage: i32,
+    pub company_name: Option<String>,
+    pub created_by: i64,
+}
+
 /// Latest check-in payment/tourism-tax signal used to classify a guest quickly.
 #[derive(Debug)]
 pub struct GuestTourismTaxSignal {

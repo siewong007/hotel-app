@@ -202,20 +202,36 @@ mod postgres_tests {
     /// Seeds a single company-billed, confirmed booking (room/room-type/guest
     /// included). Upsert-reset so reruns against a persistent dev DB are
     /// deterministic regardless of a prior run's leftover status/actual_check_out.
-    #[allow(clippy::too_many_arguments)]
-    async fn seed_company_billed_booking(
-        pool: &PgPool,
+    /// Fixture ids and stay details for a company-billed booking.
+    ///
+    /// Deliberately no `Default`: every field must be stated at the call site
+    /// so a forgotten id cannot silently become 0.
+    struct CompanyBilledBookingFixture<'a> {
         actor_id: i64,
         booking_id: i64,
         guest_id: i64,
         room_id: i64,
         room_type_id: i64,
-        company_name: &str,
+        company_name: &'a str,
         room_rate: Decimal,
         nights: i64,
         check_in: NaiveDate,
         check_out: NaiveDate,
-    ) {
+    }
+
+    async fn seed_company_billed_booking(pool: &PgPool, fixture: CompanyBilledBookingFixture<'_>) {
+        let CompanyBilledBookingFixture {
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+            room_rate,
+            nights,
+            check_in,
+            check_out,
+        } = fixture;
         sqlx::query(
             "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 2) \
@@ -300,7 +316,6 @@ mod postgres_tests {
     /// Children before parents; `room_status_change_log` has no `ON DELETE`
     /// clause on its `room_id` FK (see `.claude/rules/lessons.md` 2026-07-26e)
     /// so it must be cleared explicitly before deleting the room.
-    #[allow(clippy::too_many_arguments)]
     async fn cleanup_booking_fixture(
         pool: &PgPool,
         booking_id: i64,
@@ -424,16 +439,19 @@ mod postgres_tests {
         let check_out = NaiveDate::from_ymd_opt(2031, 2, 12).unwrap();
         seed_company_billed_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            company_name,
-            Decimal::new(10_000, 2), // 100.00/night
-            2,
-            check_in,
-            check_out,
+            CompanyBilledBookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                company_name,
+                room_rate: Decimal::new(10_000, 2),
+                nights: // 100.00/night
+                2,
+                check_in,
+                check_out,
+            },
         )
         .await;
 
@@ -549,16 +567,19 @@ mod postgres_tests {
         let check_out = NaiveDate::from_ymd_opt(2031, 3, 11).unwrap();
         seed_company_billed_booking(
             &pool,
-            actor_id,
-            booking_id,
-            guest_id,
-            room_id,
-            room_type_id,
-            company_name,
-            Decimal::new(12_000, 2), // 120.00/night
-            1,
-            check_in,
-            check_out,
+            CompanyBilledBookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                company_name,
+                room_rate: Decimal::new(12_000, 2),
+                nights: // 120.00/night
+                1,
+                check_in,
+                check_out,
+            },
         )
         .await;
 

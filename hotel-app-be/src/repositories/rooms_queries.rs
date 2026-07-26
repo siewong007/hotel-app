@@ -209,7 +209,6 @@ WHERE r.is_active = true
 ORDER BY COALESCE(r.custom_price, rt.base_price)
 "#;
 
-#[allow(clippy::too_many_arguments)]
 pub async fn search_rooms_with_dates(
     pool: &DbPool,
     check_in: NaiveDate,
@@ -383,7 +382,6 @@ SET room_number = $1,
 WHERE id = $6
 "#;
 
-#[allow(clippy::too_many_arguments)]
 pub async fn update_room_with_status(
     pool: &DbPool,
     room_number: &str,
@@ -460,17 +458,27 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, 'available', true)
 RETURNING id
 "#;
 
-#[allow(clippy::too_many_arguments)]
-pub async fn insert_room(
-    pool: &DbPool,
-    room_number: &str,
-    room_type_id: Option<i64>,
-    floor: Option<i32>,
-    building: &Option<String>,
-    custom_price: Option<Decimal>,
-    is_accessible: bool,
-    is_smoking: bool,
-) -> Result<i64, ApiError> {
+/// Column values for `INSERT_ROOM_QUERY`.
+pub struct RoomInsertValues<'a> {
+    pub room_number: &'a str,
+    pub room_type_id: Option<i64>,
+    pub floor: Option<i32>,
+    pub building: &'a Option<String>,
+    pub custom_price: Option<Decimal>,
+    pub is_accessible: bool,
+    pub is_smoking: bool,
+}
+
+pub async fn insert_room(pool: &DbPool, values: RoomInsertValues<'_>) -> Result<i64, ApiError> {
+    let RoomInsertValues {
+        room_number,
+        room_type_id,
+        floor,
+        building,
+        custom_price,
+        is_accessible,
+        is_smoking,
+    } = values;
     let room_id: i64 = sqlx::query_scalar(INSERT_ROOM_QUERY)
         .bind(room_number)
         .bind(room_type_id)
@@ -915,23 +923,39 @@ SET status = $1,
 WHERE id = $10
 "#;
 
-#[allow(clippy::too_many_arguments)]
+/// Column values for `UPDATE_ROOM_STATUS_WITH_DATES`.
+pub struct RoomStatusUpdateValues<'a> {
+    pub target_status: &'a str,
+    pub notes: Option<&'a str>,
+    pub status_notes: &'a Option<String>,
+    pub reserved_start: Option<DateTime<Utc>>,
+    pub reserved_end: Option<DateTime<Utc>>,
+    pub maintenance_start: Option<DateTime<Utc>>,
+    pub maintenance_end: Option<DateTime<Utc>>,
+    pub cleaning_start: Option<DateTime<Utc>>,
+    pub cleaning_end: Option<DateTime<Utc>>,
+    pub room_id: i64,
+}
+
 pub async fn update_room_status_with_dates<'e, E>(
     executor: E,
-    target_status: &str,
-    notes: Option<&str>,
-    status_notes: &Option<String>,
-    reserved_start: Option<DateTime<Utc>>,
-    reserved_end: Option<DateTime<Utc>>,
-    maintenance_start: Option<DateTime<Utc>>,
-    maintenance_end: Option<DateTime<Utc>>,
-    cleaning_start: Option<DateTime<Utc>>,
-    cleaning_end: Option<DateTime<Utc>>,
-    room_id: i64,
+    values: RoomStatusUpdateValues<'_>,
 ) -> Result<(), ApiError>
 where
     E: sqlx::Executor<'e, Database = DbDatabase>,
 {
+    let RoomStatusUpdateValues {
+        target_status,
+        notes,
+        status_notes,
+        reserved_start,
+        reserved_end,
+        maintenance_start,
+        maintenance_end,
+        cleaning_start,
+        cleaning_end,
+        room_id,
+    } = values;
     sqlx::query(UPDATE_ROOM_STATUS_WITH_DATES)
         .bind(target_status)
         .bind(notes)
@@ -957,19 +981,32 @@ INSERT INTO room_history (
 VALUES ($1, $2, $3, $4, $5, $6, $7, false)
 "#;
 
+/// Column values for `INSERT_ROOM_HISTORY`.
+pub struct RoomHistoryValues<'a> {
+    pub room_id: i64,
+    pub from_status: &'a Option<String>,
+    pub to_status: &'a str,
+    pub start: Option<DateTime<Utc>>,
+    pub end: Option<DateTime<Utc>>,
+    pub user_id: i64,
+    pub notes: &'a Option<String>,
+}
+
 /// Best-effort: callers ignore the error and keep going (matches the
 /// original `let _ = sqlx::query(...)` call sites).
-#[allow(clippy::too_many_arguments)]
 pub async fn insert_room_history(
     pool: &DbPool,
-    room_id: i64,
-    from_status: &Option<String>,
-    to_status: &str,
-    start: Option<DateTime<Utc>>,
-    end: Option<DateTime<Utc>>,
-    user_id: i64,
-    notes: &Option<String>,
+    values: RoomHistoryValues<'_>,
 ) -> Result<(), ApiError> {
+    let RoomHistoryValues {
+        room_id,
+        from_status,
+        to_status,
+        start,
+        end,
+        user_id,
+        notes,
+    } = values;
     sqlx::query(INSERT_ROOM_HISTORY)
         .bind(room_id)
         .bind(from_status)
@@ -1269,18 +1306,32 @@ pub async fn target_room_status(
 /// booking's room, flip source/target room statuses, and record the change,
 /// history, and modification rows. Preserves the original single-transaction
 /// boundary — split calls here would risk partial commits.
-#[allow(clippy::too_many_arguments)]
+/// Row identifiers and metadata for one room-change transaction.
+pub struct RoomChangeValues<'a> {
+    pub booking_id: i64,
+    pub room_id: i64,
+    pub target_id: i64,
+    pub guest_id: i64,
+    pub reason: &'a str,
+    pub user_id: i64,
+    pub from_room_number: &'a str,
+    pub to_room_number: &'a str,
+}
+
 pub async fn execute_room_change_tx(
     tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-    room_id: i64,
-    target_id: i64,
-    guest_id: i64,
-    reason: &str,
-    user_id: i64,
-    from_room_number: &str,
-    to_room_number: &str,
+    values: RoomChangeValues<'_>,
 ) -> Result<(), ApiError> {
+    let RoomChangeValues {
+        booking_id,
+        room_id,
+        target_id,
+        guest_id,
+        reason,
+        user_id,
+        from_room_number,
+        to_room_number,
+    } = values;
     sqlx::query("UPDATE bookings SET room_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(target_id)
         .bind(booking_id)
@@ -1465,17 +1516,30 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, room_id, event_type, status, priority, notes, scheduled_date, created_by, created_at, updated_at
 "#;
 
-#[allow(clippy::too_many_arguments)]
+/// Column values for `INSERT_ROOM_EVENT_FULL`.
+pub struct RoomEventValues<'a> {
+    pub room_id: i64,
+    pub event_type: &'a str,
+    pub status: &'a str,
+    pub priority: &'a str,
+    pub notes: &'a Option<String>,
+    pub scheduled_date: Option<NaiveDate>,
+    pub user_id: i64,
+}
+
 pub async fn insert_room_event_full(
     pool: &DbPool,
-    room_id: i64,
-    event_type: &str,
-    status: &str,
-    priority: &str,
-    notes: &Option<String>,
-    scheduled_date: Option<NaiveDate>,
-    user_id: i64,
+    values: RoomEventValues<'_>,
 ) -> Result<RoomEvent, ApiError> {
+    let RoomEventValues {
+        room_id,
+        event_type,
+        status,
+        priority,
+        notes,
+        scheduled_date,
+        user_id,
+    } = values;
     sqlx::query_as::<_, RoomEvent>(INSERT_ROOM_EVENT_FULL)
         .bind(room_id)
         .bind(event_type)

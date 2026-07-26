@@ -127,17 +127,30 @@ pub async fn find_ticket(
     Ok(row.map(row_to_ticket))
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Filter and pagination inputs for the maintenance ticket listing.
+pub struct MaintenanceTicketFilters<'a> {
+    pub status: Option<&'a str>,
+    pub room_id: Option<i64>,
+    pub assigned_to: Option<i64>,
+    pub category: Option<&'a str>,
+    pub priority: Option<&'a str>,
+    pub page_size: i64,
+    pub offset: i64,
+}
+
 pub async fn list_tickets(
     pool: &DbPool,
-    status: Option<&str>,
-    room_id: Option<i64>,
-    assigned_to: Option<i64>,
-    category: Option<&str>,
-    priority: Option<&str>,
-    page_size: i64,
-    offset: i64,
+    filters: MaintenanceTicketFilters<'_>,
 ) -> Result<(i64, Vec<MaintenanceTicket>), ApiError> {
+    let MaintenanceTicketFilters {
+        status,
+        room_id,
+        assigned_to,
+        category,
+        priority,
+        page_size,
+        offset,
+    } = filters;
     let where_clause = r#"
 WHERE ($1::text IS NULL OR t.status = $1)
   AND ($2::bigint IS NULL OR t.room_id = $2)

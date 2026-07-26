@@ -8,6 +8,7 @@ use crate::repositories::audit::AuditRepository;
 use crate::utils::pagination::normalize_pagination;
 use chrono::Utc;
 use serde_json::Value;
+use crate::models::AuditEvent;
 
 /// Audit logging service for tracking sensitive operations
 pub struct AuditLog;
@@ -24,32 +25,13 @@ impl AuditLog {
     /// * `details` - Additional details as JSON
     /// * `ip_address` - IP address of the requester
     /// * `user_agent` - User agent string from the request
-    #[allow(clippy::too_many_arguments)]
-    pub async fn log_event(
-        pool: &DbPool,
-        user_id: Option<i64>,
-        action: &str,
-        resource_type: &str,
-        resource_id: Option<i64>,
-        details: Option<Value>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
-    ) -> Result<(), ApiError> {
+    pub async fn log_event(pool: &DbPool, event: AuditEvent<'_>) -> Result<(), ApiError> {
         // Note: The audit_logs table may not exist yet. This is prepared for future migration.
         // If the table doesn't exist, we'll log the error but not fail the operation.
+        let action = event.action;
+        let resource_type = event.resource_type;
 
-        let result = AuditRepository::insert_event(
-            pool,
-            user_id,
-            action,
-            resource_type,
-            resource_id,
-            details,
-            ip_address,
-            user_agent,
-            Utc::now(),
-        )
-        .await;
+        let result = AuditRepository::insert_event(pool, event, Utc::now()).await;
 
         // Log to console if database insert fails (table might not exist yet)
         if let Err(e) = &result {
@@ -65,30 +47,13 @@ impl AuditLog {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn log_event_tx(
         tx: &mut DbTransaction<'_>,
-        user_id: Option<i64>,
-        action: &str,
-        resource_type: &str,
-        resource_id: Option<i64>,
-        details: Option<Value>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
+        event: AuditEvent<'_>,
     ) -> Result<(), ApiError> {
-        AuditRepository::insert_event_tx(
-            tx,
-            user_id,
-            action,
-            resource_type,
-            resource_id,
-            details,
-            ip_address,
-            user_agent,
-            Utc::now(),
-        )
-        .await
-        .map_err(ApiError::from)
+        AuditRepository::insert_event_tx(tx, event, Utc::now())
+            .await
+            .map_err(ApiError::from)
     }
 
     /// Log a successful login attempt
@@ -106,13 +71,15 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(user_id),
-            "login_success",
-            "user",
-            Some(user_id),
-            Some(details),
-            ip_address,
-            user_agent,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "login_success",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: Some(details),
+                ip_address,
+                user_agent,
+            },
         )
         .await
     }
@@ -133,13 +100,15 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            None,
-            "login_failure",
-            "user",
-            None,
-            Some(details),
-            ip_address,
-            user_agent,
+            AuditEvent {
+                user_id: None,
+                action: "login_failure",
+                resource_type: "user",
+                resource_id: None,
+                details: Some(details),
+                ip_address,
+                user_agent,
+            },
         )
         .await
     }
@@ -159,13 +128,14 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(admin_id),
-            "role_assigned",
-            "user_role",
-            Some(user_id),
-            Some(details),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(admin_id),
+                action: "role_assigned",
+                resource_type: "user_role",
+                resource_id: Some(user_id),
+                details: Some(details),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -185,13 +155,14 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(admin_id),
-            "role_removed",
-            "user_role",
-            Some(user_id),
-            Some(details),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(admin_id),
+                action: "role_removed",
+                resource_type: "user_role",
+                resource_id: Some(user_id),
+                details: Some(details),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -212,13 +183,14 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(user_id),
-            "booking_created",
-            "booking",
-            Some(booking_id),
-            Some(details),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "booking_created",
+                resource_type: "booking",
+                resource_id: Some(booking_id),
+                details: Some(details),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -232,13 +204,14 @@ impl AuditLog {
     ) -> Result<(), ApiError> {
         Self::log_event(
             pool,
-            Some(user_id),
-            "booking_updated",
-            "booking",
-            Some(booking_id),
-            Some(changes),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "booking_updated",
+                resource_type: "booking",
+                resource_id: Some(booking_id),
+                details: Some(changes),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -251,13 +224,14 @@ impl AuditLog {
     ) -> Result<(), ApiError> {
         Self::log_event(
             pool,
-            Some(user_id),
-            "booking_cancelled",
-            "booking",
-            Some(booking_id),
-            None,
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "booking_cancelled",
+                resource_type: "booking",
+                resource_id: Some(booking_id),
+                details: None,
+                ..Default::default()
+            },
         )
         .await
     }
@@ -270,13 +244,14 @@ impl AuditLog {
     ) -> Result<(), ApiError> {
         Self::log_event_tx(
             tx,
-            Some(user_id),
-            "booking_voided",
-            "booking",
-            Some(booking_id),
-            None,
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "booking_voided",
+                resource_type: "booking",
+                resource_id: Some(booking_id),
+                details: None,
+                ..Default::default()
+            },
         )
         .await
     }
@@ -296,13 +271,14 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(admin_id),
-            "ekyc_approved",
-            "ekyc_verification",
-            Some(verification_id),
-            Some(details),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(admin_id),
+                action: "ekyc_approved",
+                resource_type: "ekyc_verification",
+                resource_id: Some(verification_id),
+                details: Some(details),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -324,13 +300,14 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(admin_id),
-            "ekyc_rejected",
-            "ekyc_verification",
-            Some(verification_id),
-            Some(details),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(admin_id),
+                action: "ekyc_rejected",
+                resource_type: "ekyc_verification",
+                resource_id: Some(verification_id),
+                details: Some(details),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -339,13 +316,14 @@ impl AuditLog {
     pub async fn log_password_changed(pool: &DbPool, user_id: i64) -> Result<(), ApiError> {
         Self::log_event(
             pool,
-            Some(user_id),
-            "password_changed",
-            "user",
-            Some(user_id),
-            None,
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "password_changed",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: None,
+                ..Default::default()
+            },
         )
         .await
     }
@@ -366,13 +344,14 @@ impl AuditLog {
 
         Self::log_event(
             pool,
-            Some(admin_id),
-            "settings_changed",
-            "system_setting",
-            None,
-            Some(details),
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(admin_id),
+                action: "settings_changed",
+                resource_type: "system_setting",
+                resource_id: None,
+                details: Some(details),
+                ..Default::default()
+            },
         )
         .await
     }
@@ -523,13 +502,14 @@ pub async fn export_audit_logs_csv(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "audit_logs_exported",
-        "export",
-        None,
-        Some(details),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "audit_logs_exported",
+            resource_type: "export",
+            resource_id: None,
+            details: Some(details),
+            ..Default::default()
+        },
     )
     .await;
 

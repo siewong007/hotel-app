@@ -5,6 +5,7 @@ use crate::core::error::ApiError;
 use crate::models::{Company, CompanyCreateRequest, CompanyListQuery, CompanyUpdateRequest};
 use crate::repositories::company::CompanyRepository;
 use crate::services::audit::AuditLog;
+use crate::models::AuditEvent;
 
 pub async fn list_companies(
     pool: &DbPool,
@@ -35,13 +36,14 @@ pub async fn create_company(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "company_created",
-        "company",
-        Some(company.id),
-        Some(serde_json::json!({"name": &company.company_name})),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "company_created",
+            resource_type: "company",
+            resource_id: Some(company.id),
+            details: Some(serde_json::json!({"name": &company.company_name})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -71,13 +73,14 @@ pub async fn update_company(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "company_updated",
-        "company",
-        Some(company_id),
-        Some(serde_json::json!({"name": &company.company_name})),
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "company_updated",
+            resource_type: "company",
+            resource_id: Some(company_id),
+            details: Some(serde_json::json!({"name": &company.company_name})),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -92,13 +95,14 @@ pub async fn delete_company(pool: &DbPool, company_id: i64) -> Result<(), ApiErr
 
     let _ = AuditLog::log_event(
         pool,
-        None,
-        "company_deleted",
-        "company",
-        Some(company_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: None,
+            action: "company_deleted",
+            resource_type: "company",
+            resource_id: Some(company_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 

@@ -12,6 +12,7 @@ use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
 use serde_json::Value;
 use validator::Validate;
+use crate::models::AuditEvent;
 
 pub async fn setup_2fa(
     pool: &DbPool,
@@ -48,13 +49,14 @@ pub async fn setup_2fa(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "two_factor_setup_initiated",
-        "user",
-        Some(user_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "two_factor_setup_initiated",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 
@@ -97,13 +99,14 @@ pub async fn enable_2fa(
         // A valid TOTP code with a bad challenge is an attack signal worth keeping.
         let _ = AuditLog::log_event(
             pool,
-            Some(user_id),
-            "two_factor_enable_challenge_rejected",
-            "user",
-            Some(user_id),
-            None,
-            None,
-            None,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "two_factor_enable_challenge_rejected",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: None,
+                ..Default::default()
+            },
         )
         .await;
         return Err(ApiError::BadRequest(
@@ -118,13 +121,14 @@ pub async fn enable_2fa(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "two_factor_enabled",
-        "user",
-        Some(user_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "two_factor_enabled",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 
@@ -181,13 +185,14 @@ pub async fn disable_2fa(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "two_factor_disabled",
-        "user",
-        Some(user_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "two_factor_disabled",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 
@@ -272,13 +277,14 @@ pub async fn regenerate_backup_codes(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "two_factor_backup_codes_regenerated",
-        "user",
-        Some(user_id),
-        None,
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "two_factor_backup_codes_regenerated",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: None,
+            ..Default::default()
+        },
     )
     .await;
 

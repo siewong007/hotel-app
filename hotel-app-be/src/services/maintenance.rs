@@ -11,6 +11,7 @@ use crate::repositories::maintenance::{self, NewMaintenanceTicket};
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
+use crate::models::AuditEvent;
 
 const VALID_PRIORITIES: &[&str] = &["low", "medium", "high", "critical"];
 const VALID_STATUSES: &[&str] = &["open", "in_progress", "on_hold", "resolved", "closed"];
@@ -109,13 +110,15 @@ pub async fn list_tickets(
     let pagination = normalize_pagination(params.page, params.page_size, 50, 200);
     let (total, items) = maintenance::list_tickets(
         pool,
-        params.status.as_deref(),
-        params.room_id,
-        params.assigned_to,
-        params.category.as_deref(),
-        params.priority.as_deref(),
-        pagination.page_size,
-        pagination.offset,
+        maintenance::MaintenanceTicketFilters {
+            status: params.status.as_deref(),
+            room_id: params.room_id,
+            assigned_to: params.assigned_to,
+            category: params.category.as_deref(),
+            priority: params.priority.as_deref(),
+            page_size: pagination.page_size,
+            offset: pagination.offset,
+        },
     )
     .await?;
 
@@ -178,18 +181,19 @@ pub async fn create_ticket(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "maintenance_ticket_created",
-        "maintenance",
-        Some(ticket.id),
-        Some(serde_json::json!({
-            "room_id": ticket.room_id,
-            "category": ticket.category,
-            "priority": ticket.priority,
-            "ticket_number": ticket.ticket_number
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "maintenance_ticket_created",
+            resource_type: "maintenance",
+            resource_id: Some(ticket.id),
+            details: Some(serde_json::json!({
+                "room_id": ticket.room_id,
+                "category": ticket.category,
+                "priority": ticket.priority,
+                "ticket_number": ticket.ticket_number
+            })),
+            ..Default::default()
+        },
     )
     .await;
 
@@ -250,16 +254,17 @@ pub async fn update_ticket(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
-        "maintenance_ticket_updated",
-        "maintenance",
-        Some(ticket_id),
-        Some(serde_json::json!({
-            "previous_status": existing.status,
-            "status": ticket.status
-        })),
-        None,
-        None,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "maintenance_ticket_updated",
+            resource_type: "maintenance",
+            resource_id: Some(ticket_id),
+            details: Some(serde_json::json!({
+                "previous_status": existing.status,
+                "status": ticket.status
+            })),
+            ..Default::default()
+        },
     )
     .await;
 

@@ -15,6 +15,7 @@ use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
 use serde_json::json;
 use validator::Validate;
+use crate::models::AuditEvent;
 
 /// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
 /// the freshly minted refresh token as a separate `String`; the route handler
@@ -179,16 +180,17 @@ pub async fn login(
                     }
                     let _ = AuditLog::log_event(
                         pool,
-                        Some(user.id),
-                        "two_factor_recovery_code_used",
-                        "user",
-                        Some(user.id),
-                        Some(json!({
-                            "context": "login",
-                            "recovery_codes_remaining": remaining,
-                        })),
-                        None,
-                        None,
+                        AuditEvent {
+                            user_id: Some(user.id),
+                            action: "two_factor_recovery_code_used",
+                            resource_type: "user",
+                            resource_id: Some(user.id),
+                            details: Some(json!({
+                                "context": "login",
+                                "recovery_codes_remaining": remaining,
+                            })),
+                            ..Default::default()
+                        },
                     )
                     .await;
                 }
