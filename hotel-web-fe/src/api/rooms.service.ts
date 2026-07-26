@@ -9,6 +9,7 @@ import {
   RoomWithDisplay,
   RoomEvent,
   RoomEventInput,
+  RoomStatusSyncResult,
   RoomStatusUpdateInput,
   RoomDetailedStatus,
   RoomHistory,
@@ -98,6 +99,22 @@ export class RoomsService {
         );
       }
       throw new APIError('Failed to end maintenance');
+    }
+  }
+
+  static async syncRoomStatuses(): Promise<RoomStatusSyncResult> {
+    try {
+      return await api.post('rooms/sync-statuses').json<RoomStatusSyncResult>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to sync room statuses',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to sync room statuses');
     }
   }
 

@@ -18,6 +18,7 @@ import AddIcon from '@mui/icons-material/Add';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import SyncIcon from '@mui/icons-material/Sync';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../auth/AuthContext';
 import { formatLocalDate } from '../../../utils/date';
@@ -25,6 +26,7 @@ import type { HousekeepingBoardRoom, HousekeepingPriority } from '../../../types
 import {
   useCreateHousekeepingTask,
   useHousekeepingBoard,
+  useSyncRoomStatuses,
   useUpdateHousekeepingTask,
 } from '../hooks/useHousekeepingQueries';
 import MaintenanceTab from './MaintenanceTab';
@@ -203,8 +205,10 @@ export default function HousekeepingPage() {
   const boardQuery = useHousekeepingBoard();
   const createTask = useCreateHousekeepingTask();
   const updateTask = useUpdateHousekeepingTask();
+  const syncStatuses = useSyncRoomStatuses();
   const canUpdate = hasPermission('housekeeping:update') || hasPermission('housekeeping:manage');
   const canCreate = hasPermission('housekeeping:create') || hasPermission('housekeeping:manage');
+  const canSyncStatuses = hasPermission('rooms:update') || hasPermission('rooms:manage');
   const currentUserId = user?.id ? Number(user.id) : undefined;
   const isBusy = createTask.isPending || updateTask.isPending;
 
@@ -234,7 +238,7 @@ export default function HousekeepingPage() {
     });
   }, [filteredRooms]);
 
-  const error = boardQuery.error || createTask.error || updateTask.error;
+  const error = boardQuery.error || createTask.error || updateTask.error || syncStatuses.error;
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1440, mx: 'auto' }}>
@@ -257,7 +261,17 @@ export default function HousekeepingPage() {
                   {formatLocalDate()} · {filteredRooms.length} rooms
                 </Typography>
               </Box>
-              <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap alignItems="center">
+                {canSyncStatuses ? (
+                  <Button
+                    variant="outlined"
+                    startIcon={<SyncIcon />}
+                    disabled={syncStatuses.isPending}
+                    onClick={() => syncStatuses.mutate()}
+                  >
+                    Sync statuses
+                  </Button>
+                ) : null}
                 <FormControl size="small" sx={{ minWidth: 130 }}>
                   <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
                   <Select
@@ -290,6 +304,20 @@ export default function HousekeepingPage() {
             </Stack>
 
             {error ? <Alert severity="error">{error instanceof Error ? error.message : 'Housekeeping update failed'}</Alert> : null}
+
+            {syncStatuses.data ? (
+              <Alert
+                severity={syncStatuses.data.synced_count > 0 ? 'success' : 'info'}
+                onClose={() => syncStatuses.reset()}
+              >
+                {syncStatuses.data.message}
+                {syncStatuses.data.changes.length > 0
+                  ? ` — ${syncStatuses.data.changes
+                      .map(change => `${change.room_number}: ${statusLabel(change.old_status)} to ${statusLabel(change.new_status)}`)
+                      .join(', ')}`
+                  : ''}
+              </Alert>
+            ) : null}
 
             {boardQuery.isLoading ? (
               <Stack alignItems="center" sx={{ py: 8 }}>

@@ -110,6 +110,20 @@ export interface RoomEventInput {
   scheduled_date?: string;
 }
 
+export interface RoomStatusSyncChange {
+  room_id: number;
+  room_number: string;
+  old_status: string;
+  new_status: string;
+}
+
+export interface RoomStatusSyncResult {
+  success: boolean;
+  synced_count: number;
+  changes: RoomStatusSyncChange[];
+  message: string;
+}
+
 export interface RoomStatusUpdateInput {
   status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'reserved_dirty' | 'dirty';
   notes?: string;
