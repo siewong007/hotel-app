@@ -364,10 +364,6 @@ SQL
 
 configure_caddy() {
   local site_tmp main_backup site_backup=""
-  # Caddy runs as the `caddy` user and will fail to start if it cannot open the
-  # access-log file, so the directory must exist and be owned before validate.
-  install -d -m 0750 -o caddy -g caddy /var/log/caddy 2>/dev/null \
-    || install -d -m 0755 /var/log/caddy
   site_tmp=$(mktemp "$APP_DIR/.saliminn.Caddyfile.XXXXXX")
   main_backup=$(mktemp "$APP_DIR/.Caddyfile.XXXXXX")
   cp -p "$CADDY_FILE" "$main_backup"
@@ -389,14 +385,17 @@ saliminn.my {
     # raising that would log every SQL statement (including guest PII) into a
     # file with no rotation. Caddy is the only layer that sees every request,
     # including ones the backend never routes (404 sweeps, path traversal
-    # probes, scanner traffic). Kept host-side so it survives container
-    # replacement and does not consume the backend's 192MB budget.
+    # probes, scanner traffic).
+    #
+    # No `output` directive on purpose: Caddy then writes to stderr, which
+    # systemd captures into the journal (`journalctl -u caddy`). An earlier
+    # revision used `output file /var/log/caddy/...` and broke the deploy —
+    # `caddy validate` passes as root without ever opening the sink, but the
+    # service runs as the `caddy` user and aborts if it cannot write the file,
+    # so the reload failed with "Job for caddy.service failed". stderr needs no
+    # directory, no ownership, and no systemd ReadWritePaths entry, and journald
+    # already handles rotation and retention.
     log {
-        output file /var/log/caddy/saliminn-access.log {
-            roll_size 20MiB
-            roll_keep 5
-            roll_keep_for 336h
-        }
         format json
     }
 
