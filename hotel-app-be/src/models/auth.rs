@@ -134,7 +134,9 @@ pub struct TwoFactorEnableRequest {
 /// Request to disable 2FA
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TwoFactorDisableRequest {
-    #[validate(length(min = 6, max = 20, message = "Invalid 2FA code"))]
+    // Accepts either a 6-digit TOTP code or a 23-char dashed recovery code
+    // (XXXXX-XXXXX-XXXXX-XXXXX as produced by generate_backup_codes).
+    #[validate(length(min = 6, max = 32, message = "Invalid 2FA code"))]
     pub code: String,
 }
 

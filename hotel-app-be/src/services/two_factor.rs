@@ -77,6 +77,18 @@ pub async fn enable_2fa(
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
 
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "two_factor_enabled",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
+
     Ok(serde_json::json!({
         "message": "2FA enabled successfully",
         "backup_codes": backup_codes
@@ -218,6 +230,18 @@ pub async fn regenerate_backup_codes(
     AuthService::update_recovery_codes(pool, user_id, &new_backup_codes)
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "two_factor_backup_codes_regenerated",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
     Ok(serde_json::json!({
         "message": "Backup codes regenerated successfully",
