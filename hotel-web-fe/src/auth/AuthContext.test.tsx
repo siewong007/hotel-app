@@ -20,9 +20,14 @@ vi.mock('../api/client', () => ({
 
 vi.mock('../api/auth.service', () => ({
   AuthService: {
-    getUserProfile: (...args: unknown[]) => mocks.getUserProfile(...args),
     getAccessSnapshot: (...args: unknown[]) => mocks.getAccessSnapshot(...args),
     listPasskeys: (...args: unknown[]) => mocks.listPasskeys(...args),
+  },
+}));
+
+vi.mock('../api/users.service', () => ({
+  UsersService: {
+    getUserProfile: (...args: unknown[]) => mocks.getUserProfile(...args),
   },
 }));
 

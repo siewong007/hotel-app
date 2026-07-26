@@ -27,7 +27,7 @@ import {
   CalendarToday as CalendarIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, RoomsService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { BookingWithDetails } from '../../../types';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
@@ -103,8 +103,8 @@ const AdminDashboard: React.FC = () => {
 
       // Fetch rooms and bookings data
       const [roomsData, bookingsData] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllBookings(),
+        RoomsService.getAllRooms(),
+        BookingsService.getAllBookings(),
       ]) as [any[], BookingWithDetails[]];
 
       const today = new Date();

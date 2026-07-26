@@ -153,42 +153,6 @@ describe('AuthService', () => {
     });
   });
 
-  describe('getUserProfile', () => {
-    it('calls GET profile', async () => {
-      const profile = { id: 1, username: 'admin', email: 'a@b.com', email_configured: true, is_verified: true, created_at: 'x', updated_at: 'x' };
-      get.mockReturnValue(mockJsonResponse(profile));
-
-      const result = await AuthService.getUserProfile();
-
-      expect(get).toHaveBeenCalledWith('profile');
-      expect(result).toEqual(profile);
-    });
-  });
-
-  describe('updateUserProfile', () => {
-    it('patches profile with the input as json', async () => {
-      const input = { full_name: 'New Name' };
-      const updated = { id: 1, username: 'admin', email: 'a@b.com', email_configured: true, is_verified: true, full_name: 'New Name', created_at: 'x', updated_at: 'x' };
-      patch.mockReturnValue(mockJsonResponse(updated));
-
-      const result = await AuthService.updateUserProfile(input);
-
-      expect(patch).toHaveBeenCalledWith('profile', { json: input });
-      expect(result).toEqual(updated);
-    });
-  });
-
-  describe('updatePassword', () => {
-    it('posts the password payload as json to profile/password', async () => {
-      const input = { current_password: 'old', new_password: 'newpass1' };
-      post.mockReturnValue(Promise.resolve(undefined));
-
-      await AuthService.updatePassword(input);
-
-      expect(post).toHaveBeenCalledWith('profile/password', { json: input });
-    });
-  });
-
   describe('listPasskeys', () => {
     it('calls GET profile/passkeys', async () => {
       const passkeys = [{ id: '1', credential_id: 'cred', created_at: 'x' }];

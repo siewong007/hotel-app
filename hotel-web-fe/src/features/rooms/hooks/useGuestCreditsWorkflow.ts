@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService } from '../../../api';
 import type { Guest, Room } from '../../../types';
 import type { GuestWithCredits } from '../components/RoomManagement/types';
 import { addLocalDays, formatLocalDate } from '../../../utils/date';
@@ -96,7 +96,7 @@ export function useGuestCreditsWorkflow({
   const loadGuestCredits = useCallback(async (guestId: number) => {
     try {
       setLoadingCredits(true);
-      const credits = await HotelAPIService.getGuestCredits(guestId);
+      const credits = await GuestsService.getGuestCredits(guestId);
       setGuestCredits(credits);
     } catch (error: any) {
       console.error('Error loading guest credits:', error);
@@ -180,7 +180,7 @@ export function useGuestCreditsWorkflow({
 
     try {
       setBookingWithCredits(true);
-      const result = await HotelAPIService.bookWithCredits({
+      const result = await BookingsService.bookWithCredits({
         guest_id: selectedGuest.id,
         room_id: parseInt(creditsBookingForm.room_id, 10),
         check_in_date: creditsBookingForm.check_in_date,
@@ -218,7 +218,7 @@ export function useGuestCreditsWorkflow({
     if (!creditsBookingSuccess) return;
 
     try {
-      await HotelAPIService.checkInGuest(creditsBookingSuccess.booking_id.toString());
+      await BookingsService.checkInGuest(creditsBookingSuccess.booking_id.toString());
       showSnackbar('Guest checked in successfully!', 'success');
       setDialogOpen(false);
       void reloadRooms();

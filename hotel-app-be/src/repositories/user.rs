@@ -4,25 +4,25 @@ use chrono::{DateTime, Utc};
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{User, UserProfile};
+use crate::models::{User, UserCreateInput, UserProfile, UserUpdateInput};
 use crate::param;
 
 const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
+
+/// Column list backing every query that decodes a [`User`]. Kept in one place so
+/// the struct and its queries cannot drift apart.
+const USER_COLUMNS: &str = "id, username, email, full_name, phone, is_active, is_verified, \
+     user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, \
+     created_at, updated_at";
 
 pub struct UserRepository;
 
 impl UserRepository {
     /// Find a user by ID
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            r#"
-            SELECT id, username, email, full_name, phone, is_active, is_verified, user_type,
-                   two_factor_enabled, two_factor_secret, two_factor_recovery_codes,
-                   created_at, updated_at
-            FROM users
-            WHERE id = $1 AND deleted_at IS NULL
-            "#,
-        )
+        sqlx::query_as::<_, User>(&format!(
+            "SELECT {USER_COLUMNS} FROM users WHERE id = $1 AND deleted_at IS NULL"
+        ))
         .bind(id)
         .fetch_optional(pool)
         .await
@@ -34,19 +34,176 @@ impl UserRepository {
         pool: &DbPool,
         identifier: &str,
     ) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(
-            r#"
-            SELECT id, username, email, full_name, phone, is_active, is_verified, user_type,
-                   two_factor_enabled, two_factor_secret, two_factor_recovery_codes,
-                   created_at, updated_at
-            FROM users
-            WHERE (username = $1 OR email = $1) AND deleted_at IS NULL
-            "#,
-        )
+        sqlx::query_as::<_, User>(&format!(
+            "SELECT {USER_COLUMNS} FROM users \
+             WHERE (username = $1 OR email = $1) AND deleted_at IS NULL"
+        ))
         .bind(identifier)
         .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// List every non-deleted user, for administration screens.
+    pub async fn list_all(pool: &DbPool) -> Result<Vec<User>, ApiError> {
+        sqlx::query_as::<_, User>(&format!(
+            "SELECT {USER_COLUMNS} FROM users WHERE deleted_at IS NULL ORDER BY username"
+        ))
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Whether a non-deleted user with this id exists.
+    pub async fn exists(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
+        let id: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL")
+                .bind(user_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(id.is_some())
+    }
+
+    /// Whether the username or email is already taken by a *different* user.
+    pub async fn username_or_email_exists_for_other(
+        pool: &DbPool,
+        user_id: i64,
+        username: Option<&str>,
+        email: Option<&str>,
+    ) -> Result<bool, ApiError> {
+        let id: Option<i64> = sqlx::query_scalar(
+            r#"
+            SELECT id
+            FROM users
+            WHERE deleted_at IS NULL
+              AND id != $1
+              AND (
+                ($2::text IS NOT NULL AND username = $2)
+                OR ($3::text IS NOT NULL AND email = $3)
+              )
+            LIMIT 1
+            "#,
+        )
+        .bind(user_id)
+        .bind(username)
+        .bind(email)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(id.is_some())
+    }
+
+    /// Create a user and assign its initial roles in one transaction.
+    pub async fn create_with_roles(
+        pool: &DbPool,
+        input: &UserCreateInput,
+        password_hash: &str,
+        role_ids: &[i64],
+    ) -> Result<User, ApiError> {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let user = sqlx::query_as::<_, User>(&format!(
+            "INSERT INTO users (username, email, password_hash, full_name, phone, is_active, is_verified) \
+             VALUES ($1, $2, $3, $4, $5, true, true) \
+             RETURNING {USER_COLUMNS}"
+        ))
+        .bind(&input.username)
+        .bind(&input.email)
+        .bind(password_hash)
+        .bind(&input.full_name)
+        .bind(&input.phone)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        for role_id in role_ids {
+            sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            )
+            .bind(user.id)
+            .bind(role_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(user)
+    }
+
+    /// Apply an administrative partial update. `None` fields are left untouched.
+    pub async fn admin_update(
+        pool: &DbPool,
+        user_id: i64,
+        input: &UserUpdateInput,
+        password_hash: Option<&str>,
+    ) -> Result<User, ApiError> {
+        sqlx::query_as::<_, User>(&format!(
+            "UPDATE users \
+             SET username = COALESCE($2, username), \
+                 email = COALESCE($3, email), \
+                 full_name = COALESCE($4, full_name), \
+                 phone = COALESCE($5, phone), \
+                 is_active = COALESCE($6, is_active), \
+                 password_hash = COALESCE($7, password_hash), \
+                 updated_at = CURRENT_TIMESTAMP \
+             WHERE id = $1 AND deleted_at IS NULL \
+             RETURNING {USER_COLUMNS}"
+        ))
+        .bind(user_id)
+        .bind(input.username.as_deref())
+        .bind(input.email.as_deref())
+        .bind(input.full_name.as_deref())
+        .bind(input.phone.as_deref())
+        .bind(input.is_active)
+        .bind(password_hash)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))
+    }
+
+    /// Soft-delete a user and drop its role assignments in one transaction.
+    pub async fn soft_delete(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let result = sqlx::query(
+            r#"
+            UPDATE users
+            SET is_active = false,
+                deleted_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(result.rows_affected() > 0)
     }
 
     /// Get user profile

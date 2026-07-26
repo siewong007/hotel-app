@@ -19,7 +19,7 @@ interface UseApiReturn<T, P extends any[]> {
  *
  * @example
  * const { execute: createBooking, loading } = useApi({
- *   apiFn: HotelAPIService.createBooking,
+ *   apiFn: BookingsService.createBooking,
  *   onSuccess: () => {
  *     showSnackbar('Booking created!');
  *     reload();

@@ -27,7 +27,7 @@ import {
   Print as PrintIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { InvoicesService } from '../../../api';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 interface InvoiceModalProps {
@@ -39,7 +39,7 @@ interface InvoiceModalProps {
 const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId }) => {
   const invoiceQuery = useQuery({
     queryKey: queryKeys.invoices.preview(bookingId),
-    queryFn: () => HotelAPIService.getInvoicePreview(bookingId),
+    queryFn: () => InvoicesService.getInvoicePreview(bookingId),
     enabled: open && Boolean(bookingId),
     staleTime: queryStaleTime.short,
   });

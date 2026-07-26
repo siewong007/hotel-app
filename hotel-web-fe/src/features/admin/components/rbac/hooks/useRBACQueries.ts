@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AdminService } from '../../../../../api/admin.service';
 import {
-  AdminService,
+  UsersService,
   type CreateRbacUserInput,
   type UpdateRbacUserInput,
-} from '../../../../../api/admin.service';
+} from '../../../../../api/users.service';
 import { queryStaleTime } from '../../../../../api/queryConfig';
 import { queryKeys } from '../../../../../api/queryKeys';
 import type {
@@ -56,7 +57,7 @@ export function usePermissions() {
 export function useUsers() {
   return useQuery({
     queryKey: rbacQueryKeys.users(),
-    queryFn: () => AdminService.getAllUsers(),
+    queryFn: () => UsersService.getAllUsers(),
     staleTime: RBAC_STALE_TIME_MS,
   });
 }
@@ -64,7 +65,7 @@ export function useUsers() {
 export function useUser(userId?: string) {
   return useQuery({
     queryKey: rbacQueryKeys.user(userId || 'unknown'),
-    queryFn: () => AdminService.getUserRolesAndPermissions(userId!),
+    queryFn: () => UsersService.getUserRolesAndPermissions(userId!),
     enabled: Boolean(userId),
     staleTime: RBAC_STALE_TIME_MS,
   });
@@ -112,7 +113,7 @@ export function useCreateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: CreateRbacUserInput) => AdminService.createUser(input),
+    mutationFn: (input: CreateRbacUserInput) => UsersService.createUser(input),
     onSuccess: () => invalidateRbacQueries(queryClient),
   });
 }
@@ -122,7 +123,7 @@ export function useUpdateUser() {
 
   return useMutation({
     mutationFn: ({ userId, input }: { userId: string; input: UpdateRbacUserInput }) =>
-      AdminService.updateUser(userId, input),
+      UsersService.updateUser(userId, input),
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: rbacQueryKeys.user(variables.userId) });
       invalidateRbacQueries(queryClient);
@@ -134,7 +135,7 @@ export function useDeleteUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userId: string) => AdminService.deleteUser(userId),
+    mutationFn: (userId: string) => UsersService.deleteUser(userId),
     onSuccess: (_data, userId) => {
       queryClient.removeQueries({ queryKey: rbacQueryKeys.user(userId) });
       invalidateRbacQueries(queryClient);
@@ -175,7 +176,7 @@ export function useReplaceUserRoles() {
 
   return useMutation({
     mutationFn: ({ userId, input }: { userId: string; input: UserRoleIdsInput }) =>
-      AdminService.replaceUserRoles(userId, input),
+      UsersService.replaceUserRoles(userId, input),
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: rbacQueryKeys.user(variables.userId) });
       invalidateRbacQueries(queryClient);

@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 
 import type { AuditLogEntry } from '../../../types/audit.types';
 
-// Mock the HotelAPIService barrel the hook calls into (AuditService for the
+// Mock the api barrel the hook calls into (AuditService for the
 // PayPal-conflict lookup, PaymentApprovalsService for the approval workflow
 // itself), following the shared hook-test mocking convention.
 const listPending = vi.fn();

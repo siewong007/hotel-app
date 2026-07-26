@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { HotelAPIService } from '../../../api';
+import { RoomsService } from '../../../api';
 import type { Room } from '../../../types';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 
@@ -31,7 +31,7 @@ export function useRoomNotes({ reload, showSnackbar }: UseRoomNotesParams) {
 
     try {
       setSavingNotes(true);
-      await HotelAPIService.updateRoom(notesRoom.id, { notes: editingNotes || '' } as Partial<Room>);
+      await RoomsService.updateRoom(notesRoom.id, { notes: editingNotes || '' } as Partial<Room>);
       showSnackbar('Room notes updated', 'success');
       await reload();
       setNotesDialogOpen(false);

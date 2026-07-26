@@ -1,19 +1,19 @@
 import { useCallback, useState } from 'react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HotelAPIService } from '../../../api';
+import { LedgerService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 
 export const ledgerQueryKeys = queryKeys.ledgers;
 
-type LedgersPageParams = Parameters<typeof HotelAPIService.getLedgersPage>[0];
+type LedgersPageParams = Parameters<typeof LedgerService.getLedgersPage>[0];
 
 export function useLedgers() {
   const queryClient = useQueryClient();
   const [localError, setError] = useState<string | null>(null);
   const ledgersQuery = useQuery({
     queryKey: ledgerQueryKeys.list(),
-    queryFn: () => HotelAPIService.getCustomerLedgers(),
+    queryFn: () => LedgerService.getCustomerLedgers(),
     staleTime: queryStaleTime.standard,
   });
   const { refetch } = ledgersQuery;
@@ -41,7 +41,7 @@ export function useLedgers() {
 export function useLedgersPage(params?: LedgersPageParams, enabled = true) {
   return useQuery({
     queryKey: ledgerQueryKeys.list(params as Record<string, unknown> | undefined),
-    queryFn: () => HotelAPIService.getLedgersPage(params),
+    queryFn: () => LedgerService.getLedgersPage(params),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: queryStaleTime.short,

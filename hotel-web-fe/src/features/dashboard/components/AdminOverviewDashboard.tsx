@@ -20,7 +20,7 @@ import {
   Assessment,
   Star,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { StatCard } from '../../../components/common/StatCard';
 import { formatCurrency, formatCurrencyCustom } from '../../../utils/currency';
@@ -58,9 +58,9 @@ const AdminOverviewDashboard: React.FC = () => {
 
       // Fetch all required data in parallel
       const [rooms, guests, bookings] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllGuests(),
-        HotelAPIService.getAllBookings(),
+        RoomsService.getAllRooms(),
+        GuestsService.getAllGuests(),
+        BookingsService.getAllBookings(),
       ]);
 
       // Calculate statistics

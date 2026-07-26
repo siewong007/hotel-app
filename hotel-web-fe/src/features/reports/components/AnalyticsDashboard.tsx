@@ -31,7 +31,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { HotelAPIService } from '../../../api';
+import { AnalyticsService } from '../../../api';
 
 interface ChartData {
   labels: string[];
@@ -163,8 +163,8 @@ const AnalyticsDashboard: React.FC = () => {
 
       // Call real analytics endpoints (backed by MCP-compatible logic)
       const [occupancyData, analyticsData] = await Promise.all([
-        HotelAPIService.getOccupancyReport(),
-        HotelAPIService.getBookingAnalytics()
+        AnalyticsService.getOccupancyReport(),
+        AnalyticsService.getBookingAnalytics()
       ]);
 
       // Convert to expected format

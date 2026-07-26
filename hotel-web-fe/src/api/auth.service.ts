@@ -65,19 +65,6 @@ export class AuthService {
     return await api.get('auth/access').json<AccessSnapshot>();
   }
 
-  // User Profile
-  static async getUserProfile(): Promise<UserProfile> {
-    return await api.get('profile').json<UserProfile>();
-  }
-
-  static async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
-    return await api.patch('profile', { json: data }).json<UserProfile>();
-  }
-
-  static async updatePassword(data: PasswordUpdate): Promise<void> {
-    await api.post('profile/password', { json: data });
-  }
-
   // Passkey Management
   static async listPasskeys(): Promise<PasskeyInfo[]> {
     return await api.get('profile/passkeys').json<PasskeyInfo[]>();

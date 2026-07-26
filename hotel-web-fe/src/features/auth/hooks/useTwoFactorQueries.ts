@@ -1,19 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
-import { HotelAPIService } from '../../../api';
+import { AuthService } from '../../../api';
 
 export function useTwoFactorStatus() {
   return useQuery({
     queryKey: queryKeys.twoFactor.status(),
-    queryFn: () => HotelAPIService.getTwoFactorStatus(),
+    queryFn: () => AuthService.getTwoFactorStatus(),
     staleTime: queryStaleTime.standard,
   });
 }
 
 export function useSetupTwoFactor() {
   return useMutation({
-    mutationFn: () => HotelAPIService.setupTwoFactor(),
+    mutationFn: () => AuthService.setupTwoFactor(),
   });
 }
 
@@ -21,7 +21,7 @@ export function useEnableTwoFactor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ code, challengeCode }: { code: string; challengeCode: string }) =>
-      HotelAPIService.enableTwoFactor(code, challengeCode),
+      AuthService.enableTwoFactor(code, challengeCode),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
@@ -31,7 +31,7 @@ export function useEnableTwoFactor() {
 export function useDisableTwoFactor() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => HotelAPIService.disableTwoFactor(code),
+    mutationFn: (code: string) => AuthService.disableTwoFactor(code),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
@@ -41,7 +41,7 @@ export function useDisableTwoFactor() {
 export function useRegenerateBackupCodes() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => HotelAPIService.regenerateBackupCodes(code),
+    mutationFn: (code: string) => AuthService.regenerateBackupCodes(code),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },

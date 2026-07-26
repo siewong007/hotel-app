@@ -36,7 +36,7 @@ import {
   Security as SecurityIcon,
 } from '@mui/icons-material';
 import type { User, Role } from '../../../../../types';
-import type { CreateRbacUserInput, UpdateRbacUserInput } from '../../../../../api/admin.service';
+import type { CreateRbacUserInput, UpdateRbacUserInput } from '../../../../../api/users.service';
 import { ROLE_COLORS } from '../constants';
 import {
   useCreateUser,

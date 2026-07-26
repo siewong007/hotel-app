@@ -17,7 +17,7 @@ import { addLocalDays, formatLocalDate } from '../../../../utils/date';
 // utils/bookingUtils, utils/pagination, utils/bookingChannel,
 // utils/hotelSettings, utils/apiNotifications.
 // Mocked: everything that hits the network (useBookingQueries, guest/room
-// queries, HotelAPIService/ReportsService/LedgerService), auth, currency,
+// queries, the api barrel, ReportsService/LedgerService), auth, currency,
 // router search params, the heavy UnifiedBookingModal/CheckoutInvoiceModals
 // children, and useDebouncedValue (its own debounce timing is characterized
 // in its own test file — this page's tests only need the settled value).
@@ -121,13 +121,17 @@ vi.mock('../../../../router', () => ({
 }));
 
 vi.mock('../../../../api', () => ({
-  HotelAPIService: {
+  BookingsService: {
+    voidBooking: (...args: unknown[]) => mocks.voidBooking(...args),
+    updateBooking: (...args: unknown[]) => mocks.updateBookingApi(...args),
+  },
+  GuestsService: {
+    getGuest: (...args: unknown[]) => mocks.getGuest(...args),
+  },
+  RoomsService: {
     getAllRoomTypes: (...args: unknown[]) => mocks.getAllRoomTypes(...args),
     getAvailableRoomsForDates: (...args: unknown[]) => mocks.getAvailableRoomsForDates(...args),
-    getGuest: (...args: unknown[]) => mocks.getGuest(...args),
-    voidBooking: (...args: unknown[]) => mocks.voidBooking(...args),
     updateRoomStatus: (...args: unknown[]) => mocks.updateRoomStatus(...args),
-    updateBooking: (...args: unknown[]) => mocks.updateBookingApi(...args),
   },
 }));
 

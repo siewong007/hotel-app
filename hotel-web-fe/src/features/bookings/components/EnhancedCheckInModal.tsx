@@ -41,7 +41,7 @@ import {
   MoneyOff as MoneyOffIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { HotelAPIService, LedgerService } from '../../../api';
+import { BookingsService, CompaniesService, LedgerService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
 import {
   Booking,
@@ -365,7 +365,7 @@ export default function EnhancedCheckInModal({
         loadRoomTypeConfig(booking as any);
         // Fetch the pre-check-in advisory (non-blocking; failures are silent).
         setAdvisory(null);
-        HotelAPIService.getCheckInAdvisory(String(booking.id))
+        BookingsService.getCheckInAdvisory(String(booking.id))
           .then(setAdvisory)
           .catch(() => setAdvisory(null));
         initializedRef.current = { bookingId: booking.id, guestId: guest.id };
@@ -377,7 +377,7 @@ export default function EnhancedCheckInModal({
   const handleRegisterNewCompany = async () => {
     try {
       // Save to database
-      const createdCompany = await HotelAPIService.createCompany({
+      const createdCompany = await CompaniesService.createCompany({
         company_name: newCompanyData.company_name,
         registration_number: newCompanyData.company_registration_number,
         contact_person: newCompanyData.contact_person,
@@ -603,7 +603,7 @@ export default function EnhancedCheckInModal({
         };
       }
 
-      await HotelAPIService.checkInGuest(booking.id, checkinRequest);
+      await BookingsService.checkInGuest(booking.id, checkinRequest);
 
       // Record payment if paying now (online desk-collection is already handled
       // above via payment_record, so skip the duplicate posting here).

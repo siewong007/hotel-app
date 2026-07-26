@@ -49,7 +49,7 @@ import {
   Delete as DeleteIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { EkycService, LoyaltyService } from '../../../api';
 import { HTTPError } from 'ky';
 import { useAuth } from '../../../auth/AuthContext';
 import { LoyaltyReward, RewardUpdateInput } from '../../../types';
@@ -183,7 +183,7 @@ const LoyaltyDashboard: React.FC = () => {
       if (isAdmin) {
         // Admins see all rewards (no membership needed, no eKYC check)
         try {
-          const allRewardsData = await HotelAPIService.getRewards();
+          const allRewardsData = await LoyaltyService.getRewards();
           setAllRewards(allRewardsData);
         } catch (err: any) {
           console.error('Failed to load rewards:', err);
@@ -192,7 +192,7 @@ const LoyaltyDashboard: React.FC = () => {
       } else {
         // Check eKYC status for guests
         try {
-          const ekycData = await HotelAPIService.getEkycStatus();
+          const ekycData = await EkycService.getEkycStatus();
 
           // Handle case where ekycData might be null (no eKYC record)
           if (!ekycData || ekycData === null) {
@@ -223,7 +223,7 @@ const LoyaltyDashboard: React.FC = () => {
         let rewardsData: LoyaltyReward[] = [];
 
         try {
-          membershipData = await HotelAPIService.getUserLoyaltyMembership();
+          membershipData = await LoyaltyService.getUserLoyaltyMembership();
         } catch (err: any) {
           // 404 = no membership yet; leave membershipData null
           if (!(err instanceof HTTPError && err.response.status === 404)) {
@@ -234,7 +234,7 @@ const LoyaltyDashboard: React.FC = () => {
         // Load rewards regardless of membership status (after eKYC)
         // This allows users to see what rewards they can earn
         try {
-          rewardsData = await HotelAPIService.getLoyaltyRewards();
+          rewardsData = await LoyaltyService.getLoyaltyRewards();
         } catch (err: any) {
           console.warn('Failed to load rewards:', err);
         }
@@ -268,7 +268,7 @@ const LoyaltyDashboard: React.FC = () => {
 
     try {
       setLoading(true);
-      await HotelAPIService.redeemReward({
+      await LoyaltyService.redeemReward({
         reward_id: selectedReward.id,
         notes: redeemNotes || undefined,
       });
@@ -321,10 +321,10 @@ const LoyaltyDashboard: React.FC = () => {
           image_url: editingReward.image_url,
           terms_conditions: editingReward.terms_conditions,
         };
-        await HotelAPIService.updateReward(editingReward.id, updateData);
+        await LoyaltyService.updateReward(editingReward.id, updateData);
         setSuccessMessage('Reward updated successfully');
       } else {
-        await HotelAPIService.createReward(editingReward as any);
+        await LoyaltyService.createReward(editingReward as any);
         setSuccessMessage('Reward created successfully');
       }
       setEditDialogOpen(false);
@@ -345,7 +345,7 @@ const LoyaltyDashboard: React.FC = () => {
     if (!selectedReward) return;
     try {
       setLoading(true);
-      await HotelAPIService.deleteReward(selectedReward.id);
+      await LoyaltyService.deleteReward(selectedReward.id);
       setSuccessMessage('Reward deleted successfully');
       setDeleteDialogOpen(false);
       setSelectedReward(null);

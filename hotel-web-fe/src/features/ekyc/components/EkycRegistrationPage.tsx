@@ -29,7 +29,7 @@ import {
   ArrowForward as ForwardIcon,
 } from '@mui/icons-material';
 import { useNavigate } from '../../../router';
-import { HotelAPIService, EkycService } from '../../../api';
+import { EkycService } from '../../../api';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatLocalDate } from '../../../utils/date';

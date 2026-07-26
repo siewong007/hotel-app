@@ -29,6 +29,7 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
+pub mod users;
 pub mod search;
 pub mod two_factor;
 pub mod webhooks;
@@ -221,6 +222,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::promotions::routes::routes())
         .merge(crate::modules::communications::routes::routes())
         .merge(rbac::routes())
+        .merge(users::routes())
         .merge(profile::routes())
         .merge(analytics::routes())
         .merge(crate::modules::settings::routes::routes())

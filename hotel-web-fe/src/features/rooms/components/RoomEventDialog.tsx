@@ -29,7 +29,7 @@ import {
   History as HistoryIcon,
   SwapHoriz as RoomChangeIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, RoomsService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateBookingDependencies, invalidateRoomDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
@@ -79,7 +79,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
     try {
       const rooms = await queryClient.ensureQueryData({
         queryKey: queryKeys.rooms.all,
-        queryFn: () => HotelAPIService.getAllRooms(),
+        queryFn: () => RoomsService.getAllRooms(),
         staleTime: queryStaleTime.standard,
       });
       // Filter out the current room
@@ -115,7 +115,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setLoadingDetails(true);
       const details = await queryClient.ensureQueryData({
         queryKey: queryKeys.rooms.detailedStatus(roomId),
-        queryFn: () => HotelAPIService.getRoomDetailedStatus(roomId),
+        queryFn: () => RoomsService.getRoomDetailedStatus(roomId),
         staleTime: queryStaleTime.realtime,
       });
       setDetailedStatus(details);
@@ -234,7 +234,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
         maintenance_end_date: newStatus === 'maintenance' ? maintenanceEndDate : undefined,
       };
 
-      await HotelAPIService.updateRoomStatus(roomId, statusInput);
+      await RoomsService.updateRoomStatus(roomId, statusInput);
       invalidateRoomDependencies(queryClient);
       onSuccess();
       onClose();
@@ -272,12 +272,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       await new Promise(resolve => setTimeout(resolve, 300));
 
       if (currentStatus === 'reserved_dirty') {
-        await HotelAPIService.updateRoomStatus(roomId, {
+        await RoomsService.updateRoomStatus(roomId, {
           status: 'available',
           notes: 'Room cleaned before reserved guest check-in',
         });
       } else {
-        await HotelAPIService.endMaintenance(roomId);
+        await RoomsService.endMaintenance(roomId);
       }
       invalidateRoomDependencies(queryClient);
 
@@ -303,7 +303,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      await HotelAPIService.executeRoomChange(roomId, targetRoomId);
+      await RoomsService.executeRoomChange(roomId, targetRoomId);
       invalidateRoomDependencies(queryClient);
 
       setRoomChangeMode(false);
@@ -330,7 +330,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setError(null);
 
       // Call the dedicated check-in endpoint
-      await HotelAPIService.checkInGuest(booking.id);
+      await BookingsService.checkInGuest(booking.id);
       invalidateBookingDependencies(queryClient);
 
       onSuccess();

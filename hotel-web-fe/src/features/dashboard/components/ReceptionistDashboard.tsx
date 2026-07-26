@@ -43,7 +43,7 @@ import {
   MoneyOff as MoneyOffIcon,
   Login as LoginIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService, GuestsService, RoomsService } from '../../../api';
 
 import { useAuth } from '../../../auth/AuthContext';
 import { BookingWithDetails, Guest, Booking } from '../../../types';
@@ -138,8 +138,8 @@ const ReceptionistDashboard: React.FC = () => {
 
       // Fetch rooms and bookings data
       const [roomsData, bookingsData] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllBookings(),
+        RoomsService.getAllRooms(),
+        BookingsService.getAllBookings(),
       ]) as [any[], BookingWithDetails[]];
 
       const today = new Date();
@@ -320,7 +320,7 @@ const ReceptionistDashboard: React.FC = () => {
   const handleCheckInFromRoom = async (bookingId: string) => {
     try {
       setLoading(true);
-      const booking = await HotelAPIService.getBookingById(bookingId);
+      const booking = await BookingsService.getBookingById(bookingId);
       const totalAmt = Number(booking.total_amount || 0);
       const settingsDeposit = getHotelSettings().deposit_amount;
       setCheckinBooking(booking);
@@ -338,7 +338,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       // Back-fill IC / phone from the guest profile (booking summary omits IC).
       if (booking.guest_id !== undefined && booking.guest_id !== null) {
-        HotelAPIService.getGuest(booking.guest_id)
+        GuestsService.getGuest(booking.guest_id)
           .then((guest) => {
             setCiIcNumber((current) => (current.trim() ? current : guest.ic_number || ''));
             setCiPhone((current) => (current.trim() ? current : guest.phone || ''));
@@ -381,7 +381,7 @@ const ReceptionistDashboard: React.FC = () => {
         updateData.deposit_amount = 0;
         updateData.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
-      await HotelAPIService.updateBooking(checkinBooking.id, updateData);
+      await BookingsService.updateBooking(checkinBooking.id, updateData);
       const checkinPayload: any = {
         guest_update: {
           ic_number: ciIcNumber.trim(),
@@ -396,7 +396,7 @@ const ReceptionistDashboard: React.FC = () => {
           notes: 'Payment collected at check-in',
         };
       }
-      await HotelAPIService.checkInGuest(String(checkinBooking.id), checkinPayload);
+      await BookingsService.checkInGuest(String(checkinBooking.id), checkinPayload);
       setCheckinModalOpen(false);
       setCheckinBooking(null);
       loadDashboardData();

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { HotelAPIService } from '../../../api';
+import { BookingsService } from '../../../api';
 import type { BookingWithDetails } from '../../../types';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 
@@ -41,7 +41,7 @@ export function useBookingNotes({ reload, showSnackbar }: UseBookingNotesParams)
 
     setSavingBookingNotes(true);
     try {
-      await HotelAPIService.updateBooking(bookingNotesEditBooking.id, {
+      await BookingsService.updateBooking(bookingNotesEditBooking.id, {
         remarks: editedBookingNotes,
         cleaning_preference: editedCleaningPreference,
       });

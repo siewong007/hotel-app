@@ -26,7 +26,7 @@ import {
   Assessment as ReportIcon,
   WarningAmber as LateIcon
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { BookingsService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { formatLocalDate } from '../../../utils/date';
@@ -56,7 +56,7 @@ const ReportsPage: React.FC = () => {
       setError(null);
 
       // Get all bookings
-      const allBookings = await HotelAPIService.getBookingsWithDetails();
+      const allBookings = await BookingsService.getBookingsWithDetails();
 
       // Filter based on selected criteria
       const filtered = allBookings.filter(booking => {

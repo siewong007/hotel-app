@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { HotelAPIService } from '../api';
+import { RoomsService } from '../api';
 import { queryStaleTime } from '../api/queryConfig';
 import { queryKeys } from '../api/queryKeys';
 import { useDebouncedValue } from './useDebouncedValue';
@@ -31,7 +31,7 @@ export function useRoomAvailabilityCheck(
 
   const availabilityQuery = useQuery({
     queryKey: roomAvailabilityQueryKeys.byDates(debouncedCheckInDate, debouncedCheckOutDate),
-    queryFn: () => HotelAPIService.getAvailableRoomsForDates(debouncedCheckInDate, debouncedCheckOutDate),
+    queryFn: () => RoomsService.getAvailableRoomsForDates(debouncedCheckInDate, debouncedCheckOutDate),
     enabled: canCheck,
     staleTime: queryStaleTime.short,
   });

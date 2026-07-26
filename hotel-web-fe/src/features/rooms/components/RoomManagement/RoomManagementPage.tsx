@@ -71,7 +71,7 @@ import {
   AutoAwesome as SparkleIcon,
   Build as BuildIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../../api';
+import { BookingsService, GuestsService, RoomsService } from '../../../../api';
 
 import { Room, Guest, Booking, BookingWithDetails, BookingCreateRequest, RoomHistory, TourismType } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
@@ -530,7 +530,7 @@ const RoomManagementPage: React.FC = () => {
       );
 
       // Use bookWithCredits API which properly deducts credits - creates a RESERVATION (not check-in)
-      const bookingResult = await HotelAPIService.bookWithCredits({
+      const bookingResult = await BookingsService.bookWithCredits({
         guest_id: complimentaryCheckInGuest.id,
         room_id: typeof selectedRoom.id === 'string' ? parseInt(selectedRoom.id) : selectedRoom.id,
         check_in_date: complimentaryCheckInDate,
@@ -606,7 +606,7 @@ const RoomManagementPage: React.FC = () => {
         }
 
         // Create the new guest
-        const newGuest = await HotelAPIService.createGuest({
+        const newGuest = await GuestsService.createGuest({
           first_name: newGuestForm.first_name,
           last_name: newGuestForm.last_name,
           email: newGuestForm.email || undefined,
@@ -668,7 +668,7 @@ const RoomManagementPage: React.FC = () => {
         payment_status: 'unpaid' as const,
       };
 
-      const createdBooking = await HotelAPIService.createBooking(bookingData);
+      const createdBooking = await BookingsService.createBooking(bookingData);
 
       // Convert to BookingWithDetails for the reserved check-in dialog
       const bwd: BookingWithDetails = {
@@ -725,10 +725,10 @@ const RoomManagementPage: React.FC = () => {
           : walkInBookingChannel,
       };
 
-      await HotelAPIService.createBooking(bookingData);
+      await BookingsService.createBooking(bookingData);
 
       // Update room status to occupied
-      await HotelAPIService.updateRoomStatus(selectedRoom.id, {
+      await RoomsService.updateRoomStatus(selectedRoom.id, {
         status: 'occupied',
         notes: `Walk-in via ${walkInBookingChannel}`,
       });
@@ -778,7 +778,7 @@ const RoomManagementPage: React.FC = () => {
     try {
       setProcessingPayment(true);
 
-      await HotelAPIService.updateBooking(paymentBooking.id, {
+      await BookingsService.updateBooking(paymentBooking.id, {
         payment_status: 'paid',
         payment_method: paymentMethod,
       });
@@ -858,7 +858,7 @@ const RoomManagementPage: React.FC = () => {
         }
 
         // Create the new guest
-        const newGuest = await HotelAPIService.createGuest({
+        const newGuest = await GuestsService.createGuest({
           first_name: newOnlineGuestForm.first_name,
           last_name: newOnlineGuestForm.last_name,
           email: newOnlineGuestForm.email || undefined,
@@ -938,7 +938,7 @@ const RoomManagementPage: React.FC = () => {
           : `${onlineCheckInBookingChannel} Booking`,
       };
 
-      await HotelAPIService.createBooking(bookingData);
+      await BookingsService.createBooking(bookingData);
 
       showSnackbar(`Reservation created for ${guestToUse.full_name} in Room ${selectedRoom.room_number}`, 'success');
       setOnlineCheckInDialogOpen(false);
@@ -997,7 +997,7 @@ const RoomManagementPage: React.FC = () => {
     // "reserved" for any upcoming booking, with no booking_id) made the backend
     // reject the request, so rooms with a future booking could never be set
     // available.
-    const updated = await HotelAPIService.updateRoomStatus(selectedRoom.id, {
+    const updated = await RoomsService.updateRoomStatus(selectedRoom.id, {
       status: status as 'maintenance' | 'reserved' | 'reserved_dirty' | 'available' | 'occupied' | 'dirty',
       notes,
     });
@@ -1009,7 +1009,7 @@ const RoomManagementPage: React.FC = () => {
   const handleMakeDirty = async (room: Room) => {
     try {
       // Update room status to dirty (needs cleaning)
-      await HotelAPIService.updateRoomStatus(room.id, {
+      await RoomsService.updateRoomStatus(room.id, {
         status: 'dirty',
         notes: 'Room marked as dirty - requires cleaning',
       });
@@ -1026,7 +1026,7 @@ const RoomManagementPage: React.FC = () => {
     try {
       // Request "available"; the backend keeps reserved-dirty rooms reserved
       // when an active reservation still exists.
-      const updated = await HotelAPIService.updateRoomStatus(room.id, {
+      const updated = await RoomsService.updateRoomStatus(room.id, {
         status: 'available',
         notes: 'Room marked as available',
       });
@@ -1041,7 +1041,7 @@ const RoomManagementPage: React.FC = () => {
 
   const handleMaintenance = async (room: Room) => {
     try {
-      await HotelAPIService.updateRoomStatus(room.id, {
+      await RoomsService.updateRoomStatus(room.id, {
         status: 'maintenance',
         notes: 'Room under maintenance',
       });
@@ -1063,7 +1063,7 @@ const RoomManagementPage: React.FC = () => {
     // Load room history
     try {
       setLoadingHistory(true);
-      const history = await HotelAPIService.getRoomHistory(room.id);
+      const history = await RoomsService.getRoomHistory(room.id);
       setRoomHistory(history);
     } catch (error) {
       showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to load room history', 'error');
@@ -1140,19 +1140,19 @@ const RoomManagementPage: React.FC = () => {
       const priceDifference = subtractMoney(effectiveRate, selectedRoom.price_per_night);
 
       // Update booking with new room and rate
-      await HotelAPIService.updateBooking(selectedBooking.id, {
+      await BookingsService.updateBooking(selectedBooking.id, {
         room_id: String(newSelectedRoom.id),
         room_rate_override: effectiveRate,
       });
 
       // Update old room status to dirty (needs cleaning after guest moved)
-      await HotelAPIService.updateRoomStatus(selectedRoom.id, {
+      await RoomsService.updateRoomStatus(selectedRoom.id, {
         status: 'dirty',
         notes: `Guest moved to room ${newSelectedRoom.room_number}`,
       });
 
       // Update new room status to occupied
-      await HotelAPIService.updateRoomStatus(newSelectedRoom.id, {
+      await RoomsService.updateRoomStatus(newSelectedRoom.id, {
         status: 'occupied',
         notes: `Guest moved from room ${selectedRoom.room_number}`,
       });
@@ -1198,7 +1198,7 @@ const RoomManagementPage: React.FC = () => {
       setMarkingComplimentary(true);
 
       // Call API to mark booking as complimentary
-      const result = await HotelAPIService.markBookingComplimentary(selectedBooking.id, complimentaryReason || undefined);
+      const result = await BookingsService.markBookingComplimentary(selectedBooking.id, complimentaryReason || undefined);
 
       showSnackbar(`Booking marked as complimentary! ${result.nights_credited} night(s) of ${result.room_type} credits added to guest.`, 'success');
       setComplimentaryDialogOpen(false);

@@ -12,7 +12,7 @@ import {
   Divider,
 } from '@mui/material';
 import { format } from 'date-fns';
-import { HotelAPIService } from '../../../api';
+import { GuestPortalService } from '../../../api';
 import { Booking, Guest } from '../../../types';
 
 export const GuestCheckInVerify: React.FC = () => {
@@ -27,7 +27,7 @@ export const GuestCheckInVerify: React.FC = () => {
 
   const loadBookingData = useCallback(async () => {
     try {
-      const response = await HotelAPIService.guestPortalGetBooking(token!);
+      const response = await GuestPortalService.getBooking(token!);
       setBooking(response.booking);
       setGuest(response.guest);
     } catch (err: any) {

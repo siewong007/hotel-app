@@ -73,7 +73,7 @@ import {
   Replay as RegenerateIcon,
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { HotelAPIService } from '../../../../api';
+import { BookingsService, CompaniesService, GuestsService, LedgerService, RoomsService } from '../../../../api';
 import { api } from '../../../../api/client';
 import {
   CustomerLedger,
@@ -414,7 +414,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Backend filters on company_id IS NOT NULL; we narrow to active statuses client-side.
   const loadAllCompanyBookings = async () => {
     try {
-      const bookings = await HotelAPIService.getBookingsWithDetails({ company_billed: true });
+      const bookings = await BookingsService.getBookingsWithDetails({ company_billed: true });
       const active = bookings.filter(
         b => b.status === 'checked_in' || b.status === 'auto_checked_in',
       );
@@ -427,7 +427,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Load companies from database (single call for both dropdown options and check-in data)
   const loadCompanies = async () => {
     try {
-      const companiesData = await HotelAPIService.getCompanies({ is_active: true });
+      const companiesData = await CompaniesService.getCompanies({ is_active: true });
       setCompanies(companiesData);
       const options: CompanyOption[] = companiesData.map((company) => ({
         company_name: company.company_name,
@@ -446,7 +446,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Load guests for check-in
   const loadGuests = async () => {
     try {
-      const guestsData = await HotelAPIService.getAllGuests();
+      const guestsData = await GuestsService.getAllGuests();
       setGuests(guestsData.sort((a, b) => a.full_name.localeCompare(b.full_name)));
     } catch (err) {
       console.error('Failed to load guests:', err);
@@ -470,7 +470,7 @@ const CustomerLedgerPage: React.FC = () => {
 
     try {
       setLoadingLedgerRooms(true);
-      const rooms = await HotelAPIService.getAllRooms();
+      const rooms = await RoomsService.getAllRooms();
       setLedgerRooms(sortRoomsByNumber(rooms));
     } catch (err) {
       console.error('Failed to load rooms for ledger entry:', err);
@@ -483,7 +483,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Load available rooms for given dates
   const loadAvailableRooms = async (checkIn: string, checkOut: string) => {
     try {
-      const rooms = await HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut);
+      const rooms = await RoomsService.getAvailableRoomsForDates(checkIn, checkOut);
       setAvailableRooms(sortRoomsByNumber(rooms));
     } catch (err) {
       console.error('Failed to load available rooms:', err);
@@ -494,7 +494,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Load bookings for a specific company
   const loadCompanyBookings = async (companyId: number) => {
     try {
-      const allBookings = await HotelAPIService.getBookingsWithDetails();
+      const allBookings = await BookingsService.getBookingsWithDetails();
       const filtered = allBookings.filter(b => b.company_id === companyId);
       setCompanyBookings(filtered);
     } catch (err) {
@@ -568,7 +568,7 @@ const CustomerLedgerPage: React.FC = () => {
           return;
         }
 
-        const newGuest = await HotelAPIService.createGuest({
+        const newGuest = await GuestsService.createGuest({
           first_name: newCheckInGuestForm.first_name,
           last_name: newCheckInGuestForm.last_name,
           email: newCheckInGuestForm.email.trim() || undefined,
@@ -617,20 +617,20 @@ const CustomerLedgerPage: React.FC = () => {
       }).json<Booking>();
 
       // Update booking with company info
-      await HotelAPIService.updateBooking(booking.id, {
+      await BookingsService.updateBooking(booking.id, {
         company_id: checkInCompany.id,
         company_name: checkInCompany.company_name,
       });
 
       // Check in the guest
-      await HotelAPIService.checkInGuest(booking.id, {});
+      await BookingsService.checkInGuest(booking.id, {});
 
       // For back-dated bookings: auto-checkout if check-out date is today or in the past.
       // Backend's auto_post_company_ledger handles the room_charge ledger row on the
       // checked_out transition (and dedupes via an EXISTS check), so no client-side post here.
       const today = formatLocalDate();
       if (checkOutDate <= today) {
-        await HotelAPIService.updateBooking(booking.id, { status: 'checked_out' });
+        await BookingsService.updateBooking(booking.id, { status: 'checked_out' });
       }
 
       showSnackbar(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
@@ -723,7 +723,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setCreatingCompany(true);
 
-      const created = await HotelAPIService.createCompany({
+      const created = await CompaniesService.createCompany({
         company_name: companyRegForm.company_name.trim(),
         registration_number: companyRegForm.registration_number.trim() || undefined,
         contact_person: companyRegForm.contact_person.trim() || undefined,
@@ -827,7 +827,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setUpdatingCompany(true);
 
-      await HotelAPIService.updateCompany(editingCompany.id, {
+      await CompaniesService.updateCompany(editingCompany.id, {
         company_name: companyEditForm.company_name.trim(),
         registration_number: companyEditForm.registration_number.trim() || undefined,
         contact_person: companyEditForm.contact_person.trim() || undefined,
@@ -869,7 +869,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setDeletingCompany(true);
 
-      await HotelAPIService.deleteCompany(deletingCompanyData.id);
+      await CompaniesService.deleteCompany(deletingCompanyData.id);
 
       showSnackbar(`Company "${deletingCompanyData.company_name}" deleted successfully`);
       setCompanyDeleteDialogOpen(false);
@@ -970,7 +970,7 @@ const CustomerLedgerPage: React.FC = () => {
         const allocate = minMoney(remaining, balance);
         if (!isPositiveMoney(allocate)) continue;
 
-        await HotelAPIService.createLedgerPayment(ledger.id, {
+        await LedgerService.createLedgerPayment(ledger.id, {
           payment_amount: allocate,
           payment_method: companyPaymentForm.payment_method,
           payment_reference: companyPaymentForm.payment_reference || undefined,
@@ -984,7 +984,7 @@ const CustomerLedgerPage: React.FC = () => {
       // Re-fetch the entries we just paid against to see what's still owed.
       const refreshed = await Promise.all(
         paymentCompanyLedgers.map(l =>
-          HotelAPIService.getCustomerLedger(l.id).catch(() => l)
+          LedgerService.getCustomerLedger(l.id).catch(() => l)
         )
       );
       const stillOutstanding = refreshed.filter(
@@ -1213,7 +1213,7 @@ const CustomerLedgerPage: React.FC = () => {
 
     try {
       setCreating(true);
-      await HotelAPIService.createCustomerLedger({
+      await LedgerService.createCustomerLedger({
         ...createFormData,
         amount: toMoneyNumber(createFormData.amount),
       });
@@ -1267,7 +1267,7 @@ const CustomerLedgerPage: React.FC = () => {
 
     if (ledger.booking_id && ledger.post_type === 'room_charge') {
       try {
-        const booking = await HotelAPIService.getBookingById(String(ledger.booking_id));
+        const booking = await BookingsService.getBookingById(String(ledger.booking_id));
         const roomRate = toMoneyNumber(booking.room_rate);
         setEditBookingRoomRate(isPositiveMoney(roomRate) ? roomRate.toFixed(2) : '');
       } catch (err) {
@@ -1297,11 +1297,11 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setUpdating(true);
       if (bookingRoomRateOverride !== undefined && editingLedger.booking_id) {
-        await HotelAPIService.updateBooking(String(editingLedger.booking_id), {
+        await BookingsService.updateBooking(String(editingLedger.booking_id), {
           room_rate_override: bookingRoomRateOverride,
         });
       }
-      await HotelAPIService.updateCustomerLedger(editingLedger.id, editFormData);
+      await LedgerService.updateCustomerLedger(editingLedger.id, editFormData);
       showSnackbar(bookingRoomRateOverride !== undefined
         ? 'Ledger entry and booking rate updated successfully!'
         : 'Ledger entry updated successfully!');
@@ -1330,7 +1330,7 @@ const CustomerLedgerPage: React.FC = () => {
 
     // Load payment history
     try {
-      const payments = await HotelAPIService.getLedgerPayments(ledger.id);
+      const payments = await LedgerService.getLedgerPayments(ledger.id);
       setPaymentHistory(payments);
     } catch (err) {
       console.error('Failed to load payment history:', err);
@@ -1360,12 +1360,12 @@ const CustomerLedgerPage: React.FC = () => {
 
     try {
       setProcessingPayment(true);
-      await HotelAPIService.createLedgerPayment(paymentLedger.id, paymentFormData);
+      await LedgerService.createLedgerPayment(paymentLedger.id, paymentFormData);
 
       // Re-fetch the ledger + history so the dialog reflects the new balance.
       const [updatedLedger, payments] = await Promise.all([
-        HotelAPIService.getCustomerLedger(paymentLedger.id),
-        HotelAPIService.getLedgerPayments(paymentLedger.id),
+        LedgerService.getCustomerLedger(paymentLedger.id),
+        LedgerService.getLedgerPayments(paymentLedger.id),
       ]);
       setPaymentHistory(payments);
       await loadData();
@@ -1398,7 +1398,7 @@ const CustomerLedgerPage: React.FC = () => {
     if (!editingPaymentDate || !paymentLedger) return;
     try {
       setSavingPaymentDate(true);
-      const updatedPayment = await HotelAPIService.updateLedgerPaymentDate(paymentLedger.id, payment.id, editingPaymentDate);
+      const updatedPayment = await LedgerService.updateLedgerPaymentDate(paymentLedger.id, payment.id, editingPaymentDate);
       setPaymentHistory(prev => prev.map(p => p.id === updatedPayment.id ? updatedPayment : p));
       setActiveCompanyPayments(prev => {
         const ledgerPayments = prev[updatedPayment.ledger_id];
@@ -1411,7 +1411,7 @@ const CustomerLedgerPage: React.FC = () => {
         };
       });
       // Refresh payment history
-      const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
+      const payments = await LedgerService.getLedgerPayments(paymentLedger.id);
       setPaymentHistory(payments);
       setEditingPaymentId(null);
       showSnackbar('Payment date updated successfully');
@@ -1429,10 +1429,10 @@ const CustomerLedgerPage: React.FC = () => {
     if (!paymentLedger) return;
     if (!window.confirm('Are you sure you want to delete this payment?')) return;
     try {
-      await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
+      await LedgerService.deleteLedgerPayment(paymentLedger.id, payment.id);
       showSnackbar('Payment deleted successfully');
       // Refresh payment history
-      const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
+      const payments = await LedgerService.getLedgerPayments(paymentLedger.id);
       setPaymentHistory(payments);
       await loadData();
     } catch (error) {
@@ -1451,7 +1451,7 @@ const CustomerLedgerPage: React.FC = () => {
     if (!voidingLedger) return;
     try {
       setVoiding(true);
-      await HotelAPIService.voidLedger(voidingLedger.id, {
+      await LedgerService.voidLedger(voidingLedger.id, {
         reason: voidReason || 'Voided by admin',
       });
       showSnackbar('Ledger entry voided successfully');
@@ -1543,7 +1543,7 @@ const CustomerLedgerPage: React.FC = () => {
         const rows = await Promise.all(
           companyLedgers.map(async (ledger) => {
             try {
-              const payments = await HotelAPIService.getLedgerPayments(ledger.id);
+              const payments = await LedgerService.getLedgerPayments(ledger.id);
               return [ledger.id, payments] as const;
             } catch {
               return [ledger.id, []] as const;
@@ -1655,7 +1655,7 @@ const CustomerLedgerPage: React.FC = () => {
       const reasonText = creditNoteNotes.trim()
         ? `${creditNoteReason} — ${creditNoteNotes.trim()}`
         : creditNoteReason;
-      await HotelAPIService.reverseLedger(Number(creditNoteLedgerId), {
+      await LedgerService.reverseLedger(Number(creditNoteLedgerId), {
         reason: reasonText,
         notes: creditNoteNotes.trim() || undefined,
       });

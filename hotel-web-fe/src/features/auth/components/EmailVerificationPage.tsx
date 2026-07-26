@@ -10,7 +10,7 @@ import {
   Button,
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon, Error as ErrorIcon, Email as EmailIcon } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { AuthService } from '../../../api';
 
 const EmailVerificationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -34,7 +34,7 @@ const EmailVerificationPage: React.FC = () => {
 
     const verifyEmail = async () => {
       try {
-        await HotelAPIService.verifyEmail(token);
+        await AuthService.verifyEmail(token);
         if (!isMountedRef.current) return;
 
         setStatus('success');

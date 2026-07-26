@@ -1,6 +1,6 @@
 // Characterization tests for CustomerLedgerPage. These pin CURRENT observable
 // behavior (props handed to the extracted child panes/dialogs, calls made to
-// HotelAPIService and the print helpers) so a future refactor of this 2200+
+// the api barrel and the print helpers) so a future refactor of this 2200+
 // line component fails loudly if behavior drifts. Real business logic
 // (useCustomerLedgerWorkspace, helpers.ts) is kept real; data/query hooks and
 // the ~18 extracted child components are mocked, following the convention in
@@ -83,19 +83,23 @@ const mocks = vi.hoisted(() => ({
 
 // --- Data / query hooks -----------------------------------------------
 vi.mock('../../../../api', () => ({
-  HotelAPIService: {
-    getAllRooms: (...args: unknown[]) => mocks.hotelApi.getAllRooms(...args),
-    getAvailableRoomsForDates: (...args: unknown[]) => mocks.hotelApi.getAvailableRoomsForDates(...args),
+  BookingsService: {
     getBookingById: (...args: unknown[]) => mocks.hotelApi.getBookingById(...args),
     getBookingsWithDetails: (...args: unknown[]) => mocks.hotelApi.getBookingsWithDetails(...args),
     updateBooking: (...args: unknown[]) => mocks.hotelApi.updateBooking(...args),
-    getAllGuests: (...args: unknown[]) => mocks.hotelApi.getAllGuests(...args),
-    createGuest: (...args: unknown[]) => mocks.hotelApi.createGuest(...args),
+    checkInGuest: (...args: unknown[]) => mocks.hotelApi.checkInGuest(...args),
+  },
+  CompaniesService: {
     getCompanies: (...args: unknown[]) => mocks.hotelApi.getCompanies(...args),
     createCompany: (...args: unknown[]) => mocks.hotelApi.createCompany(...args),
     updateCompany: (...args: unknown[]) => mocks.hotelApi.updateCompany(...args),
     deleteCompany: (...args: unknown[]) => mocks.hotelApi.deleteCompany(...args),
-    checkInGuest: (...args: unknown[]) => mocks.hotelApi.checkInGuest(...args),
+  },
+  GuestsService: {
+    getAllGuests: (...args: unknown[]) => mocks.hotelApi.getAllGuests(...args),
+    createGuest: (...args: unknown[]) => mocks.hotelApi.createGuest(...args),
+  },
+  LedgerService: {
     createCustomerLedger: (...args: unknown[]) => mocks.hotelApi.createCustomerLedger(...args),
     updateCustomerLedger: (...args: unknown[]) => mocks.hotelApi.updateCustomerLedger(...args),
     getCustomerLedger: (...args: unknown[]) => mocks.hotelApi.getCustomerLedger(...args),
@@ -105,6 +109,10 @@ vi.mock('../../../../api', () => ({
     getLedgerPayments: (...args: unknown[]) => mocks.hotelApi.getLedgerPayments(...args),
     deleteLedgerPayment: (...args: unknown[]) => mocks.hotelApi.deleteLedgerPayment(...args),
     updateLedgerPaymentDate: (...args: unknown[]) => mocks.hotelApi.updateLedgerPaymentDate(...args),
+  },
+  RoomsService: {
+    getAllRooms: (...args: unknown[]) => mocks.hotelApi.getAllRooms(...args),
+    getAvailableRoomsForDates: (...args: unknown[]) => mocks.hotelApi.getAvailableRoomsForDates(...args),
   },
 }));
 
