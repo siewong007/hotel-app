@@ -42,8 +42,10 @@ const PROMOTION_COLUMNS: &str = r#"
 
 /// Same projection as [`PROMOTION_COLUMNS`] but WITHOUT the staff-only
 /// `created_by`/`updated_by` actor columns. Guest-facing and public catalogue
-/// queries must use this list so staff user IDs never leave the database for
-/// those code paths, not just get stripped at the JSON boundary.
+/// LIST queries use this projection directly. A few guest-facing branches
+/// (e.g. the loyalty slug lookup) still fetch the full row for internal
+/// checks — those must convert to `PublicPromotion` before serializing, which
+/// is the enforced JSON boundary: `PublicPromotion` has no actor fields.
 const PROMOTION_COLUMNS_PUBLIC: &str = r#"
     p.id,
     p.slug,

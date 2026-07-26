@@ -12,19 +12,17 @@ use crate::repositories::invoice_numbers as repo;
 
 /// Compute the next invoice number for the current month.
 ///
-/// Format: `INV-YYYYMM-XXXX` (e.g. `INV-202604-0001`).
+/// Format: `INV-YYYYMM-XXXX` (e.g. `INV-202604-0001`). `YYYYMM` is the hotel
+/// business month — `CURRENT_DATE` under the per-connection session timezone —
+/// computed in the same SQL statement as the sequence scan so the single-use
+/// executor is consumed exactly once.
 pub async fn next_invoice_number<'e, E>(executor: E) -> Result<String, ApiError>
 where
     E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
 {
-    let now = chrono::Local::now();
-    let yyyymm = now.format("%Y%m").to_string();
-    let prefix = format!("INV-{}-", yyyymm);
-    let pattern = format!("{}%", prefix);
-
-    let max_seq = repo::max_invoice_sequence(executor, &pattern).await?;
+    let (yyyymm, max_seq) = repo::current_month_max_invoice_sequence(executor).await?;
     let next = max_seq.unwrap_or(0) + 1;
-    Ok(format!("{}{:04}", prefix, next))
+    Ok(format!("INV-{}-{:04}", yyyymm, next))
 }
 
 /// Backfill invoice rows for any booking that doesn't yet have one.

@@ -20,7 +20,8 @@ export function useSetupTwoFactor() {
 export function useEnableTwoFactor() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => HotelAPIService.enableTwoFactor(code),
+    mutationFn: ({ code, challengeCode }: { code: string; challengeCode: string }) =>
+      HotelAPIService.enableTwoFactor(code, challengeCode),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use base64::{Engine as _, engine::general_purpose};
-use chrono::{Local, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 
 use crate::core::error::ApiError;
 use crate::modules::ekyc::models::{
@@ -147,16 +147,24 @@ pub fn save_base64_image(
 
 pub fn validate_dates(
     req: &EkycSubmissionRequest,
+    today: NaiveDate,
 ) -> Result<(NaiveDate, NaiveDate, Option<NaiveDate>), ApiError> {
-    validate_date_strings(&req.date_of_birth, &req.id_expiry_date, &req.id_issue_date)
+    validate_date_strings(
+        &req.date_of_birth,
+        &req.id_expiry_date,
+        &req.id_issue_date,
+        today,
+    )
 }
 
 /// Shared date parsing/validation for both the guest-facing submission and the
-/// admin-initiated creation flow.
+/// admin-initiated creation flow. `today` is the hotel business day
+/// (`core::db::hotel_today`), threaded in because this fn is sync.
 pub fn validate_date_strings(
     date_of_birth: &str,
     id_expiry_date: &str,
     id_issue_date: &Option<String>,
+    today: NaiveDate,
 ) -> Result<(NaiveDate, NaiveDate, Option<NaiveDate>), ApiError> {
     let date_of_birth = NaiveDate::parse_from_str(date_of_birth, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date of birth. Use YYYY-MM-DD".to_string()))?;
@@ -172,7 +180,7 @@ pub fn validate_date_strings(
         None
     };
 
-    if id_expiry_date <= Local::now().date_naive() {
+    if id_expiry_date <= today {
         return Err(ApiError::BadRequest(
             "ID expiry date must be in the future".to_string(),
         ));

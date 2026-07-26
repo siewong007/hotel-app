@@ -241,6 +241,15 @@ async fn next_invoice_number_matches_current_month_format() {
         return;
     };
 
+    // The month comes from CURRENT_DATE under the pool's session timezone
+    // (hotel business day), so derive the expectation from the same pool.
+    // Captured before generating so a month rollover between the two queries
+    // can't produce a false mismatch.
+    let expected_yyyymm: String = sqlx::query_scalar("SELECT TO_CHAR(CURRENT_DATE, 'YYYYMM')")
+        .fetch_one(&pool)
+        .await
+        .expect("month lookup should succeed");
+
     let generated = next_invoice_number(&pool)
         .await
         .expect("next_invoice_number should succeed against a live pool");
@@ -252,11 +261,9 @@ async fn next_invoice_number_matches_current_month_format() {
         "expected INV-YYYYMM-XXXX (3 dash-separated segments): {generated}"
     );
     assert_eq!(parts[0], "INV");
-
-    let expected_yyyymm = chrono::Local::now().format("%Y%m").to_string();
     assert_eq!(
         parts[1], expected_yyyymm,
-        "month segment should be the current local YYYYMM"
+        "month segment should be the current hotel-business-day YYYYMM"
     );
 
     assert_eq!(

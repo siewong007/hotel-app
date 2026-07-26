@@ -78,20 +78,39 @@ jobs:
           # PostgreSQL 16+ enables ICU by default, but Homebrew's icu4c is
           # keg-only and not on the default PKG_CONFIG_PATH — configure fails
           # with "Package 'icu-uc' not found" (first real run, 2026-07-12).
-          brew install icu4c lz4 pkg-config
+          # openssl@3 is keg-only too: without its flags, configure dies with
+          # "library 'crypto' is required for OpenSSL" (run 30207255012).
+          brew install icu4c lz4 pkg-config openssl@3
           ICU_PREFIX="$(brew --prefix icu4c)"
           LZ4_PREFIX="$(brew --prefix lz4)"
-          export PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:${LZ4_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          export CPPFLAGS="-I${LZ4_PREFIX}/include ${CPPFLAGS:-}"
-          export LDFLAGS="-L${LZ4_PREFIX}/lib ${LDFLAGS:-}"
+          OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+          export PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:${LZ4_PREFIX}/lib/pkgconfig:${OPENSSL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export CPPFLAGS="-I${LZ4_PREFIX}/include -I${OPENSSL_PREFIX}/include ${CPPFLAGS:-}"
+          export LDFLAGS="-L${LZ4_PREFIX}/lib -L${OPENSSL_PREFIX}/lib ${LDFLAGS:-}"
           curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2"
           curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
           shasum --algorithm 256 --check "postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
           tar -xjf "postgresql-${POSTGRES_VERSION}.tar.bz2"
           cd "postgresql-${POSTGRES_VERSION}"
-          ./configure --prefix="${RUNNER_TEMP}/postgresql-${POSTGRES_VERSION}" --with-openssl --with-lz4
+          # @19-suffixed datadir/libdir are load-bearing (lessons 2026-07-26m):
+          # provision-pgsql.mjs renames the bundled dirs to share/postgresql@19 +
+          # lib/postgresql@19, and PG binaries self-locate via the COMPILED
+          # relative tail — a plain --prefix build bakes in share/postgresql and
+          # resolves to a missing dir inside the renamed bundle.
+          PG_PREFIX="${RUNNER_TEMP}/postgresql-${POSTGRES_VERSION}"
+          ./configure --prefix="${PG_PREFIX}" \
+            --datadir="${PG_PREFIX}/share/postgresql@19" \
+            --libdir="${PG_PREFIX}/lib/postgresql@19" \
+            --with-openssl --with-lz4
           make -j"$(sysctl -n hw.ncpu)" world-bin
           make install-world-bin
+          # provision-pgsql.mjs reads share/postgresql + lib/postgresql from the
+          # source prefix; keep the @19 names as symlinks back.
+          cd "${PG_PREFIX}"
+          mv "share/postgresql@19" "share/postgresql"
+          ln -s postgresql "share/postgresql@19"
+          mv "lib/postgresql@19" "lib/postgresql"
+          ln -s postgresql "lib/postgresql@19"
 
       - name: Provision embedded PostgreSQL tree
         env:

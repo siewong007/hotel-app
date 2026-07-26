@@ -4,45 +4,45 @@ Single live tracker for open work. Replaces the deleted enhancement docs
 (2026-07-17). Keep entries one line; delete when done; detailed plans stay in
 `.claude/reports/`.
 
+2026-07-26 sweep: every P0 except the PII history rewrite, and all but the two
+P1 lines below, were verified done (13-agent evidence pass + adversarial
+review) — the shipped behavior is documented in
+`docs/architecture/architecture-flow.md`. What remains here is the true
+leftover set.
+
 ## P0 — broken or security-relevant
 
-- Master CI red: `checkin_booking_flow` fixture missing IC/passport number (10+ test files).
-- PII in git history: 3 eKYC ID-document JPGs under `uploads/` (needs `git filter-repo`; user call).
-- CI lint breaker: `OnlineInventoryPage.tsx:22` banned `toISOString().slice` → use `formatLocalDate()`.
-- Guest-portal mutations missing audit logging (`verify_guest_booking`, `submit_precheckin_update`, `auto_checkin`).
-- Payments endpoints: 13 handlers login-only, no `check_permission` (RBAC gap).
-- Bump `ammonia` ≥ 4.1.3 (RUSTSEC-2026-0193 mXSS bypass).
-- Portal token hygiene: invalidate pre-checkin tokens after submit; add portal logout/revoke; rate-limit `/guest_portal/me/*`; move pre-checkin tokens to 256-bit `generate_session_token`.
-- Promotion list leaks staff user IDs (`created_by`/`updated_by` in `PROMOTION_COLUMNS`).
+- PII in git history: 3 eKYC ID-document JPGs under `uploads/` (needs `git filter-repo`; user call — destructive history rewrite).
+- ~~2FA is fully broken (found 2026-07-26 by `tests/rbac_profile.rs`): `two_factor_challenges` has no CREATE TABLE anywhere (every `/profile/2fa/setup` 500s), and `core/auth.rs` `enable_2fa`/`update_recovery_codes` bind a JSON string against `users.two_factor_recovery_codes text[]`~~ — DONE 2026-07-26: table+patch shipped (commit 94def0549), and the follow-up write-only-table gap is closed the same day: challenges are stored SHA-256-hashed, `/profile/2fa/enable` now requires and atomically consumes an unexpired `challenge_code` (TOTP checked first so a typo never burns it); FE sends it from the setup response. Adversarial review also caught a lockout bug fixed in the same pass: setup displayed backup codes that enable then replaced — codes now exist only in the enable response and the FE shows them in a post-enable dialog. Scenario 9 covers hashed-at-rest, stale/expired/wrong-code rejection, and single-use consumption. VPS + existing desktop DBs still need `patches/2026-07-26-two-factor-challenges.sql` by hand (2026-07-26j pattern).
+- ~~Rate plans cannot be created at all: `repositories/rate.rs` `create_rate_plan` binds `Option<Vec<String>>` against a `jsonb` column — every INSERT fails~~ — DONE 2026-07-26: bind wrapped in `sqlx::types::Json` (None → SQL NULL); `tests/guests_rates_loyalty.rs` now calls the real service (Some-path jsonb round-trip + None-path NULL asserted), 9/9 green 2x live + clippy `--all-features --all-targets` clean.
+- Room-type prices decode as 0: `repositories/rate.rs:502` private `row_to_room_type` shadows the real `models::row_mappers` mapper; `numeric` decode fails and is swallowed to 0/None — confirmed live, DB 50.00 → returned 0 (chip spawned).
 
 ## P1 — decided, not yet executed
 
-- Guest email notifications v1 — implementation decisions are listed below.
-- N+1 on `GET /bookings`: batch the per-booking eKYC summary query.
-- Unit tests: auth session flow (login/JWT/refresh-cookie/logout) + invoice-number generation.
-- `services/rooms.rs`: audit and consolidate roughly 90 inline `sqlx::query` calls.
-- Eliminate runtime `SELECT *` (61 hits across repos).
-- CI hardening: branch protection on master, `lint:strict`, vitest coverage threshold, dependency audit; prove `desktop-build.yml` with a `workflow_dispatch` run.
-- Delete dead duplicate `src/routes/ekyc.rs` (never merged).
-- Booking validation uses UTC; should use `system_settings.timezone` for local-day math.
-- Sync PayPal capture (`services/payments.rs::capture_paypal_payment`): verify against the payment row's amount (not the editable booking total) and stop marking payments failed after money moved — the webhook path (2026-07-26) already does both; mirror it.
-- PayPal webhook follow-ups: staff-facing surfacing of `paypal_webhook_conflict` audit events (currently audit-log only); decide refund/dispute event handling (`PAYMENT.CAPTURE.REFUNDED` is verified+logged, never auto-applied).
+- ~~Company-ledger statement void filter is a no-op: `repositories/analytics.rs` (~2241, ~2321) filters `status NOT IN ('voided')` but the legal value is `'void'`~~ — DONE 2026-07-26: both literals fixed to `'void'` (a src/-wide sweep found no other `customer_ledgers` `'voided'` literals; remaining ones target `bookings`, where it's valid); `tests/audit_analytics_settings.rs` now seeds a `status='void'` row and asserts exclusion from both statement shapes — verified failing against the old literal, then 2x green + clippy `--all-features --all-targets` clean.
+- ~~Manual room-status updates skip validation: `services/rooms.rs::update_room_status_handler` never calls `validate_room_status_transition()` and doesn't auto-create a cleaning task when flipping to `dirty` (unlike the booking-trigger path)~~ — DONE 2026-07-26: handler now runs the same `validate_room_status_transition()` SQL function on the final target (undefined/disallowed → 400) and auto-creates a deduped pending cleaning task on `dirty`/`reserved_dirty`; two matrix rows the handler's own auto-flips need (`occupied→reserved_dirty`, `reserved_dirty→available`) added to the baseline auto-seed (+ desktop mirror) with idempotent patch `2026-07-26-room-status-transition-rows.sql` (applied to dev DB; VPS/desktop DBs need it by hand). Verified: fresh-vs-patched scratch 19beta2 dump-diff EMPTY, `tests/rooms_housekeeping.rs` 6/6 green 2x live, clippy `--all-features --all-targets` clean.
+- ~~FE `guests.service.ts:81` double-wraps 401s~~ — DONE 2026-07-26: `toGuestApiError` now passes `APIError` instances through, so the 401/session-expired error reaches callers with its statusCode; test updated to assert 401 (typecheck/lint/28 tests green).
+- Business-day math via `Utc::now().date_naive()` (same class as the fixed `chrono::Local` sites, found by the 2026-07-26 review): `modules/loyalty/service.rs:641` (reward valid_from/valid_to — off by one day 00:00–08:00 local at UTC+8), `repositories/channel_net_revenue.rs:960`, `repositories/payment.rs:1033` (response-only), `modules/guest_booking/repository.rs:53,56` — thread `hotel_today` in the same way.
 
 ## P2 — later
 
-- Characterization tests for `BookingsPage.tsx` (~2.6k ln) and `CustomerLedgerPage.tsx` (~2.3k ln).
-- `any`-type burn-down (243 sites as of 2026-07-26, of which 43 in generated `routeTree.gen.ts`; top offenders `RoomEventDialog.tsx`/`RoomConfigurationPage.tsx` (10 each), `LoyaltyDashboard.tsx` (9). 5 sites deliberately kept in dead-code hooks `useBookingsPageState.ts`/`useCheckoutInvoiceModalState.ts` — they mask real broken service calls, see P2 dead-code item below).
-- Dead-code hooks with broken service calls (found 2026-07-26 during any burn-down): `useBookingsPageState.ts` (calls `voidBooking` with wrong positional args, nonexistent `markComplimentary`) and `useCheckoutInvoiceModalState.ts` (wrong-signature `refundDeposit`, nonexistent `updateDailyRates`) are imported only by their own tests; decide delete vs wire-up.
-- WebSocket: log lagged-event drops; FE reconnect backoff/jitter; honor Retry-After.
-- Desktop: Windows/Linux CI packaging; upgrade embedded PostgreSQL 18.4 → 19 (src-tauri/pgsql/ bundle); automate `pgsql/` provisioning (fetch script); scheduled backups + retention; arm or hide the updater (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists; desktop session persistence (SameSite boundary).
-- Portal test coverage: concurrent-booking race, integration tests, portal page components.
+- `any`-type burn-down: 337 grep sites as of 2026-07-27 (`grep -rn ": any\|as any" src --include="*.ts*"`), of which 43 in generated `routeTree.gen.ts` and 109 in test files → 185 hand-written non-test sites. Top-10 offender pages + `dataTransfer.types.ts` cleaned 2026-07-26; dead `useBookingsPageState`/`useCheckoutInvoiceModalState` hooks + tests deleted same day. Worst remaining: `RoomEventDialog.tsx`/`RoomConfigurationPage.tsx` (10 each), `LoyaltyDashboard.tsx` (9).
+- Desktop: Windows/Linux CI packaging; upgrade embedded PostgreSQL 18.4 → 19 in `src-tauri/pgsql/` (ask-first dir; requires a source build — Homebrew ships no PG19); network-fetch pgsql provisioning (today Homebrew-local only); arm or hide the updater (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists; desktop session persistence (SameSite boundary).
+- Desktop robustness: `postgres.rs` hardcodes port 5433 and treats ANY listener there as its own instance — a foreign postgres (e.g. a docker container publishing 5433) yields a confusing "password authentication failed" instead of a clear port-conflict error (found 2026-07-26 testing the CI artifact locally); probe the data-dir/pidfile or verify server identity before adopting a running server.
+- Portal test coverage: portal page component tests + broader portal integration tests (the concurrent double-booking race is covered — `tests/booking_service.rs::postgres_guest_portal_race_tests`).
 
 ## Decisions needed (user)
 
-- Notifications: email-only vs email+SMS; API provider (Resend/Postmark) vs SMTP; checkout-receipt trigger; reminders in v1?; provider-secret storage (env vs masked `system_settings`).
+- Voided bookings leave their receivable open: `services/bookings.rs::void_booking` never touches the auto-posted company/city-ledger row — it stays `pending` with `void_at` NULL. Cascade the void to the ledger row, or keep manual reconciliation? (money-policy; `tests/ledger_service.rs` documents current behavior).
+- Dead-code cleanup batch (found 2026-07-26 by the test pass — delete or wire up): whole `routes/loyalty.rs`+`services/loyalty.rs`+`repositories/loyalty.rs` stack (live one is `modules::loyalty`), `BookingRepository::check_in/check_out`, `GuestRepository::delete` (soft-delete; real path hard-deletes), `GuestUpdateInput.is_active` (accepted, never persisted), unreachable `'draft'` branch in FE `CustomerLedger/helpers.ts::getLedgerUiStatus`.
+- Branch protection on master: no rule exists (verified via `gh api` 2026-07-26); pick required checks / review count / admin bypass, or delegate with the policy stated.
+- PayPal refunds/disputes: `PAYMENT.CAPTURE.REFUNDED` webhooks are signature-verified and audit-logged but never auto-applied — auto-apply vs manual reconciliation is a money-policy call.
+- PayPal conflict banner visibility: the Payment Approvals banner needs `audit:read`, which the `manager` role (the payment approvers) lacks — grant managers `audit:read`, or add a narrower conflicts endpoint.
+- Notifications v2: v1 shipped (SMTP via lettre, env-var secrets, booking-confirmation trigger, campaigns, guest preferences). Still open: SMS channel?, checkout-receipt trigger, pre-arrival reminders.
 - Guest portal: forgot-password flow for self-registered guests?; max advance-booking window.
 
 ## Housekeeping
 
 - 2026-07-17: both dirty worktrees resolved and removed — angry-ellis was superseded by master (user_id audit threading landed 2026-07-12); unruffled-hellman's refs rewrite + lesson were salvaged onto master. Patches in `.claude/backups/*.patch`.
+- 2026-07-26: characterization tests for `BookingsPage.tsx` and `CustomerLedgerPage.tsx` landed (28 tests: `src/features/bookings/components/Bookings/BookingsPage.test.tsx`, `src/features/admin/components/CustomerLedger/CustomerLedgerPage.test.tsx`) — pin rendering/filter-sort-pagination params/modal opens/permission gating ahead of any refactor.
 - `pg18_4_to_v1.sql` is intentionally kept — wired into tests, Makefile, and desktop recovery messaging; docs no longer describe it as a workflow.

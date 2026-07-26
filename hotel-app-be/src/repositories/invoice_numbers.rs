@@ -30,6 +30,35 @@ where
     }
 }
 
+/// Current hotel business month (`YYYYMM`, from `CURRENT_DATE` under the
+/// per-connection session timezone) together with the highest existing
+/// `INV-YYYYMM-XXXX` sequence for that month. One statement so single-use
+/// executors (`&mut *tx`) work.
+pub async fn current_month_max_invoice_sequence<'e, E>(
+    executor: E,
+) -> Result<(String, Option<i64>), ApiError>
+where
+    E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+{
+    sqlx::query_as(
+        r#"
+        SELECT TO_CHAR(CURRENT_DATE, 'YYYYMM'), MAX(seq)
+        FROM (
+            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
+            FROM invoices
+            WHERE invoice_number LIKE 'INV-' || TO_CHAR(CURRENT_DATE, 'YYYYMM') || '-%'
+            UNION ALL
+            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
+            FROM customer_ledgers
+            WHERE invoice_number LIKE 'INV-' || TO_CHAR(CURRENT_DATE, 'YYYYMM') || '-%'
+        ) combined
+        "#,
+    )
+    .fetch_one(executor)
+    .await
+    .map_err(ApiError::from)
+}
+
 pub async fn bookings_missing_invoices(pool: &DbPool) -> Result<Vec<(i64, String)>, ApiError> {
     {
         sqlx::query_as(

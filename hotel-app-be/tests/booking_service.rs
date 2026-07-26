@@ -1639,3 +1639,232 @@ mod postgres_creation_tests {
         cleanup(&pool, room_id, guest_id, actor_id).await;
     }
 }
+
+// ---------------------------------------------------------------------------
+// Guest-portal concurrent booking race — proves two guests cannot double-book
+// the same room for overlapping dates through the online-booking creation
+// path (docs/ongoing-dev.md P2 gap).
+// ---------------------------------------------------------------------------
+
+mod postgres_guest_portal_race_tests {
+    use chrono::{Duration, NaiveDate};
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::modules::guest_booking::availability::AvailabilityHub;
+    use hotel_app_be::modules::guest_booking::models::{
+        BookingQuoteRequest, CreateGuestBookingRequest,
+    };
+    use hotel_app_be::modules::guest_booking::service;
+    use sqlx::PgPool;
+    use sqlx::postgres::PgPoolOptions;
+
+    async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
+        let database_url = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => return None,
+        };
+        if database_url.is_empty() {
+            return None;
+        }
+        // Shares the process-wide serialization lock with the other
+        // `postgres_*` mods in this file: our AuditLog::log_event_tx insert
+        // into `audit_logs` would otherwise deadlock against those mods'
+        // install/drop of `audit_logs` failure triggers if the two ran
+        // concurrently within this test binary.
+        let guard = super::pg_serial_lock().lock_owned().await;
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+            .expect("failed to connect to PostgreSQL test database");
+        Some((pool, guard))
+    }
+
+    async fn cleanup(pool: &PgPool, room_type_id: i64, room_id: i64, guest_ids: &[i64]) {
+        sqlx::query("DELETE FROM email_deliveries WHERE guest_id = ANY($1)")
+            .bind(guest_ids)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "DELETE FROM booking_modifications WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+        )
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM booking_history WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+        )
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+        )
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id IN (SELECT id FROM bookings WHERE room_id = $1)",
+        )
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM bookings WHERE room_id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM guests WHERE id = ANY($1)")
+            .bind(guest_ids)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM room_types WHERE id = $1")
+            .bind(room_type_id)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    async fn seed(pool: &PgPool, room_type_id: i64, room_id: i64, guest_ids: &[i64]) {
+        sqlx::query(
+            "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 200.00, 2) \
+             ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name, \
+                 base_price = EXCLUDED.base_price, max_occupancy = EXCLUDED.max_occupancy, is_active = true",
+        )
+        .bind(room_type_id)
+        .bind(format!("GPRT{room_type_id}"))
+        .bind(format!("Guest Portal Race Room Type {room_type_id}"))
+        .execute(pool)
+        .await
+        .unwrap();
+        // Exactly one physical room of this type — the two concurrent portal
+        // bookings below are contesting the SAME single room.
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status, is_active) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 'available', true) \
+             ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, \
+                 room_type_id = EXCLUDED.room_type_id, status = 'available', is_active = true",
+        )
+        .bind(room_id)
+        .bind(format!("GPR{room_id}"))
+        .bind(room_type_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        for guest_id in guest_ids {
+            sqlx::query(
+                "INSERT INTO guests (id, first_name, last_name, full_name, email) \
+                 OVERRIDING SYSTEM VALUE VALUES ($1, 'Portal', 'Guest', $2, $3) \
+                 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, email = EXCLUDED.email",
+            )
+            .bind(guest_id)
+            .bind(format!("Portal Guest {guest_id}"))
+            .bind(format!("portal-race-{guest_id}@hotel.test"))
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn postgres_concurrent_portal_booking_allows_only_one_success() {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let room_type_id = 975_401;
+        let room_id = 975_301;
+        let guest_a = 975_201;
+        let guest_b = 975_202;
+        let guest_ids = [guest_a, guest_b];
+
+        cleanup(&pool, room_type_id, room_id, &guest_ids).await;
+        seed(&pool, room_type_id, room_id, &guest_ids).await;
+
+        let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let check_in = today + Duration::days(10);
+        let check_out = check_in + Duration::days(2);
+        let check_in_date = check_in.format("%Y-%m-%d").to_string();
+        let check_out_date = check_out.format("%Y-%m-%d").to_string();
+
+        // Compute the canonical quote once so both concurrent requests carry
+        // a matching `expected_total` (the same value each call independently
+        // recomputes internally from static room-type pricing).
+        let quote = service::quote(
+            &pool,
+            guest_a,
+            BookingQuoteRequest {
+                room_type_id,
+                check_in_date: check_in_date.clone(),
+                check_out_date: check_out_date.clone(),
+                adults: Some(1),
+                children: Some(0),
+                voucher_id: None,
+            },
+        )
+        .await
+        .expect("quote should succeed with one available room");
+
+        let build_request = |client_request_id: &str| CreateGuestBookingRequest {
+            client_request_id: client_request_id.to_string(),
+            room_type_id,
+            check_in_date: check_in_date.clone(),
+            check_out_date: check_out_date.clone(),
+            adults: Some(1),
+            children: Some(0),
+            voucher_id: None,
+            expected_total: quote.total_amount,
+            special_requests: None,
+            cleaning_preference: None,
+        };
+
+        let hub = AvailabilityHub::default();
+        let pool_a = pool.clone();
+        let pool_b = pool.clone();
+        let (first, second) = tokio::join!(
+            service::create(&pool_a, &hub, guest_a, build_request("race-a"), None, None),
+            service::create(&pool_b, &hub, guest_b, build_request("race-b"), None, None)
+        );
+
+        let success_count = usize::from(first.is_ok()) + usize::from(second.is_ok());
+        assert_eq!(
+            success_count, 1,
+            "exactly one concurrent guest-portal booking for the same room should succeed: first={first:?}, second={second:?}"
+        );
+        let failed = if first.is_ok() { &second } else { &first };
+        assert!(
+            matches!(failed, Err(ApiError::Conflict(_))),
+            "the losing concurrent booking should return a conflict-class error, got: {failed:?}"
+        );
+
+        let booking_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE room_id = $1")
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            booking_count, 1,
+            "exactly one booking row should exist for the contested room"
+        );
+
+        cleanup(&pool, room_type_id, room_id, &guest_ids).await;
+    }
+}
