@@ -28,6 +28,11 @@ export interface SystemSetting {
   updated_at: string;
 }
 
+/** Key/value pair from the unauthenticated `settings/public` endpoint. */
+export type PublicSetting = Pick<SystemSetting, 'key' | 'value'>;
+
+const PUBLIC_SETTINGS_TIMEOUT_MS = 3_000;
+
 export class AdminService {
   // RBAC Operations
   static async getRbacSnapshot(): Promise<RbacSnapshot> {
@@ -123,6 +128,18 @@ export class AdminService {
   // System Settings
   static async getSystemSettings(): Promise<SystemSetting[]> {
     return await api.get('settings').json<SystemSetting[]>();
+  }
+
+  /**
+   * Settings the backend marks `is_public` (hotel identity, check-in/out times,
+   * currency, code lists). No authentication required, so the login screen can
+   * read them. Called during boot — a short timeout keeps an unreachable or
+   * slow backend from delaying the first paint.
+   */
+  static async getPublicSettings(): Promise<PublicSetting[]> {
+    return await api
+      .get('settings/public', { timeout: PUBLIC_SETTINGS_TIMEOUT_MS, retry: 0 })
+      .json<PublicSetting[]>();
   }
 
   static async updateSystemSetting(key: string, value: string): Promise<SystemSetting> {

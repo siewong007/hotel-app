@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { AppBar, Box, Container } from '@mui/material';
 import { Navigate, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../auth/AuthContext';
@@ -7,9 +7,11 @@ import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
 import { GuestPortalShell } from '../features/guestPortal/components/GuestPortalShell';
+import { getHotelSettings } from '../utils/hotelSettings';
 
-const ADMIN_APP_TITLE = 'Hotel ERP System';
-const GUEST_APP_TITLE = 'Salim Inn Sibu - Cozy stays at Farley';
+// Used only if `hotel_name` is configured empty; the settings themselves carry
+// a default, so this is a last resort rather than the normal title.
+const FALLBACK_APP_TITLE = 'Hotel ERP System';
 const ADMIN_FAVICON = '/favicon.ico';
 const GUEST_FAVICON = '/salim-inn/salim-inn-icon.svg';
 
@@ -37,12 +39,30 @@ export const RootLayout: React.FC = () => {
     };
   }, [boardSkinActive]);
 
+  // The tab title is the configured hotel name for both the guest and staff
+  // experiences; only the favicon distinguishes them. `hotelSettingsChange`
+  // fires on the boot refresh and whenever Settings is saved.
+  const [hotelName, setHotelName] = useState(() => getHotelSettings().hotel_name);
+
   useEffect(() => {
-    document.title = isGuestExperience ? GUEST_APP_TITLE : ADMIN_APP_TITLE;
+    const syncHotelName = () => setHotelName(getHotelSettings().hotel_name);
+    window.addEventListener('hotelSettingsChange', syncHotelName);
+    return () => window.removeEventListener('hotelSettingsChange', syncHotelName);
+  }, []);
+
+  useEffect(() => {
+    const displayName = hotelName.trim() || FALLBACK_APP_TITLE;
+    document.title = displayName;
+    // The sign-in/register card's eyebrow is a CSS ::before, so its text has to
+    // reach the stylesheet as a quoted custom property (see .auth-card in index.css).
+    document.documentElement.style.setProperty(
+      '--auth-brand-eyebrow',
+      JSON.stringify(displayName)
+    );
 
     const favicon = document.querySelector<HTMLLinkElement>('#app-favicon');
     if (favicon) favicon.href = isGuestExperience ? GUEST_FAVICON : ADMIN_FAVICON;
-  }, [isGuestExperience]);
+  }, [isGuestExperience, hotelName]);
 
   useEffect(() => {
     const showResourceLocked = () => {

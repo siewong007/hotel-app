@@ -24,6 +24,7 @@ import HotelIcon from '@mui/icons-material/Hotel';
 import { Link, useLocation, useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
 import { storage } from '../../utils/storage';
+import { getHotelSettings } from '../../utils/hotelSettings';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import { NotificationCenter } from './NotificationCenter';
 import {
@@ -47,6 +48,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const { hasPermission, hasRole, getRoutePolicy, logout, user } = useAuth();
   const isGuest = hasRole('guest') || user?.user_type === 'guest';
   const displayEmail = user?.email?.endsWith('@no-email.invalid') ? '' : user?.email;
+  const hotelName = getHotelSettings().hotel_name;
 
   const visibleItems = React.useMemo(
     () =>
@@ -343,7 +345,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
             <HotelIcon sx={{ fontSize: 18 }} />
           </Box>
           <Typography sx={{ fontSize: '0.875rem', fontWeight: 700, display: { xs: 'none', sm: 'block' } }}>
-            Salim Inn
+            {hotelName}
           </Typography>
         </Box>
 

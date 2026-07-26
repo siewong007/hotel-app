@@ -19,8 +19,20 @@ use axum::{
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/settings", get(get_settings))
+        .route("/settings/public", get(get_public_settings))
         .route("/settings/{key}", patch(update_setting))
         .route("/system/process-checkins", post(process_checkins))
+}
+
+/// Unauthenticated: returns only the settings the schema marks `is_public`
+/// (hotel name, address, phone, email, check-in/out times, currency and the
+/// public code lists). The login and register screens render before any token
+/// exists, so a permission-gated read can never give them the configured hotel
+/// identity — without this they fall back to the frontend's built-in defaults.
+async fn get_public_settings(
+    State(pool): State<DbPool>,
+) -> Result<Json<Vec<models::PublicSetting>>, ApiError> {
+    handlers::get_public_settings_handler(State(pool)).await
 }
 
 async fn get_settings(

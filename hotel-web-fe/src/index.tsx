@@ -30,7 +30,16 @@ async function bootstrap() {
     console.warn('Desktop backend URL initialization failed:', error);
   });
 
-  const { default: App } = await import('./App');
+  // Pull the publicly readable hotel settings before the first render so the
+  // login screen shows the configured hotel rather than the built-in defaults.
+  // Loaded in parallel with the app shell; it fails soft and has its own short
+  // timeout, so an unreachable backend cannot hold up the boot.
+  const [{ default: App }] = await Promise.all([
+    import('./App'),
+    import('./features/user/hooks/useSettingsQueries').then(module =>
+      module.applyPublicHotelSettings()
+    ),
+  ]);
 
   const root = ReactDOM.createRoot(
     document.getElementById('root') as HTMLElement

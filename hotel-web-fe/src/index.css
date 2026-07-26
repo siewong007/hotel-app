@@ -47,14 +47,18 @@ html, body, #root {
   box-shadow: 0 32px 90px rgba(0, 0, 0, .28) !important;
 }
 
+/* The eyebrow text is the configured hotel name. `--auth-brand-eyebrow` is set
+   from the hotel settings by RootLayout, and pre-paint by public/guest-branding.js
+   so the fallback is not visible while the bundle loads. */
 .auth-card::before {
-  content: 'SALIM INN  ·  SIBU';
+  content: var(--auth-brand-eyebrow, 'Hotel');
   display: block;
   margin-bottom: 28px;
   color: #315b4b;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .2em;
+  text-transform: uppercase;
 }
 
 .auth-heading h1 {
@@ -78,9 +82,9 @@ html, body, #root {
 
 @media (max-width: 600px) {
   .auth-page { align-items: flex-start !important; padding-inline: 8px; }
-  .auth-card { border-radius: 22px !important; padding: 28px 22px !important; }
-  .auth-heading { margin-bottom: 28px !important; }
-  .auth-heading h1 { font-size: 3.25rem !important; }
+  .auth-card { border-radius: 22px !important; padding: 22px 20px !important; }
+  .auth-card::before { margin-bottom: 14px; }
+  .auth-heading h1 { font-size: 2.75rem !important; }
 }
 
 /* Smooth scrolling */

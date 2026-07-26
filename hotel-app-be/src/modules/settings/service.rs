@@ -1,6 +1,8 @@
 //! System settings workflows
 
-use super::models::{MarketCodesResponse, RateCodesResponse, SystemSetting, SystemSettingUpdate};
+use super::models::{
+    MarketCodesResponse, PublicSetting, RateCodesResponse, SystemSetting, SystemSettingUpdate,
+};
 use super::repository::SettingsRepository;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -8,6 +10,10 @@ use crate::core::settings_cache;
 
 pub async fn list_system_settings(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
     SettingsRepository::find_all(pool).await
+}
+
+pub async fn list_public_settings(pool: &DbPool) -> Result<Vec<PublicSetting>, ApiError> {
+    SettingsRepository::find_public(pool).await
 }
 
 pub async fn update_system_setting(

@@ -1,6 +1,6 @@
 //! System settings repository for database operations
 
-use super::models::SystemSetting;
+use super::models::{PublicSetting, SystemSetting};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 
@@ -15,6 +15,24 @@ impl SettingsRepository {
             SELECT id, key, value, description, category, created_at, updated_at
             FROM system_settings
             ORDER BY category, key
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Find the settings marked `is_public` in the schema (branding, contact
+    /// details, check-in/out times). These are served without authentication so
+    /// the login screen and a freshly installed browser can render the real
+    /// hotel identity instead of the frontend's built-in defaults.
+    pub async fn find_public(pool: &DbPool) -> Result<Vec<PublicSetting>, ApiError> {
+        sqlx::query_as::<_, PublicSetting>(
+            r#"
+            SELECT key, value
+            FROM system_settings
+            WHERE is_public = true
+            ORDER BY key
             "#,
         )
         .fetch_all(pool)

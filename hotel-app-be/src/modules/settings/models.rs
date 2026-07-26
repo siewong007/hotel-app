@@ -16,6 +16,14 @@ pub struct SystemSetting {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A single setting flagged `is_public` — safe to expose without authentication.
+/// Only the key/value pair is returned; metadata stays behind `settings:read`.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PublicSetting {
+    pub key: String,
+    pub value: String,
+}
+
 /// Input for updating a system setting
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemSettingUpdate {
