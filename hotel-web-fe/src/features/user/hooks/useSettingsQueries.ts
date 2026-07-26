@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AdminService, type SystemSetting } from '../../../api/admin.service';
+import { AdminService, type PublicSetting, type SystemSetting } from '../../../api/admin.service';
 import { queryKeys } from '../../../api/queryKeys';
 import {
   REPORT_DISPLAY_FONT_SIZE_MAX,
@@ -101,12 +101,14 @@ const parseBookingChannelsSetting = (value: string | undefined, fallback: Bookin
   }
 };
 
-const settingsRowsToMap = (rows: SystemSetting[]) =>
+const settingsRowsToMap = (rows: PublicSetting[]) =>
   new Map(rows.map(row => [row.key, row.value]));
 
+// Accepts the public key/value rows as well as the full authenticated rows —
+// only `key` and `value` are ever read.
 const mergeSystemSettings = (
   localSettings: HotelSettings,
-  rows: SystemSetting[]
+  rows: PublicSetting[]
 ): HotelSettings => {
   const values = settingsRowsToMap(rows);
 
@@ -230,6 +232,29 @@ const loadSystemSettings = async () => {
   saveHotelSettings(settings);
   return { rows, settings };
 };
+
+/**
+ * Refreshes the locally cached hotel settings from the unauthenticated
+ * `settings/public` endpoint. Called once during boot, before the app renders.
+ *
+ * Without this, `getHotelSettings()` only ever sees what the Settings page
+ * wrote to localStorage — so the login screen, and every browser or device that
+ * has never opened Settings, would display the built-in defaults ("Grand
+ * Hotel") instead of the configured hotel. Failure is non-fatal: the cached or
+ * default settings stay in place.
+ */
+export async function applyPublicHotelSettings(): Promise<HotelSettings | null> {
+  try {
+    const rows = await AdminService.getPublicSettings();
+    const settings = mergeSystemSettings(getHotelSettings(), rows);
+    saveHotelSettings(settings);
+    window.dispatchEvent(new CustomEvent('hotelSettingsChange', { detail: settings }));
+    return settings;
+  } catch (error) {
+    console.warn('Unable to load public hotel settings:', error);
+    return null;
+  }
+}
 
 export function useHotelSettingsQuery() {
   return useQuery({

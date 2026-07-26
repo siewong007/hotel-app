@@ -2,9 +2,11 @@ import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import { useNavigate } from '../../../router';
 import { PromotionCatalog } from '../components/PromotionCatalog';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 export default function OffersPage() {
   const navigate = useNavigate();
+  const hotelName = getHotelSettings().hotel_name;
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -26,7 +28,7 @@ export default function OffersPage() {
             <Box>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
                 <LocalOfferIcon />
-                <Typography variant="overline">Salim Inn offers</Typography>
+                <Typography variant="overline">{hotelName} offers</Typography>
               </Stack>
               <Typography variant="h2" component="h1" sx={{ fontSize: { xs: '2.3rem', md: '3.5rem' } }}>
                 A better stay for less

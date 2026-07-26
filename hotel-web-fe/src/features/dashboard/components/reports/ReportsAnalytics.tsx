@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Skeleton, Box } from '@mui/material';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useAuth } from '../../../../auth/AuthContext';
+import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { Icon, IconName } from './Icon';
 import { Sparkline, Delta, LineAreaChart, Donut, BarRows } from './charts';
 import { ReportsFormatProvider, useReportsFormat } from './formatContext';
@@ -130,6 +131,7 @@ const ReportsAnalyticsInner: React.FC = () => {
   const { model, loading, error } = useReportsModel();
   const [compare, setCompare] = useState<Compare>('prev');
   const [drawer, setDrawer] = useState<DrawerState>(null);
+  const hotelName = getHotelSettings().hotel_name;
 
   const canViewFinancials =
     hasPermission('ledgers:read') || hasRole('admin') || hasRole('super_admin') || hasRole('manager');
@@ -159,7 +161,7 @@ const ReportsAnalyticsInner: React.FC = () => {
     <div className="salim-reports" data-density="comfortable">
       <div className="ph">
         <div className="ph-left">
-          <div className="crumbs">Salim Inn <span className="sep">›</span> Reports <span className="sep">›</span> Analytics</div>
+          <div className="crumbs">{hotelName} <span className="sep">›</span> Reports <span className="sep">›</span> Analytics</div>
           <h1>Reports &amp; Analytics</h1>
           <div className="sub">Combined operational &amp; financial overview · Main Property</div>
         </div>

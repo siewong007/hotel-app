@@ -18,6 +18,13 @@ pub async fn get_system_settings_handler(
     Ok(Json(settings_service::list_system_settings(&pool).await?))
 }
 
+/// Get the publicly readable settings (no authentication required)
+pub async fn get_public_settings_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<Vec<PublicSetting>>, ApiError> {
+    Ok(Json(settings_service::list_public_settings(&pool).await?))
+}
+
 /// Update a system setting by key
 pub async fn update_system_setting_handler(
     State(pool): State<DbPool>,

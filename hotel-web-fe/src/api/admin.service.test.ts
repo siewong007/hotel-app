@@ -230,6 +230,18 @@ describe('AdminService', () => {
     });
   });
 
+  describe('getPublicSettings', () => {
+    it('calls GET settings/public without retries and with a short timeout', async () => {
+      const settings = [{ key: 'hotel_name', value: 'Salim Inn' }];
+      get.mockReturnValue(mockJsonResponse(settings));
+
+      const result = await AdminService.getPublicSettings();
+
+      expect(get).toHaveBeenCalledWith('settings/public', { timeout: 3000, retry: 0 });
+      expect(result).toEqual(settings);
+    });
+  });
+
   describe('updateSystemSetting', () => {
     it('patches settings/<key> with the value as json', async () => {
       const updated = { id: 1, key: 'timezone', value: 'UTC', created_at: 'x', updated_at: 'x' };
