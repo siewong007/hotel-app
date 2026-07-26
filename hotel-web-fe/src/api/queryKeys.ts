@@ -206,5 +206,6 @@ export const queryKeys = {
     all: paymentApprovals,
     pending: (page: number, perPage: number) =>
       [...paymentApprovals, 'pending', page, perPage] as const,
+    paypalConflicts: [...paymentApprovals, 'paypal-conflicts'] as const,
   },
 } as const;
