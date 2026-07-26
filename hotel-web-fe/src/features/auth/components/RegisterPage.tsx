@@ -16,13 +16,11 @@ import {
 import { PersonAdd as RegisterIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
-import { getHotelSettings } from '../../../utils/hotelSettings';
 import { LoadingSpinner } from '../../../components';
 
 const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
 const RegisterPage: React.FC = () => {
-  const hotelSettings = getHotelSettings();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -196,16 +194,16 @@ const RegisterPage: React.FC = () => {
             }}
           >
             {/* Header - Modern Bold Typography */}
-            <Box className="auth-heading" sx={{ textAlign: 'left', mb: 5 }}>
+            <Box className="auth-heading" sx={{ textAlign: 'left', mb: { xs: 2.5, sm: 5 } }}>
               <Typography
                 variant="h1"
                 sx={{
-                  fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
+                  fontSize: { xs: '2.75rem', sm: '4rem', md: '5rem' },
                   fontWeight: 900,
                   letterSpacing: '-0.02em',
                   lineHeight: 0.9,
                   color: 'var(--hotel-text-primary)',
-                  mb: 1,
+                  mb: { xs: 0.75, sm: 1 },
                   textTransform: 'uppercase',
                   background: 'var(--hotel-action-gradient)',
                   WebkitBackgroundClip: 'text',
@@ -215,25 +213,15 @@ const RegisterPage: React.FC = () => {
               >
                 Join us
               </Typography>
+              {/* The hotel name is already the card's eyebrow (.auth-card::before,
+                  fed by --auth-brand-eyebrow from the same settings), so it is
+                  deliberately not repeated here. */}
               <Box sx={{
                 width: '60px',
                 height: '4px',
                 background: 'var(--hotel-action-gradient)',
-                mb: 2,
+                mb: { xs: 1.25, sm: 2 },
               }} />
-              <Typography
-                variant="h5"
-                sx={{
-                  fontWeight: 600,
-                  letterSpacing: '0.1em',
-                  color: 'var(--hotel-accent-text)',
-                  textTransform: 'uppercase',
-                  fontSize: '0.9rem',
-                  mb: 1,
-                }}
-              >
-                {hotelSettings.hotel_name}
-              </Typography>
               <Typography
                 variant="body2"
                 sx={{
