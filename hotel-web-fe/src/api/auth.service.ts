@@ -8,6 +8,7 @@ import {
   PasskeyUpdateInput,
   AccessSnapshot,
   UserSessionInfo,
+  AuthResponse,
 } from '../types';
 
 export class AuthService {
@@ -33,6 +34,44 @@ export class AuthService {
         );
       }
       throw new APIError('Registration failed');
+    }
+  }
+
+  // Google Guest Sign-In
+  static async loginWithGoogle(credential: string): Promise<AuthResponse> {
+    try {
+      return await api.post('auth/google', { json: { credential } }).json<AuthResponse>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Google sign-in failed',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Google sign-in failed');
+    }
+  }
+
+  static async completeGuestProfile(input: {
+    first_name: string;
+    last_name: string;
+    phone: string;
+    address_line1?: string;
+  }): Promise<UserProfile> {
+    try {
+      return await api.post('profile/complete', { json: input }).json<UserProfile>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Profile completion failed',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Profile completion failed');
     }
   }
 

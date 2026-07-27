@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, refreshAccessToken } from '../api/client';
+import { api, refreshAccessToken, APIError } from '../api/client';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
 import { storage } from '../utils/storage';
@@ -32,6 +32,7 @@ export interface LoginResult {
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string, totpCode?: string) => Promise<LoginResult>;
+  loginWithGoogle: (credential: string) => Promise<LoginResult>;
   register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
@@ -59,12 +60,20 @@ interface AuthProviderProps {
 
 type AuthLoginResponse = {
   access_token: string;
-  user: User;
+  // Loosely typed: this is cast straight from the backend JSON (same as the
+  // rest of this file's `.json<T>()` calls), and it must also accept the
+  // `../types` AuthResponse.user shape returned by AuthService.loginWithGoogle,
+  // which does not declare `user_type`.
+  user: any;
   roles: string[];
   permissions: string[];
   route_policies: RouteAccessPolicy[];
   is_first_login: boolean;
   recovery_codes_remaining?: number;
+  // Present on Google guest sign-in (and mirrored by password login): see
+  // src/auth/authUser.ts::normalizeAuthUser for the client-side defaulting.
+  profile_complete?: boolean;
+  missing_profile_fields?: string[];
 };
 
 const EMPTY_AUTH_STATE: AuthState = {
@@ -220,6 +229,73 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Shared by every flow that mints a session (password login, Google login,
+  // and — potentially in future — anything else returning the same
+  // AuthLoginResponse shape). Do not duplicate this token/user/role/session
+  // update sequence at a new call site; extend this helper instead.
+  const applyAuthSession = useCallback((data: AuthLoginResponse): LoginResult => {
+    const {
+      access_token,
+      user: responseUser,
+      roles,
+      permissions,
+      route_policies,
+      is_first_login,
+      recovery_codes_remaining,
+      profile_complete,
+      missing_profile_fields,
+    } = data;
+    const user = normalizeAuthUser({ ...responseUser, profile_complete, missing_profile_fields }, roles);
+
+    // Access token goes to the in-memory store (never persisted). The refresh
+    // token was set by the backend as an HttpOnly cookie and is invisible here.
+    setAccessToken(access_token);
+
+    // IMPORTANT: Set the token above BEFORE calling checkPasskeys so the API
+    // client can authenticate. Non-sensitive profile data is cached in storage.
+    // Command-palette results can contain internal record details and must
+    // never carry over from the previously signed-in account.
+    storage.removeItem('cmdRecents');
+    storage.setItems({
+      user,
+      roles,
+      permissions,
+      routePolicies: route_policies,
+    });
+
+    // Invalidate cache to ensure immediate availability
+    storage.invalidateCache();
+    queryClient.clear();
+
+    // Set authenticated state immediately after successful login
+    setAuthState({
+      user,
+      roles,
+      permissions,
+      routePolicies: route_policies,
+      accessToken: access_token,
+      isAuthenticated: true,
+      isLoading: false,
+      shouldPromptPasskey: false, // Will update below if needed
+    });
+
+    // Do not make navigation after a successful login depend on a follow-up
+    // passkey lookup. Safari can keep that request pending while restoring
+    // its cookie/session state, which previously made a completed login
+    // appear to hang. This is only a best-effort prompt decision.
+    void checkPasskeys()
+      .then(hasPasskeys => {
+        if (!hasPasskeys) {
+          setAuthState(prev => ({ ...prev, shouldPromptPasskey: true }));
+        }
+      })
+      .catch(error => {
+        console.warn('Failed to check passkeys, skipping passkey prompt:', error);
+      });
+
+    return { isFirstLogin: is_first_login, recoveryCodesRemaining: recovery_codes_remaining };
+  }, [checkPasskeys, queryClient]);
+
   const login = useCallback(async (username: string, password: string, totpCode?: string): Promise<LoginResult> => {
     try {
       // A user can sign back in before Safari finishes the previous logout
@@ -231,64 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         json: { username, password, totp_code: totpCode },
       }).json<AuthLoginResponse>();
 
-      const {
-        access_token,
-        user: responseUser,
-        roles,
-        permissions,
-        route_policies,
-        is_first_login,
-        recovery_codes_remaining,
-      } = data;
-      const user = normalizeAuthUser(responseUser, roles);
-
-      // Access token goes to the in-memory store (never persisted). The refresh
-      // token was set by the backend as an HttpOnly cookie and is invisible here.
-      setAccessToken(access_token);
-
-      // IMPORTANT: Set the token above BEFORE calling checkPasskeys so the API
-      // client can authenticate. Non-sensitive profile data is cached in storage.
-      // Command-palette results can contain internal record details and must
-      // never carry over from the previously signed-in account.
-      storage.removeItem('cmdRecents');
-      storage.setItems({
-        user,
-        roles,
-        permissions,
-        routePolicies: route_policies,
-      });
-
-      // Invalidate cache to ensure immediate availability
-      storage.invalidateCache();
-      queryClient.clear();
-
-      // Set authenticated state immediately after successful login
-      setAuthState({
-        user,
-        roles,
-        permissions,
-        routePolicies: route_policies,
-        accessToken: access_token,
-        isAuthenticated: true,
-        isLoading: false,
-        shouldPromptPasskey: false, // Will update below if needed
-      });
-
-      // Do not make navigation after a successful password login depend on a
-      // follow-up passkey lookup. Safari can keep that request pending while
-      // restoring its cookie/session state, which previously made a completed
-      // login appear to hang. This is only a best-effort prompt decision.
-      void checkPasskeys()
-        .then(hasPasskeys => {
-          if (!hasPasskeys) {
-            setAuthState(prev => ({ ...prev, shouldPromptPasskey: true }));
-          }
-        })
-        .catch(error => {
-          console.warn('Failed to check passkeys, skipping passkey prompt:', error);
-        });
-
-      return { isFirstLogin: is_first_login, recoveryCodesRemaining: recovery_codes_remaining };
+      return applyAuthSession(data);
     } catch (error: any) {
       console.error('Login error:', error);
 
@@ -309,7 +328,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  }, [checkPasskeys, queryClient]);
+  }, [applyAuthSession]);
+
+  const loginWithGoogle = useCallback(async (credential: string): Promise<LoginResult> => {
+    try {
+      // Same reasoning as login(): let any in-flight logout settle first so it
+      // cannot revoke the refresh cookie this new session is about to create.
+      await pendingLogoutRef.current;
+
+      const data = await AuthService.loginWithGoogle(credential);
+
+      return applyAuthSession(data);
+    } catch (error: any) {
+      console.error('Google login error:', error);
+
+      let errorMessage = 'Google sign-in failed';
+      if (error instanceof APIError) {
+        errorMessage = error.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      throw new Error(errorMessage);
+    }
+  }, [applyAuthSession]);
 
   const logout = useCallback(() => {
     // Best-effort server-side revoke + cookie clear. The refresh token rides the
@@ -551,8 +593,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       }).json<AuthLoginResponse>();
 
-      const { access_token, user: responseUser, roles, permissions, route_policies, is_first_login } = finishResponse;
-      const user = normalizeAuthUser(responseUser, roles);
+      const {
+        access_token,
+        user: responseUser,
+        roles,
+        permissions,
+        route_policies,
+        is_first_login,
+        profile_complete,
+        missing_profile_fields,
+      } = finishResponse;
+      const user = normalizeAuthUser({ ...responseUser, profile_complete, missing_profile_fields }, roles);
 
       // Access token to memory only; refresh token arrives as an HttpOnly cookie.
       setAccessToken(access_token);
@@ -626,6 +677,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const authContextValue = useMemo<AuthContextType>(() => ({
     ...authState,
     login,
+    loginWithGoogle,
     register,
     logout,
     hasPermission,
@@ -638,6 +690,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }), [
     authState,
     login,
+    loginWithGoogle,
     register,
     logout,
     hasPermission,
