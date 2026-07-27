@@ -290,6 +290,30 @@ database), see
 [`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md) —
 it is the canonical database lifecycle reference.
 
+### One-time step for Google guest sign-in (2026-07-28)
+
+Fresh installs need nothing here: `users.google_subject` and its partial unique
+index are part of the V1 baseline. A database initialized from a baseline
+predating 2026-07-28 is missing them, and Google sign-in will fail against it
+until this runs. It is additive and idempotent — no existing column, index or
+row is touched, so it is safe on a live database without downtime.
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_subject character varying(255);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_google_subject
+    ON public.users USING btree (google_subject)
+    WHERE (google_subject IS NOT NULL);
+SQL
+```
+
+Verify:
+
+```bash
+psql "$DATABASE_URL" -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name='google_subject'"
+```
+
 
 
 ```bash

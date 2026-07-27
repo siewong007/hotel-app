@@ -27,25 +27,32 @@ Older database layouts are not upgraded in place. Export any data that must be
 retained, initialize a fresh PostgreSQL 19 database from the current baseline
 and seed, then import the compatible application data.
 
-## Same-generation patches
+## Same-generation additive changes
 
 The baseline is the single source of truth: a new column or index is added to
 `migrations/0001_v1_baseline.sql`, so every fresh install — CI, Docker, desktop,
-deploy — receives it automatically. A database that is already on the current
-V1 generation cannot re-run the baseline, so each such change also ships an
-additive, idempotent patch under `patches/`, applied by an operator:
+deploy — receives it automatically.
 
-```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f database/postgres/patches/2026-07-28-users-google-subject.sql
-```
+This directory stays two files. There is no `patches/`, `upgrade/` or `data.sql`
+directory, and `tests/status_vocabulary.rs::postgres_initialization_has_only_baseline_and_seed`
+enforces that — adding one turns the suite red.
 
-Patches are additive only (new nullable column, new index, new bootstrap row).
-Anything that retypes or drops an existing object is a schema-generation change
-and follows the rebuild path above instead. A patched database and a fresh
-install must produce an identical `pg_dump --schema-only`; verify that before
-shipping a patch. Patches are not applied automatically anywhere — the desktop
-launcher in particular never alters an existing database.
+A database already on the current V1 generation cannot re-run the baseline, so an
+additive change (new nullable column, new index, new bootstrap row) also needs a
+one-time operator step. Document it as runnable SQL under "Database Setup" in
+[`docs/guides/deployment.md`](../../docs/guides/deployment.md), dated, stating
+that fresh installs need nothing. Anything that retypes or drops an existing
+object is a schema-generation change and follows the rebuild path above instead.
+
+Before shipping such a change, prove convergence: scratch-install the new
+baseline + seed, scratch-install the previous baseline + seed + your SQL, then
+`pg_dump --schema-only --no-owner --no-privileges` both and diff. The diff must
+be empty — and check the dumps are non-trivial first, because two failed dumps
+also diff to zero. Declare a new column in the position `ALTER TABLE ADD COLUMN`
+produces (last in the table body) or fresh and patched schemas diverge forever.
+
+Nothing is applied automatically anywhere — the desktop launcher in particular
+never alters an existing database.
 
 ## PostgreSQL 19 physical design (2026-07-26)
 
