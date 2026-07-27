@@ -23,6 +23,10 @@ export interface AuthResponse {
   // Present only when the login consumed a 2FA recovery code: how many remain
   // afterwards, so the client can prompt the user to regenerate them.
   recovery_codes_remaining?: number;
+  // Present on Google guest sign-in (and mirrored by password login): whether
+  // the account still needs first_name/last_name/phone collected.
+  profile_complete?: boolean;
+  missing_profile_fields?: string[];
 }
 
 export interface AccessSnapshot {
@@ -44,6 +48,9 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
   last_login_at?: string;
+  // Present for guest accounts completing their profile after Google sign-in.
+  profile_complete?: boolean;
+  missing_profile_fields?: string[];
 }
 
 export interface UserProfileUpdate {

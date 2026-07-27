@@ -26,6 +26,17 @@ function mockJsonResponse(payload: unknown) {
   return { json: () => Promise.resolve(payload) };
 }
 
+/**
+ * Unlike register/verifyEmail (which just `await api.post(...)` with no
+ * `.json()` chain), loginWithGoogle/completeGuestProfile chain `.json<T>()`
+ * onto the post() call. A bare `Promise.reject(...)` has no `.json` method,
+ * so simulating an HTTPError on those methods needs the rejection to come
+ * from the chained `.json()` call instead.
+ */
+function mockJsonRejection(error: unknown) {
+  return { json: () => Promise.reject(error) };
+}
+
 /** Build a ky HTTPError the way a real failed request would throw it. */
 function buildHttpError(status: number, body: unknown, url = 'http://localhost/api/auth/register') {
   const response = new Response(JSON.stringify(body), {
@@ -91,6 +102,72 @@ describe('AuthService', () => {
           phone: '0123456789',
         }),
       ).rejects.toMatchObject({ name: 'APIError', message: 'Registration failed' });
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    it('posts the credential as json to auth/google', async () => {
+      const authResponse = {
+        access_token: 'tok_abc',
+        user: { id: '1', username: 'guest@example.com', email: 'guest@example.com', is_active: true, created_at: 'x', updated_at: 'x' },
+        roles: ['guest'],
+        permissions: [],
+        route_policies: [],
+        is_first_login: true,
+        profile_complete: false,
+        missing_profile_fields: ['first_name', 'last_name', 'phone'],
+      };
+      post.mockReturnValue(mockJsonResponse(authResponse));
+
+      const result = await AuthService.loginWithGoogle('google-id-token');
+
+      expect(post).toHaveBeenCalledWith('auth/google', { json: { credential: 'google-id-token' } });
+      expect(result).toEqual(authResponse);
+    });
+
+    it('wraps an HTTPError into an APIError with the server message (e.g. 503 when unconfigured)', async () => {
+      post.mockReturnValue(mockJsonRejection(buildHttpError(503, { error: 'Google sign-in is not configured' })));
+
+      let caught: unknown;
+      try {
+        await AuthService.loginWithGoogle('google-id-token');
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(APIError);
+      expect(caught).toMatchObject({ message: 'Google sign-in is not configured', statusCode: 503 });
+    });
+  });
+
+  describe('completeGuestProfile', () => {
+    it('posts the profile fields as json to profile/complete', async () => {
+      const input = { first_name: 'New', last_name: 'Guest', phone: '0123456789' };
+      const profile = {
+        id: 1,
+        username: 'guest@example.com',
+        email: 'guest@example.com',
+        email_configured: true,
+        is_verified: true,
+        created_at: 'x',
+        updated_at: 'x',
+        profile_complete: true,
+        missing_profile_fields: [],
+      };
+      post.mockReturnValue(mockJsonResponse(profile));
+
+      const result = await AuthService.completeGuestProfile(input);
+
+      expect(post).toHaveBeenCalledWith('profile/complete', { json: input });
+      expect(result).toEqual(profile);
+    });
+
+    it('wraps an HTTPError into an APIError with the server message', async () => {
+      post.mockReturnValue(mockJsonRejection(buildHttpError(400, { error: 'Invalid phone number' })));
+
+      await expect(
+        AuthService.completeGuestProfile({ first_name: 'A', last_name: 'B', phone: 'bad' }),
+      ).rejects.toMatchObject({ name: 'APIError', message: 'Invalid phone number', statusCode: 400 });
     });
   });
 

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   getAccessSnapshot: vi.fn(),
   listPasskeys: vi.fn(),
+  loginWithGoogle: vi.fn(),
 }));
 
 // AuthContext talks to the network only through these two modules — mock both
@@ -22,6 +23,7 @@ vi.mock('../api/auth.service', () => ({
   AuthService: {
     getAccessSnapshot: (...args: unknown[]) => mocks.getAccessSnapshot(...args),
     listPasskeys: (...args: unknown[]) => mocks.listPasskeys(...args),
+    loginWithGoogle: (...args: unknown[]) => mocks.loginWithGoogle(...args),
   },
 }));
 
@@ -103,6 +105,7 @@ describe('AuthContext', () => {
     mocks.getAccessSnapshot.mockReset();
     mocks.listPasskeys.mockReset();
     mocks.listPasskeys.mockResolvedValue([]);
+    mocks.loginWithGoogle.mockReset();
   });
 
   afterEach(() => {
@@ -204,6 +207,63 @@ describe('AuthContext', () => {
 
       expect(result.current.hasPermission('bookings:read')).toBe(false);
       expect(result.current.hasRole('front_desk')).toBe(false);
+    });
+  });
+
+  describe('loginWithGoogle', () => {
+    it('authenticates and populates the user with the profile completion status', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      mocks.loginWithGoogle.mockResolvedValue({
+        access_token: 'google-access-1',
+        user: { id: '99', username: 'guest@example.com', email: 'guest@example.com', is_active: true },
+        roles: ['guest'],
+        permissions: [],
+        route_policies: [],
+        is_first_login: true,
+        profile_complete: false,
+        missing_profile_fields: ['first_name', 'last_name', 'phone'],
+      });
+
+      await act(async () => {
+        await result.current.loginWithGoogle('google-id-token');
+      });
+
+      expect(mocks.loginWithGoogle).toHaveBeenCalledWith('google-id-token');
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(result.current.user?.username).toBe('guest@example.com');
+      expect(result.current.user?.profile_complete).toBe(false);
+      expect(result.current.user?.missing_profile_fields).toEqual([
+        'first_name',
+        'last_name',
+        'phone',
+      ]);
+    });
+
+    it('defaults profile_complete to true when the backend omits it', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      mocks.loginWithGoogle.mockResolvedValue({
+        access_token: 'google-access-2',
+        user: { id: '100', username: 'admin@example.com', email: 'admin@example.com', is_active: true },
+        roles: ['front_desk'],
+        permissions: [],
+        route_policies: [],
+        is_first_login: false,
+      });
+
+      await act(async () => {
+        await result.current.loginWithGoogle('google-id-token-2');
+      });
+
+      expect(result.current.user?.profile_complete).toBe(true);
+      expect(result.current.user?.missing_profile_fields).toEqual([]);
     });
   });
 
