@@ -6,6 +6,7 @@ PostgreSQL is the application's only database engine.
 database/postgres/
 ├── migrations/0001_v1_baseline.sql
 ├── seed.sql
+├── patches/YYYY-MM-DD-<change>.sql
 └── optimization/pg19_beta2*.sql
 ```
 
@@ -25,6 +26,26 @@ task and is not safe to rerun against an existing V1 database.
 Older database layouts are not upgraded in place. Export any data that must be
 retained, initialize a fresh PostgreSQL 19 database from the current baseline
 and seed, then import the compatible application data.
+
+## Same-generation patches
+
+The baseline is the single source of truth: a new column or index is added to
+`migrations/0001_v1_baseline.sql`, so every fresh install — CI, Docker, desktop,
+deploy — receives it automatically. A database that is already on the current
+V1 generation cannot re-run the baseline, so each such change also ships an
+additive, idempotent patch under `patches/`, applied by an operator:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f database/postgres/patches/2026-07-28-users-google-subject.sql
+```
+
+Patches are additive only (new nullable column, new index, new bootstrap row).
+Anything that retypes or drops an existing object is a schema-generation change
+and follows the rebuild path above instead. A patched database and a fresh
+install must produce an identical `pg_dump --schema-only`; verify that before
+shipping a patch. Patches are not applied automatically anywhere — the desktop
+launcher in particular never alters an existing database.
 
 ## PostgreSQL 19 physical design (2026-07-26)
 

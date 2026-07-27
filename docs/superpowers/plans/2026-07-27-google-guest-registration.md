@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Google sign-in is public web only; Tauri builds must not load or render Google Identity Services.
-- Do not edit `hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql`; add a forward-only migration and sync desktop resources.
+- Schema changes go into `hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql` (mirrored byte-identically to `hotel-desktop/src-tauri/database/postgres/migrations/`), plus an additive idempotent patch under `database/postgres/patches/` for databases already on this generation. **Superseded 2026-07-28:** this plan originally specified a forward-only `0002_…` migration, but nothing in the repo applies a second migration file — CI, the deploy bundle, `sync-desktop-resources.mjs` and `postgres.rs` all hardcode `0001_v1_baseline.sql`, and `database/README.md` documents a two-file (baseline + seed) model. User decision: fold the column into the baseline; ship a manual, documented patch for existing databases.
 - Do not add a frontend authentication package or custom Google-branded button.
 - Verify ID-token signature, issuer, audience, expiry, `email_verified`, email, and `sub` on the backend before account lookup or mutation.
 - Use `sub` as the stored external identity; email is only for initial guest-account linking.
@@ -26,7 +26,8 @@
 
 ## File Structure
 
-- `hotel-app-be/database/postgres/migrations/0002_google_guest_registration.sql`: adds the nullable Google subject and its unique partial index.
+- `hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql`: declares `users.google_subject` (last column, matching the attnum an `ALTER TABLE ADD COLUMN` produces) and the `uq_users_google_subject` partial unique index; mirrored to `hotel-desktop/src-tauri/database/postgres/migrations/`.
+- `hotel-app-be/database/postgres/patches/2026-07-28-users-google-subject.sql`: the additive, idempotent patch operators apply to an existing V1 database.
 - `hotel-app-be/src/models/auth.rs`: adds Google login and completion DTOs plus completion fields on existing auth responses.
 - `hotel-app-be/src/services/google_identity.rs`: fetches/caches JWKS and validates Google ID-token claims; contains pure claim/username/completeness helpers and tests.
 - `hotel-app-be/src/repositories/auth.rs`: owns all SQL for finding/linking/creating Google guest accounts.
@@ -46,7 +47,7 @@
 ### Task 1: Add the database and pure backend contracts
 
 **Files:**
-- Create: `hotel-app-be/database/postgres/migrations/0002_google_guest_registration.sql`
+- Modify: `hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql` (superseded 2026-07-28 — originally `Create: …/0002_google_guest_registration.sql`, which nothing applied; see Global Constraints)
 - Create: `hotel-app-be/src/services/google_identity.rs`
 - Modify: `hotel-app-be/src/services/mod.rs`
 - Modify: `hotel-app-be/src/models/auth.rs`
@@ -464,7 +465,7 @@ VITE_GOOGLE_CLIENT_ID=1234567890-example.apps.googleusercontent.com
 
 Run: `cd hotel-desktop && bun run sync:resources`
 
-Expected: the generated desktop database resources include `0002_google_guest_registration.sql`; inspect `git status --short` and include only intended synchronized files.
+Expected: `hotel-desktop/src-tauri/database/postgres/migrations/0001_v1_baseline.sql` stays byte-identical to the backend copy (compare with `md5`), carrying `users.google_subject` and `uq_users_google_subject`; inspect `git status --short` and include only intended synchronized files. The patch under `database/postgres/patches/` is deliberately NOT synced or auto-applied — the desktop launcher never alters an existing database.
 
 - [ ] **Step 5: Run targeted portal tests and frontend checks**
 

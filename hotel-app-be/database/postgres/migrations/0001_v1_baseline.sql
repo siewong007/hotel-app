@@ -3495,6 +3495,7 @@ CREATE TABLE public.users (
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_by bigint,
     deleted_at timestamp with time zone,
+    google_subject character varying(255),
     CONSTRAINT users_email_check CHECK (((email)::text = lower((email)::text))),
     CONSTRAINT users_username_check CHECK (((username)::text = lower((username)::text))),
     CONSTRAINT valid_email CHECK (((email)::text ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'::text)),
@@ -7802,6 +7803,13 @@ CREATE UNIQUE INDEX uq_customer_ledgers_booking_room_charge ON public.customer_l
 --
 
 CREATE UNIQUE INDEX uq_support_messages_client_id ON public.support_messages USING btree (conversation_id, author_type, client_message_id) WHERE (client_message_id IS NOT NULL);
+
+
+--
+-- Name: uq_users_google_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_users_google_subject ON public.users USING btree (google_subject) WHERE (google_subject IS NOT NULL);
 
 
 --
