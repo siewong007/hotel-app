@@ -4,10 +4,12 @@ use crate::core::db::{DbPool, DbRow, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
-    Guest, GuestBookingRow, GuestCreateValues, GuestCreditRow, GuestPaginationParams,
-    GuestProfileBooking, GuestRoomCreditRow, GuestSummary, GuestTourismTaxSignal, GuestUpdateState,
-    GuestUpdateValues, LinkGuestInput, LinkedGuestCreditRow,
+    CompleteGuestProfileRequest, Guest, GuestBookingRow, GuestCreateValues, GuestCreditRow,
+    GuestPaginationParams, GuestProfileBooking, GuestRoomCreditRow, GuestSummary,
+    GuestTourismTaxSignal, GuestUpdateState, GuestUpdateValues, LinkGuestInput,
+    LinkedGuestCreditRow,
 };
+use crate::repositories::auth::is_guest_name_unique_violation;
 use crate::utils::pagination::Pagination;
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::Row;
@@ -493,6 +495,66 @@ impl GuestRepository {
         .fetch_one(pool)
         .await
         .map_err(ApiError::from)
+    }
+
+    /// Writes the guest-supplied contact details for the Google-guest
+    /// profile-completion flow (`POST /profile/complete`). Updates both
+    /// `guests` (the source of truth for contact fields) and `users` (whose
+    /// denormalized `full_name`/`phone` back the JWT claims and profile
+    /// display) in one transaction so the two never disagree.
+    pub async fn complete_profile(
+        pool: &DbPool,
+        guest_id: i64,
+        user_id: i64,
+        input: &CompleteGuestProfileRequest,
+    ) -> Result<(), ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        let full_name = format!("{} {}", input.first_name, input.last_name);
+
+        sqlx::query(
+            r#"
+            UPDATE guests
+            SET first_name = $1,
+                last_name = $2,
+                full_name = $3,
+                phone = $4,
+                address_line_1 = COALESCE($5, address_line_1),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $6
+            "#,
+        )
+        .bind(&input.first_name)
+        .bind(&input.last_name)
+        .bind(&full_name)
+        .bind(&input.phone)
+        .bind(&input.address_line1)
+        .bind(guest_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| {
+            if is_guest_name_unique_violation(&error) {
+                ApiError::Conflict(
+                    "A guest profile with this name already exists. Please sign in with your existing account or contact the hotel for help."
+                        .to_string(),
+                )
+            } else {
+                ApiError::from(error)
+            }
+        })?;
+
+        sqlx::query(
+            "UPDATE users SET full_name = $1, phone = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+        )
+        .bind(&full_name)
+        .bind(&input.phone)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(())
     }
 
     pub async fn set_tourism_type(

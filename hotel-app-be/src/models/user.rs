@@ -147,6 +147,10 @@ pub struct UserProfile {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub profile_complete: bool,
+    #[sqlx(default)]
+    pub missing_profile_fields: Vec<String>,
 }
 
 /// Input for updating user profile

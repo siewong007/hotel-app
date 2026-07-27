@@ -17,9 +17,19 @@ use crate::models::AuditEvent;
 const UNCONFIGURED_EMAIL_SUFFIX: &str = "@no-email.invalid";
 
 pub async fn get_user_profile(pool: &DbPool, user_id: i64) -> Result<UserProfile, ApiError> {
-    UserRepository::get_profile(pool, user_id)
+    let mut profile = UserRepository::get_profile(pool, user_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    let completion = completion_for_user(pool, user_id).await?;
+    profile.profile_complete = completion.complete;
+    profile.missing_profile_fields = completion
+        .missing_fields
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+
+    Ok(profile)
 }
 
 pub async fn update_user_profile(
@@ -222,6 +232,50 @@ pub(crate) async fn completion_for_user(
     ))
 }
 
+/// `POST /profile/complete` — the Google-guest profile-completion write path.
+/// Guest-only: non-guest accounts have nothing to complete and are rejected.
+pub async fn complete_guest_profile(
+    pool: &DbPool,
+    user_id: i64,
+    mut input: crate::models::CompleteGuestProfileRequest,
+) -> Result<UserProfile, ApiError> {
+    input
+        .normalize_and_validate()
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+
+    let Some(guest_id) = UserRepository::guest_id_for_user(pool, user_id).await? else {
+        return Err(ApiError::Forbidden("Guest account required".to_string()));
+    };
+
+    let full_name = format!("{} {}", input.first_name, input.last_name);
+    if GuestRepository::full_name_conflict_id(pool, &full_name, Some(guest_id))
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict(
+            "A guest profile with this name already exists. Please sign in with your existing account or contact the hotel for help."
+                .to_string(),
+        ));
+    }
+
+    GuestRepository::complete_profile(pool, guest_id, user_id, &input).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "guest_profile_completed",
+            resource_type: "user",
+            resource_id: Some(user_id),
+            details: Some(serde_json::json!({ "guest_id": guest_id })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    get_user_profile(pool, user_id).await
+}
+
 fn mask_ip_address(ip: String) -> String {
     if let Some((prefix, _)) = ip.rsplit_once('.') {
         return format!("{prefix}.•••");
@@ -230,4 +284,30 @@ fn mask_ip_address(ip: String) -> String {
         return format!("{prefix}:••••");
     }
     "•••".to_string()
+}
+
+#[cfg(test)]
+mod complete_guest_profile_request_tests {
+    use crate::models::CompleteGuestProfileRequest;
+
+    fn request(phone: &str, address_line1: Option<String>) -> CompleteGuestProfileRequest {
+        CompleteGuestProfileRequest {
+            first_name: "Jane".to_string(),
+            last_name: "Doe".to_string(),
+            phone: phone.to_string(),
+            address_line1,
+        }
+    }
+
+    #[test]
+    fn completion_request_rejects_a_blank_phone() {
+        let mut input = request(" ", None);
+        assert!(input.normalize_and_validate().is_err());
+    }
+
+    #[test]
+    fn completion_request_accepts_a_missing_address() {
+        let mut input = request("+60123456789", None);
+        assert!(input.normalize_and_validate().is_ok());
+    }
 }

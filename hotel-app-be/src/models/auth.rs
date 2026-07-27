@@ -37,7 +37,6 @@ impl std::fmt::Debug for GoogleLoginRequest {
 }
 
 /// Guest contact details supplied after Google sign-in.
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct CompleteGuestProfileRequest {
     #[validate(
@@ -57,7 +56,6 @@ pub struct CompleteGuestProfileRequest {
 }
 
 impl CompleteGuestProfileRequest {
-    #[allow(dead_code)]
     pub fn normalize_and_validate(&mut self) -> Result<(), ValidationErrors> {
         self.validate()?;
 

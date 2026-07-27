@@ -19,7 +19,7 @@ pub struct AuthRepository;
 /// `deleted_at IS NULL`) cannot force unbounded recursion and hang the request.
 const MAX_GOOGLE_RESOLVE_ATTEMPTS: u8 = 3;
 
-fn is_guest_name_unique_violation(error: &sqlx::Error) -> bool {
+pub(crate) fn is_guest_name_unique_violation(error: &sqlx::Error) -> bool {
     let Some(database_error) = error.as_database_error() else {
         return false;
     };

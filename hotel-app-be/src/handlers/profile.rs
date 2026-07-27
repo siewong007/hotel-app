@@ -30,6 +30,16 @@ pub async fn update_user_profile_handler(
     ))
 }
 
+pub async fn complete_profile_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Json(input): Json<CompleteGuestProfileRequest>,
+) -> Result<Json<UserProfile>, ApiError> {
+    Ok(Json(
+        profile_service::complete_guest_profile(&pool, user_id, input).await?,
+    ))
+}
+
 pub async fn update_password_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
