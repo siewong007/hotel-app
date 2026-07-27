@@ -82,6 +82,17 @@ fn validate_trimmed_guest_name(value: &str) -> Result<(), ValidationError> {
 }
 
 fn validate_guest_phone(value: &str) -> Result<(), ValidationError> {
+    let value = value.trim();
+    if value.is_empty()
+        || !value.chars().all(|character| {
+            character.is_ascii_digit() || matches!(character, '+' | ' ' | '-' | '(' | ')')
+        })
+        || value.matches('+').count() > 1
+        || value.find('+').is_some_and(|index| index != 0)
+    {
+        return Err(ValidationError::new("invalid_phone"));
+    }
+
     let phone = Sanitizer::sanitize_phone(value);
     let digits = phone.trim_start_matches('+');
 
@@ -124,6 +135,15 @@ mod google_guest_profile_tests {
     }
 
     #[test]
+    fn complete_guest_profile_rejects_letters_in_a_phone_number() {
+        assert!(
+            request("Aisha", "Rahman", "abc12345678")
+                .validate()
+                .is_err()
+        );
+    }
+
+    #[test]
     fn complete_guest_profile_requires_eight_to_fifteen_phone_digits() {
         assert!(request("Aisha", "Rahman", "1234567").validate().is_err());
         assert!(
@@ -141,7 +161,7 @@ mod google_guest_profile_tests {
 
     #[test]
     fn complete_guest_profile_normalizes_a_formatted_valid_phone() {
-        let mut input = request(" Aisha ", " Rahman ", "+60 12-345 6789");
+        let mut input = request(" Aisha ", " Rahman ", "+60 (12) 345-6789");
 
         input.normalize_and_validate().unwrap();
 
