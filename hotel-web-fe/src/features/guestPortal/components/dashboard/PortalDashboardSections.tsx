@@ -76,7 +76,7 @@ const REFUND_REASONS = [
   "Other",
 ] as const;
 
-function LoadingState({ label = "Loading your details…" }: { label?: string }) {
+export function LoadingState({ label = "Loading your details…" }: { label?: string }) {
   return (
     <Box
       role="status"
@@ -95,7 +95,7 @@ function LoadingState({ label = "Loading your details…" }: { label?: string })
   );
 }
 
-function ErrorState({
+export function ErrorState({
   message,
   retry,
 }: {
@@ -118,7 +118,7 @@ function ErrorState({
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+export function EmptyState({ message }: { message: string }) {
   return (
     <Box sx={{ py: 6, textAlign: "center" }}>
       <Typography color="text.secondary">{message}</Typography>
@@ -130,7 +130,7 @@ function requiresPaymentReceipt(booking: GuestPortalBookingSummary): boolean {
   return booking.receipt_request_payment_id != null && !booking.receipt_uploaded;
 }
 
-function SectionHeading({
+export function SectionHeading({
   eyebrow,
   title,
   description,

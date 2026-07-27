@@ -3,6 +3,7 @@
 //! Handles identity verification, administrative review, and self-check-in.
 
 pub mod models;
+pub mod portal;
 pub mod repository;
 pub mod routes;
 pub mod service;

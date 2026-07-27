@@ -7,6 +7,7 @@ use base64::{Engine as _, engine::general_purpose};
 use chrono::{NaiveDate, Utc};
 
 use crate::core::error::ApiError;
+use crate::utils::sanitization::Sanitizer;
 use crate::modules::ekyc::models::{
     EkycFieldComparison, EkycReasonCode, EkycReviewActionRequest, EkycVerification,
 };
@@ -143,6 +144,61 @@ pub fn save_base64_image(
         .map_err(|e| ApiError::Internal(format!("Failed to save image: {}", e)))?;
 
     Ok(format!("{EKYC_UPLOAD_DIR}/{}", filename))
+}
+
+/// Reject values that cannot fit their `ekyc_verifications` column.
+///
+/// `EkycSubmissionRequest` carries no `validator` derive, so without this an
+/// over-long field reaches Postgres and surfaces as a 500 ("value too long for
+/// type character varying") rather than a 400 the caller can act on. Bounds
+/// mirror the column widths in `0001_v1_baseline.sql`.
+pub fn validate_submission_field_lengths(req: &EkycSubmissionRequest) -> Result<(), ApiError> {
+    let checks: [(&str, Option<&str>, usize); 8] = [
+        ("full_name", Some(req.full_name.as_str()), 255),
+        ("id_type", Some(req.id_type.as_str()), 80),
+        ("id_number", Some(req.id_number.as_str()), 255),
+        ("nationality", req.nationality.as_deref(), 100),
+        ("phone", req.phone.as_deref(), 50),
+        ("email", req.email.as_deref(), 255),
+        ("id_issuing_country", req.id_issuing_country.as_deref(), 100),
+        // current_address is TEXT (unbounded in Postgres); cap it anyway so a
+        // multi-megabyte string cannot be parked in the review queue.
+        ("current_address", req.current_address.as_deref(), 2000),
+    ];
+
+    for (field, value, max) in checks {
+        let Some(value) = value else { continue };
+        // Count characters, not bytes: the column limits are in characters and
+        // a non-ASCII name must not be rejected for being multi-byte.
+        if value.chars().count() > max {
+            return Err(ApiError::BadRequest(format!(
+                "{field} must be {max} characters or fewer"
+            )));
+        }
+    }
+
+    // Check what will actually be STORED, not what was sent: `full_name` is
+    // persisted post-sanitization, so a name made entirely of control
+    // characters passes a raw `trim().is_empty()` check and then lands in the
+    // compliance record as an empty string.
+    if Sanitizer::sanitize_guest_name(&req.full_name).is_empty() {
+        return Err(ApiError::BadRequest("full_name is required".to_string()));
+    }
+    if req.id_number.trim().is_empty() {
+        return Err(ApiError::BadRequest("id_number is required".to_string()));
+    }
+    // `sanitize_phone` keeps only digits and a leading '+', so a phone of pure
+    // punctuation silently becomes "". Reject rather than store a blank.
+    if let Some(phone) = req.phone.as_deref()
+        && !phone.trim().is_empty()
+        && Sanitizer::sanitize_phone(phone).is_empty()
+    {
+        return Err(ApiError::BadRequest(
+            "phone must contain at least one digit".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 pub fn validate_dates(

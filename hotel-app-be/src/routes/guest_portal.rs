@@ -18,6 +18,18 @@ use axum::{
 };
 use std::net::SocketAddr;
 
+/// Body cap for the portal's multipart upload routes (payment receipt proofs
+/// and eKYC identity documents). A phone photo of a passport routinely exceeds
+/// axum's 2MB default, which would reject the request before any handler runs.
+///
+/// Applied per-route rather than to the whole router on purpose: a router-wide
+/// layer would also raise the ceiling on the unauthenticated, token-gated
+/// `/guest-portal/pre-checkin/{token}` route, widening a DoS surface for no
+/// benefit. (A router-wide `.layer()` call placed before the `.route()` calls —
+/// as this file previously had — silently applies to nothing, because axum maps
+/// the layer over the routes already registered at that point.)
+const UPLOAD_BODY_LIMIT: usize = 10 * 1024 * 1024;
+
 /// Create guest portal routes.
 ///
 /// The pre-check-in routes are unauthenticated (path-token gated). Guest portal
@@ -25,8 +37,6 @@ use std::net::SocketAddr;
 /// routes require a valid guest bearer session.
 pub fn routes() -> Router<DbPool> {
     Router::new()
-        // Receipt proofs may be up to 10MB; the default multipart limit is smaller.
-        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .route("/guest-portal/verify", post(verify_booking))
         .route("/guest-portal/booking/{token}", get(get_booking))
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
@@ -71,7 +81,22 @@ pub fn routes() -> Router<DbPool> {
         )
         .route(
             "/guest-portal/me/payments/{payment_id}/receipt",
-            post(handlers::guest_portal::session_upload_payment_receipt),
+            post(handlers::guest_portal::session_upload_payment_receipt)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
+        )
+        // Self-service identity verification (eKYC) for the signed-in guest.
+        .route(
+            "/guest-portal/me/ekyc",
+            get(crate::modules::ekyc::portal::get_status_handler),
+        )
+        .route(
+            "/guest-portal/me/ekyc/documents",
+            post(crate::modules::ekyc::portal::upload_document_handler)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
+        )
+        .route(
+            "/guest-portal/me/ekyc/submit",
+            post(crate::modules::ekyc::portal::submit_handler),
         )
         .route(
             "/guest-portal/me/payments/paypal/create-order",
@@ -88,7 +113,7 @@ pub fn routes() -> Router<DbPool> {
         )
         .route(
             "/guest-portal/booking/{token}/payments/{payment_id}/receipt",
-            post(token_upload_payment_receipt),
+            post(token_upload_payment_receipt).layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
         .route(
             "/guest-portal/booking/{token}/payments/paypal/create-order",

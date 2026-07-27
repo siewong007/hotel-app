@@ -9,6 +9,7 @@ export const PORTAL_SECTIONS = [
   'offers',
   'vouchers',
   'credits',
+  'identity',
   'support',
   'preferences',
 ] as const;

@@ -2,7 +2,11 @@
 //!
 //! Business workflows for eKYC verification and review.
 
+use axum::extract::Multipart;
 use chrono::Utc;
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
 
 use super::validation;
 use crate::core::auth::AuthService;
@@ -22,12 +26,123 @@ use crate::repositories::ekyc::{
 };
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
+use crate::utils::sanitization::Sanitizer;
 use crate::models::AuditEvent;
+
+/// Which surface a verification was submitted through.
+///
+/// Recorded on the `ekyc_submitted` audit row. Note this distinguishes the
+/// AUTHENTICATION SURFACE, not who witnessed the documents: both variants are
+/// unsupervised self-service, because `submit_ekyc` rejects any caller whose
+/// `user_type` is not `guest`. The genuinely staff-witnessed path is
+/// `admin_create_verification`, which does not pass through here at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubmissionChannel {
+    /// `/ekyc/submit`, authenticated with a normal account bearer token.
+    AccountApi,
+    /// `/guest-portal/me/ekyc/submit`, authenticated with a guest portal session.
+    GuestPortal,
+}
+
+impl SubmissionChannel {
+    fn as_str(self) -> &'static str {
+        match self {
+            SubmissionChannel::AccountApi => "account_api",
+            SubmissionChannel::GuestPortal => "guest_portal",
+        }
+    }
+
+    /// Whether this channel may inline a base64 image in the submission body.
+    ///
+    /// `prepare_ekyc_image_reference` falls back to `save_base64_image` for any
+    /// value that is not an existing upload path, which writes to disk straight
+    /// from the request body — bypassing the upload endpoint's rate limit and
+    /// body cap. The portal must therefore reference already-uploaded paths
+    /// only; the account-API path keeps the fallback for backwards
+    /// compatibility with the existing in-app eKYC form.
+    fn allows_inline_base64(self) -> bool {
+        matches!(self, SubmissionChannel::AccountApi)
+    }
+}
+
+/// Consume a multipart upload of one identity document and store it under
+/// `EKYC_UPLOAD_DIR`, returning the stored path.
+///
+/// Shared by the staff (`/ekyc/upload-document`) and guest-portal upload
+/// routes so both enforce the same content-type allowlist and magic-byte
+/// check. The filename embeds `user_id`, which is what later lets
+/// `validate_existing_ekyc_path` prove at submit time that the caller owns the
+/// file they are referencing — so callers MUST pass the same `user_id` they
+/// will submit with.
+pub async fn store_document_upload(
+    mut multipart: Multipart,
+    user_id: i64,
+) -> Result<serde_json::Value, ApiError> {
+    let upload_dir = PathBuf::from(validation::EKYC_UPLOAD_DIR);
+    fs::create_dir_all(&upload_dir)
+        .map_err(|e| ApiError::Internal(format!("Failed to create upload directory: {}", e)))?;
+
+    let mut file_path = String::new();
+    let mut document_type = "document".to_string();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("Failed to read multipart field: {}", e)))?
+    {
+        let field_name = field.name().unwrap_or("").to_string();
+
+        if field_name == "documentType" || field_name == "document_type" {
+            let raw_document_type = field
+                .text()
+                .await
+                .map_err(|e| ApiError::BadRequest(format!("Failed to read document type: {}", e)))?;
+            document_type = validation::sanitize_document_type(&raw_document_type)?;
+        } else if field_name == "file" {
+            let content_type = field.content_type().unwrap_or("").to_string();
+            if !matches!(
+                content_type.as_str(),
+                "image/jpeg" | "image/jpg" | "image/png" | "image/webp"
+            ) {
+                return Err(ApiError::BadRequest(
+                    "Only JPEG, PNG, or WebP image files are allowed".to_string(),
+                ));
+            }
+
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ApiError::BadRequest(format!("Failed to read file data: {}", e)))?;
+            let extension = validation::validate_image_bytes(&data)?;
+            let filename = validation::build_ekyc_filename(user_id, &document_type, extension)?;
+            let full_path = upload_dir.join(&filename);
+
+            let mut file = fs::File::create(&full_path)
+                .map_err(|e| ApiError::Internal(format!("Failed to create file: {}", e)))?;
+            file.write_all(&data)
+                .map_err(|e| ApiError::Internal(format!("Failed to write file: {}", e)))?;
+
+            file_path = format!("{}/{}", validation::EKYC_UPLOAD_DIR, filename);
+        }
+    }
+
+    if file_path.is_empty() {
+        return Err(ApiError::BadRequest("No file uploaded".to_string()));
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "file_path": file_path,
+        "filename": file_path,
+        "document_type": document_type
+    }))
+}
 
 pub async fn submit_ekyc(
     pool: &DbPool,
     user_id: i64,
     req: EkycSubmissionRequest,
+    channel: SubmissionChannel,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<EkycStatusResponse, ApiError> {
@@ -48,22 +163,67 @@ pub async fn submit_ekyc(
         ));
     }
 
+    // Close out the row this submission replaces. `additional_information_required`
+    // is non-blocking so the guest can self-correct, but the old row keeps that
+    // status forever otherwise: `dashboard_metrics` counts it under
+    // `resubmission_required` while the new row counts under `pending_review`,
+    // so one guest would occupy two slots in the reviewer queue and the
+    // "awaiting more info" figure would never fall. Superseding is scoped to
+    // that one status, so a genuine `rejected` history is left intact.
+    EkycRepository::supersede_information_requests(pool, guest_id).await?;
+
     let today = hotel_today(pool).await?;
     let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_dates(&req, today)?;
+    validation::validate_submission_field_lengths(&req)?;
 
-    let id_front_path =
-        validation::prepare_ekyc_image_reference(&req.id_front_image, user_id, "id_front")?;
+    // Normalize submitter-supplied text: strip control characters, trim, and
+    // canonicalize email/phone. `id_type`/`id_number` get neither — dropping
+    // characters from an identity document number would silently corrupt the
+    // very value being verified. They are length-bounded above instead.
+    //
+    // Deliberately NOT `Sanitizer::sanitize_notes` (the HTML-stripping variant
+    // used for booking notes and support messages). These are identity fields
+    // transcribed from a physical document, and `sanitize_notes` runs input
+    // through ammonia, which re-serializes HTML entities: a real name like
+    // "Tom & Jerry" would be stored as "Tom &amp; Jerry", corrupting the exact
+    // value a reviewer must compare against the passport. It also would not buy
+    // much — ammonia PRESERVES benign markup ("Bob <b>Smith</b>" survives
+    // unchanged), so it is not a "no markup reaches the database" guarantee
+    // either way. These values are data, not markup: every consumer escapes on
+    // render (React does so by default, and the only `dangerouslySetInnerHTML`
+    // in the frontend is an unrelated email-template preview).
+    let full_name = Sanitizer::sanitize_guest_name(&req.full_name);
+    let nationality = req.nationality.as_deref().map(Sanitizer::sanitize_text);
+    let phone = req.phone.as_deref().map(Sanitizer::sanitize_phone);
+    let email = req.email.as_deref().map(Sanitizer::sanitize_email);
+    let current_address = req.current_address.as_deref().map(Sanitizer::sanitize_text);
+    let id_issuing_country = req
+        .id_issuing_country
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
+
+    // Self-service submissions may only reference documents already stored via
+    // the upload endpoint, which is rate limited and body capped. See
+    // `SubmissionChannel::allows_inline_base64`.
+    let resolve_image = |value: &str, image_type: &str| -> Result<String, ApiError> {
+        if channel.allows_inline_base64() {
+            validation::prepare_ekyc_image_reference(value, user_id, image_type)
+        } else {
+            validation::validate_existing_ekyc_path(value, user_id)
+        }
+    };
+
+    let id_front_path = resolve_image(&req.id_front_image, "id_front")?;
     let id_back_path = req
         .id_back_image
         .as_ref()
-        .map(|img| validation::prepare_ekyc_image_reference(img, user_id, "id_back"))
+        .map(|img| resolve_image(img, "id_back"))
         .transpose()?;
-    let selfie_path =
-        validation::prepare_ekyc_image_reference(&req.selfie_image, user_id, "selfie")?;
+    let selfie_path = resolve_image(&req.selfie_image, "selfie")?;
     let proof_path = req
         .proof_of_address
         .as_ref()
-        .map(|img| validation::prepare_ekyc_image_reference(img, user_id, "proof"))
+        .map(|img| resolve_image(img, "proof"))
         .transpose()?;
 
     let verification = EkycRepository::insert_verification(
@@ -71,15 +231,15 @@ pub async fn submit_ekyc(
         NewEkycVerification {
             user_id,
             guest_id,
-            full_name: &req.full_name,
+            full_name: &full_name,
             date_of_birth,
-            nationality: &req.nationality,
-            phone: &req.phone,
-            email: &req.email,
-            current_address: &req.current_address,
+            nationality: &nationality,
+            phone: &phone,
+            email: &email,
+            current_address: &current_address,
             id_type: &req.id_type,
             id_number: &req.id_number,
-            id_issuing_country: &req.id_issuing_country,
+            id_issuing_country: &id_issuing_country,
             id_issue_date,
             id_expiry_date,
             id_front_path: &id_front_path,
@@ -99,7 +259,10 @@ pub async fn submit_ekyc(
             action: "ekyc_submitted",
             resource_type: "ekyc_verification",
             resource_id: Some(verification.id),
-            details: Some(serde_json::json!({ "status": verification.status })),
+            details: Some(serde_json::json!({
+                "status": verification.status,
+                "channel": channel.as_str(),
+            })),
             ip_address,
             user_agent,
         },

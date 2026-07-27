@@ -4,14 +4,13 @@ use axum::body::Body;
 use axum::http::header;
 use axum::{
     Router,
-    extract::{ConnectInfo, Multipart, Path, Query, State},
+    extract::{ConnectInfo, Extension, Multipart, Path, Query, State},
     http::HeaderMap,
     response::{Json, Response},
     routing::{get, post},
 };
 use std::fs;
 use std::net::SocketAddr;
-use std::io::Write;
 use std::path::PathBuf;
 
 use super::models;
@@ -20,6 +19,7 @@ use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::core::rate_limiter::RateLimiters;
 
 /// Create eKYC routes.
 pub fn routes() -> Router<DbPool> {
@@ -62,82 +62,82 @@ pub fn routes() -> Router<DbPool> {
         )
 }
 
+/// Per-user and per-IP budget for account-API eKYC writes.
+///
+/// Shares the `guest_portal_ekyc` buckets with the portal routes deliberately.
+/// `submit_ekyc` only accepts `user_type = 'guest'` callers and `/auth/register`
+/// is public, so this endpoint is reachable by anyone who registers — limiting
+/// only the portal surface would leave an equivalent, unmetered way in. The key
+/// is prefixed `user:` rather than `guest:` because this path authenticates by
+/// account, so the two surfaces get separate buckets per identity.
+async fn enforce_account_ekyc_limit(
+    limiters: &RateLimiters,
+    user_id: i64,
+    headers: &HeaderMap,
+    peer_addr: SocketAddr,
+) -> Result<(), ApiError> {
+    let (ip_allowed, ip_retry_after) = limiters
+        .guest_portal_ekyc_ip
+        .check_with_retry(crate::routes::extract_client_ip(headers, peer_addr))
+        .await;
+    if !ip_allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many verification requests from this connection. Please try again in {ip_retry_after} seconds."
+            ),
+            ip_retry_after,
+        ));
+    }
+
+    let (allowed, retry_after) = limiters
+        .guest_portal_ekyc
+        .check_with_retry(format!("user:{user_id}"))
+        .await;
+    if allowed {
+        Ok(())
+    } else {
+        Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many verification attempts. Please try again in {retry_after} seconds."),
+            retry_after,
+        ))
+    }
+}
+
 async fn upload_document(
     State(_pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    mut multipart: Multipart,
+    multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    let upload_dir = PathBuf::from(validation::EKYC_UPLOAD_DIR);
-    fs::create_dir_all(&upload_dir)
-        .map_err(|e| ApiError::Internal(format!("Failed to create upload directory: {}", e)))?;
-
-    let mut file_path = String::new();
-    let mut document_type = "document".to_string();
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| ApiError::BadRequest(format!("Failed to read multipart field: {}", e)))?
-    {
-        let field_name = field.name().unwrap_or("").to_string();
-
-        if field_name == "documentType" || field_name == "document_type" {
-            let raw_document_type = field.text().await.map_err(|e| {
-                ApiError::BadRequest(format!("Failed to read document type: {}", e))
-            })?;
-            document_type = validation::sanitize_document_type(&raw_document_type)?;
-        } else if field_name == "file" {
-            let content_type = field.content_type().unwrap_or("").to_string();
-            if !matches!(
-                content_type.as_str(),
-                "image/jpeg" | "image/jpg" | "image/png" | "image/webp"
-            ) {
-                return Err(ApiError::BadRequest(
-                    "Only JPEG, PNG, or WebP image files are allowed".to_string(),
-                ));
-            }
-
-            let data = field
-                .bytes()
-                .await
-                .map_err(|e| ApiError::BadRequest(format!("Failed to read file data: {}", e)))?;
-            let extension = validation::validate_image_bytes(&data)?;
-            let filename = validation::build_ekyc_filename(user_id, &document_type, extension)?;
-            let full_path = upload_dir.join(&filename);
-
-            let mut file = fs::File::create(&full_path)
-                .map_err(|e| ApiError::Internal(format!("Failed to create file: {}", e)))?;
-            file.write_all(&data)
-                .map_err(|e| ApiError::Internal(format!("Failed to write file: {}", e)))?;
-
-            file_path = format!("{}/{}", validation::EKYC_UPLOAD_DIR, filename);
-        }
-    }
-
-    if file_path.is_empty() {
-        return Err(ApiError::BadRequest("No file uploaded".to_string()));
-    }
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "file_path": file_path,
-        "filename": file_path,
-        "document_type": document_type
-    })))
+    enforce_account_ekyc_limit(&limiters, user_id, &headers, peer_addr).await?;
+    Ok(Json(
+        service::store_document_upload(multipart, user_id).await?,
+    ))
 }
 
 async fn submit_ekyc(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::EkycSubmissionRequest>,
 ) -> Result<Json<models::EkycStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
+    enforce_account_ekyc_limit(&limiters, user_id, &headers, peer_addr).await?;
     let ip = client_ip(&headers, peer_addr);
     let ua = user_agent(&headers);
     Ok(Json(
-        service::submit_ekyc(&pool, user_id, input, ip, ua).await?,
+        service::submit_ekyc(
+            &pool,
+            user_id,
+            input,
+            service::SubmissionChannel::AccountApi,
+            ip,
+            ua,
+        )
+        .await?,
     ))
 }
 

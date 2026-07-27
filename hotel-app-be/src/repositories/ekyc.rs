@@ -216,6 +216,20 @@ impl EkycRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Whether the guest already has a verification that blocks a new one.
+    ///
+    /// `additional_information_required` is deliberately NOT blocking: it is the
+    /// status a reviewer sets to ask the guest for a better photo, so treating
+    /// it as open would make the one status literally named "additional
+    /// information required" the one status that prevents supplying it.
+    ///
+    /// `rejected`, `expired` and `void` are likewise non-blocking terminal
+    /// states — that predates this list gaining `additional_information_required`
+    /// — so a guest whose documents were not accepted may submit a fresh set
+    /// rather than being stranded. The frontend matches this
+    /// (`IdentitySection.tsx` marks only the in-flight and approved states as
+    /// blocking); if a hard rejection should ever require front-desk
+    /// involvement, it has to change in BOTH places.
     pub async fn exists_open_for_guest(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
         sqlx::query_scalar::<_, bool>(
             r#"
@@ -223,7 +237,12 @@ impl EkycRepository {
                 SELECT 1
                 FROM ekyc_verifications
                 WHERE guest_id = $1
-                  AND status NOT IN ('rejected', 'expired', 'void')
+                  AND status NOT IN (
+                      'rejected',
+                      'expired',
+                      'void',
+                      'additional_information_required'
+                  )
             )
             "#,
         )
@@ -231,6 +250,36 @@ impl EkycRepository {
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Void the guest's outstanding `additional_information_required` rows
+    /// because a replacement submission is about to be inserted.
+    ///
+    /// Without this, self-resubmission leaves the superseded row in the review
+    /// queue forever: `dashboard_metrics` buckets it under
+    /// `resubmission_required` and `list_admin` still lists it, so a reviewer
+    /// sees two live applications for one guest. `void` is used rather than
+    /// deleting so the earlier attempt stays auditable, and it is already in
+    /// `exists_open_for_guest`'s non-blocking list and the `valid_ekyc_status`
+    /// CHECK constraint.
+    pub async fn supersede_information_requests(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<u64, ApiError> {
+        let result = sqlx::query(
+            r#"
+            UPDATE ekyc_verifications
+            SET status = 'void',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE guest_id = $1
+              AND status = 'additional_information_required'
+            "#,
+        )
+        .bind(guest_id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(result.rows_affected())
     }
 
     pub async fn insert_verification(

@@ -195,6 +195,9 @@ export type {
   GuestPortalBenefitsResponse,
   GuestPortalRoomTypeCredit,
   GuestPortalCreditsResponse,
+  GuestPortalEkycStatus,
+  GuestPortalEkycSubmission,
+  GuestPortalEkycUploadResult,
 } from './guestPortal.types';
 
 // Reports types

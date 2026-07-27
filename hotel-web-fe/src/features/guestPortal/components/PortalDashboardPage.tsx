@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from '../../../router';
 import { Alert, Box, Button, Container, CircularProgress, Fade, Paper, Stack, Typography } from '@mui/material';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { BookingsSection, CreditsSection, EmbeddedSection, OverviewSection, PointsHistorySection } from './dashboard/PortalDashboardSections';
+import { IdentitySection } from './dashboard/IdentitySection';
 import { parsePortalSection, type PortalSection } from './dashboard/dashboardUtils';
 
 // Navigation lives in GuestPortalShell (top bar on web, bottom bar on phones).
@@ -14,6 +15,7 @@ const SECTION_TITLES: Record<PortalSection, string> = {
   offers: 'Offers',
   vouchers: 'Vouchers',
   credits: 'Complimentary nights',
+  identity: 'Identity verification',
   preferences: 'Preferences',
   support: 'My stay',
 };
@@ -117,6 +119,7 @@ const AuthenticatedDashboard: React.FC<{
           {displaySection === 'stays' ? <BookingsSection token={token} /> : null}
           {displaySection === 'points-history' ? <PointsHistorySection token={token} /> : null}
           {displaySection === 'credits' ? <CreditsSection token={token} /> : null}
+          {displaySection === 'identity' ? <IdentitySection token={token} /> : null}
           {['offers', 'vouchers', 'preferences'].includes(displaySection) ? <EmbeddedSection section={displaySection} token={token} /> : null}
         </Box></Fade>
       </Paper>
