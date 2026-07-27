@@ -210,6 +210,17 @@ pub struct RateLimiters {
     pub guest_portal_booking_create: KeyedRateLimiter,
     /// Shared ceiling for direct-booking submissions from one origin IP.
     pub guest_portal_booking_create_ip: RateLimiter,
+    /// Guest-portal eKYC writes (document upload + submission), keyed by guest.
+    /// One shared budget covers both endpoints: a full submission is at most
+    /// four documents plus one submit, so 20 per 15 minutes allows roughly four
+    /// complete attempts — enough to re-take a blurry photo, not enough to use
+    /// the endpoint as a file drop.
+    pub guest_portal_ekyc: KeyedRateLimiter,
+    /// Shared ceiling for eKYC writes from one origin IP. `/auth/register` is
+    /// public and mints `user_type = 'guest'` accounts, so the per-guest budget
+    /// alone does not bound how much an attacker can write to disk — they can
+    /// simply register more guests. This is the limit that actually does.
+    pub guest_portal_ekyc_ip: RateLimiter,
     /// Inbound webhooks (`/api/webhooks/*`): unauthenticated by design and
     /// each request can cost an upstream verification call, so keep the
     /// per-IP ceiling well below the general API limit while still clearing
@@ -239,6 +250,8 @@ impl RateLimiters {
             guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
             guest_portal_booking_create: KeyedRateLimiter::new(RateLimitConfig::new(10, 900)),
             guest_portal_booking_create_ip: RateLimiter::new(RateLimitConfig::new(30, 900)),
+            guest_portal_ekyc: KeyedRateLimiter::new(RateLimitConfig::new(20, 900)),
+            guest_portal_ekyc_ip: RateLimiter::new(RateLimitConfig::new(60, 900)),
             webhook: RateLimiter::new(RateLimitConfig::new(60, 60)),
         }
     }

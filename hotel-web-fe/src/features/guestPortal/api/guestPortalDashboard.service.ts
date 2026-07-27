@@ -23,6 +23,9 @@ import type {
   GuestPortalBenefitsResponse,
   GuestPortalBookingSummary,
   GuestPortalCreditsResponse,
+  GuestPortalEkycStatus,
+  GuestPortalEkycSubmission,
+  GuestPortalEkycUploadResult,
   GuestPortalLoginResponse,
   GuestPortalMeResponse,
   GuestPortalMembershipResponse,
@@ -170,6 +173,42 @@ export class GuestPortalDashboardService {
       .post('guest-portal/me/payments/paypal/capture', {
         headers: authHeaders(token),
         json: { booking_id: bookingId, order_id: orderId, payment_id: paymentId },
+      })
+      .json();
+  }
+
+  /** The signed-in guest's own eKYC verification status, or `null` if they
+   *  have never submitted. */
+  static async getEkycStatus(token?: string): Promise<GuestPortalEkycStatus | null> {
+    return await api
+      .get('guest-portal/me/ekyc', { headers: authHeaders(token) })
+      .json();
+  }
+
+  static async uploadEkycDocument(
+    file: File,
+    documentType: string,
+    token?: string
+  ): Promise<GuestPortalEkycUploadResult> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('documentType', documentType);
+    return await api
+      .post('guest-portal/me/ekyc/documents', {
+        headers: authHeaders(token),
+        body: form,
+      })
+      .json();
+  }
+
+  static async submitEkycVerification(
+    payload: GuestPortalEkycSubmission,
+    token?: string
+  ): Promise<GuestPortalEkycStatus> {
+    return await api
+      .post('guest-portal/me/ekyc/submit', {
+        headers: authHeaders(token),
+        json: payload,
       })
       .json();
   }

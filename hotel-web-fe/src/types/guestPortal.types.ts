@@ -125,3 +125,51 @@ export interface GuestPortalCreditsResponse {
   total_nights_available: number;
   credits_by_room_type: GuestPortalRoomTypeCredit[];
 }
+
+/**
+ * Guest-facing eKYC verification status. Mirrors the backend's
+ * `EkycStatusResponse` (`hotel-app-be/src/models/ekyc.rs`), minus the
+ * `verification` field: on the guest-portal read path that field is always
+ * `null` (`validation::status_response` never populates it there), so it is
+ * omitted here rather than modelled as the full internal verification shape.
+ */
+export interface GuestPortalEkycStatus {
+  id: number;
+  status: string;
+  self_checkin_enabled?: boolean | null;
+  submitted_at?: string | null;
+  verified_at?: string | null;
+  full_name?: string | null;
+  id_type?: string | null;
+  id_expiry_date?: string | null;
+  customer_message?: string | null;
+}
+
+/** Body for `POST /guest-portal/me/ekyc/submit`. Mirrors the backend's
+ *  `EkycSubmissionRequest` (`hotel-app-be/src/models/ekyc.rs`). */
+export interface GuestPortalEkycSubmission {
+  selfie_image: string;
+  id_front_image: string;
+  id_back_image?: string | null;
+  id_type: string;
+  id_number: string;
+  full_name: string;
+  date_of_birth: string;
+  nationality?: string | null;
+  address?: string | null;
+  id_expiry_date: string;
+  id_issue_date?: string | null;
+  id_issuing_country?: string | null;
+  proof_of_address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  current_address?: string | null;
+}
+
+/** Response from `POST /guest-portal/me/ekyc/documents`. */
+export interface GuestPortalEkycUploadResult {
+  success: boolean;
+  file_path: string;
+  filename: string;
+  document_type: string;
+}

@@ -56,6 +56,10 @@ vi.mock('./dashboard/PortalDashboardSections', () => ({
   EmbeddedSection: () => <div data-testid="embedded-section" />,
 }));
 
+vi.mock('./dashboard/IdentitySection', () => ({
+  IdentitySection: () => <div data-testid="identity-section" />,
+}));
+
 import { PortalDashboardPage } from './PortalDashboardPage';
 
 // A name that only this test could produce, so an assertion that it is ABSENT
@@ -135,5 +139,16 @@ describe('PortalDashboardPage header', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('My stays');
     expect(screen.getByTestId('bookings-section')).toBeTruthy();
     expect(screen.queryByText(STUB_HOTEL_NAME)).toBeNull();
+  });
+
+  // The section dispatch is an if-chain with no exhaustiveness check: a section
+  // registered in PORTAL_SECTIONS but missing a branch here renders a blank
+  // card instead of failing the build. This asserts the branch exists.
+  it('renders the identity section for ?section=identity', () => {
+    mocks.search = '?section=identity';
+    render(<PortalDashboardPage />);
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Identity verification');
+    expect(screen.getByTestId('identity-section')).toBeTruthy();
   });
 });
