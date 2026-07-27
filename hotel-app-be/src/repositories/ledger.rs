@@ -952,8 +952,7 @@ pub async fn create_ledger_payment(
     };
 
     // Resolve payment date: an explicit YYYY-MM-DD is stored by the SQL below
-    // as noon in the connection (hotel) timezone — the same interpretation the
-    // 2026-07-26 pg19 patch applied to historical rows — otherwise now.
+    // as noon in the connection (hotel) timezone; otherwise use now.
     let payment_date_ts: Option<chrono::NaiveDate> = request
         .payment_date
         .as_ref()

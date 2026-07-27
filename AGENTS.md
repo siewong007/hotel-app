@@ -85,7 +85,7 @@ Keep these existing global areas:
 - `core/` for infrastructure shared by all domains.
 - `services/audit.rs` for append-only audit logging.
 - `database/postgres/migrations/0001_v1_baseline.sql` for the PostgreSQL V1 baseline.
-- `database/postgres/data.sql` and `database/postgres/seed.sql` for one-time PostgreSQL initialization data.
+- `database/postgres/seed.sql` for one-time PostgreSQL initialization data.
 
 
 ### Frontend
@@ -292,7 +292,6 @@ cargo clippy --all-features -- -D warnings
 cargo build --release
 cargo run
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-psql "$DATABASE_URL" -f database/postgres/data.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql
 cargo test <name>
 ```

@@ -125,8 +125,7 @@ jobs:
           cp deploy/docker-compose.prod.yml "$bundle_dir/docker-compose.prod.yml"
           cp hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql \
             "$bundle_dir/initdb/01-v1-baseline.sql"
-          cp hotel-app-be/database/postgres/data.sql "$bundle_dir/initdb/02-data.sql"
-          cp hotel-app-be/database/postgres/seed.sql "$bundle_dir/initdb/03-seed.sql"
+          cp hotel-app-be/database/postgres/seed.sql "$bundle_dir/initdb/02-seed.sql"
 
           (
             cd "$bundle_dir"
@@ -136,8 +135,7 @@ jobs:
               images/backend.tar.gz \
               images/frontend.tar.gz \
               initdb/01-v1-baseline.sql \
-              initdb/02-data.sql \
-              initdb/03-seed.sql \
+              initdb/02-seed.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

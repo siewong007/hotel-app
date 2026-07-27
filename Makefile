@@ -127,12 +127,6 @@ docker-logs: ## View Docker logs
 
 db-setup: ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/data.sql
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/seed.sql
-
-db-upgrade-pg18_4-to-v1: ## Upgrade the retained PG18.4 logical restore to V1 on PG19 Beta 2
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/upgrade/pg18_4_to_v1.sql
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/data.sql
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/seed.sql
 
 db-reset: ## Reset and re-create PostgreSQL database

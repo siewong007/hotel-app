@@ -55,8 +55,7 @@ required_payload=(
   images/backend.tar.gz
   images/frontend.tar.gz
   initdb/01-v1-baseline.sql
-  initdb/02-data.sql
-  initdb/03-seed.sql
+  initdb/02-seed.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -180,8 +179,7 @@ install_release_files() {
   # postgres user, so this read-only directory must be traversable by it.
   install -d -m 0755 "$APP_DIR/initdb"
   install -m 0644 "$RELEASE_DIR/initdb/01-v1-baseline.sql" "$APP_DIR/initdb/01-v1-baseline.sql"
-  install -m 0644 "$RELEASE_DIR/initdb/02-data.sql" "$APP_DIR/initdb/02-data.sql"
-  install -m 0644 "$RELEASE_DIR/initdb/03-seed.sql" "$APP_DIR/initdb/03-seed.sql"
+  install -m 0644 "$RELEASE_DIR/initdb/02-seed.sql" "$APP_DIR/initdb/02-seed.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.

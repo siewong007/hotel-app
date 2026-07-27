@@ -15,19 +15,9 @@ const syncFiles = [
     target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'migrations', '0001_v1_baseline.sql'),
   },
   {
-    label: 'PostgreSQL V1 required data',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'data.sql'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'data.sql'),
-  },
-  {
-    label: 'PostgreSQL V1 bootstrap seed',
+    label: 'PostgreSQL V1 seed',
     source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'seed.sql'),
     target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'seed.sql'),
-  },
-  {
-    label: 'PostgreSQL pg19 physical-design patch',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'postgres', 'patches', '2026-07-26-pg19-native-physical-design.sql'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'postgres', 'patches', '2026-07-26-pg19-native-physical-design.sql'),
   },
 ];
 
