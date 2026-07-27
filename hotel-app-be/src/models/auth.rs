@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use super::rbac::RouteAccessPolicy;
 use super::user::UserResponse;
-use validator::Validate;
+use crate::utils::sanitization::Sanitizer;
+use validator::{Validate, ValidationError, ValidationErrors};
 
 /// Login request
 #[derive(Debug, Serialize, Deserialize, Validate)]
@@ -40,18 +41,114 @@ impl std::fmt::Debug for GoogleLoginRequest {
 #[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct CompleteGuestProfileRequest {
-    #[validate(length(min = 1, max = 50, message = "First name is required"))]
+    #[validate(
+        length(max = 50, message = "First name must be at most 50 characters"),
+        custom(function = "validate_trimmed_guest_name")
+    )]
     pub first_name: String,
-    #[validate(length(min = 1, max = 50, message = "Last name is required"))]
+    #[validate(
+        length(max = 50, message = "Last name must be at most 50 characters"),
+        custom(function = "validate_trimmed_guest_name")
+    )]
     pub last_name: String,
-    #[validate(length(
-        min = 8,
-        max = 16,
-        message = "Phone number must contain between 8 and 15 digits"
-    ))]
+    #[validate(custom(function = "validate_guest_phone"))]
     pub phone: String,
     #[validate(length(max = 255, message = "Address is too long"))]
     pub address_line1: Option<String>,
+}
+
+impl CompleteGuestProfileRequest {
+    #[allow(dead_code)]
+    pub fn normalize_and_validate(&mut self) -> Result<(), ValidationErrors> {
+        self.first_name = Sanitizer::sanitize_guest_name(&self.first_name);
+        self.last_name = Sanitizer::sanitize_guest_name(&self.last_name);
+        self.phone = Sanitizer::sanitize_phone(&self.phone);
+        self.address_line1 = self
+            .address_line1
+            .take()
+            .map(|address| Sanitizer::sanitize_text(address.trim()))
+            .filter(|address| !address.is_empty());
+
+        self.validate()
+    }
+}
+
+fn validate_trimmed_guest_name(value: &str) -> Result<(), ValidationError> {
+    if Sanitizer::sanitize_guest_name(value).is_empty() {
+        return Err(ValidationError::new("required"));
+    }
+
+    Ok(())
+}
+
+fn validate_guest_phone(value: &str) -> Result<(), ValidationError> {
+    let phone = Sanitizer::sanitize_phone(value);
+    let digits = phone.trim_start_matches('+');
+
+    if (8..=15).contains(&digits.len())
+        && digits.chars().all(|character| character.is_ascii_digit())
+    {
+        Ok(())
+    } else {
+        Err(ValidationError::new("invalid_phone"))
+    }
+}
+
+#[cfg(test)]
+mod google_guest_profile_tests {
+    use super::CompleteGuestProfileRequest;
+    use validator::Validate;
+
+    fn request(first_name: &str, last_name: &str, phone: &str) -> CompleteGuestProfileRequest {
+        CompleteGuestProfileRequest {
+            first_name: first_name.to_string(),
+            last_name: last_name.to_string(),
+            phone: phone.to_string(),
+            address_line1: None,
+        }
+    }
+
+    #[test]
+    fn complete_guest_profile_rejects_whitespace_only_names() {
+        assert!(request("  ", "Rahman", "+60123456789").validate().is_err());
+        assert!(request("Aisha", "\t", "+60123456789").validate().is_err());
+    }
+
+    #[test]
+    fn complete_guest_profile_rejects_a_phone_without_digits() {
+        assert!(
+            request("Aisha", "Rahman", "phone-number")
+                .validate()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn complete_guest_profile_requires_eight_to_fifteen_phone_digits() {
+        assert!(request("Aisha", "Rahman", "1234567").validate().is_err());
+        assert!(
+            request("Aisha", "Rahman", "1234567890123456")
+                .validate()
+                .is_err()
+        );
+        assert!(request("Aisha", "Rahman", "12345678").validate().is_ok());
+        assert!(
+            request("Aisha", "Rahman", "123456789012345")
+                .validate()
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn complete_guest_profile_normalizes_a_formatted_valid_phone() {
+        let mut input = request(" Aisha ", " Rahman ", "+60 12-345 6789");
+
+        input.normalize_and_validate().unwrap();
+
+        assert_eq!(input.first_name, "Aisha");
+        assert_eq!(input.last_name, "Rahman");
+        assert_eq!(input.phone, "+60123456789");
+    }
 }
 
 /// Authentication response after login
