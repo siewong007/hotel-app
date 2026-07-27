@@ -16,9 +16,9 @@
 <p align="center">
   <img alt="Rust" src="https://img.shields.io/badge/Rust-1.95.0-orange?logo=rust">
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=111">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19%20Beta%202-4169E1?logo=postgresql&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19-4169E1?logo=postgresql&logoColor=white">
 </p>
 
 ## 📌 Overview
@@ -63,7 +63,7 @@ This project addresses that problem by implementing a centralized administrative
 | Layer | Technologies |
 | --- | --- |
 | Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.8, Serde, Validator |
-| Frontend | React 19, TypeScript 5.8, Vite 8, MUI v7, TanStack Router, TanStack Query, Zustand, ky |
+| Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, Zustand, ky |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
 | Database | PostgreSQL 19, SQLx migrations and parameterized queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
@@ -106,6 +106,94 @@ The preferred frontend flow is:
 ```text
 features/<domain>/pages -> components -> hooks -> api services -> shared API client
 ```
+
+## Current Application Flow
+
+The following flow reflects the current code paths indexed by CodeGraph and verified against the entry points, router composition, authentication client, booking services, guest portal, and Tauri lifecycle.
+
+### Web and staff session startup
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant App as React application
+    participant API as Axum API
+    participant DB as PostgreSQL
+
+    Browser->>App: Load index.tsx
+    App->>App: Resolve desktop API URL when running in Tauri
+    App->>API: Load public hotel settings
+    App->>App: Mount query, theme, desktop, auth, and router providers
+    App->>API: POST /api/auth/refresh with HttpOnly cookie
+    API->>DB: Validate and rotate the refresh session
+    API-->>App: Short-lived access token
+    App->>API: Load profile and RBAC access snapshot
+    API->>DB: Resolve user, roles, team roles, permissions, and route policies
+    API-->>App: Authorized navigation state
+```
+
+- The access token is held in memory. The refresh token remains in an HttpOnly cookie and is not stored in `localStorage`.
+- The shared `ky` client resolves service calls under `/api`, attaches the staff bearer token, retries eligible `GET` requests, and performs one refresh-and-retry cycle after a protected staff request returns `401`.
+- Route guards use the access snapshot to enforce authentication, roles, permissions, and route policies before rendering protected pages.
+
+### API request path
+
+```text
+page -> feature component -> TanStack Query hook -> API service -> ky client
+     -> /api/<domain> -> active-session middleware -> domain auth/rate-limit guard
+     -> handler -> service -> repository -> PostgreSQL
+```
+
+Axum mounts domain routes under `/api`. Infrastructure routes remain at the application root: `/health`, `/ws/status`, and public `/uploads`. Authenticated staff requests must carry a session-bound JWT; the backend checks that its refresh-session record is still active before domain handlers run. Services coordinate validation, transactions, audit events, and cross-entity rules, while repositories keep SQL parameterized.
+
+### Reservation-to-checkout flow
+
+```mermaid
+flowchart LR
+    Availability["Search room availability and applicable rates"]
+    Reservation["Create guest and reservation"]
+    Confirmed["Confirmed booking and reserved room"]
+    PreArrival["Guest portal verification, payment, and optional eKYC"]
+    CheckIn["Staff or eligible eKYC auto check-in"]
+    Stay["Occupied stay, charges, payments, and ledger activity"]
+    Checkout["Checkout totals, invoice, deposit decision, and payment"]
+    Turnover["Room status and checkout-cleaning task"]
+    Audit["Night audit posting and operational reports"]
+
+    Availability --> Reservation --> Confirmed --> PreArrival --> CheckIn
+    CheckIn --> Stay --> Checkout --> Turnover --> Audit
+    Confirmed -. "permission-controlled void" .-> Voided["Voided booking and reversed pending effects"]
+    Voided -. "availability recheck" .-> Confirmed
+```
+
+- Check-in funnels through one transactional booking service for staff, self-check-in, and eKYC auto-check-in. It updates the booking and room, records any check-in payment, and writes timeline and audit events together.
+- The checkout workspace combines stay charges, completed payments, deposits, ledger records, and invoice data. Room turnover creates or preserves the corresponding checkout-cleaning workflow.
+- Voiding a booking also voids or reverses applicable payment and loyalty effects. Reactivation is limited to voided bookings and rechecks room availability before reserving the room again.
+- Night audit previews the selected business date, posts eligible activity, and refreshes dependent booking, room, ledger, and reporting data.
+
+### Guest portal flow
+
+The public pre-arrival flow is separate from staff authentication. A guest verifies or opens a portal session, then uses a guest-specific bearer token for `/api/guest-portal/me/*`. From the portal, the guest can review bookings and transactions, cancel an eligible booking, view loyalty benefits and credits, submit a bank-transfer receipt or PayPal payment, upload identity documents, and submit eKYC. Staff review and eligible auto-check-in continue through the same backend booking and eKYC services used by the administrative application.
+
+### Desktop startup and shutdown
+
+```mermaid
+flowchart TD
+    Launch["Launch Tauri application"] --> DataDirs["Create HotelApp data, logs, and backups directories"]
+    DataDirs --> VersionCheck["Detect bundled PostgreSQL and inspect existing data version"]
+    VersionCheck -->|compatible| Postgres["Initialize/start PostgreSQL on local port 5433"]
+    VersionCheck -->|upgrade required| UpgradeGate["Show backup-based upgrade/recovery gate"]
+    Postgres --> Schema["Run database setup and seed/bootstrap checks"]
+    Schema --> Sidecar["Start Axum backend sidecar on an available localhost port"]
+    Sidecar --> Ready["Emit backend-ready and expose the runtime API base URL"]
+    Ready --> UI["DesktopServiceGate releases the React application"]
+    UI --> Backup["Run a delayed backup, then every 24 hours"]
+    UI --> Exit["Application exit"]
+    Exit --> StopBackend["Stop backend sidecar"]
+    StopBackend --> StopPostgres["Stop bundled PostgreSQL"]
+```
+
+The desktop shell and browser deployment use the same React and Axum application. Desktop mode changes service discovery and lifecycle only: it binds the backend to localhost, supplies the local PostgreSQL connection, reports service state to the UI, and prevents orphaned sidecar/database processes on exit.
 
 ## Project Structure
 
@@ -177,7 +265,7 @@ See [SECURITY.md](SECURITY.md) and the [Deployment Guide's Security Checklist](d
 
 ## 📡 API Endpoint Documentation
 
-Representative endpoints are listed below; request/response shapes are documented in the route modules and DTOs under `hotel-app-be/src/models/`, the source of truth when integrating new clients. Health-check request examples are in the [Deployment Guide](docs/guides/deployment.md).
+Representative domain paths are listed below. Prefix them with `/api` when calling the backend; for example, the login endpoint is `POST /api/auth/login`. Root infrastructure paths such as `/health` are shown in full. Request/response shapes are documented in the route modules and DTOs under `hotel-app-be/src/models/`, the source of truth when integrating new clients. Health-check request examples are in the [Deployment Guide](docs/guides/deployment.md).
 
 | Domain | Representative endpoints | Purpose |
 | --- | --- | --- |
