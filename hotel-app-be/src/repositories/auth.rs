@@ -5,10 +5,19 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::{Guest, RegisterRequest, User};
-use crate::services::google_identity::{GoogleIdentity, google_username};
+use crate::services::google_identity::{
+    GoogleIdentity, google_identity_fingerprint, google_username,
+};
 use chrono::{DateTime, Utc};
 
 pub struct AuthRepository;
+
+/// Upper bound on internal retries inside `resolve_google_guest` when a
+/// concurrent insert/update loses a race on a unique constraint. Bounded so a
+/// pathological row (e.g. a soft-deleted user still holding the target
+/// `google_subject` or email under a partial unique index that excludes
+/// `deleted_at IS NULL`) cannot force unbounded recursion and hang the request.
+const MAX_GOOGLE_RESOLVE_ATTEMPTS: u8 = 3;
 
 fn is_guest_name_unique_violation(error: &sqlx::Error) -> bool {
     let Some(database_error) = error.as_database_error() else {
@@ -34,10 +43,6 @@ fn is_google_subject_unique_violation(error: &sqlx::Error) -> bool {
 
 fn is_user_email_unique_violation(error: &sqlx::Error) -> bool {
     is_user_unique_violation(error, "users_email_key")
-}
-
-fn is_user_username_unique_violation(error: &sqlx::Error) -> bool {
-    is_user_unique_violation(error, "users_username_key")
 }
 
 fn is_user_unique_violation(error: &sqlx::Error, constraint: &str) -> bool {
@@ -310,6 +315,17 @@ impl AuthRepository {
         pool: &DbPool,
         identity: &GoogleIdentity,
     ) -> Result<User, ApiError> {
+        Self::resolve_google_guest_attempt(pool, identity, 0).await
+    }
+
+    /// Bounded-retry implementation backing `resolve_google_guest`. `attempt`
+    /// counts prior retries after losing a unique-constraint race; see
+    /// `MAX_GOOGLE_RESOLVE_ATTEMPTS`.
+    async fn resolve_google_guest_attempt(
+        pool: &DbPool,
+        identity: &GoogleIdentity,
+        attempt: u8,
+    ) -> Result<User, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
         if let Some(user) = sqlx::query_as::<_, User>(
@@ -417,19 +433,24 @@ impl AuthRepository {
             .execute(&mut *tx)
             .await
             .map_err(ApiError::from)?;
-        let full_name = google_guest_full_name(identity);
+        let guest_full_name = google_guest_full_name(identity, attempt);
+        let display_name = google_display_name(identity);
         let guest_id = sqlx::query_scalar::<_, i64>(
             "INSERT INTO guests (first_name, last_name, full_name, email, is_active, guest_type, created_at) VALUES ($1, $2, $3, $4, true, 'non_member', CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING RETURNING id",
         )
         .bind(identity.given_name.as_deref())
         .bind(identity.family_name.as_deref())
-        .bind(&full_name)
+        .bind(&guest_full_name)
         .bind(&identity.email)
         .fetch_optional(&mut *tx)
         .await
         .map_err(ApiError::from)?;
 
         let Some(guest_id) = guest_id else {
+            sqlx::query("ROLLBACK TO SAVEPOINT google_guest_create")
+                .execute(&mut *tx)
+                .await
+                .map_err(ApiError::from)?;
             sqlx::query("RELEASE SAVEPOINT google_guest_create")
                 .execute(&mut *tx)
                 .await
@@ -446,19 +467,29 @@ impl AuthRepository {
                 return Ok(winner);
             }
 
-            return Err(ApiError::Conflict(
-                "A guest account with this name already exists.".to_string(),
-            ));
+            tx.rollback().await.map_err(ApiError::from)?;
+            if attempt + 1 >= MAX_GOOGLE_RESOLVE_ATTEMPTS {
+                return Err(ApiError::Conflict(
+                    "This Google account could not be linked to a guest account. Please try again."
+                        .to_string(),
+                ));
+            }
+            return Box::pin(Self::resolve_google_guest_attempt(
+                pool,
+                identity,
+                attempt + 1,
+            ))
+            .await;
         };
 
-        let username = google_username(&identity.email, &identity.subject);
+        let username = google_username_for_attempt(identity, attempt);
         let user = sqlx::query_as::<_, User>(
-            "INSERT INTO users (uuid, username, email, full_name, user_type, guest_id, is_active, is_verified, google_subject, created_at) VALUES ($1::uuid, $2, $3, $4, 'guest', $5, true, true, $6, CURRENT_TIMESTAMP) ON CONFLICT (google_subject) WHERE google_subject IS NOT NULL DO NOTHING RETURNING id, username, email, google_subject, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at",
+            "INSERT INTO users (uuid, username, email, full_name, user_type, guest_id, is_active, is_verified, google_subject, created_at) VALUES ($1::uuid, $2, $3, $4, 'guest', $5, true, true, $6, CURRENT_TIMESTAMP) ON CONFLICT (username) DO NOTHING RETURNING id, username, email, google_subject, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at",
         )
         .bind(crate::core::db::generate_uuid())
         .bind(&username)
         .bind(&identity.email)
-        .bind(&full_name)
+        .bind(&display_name)
         .bind(guest_id)
         .bind(&identity.subject)
         .fetch_optional(&mut *tx)
@@ -482,7 +513,18 @@ impl AuthRepository {
                     .await
                     .map_err(ApiError::from)?;
                 tx.rollback().await.map_err(ApiError::from)?;
-                return Box::pin(Self::resolve_google_guest(pool, identity)).await;
+                if attempt + 1 >= MAX_GOOGLE_RESOLVE_ATTEMPTS {
+                    return Err(ApiError::Conflict(
+                        "This Google account could not be linked to a guest account. Please try again."
+                            .to_string(),
+                    ));
+                }
+                return Box::pin(Self::resolve_google_guest_attempt(
+                    pool,
+                    identity,
+                    attempt + 1,
+                ))
+                .await;
             }
             Err(error)
                 if is_google_subject_unique_violation(&error)
@@ -497,16 +539,18 @@ impl AuthRepository {
                     .await
                     .map_err(ApiError::from)?;
                 tx.rollback().await.map_err(ApiError::from)?;
-                return Box::pin(Self::resolve_google_guest(pool, identity)).await;
-            }
-            Err(error) if is_user_username_unique_violation(&error) => {
-                sqlx::query("ROLLBACK TO SAVEPOINT google_guest_create")
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(ApiError::from)?;
-                return Err(ApiError::Conflict(
-                    "Unable to create a Google guest account with this username.".to_string(),
-                ));
+                if attempt + 1 >= MAX_GOOGLE_RESOLVE_ATTEMPTS {
+                    return Err(ApiError::Conflict(
+                        "This Google account could not be linked to a guest account. Please try again."
+                            .to_string(),
+                    ));
+                }
+                return Box::pin(Self::resolve_google_guest_attempt(
+                    pool,
+                    identity,
+                    attempt + 1,
+                ))
+                .await;
             }
             Err(error) => return Err(ApiError::from(error)),
         };
@@ -540,7 +584,7 @@ fn ensure_active_google_guest(user: &User) -> Result<(), ApiError> {
     }
 }
 
-fn google_guest_full_name(identity: &GoogleIdentity) -> String {
+fn google_display_name(identity: &GoogleIdentity) -> String {
     let full_name = [
         identity.given_name.as_deref(),
         identity.family_name.as_deref(),
@@ -550,10 +594,7 @@ fn google_guest_full_name(identity: &GoogleIdentity) -> String {
     .collect::<Vec<_>>()
     .join(" ");
     let full_name = if full_name.is_empty() {
-        format!(
-            "Google guest {}",
-            identity.subject.chars().take(32).collect::<String>()
-        )
+        "Google guest".to_string()
     } else {
         full_name
     };
@@ -561,12 +602,49 @@ fn google_guest_full_name(identity: &GoogleIdentity) -> String {
     full_name.chars().take(255).collect()
 }
 
+fn google_guest_full_name(identity: &GoogleIdentity, attempt: u8) -> String {
+    let suffix = if attempt == 0 {
+        google_identity_fingerprint(&identity.email, &identity.subject)
+    } else {
+        crate::core::db::generate_uuid().replace('-', "")
+    };
+    let suffix = format!(" (Google {suffix})");
+    let max_display_len = 255usize.saturating_sub(suffix.len());
+    let display_name = google_display_name(identity);
+
+    format!(
+        "{}{}",
+        display_name
+            .chars()
+            .take(max_display_len)
+            .collect::<String>(),
+        suffix
+    )
+}
+
+fn google_username_for_attempt(identity: &GoogleIdentity, attempt: u8) -> String {
+    if attempt == 0 {
+        google_username(&identity.email, &identity.subject)
+    } else {
+        format!(
+            "google_{}",
+            crate::core::db::generate_uuid().replace('-', "")
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::ensure_active_google_guest;
+    use super::{MAX_GOOGLE_RESOLVE_ATTEMPTS, ensure_active_google_guest, google_guest_full_name};
     use crate::constants::UserType;
     use crate::models::User;
+    use crate::services::google_identity::GoogleIdentity;
     use chrono::Utc;
+
+    #[test]
+    fn bounds_google_guest_resolve_retries() {
+        assert!((1..=5).contains(&MAX_GOOGLE_RESOLVE_ATTEMPTS));
+    }
 
     fn user(user_type: Option<UserType>, is_active: bool) -> User {
         User {
@@ -600,5 +678,28 @@ mod tests {
     #[test]
     fn rejects_linking_a_google_identity_to_an_inactive_guest_account() {
         assert!(ensure_active_google_guest(&user(Some(UserType::Guest), false)).is_err());
+    }
+
+    #[test]
+    fn guest_profile_names_are_distinct_for_unrelated_google_subjects_with_the_same_display_name() {
+        let first = GoogleIdentity {
+            subject: "google-subject-one".to_string(),
+            email: "first@example.com".to_string(),
+            email_verified: true,
+            given_name: Some("Aisha".to_string()),
+            family_name: Some("Rahman".to_string()),
+        };
+        let second = GoogleIdentity {
+            subject: "google-subject-two".to_string(),
+            email: "second@example.com".to_string(),
+            email_verified: true,
+            given_name: Some("Aisha".to_string()),
+            family_name: Some("Rahman".to_string()),
+        };
+
+        assert_ne!(
+            google_guest_full_name(&first, 0),
+            google_guest_full_name(&second, 0)
+        );
     }
 }
