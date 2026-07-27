@@ -58,6 +58,25 @@ impl GuestRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// The contact fields the Google-guest profile-completion check cares
+    /// about: `(first_name, last_name, phone)`. Falls back to all-`None` when
+    /// the guest row is missing (there is no FK from `users.guest_id` to
+    /// `guests.id`), so callers never have to special-case a not-found guest.
+    pub async fn completion_fields(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<(Option<String>, Option<String>, Option<String>), ApiError> {
+        let row = sqlx::query_as::<_, (Option<String>, Option<String>, Option<String>)>(
+            "SELECT first_name, last_name, phone FROM guests WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(row.unwrap_or((None, None, None)))
+    }
+
     /// Check if guest exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
         sqlx::query_scalar::<_, bool>(

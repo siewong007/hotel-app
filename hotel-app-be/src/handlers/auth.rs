@@ -8,6 +8,7 @@ use crate::models::*;
 use crate::services::auth as svc;
 use axum::{extract::State, response::Json};
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use validator::Validate;
 
 /// Name of the `HttpOnly` cookie that carries the refresh token.
 pub const REFRESH_COOKIE: &str = "refresh_token";
@@ -64,6 +65,28 @@ pub async fn login_handler(
 ) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
     let (response, refresh_token) =
         svc::login(&pool, req, ip_address.as_deref(), user_agent.as_deref()).await?;
+    let jar = jar.add(build_refresh_cookie(refresh_token));
+    Ok((jar, Json(response)))
+}
+
+/// Never log, audit, or persist `req.credential` — it is a bearer token for
+/// the guest's Google identity, consumed only by `google_identity::verify_id_token`.
+pub async fn google_login_handler(
+    State(pool): State<DbPool>,
+    jar: CookieJar,
+    Json(req): Json<GoogleLoginRequest>,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let (response, refresh_token) = svc::login_with_google(
+        &pool,
+        &req.credential,
+        ip_address.as_deref(),
+        user_agent.as_deref(),
+    )
+    .await?;
     let jar = jar.add(build_refresh_cookie(refresh_token));
     Ok((jar, Json(response)))
 }

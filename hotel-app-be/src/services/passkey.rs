@@ -336,6 +336,8 @@ pub async fn login_finish(
     .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
+    let profile_completion = crate::services::profile::completion_for_user(pool, user.id).await?;
+
     Ok((
         AuthResponse {
             access_token,
@@ -345,6 +347,12 @@ pub async fn login_finish(
             route_policies,
             is_first_login,
             recovery_codes_remaining: None,
+            profile_complete: profile_completion.complete,
+            missing_profile_fields: profile_completion
+                .missing_fields
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
         },
         refresh_token,
     ))
