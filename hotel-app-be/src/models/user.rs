@@ -13,6 +13,7 @@ pub struct User {
     pub username: String,
     pub email: String,
     #[serde(skip_serializing)]
+    #[sqlx(default)]
     pub google_subject: Option<String>,
     pub full_name: Option<String>,
     pub phone: Option<String>,
@@ -59,6 +60,43 @@ impl std::fmt::Debug for User {
             .field("created_at", &self.created_at)
             .field("updated_at", &self.updated_at)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::User;
+    use sqlx::{FromRow, postgres::PgPoolOptions};
+
+    #[tokio::test]
+    async fn user_projection_defaults_an_omitted_google_subject() {
+        let Ok(database_url) = std::env::var("DATABASE_URL") else {
+            eprintln!(
+                "Skipping user projection compatibility test because DATABASE_URL is not set"
+            );
+            return;
+        };
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(&database_url)
+            .await
+            .expect("failed to connect to PostgreSQL test database");
+
+        let user = sqlx::query(
+            "SELECT 1::BIGINT AS id, 'guest'::VARCHAR AS username, \
+                    'guest@example.com'::VARCHAR AS email, NULL::VARCHAR AS full_name, \
+                    NULL::VARCHAR AS phone, true AS is_active, true AS is_verified, \
+                    NULL::VARCHAR AS user_type, NULL::BOOLEAN AS two_factor_enabled, \
+                    NULL::VARCHAR AS two_factor_secret, NULL::VARCHAR[] AS two_factor_recovery_codes, \
+                    CURRENT_TIMESTAMP AS created_at, CURRENT_TIMESTAMP AS updated_at",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("selecting a user projection without google_subject must succeed");
+        let user = User::from_row(&user)
+            .expect("a User must decode from a projection without google_subject");
+
+        assert_eq!(user.google_subject, None);
     }
 }
 
