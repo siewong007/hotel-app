@@ -52,7 +52,9 @@ export const GuestCheckInLanding: React.FC = () => {
           <Typography variant="h4" component="h1" gutterBottom>
             Online Pre-Check-In
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Complete your check-in before arrival
           </Typography>
         </Box>
@@ -101,7 +103,9 @@ export const GuestCheckInLanding: React.FC = () => {
         </form>
 
         <Box sx={{ mt: 3, textAlign: 'center' }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Pre-check-in is available 7 days before your arrival date
           </Typography>
         </Box>

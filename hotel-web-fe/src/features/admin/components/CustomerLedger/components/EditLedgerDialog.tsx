@@ -128,7 +128,9 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
             type="date"
             value={editFormData.due_date || ''}
             onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Grid>
         {editingLedger?.booking_id && editingLedger.post_type === 'room_charge' && (
@@ -141,14 +143,16 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
               onChange={(e) => setBookingRoomRate(e.target.value)}
               disabled={loadingBookingRoomRate}
               helperText="Per night for the linked booking"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-              }}
-              inputProps={{
-                min: 0.01,
-                step: 0.01,
-              }}
-            />
+              slotProps={{
+                input: {
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                },
+
+                htmlInput: {
+                  min: 0.01,
+                  step: 0.01,
+                }
+              }} />
           </Grid>
         )}
         <Grid size={12}>

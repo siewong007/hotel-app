@@ -1312,7 +1312,6 @@ const BookingsPage: React.FC = () => {
           </Button>
         </Stack>
       </Box>
-
       {error && (
         <Alert
           severity="error"
@@ -1326,7 +1325,6 @@ const BookingsPage: React.FC = () => {
           {error}
         </Alert>
       )}
-
       <Box
         sx={{
           display: 'grid',
@@ -1363,7 +1361,9 @@ const BookingsPage: React.FC = () => {
               <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', lineHeight: 1 }}>
                 {stat.value}
                 {stat.subValue != null && typeof stat.value === 'number' && (
-                  <Typography component="span" variant="h6" color="text.secondary">/{stat.subValue}</Typography>
+                  <Typography component="span" variant="h6" sx={{
+                    color: "text.secondary"
+                  }}>/{stat.subValue}</Typography>
                 )}
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{stat.detail}</Typography>
@@ -1371,9 +1371,10 @@ const BookingsPage: React.FC = () => {
           </Card>
         ))}
       </Box>
-
       {isPositiveMoney(normalOutstandingDue) && (
-        <Grid container spacing={2} mb={2.5}>
+        <Grid container spacing={2} sx={{
+          mb: 2.5
+        }}>
           <Grid size={{ xs: 12 }}>
             <Card
               elevation={0}
@@ -1404,8 +1405,9 @@ const BookingsPage: React.FC = () => {
           </Grid>
         </Grid>
       )}
-
-      <Grid container spacing={2.5} alignItems="stretch">
+      <Grid container spacing={2.5} sx={{
+        alignItems: "stretch"
+      }}>
         <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
           <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -1416,12 +1418,14 @@ const BookingsPage: React.FC = () => {
                   placeholder="Search booking, guest, invoice, or room number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon />
+                        </InputAdornment>
+                      ),
+                    }
                   }}
                 />
                 <Autocomplete<string, false, false, true>
@@ -1464,7 +1468,9 @@ const BookingsPage: React.FC = () => {
                     setBookingView('all');
                     setCurrentPage(1);
                   }}
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
                 <FormControl fullWidth size="medium">
                   <Select
@@ -1486,7 +1492,14 @@ const BookingsPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Box>
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                sx={{
+                  flexWrap: "wrap",
+                  mt: 1.5
+                }}>
                 {[
                   { key: 'all', label: 'All', count: totalBookings || bookings.length },
                   { key: 'arriving', label: 'Arriving', count: arrivingBookings.length },
@@ -1547,7 +1560,12 @@ const BookingsPage: React.FC = () => {
             </Box>
 
             <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  fontWeight: 800
+                }}>
                 {visibleBookings.length} bookings
               </Typography>
               <Button size="small" endIcon={<FilterIcon />} onClick={() => handleSort(sortField === 'check_in_date' ? 'guest_name' : 'check_in_date')} sx={{ color: 'text.primary' }}>
@@ -1556,11 +1574,22 @@ const BookingsPage: React.FC = () => {
             </Box>
 
             {visibleBookings.length === 0 && !loading ? (
-              <Box textAlign="center" py={6}>
-                <Typography variant="h6" color="text.secondary">
+              <Box
+                sx={{
+                  textAlign: "center",
+                  py: 6
+                }}>
+                <Typography variant="h6" sx={{
+                  color: "text.secondary"
+                }}>
                   {totalBookings === 0 ? 'No bookings yet' : 'No bookings match your filters'}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mt: 1
+                  }}>
                   {totalBookings === 0 ? 'Create your first booking using the New booking button above' : 'Try adjusting your search or filter criteria'}
                 </Typography>
               </Box>
@@ -1597,7 +1626,14 @@ const BookingsPage: React.FC = () => {
                         {getGuestInitials(booking.guest_name)}
                       </Box>
                       <Box sx={{ minWidth: 0 }}>
-                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          useFlexGap
+                          sx={{
+                            alignItems: "center",
+                            flexWrap: "wrap"
+                          }}>
                           <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.15 }}>{booking.guest_name}</Typography>
                           {channelInfo && (
                             <Tooltip title={`Online booking via ${channelInfo.name}`} arrow>
@@ -1642,7 +1678,12 @@ const BookingsPage: React.FC = () => {
                             <Chip size="small" label="Night audit" variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
                           )}
                         </Stack>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: "text.secondary",
+                            mt: 0.35
+                          }}>
                           <BedIcon sx={{ fontSize: 16, verticalAlign: 'text-bottom', mr: 0.5 }} />
                           Rm {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} {'->'} {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
                         </Typography>
@@ -1650,12 +1691,29 @@ const BookingsPage: React.FC = () => {
                       <Box sx={{ textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
 	                        {isPositiveMoney(balance) ? (
-                          <Typography variant="body2" color="error.main" sx={{ fontWeight: 800 }}>Due {formatCurrency(balance)}</Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "error.main",
+                              fontWeight: 800
+                            }}>Due {formatCurrency(balance)}</Typography>
                         ) : (
-                          <Typography variant="body2" color="success.main" sx={{ fontWeight: 800 }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "success.main",
+                              fontWeight: 800
+                            }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
                         )}
                       </Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          fontFamily: 'monospace',
+                          textAlign: { xs: 'left', md: 'right' },
+                          gridColumn: { xs: '2 / span 1', md: 'auto' }
+                        }}>
                         {booking.invoice_number || booking.folio_number || `#${booking.id}`}
                       </Typography>
                     </Box>
@@ -1665,8 +1723,19 @@ const BookingsPage: React.FC = () => {
             )}
 
             {bookingView === 'all' && bookingPagination.hasMultiplePages && (
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="body2" color="text.secondary">
+              <Stack
+                direction="row"
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  px: 2,
+                  py: 1.5,
+                  borderTop: '1px solid',
+                  borderColor: 'divider'
+                }}>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Showing {bookingPagination.startItem}-{bookingPagination.endItem} of {bookingPagination.totalItems}
                 </Typography>
                 <Pagination
@@ -1688,7 +1757,13 @@ const BookingsPage: React.FC = () => {
           <Card elevation={0} sx={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
             <>
               <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "flex-start"
+                  }}>
                   <Chip
                     size="small"
                     label={getBookingStatusText(selectedBooking.status)}
@@ -1706,13 +1781,24 @@ const BookingsPage: React.FC = () => {
                     </IconButton>
                   </Tooltip>
                 </Stack>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 3 }}>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  sx={{
+                    alignItems: "center",
+                    mt: 3
+                  }}>
                   <Box sx={{ width: 58, height: 58, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.14), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>
                     {getGuestInitials(selectedBooking.guest_name)}
                   </Box>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{selectedBooking.guest_name}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        fontFamily: 'monospace'
+                      }}>
                       {selectedBooking.invoice_number || selectedBooking.folio_number || selectedBooking.booking_number || `#${selectedBooking.id}`}
                     </Typography>
                   </Box>
@@ -1724,7 +1810,9 @@ const BookingsPage: React.FC = () => {
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Stay</Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 2, alignItems: 'center', mt: 1 }}>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Check-in</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Check-in</Typography>
                       <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(selectedBooking.check_in_date)}</Typography>
                     </Box>
                     <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
@@ -1732,7 +1820,9 @@ const BookingsPage: React.FC = () => {
                       <ArrowForwardIcon fontSize="small" />
                     </Box>
                     <Box sx={{ textAlign: 'right' }}>
-                      <Typography variant="caption" color="text.secondary">Check-out</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Check-out</Typography>
                       <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(selectedBooking.check_out_date)}</Typography>
                     </Box>
                   </Box>
@@ -1742,7 +1832,9 @@ const BookingsPage: React.FC = () => {
                     </Box>
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{selectedBooking.room_type || 'Room'}</Typography>
-                      <Typography variant="body2" color="text.secondary">Room {selectedBooking.room_number || '-'}</Typography>
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>Room {selectedBooking.room_number || '-'}</Typography>
                     </Box>
                   </Box>
                 </Box>
@@ -1750,16 +1842,28 @@ const BookingsPage: React.FC = () => {
                 <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Charges</Typography>
                   <Stack spacing={1.2} sx={{ mt: 1 }}>
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography color="text.secondary">Room · {getNights(selectedBooking)} x {formatCurrency(toMoneyNumber(selectedBooking.price_per_night))}</Typography>
+                    <Stack direction="row" sx={{
+                      justifyContent: "space-between"
+                    }}>
+                      <Typography sx={{
+                        color: "text.secondary"
+                      }}>Room · {getNights(selectedBooking)} x {formatCurrency(toMoneyNumber(selectedBooking.price_per_night))}</Typography>
                       <Typography sx={{ fontWeight: 800 }}>{formatCurrency(getBookingTotal(selectedBooking))}</Typography>
                     </Stack>
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography color="text.secondary">Tax & fees</Typography>
-                      <Typography color="text.secondary">Included</Typography>
+                    <Stack direction="row" sx={{
+                      justifyContent: "space-between"
+                    }}>
+                      <Typography sx={{
+                        color: "text.secondary"
+                      }}>Tax & fees</Typography>
+                      <Typography sx={{
+                        color: "text.secondary"
+                      }}>Included</Typography>
                     </Stack>
                     <Divider />
-                    <Stack direction="row" justifyContent="space-between">
+                    <Stack direction="row" sx={{
+                      justifyContent: "space-between"
+                    }}>
                       <Typography variant="subtitle1">Total</Typography>
                       <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(selectedBooking))}</Typography>
                     </Stack>
@@ -1773,7 +1877,14 @@ const BookingsPage: React.FC = () => {
 
                 <Box sx={{ p: 2.5 }}>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
-                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    sx={{
+                      flexWrap: "wrap",
+                      mt: 1
+                    }}>
                     {canCheckIn(selectedBooking) && (
                       isEarlyCheckIn(selectedBooking) ? (
                         <Tooltip title={`Early check-in — before the configured ${getHotelSettings().check_in_time || '15:00'} check-in time`} arrow>
@@ -1809,11 +1920,15 @@ const BookingsPage: React.FC = () => {
                   </Stack>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2.5 }}>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Booked via</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Booked via</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>{getBookedViaText(selectedBooking)}</Typography>
                     </Box>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Payment</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Payment</Typography>
                       <Typography variant="body2" sx={{ fontWeight: 800 }}>{getPaymentStatusText(selectedBooking.payment_status)}</Typography>
                     </Box>
                   </Box>
@@ -1824,7 +1939,6 @@ const BookingsPage: React.FC = () => {
         </Grid>
         )}
       </Grid>
-
       {/* Booking Workflow Dialog */}
       <Dialog
         open={workflowDialogOpen}
@@ -1846,22 +1960,34 @@ const BookingsPage: React.FC = () => {
                 <Box>
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Total</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Total</Typography>
                       <Typography variant="subtitle2">{formatCurrency(toMoneyNumber(workflowSummary.total_amount))}</Typography>
                     </Box>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Paid</Typography>
-                      <Typography variant="subtitle2" color="success.main">{formatCurrency(toMoneyNumber(workflowSummary.total_paid))}</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Paid</Typography>
+                      <Typography variant="subtitle2" sx={{
+                        color: "success.main"
+                      }}>{formatCurrency(toMoneyNumber(workflowSummary.total_paid))}</Typography>
                     </Box>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Balance</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Balance</Typography>
                       <Typography variant="subtitle2" color={isPositiveMoney(workflowSummary.balance_due) ? 'warning.main' : 'success.main'}>
                         {formatCurrency(toMoneyNumber(workflowSummary.balance_due))}
                       </Typography>
                     </Box>
                     <Box>
-                      <Typography variant="caption" color="text.secondary">Refunded</Typography>
-                      <Typography variant="subtitle2" color="info.main">{formatCurrency(toMoneyNumber(workflowSummary.total_refunded))}</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Refunded</Typography>
+                      <Typography variant="subtitle2" sx={{
+                        color: "info.main"
+                      }}>{formatCurrency(toMoneyNumber(workflowSummary.total_refunded))}</Typography>
                     </Box>
                   </Box>
                   <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1881,7 +2007,9 @@ const BookingsPage: React.FC = () => {
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, mb: 1 }}>
                   <Typography variant="subtitle2">Timeline</Typography>
-                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={0.75} useFlexGap sx={{
+                    flexWrap: "wrap"
+                  }}>
                     {[
                       { label: 'Update', color: '#1976d2' },
                       { label: 'Payment', color: '#2e7d32' },
@@ -1906,7 +2034,9 @@ const BookingsPage: React.FC = () => {
                   </Stack>
                 </Box>
                 {workflowTimeline.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">No workflow events recorded yet.</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>No workflow events recorded yet.</Typography>
                 ) : (
                   <Stack spacing={1.25}>
                     {workflowTimeline.map((event) => {
@@ -1945,7 +2075,9 @@ const BookingsPage: React.FC = () => {
                               <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
                                 {event.title}
                                 {event.amount && compareMoney(event.amount, 0) !== 0 && (
-                                  <Typography component="span" variant="body2" color="text.secondary">
+                                  <Typography component="span" variant="body2" sx={{
+                                    color: "text.secondary"
+                                  }}>
                                     {' '}({formatCurrency(toMoneyNumber(event.amount))})
                                   </Typography>
                                 )}
@@ -1962,12 +2094,19 @@ const BookingsPage: React.FC = () => {
                                 }}
                               />
                             </Box>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>
                               {new Date(event.created_at).toLocaleString()}
                               {event.status_from && event.status_to ? ` / ${event.status_from} -> ${event.status_to}` : ''}
                             </Typography>
                             {event.description && (
-                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: "text.secondary",
+                                  mt: 0.25
+                                }}>
                                 {event.description}
                               </Typography>
                             )}
@@ -1985,7 +2124,6 @@ const BookingsPage: React.FC = () => {
           <Button onClick={() => setWorkflowDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-
       {/* Create Booking Modal (Unified) */}
       <UnifiedBookingModal
         open={createDialogOpen}
@@ -2035,7 +2173,6 @@ const BookingsPage: React.FC = () => {
           setShowCheckinModal(true);
         }}
       />
-
       {/* Edit Booking Dialog (Admin Only) */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Edit Booking #{editingBooking?.folio_number || editingBooking?.id.toString().substring(0, 8)}</DialogTitle>
@@ -2048,7 +2185,9 @@ const BookingsPage: React.FC = () => {
                 type="date"
                 value={editFormData.check_in_date || ''}
                 onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, check_in_date: e.target.value }))}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -2058,7 +2197,9 @@ const BookingsPage: React.FC = () => {
                 type="date"
                 value={editFormData.check_out_date || ''}
                 onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, check_out_date: e.target.value }))}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             {(['checked_out', 'late_checkout', 'completed'].includes(editFormData.status || '') || editingBooking?.actual_check_out) && (
@@ -2069,8 +2210,10 @@ const BookingsPage: React.FC = () => {
                   type="date"
                   value={editFormData.actual_check_out || ''}
                   onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, actual_check_out: e.target.value }))}
-                  InputLabelProps={{ shrink: true }}
                   helperText="The date the guest actually checked out (shown on the invoice)"
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
               </Grid>
             )}
@@ -2168,7 +2311,12 @@ const BookingsPage: React.FC = () => {
                           <Typography>{option.company_name}</Typography>
                         </Box>
                         {option.contact_person && (
-                          <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: "text.secondary",
+                              ml: 3.5
+                            }}>
                             Contact: {option.contact_person}
                           </Typography>
                         )}
@@ -2182,22 +2330,26 @@ const BookingsPage: React.FC = () => {
                     label="Company (optional)"
                     placeholder="Search company (optional)"
                     helperText="Leave empty for normal guest billing."
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <BusinessIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
-                          {params.InputProps.startAdornment}
-                        </>
-                      ),
-                      endAdornment: (
-                        <>
-                          {(activeCompaniesQuery.isLoading || activeCompaniesQuery.isFetching) ? (
-                            <CircularProgress color="inherit" size={18} />
-                          ) : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
+                    slotProps={{
+                      ...params.slotProps,
+
+                      input: {
+                        ...params.slotProps.input,
+                        startAdornment: (
+                          <>
+                            <BusinessIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                            {params.slotProps.input.startAdornment}
+                          </>
+                        ),
+                        endAdornment: (
+                          <>
+                            {(activeCompaniesQuery.isLoading || activeCompaniesQuery.isFetching) ? (
+                              <CircularProgress color="inherit" size={18} />
+                            ) : null}
+                            {params.slotProps.input.endAdornment}
+                          </>
+                        ),
+                      }
                     }}
                   />
                 )}
@@ -2219,10 +2371,12 @@ const BookingsPage: React.FC = () => {
                   ...prev,
                   price_per_night: toMoneyNumber(e.target.value),
                 }))}
-                InputProps={{
-                  startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
-                }}
                 helperText="Rate per night (before tax) - modifying will recalculate total"
+                slotProps={{
+                  input: {
+                    startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
+                  }
+                }}
               />
             </Grid>
             {editRoomTypeConfig?.allows_extra_bed && (editRoomTypeConfig?.max_extra_beds || 0) > 0 && (
@@ -2243,10 +2397,12 @@ const BookingsPage: React.FC = () => {
                         extra_bed_charge: multiplyMoney(chargePerBed, count),
                       }));
                     }}
-                    inputProps={{ min: 0, max: editRoomTypeConfig?.max_extra_beds || 0 }}
                     helperText={`${formatCurrency(
                       toMoneyNumber(editRoomTypeConfig?.extra_bed_charge)
                     )} per extra bed (max ${editRoomTypeConfig?.max_extra_beds || 0})`}
+                    slotProps={{
+                      htmlInput: { min: 0, max: editRoomTypeConfig?.max_extra_beds || 0 }
+                    }}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -2259,10 +2415,12 @@ const BookingsPage: React.FC = () => {
                       ...prev,
                       extra_bed_charge: toMoneyNumber(e.target.value),
                     }))}
-                    InputProps={{
-                      startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
-                    }}
                     helperText="Auto-calculated or manually adjust"
+                    slotProps={{
+                      input: {
+                        startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
+                      }
+                    }}
                   />
                 </Grid>
               </>
@@ -2340,10 +2498,6 @@ const BookingsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-
-
-
       {/* Void Booking Dialog */}
       <Dialog open={voidDialogOpen} onClose={() => setVoidDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Void Booking</DialogTitle>
@@ -2381,7 +2535,6 @@ const BookingsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Reactivate Booking Dialog */}
       <Dialog open={reactivateDialogOpen} onClose={() => setReactivateDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Reactivate Booking</DialogTitle>
@@ -2403,7 +2556,6 @@ const BookingsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Accept Payment Dialog — records a real payments row; the backend
           recompute then flips bookings.payment_status automatically. */}
       <Dialog
@@ -2418,11 +2570,13 @@ const BookingsPage: React.FC = () => {
         }}
         maxWidth="sm"
         fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            overflow: 'hidden',
-          },
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: 3,
+              overflow: 'hidden',
+            },
+          }
         }}
       >
         <DialogTitle sx={{ p: 0 }}>
@@ -2434,7 +2588,12 @@ const BookingsPage: React.FC = () => {
               <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.15 }}>
                 {paymentDialogContext === 'checkout_required' ? 'Payment Required' : 'Accept Payment'}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mt: 0.5
+                }}>
                 {paymentDialogContext === 'checkout_required'
                   ? 'Collect the outstanding balance before continuing checkout.'
                   : 'Record a room charge payment and update the booking balance automatically.'}
@@ -2451,15 +2610,31 @@ const BookingsPage: React.FC = () => {
                 </Alert>
               )}
               <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
-                <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "flex-start"
+                  }}>
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 900 }}>
+                    <Typography
+                      variant="overline"
+                      sx={{
+                        color: "text.secondary",
+                        fontWeight: 900
+                      }}>
                       Booking
                     </Typography>
                     <Typography variant="subtitle1" sx={{ fontWeight: 900, fontFamily: 'monospace', lineHeight: 1.25 }}>
                       {paymentBooking.booking_number || paymentBooking.folio_number || `#${paymentBooking.id}`}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        mt: 0.5
+                      }}>
                       {paymentBooking.guest_name} · Room {paymentBooking.room_number}
                     </Typography>
                   </Box>
@@ -2479,7 +2654,12 @@ const BookingsPage: React.FC = () => {
                   { label: 'Balance', value: formatCurrency(getBookingBalance(paymentBooking)), color: isPositiveMoney(getBookingBalance(paymentBooking)) ? 'error.main' : 'success.main' },
                 ].map((item) => (
                   <Box key={item.label} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        fontWeight: 800
+                      }}>
                       {item.label}
                     </Typography>
                     <Typography variant="subtitle1" sx={{ fontWeight: 900, color: item.color }}>
@@ -2496,8 +2676,6 @@ const BookingsPage: React.FC = () => {
                   label="Payment Amount"
                   value={paymentAmount || ''}
                   onChange={(e) => setPaymentAmount(toMoneyNumber(e.target.value))}
-                  InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
-                  inputProps={{ min: 0, max: getBookingBalance(paymentBooking), step: 0.01 }}
                   error={
                     (paymentDialogContext === 'checkout_required' && isLessMoney(paymentAmount, getBookingBalance(paymentBooking))) ||
                     isGreaterMoney(paymentAmount, getBookingBalance(paymentBooking))
@@ -2510,7 +2688,10 @@ const BookingsPage: React.FC = () => {
                         : `Outstanding balance: ${formatCurrency(getBookingBalance(paymentBooking))}`
                   }
                   required
-                />
+                  slotProps={{
+                    input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> },
+                    htmlInput: { min: 0, max: getBookingBalance(paymentBooking), step: 0.01 }
+                  }} />
                 <FormControl fullWidth>
                   <InputLabel>Payment Method</InputLabel>
                   <Select
@@ -2564,14 +2745,12 @@ const BookingsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Checkout Invoice Modal */}
       {/* Shared checkout + read-only receipt modals */}
       <CheckoutInvoiceModals
         flow={checkoutFlow}
         onReceiptPaymentsChanged={() => { void reloadBookingData(); }}
       />
-
       {/* Check-In Dialog */}
       <Dialog
         open={showCheckinModal}
@@ -2591,32 +2770,52 @@ const BookingsPage: React.FC = () => {
           {checkinBooking && (
             <Box>
               <Box sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom sx={{
+                  color: "text.secondary"
+                }}>
                   Booking #{checkinBooking.booking_number}
                 </Typography>
                 <Grid container spacing={2} sx={{ mt: 1 }}>
                   <Grid size={12}>
-                    <Typography variant="h6" fontWeight={600}>{checkinBooking.guest_name}</Typography>
+                    <Typography variant="h6" sx={{
+                      fontWeight: 600
+                    }}>{checkinBooking.guest_name}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Check-in</Typography>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Check-in</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {new Date(checkinBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Check-out</Typography>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Check-out</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {new Date(checkinBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Room Type</Typography>
-                    <Typography variant="body2" fontWeight={500}>{checkinBooking.room_type}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Room Type</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>{checkinBooking.room_type}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-	                    <Typography variant="body2" fontWeight={500}>{formatCurrency(toMoneyNumber(checkinBooking.total_amount))}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Total Amount</Typography>
+	                    <Typography variant="body2" sx={{
+                          fontWeight: 500
+                        }}>{formatCurrency(toMoneyNumber(checkinBooking.total_amount))}</Typography>
                   </Grid>
                 </Grid>
               </Box>
@@ -2664,7 +2863,9 @@ const BookingsPage: React.FC = () => {
                   </Grid>
                   <Grid size={6}>
                     <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(toMoneyNumber(e.target.value))}
-                      InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
+                      slotProps={{
+                        input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }
+                      }} />
                   </Grid>
                 </Grid>
               )}
@@ -2693,7 +2894,9 @@ const BookingsPage: React.FC = () => {
                   </Grid>
                   <Grid size={6}>
                     <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(toMoneyNumber(e.target.value))}
-                      InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
+                      slotProps={{
+                        input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }
+                      }} />
                   </Grid>
                 </Grid>
               )}

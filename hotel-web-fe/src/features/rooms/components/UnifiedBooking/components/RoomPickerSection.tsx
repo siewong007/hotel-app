@@ -88,16 +88,20 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
                 : 'Select one or more rooms'
           }
           sx={{ bgcolor: D.surface }}
-          InputProps={{
-            ...params.InputProps,
-            startAdornment: (
-              <>
-                <Box sx={{ pl: 0.5, pr: 0.75, color: D.ink3, display: 'inline-flex' }}>
-                  <SearchIcon sx={{ fontSize: 16 }} />
-                </Box>
-                {params.InputProps.startAdornment}
-              </>
-            ),
+          slotProps={{
+            ...params.slotProps,
+
+            input: {
+              ...params.slotProps.input,
+              startAdornment: (
+                <>
+                  <Box sx={{ pl: 0.5, pr: 0.75, color: D.ink3, display: 'inline-flex' }}>
+                    <SearchIcon sx={{ fontSize: 16 }} />
+                  </Box>
+                  {params.slotProps.input.startAdornment}
+                </>
+              ),
+            }
           }}
         />
       )}

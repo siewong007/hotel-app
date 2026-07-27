@@ -128,13 +128,17 @@ const EkycStatusCard: React.FC = () => {
             <VerifiedIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
             <Box>
               <Typography variant="h6">Enable Self Check-in</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Complete your identity verification
               </Typography>
             </Box>
           </Box>
 
-          <Typography variant="body2" paragraph>
+          <Typography variant="body2" sx={{
+            marginBottom: "16px"
+          }}>
             Complete eKYC (electronic Know Your Customer) verification to enable self-check-in
             for your bookings. No more waiting at the front desk!
           </Typography>
@@ -207,16 +211,32 @@ const EkycStatusCard: React.FC = () => {
         )}
 
         <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" color="text.secondary" display="block">
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              display: "block"
+            }}>
             Submitted: {format(new Date(ekycStatus.submitted_at), 'MMM dd, yyyy')}
           </Typography>
           {ekycStatus.verified_at && (
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                display: "block"
+              }}>
               Verified: {format(new Date(ekycStatus.verified_at), 'MMM dd, yyyy')}
             </Typography>
           )}
           {ekycStatus.verification_notes && (
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                display: "block",
+                mt: 1
+              }}>
               <strong>Notes:</strong> {ekycStatus.verification_notes}
             </Typography>
           )}

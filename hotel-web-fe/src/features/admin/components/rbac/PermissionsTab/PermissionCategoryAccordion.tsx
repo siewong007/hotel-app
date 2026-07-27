@@ -123,7 +123,9 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
         </Box>
 
         <Box sx={{ flex: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 600
+          }}>
             {category.displayName}
           </Typography>
         </Box>
@@ -154,7 +156,6 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
           />
         </Box>
       </AccordionSummary>
-
       <AccordionDetails sx={{ p: 0 }}>
         {category.permissions.map((permission) => (
           <PermissionRow

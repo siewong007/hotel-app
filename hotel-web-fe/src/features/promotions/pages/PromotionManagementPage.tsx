@@ -308,12 +308,16 @@ export default function PromotionManagementPage() {
         >
           <Stack
             direction={{ xs: "column", md: "row" }}
-            justifyContent="space-between"
-            alignItems={{ md: "center" }}
-            gap={2.5}
-            sx={{ position: "relative", zIndex: 1 }}
-          >
-            <Stack direction="row" spacing={2} alignItems="flex-start">
+            sx={{
+              justifyContent: "space-between",
+              alignItems: { md: "center" },
+              gap: 2.5,
+              position: "relative",
+              zIndex: 1
+            }}>
+            <Stack direction="row" spacing={2} sx={{
+              alignItems: "flex-start"
+            }}>
               <Box
                 sx={{
                   display: { xs: "none", sm: "grid" },
@@ -328,7 +332,9 @@ export default function PromotionManagementPage() {
                 <CampaignOutlinedIcon fontSize="large" />
               </Box>
               <Box>
-                <Typography variant="h4" component="h1" fontWeight={750}>
+                <Typography variant="h4" component="h1" sx={{
+                  fontWeight: 750
+                }}>
                   Promotions & vouchers
                 </Typography>
                 <Typography
@@ -432,7 +438,9 @@ export default function PromotionManagementPage() {
               variant="outlined"
               sx={{ p: 2, borderRadius: 2.5 }}
             >
-              <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Stack direction="row" spacing={1.5} sx={{
+                alignItems: "center"
+              }}>
                 <Box
                   sx={{
                     display: "grid",
@@ -447,13 +455,22 @@ export default function PromotionManagementPage() {
                   {metric.icon}
                 </Box>
                 <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="h5" fontWeight={750} lineHeight={1.1}>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontWeight: 750,
+                      lineHeight: 1.1
+                    }}>
                     {metric.value}
                   </Typography>
-                  <Typography variant="body2" fontWeight={650} noWrap>
+                  <Typography variant="body2" noWrap sx={{
+                    fontWeight: 650
+                  }}>
                     {metric.label}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap>
+                  <Typography variant="caption" noWrap sx={{
+                    color: "text.secondary"
+                  }}>
                     {metric.detail}
                   </Typography>
                 </Box>
@@ -535,7 +552,9 @@ export default function PromotionManagementPage() {
             <Stack
               direction={{ xs: "column", md: "row" }}
               spacing={1.5}
-              alignItems={{ md: "center" }}
+              sx={{
+                alignItems: { md: "center" }
+              }}
             >
               <TextField
                 size="small"
@@ -589,11 +608,12 @@ export default function PromotionManagementPage() {
 
             <Stack
               direction={{ xs: "column", sm: "row" }}
-              alignItems={{ sm: "center" }}
-              justifyContent="space-between"
-              gap={1}
-              sx={{ mt: 1.5 }}
-            >
+              sx={{
+                alignItems: { sm: "center" },
+                justifyContent: "space-between",
+                gap: 1,
+                mt: 1.5
+              }}>
               <Box sx={{ overflowX: "auto", pb: 0.25 }}>
                 <ToggleButtonGroup
                   exclusive
@@ -629,7 +649,9 @@ export default function PromotionManagementPage() {
                   ))}
                 </ToggleButtonGroup>
               </Box>
-              <Stack direction="row" alignItems="center" spacing={1}>
+              <Stack direction="row" spacing={1} sx={{
+                alignItems: "center"
+              }}>
                 <Chip
                   size="small"
                   variant="outlined"
@@ -680,7 +702,6 @@ export default function PromotionManagementPage() {
           )}
         </Paper>
       </Stack>
-
       <PromotionEditorDialog
         open={editorOpen}
         promotion={selectedPromotion}

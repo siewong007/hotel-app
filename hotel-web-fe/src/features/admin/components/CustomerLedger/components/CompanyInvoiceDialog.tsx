@@ -110,7 +110,12 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
     <DialogTitle>
-      <Box display="flex" alignItems="center" gap={1}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1
+        }}>
         <InvoiceIcon color="secondary" />
         {showInvoicePreview ? 'Invoice Preview' : 'Generate Company Invoice'}
       </Box>
@@ -119,7 +124,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
       {invoiceCompany && !showInvoicePreview && (
         <>
           <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2" fontWeight={600}>
+            <Typography variant="body2" sx={{
+              fontWeight: 600
+            }}>
               {invoiceCompany.company_name}
             </Typography>
             {invoiceCompany.contact_person && (
@@ -146,7 +153,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 type="date"
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
@@ -157,7 +166,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 type="date"
                 value={invoiceDueDate}
                 onChange={(e) => setInvoiceDueDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
 
@@ -229,7 +240,13 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     : 'Select all billable'}
                 </Button>
               </Box>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  display: 'block',
+                  mb: 0.5
+                }}>
                 Already-invoiced entries are protected and cannot be added to a new invoice. Use a credit note
                 instead.
               </Typography>
@@ -283,7 +300,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                                 {ledger.description}
                               </Typography>
                               {ledger.invoice_number && (
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography variant="caption" sx={{
+                                  color: "text.secondary"
+                                }}>
                                   Already invoiced: {ledger.invoice_number}
                                 </Typography>
                               )}
@@ -294,7 +313,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                             </TableCell>
                             <TableCell align="right">{formatCurrency(amount)}</TableCell>
                             <TableCell align="right">
-                              <Typography color={isPositiveMoney(balanceDue) ? 'error.main' : 'success.main'} fontWeight={500}>
+                              <Typography color={isPositiveMoney(balanceDue) ? 'error.main' : 'success.main'} sx={{
+                                fontWeight: 500
+                              }}>
                                 {formatCurrency(balanceDue)}
                               </Typography>
                             </TableCell>
@@ -309,24 +330,38 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 6, sm: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Selected Items</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Selected Items</Typography>
                       <Typography variant="h6">{getSelectedInvoiceLedgers().length}</Typography>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-                      <Typography variant="h6" color="primary.main">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Total Amount</Typography>
+                      <Typography variant="h6" sx={{
+                        color: "primary.main"
+                      }}>
                         {formatCurrency(getSelectedLedgerTotal())}
                       </Typography>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Already Paid</Typography>
-                      <Typography variant="h6" color="success.main">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Already Paid</Typography>
+                      <Typography variant="h6" sx={{
+                        color: "success.main"
+                      }}>
                         {formatCurrency(getSelectedLedgerPaidTotal())}
                       </Typography>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
-                      <Typography variant="caption" color="text.secondary">Balance Due</Typography>
-                      <Typography variant="h6" color="error.main">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Balance Due</Typography>
+                      <Typography variant="h6" sx={{
+                        color: "error.main"
+                      }}>
                         {formatCurrency(getSelectedLedgerBalanceDue())}
                       </Typography>
                     </Grid>
@@ -375,10 +410,14 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             <Typography variant="h4" sx={{ fontWeight: 700, color: '#1976d2', mb: 0.5 }}>
               {hotelSettings.hotel_name}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {hotelSettings.hotel_address}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}
             </Typography>
           </Box>
@@ -413,7 +452,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               </Typography>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{invoiceCompany.company_name}</Typography>
               {invoiceCompany.registration_number && (
-                <Typography variant="body2" color="text.secondary">Reg No: {invoiceCompany.registration_number}</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Reg No: {invoiceCompany.registration_number}</Typography>
               )}
               {invoiceCompany.billing_address && (
                 <Typography variant="body2">{invoiceCompany.billing_address}</Typography>
@@ -562,10 +603,18 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
             <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2', mb: 0.5 }}>
               Thank you for your business!
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Please make payment within {invoiceCompany.payment_terms_days || 30} days of invoice date.
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                display: "block",
+                mt: 1
+              }}>
               This is a computer-generated invoice. | {hotelSettings.hotel_name}
             </Typography>
           </Box>

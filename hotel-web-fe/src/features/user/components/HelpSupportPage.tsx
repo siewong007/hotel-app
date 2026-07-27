@@ -1,6 +1,6 @@
 import React from 'react';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 import KeyIcon from '@mui/icons-material/Key';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
@@ -55,7 +55,13 @@ export default function HelpSupportPage() {
       <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.08), rgba(46, 125, 50, 0.06))' }}>
         <CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
           <Stack spacing={2}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1.5}
+              sx={{
+                justifyContent: "space-between",
+                alignItems: { xs: 'flex-start', sm: 'center' }
+              }}>
               <Box>
                 <Typography variant="overline" sx={{ letterSpacing: '0.08em', color: 'primary.main', fontWeight: 700 }}>
                   Help Center
@@ -63,7 +69,13 @@ export default function HelpSupportPage() {
                 <Typography variant="h5" sx={{ fontWeight: 700 }}>
                   Support for your daily hotel workflow
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 720, mt: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    maxWidth: 720,
+                    mt: 1
+                  }}>
                   Find quick navigation shortcuts, access guidance, and recovery tips for {user?.full_name || user?.username || 'your'} current session.
                 </Typography>
               </Box>
@@ -76,7 +88,6 @@ export default function HelpSupportPage() {
           </Stack>
         </CardContent>
       </Card>
-
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 7 }}>
           <Card elevation={0} sx={{ height: '100%', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
@@ -86,7 +97,9 @@ export default function HelpSupportPage() {
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
                     Quick links
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Jump back into the modules currently available to your account.
                   </Typography>
                 </Box>
@@ -111,7 +124,9 @@ export default function HelpSupportPage() {
                         >
                           <CardContent sx={{ p: 2.25 }}>
                             <Stack spacing={1.5}>
-                              <Stack direction="row" spacing={1.25} alignItems="center">
+                              <Stack direction="row" spacing={1.25} sx={{
+                                alignItems: "center"
+                              }}>
                                 <Box sx={{ width: 40, height: 40, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'primary.50', color: 'primary.main' }}>
                                   {Icon ? <Icon sx={{ fontSize: 20 }} /> : <ArrowForwardIcon sx={{ fontSize: 20 }} />}
                                 </Box>
@@ -119,7 +134,9 @@ export default function HelpSupportPage() {
                                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                                     {route.navLabel || route.breadcrumbLabel}
                                   </Typography>
-                                  <Typography variant="caption" color="text.secondary">
+                                  <Typography variant="caption" sx={{
+                                    color: "text.secondary"
+                                  }}>
                                     {route.path}
                                   </Typography>
                                 </Box>
@@ -153,7 +170,9 @@ export default function HelpSupportPage() {
             <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
               <CardContent sx={{ p: 3 }}>
                 <Stack spacing={1.5}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} sx={{
+                    alignItems: "center"
+                  }}>
                     <SupportAgentIcon color="primary" />
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
                       First steps when something feels off
@@ -176,7 +195,9 @@ export default function HelpSupportPage() {
             <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
               <CardContent sx={{ p: 3 }}>
                 <Stack spacing={1.5}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1} sx={{
+                    alignItems: "center"
+                  }}>
                     <LockOutlinedIcon color="primary" />
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
                       Security reminders
@@ -198,7 +219,6 @@ export default function HelpSupportPage() {
           </Stack>
         </Grid>
       </Grid>
-
       <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
         <CardContent sx={{ p: 3 }}>
           <Stack spacing={2}>

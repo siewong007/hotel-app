@@ -320,12 +320,15 @@ const LoginPage: React.FC = () => {
                 <Typography
                   variant="h4"
                   gutterBottom
-                  fontWeight="bold"
-                  sx={{ fontSize: { xs: '1.5rem', sm: '2.125rem' } }}
-                >
+                  sx={{
+                    fontWeight: "bold",
+                    fontSize: { xs: '1.5rem', sm: '2.125rem' }
+                  }}>
                   Two-Factor Authentication
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Enter the 6-digit code from your authenticator app, or one of your recovery codes
                   if you no longer have it
                 </Typography>
@@ -339,17 +342,19 @@ const LoginPage: React.FC = () => {
                   onChange={(e) => setTotpCode(sanitizeTwoFactorCode(e.target.value))}
                   placeholder="000000"
                   helperText="6-digit authenticator code, or a recovery code (XXXXX-XXXXX-XXXXX-XXXXX). Each recovery code works once."
-                  inputProps={{
-                    maxLength: 25,
-                    // Recovery codes are nearly four times as long as a TOTP code,
-                    // so the wide-tracked display used for six digits overflows.
-                    style:
-                      totpCode.length > TOTP_CODE_LENGTH
-                        ? { textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }
-                        : { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' },
-                  }}
                   sx={{ mb: 3 }}
                   autoFocus
+                  slotProps={{
+                    htmlInput: {
+                      maxLength: 25,
+                      // Recovery codes are nearly four times as long as a TOTP code,
+                      // so the wide-tracked display used for six digits overflows.
+                      style:
+                        totpCode.length > TOTP_CODE_LENGTH
+                          ? { textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }
+                          : { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' },
+                    }
+                  }}
                 />
 
                 {error && (
@@ -527,10 +532,18 @@ const LoginPage: React.FC = () => {
                           <PersonIcon sx={{ fontSize: 40, color: 'white' }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="h5" fontWeight={700} gutterBottom color="var(--hotel-accent-text)">
+                          <Typography
+                            variant="h5"
+                            gutterBottom
+                            sx={{
+                              fontWeight: 700,
+                              color: "var(--hotel-accent-text)"
+                            }}>
                             Guest stay
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>
                             View bookings, plan your stay, and access member rewards
                           </Typography>
                         </Box>
@@ -564,10 +577,18 @@ const LoginPage: React.FC = () => {
                           <AdminIcon sx={{ fontSize: 40, color: 'white' }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="h5" fontWeight={700} gutterBottom color="var(--hotel-accent-text)">
+                          <Typography
+                            variant="h5"
+                            gutterBottom
+                            sx={{
+                              fontWeight: 700,
+                              color: "var(--hotel-accent-text)"
+                            }}>
                             Hotel staff
                           </Typography>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>
                             Access operations, guest services, and performance insights
                           </Typography>
                         </Box>
@@ -576,7 +597,9 @@ const LoginPage: React.FC = () => {
                   </Card>
 
                   <Box sx={{ mt: 3, textAlign: 'center' }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Don't have an account?{' '}
                       <Button
                         variant="text"
@@ -648,13 +671,20 @@ const LoginPage: React.FC = () => {
                     <Box sx={{ minWidth: 0 }}>
                       <Typography
                         variant="h6"
-                        fontWeight={700}
-                        color="var(--hotel-accent-text)"
-                        sx={{ lineHeight: 1.2, fontSize: { xs: '1.05rem', sm: '1.25rem' } }}
-                      >
+                        sx={{
+                          fontWeight: 700,
+                          color: "var(--hotel-accent-text)",
+                          lineHeight: 1.2,
+                          fontSize: { xs: '1.05rem', sm: '1.25rem' }
+                        }}>
                         {passkeyCheckInProgress ? 'Authenticating…' : 'Sign in'}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          fontSize: '0.8rem'
+                        }}>
                         {passkeyCheckInProgress
                           ? 'Checking for a passkey'
                           : userType === 'guest'
@@ -791,10 +821,17 @@ const LoginPage: React.FC = () => {
                       {passkeyCheckInProgress && (
                         <Box sx={{ textAlign: 'center', py: 4 }}>
                           <LoadingSpinner size={40} />
-                          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "text.secondary",
+                              mt: 2
+                            }}>
                             Checking for passkey...
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          <Typography variant="caption" sx={{
+                            color: "text.secondary"
+                          }}>
                             Please respond to your browser's authentication prompt
                           </Typography>
                         </Box>
@@ -863,7 +900,9 @@ const LoginPage: React.FC = () => {
                                 Offer it as an action instead of declaring it absent. */}
                             <Box sx={{ textAlign: 'center' }}>
                               {passkeyAttempted ? (
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography variant="caption" sx={{
+                                  color: "text.secondary"
+                                }}>
                                   Passkey not available. Using password instead.
                                 </Typography>
                               ) : (

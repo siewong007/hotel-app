@@ -41,8 +41,8 @@ import {
   Category as LayersIcon,
   Apartment as BuildingIcon,
   Accessible as AccessibleIcon,
-  RemoveCircleOutline as MinusIcon,
-  AddCircleOutline as PlusIcon,
+  RemoveCircleOutlined as MinusIcon,
+  AddCircleOutlined as PlusIcon,
   SmokingRooms as SmokingIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
@@ -532,7 +532,13 @@ const RoomConfigurationPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -773,13 +779,11 @@ const RoomConfigurationPage: React.FC = () => {
           </Button>
         )}
       </Box>
-
       {pageError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {pageError}
         </Alert>
       )}
-
       {/* Stats strip */}
       <Box
         sx={{
@@ -804,7 +808,6 @@ const RoomConfigurationPage: React.FC = () => {
         <StatCard label="Maintenance" value={counts.maint} color={C.amber} />
         <StatCard label="Room Types" value={counts.types} color={C.blue} />
       </Box>
-
       {/* Toolbar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
         <TextField
@@ -812,14 +815,16 @@ const RoomConfigurationPage: React.FC = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search room number, type or floor…"
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 18, color: C.ink3 }} />
-              </InputAdornment>
-            ),
-          }}
           sx={{ minWidth: 280, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: C.ink3 }} />
+                </InputAdornment>
+              ),
+            }
+          }}
         />
         <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
           <StatusChip active={statusFilter === 'all'} label="All" count={counts.total} onClick={() => setStatusFilter('all')} />
@@ -847,7 +852,6 @@ const RoomConfigurationPage: React.FC = () => {
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
-
       {/* Groups */}
       {groups.length === 0 && (
         <Box
@@ -864,7 +868,6 @@ const RoomConfigurationPage: React.FC = () => {
           <Typography sx={{ mt: 1 }}>No rooms match the current filter.</Typography>
         </Box>
       )}
-
       {groups.map((g) => {
         const isType = g.kind === 'type';
         const t = isType ? g.type : null;
@@ -1089,13 +1092,14 @@ const RoomConfigurationPage: React.FC = () => {
           </Box>
         );
       })}
-
       {/* ---------- Room Type Drawer ---------- */}
       <Drawer
         anchor="right"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        PaperProps={{ sx: { width: 'min(580px, 100vw)' } }}
+        slotProps={{
+          paper: { sx: { width: 'min(580px, 100vw)' } }
+        }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: '16px 22px', borderBottom: `1px solid ${C.border}` }}>
           <Box sx={{ width: 36, height: 36, borderRadius: '9px', bgcolor: C.emeraldSoft, color: C.emerald, display: 'grid', placeItems: 'center' }}>
@@ -1161,8 +1165,10 @@ const RoomConfigurationPage: React.FC = () => {
               value={typeForm.code}
               onChange={(e) => setTF({ code: e.target.value.toUpperCase() })}
               placeholder="DLX"
-              inputProps={{ maxLength: 10, style: { textTransform: 'uppercase' } }}
               helperText="2–10 letters, used in reports"
+              slotProps={{
+                htmlInput: { maxLength: 10, style: { textTransform: 'uppercase' } }
+              }}
             />
           </Box>
           <TextField
@@ -1214,7 +1220,9 @@ const RoomConfigurationPage: React.FC = () => {
                 type="number"
                 value={typeForm.max_occupancy}
                 onChange={(e) => setTF({ max_occupancy: Number(e.target.value) || 1 })}
-                inputProps={{ min: 1, max: 10 }}
+                slotProps={{
+                  htmlInput: { min: 1, max: 10 }
+                }}
               />
               <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.5 }}>
                 Suggested from beds: <b>{occupancySuggested}</b>{' '}
@@ -1248,7 +1256,9 @@ const RoomConfigurationPage: React.FC = () => {
                 type="number"
                 value={typeForm.max_extra_beds}
                 onChange={(e) => setTF({ max_extra_beds: Number(e.target.value) || 0 })}
-                inputProps={{ min: 1, max: 5 }}
+                slotProps={{
+                  htmlInput: { min: 1, max: 5 }
+                }}
               />
               <TextField
                 size="small"
@@ -1256,7 +1266,9 @@ const RoomConfigurationPage: React.FC = () => {
                 type="number"
                 value={typeForm.extra_bed_charge}
                 onChange={(e) => setTF({ extra_bed_charge: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-                InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
+                slotProps={{
+                  input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
+                }}
               />
             </Box>
           )}
@@ -1270,7 +1282,9 @@ const RoomConfigurationPage: React.FC = () => {
               type="number"
               value={typeForm.base_price}
               onChange={(e) => setTF({ base_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
+              }}
             />
             <TextField
               size="small"
@@ -1278,8 +1292,10 @@ const RoomConfigurationPage: React.FC = () => {
               type="number"
               value={typeForm.weekday_rate}
               onChange={(e) => setTF({ weekday_rate: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               placeholder="Base"
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
+              }}
             />
             <TextField
               size="small"
@@ -1287,8 +1303,10 @@ const RoomConfigurationPage: React.FC = () => {
               type="number"
               value={typeForm.weekend_rate}
               onChange={(e) => setTF({ weekend_rate: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               placeholder="Base"
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
+              }}
             />
           </Box>
 
@@ -1338,7 +1356,6 @@ const RoomConfigurationPage: React.FC = () => {
           </Button>
         </Box>
       </Drawer>
-
       {/* ---------- Add Room dialog ---------- */}
       <Dialog open={!!addingRoomFor} onClose={() => setAddingRoomFor(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Add Room — {addingRoomFor?.name}</DialogTitle>
@@ -1358,15 +1375,19 @@ const RoomConfigurationPage: React.FC = () => {
                 type="number"
                 value={roomForm.floor}
                 onChange={(e) => setRoomForm({ ...roomForm, floor: e.target.value ? Number(e.target.value) : '' })}
-                inputProps={{ min: 0 }}
+                slotProps={{
+                  htmlInput: { min: 0 }
+                }}
               />
               <TextField
                 label={`Custom Price`}
                 type="number"
                 value={roomForm.custom_price}
                 onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-                InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
                 helperText={addingRoomFor ? `Base ${formatCurrency(toMoneyNumber(addingRoomFor.base_price))}` : ''}
+                slotProps={{
+                  input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
+                }}
               />
             </Box>
             <TextField
@@ -1407,7 +1428,6 @@ const RoomConfigurationPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* ---------- Edit Room dialog ---------- */}
       <Dialog open={!!editingRoom} onClose={() => setEditingRoom(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Edit Room {editingRoom?.room_number}</DialogTitle>
@@ -1423,8 +1443,10 @@ const RoomConfigurationPage: React.FC = () => {
               type="number"
               value={roomForm.custom_price}
               onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
-              InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               helperText="Leave empty to use room type base price"
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }
+              }}
             />
             <FormControlLabel
               control={
@@ -1452,7 +1474,6 @@ const RoomConfigurationPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* ---------- Delete Room ---------- */}
       <Dialog open={!!deletingRoom} onClose={() => setDeletingRoom(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete Room</DialogTitle>
@@ -1460,7 +1481,9 @@ const RoomConfigurationPage: React.FC = () => {
           <Alert severity="warning" sx={{ mb: 2 }}>
             Are you sure you want to delete room <strong>{deletingRoom?.room_number}</strong>?
           </Alert>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             This cannot be undone. The room can only be deleted if it has no existing bookings.
           </Typography>
         </DialogContent>
@@ -1471,7 +1494,6 @@ const RoomConfigurationPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* ---------- Delete Room Type ---------- */}
       <Dialog open={!!typeDeleteTarget} onClose={() => setTypeDeleteTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete Room Type</DialogTitle>
@@ -1479,7 +1501,12 @@ const RoomConfigurationPage: React.FC = () => {
           <Typography>
             Are you sure you want to delete <strong>{typeDeleteTarget?.name}</strong>?
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: 1
+            }}>
             This cannot be undone. If rooms still use this type, deactivate it instead.
           </Typography>
         </DialogContent>

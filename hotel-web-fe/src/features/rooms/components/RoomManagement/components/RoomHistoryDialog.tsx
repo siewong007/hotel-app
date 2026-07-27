@@ -84,25 +84,37 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
             {/* Current Status Section */}
             {room && (
               <Paper sx={{ p: 2, mb: 2, bgcolor: 'primary.50', borderLeft: 4, borderColor: 'primary.main' }}>
-                <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+                <Typography variant="subtitle2" gutterBottom sx={{
+                  fontWeight: 600
+                }}>
                   Current Status
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Status</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Status</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>
                       {room.status?.toUpperCase() || 'UNKNOWN'}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Available</Typography>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Available</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>
                       {room.available ? 'Yes' : 'No'}
                     </Typography>
                   </Grid>
                   {room.status_notes && (
                     <Grid size={12}>
-                      <Typography variant="caption" color="text.secondary">Notes</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>Notes</Typography>
                       <Typography variant="body2">{room.status_notes}</Typography>
                     </Grid>
                   )}
@@ -112,13 +124,19 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                         <Divider sx={{ my: 1 }} />
                       </Grid>
                       <Grid size={6}>
-                        <Typography variant="caption" color="text.secondary">Guest</Typography>
-                        <Typography variant="body2" fontWeight={600}>
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>Guest</Typography>
+                        <Typography variant="body2" sx={{
+                          fontWeight: 600
+                        }}>
                           {currentBooking.guest_name}
                         </Typography>
                       </Grid>
                       <Grid size={6}>
-                        <Typography variant="caption" color="text.secondary">Booking Period</Typography>
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>Booking Period</Typography>
                         <Typography variant="body2">
                           {new Date(currentBooking.check_in_date).toLocaleDateString()} - {new Date(currentBooking.check_out_date).toLocaleDateString()}
                         </Typography>
@@ -140,7 +158,14 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
             )}
 
             {/* History Timeline */}
-            <Typography variant="subtitle2" fontWeight={600} gutterBottom sx={{ mt: 2, mb: 1 }}>
+            <Typography
+              variant="subtitle2"
+              gutterBottom
+              sx={{
+                fontWeight: 600,
+                mt: 2,
+                mb: 1
+              }}>
               History Timeline
             </Typography>
             <Stack spacing={1}>
@@ -174,7 +199,9 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                     }}
                     onClick={() => entry.guest_id && onViewGuestDetails(entry.guest_id)}
                   >
-                    <Grid container spacing={1} alignItems="center">
+                    <Grid container spacing={1} sx={{
+                      alignItems: "center"
+                    }}>
                       <Grid>
                         <Box
                           sx={{
@@ -192,15 +219,24 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                         </Box>
                       </Grid>
                       <Grid size="grow">
-                        <Typography variant="body2" fontWeight={600}>
+                        <Typography variant="body2" sx={{
+                          fontWeight: 600
+                        }}>
                           {entry.from_status ? `${entry.from_status.toUpperCase()} → ${entry.to_status.toUpperCase()}` : entry.to_status.toUpperCase()}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
                           {new Date(entry.created_at).toLocaleString()}
                           {entry.changed_by_name && ` • By: ${entry.changed_by_name}`}
                         </Typography>
                         {entry.guest_name && (
-                          <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              display: "block",
+                              mt: 0.5
+                            }}>
                             Guest: {entry.guest_name}
                             {entry.start_date && entry.end_date && (
                               <> • {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}</>
@@ -208,7 +244,13 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
                           </Typography>
                         )}
                         {entry.notes && (
-                          <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              display: "block",
+                              color: "text.secondary",
+                              mt: 0.5
+                            }}>
                             {entry.notes}
                           </Typography>
                         )}

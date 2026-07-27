@@ -53,8 +53,10 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
             onCustomRateChange(toMoneyNumber(e.target.value));
             onUseCustomRateChange(true);
           }}
-          InputProps={{ startAdornment: <Box sx={{ color: D.ink3, mr: 1, fontSize: 13 }}>{currencySymbol}</Box> }}
           sx={{ bgcolor: D.surface }}
+          slotProps={{
+            input: { startAdornment: <Box sx={{ color: D.ink3, mr: 1, fontSize: 13 }}>{currencySymbol}</Box> }
+          }}
         />
       </Box>
       {!hideTourismStatus && (

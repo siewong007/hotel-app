@@ -78,22 +78,53 @@ const OnlineInventoryPage = () => {
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3.5 }, pb: { xs: 12, md: 4 } }}>
       <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} gap={2}>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { md: 'center' },
+            gap: 2
+          }}>
           <Box>
-            <Stack direction="row" spacing={1} alignItems="center" color="primary.main" sx={{ mb: 0.75 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                alignItems: "center",
+                color: "primary.main",
+                mb: 0.75
+              }}>
               <SettingsSuggestOutlinedIcon fontSize="small" />
-              <Typography variant="overline" fontWeight={800} letterSpacing={1.2}>Inventory settings</Typography>
+              <Typography
+                variant="overline"
+                sx={{
+                  fontWeight: 800,
+                  letterSpacing: 1.2
+                }}>Inventory settings</Typography>
             </Stack>
-            <Typography variant="h4" component="h1" fontWeight={850} letterSpacing={-0.7}>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{
+                fontWeight: 850,
+                letterSpacing: -0.7
+              }}>
               Online availability
             </Typography>
-            <Typography color="text.secondary" sx={{ mt: 0.75, maxWidth: 640 }}>
+            <Typography
+              sx={{
+                color: "text.secondary",
+                mt: 0.75,
+                maxWidth: 640
+              }}>
               Choose how many rooms to keep for walk-ins, set a custom online price, or close a room type for the selected date.
             </Typography>
           </Box>
 
           <Paper variant="outlined" sx={{ p: 0.75, borderRadius: 3, alignSelf: { xs: 'stretch', md: 'auto' } }}>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
+            <Stack direction="row" spacing={0.5} sx={{
+              alignItems: "center"
+            }}>
               <Tooltip title="Previous day">
                 <IconButton aria-label="Previous stay date" onClick={() => changeDate(shiftDate(stayDate, -1))}>
                   <ArrowBackIosNewIcon fontSize="small" />
@@ -104,8 +135,10 @@ const OnlineInventoryPage = () => {
                 value={stayDate}
                 onChange={(event) => changeDate(event.target.value)}
                 size="small"
-                inputProps={{ 'aria-label': 'Stay date' }}
                 sx={{ flex: 1, minWidth: 150, '& fieldset': { border: 0 } }}
+                slotProps={{
+                  htmlInput: { 'aria-label': 'Stay date' }
+                }}
               />
               <Tooltip title="Next day">
                 <IconButton aria-label="Next stay date" onClick={() => changeDate(shiftDate(stayDate, 1))}>
@@ -122,13 +155,26 @@ const OnlineInventoryPage = () => {
         {error && <Alert severity="error">{error}</Alert>}
 
         <Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1} sx={{ mb: 1.5 }}>
-            <Stack direction="row" spacing={1} alignItems="center">
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            sx={{
+              justifyContent: "space-between",
+              alignItems: { sm: 'center' },
+              gap: 1,
+              mb: 1.5
+            }}>
+            <Stack direction="row" spacing={1} sx={{
+              alignItems: "center"
+            }}>
               <CalendarMonthOutlinedIcon color="action" />
               <Box>
-                <Typography variant="h6" fontWeight={800}>{formatStayDate(stayDate)}</Typography>
+                <Typography variant="h6" sx={{
+                  fontWeight: 800
+                }}>{formatStayDate(stayDate)}</Typography>
                 {!isLoading && (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {openRoomTypeCount} of {items.length} room types are open online
                   </Typography>
                 )}
@@ -148,16 +194,24 @@ const OnlineInventoryPage = () => {
 
         {isLoading ? (
           <Paper variant="outlined" sx={{ display: 'grid', placeItems: 'center', minHeight: 280, borderRadius: 3 }}>
-            <Stack alignItems="center" spacing={1.5}>
+            <Stack spacing={1.5} sx={{
+              alignItems: "center"
+            }}>
               <CircularProgress size={32} />
-              <Typography color="text.secondary">Loading room availability…</Typography>
+              <Typography sx={{
+                color: "text.secondary"
+              }}>Loading room availability…</Typography>
             </Stack>
           </Paper>
         ) : items.length === 0 ? (
           <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
             <CloudDoneOutlinedIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1 }} />
-            <Typography variant="h6" fontWeight={750}>No room types to configure</Typography>
-            <Typography color="text.secondary">Add a room type before setting its online availability.</Typography>
+            <Typography variant="h6" sx={{
+              fontWeight: 750
+            }}>No room types to configure</Typography>
+            <Typography sx={{
+              color: "text.secondary"
+            }}>Add a room type before setting its online availability.</Typography>
           </Paper>
         ) : (
           <Stack spacing={2}>
@@ -173,7 +227,6 @@ const OnlineInventoryPage = () => {
           </Stack>
         )}
       </Stack>
-
       {changedCount > 0 && (
         <Paper
           elevation={8}
@@ -192,8 +245,14 @@ const OnlineInventoryPage = () => {
             borderColor: 'divider',
           }}
         >
-          <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Typography fontWeight={750} sx={{ flex: 1 }}>
+          <Stack direction="row" spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
+            <Typography
+              sx={{
+                fontWeight: 750,
+                flex: 1
+              }}>
               {changedCount} unsaved {changedCount === 1 ? 'change' : 'changes'}
             </Typography>
             <Button onClick={discardChanges} disabled={isSaving} color="inherit">Discard</Button>
@@ -208,7 +267,6 @@ const OnlineInventoryPage = () => {
           </Stack>
         </Paper>
       )}
-
       <Snackbar
         open={Boolean(successMessage)}
         autoHideDuration={4000}

@@ -114,7 +114,9 @@ const RolesTab: React.FC<RolesTabProps> = ({
     <Box>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {roles.length} role{roles.length !== 1 ? 's' : ''} configured
         </Typography>
 
@@ -126,7 +128,6 @@ const RolesTab: React.FC<RolesTabProps> = ({
           Create Role
         </Button>
       </Box>
-
       {/* Role cards */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -134,7 +135,9 @@ const RolesTab: React.FC<RolesTabProps> = ({
         </Box>
       ) : roles.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography color="text.secondary">
+          <Typography sx={{
+            color: "text.secondary"
+          }}>
             No roles configured. Click "Create Role" to add one.
           </Typography>
         </Box>
@@ -151,7 +154,6 @@ const RolesTab: React.FC<RolesTabProps> = ({
           ))}
         </Grid>
       )}
-
       {/* Edit drawer */}
       <RoleEditDrawer
         open={editDrawerOpen}
@@ -164,7 +166,6 @@ const RolesTab: React.FC<RolesTabProps> = ({
         }}
         onSave={handleSaveRole}
       />
-
       {/* Create dialog */}
       <Dialog
         open={createDialogOpen}
@@ -212,7 +213,6 @@ const RolesTab: React.FC<RolesTabProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete confirmation dialog */}
       <Dialog
         open={deleteDialogOpen}

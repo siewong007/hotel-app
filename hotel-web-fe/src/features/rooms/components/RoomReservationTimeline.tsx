@@ -716,7 +716,6 @@ const RoomReservationTimeline: React.FC = () => {
           </Box>
         )}
       </Box>
-
       {/* ── Booking detail popover ── */}
       <Popover
         open={Boolean(popoverAnchor) && Boolean(hoveredBooking)}
@@ -806,14 +805,18 @@ const RoomReservationTimeline: React.FC = () => {
               </Box>
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <Box>
-                  <Typography variant="caption" color="text.secondary">Nights</Typography>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Nights</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {hoveredBooking.number_of_nights || Math.ceil((new Date(hoveredBooking.check_out_date).getTime() - new Date(hoveredBooking.check_in_date).getTime()) / 86400000)}
                   </Typography>
                 </Box>
                 {hoveredBooking.number_of_guests && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Guests</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Guests</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {hoveredBooking.number_of_guests}
                     </Typography>
@@ -821,7 +824,9 @@ const RoomReservationTimeline: React.FC = () => {
                 )}
                 {!!hoveredBooking.extra_bed_count && hoveredBooking.extra_bed_count > 0 && (
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Extra Beds</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Extra Beds</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {hoveredBooking.extra_bed_count}
                     </Typography>
@@ -838,7 +843,9 @@ const RoomReservationTimeline: React.FC = () => {
                     {formatCurrency(toMoneyNumber(hoveredBooking.total_amount))}
                   </Typography>
                   {isPositiveMoney(hoveredBooking.price_per_night) && (
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {formatCurrency(toMoneyNumber(hoveredBooking.price_per_night))}/night
                     </Typography>
                   )}
@@ -875,7 +882,9 @@ const RoomReservationTimeline: React.FC = () => {
 
             {(isPositiveMoney(hoveredBooking.deposit_amount) || hoveredBooking.deposit_paid) && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                <Typography variant="caption" color="text.secondary">Deposit:</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Deposit:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {formatCurrency(toMoneyNumber(hoveredBooking.deposit_amount))}
                 </Typography>
@@ -887,7 +896,9 @@ const RoomReservationTimeline: React.FC = () => {
 
             {hoveredBooking.company_name && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                <Typography variant="caption" color="text.secondary">Company:</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Company:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {hoveredBooking.company_name}
                 </Typography>
@@ -912,7 +923,12 @@ const RoomReservationTimeline: React.FC = () => {
                   </Typography>
                 </Box>
                 {hoveredBooking.complimentary_reason && (
-                  <Typography variant="caption" color="text.secondary" sx={{ ml: 3 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      ml: 3
+                    }}>
                     {hoveredBooking.complimentary_reason}
                   </Typography>
                 )}
@@ -924,7 +940,9 @@ const RoomReservationTimeline: React.FC = () => {
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                   <Notes sx={{ fontSize: 16, color: 'warning.main', mt: 0.25 }} />
                   <Box>
-                    <Typography variant="caption" color="text.secondary">Special Requests</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Special Requests</Typography>
                     <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
                       {hoveredBooking.special_requests}
                     </Typography>

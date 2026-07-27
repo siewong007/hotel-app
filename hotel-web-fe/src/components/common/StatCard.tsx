@@ -108,7 +108,12 @@ export const StatCard = React.memo(function StatCard({
           ...toSxArray(contentSx),
         ]}
       >
-        <Box display="flex" alignItems={headerAlignItems} justifyContent="space-between">
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: headerAlignItems,
+            justifyContent: "space-between"
+          }}>
           <Box>
             {titlePlacement === 'top' && (
               <Typography
@@ -169,7 +174,12 @@ export const StatCard = React.memo(function StatCard({
               </Typography>
             )}
             {trend && (
-              <Box display="flex" alignItems="center" mt={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mt: 1
+                }}>
                 <TrendingUpIcon
                   fontSize="small"
                   sx={{

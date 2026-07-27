@@ -55,11 +55,21 @@ export function PromotionCard({
         <Typography variant="h6" component="h2" gutterBottom>
           {promotion.name}
         </Typography>
-        <Typography variant="h4" color="primary.main" sx={{ mb: 1 }}>
+        <Typography
+          variant="h4"
+          sx={{
+            color: "primary.main",
+            mb: 1
+          }}>
           {formatPromotionDiscount(promotion)}
         </Typography>
         {promotion.description ? (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             {promotion.description}
           </Typography>
         ) : null}
@@ -67,33 +77,45 @@ export function PromotionCard({
         <Divider sx={{ my: 1.5 }} />
         <Stack spacing={0.5}>
           {claimEnd ? (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Claim by {claimEnd}
             </Typography>
           ) : null}
           {stayStart || stayEnd ? (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Stay dates: {stayStart ?? 'Any time'} – {stayEnd ?? 'No end date'}
             </Typography>
           ) : null}
           {promotion.min_nights ? (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Minimum stay: {promotion.min_nights} night{promotion.min_nights === 1 ? '' : 's'}
             </Typography>
           ) : null}
           {promotion.terms ? (
             <Box sx={{ mt: 1 }}>
-              <Typography variant="caption" fontWeight={600}>
+              <Typography variant="caption" sx={{
+                fontWeight: 600
+              }}>
                 Terms
               </Typography>
-              <Typography variant="caption" color="text.secondary" display="block">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  display: "block"
+                }}>
                 {promotion.terms}
               </Typography>
             </Box>
           ) : null}
         </Stack>
       </CardContent>
-
       <CardActions sx={{ px: 2, pb: 2 }}>
         {isPortal ? (
           <Stack spacing={0.5} sx={{ width: '100%' }}>
@@ -112,7 +134,12 @@ export function PromotionCard({
                     : 'Claim deal'}
             </Button>
             {!canClaim && !hasVoucher && claimUnavailableReason ? (
-              <Typography variant="caption" color="text.secondary" textAlign="center">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  textAlign: "center"
+                }}>
                 {claimUnavailableReason}
               </Typography>
             ) : null}

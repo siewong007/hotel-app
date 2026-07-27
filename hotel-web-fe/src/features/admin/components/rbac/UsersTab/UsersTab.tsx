@@ -247,7 +247,9 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       id: 'username',
       header: 'Username',
       accessorFn: (row) => row.username,
-      cell: (info) => <Typography fontWeight={500}>{String(info.getValue() ?? '')}</Typography>,
+      cell: (info) => <Typography sx={{
+        fontWeight: 500
+      }}>{String(info.getValue() ?? '')}</Typography>,
     },
     {
       id: 'email',
@@ -268,7 +270,11 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       cell: (info) => {
         const user = info.row.original;
         if (!user.roles || user.roles.length === 0) {
-          return <Typography variant="body2" color="text.secondary">No roles</Typography>;
+          return (
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>No roles</Typography>
+          );
         }
         return (
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
@@ -348,10 +354,14 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2 }}>
         <Box>
-          <Typography variant="h6" fontWeight={600}>
+          <Typography variant="h6" sx={{
+            fontWeight: 600
+          }}>
             User Management
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Create, edit, and manage user accounts and their role assignments
           </Typography>
         </Box>
@@ -361,14 +371,16 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" color="action" />
-                </InputAdornment>
-              ),
-            }}
             sx={{ width: 240 }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }
+            }}
           />
           <Button
             variant="contained"
@@ -379,7 +391,6 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           </Button>
         </Box>
       </Box>
-
       <DataTable<UserWithRoles>
         data={users}
         columns={columns}
@@ -388,7 +399,6 @@ export const UsersTab: React.FC<UsersTabProps> = ({
         onRowClick={handleOpenEdit}
         getRowId={(row) => row.id}
       />
-
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ pb: 1 }}>
@@ -435,17 +445,19 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               onChange={(e) => handleChange('password', e.target.value)}
               required={!editingUser}
               fullWidth
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                    >
-                      {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword(!showPassword)}
+                        edge="end"
+                      >
+                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }
               }}
             />
             {(formData.password || !editingUser) && (
@@ -511,7 +523,6 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogTitle>Delete User</DialogTitle>

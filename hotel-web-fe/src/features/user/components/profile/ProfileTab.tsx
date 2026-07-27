@@ -105,7 +105,6 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
       <Box sx={{ mb: 3 }}>
         <EkycStatusCard />
       </Box>
-
       {profile.user_type === 'guest' && !profile.email_configured && (
         <Alert
           severity="info"
@@ -119,7 +118,6 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
           Add an email address to receive account and booking updates.
         </Alert>
       )}
-
       <Card>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
@@ -142,10 +140,14 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
                 {profile.full_name || profile.username}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 @{profile.username}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Member since {new Date(profile.created_at).toLocaleDateString()}
               </Typography>
             </Box>
@@ -278,9 +280,11 @@ const ProfileTab: React.FC<ProfileTabProps> = ({
                 </Box>
                 <Typography
                   variant="caption"
-                  color="text.secondary"
-                  sx={{ mt: 1, display: 'block' }}
-                >
+                  sx={{
+                    color: "text.secondary",
+                    mt: 1,
+                    display: 'block'
+                  }}>
                   Supported formats: JPG, PNG, GIF. Max size: 2MB
                 </Typography>
               </Grid>

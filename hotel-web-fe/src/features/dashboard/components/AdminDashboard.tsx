@@ -397,7 +397,9 @@ const AdminDashboard: React.FC = () => {
           <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
             Admin Dashboard
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             Real-time overview of hotel operations and room status
           </Typography>
         </Box>
@@ -405,13 +407,17 @@ const AdminDashboard: React.FC = () => {
           <RefreshIcon />
         </IconButton>
       </Box>
-
       {/* Summary Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {availableRooms}
@@ -427,7 +433,12 @@ const AdminDashboard: React.FC = () => {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #f44336 0%, #e57373 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {occupiedRooms}
@@ -443,7 +454,12 @@ const AdminDashboard: React.FC = () => {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {reservedRooms}
@@ -459,7 +475,12 @@ const AdminDashboard: React.FC = () => {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #1a73e8 0%, #4285f4 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center">
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
                 <Box>
                   <Typography variant="h4" sx={{ fontWeight: 600 }}>
                     {occupancyRate}%
@@ -472,13 +493,17 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
-
       {/* Today's Activity */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <CheckInIcon sx={{ mr: 1, color: 'success.main', fontSize: 20 }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                   Today's Check-ins
@@ -494,14 +519,18 @@ const AdminDashboard: React.FC = () => {
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Room {arrival.room_number}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {arrival.guest_name}
                       </Typography>
                     </Box>
                   ))}
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   No check-ins scheduled
                 </Typography>
               )}
@@ -512,7 +541,12 @@ const AdminDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <CheckOutIcon sx={{ mr: 1, color: 'info.main', fontSize: 20 }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                   Today's Check-outs
@@ -528,14 +562,18 @@ const AdminDashboard: React.FC = () => {
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Room {departure.room_number}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {departure.guest_name}
                       </Typography>
                     </Box>
                   ))}
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   No check-outs scheduled
                 </Typography>
               )}
@@ -546,7 +584,12 @@ const AdminDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <WarningIcon sx={{ mr: 1, color: 'error.main', fontSize: 20 }} />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                   Attention Required
@@ -554,7 +597,12 @@ const AdminDashboard: React.FC = () => {
               </Box>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      fontSize: '0.75rem'
+                    }}>
                     Maintenance Rooms
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: 'warning.main' }}>
@@ -566,11 +614,15 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
-
       {/* Room Status Grid */}
       <Card>
         <CardContent>
-          <Box display="flex" alignItems="center" mb={3}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              mb: 3
+            }}>
             <HotelIcon sx={{ mr: 1, color: 'primary.main', fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Room Status Overview
@@ -610,7 +662,13 @@ const AdminDashboard: React.FC = () => {
                           <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 0.5 }}>
                             Notes:
                           </Typography>
-                          <Typography variant="caption" display="block" sx={{ fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              display: "block",
+                              fontStyle: 'italic',
+                              whiteSpace: 'pre-wrap'
+                            }}>
                             {room.status_notes}
                           </Typography>
                         </>
@@ -785,7 +843,6 @@ const AdminDashboard: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
-
       {/* Room Status Change Dialog */}
       {statusDialogOpen && (
         <RoomEventDialog

@@ -2,8 +2,8 @@ import ArchiveIcon from "@mui/icons-material/Archive";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutline";
-import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutlined";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutlined";
 import PublicOutlinedIcon from "@mui/icons-material/PublicOutlined";
 import {
   Box,
@@ -75,7 +75,9 @@ export function PromotionAdminTable({
         }}
       >
         <CircularProgress size={28} />
-        <Typography color="text.secondary">Loading promotions…</Typography>
+        <Typography sx={{
+          color: "text.secondary"
+        }}>Loading promotions…</Typography>
       </Box>
     );
   }
@@ -114,15 +116,18 @@ export function PromotionAdminTable({
                   sx={{ opacity: promotion.status === "archived" ? 0.68 : 1 }}
                 >
                   <TableCell>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>
                       {promotion.name}
                     </Typography>
                     <Stack
                       direction="row"
                       spacing={0.75}
-                      alignItems="center"
-                      sx={{ mt: 0.5 }}
-                    >
+                      sx={{
+                        alignItems: "center",
+                        mt: 0.5
+                      }}>
                       <Chip
                         size="small"
                         variant="outlined"
@@ -137,10 +142,11 @@ export function PromotionAdminTable({
                       {promotion.description ? (
                         <Typography
                           variant="caption"
-                          color="text.secondary"
                           noWrap
-                          sx={{ maxWidth: 180 }}
-                        >
+                          sx={{
+                            color: "text.secondary",
+                            maxWidth: 180
+                          }}>
                           {promotion.description}
                         </Typography>
                       ) : null}
@@ -160,13 +166,16 @@ export function PromotionAdminTable({
                   <TableCell>
                     <Typography
                       variant="body2"
-                      fontWeight={700}
-                      color="primary.main"
-                    >
+                      sx={{
+                        fontWeight: 700,
+                        color: "primary.main"
+                      }}>
                       {formatPromotionDiscount(promotion)}
                     </Typography>
                     {promotion.min_nights ? (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {promotion.min_nights}+ night
                         {promotion.min_nights === 1 ? "" : "s"}
                       </Typography>
@@ -184,17 +193,20 @@ export function PromotionAdminTable({
                     {availabilityEnd ? (
                       <Typography
                         variant="caption"
-                        color="text.secondary"
-                        display="block"
-                        sx={{ mt: 0.5 }}
-                      >
+                        sx={{
+                          color: "text.secondary",
+                          display: "block",
+                          mt: 0.5
+                        }}>
                         Until {availabilityEnd}
                       </Typography>
                     ) : null}
                   </TableCell>
                   <TableCell>
                     <Stack spacing={0.5}>
-                      <Typography variant="body2" fontWeight={600}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 600
+                      }}>
                         {promotion.claimed_count}
                         {promotion.claim_limit
                           ? ` of ${promotion.claim_limit}`
@@ -208,7 +220,9 @@ export function PromotionAdminTable({
                           sx={{ height: 5, borderRadius: 99 }}
                         />
                       ) : (
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
                           No total limit
                         </Typography>
                       )}
@@ -233,8 +247,10 @@ export function PromotionAdminTable({
                     {canManage ? (
                       <Stack
                         direction="row"
-                        justifyContent="flex-end"
                         spacing={0.25}
+                        sx={{
+                          justifyContent: "flex-end"
+                        }}
                       >
                         <Tooltip title="Edit">
                           <IconButton
@@ -282,7 +298,9 @@ export function PromotionAdminTable({
                         ) : null}
                       </Stack>
                     ) : (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         Read only
                       </Typography>
                     )}
@@ -297,8 +315,12 @@ export function PromotionAdminTable({
                     color="disabled"
                     sx={{ fontSize: 44, mb: 1 }}
                   />
-                  <Typography fontWeight={650}>No promotions found</Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography sx={{
+                    fontWeight: 650
+                  }}>No promotions found</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Try changing your search or status filter.
                   </Typography>
                 </TableCell>

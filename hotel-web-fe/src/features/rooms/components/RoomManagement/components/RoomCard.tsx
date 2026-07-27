@@ -243,12 +243,12 @@ const RoomCard: React.FC<RoomCardProps> = ({
           {!isOccupied && !isReservedToday && (
             <Typography
               variant="caption"
-              display="block"
               onClick={(e) => {
                 e.stopPropagation();
                 onEditNotes(room);
               }}
               sx={{
+                display: "block",
                 fontSize: '0.6rem',
                 fontStyle: 'italic',
                 opacity: (room.notes || room.status_notes) ? 0.8 : 0.4,
@@ -257,9 +257,8 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 whiteSpace: 'nowrap',
                 mb: 0.5,
                 cursor: 'pointer',
-                '&:hover': { opacity: 1 },
-              }}
-            >
+                '&:hover': { opacity: 1 }
+              }}>
               {room.notes || room.status_notes || '+ Add notes'}
             </Typography>
           )}

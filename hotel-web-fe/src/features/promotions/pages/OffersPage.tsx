@@ -21,12 +21,19 @@ export default function OffersPage() {
         <Container maxWidth="lg">
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
-            justifyContent="space-between"
-            alignItems={{ sm: 'center' }}
-            gap={3}
-          >
+            sx={{
+              justifyContent: "space-between",
+              alignItems: { sm: 'center' },
+              gap: 3
+            }}>
             <Box>
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <LocalOfferIcon />
                 <Typography variant="overline">{hotelName} offers</Typography>
               </Stack>
@@ -48,13 +55,14 @@ export default function OffersPage() {
           </Stack>
         </Container>
       </Box>
-
       <Container component="main" maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Stack spacing={1} sx={{ mb: 3 }}>
           <Typography variant="h4" component="h2">
             Current deals
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             Offers are subject to availability and the terms shown on each deal.
           </Typography>
         </Stack>

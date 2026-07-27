@@ -25,11 +25,18 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
       <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
         Signed-in devices
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 2
+        }}>
         Log out devices you no longer use. Their access ends immediately.
       </Typography>
       {sessions.length === 0 ? (
-        <Typography color="text.secondary">No active sessions found.</Typography>
+        <Typography sx={{
+          color: "text.secondary"
+        }}>No active sessions found.</Typography>
       ) : (
         <List>
           {sessions.map((session, index) => (
@@ -40,7 +47,9 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
               <ListItemText
                 primary={
                   <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Typography fontWeight={600}>
+                    <Typography sx={{
+                      fontWeight: 600
+                    }}>
                       {detectDeviceType(session.user_agent || '').label}
                     </Typography>
                     {session.is_current && (

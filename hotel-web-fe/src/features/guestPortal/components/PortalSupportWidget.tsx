@@ -72,7 +72,6 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
         <SupportAgentOutlinedIcon sx={{ mr: isPhone ? 0 : 1 }} />
         {isPhone ? null : 'Support'}
       </Fab>
-
       <Slide in={open} direction="up" mountOnEnter unmountOnExit>
         <Paper
           elevation={12}

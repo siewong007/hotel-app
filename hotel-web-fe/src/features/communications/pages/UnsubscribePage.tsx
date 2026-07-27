@@ -69,7 +69,12 @@ export default function UnsubscribePage({ token }: { token: string }) {
           <Typography variant="h5" gutterBottom>
             Email preferences
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             Choose which emails you would like to receive from us.
           </Typography>
           {error && (
@@ -87,20 +92,25 @@ export default function UnsubscribePage({ token }: { token: string }) {
               <Stack
                 key={s.topic}
                 direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-              >
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}>
                 <Typography>{TOPIC_LABELS[s.topic] ?? s.topic}</Typography>
                 <Switch
                   checked={s.subscribed}
                   disabled={!s.subscribed || apply.isPending}
                   onChange={() => apply.mutate({ topic: s.topic })}
-                  inputProps={{ 'aria-label': `unsubscribe from ${s.topic}` }}
+                  slotProps={{
+                    input: { 'aria-label': `unsubscribe from ${s.topic}` }
+                  }}
                 />
               </Stack>
             ))}
           </Stack>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Turning a topic off takes effect immediately. To subscribe again, sign in to the
             guest portal.
           </Typography>

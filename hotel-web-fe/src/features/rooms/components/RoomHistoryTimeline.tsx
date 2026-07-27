@@ -106,7 +106,12 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" p={3}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          p: 3
+        }}>
         <CircularProgress size={30} />
       </Box>
     );
@@ -165,7 +170,13 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
             {/* Right side - Content */}
             <Box sx={{ flex: 1, pb: 2 }}>
               {/* Timestamp */}
-              <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  display: "block",
+                  mb: 1
+                }}>
                 {formatDate(record.created_at)}
                 {record.is_auto_generated && (
                   <Chip
@@ -181,7 +192,13 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
               {/* Main Content Card */}
               <Paper elevation={1} sx={{ p: 2, bgcolor: 'grey.50' }}>
                 {/* Status Change */}
-                <Box display="flex" alignItems="center" gap={1} mb={1.5}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    mb: 1.5
+                  }}>
                   {record.from_status && (
                     <>
                       <Chip
@@ -193,7 +210,9 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                           fontWeight: 600,
                         }}
                       />
-                      <Typography variant="body2" fontWeight="bold">→</Typography>
+                      <Typography variant="body2" sx={{
+                        fontWeight: "bold"
+                      }}>→</Typography>
                     </>
                   )}
                   <Chip
@@ -211,7 +230,12 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                 <Stack spacing={0.5}>
                   {/* Guest Information */}
                   {record.guest_name && (
-                    <Box display="flex" alignItems="center" gap={0.5}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5
+                      }}>
                       <PersonIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                       <Typography variant="body2">
                         Guest: <strong>{record.guest_name}</strong>
@@ -221,28 +245,36 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
 
                   {/* Booking ID */}
                   {record.booking_id && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Booking: #{record.booking_id}
                     </Typography>
                   )}
 
                   {/* Reward Used */}
                   {record.reward_name && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Reward: {record.reward_name}
                     </Typography>
                   )}
 
                   {/* Date Range (for reserved/maintenance) */}
                   {record.start_date && record.end_date && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Period: {new Date(record.start_date).toLocaleDateString()} - {new Date(record.end_date).toLocaleDateString()}
                     </Typography>
                   )}
 
                   {/* Target Room (for room changes) */}
                   {record.target_room_number && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Moved to: Room {record.target_room_number}
                     </Typography>
                   )}
@@ -251,16 +283,26 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                   {record.notes && (
                     <Typography
                       variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 1, fontStyle: 'italic', borderLeft: '3px solid', borderColor: 'grey.400', pl: 1 }}
-                    >
+                      sx={{
+                        color: "text.secondary",
+                        mt: 1,
+                        fontStyle: 'italic',
+                        borderLeft: '3px solid',
+                        borderColor: 'grey.400',
+                        pl: 1
+                      }}>
                       "{record.notes}"
                     </Typography>
                   )}
 
                   {/* Changed By */}
                   {record.changed_by_name && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        mt: 1
+                      }}>
                       Changed by: {record.changed_by_name}
                     </Typography>
                   )}

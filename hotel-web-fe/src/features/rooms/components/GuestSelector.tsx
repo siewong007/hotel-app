@@ -168,7 +168,9 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Box>
                           <Typography variant="body1">{option.full_name}</Typography>
-                          {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
+                          {option.email && <Typography variant="caption" sx={{
+                            color: "text.secondary"
+                          }}>{option.email}</Typography>}
                         </Box>
                         <Chip
                           icon={<GiftIcon sx={{ fontSize: 14 }} />}
@@ -229,7 +231,6 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           Register New Guest
         </Button>
       </Stack>
-
       {/* Existing Guest Selection */}
       {!isCreatingNew && (
         <Box>
@@ -252,12 +253,20 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                     <Typography variant="body2">
                       {option.full_name}
                       {option.company_name && (
-                        <Typography component="span" variant="caption" color="primary.main" sx={{ ml: 0.5 }}>
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            color: "primary.main",
+                            ml: 0.5
+                          }}>
                           ({option.company_name})
                         </Typography>
                       )}
                     </Typography>
-                    {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
+                    {option.email && <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>{option.email}</Typography>}
                   </Box>
                   {option.guest_type === 'member' && (
                     <Chip
@@ -288,7 +297,6 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           )}
         </Box>
       )}
-
       {/* New Guest Registration Form */}
       {isCreatingNew && (
         <Grid container spacing={2}>
@@ -365,13 +373,17 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <MenuItem value="local">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Chip label={TOURISM_TYPE_CONFIG.local.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
-                    <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
                   </Box>
                 </MenuItem>
                 <MenuItem value="foreign">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Chip label={TOURISM_TYPE_CONFIG.foreign.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
-                    <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
                   </Box>
                 </MenuItem>
               </Select>
@@ -394,14 +406,18 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <MenuItem value="non_member">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Chip label={GUEST_TYPE_CONFIG.non_member.label} size="small" sx={{ bgcolor: GUEST_TYPE_CONFIG.non_member.color, color: 'white' }} />
-                    <Typography variant="body2" color="text.secondary">{GUEST_TYPE_CONFIG.non_member.discountLabel}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>{GUEST_TYPE_CONFIG.non_member.discountLabel}</Typography>
                   </Box>
                 </MenuItem>
                 <MenuItem value="member">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <MemberIcon sx={{ color: GUEST_TYPE_CONFIG.member.color, fontSize: 18 }} />
                     <Chip label={GUEST_TYPE_CONFIG.member.label} size="small" sx={{ bgcolor: GUEST_TYPE_CONFIG.member.color, color: 'white' }} />
-                    <Typography variant="body2" color="text.secondary">{GUEST_TYPE_CONFIG.member.discountLabel}</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>{GUEST_TYPE_CONFIG.member.discountLabel}</Typography>
                   </Box>
                 </MenuItem>
               </Select>

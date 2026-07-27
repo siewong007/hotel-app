@@ -75,7 +75,12 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
         <Typography variant="h6" sx={{ color: '#061b15', fontWeight: 750 }}>
           Your voucher wallet is empty
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mt: 0.75
+          }}>
           Claim an eligible offer and your voucher will appear here, ready for your next stay.
         </Typography>
       </Box>
@@ -92,18 +97,21 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
     <Box>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
-        justifyContent="space-between"
         spacing={1.5}
-        sx={{ mb: 2.5 }}
-      >
+        sx={{
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          justifyContent: "space-between",
+          mb: 2.5
+        }}>
         <Box>
           <Typography sx={{ color: '#061b15', fontWeight: 750 }}>
             {readyCount > 0
               ? `${readyCount} voucher${readyCount === 1 ? '' : 's'} ready to use`
               : 'Your saved vouchers'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Copy a code now, or choose the voucher when you book.
           </Typography>
         </Box>
@@ -114,7 +122,6 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
           sx={{ borderColor: 'rgba(6, 35, 27, 0.18)', color: '#3f514b', fontWeight: 700 }}
         />
       </Stack>
-
       <Stack spacing={2.25}>
         {vouchers.map((voucher) => (
           <VoucherCard voucher={voucher} key={voucher.id} />

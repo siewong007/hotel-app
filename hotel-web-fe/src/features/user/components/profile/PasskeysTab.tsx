@@ -89,7 +89,9 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Registered Passkeys ({passkeys.length}/{MAX_PASSKEYS})
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Passkeys provide secure, passwordless authentication
             </Typography>
           </Box>
@@ -108,10 +110,17 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
             }}
           >
             <FingerprintIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{
+              color: "text.secondary"
+            }}>
               No passkeys registered
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 3
+              }}>
               Add a passkey for secure, passwordless login
             </Typography>
             <Button variant="outlined" startIcon={<AddIcon />} onClick={onAdd}>
@@ -184,26 +193,33 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                         <Box sx={{ mt: 0.5 }}>
                           <Typography
                             variant="body2"
-                            color="text.secondary"
-                            sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                          >
+                            sx={{
+                              color: "text.secondary",
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}>
                             <strong>Added:</strong> {formatDate(passkey.created_at)}
                           </Typography>
                           {passkey.last_used_at ? (
                             <Typography
                               variant="body2"
-                              color="text.secondary"
-                              sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
-                            >
+                              sx={{
+                                color: "text.secondary",
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 0.5
+                              }}>
                               <strong>Last used:</strong> {formatDate(passkey.last_used_at)} at{' '}
                               {formatTime(passkey.last_used_at)}
                             </Typography>
                           ) : (
                             <Typography
                               variant="body2"
-                              color="text.secondary"
-                              sx={{ fontStyle: 'italic' }}
-                            >
+                              sx={{
+                                color: "text.secondary",
+                                fontStyle: 'italic'
+                              }}>
                               Never used
                             </Typography>
                           )}

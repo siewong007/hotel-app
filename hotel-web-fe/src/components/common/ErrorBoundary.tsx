@@ -78,7 +78,13 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
           </Button>
         </Box>
 
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            mt: 3,
+            display: 'block'
+          }}>
           If this problem persists, please contact support
         </Typography>
       </Paper>

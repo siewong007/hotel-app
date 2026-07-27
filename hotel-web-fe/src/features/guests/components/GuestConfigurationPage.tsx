@@ -31,7 +31,7 @@ import {
   History as HistoryIcon,
   CardGiftcard as GiftIcon,
   PhoneOutlined as PhoneIcon,
-  MailOutline as MailIcon,
+  MailOutlined as MailIcon,
   BadgeOutlined as IdIcon,
   ApartmentOutlined as CompanyIcon,
   ArrowForward as ArrowRightIcon,
@@ -769,7 +769,6 @@ const GuestConfigurationPage: React.FC = () => {
           {pageError}
         </Alert>
       )}
-
       {/* Page header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
         <Box>
@@ -830,7 +829,6 @@ const GuestConfigurationPage: React.FC = () => {
           </Button>
         </Box>
       </Box>
-
       {/* Two-pane layout: list (flex) + sticky detail (400px) */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selectedGuest ? '1fr 400px' : '1fr' }, gap: 1.75, alignItems: 'flex-start' }}>
         {/* LEFT: list */}
@@ -1495,7 +1493,6 @@ const GuestConfigurationPage: React.FC = () => {
           </Box>
         )}
       </Box>
-
       <UnifiedBookingModal
         open={bookingDialogOpen}
         onClose={() => {
@@ -1517,7 +1514,6 @@ const GuestConfigurationPage: React.FC = () => {
           await Promise.all([loadGuests(), loadRooms()]);
         }}
       />
-
       {canCreateEkyc && (
         <EkycCreateDialog
           open={Boolean(ekycGuest)}
@@ -1530,7 +1526,6 @@ const GuestConfigurationPage: React.FC = () => {
           }}
         />
       )}
-
       <GuestFormDialog
         open={createDialogOpen}
         mode="create"
@@ -1542,7 +1537,6 @@ const GuestConfigurationPage: React.FC = () => {
         onClose={() => { setCreateDialogOpen(false); setDialogError(null); }}
         onSubmit={handleCreateGuest}
       />
-
       <GuestFormDialog
         open={editDialogOpen}
         mode="edit"
@@ -1555,7 +1549,6 @@ const GuestConfigurationPage: React.FC = () => {
         onClose={() => { setEditDialogOpen(false); setDialogError(null); }}
         onSubmit={handleUpdateGuest}
       />
-
       <Dialog
         open={portalAccountDialogOpen}
         onClose={() => !transferPortalAccountMutation.isPending && setPortalAccountDialogOpen(false)}
@@ -1595,7 +1588,6 @@ const GuestConfigurationPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Delete Guest</DialogTitle>
@@ -1603,7 +1595,9 @@ const GuestConfigurationPage: React.FC = () => {
           <Alert severity="warning" sx={{ mb: 2 }}>
             Are you sure you want to delete guest <strong>{deletingGuest?.full_name}</strong>?
           </Alert>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             This action cannot be undone. All bookings associated with this guest will also be deleted. The guest cannot be deleted if they are currently checked in.
           </Typography>
         </DialogContent>
@@ -1621,13 +1615,17 @@ const GuestConfigurationPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Booking History Dialog */}
       <Dialog open={bookingsDialogOpen} onClose={() => setBookingsDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Booking History: {viewingGuest?.full_name}</DialogTitle>
         <DialogContent>
           {bookingsLoading ? (
-            <Box display="flex" justifyContent="center" py={3}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                py: 3
+              }}>
               <CircularProgress />
             </Box>
           ) : guestBookings.length === 0 ? (
@@ -1639,7 +1637,9 @@ const GuestConfigurationPage: React.FC = () => {
               {checkedOutGuestBookings.length > 0 && (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={700}>
+                    <Typography variant="subtitle2" sx={{
+                      fontWeight: 700
+                    }}>
                       Checked out bookings
                     </Typography>
                     <Chip label={checkedOutGuestBookings.length} size="small" color="success" />
@@ -1655,7 +1655,9 @@ const GuestConfigurationPage: React.FC = () => {
               {voidGuestBookings.length > 0 && (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={700}>
+                    <Typography variant="subtitle2" sx={{
+                      fontWeight: 700
+                    }}>
                       Void bookings
                     </Typography>
                     <Chip label={voidGuestBookings.length} size="small" />
@@ -1671,7 +1673,9 @@ const GuestConfigurationPage: React.FC = () => {
               {otherGuestBookings.length > 0 && (
                 <Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                    <Typography variant="subtitle2" fontWeight={700}>
+                    <Typography variant="subtitle2" sx={{
+                      fontWeight: 700
+                    }}>
                       Other bookings
                     </Typography>
                     <Chip label={otherGuestBookings.length} size="small" color="info" />
@@ -1691,7 +1695,6 @@ const GuestConfigurationPage: React.FC = () => {
           <Button onClick={() => setBookingsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-
       {/* Credits Dialog */}
       <Dialog open={creditsDialogOpen} onClose={() => setCreditsDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1700,15 +1703,27 @@ const GuestConfigurationPage: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           {creditsLoading ? (
-            <Box display="flex" justifyContent="center" py={3}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                py: 3
+              }}>
               <CircularProgress />
             </Box>
           ) : guestCredits ? (
             <Box>
               {/* Credits by Room Type */}
               {guestCredits.credits_by_room_type.length > 0 && (
-                <Box mb={3}>
-                  <Typography variant="subtitle2" color="text.secondary" mb={1}>
+                <Box sx={{
+                  mb: 3
+                }}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      color: "text.secondary",
+                      mb: 1
+                    }}>
                     Credits by Room Type:
                   </Typography>
                   {guestCredits.credits_by_room_type.map((credit) => (
@@ -1726,10 +1741,14 @@ const GuestConfigurationPage: React.FC = () => {
                       }}
                     >
                       <Box>
-                        <Typography variant="body1" fontWeight={600}>
+                        <Typography variant="body1" sx={{
+                          fontWeight: 600
+                        }}>
                           {credit.room_type_name}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
                           Code: {credit.room_type_code}
                         </Typography>
                       </Box>
@@ -1755,7 +1774,9 @@ const GuestConfigurationPage: React.FC = () => {
                   mt: 2,
                 }}
               >
-                <Typography variant="h6" fontWeight={600}>
+                <Typography variant="h6" sx={{
+                  fontWeight: 600
+                }}>
                   Total Available:
                 </Typography>
                 <Chip

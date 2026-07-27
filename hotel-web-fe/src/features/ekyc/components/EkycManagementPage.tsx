@@ -215,8 +215,17 @@ const SecureDocumentImage: React.FC<{
 
   return (
     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 1, py: 0.5 }}>
-        <Typography variant="caption" color="text.secondary">{alt}</Typography>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          px: 1,
+          py: 0.5
+        }}>
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>{alt}</Typography>
         <Stack direction="row" spacing={0.5}>
           <Tooltip title="Zoom out">
             <span>
@@ -244,13 +253,27 @@ const SecureDocumentImage: React.FC<{
       <Box sx={{ height: 260, display: 'grid', placeItems: 'center', bgcolor: 'grey.50', overflow: 'auto' }}>
         {loadState === 'loading' && <CircularProgress size={24} />}
         {loadState === 'missing' && (
-          <Stack spacing={0.5} alignItems="center" sx={{ color: 'text.disabled', px: 2, textAlign: 'center' }}>
+          <Stack
+            spacing={0.5}
+            sx={{
+              alignItems: "center",
+              color: 'text.disabled',
+              px: 2,
+              textAlign: 'center'
+            }}>
             <ImageNotSupportedIcon fontSize="large" />
             <Typography variant="caption">No document on file</Typography>
           </Stack>
         )}
         {loadState === 'error' && (
-          <Stack spacing={1} alignItems="center" sx={{ color: 'text.secondary', px: 2, textAlign: 'center' }}>
+          <Stack
+            spacing={1}
+            sx={{
+              alignItems: "center",
+              color: 'text.secondary',
+              px: 2,
+              textAlign: 'center'
+            }}>
             <Typography variant="caption">Couldn’t load this document</Typography>
             <Button size="small" variant="outlined" onClick={() => setReloadKey(value => value + 1)}>
               Retry
@@ -289,7 +312,9 @@ const MetricTile: React.FC<{ label: string; value: React.ReactNode; accent?: 'de
   } as const;
   return (
     <Paper variant="outlined" sx={{ p: 2, borderRadius: 1, minHeight: 88 }}>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>{label}</Typography>
       <Typography variant="h5" sx={{ color: colors[accent], mt: 0.5 }}>{value}</Typography>
     </Paper>
   );
@@ -431,10 +456,14 @@ const EkycManagementPage: React.FC = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Stack spacing={2.5}>
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{
+          justifyContent: "space-between"
+        }}>
           <Box>
             <Typography variant="h5">eKYC Admin</Typography>
-            <Typography variant="body2" color="text.secondary">Compliance review queue</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>Compliance review queue</Typography>
           </Box>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Refresh">
@@ -486,7 +515,9 @@ const EkycManagementPage: React.FC = () => {
         </Grid>
 
         <Paper variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
-          <Grid container spacing={1.5} alignItems="center">
+          <Grid container spacing={1.5} sx={{
+            alignItems: "center"
+          }}>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
@@ -494,7 +525,9 @@ const EkycManagementPage: React.FC = () => {
                 label="Search"
                 value={filters.search ?? ''}
                 onChange={(event) => setFilter('search', event.target.value)}
-                InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }}
+                slotProps={{
+                  input: { startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
@@ -568,7 +601,12 @@ const EkycManagementPage: React.FC = () => {
                 {!listQuery.isLoading && (listData?.data.length ?? 0) === 0 && (
                   <TableRow>
                     <TableCell colSpan={8} align="center">
-                      <Typography variant="body2" color="text.secondary" sx={{ py: 4 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          py: 4
+                        }}>
                         No applications found
                       </Typography>
                     </TableCell>
@@ -578,24 +616,32 @@ const EkycManagementPage: React.FC = () => {
                   <TableRow key={application.id} hover selected={application.id === selectedId}>
                     <TableCell>
                       <Stack spacing={0.5}>
-                        <Typography variant="body2" fontWeight={600}>{application.application_id}</Typography>
+                        <Typography variant="body2" sx={{
+                          fontWeight: 600
+                        }}>{application.application_id}</Typography>
                         {application.overdue_sla && <Chip size="small" color="error" label="Overdue" />}
                         {!application.overdue_sla && application.nearing_sla && <Chip size="small" color="warning" label="Near SLA" />}
                       </Stack>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">{application.full_name ?? '-'}</Typography>
-                      <Typography variant="caption" color="text.secondary">{application.email_masked ?? '-'}</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>{application.email_masked ?? '-'}</Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">{labelize(application.id_type)}</Typography>
-                      <Typography variant="caption" color="text.secondary">{application.id_number_masked ?? '-'}</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>{application.id_number_masked ?? '-'}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip size="small" sx={statusChipSx(application.status)} label={labelize(application.status)} />
                     </TableCell>
                     <TableCell>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={1} sx={{
+                        alignItems: "center"
+                      }}>
                         <Chip size="small" color={riskColor(application.risk_level)} label={labelize(application.risk_level)} />
                         <Typography variant="caption">{application.risk_score}</Typography>
                       </Stack>
@@ -625,10 +671,14 @@ const EkycManagementPage: React.FC = () => {
           />
         </Paper>
       </Stack>
-
       <Dialog open={Boolean(selectedId)} onClose={() => setSelectedId(undefined)} maxWidth="lg" fullWidth>
         <DialogTitle>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack
+            direction="row"
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
             <Box>
               <Typography variant="h6">{selectedSummary?.application_id ?? 'Application'}</Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
@@ -658,7 +708,6 @@ const EkycManagementPage: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
-
       <Dialog open={Boolean(actionMode)} onClose={closeAction} maxWidth="sm" fullWidth>
         <DialogTitle>{actionMode ? ACTION_LABELS[actionMode] ?? labelize(actionMode) : 'Action'}</DialogTitle>
         <DialogContent>
@@ -716,7 +765,6 @@ const EkycManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       <Dialog open={revealOpen} onClose={() => setRevealOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Reveal Sensitive Field</DialogTitle>
         <DialogContent>
@@ -745,7 +793,9 @@ const EkycManagementPage: React.FC = () => {
               onChange={(event) => setRevealReason(event.target.value)}
             />
             {revealedValue !== null && (
-              <TextField fullWidth label="Value" value={revealedValue || '-'} InputProps={{ readOnly: true }} />
+              <TextField fullWidth label="Value" value={revealedValue || '-'} slotProps={{
+                input: { readOnly: true }
+              }} />
             )}
           </Stack>
         </DialogContent>
@@ -756,7 +806,6 @@ const EkycManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {canCreate && (
         <EkycCreateDialog
           open={createOpen}
@@ -767,7 +816,6 @@ const EkycManagementPage: React.FC = () => {
           }}
         />
       )}
-
       <Snackbar
         open={!!successMsg}
         autoHideDuration={4000}
@@ -822,7 +870,9 @@ const ActionBar: React.FC<{
   const final = ['approved', 'rejected', 'expired', 'void'].includes(detail.summary.status);
   return (
     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.paper' }}>
-      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+      <Stack direction="row" spacing={1} useFlexGap sx={{
+        flexWrap: "wrap"
+      }}>
         <Button size="small" variant="outlined" startIcon={<ClaimIcon />} onClick={() => onAction('claim')} disabled={disabled || Boolean(detail.summary.assigned_reviewer_id) || final}>
           Claim
         </Button>
@@ -888,7 +938,14 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
         <InfoLine label="Liveness" value={detail.liveness_score != null ? `${detail.liveness_score}%` : '-'} />
         <InfoLine label="Duplicate" value={detail.duplicate_check_result} />
         <InfoLine label="Watchlist" value={detail.watchlist_result} />
-        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+        <Stack
+          direction="row"
+          spacing={0.5}
+          useFlexGap
+          sx={{
+            flexWrap: "wrap",
+            mt: 1
+          }}>
           {detail.summary.triggered_risk_rules.map(rule => (
             <Chip key={rule} size="small" label={labelize(rule)} />
           ))}
@@ -898,7 +955,9 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
     <Grid size={{ xs: 12, md: 7 }}>
       <InfoPanel title="Differences">
         {detail.differences.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">No comparable OCR fields</Typography>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>No comparable OCR fields</Typography>
         ) : (
           <Table size="small">
             <TableHead>
@@ -942,7 +1001,9 @@ const TimelineSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }
             </ListItem>
           ))}
           {detail.history.length === 0 && (
-            <Typography variant="body2" color="text.secondary">No history yet</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>No history yet</Typography>
           )}
         </List>
       </InfoPanel>
@@ -953,14 +1014,18 @@ const TimelineSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }
           {detail.notes.map(note => (
             <Box key={note.id}>
               <Typography variant="body2">{note.body}</Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {labelize(note.note_type)} · {note.created_by_name ?? note.created_by} · {formatDate(note.created_at)}
               </Typography>
               <Divider sx={{ mt: 1 }} />
             </Box>
           ))}
           {detail.notes.length === 0 && (
-            <Typography variant="body2" color="text.secondary">No notes yet</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>No notes yet</Typography>
           )}
         </Stack>
       </InfoPanel>
@@ -977,7 +1042,9 @@ const InfoPanel: React.FC<{ title: string; children: React.ReactNode }> = ({ tit
 
 const InfoLine: React.FC<{ label: string; value?: React.ReactNode | null }> = ({ label, value }) => (
   <Box sx={{ mb: 0.75 }}>
-    <Typography variant="caption" color="text.secondary">{label}</Typography>
+    <Typography variant="caption" sx={{
+      color: "text.secondary"
+    }}>{label}</Typography>
     <Typography variant="body2">{value || '-'}</Typography>
   </Box>
 );

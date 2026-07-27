@@ -114,12 +114,15 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
   return (
     <Dialog open={open} onClose={loading ? undefined : onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        <Box display="flex" alignItems="center">
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center"
+          }}>
           <CalendarIcon sx={{ mr: 1, color: 'primary.main' }} />
           <Typography variant="h6">Extend Checkout Date</Typography>
         </Box>
       </DialogTitle>
-
       <DialogContent dividers>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
           {error && (
@@ -133,20 +136,36 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
             <Typography variant="subtitle2" gutterBottom>Current Booking</Typography>
             <Grid container spacing={1}>
               <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">Guest</Typography>
-                <Typography variant="body2" fontWeight={600}>{booking.guest_name}</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Guest</Typography>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>{booking.guest_name}</Typography>
               </Grid>
               <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">Room</Typography>
-                <Typography variant="body2" fontWeight={600}>{booking.room_number} - {booking.room_type}</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Room</Typography>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>{booking.room_number} - {booking.room_type}</Typography>
               </Grid>
               <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">Check-in</Typography>
-                <Typography variant="body2" fontWeight={600}>{new Date(checkInDate).toLocaleDateString()}</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Check-in</Typography>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>{new Date(checkInDate).toLocaleDateString()}</Typography>
               </Grid>
               <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">Current Checkout</Typography>
-                <Typography variant="body2" fontWeight={600}>{new Date(currentCheckoutDate).toLocaleDateString()}</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Current Checkout</Typography>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>{new Date(currentCheckoutDate).toLocaleDateString()}</Typography>
               </Grid>
             </Grid>
           </Box>
@@ -157,10 +176,11 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
             type="date"
             value={newCheckoutDate}
             onChange={(e) => setNewCheckoutDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ min: minCheckoutDate }}
             fullWidth
-          />
+            slotProps={{
+              htmlInput: { min: minCheckoutDate },
+              inputLabel: { shrink: true }
+            }} />
 
           <Divider />
 
@@ -169,13 +189,17 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
             <Typography variant="subtitle2" gutterBottom>Price Preview</Typography>
             <Grid container spacing={1}>
               <Grid size={8}>
-                <Typography variant="body2" color="text.secondary">Rate per night</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Rate per night</Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2">{formatCurrency(pricePerNight)}</Typography>
               </Grid>
               <Grid size={8}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Current room: {currentNights} night(s)
                 </Typography>
               </Grid>
@@ -183,17 +207,23 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                 <Typography variant="body2">{formatCurrency(currentRoomTotal)}</Typography>
               </Grid>
               <Grid size={8}>
-                <Typography variant="body2" fontWeight={600}>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>
                   New room: {previewNights} night(s)
                 </Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
-                <Typography variant="body2" fontWeight={600}>{formatCurrency(newRoomTotal)}</Typography>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>{formatCurrency(newRoomTotal)}</Typography>
               </Grid>
               {isForeignTourist && (
                 <>
                   <Grid size={8}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Current tourism tax ({formatCurrency(tourismTaxRate)}/night)
                     </Typography>
                   </Grid>
@@ -201,12 +231,16 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                     <Typography variant="body2">{formatCurrency(currentTourismTax)}</Typography>
                   </Grid>
                   <Grid size={8}>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>
                       New tourism tax ({formatCurrency(tourismTaxRate)}/night)
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2" fontWeight={600}>{formatCurrency(newTourismTax)}</Typography>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>{formatCurrency(newTourismTax)}</Typography>
                   </Grid>
                 </>
               )}
@@ -216,8 +250,10 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                   <Grid size={8}>
                     <Typography
                       variant="body2"
-                      fontWeight={600}
-	                      color={isGreaterMoney(difference, 0) ? 'error.main' : 'success.main'}
+                      color={isGreaterMoney(difference, 0) ? 'error.main' : 'success.main'}
+	                      sx={{
+                            fontWeight: 600
+                          }}
 	                    >
 	                      {isGreaterMoney(difference, 0) ? 'Additional Charge' : 'Reduction'}
                     </Typography>
@@ -225,8 +261,10 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                   <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography
                       variant="body2"
-                      fontWeight={600}
-	                      color={isGreaterMoney(difference, 0) ? 'error.main' : 'success.main'}
+                      color={isGreaterMoney(difference, 0) ? 'error.main' : 'success.main'}
+	                      sx={{
+                            fontWeight: 600
+                          }}
 	                    >
 	                      {isGreaterMoney(difference, 0) ? '+' : '-'}{formatCurrency(Math.abs(difference))}
                     </Typography>
@@ -243,7 +281,6 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
           )}
         </Box>
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2 }}>
         <Button onClick={onClose} disabled={loading}>Cancel</Button>
         <Button

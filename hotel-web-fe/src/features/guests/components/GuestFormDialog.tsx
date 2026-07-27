@@ -20,12 +20,12 @@ import {
   ApartmentOutlined as CompanyIcon,
   BadgeOutlined as IdIcon,
   Cancel as CancelIcon,
-  CheckCircleOutline as CheckCircleIcon,
+  CheckCircleOutlined as CheckCircleIcon,
   Close as CloseIcon,
   LocationOnOutlined as LocationIcon,
-  MailOutline as MailIcon,
+  MailOutlined as MailIcon,
   Person as PersonIcon,
-  PersonOutline as NonMemberIcon,
+  PersonOutlined as NonMemberIcon,
   PhoneOutlined as PhoneIcon,
   PublicOutlined as PublicIcon,
   Save as SaveIcon,
@@ -141,20 +141,22 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
       onClose={onClose}
       maxWidth={false}
       fullWidth
-      PaperProps={{
-        sx: {
-          width: 'min(1112px, calc(100vw - 48px))',
-          maxHeight: 'calc(100vh - 48px)',
-          borderRadius: 3,
-          overflow: 'hidden',
-          bgcolor: 'background.paper',
-          boxShadow: '0 26px 70px rgba(15, 23, 42, 0.28)',
+      slotProps={{
+        backdrop: {
+          sx: { bgcolor: 'rgba(17, 24, 39, 0.62)', backdropFilter: 'blur(4px)' },
         },
-      }}
-      BackdropProps={{
-        sx: { bgcolor: 'rgba(17, 24, 39, 0.62)', backdropFilter: 'blur(4px)' },
-      }}
-    >
+
+        paper: {
+          sx: {
+            width: 'min(1112px, calc(100vw - 48px))',
+            maxHeight: 'calc(100vh - 48px)',
+            borderRadius: 3,
+            overflow: 'hidden',
+            bgcolor: 'background.paper',
+            boxShadow: '0 26px 70px rgba(15, 23, 42, 0.28)',
+          },
+        }
+      }}>
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.25, px: { xs: 3, md: 3.25 }, pt: { xs: 2.75, md: 3 }, pb: 1.75 }}>
         <Box sx={{
           width: 72,
@@ -193,7 +195,6 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
           <CloseIcon sx={{ fontSize: 28 }} />
         </IconButton>
       </Box>
-
       <DialogContent sx={{ px: { xs: 3, md: 3.25 }, pt: 0.5, pb: 2.25, overflowY: 'auto' }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={onErrorClose}>
@@ -335,12 +336,14 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
                     onChange={(e) => updateField('discount_percentage', parseInt(e.target.value, 10) || 0)}
                     disabled={formData.guest_type !== 'member'}
                     sx={guestInputSx}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                    }}
-                    inputProps={{ min: 0, max: 100 }}
                     helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
-                  />
+                    slotProps={{
+                      input: {
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      },
+
+                      htmlInput: { min: 0, max: 100 }
+                    }} />
                 </Grid>
               </Grid>
             </GuestDialogSection>
@@ -384,7 +387,6 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
           </Grid>
         </Grid>
       </DialogContent>
-
       <Box sx={{
         display: 'flex',
         flexDirection: { xs: 'column-reverse', sm: 'row' },
@@ -472,9 +474,11 @@ const GuestDialogField: React.FC<GuestDialogFieldProps> = ({
       onChange={(e) => onChange(e.target.value)}
       sx={guestInputSx}
       helperText={helperText}
-      InputProps={icon ? {
-        endAdornment: <InputAdornment position="end">{icon}</InputAdornment>,
-      } : undefined}
+      slotProps={{
+        input: icon ? {
+          endAdornment: <InputAdornment position="end">{icon}</InputAdornment>,
+        } : undefined
+      }}
     />
   </Grid>
 );
@@ -509,7 +513,9 @@ const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
       onChange={onChange}
       onInputChange={onInputChange}
       getOptionLabel={(option) => typeof option === 'string' ? option : option.company_name}
-      isOptionEqualToValue={(option, selectedValue) => option.id === selectedValue.id}
+      isOptionEqualToValue={(option, selectedValue) =>
+        typeof selectedValue !== 'string' && option.id === selectedValue.id
+      }
       noOptionsText={inputValue.trim() ? 'No companies found' : 'No active companies'}
       renderOption={(props, option) => {
         const { key, ...otherProps } = props;
@@ -537,14 +543,18 @@ const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
           fullWidth
           placeholder="Company Name"
           sx={guestInputSx}
-          InputProps={{
-            ...params.InputProps,
-            endAdornment: (
-              <>
-                {loading && <CircularProgress color="inherit" size={20} />}
-                {params.InputProps.endAdornment}
-              </>
-            ),
+          slotProps={{
+            ...params.slotProps,
+
+            input: {
+              ...params.slotProps.input,
+              endAdornment: (
+                <>
+                  {loading && <CircularProgress color="inherit" size={20} />}
+                  {params.slotProps.input.endAdornment}
+                </>
+              ),
+            }
           }}
         />
       )}

@@ -248,7 +248,12 @@ function CampaignsTab() {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          mb: 2
+        }}>
         <Typography variant="h6">Campaigns</Typography>
         <Button
           variant="contained"
@@ -291,7 +296,9 @@ function CampaignsTab() {
                 {c.sent_count} / {c.failed_count}
               </TableCell>
               <TableCell align="right">
-                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                <Stack direction="row" spacing={1} sx={{
+                  justifyContent: "flex-end"
+                }}>
                   {c.status === 'draft' && (
                     <>
                       <Button
@@ -351,7 +358,6 @@ function CampaignsTab() {
           ))}
         </TableBody>
       </Table>
-
       {editor && (
         <CampaignDialog
           open
@@ -363,7 +369,6 @@ function CampaignsTab() {
           }}
         />
       )}
-
       <Dialog open={preview !== null} onClose={() => setPreview(null)} fullWidth maxWidth="md">
         <DialogTitle>Preview — {preview?.subject}</DialogTitle>
         <DialogContent>
@@ -388,7 +393,6 @@ function CampaignsTab() {
           <Button onClick={() => setPreview(null)}>Close</Button>
         </DialogActions>
       </Dialog>
-
       <Dialog open={testSendFor !== null} onClose={() => setTestSendFor(null)}>
         <DialogTitle>Send test email</DialogTitle>
         <DialogContent>
@@ -412,7 +416,6 @@ function CampaignsTab() {
           </Button>
         </DialogActions>
       </Dialog>
-
       <Dialog
         open={deliveriesFor !== null}
         onClose={() => setDeliveriesFor(null)}
@@ -487,7 +490,12 @@ function TemplatesTab() {
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          mb: 2
+        }}>
         <Typography variant="h6">Email templates</Typography>
         <Button variant="contained" onClick={() => setEditor({ id: null, input: EMPTY_TEMPLATE })}>
           New template
@@ -545,7 +553,6 @@ function TemplatesTab() {
           ))}
         </TableBody>
       </Table>
-
       {editor && (
         <Dialog open onClose={() => setEditor(null)} fullWidth maxWidth="md">
           <DialogTitle>{editor.id === null ? 'New template' : 'Edit template'}</DialogTitle>
@@ -649,7 +656,12 @@ function SuppressionsTab() {
       <Typography variant="h6" sx={{ mb: 1 }}>
         Suppression list
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 2
+        }}>
         Addresses here never receive marketing email, regardless of subscriptions.
       </Typography>
       {error && (

@@ -55,9 +55,9 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
             borderColor: 'divider',
           },
         },
-      }}
-      MenuListProps={{ sx: { py: 0 } }}
-    >
+
+        list: { sx: { py: 0 } }
+      }}>
       {room && (() => {
         const selectedRoom = room;
         const info = getStatusInfo(selectedRoom);

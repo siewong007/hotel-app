@@ -111,7 +111,9 @@ export function DataTable<TData>({
             <TableRow>
               <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
                 {typeof emptyMessage === 'string' ? (
-                  <Typography color="text.secondary">{emptyMessage}</Typography>
+                  <Typography sx={{
+                    color: "text.secondary"
+                  }}>{emptyMessage}</Typography>
                 ) : (
                   emptyMessage
                 )}
@@ -141,7 +143,9 @@ export function DataTable<TData>({
       </Table>
       {enablePagination && rows.length > 0 && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, p: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
           </Typography>
           <Box

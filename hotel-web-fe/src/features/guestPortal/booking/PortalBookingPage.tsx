@@ -3,7 +3,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HotelIcon from '@mui/icons-material/Hotel';
 import KingBedOutlinedIcon from '@mui/icons-material/KingBedOutlined';
-import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
 import {
   Alert, Box, Button, Card, CardContent, Checkbox, Chip, CircularProgress, Collapse,
   Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl,
@@ -188,7 +188,12 @@ const PortalBookingPage: React.FC = () => {
     <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
       <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>Back to my account</Button>
       <Typography variant="h3" component="h1">Reserve your stay</Typography>
-      <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>Live availability, clear pricing, and secure payment after your booking request.</Typography>
+      <Typography
+        sx={{
+          color: "text.secondary",
+          mt: 1,
+          mb: 3
+        }}>Live availability, clear pricing, and secure payment after your booking request.</Typography>
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: { xs: 3, md: 4 }, '& .MuiStepLabel-label': { fontSize: { xs: '0.7rem', sm: '0.8125rem' } } }}>
         {STEPS.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
       </Stepper>
@@ -206,12 +211,31 @@ const PortalBookingPage: React.FC = () => {
 };
 
 function SessionGate({ error, status, canRetry, onRetry, onRestart }: { error: string | null; status: string; canRetry: boolean; onRetry: () => void; onRestart: () => void }) {
-  return <Container maxWidth="sm" sx={{ mt: 8 }}>{error ? <Alert severity="error" action={<Button color="inherit" size="small" onClick={canRetry ? onRetry : onRestart}>{canRetry ? 'Retry' : 'Sign in again'}</Button>}>{error}</Alert> : <Stack direction="row" justifyContent="center" spacing={2}><CircularProgress size={24} /><Typography>{status === 'checking-account' ? 'Checking your account session…' : 'Opening your guest portal…'}</Typography></Stack>}</Container>;
+  return (
+    <Container maxWidth="sm" sx={{ mt: 8 }}>{error ? <Alert severity="error" action={<Button color="inherit" size="small" onClick={canRetry ? onRetry : onRestart}>{canRetry ? 'Retry' : 'Sign in again'}</Button>}>{error}</Alert> : <Stack direction="row" spacing={2} sx={{
+      justifyContent: "center"
+    }}><CircularProgress size={24} /><Typography>{status === 'checking-account' ? 'Checking your account session…' : 'Opening your guest portal…'}</Typography></Stack>}</Container>
+  );
 }
 
 function SearchStage({ search, isSearching, onChange, onSearch }: { search: GuestBookingSearch; isSearching: boolean; onChange: React.Dispatch<React.SetStateAction<GuestBookingSearch>>; onSearch: () => void }) {
   const nights = countStayNights(search);
-  return <Paper component="section" aria-labelledby="booking-search-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1} sx={{ mb: 2 }}><Box><Typography id="booking-search-heading" variant="h5">Search</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Choose a check-in within three months and a stay of up to 30 nights.</Typography></Box>{nights > 0 ? <Chip label={`${nights} night${nights === 1 ? '' : 's'}`} size="small" sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }} /> : null}</Stack><Grid container spacing={2} alignItems="center"><Grid size={{ xs: 12, sm: 3 }}><TextField label="Check-in" type="date" fullWidth value={search.check_in_date} onChange={(event) => onChange((current) => ({ ...current, check_in_date: event.target.value }))} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: calendarDateInput(0) } }} /></Grid><Grid size={{ xs: 12, sm: 3 }}><TextField label="Check-out" type="date" fullWidth value={search.check_out_date} onChange={(event) => onChange((current) => ({ ...current, check_out_date: event.target.value }))} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: search.check_in_date } }} /></Grid><Grid size={{ xs: 6, sm: 2 }}><TextField label="Adults" type="number" fullWidth value={search.adults} onChange={(event) => onChange((current) => ({ ...current, adults: Number(event.target.value) }))} slotProps={{ htmlInput: { min: 1, max: 20 } }} /></Grid><Grid size={{ xs: 6, sm: 2 }}><TextField label="Children" type="number" fullWidth value={search.children} onChange={(event) => onChange((current) => ({ ...current, children: Number(event.target.value) }))} slotProps={{ htmlInput: { min: 0, max: 20 } }} /></Grid><Grid size={{ xs: 12, sm: 2 }}><Button variant="contained" fullWidth size="large" disabled={isSearching} onClick={onSearch}>{isSearching ? <CircularProgress size={22} color="inherit" /> : 'Search'}</Button></Grid></Grid></Paper>;
+  return (
+    <Paper component="section" aria-labelledby="booking-search-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      spacing={1}
+      sx={{
+        justifyContent: "space-between",
+        mb: 2
+      }}><Box><Typography id="booking-search-heading" variant="h5">Search</Typography><Typography
+      variant="body2"
+      sx={{
+        color: "text.secondary",
+        mt: 0.5
+      }}>Choose a check-in within three months and a stay of up to 30 nights.</Typography></Box>{nights > 0 ? <Chip label={`${nights} night${nights === 1 ? '' : 's'}`} size="small" sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }} /> : null}</Stack><Grid container spacing={2} sx={{
+      alignItems: "center"
+    }}><Grid size={{ xs: 12, sm: 3 }}><TextField label="Check-in" type="date" fullWidth value={search.check_in_date} onChange={(event) => onChange((current) => ({ ...current, check_in_date: event.target.value }))} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: calendarDateInput(0) } }} /></Grid><Grid size={{ xs: 12, sm: 3 }}><TextField label="Check-out" type="date" fullWidth value={search.check_out_date} onChange={(event) => onChange((current) => ({ ...current, check_out_date: event.target.value }))} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: search.check_in_date } }} /></Grid><Grid size={{ xs: 6, sm: 2 }}><TextField label="Adults" type="number" fullWidth value={search.adults} onChange={(event) => onChange((current) => ({ ...current, adults: Number(event.target.value) }))} slotProps={{ htmlInput: { min: 1, max: 20 } }} /></Grid><Grid size={{ xs: 6, sm: 2 }}><TextField label="Children" type="number" fullWidth value={search.children} onChange={(event) => onChange((current) => ({ ...current, children: Number(event.target.value) }))} slotProps={{ htmlInput: { min: 0, max: 20 } }} /></Grid><Grid size={{ xs: 12, sm: 2 }}><Button variant="contained" fullWidth size="large" disabled={isSearching} onClick={onSearch}>{isSearching ? <CircularProgress size={22} color="inherit" /> : 'Search'}</Button></Grid></Grid></Paper>
+  );
 }
 
 function OfferCard({ offer, onSelect }: { offer: GuestBookingOffer; onSelect: () => void }) {
@@ -219,14 +243,49 @@ function OfferCard({ offer, onSelect }: { offer: GuestBookingOffer; onSelect: ()
   const [imageFailed, setImageFailed] = useState(false);
   const shouldShowImage = Boolean(image && !imageFailed);
   const roomsLabel = offer.available_rooms === 1 ? '1 room left' : `${offer.available_rooms} rooms left`;
-  return <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={`${offer.room_type_name} room`} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: '#173B31' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'rgba(255,255,255,0.9)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" justifyContent="space-between" spacing={2}><Box><Typography variant="h5">{offer.room_type_name}</Typography><Typography variant="body2" color="text.secondary">{offer.room_type_code}</Typography></Box><Chip color={offer.available_rooms <= 1 ? 'warning' : 'success'} label={roomsLabel} /></Stack>{offer.description && <Typography sx={{ mt: 2 }}>{offer.description}</Typography>}<Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 2 }}><Chip size="small" icon={<PeopleOutlineIcon />} label={`Up to ${offer.max_occupancy} guests`} />{offer.bed_type && <Chip size="small" icon={<KingBedOutlinedIcon />} label={`${offer.bed_count ? `${offer.bed_count} ` : ''}${offer.bed_type}`} />}{offer.features.slice(0, 4).map((feature) => <Chip key={feature} size="small" variant="outlined" label={feature} />)}</Stack><Divider sx={{ my: 2, mt: 'auto' }} /><Stack direction="row" justifyContent="space-between" alignItems="end" spacing={2}><Box><Typography variant="caption" color="text.secondary">Stay total</Typography><Typography variant="h5">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} onClick={onSelect}>Select</Button></Stack></CardContent></Card>;
+  return (
+    <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={`${offer.room_type_name} room`} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: '#173B31' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'rgba(255,255,255,0.9)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
+      justifyContent: "space-between"
+    }}><Box><Typography variant="h5">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
+      color: "text.secondary"
+    }}>{offer.room_type_code}</Typography></Box><Chip color={offer.available_rooms <= 1 ? 'warning' : 'success'} label={roomsLabel} /></Stack>{offer.description && <Typography sx={{ mt: 2 }}>{offer.description}</Typography>}<Stack
+      direction="row"
+      spacing={1}
+      useFlexGap
+      sx={{
+        flexWrap: "wrap",
+        mt: 2
+      }}><Chip size="small" icon={<PeopleOutlineIcon />} label={`Up to ${offer.max_occupancy} guests`} />{offer.bed_type && <Chip size="small" icon={<KingBedOutlinedIcon />} label={`${offer.bed_count ? `${offer.bed_count} ` : ''}${offer.bed_type}`} />}{offer.features.slice(0, 4).map((feature) => <Chip key={feature} size="small" variant="outlined" label={feature} />)}</Stack><Divider sx={{ my: 2, mt: 'auto' }} /><Stack
+      direction="row"
+      spacing={2}
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "end"
+      }}><Box><Typography variant="caption" sx={{
+      color: "text.secondary"
+    }}>Stay total</Typography><Typography variant="h5">{money(offer.total_amount, offer.currency)}</Typography></Box><Button variant="contained" startIcon={<HotelIcon />} onClick={onSelect}>Select</Button></Stack></CardContent></Card>
+  );
 }
 
-function LoadingQuote() { return <Paper sx={{ p: 4 }}><Stack direction="row" spacing={2} justifyContent="center" alignItems="center"><CircularProgress size={24} /><Typography>Confirming the latest price…</Typography></Stack></Paper>; }
+function LoadingQuote() { return (
+  <Paper sx={{ p: 4 }}><Stack
+    direction="row"
+    spacing={2}
+    sx={{
+      justifyContent: "center",
+      alignItems: "center"
+    }}><CircularProgress size={24} /><Typography>Confirming the latest price…</Typography></Stack></Paper>
+); }
 
 function ReviewStage(props: { quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
   const { quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
-  return <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">Review your stay</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography color="text.secondary">{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} inputProps={{ maxLength: 1000 }} sx={{ mt: 3 }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label="I would like daily room cleaning" /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>;
+  return (
+    <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">Review your stay</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
+        color: "text.secondary"
+      }}>{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
+        htmlInput: { maxLength: 1000 }
+      }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label="I would like daily room cleaning" /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
+  );
 }
 
 /**
@@ -248,15 +307,30 @@ function ComplimentaryNights({ quote, onChange }: { quote: GuestBookingQuote; on
   return (
     <Card variant="outlined" sx={{ mt: 3, borderColor: 'success.light', bgcolor: 'success.50' }}>
       <CardContent>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-          <Typography variant="subtitle1" fontWeight={700}>Use your complimentary nights</Typography>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 700
+          }}>Use your complimentary nights</Typography>
           <Chip color="success" size="small" label={`${available} available`} />
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mt: 0.5
+          }}>
           You have {available} free night{available === 1 ? '' : 's'} for {quote.room_type_name}. Choose which nights to cover.
         </Typography>
         <Box component="fieldset" sx={{ border: 0, p: 0, m: 0, mt: 1.5 }}>
-          <Typography component="legend" variant="caption" color="text.secondary">Nights of this stay</Typography>
+          <Typography component="legend" variant="caption" sx={{
+            color: "text.secondary"
+          }}>Nights of this stay</Typography>
           {quote.nightly_rates.map((rate) => {
             const isSelected = selected.includes(rate.date);
             return (
@@ -271,7 +345,9 @@ function ComplimentaryNights({ quote, onChange }: { quote: GuestBookingQuote; on
           })}
         </Box>
         {atLimit && selected.length > 0 ? (
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             That is all {available} of your free nights for this room type. Uncheck one to move it to a different night.
           </Typography>
         ) : null}
@@ -286,10 +362,31 @@ function PriceSummary({ quote, isSubmitting, onBack, onConfirm }: { quote: Guest
   // separately so the guest can tell what each one saved them.
   const voucherAmount = (Number(quote.discount_amount) || 0) - complimentaryAmount;
   const settledByCredits = complimentaryAmount > 0 && Number(quote.total_amount) <= 0;
-  return <Card variant="outlined" sx={{ position: { md: 'sticky' }, top: { md: 92 } }}><CardContent><Typography variant="h6">Price summary</Typography>{quote.nightly_rates.map((rate) => <Stack key={rate.date} direction="row" justifyContent="space-between" spacing={2} sx={{ mt: 1 }}><Typography variant="body2">{rate.date}</Typography><Typography variant="body2">{money(rate.amount, quote.currency)}</Typography></Stack>)}<Divider sx={{ my: 2 }} /><SummaryLine label="Subtotal" value={money(quote.subtotal, quote.currency)} />{complimentaryAmount > 0 ? <SummaryLine label={`Complimentary nights (${quote.complimentary_nights})`} value={`-${money(complimentaryAmount, quote.currency)}`} color="success.main" /> : null}{voucherAmount > 0 ? <SummaryLine label="Discount" value={`-${money(voucherAmount, quote.currency)}`} color="success.main" /> : null}<SummaryLine label="Tax" value={money(quote.tax_amount, quote.currency)} /><Divider sx={{ my: 2 }} /><SummaryLine label="Total" value={money(quote.total_amount, quote.currency)} strong /><Alert severity={settledByCredits ? 'success' : 'info'} sx={{ mt: 2 }}>{settledByCredits ? 'Your complimentary nights cover this stay in full — there is nothing to pay.' : 'You can choose your payment method after submitting your booking request.'}</Alert><Stack direction={{ xs: 'column', sm: 'row', md: 'column' }} spacing={1} sx={{ mt: 3 }}><Button variant="outlined" onClick={onBack}>Change room</Button><Button variant="contained" disabled={isSubmitting} onClick={onConfirm}>{isSubmitting ? <CircularProgress size={22} color="inherit" /> : settledByCredits ? 'Confirm free stay' : 'Continue to payment'}</Button></Stack></CardContent></Card>;
+  return (
+    <Card variant="outlined" sx={{ position: { md: 'sticky' }, top: { md: 92 } }}><CardContent><Typography variant="h6">Price summary</Typography>{quote.nightly_rates.map((rate) => <Stack
+      key={rate.date}
+      direction="row"
+      spacing={2}
+      sx={{
+        justifyContent: "space-between",
+        mt: 1
+      }}><Typography variant="body2">{rate.date}</Typography><Typography variant="body2">{money(rate.amount, quote.currency)}</Typography></Stack>)}<Divider sx={{ my: 2 }} /><SummaryLine label="Subtotal" value={money(quote.subtotal, quote.currency)} />{complimentaryAmount > 0 ? <SummaryLine label={`Complimentary nights (${quote.complimentary_nights})`} value={`-${money(complimentaryAmount, quote.currency)}`} color="success.main" /> : null}{voucherAmount > 0 ? <SummaryLine label="Discount" value={`-${money(voucherAmount, quote.currency)}`} color="success.main" /> : null}<SummaryLine label="Tax" value={money(quote.tax_amount, quote.currency)} /><Divider sx={{ my: 2 }} /><SummaryLine label="Total" value={money(quote.total_amount, quote.currency)} strong /><Alert severity={settledByCredits ? 'success' : 'info'} sx={{ mt: 2 }}>{settledByCredits ? 'Your complimentary nights cover this stay in full — there is nothing to pay.' : 'You can choose your payment method after submitting your booking request.'}</Alert><Stack direction={{ xs: 'column', sm: 'row', md: 'column' }} spacing={1} sx={{ mt: 3 }}><Button variant="outlined" onClick={onBack}>Change room</Button><Button variant="contained" disabled={isSubmitting} onClick={onConfirm}>{isSubmitting ? <CircularProgress size={22} color="inherit" /> : settledByCredits ? 'Confirm free stay' : 'Continue to payment'}</Button></Stack></CardContent></Card>
+  );
 }
 
-function SummaryLine({ label, value, strong = false, color }: { label: string; value: string; strong?: boolean; color?: string }) { return <Stack direction="row" justifyContent="space-between" color={color} sx={{ mt: 1 }}><Typography fontWeight={strong ? 700 : undefined}>{label}</Typography><Typography fontWeight={strong ? 700 : undefined}>{value}</Typography></Stack>; }
+function SummaryLine({ label, value, strong = false, color }: { label: string; value: string; strong?: boolean; color?: string }) { return (
+  <Stack
+    direction="row"
+    sx={{
+      justifyContent: "space-between",
+      color: color,
+      mt: 1
+    }}><Typography sx={{
+    fontWeight: strong ? 700 : undefined
+  }}>{label}</Typography><Typography sx={{
+    fontWeight: strong ? 700 : undefined
+  }}>{value}</Typography></Stack>
+); }
 
 function ConfirmationStage({ confirmation, token, onStays, onAnother }: { confirmation: GuestBookingConfirmation; token: string; onStays: () => void; onAnother: () => void }) {
   const [paymentComplete, setPaymentComplete] = useState(confirmation.status === 'confirmed');
@@ -301,7 +398,37 @@ function ConfirmationStage({ confirmation, token, onStays, onAnother }: { confir
       setCompletedPayment(result);
     }
   };
-  return <Container maxWidth="sm" sx={{ py: { xs: 4, md: 7 } }}><Paper role="status" aria-live="polite" sx={{ p: { xs: 3, sm: 5 }, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}><CheckCircleIcon color={paymentComplete ? 'success' : 'primary'} sx={{ fontSize: 64 }} /><Typography variant="h4" component="h1" sx={{ mt: 2 }}>{title}</Typography><Typography variant="overline" color="text.secondary" sx={{ display: 'block', mt: 2 }}>Booking number</Typography><Typography variant="h3" color="primary.main" sx={{ mt: 0.5, fontVariantNumeric: 'tabular-nums' }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography color="text.secondary">{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode="session" bookingId={confirmation.booking_id} token={token} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}><Box><Typography id="payment-receipt-heading" variant="h6">Payment receipt</Typography><Typography variant="body2" color="text.secondary">Payment received and your booking is confirmed.</Typography></Box><Chip color="success" label="Paid" size="small" /></Stack><Divider sx={{ my: 2 }} /><SummaryLine label="Booking" value={confirmation.booking_number} /><SummaryLine label="Receipt ID" value={`PAY-${completedPayment.payment_id}`} /><SummaryLine label="Stay" value={`${confirmation.check_in_date} – ${confirmation.check_out_date}`} /><SummaryLine label="Amount paid" value={money(confirmation.total_amount, confirmation.currency)} strong /><Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>Print receipt</Button></Paper> : null}<Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="center" sx={{ mt: 3 }}><Button variant="outlined" onClick={onStays}>View my stays</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack></Paper></Container>;
+  return (
+    <Container maxWidth="sm" sx={{ py: { xs: 4, md: 7 } }}><Paper role="status" aria-live="polite" sx={{ p: { xs: 3, sm: 5 }, textAlign: 'center', border: '1px solid', borderColor: 'divider' }}><CheckCircleIcon color={paymentComplete ? 'success' : 'primary'} sx={{ fontSize: 64 }} /><Typography variant="h4" component="h1" sx={{ mt: 2 }}>{title}</Typography><Typography
+      variant="overline"
+      sx={{
+        color: "text.secondary",
+        display: 'block',
+        mt: 2
+      }}>Booking number</Typography><Typography
+      variant="h3"
+      sx={{
+        color: "primary.main",
+        mt: 0.5,
+        fontVariantNumeric: 'tabular-nums'
+      }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography sx={{
+      color: "text.secondary"
+    }}>{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode="session" bookingId={confirmation.booking_id} token={token} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack
+      direction="row"
+      spacing={2}
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "flex-start"
+      }}><Box><Typography id="payment-receipt-heading" variant="h6">Payment receipt</Typography><Typography variant="body2" sx={{
+      color: "text.secondary"
+    }}>Payment received and your booking is confirmed.</Typography></Box><Chip color="success" label="Paid" size="small" /></Stack><Divider sx={{ my: 2 }} /><SummaryLine label="Booking" value={confirmation.booking_number} /><SummaryLine label="Receipt ID" value={`PAY-${completedPayment.payment_id}`} /><SummaryLine label="Stay" value={`${confirmation.check_in_date} – ${confirmation.check_out_date}`} /><SummaryLine label="Amount paid" value={money(confirmation.total_amount, confirmation.currency)} strong /><Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>Print receipt</Button></Paper> : null}<Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      spacing={1.5}
+      sx={{
+        justifyContent: "center",
+        mt: 3
+      }}><Button variant="outlined" onClick={onStays}>View my stays</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack></Paper></Container>
+  );
 }
 
 export default PortalBookingPage;

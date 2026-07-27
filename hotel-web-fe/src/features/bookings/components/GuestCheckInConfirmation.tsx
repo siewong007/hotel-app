@@ -22,7 +22,9 @@ export const GuestCheckInConfirmation: React.FC = () => {
           />
         </Box>
 
-        <Typography variant="h4" component="h1" gutterBottom color="success.main">
+        <Typography variant="h4" component="h1" gutterBottom sx={{
+          color: "success.main"
+        }}>
           Pre-Check-In Complete!
         </Typography>
 
@@ -43,7 +45,9 @@ export const GuestCheckInConfirmation: React.FC = () => {
         </Alert>
 
         <Box sx={{ mb: 3 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             If you need to make any changes to your booking or have questions, please contact us directly.
           </Typography>
         </Box>

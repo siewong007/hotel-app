@@ -23,7 +23,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { PaymentApprovalsService, PendingPaymentEntry } from '../../../api';
@@ -196,12 +196,16 @@ const PaymentApprovalsPage: React.FC = () => {
       <Typography variant="h4" sx={{ mb: 1 }}>
         Payment Approvals
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 3
+        }}>
         Review guest-submitted bank-transfer and PayPal payment claims. Approving a claim marks
         the payment complete and confirms the booking. For bank transfers, request a receipt when
         proof is needed; a claim without a receipt is automatically rejected after 24 hours.
       </Typography>
-
       {canViewConflicts && conflictEvents.length > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <AlertTitle>
@@ -230,19 +234,19 @@ const PaymentApprovalsPage: React.FC = () => {
             })}
           </Box>
           {conflictTotal > Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN) && (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Showing {Math.min(conflictEvents.length, CONFLICT_EVENTS_SHOWN)} of {conflictTotal}. See
               the Audit Log for the full history.
             </Typography>
           )}
         </Alert>
       )}
-
       <Tabs value={view} onChange={(_, value: 'pending' | 'history') => { setView(value); setPage(0); }} sx={{ mb: 2 }}>
         <Tab value="pending" label="Pending claims" />
         <Tab value="history" label="Approval history" />
       </Tabs>
-
       {effectiveError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {effectiveError}
@@ -253,7 +257,6 @@ const PaymentApprovalsPage: React.FC = () => {
           {success}
         </Alert>
       )}
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
           <CircularProgress />
@@ -299,8 +302,12 @@ const PaymentApprovalsPage: React.FC = () => {
                     {view === 'history' ? (
                       <TableCell>
                         {entry.processed_at ? new Date(entry.processed_at).toLocaleString() : '—'}
-                        {entry.processed_by_name ? <Typography variant="caption" display="block">{entry.processed_by_name}</Typography> : null}
-                        {entry.decision_reason ? <Typography variant="caption" display="block">{entry.decision_reason}</Typography> : null}
+                        {entry.processed_by_name ? <Typography variant="caption" sx={{
+                          display: "block"
+                        }}>{entry.processed_by_name}</Typography> : null}
+                        {entry.decision_reason ? <Typography variant="caption" sx={{
+                          display: "block"
+                        }}>{entry.decision_reason}</Typography> : null}
                       </TableCell>
                     ) : null}
                     <TableCell>
@@ -416,9 +423,11 @@ const PaymentApprovalsPage: React.FC = () => {
             placeholder="For example: The transfer amount does not match the booking total."
             value={rejectionReason}
             onChange={(event) => setRejectionReason(event.target.value)}
-            inputProps={{ maxLength: 1_000 }}
             helperText={`${1_000 - rejectionReason.length} characters remaining`}
             disabled={rejectMutation.isPending}
+            slotProps={{
+              htmlInput: { maxLength: 1_000 }
+            }}
           />
         </DialogContent>
         <DialogActions>

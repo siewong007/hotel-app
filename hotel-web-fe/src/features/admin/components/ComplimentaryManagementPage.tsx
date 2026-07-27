@@ -141,7 +141,9 @@ export default function ComplimentaryManagementPage() {
         return (
           <Box>
             <Typography variant="body2">{c.guest_name}</Typography>
-            <Typography variant="caption" color="text.secondary">{c.email}</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>{c.email}</Typography>
           </Box>
         );
       },
@@ -157,7 +159,9 @@ export default function ComplimentaryManagementPage() {
       header: 'Reason',
       accessorFn: (c) => c.reason || c.notes || '',
       cell: (info) => (
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           {(info.getValue() as string) || '-'}
         </Typography>
       ),
@@ -464,23 +468,28 @@ export default function ComplimentaryManagementPage() {
           Refresh
         </Button>
       </Box>
-
       {/* Error Alert */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
-
       {/* Summary Cards */}
       {summary && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 1
+                  }}>
                   <HotelIcon color="primary" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Complimentary Bookings
                   </Typography>
                 </Box>
@@ -493,9 +502,16 @@ export default function ComplimentaryManagementPage() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 1
+                  }}>
                   <NightsIcon color="secondary" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Total Nights Given
                   </Typography>
                 </Box>
@@ -508,16 +524,27 @@ export default function ComplimentaryManagementPage() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 1
+                  }}>
                   <PersonIcon color="info" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Credits Available
                   </Typography>
                 </Box>
-                <Typography variant="h4" color="info.main">
+                <Typography variant="h4" sx={{
+                  color: "info.main"
+                }}>
                   {summary.total_credits_available}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   (room-type specific credits)
                 </Typography>
               </CardContent>
@@ -526,13 +553,22 @@ export default function ComplimentaryManagementPage() {
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    mb: 1
+                  }}>
                   <MoneyIcon color="success" sx={{ mr: 1 }} />
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Value Given
                   </Typography>
                 </Box>
-                <Typography variant="h4" color="success.main">
+                <Typography variant="h4" sx={{
+                  color: "success.main"
+                }}>
                   {formatCurrency(parseFloat(summary.value_of_complimentary_nights) || 0)}
                 </Typography>
               </CardContent>
@@ -540,7 +576,6 @@ export default function ComplimentaryManagementPage() {
           </Grid>
         </Grid>
       )}
-
       {/* Tabs */}
       <Paper sx={{ mb: 2 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
@@ -550,7 +585,6 @@ export default function ComplimentaryManagementPage() {
           />
         </Tabs>
       </Paper>
-
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
         {/* Search */}
@@ -561,12 +595,14 @@ export default function ComplimentaryManagementPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           sx={{ mb: 2 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }
           }}
         />
 
@@ -629,7 +665,11 @@ export default function ComplimentaryManagementPage() {
               {filteredBookings.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} align="center">
-                    <Typography color="text.secondary" py={4}>
+                    <Typography
+                      sx={{
+                        color: "text.secondary",
+                        py: 4
+                      }}>
                       No complimentary bookings found
                     </Typography>
                   </TableCell>
@@ -640,13 +680,17 @@ export default function ComplimentaryManagementPage() {
                     <TableCell>{booking.booking_number}</TableCell>
                     <TableCell>
                       <Typography variant="body2">{booking.guest_name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {booking.guest_email}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2">{booking.room_number}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {booking.room_type}
                       </Typography>
                     </TableCell>
@@ -656,7 +700,9 @@ export default function ComplimentaryManagementPage() {
                         {new Date(booking.check_out_date).toLocaleDateString()}
                       </Typography>
                       {booking.complimentary_start_date && booking.complimentary_end_date && (
-                        <Typography variant="caption" color="success.main">
+                        <Typography variant="caption" sx={{
+                          color: "success.main"
+                        }}>
                           Comp: {new Date(booking.complimentary_start_date).toLocaleDateString()} -{' '}
                           {new Date(booking.complimentary_end_date).toLocaleDateString()}
                         </Typography>
@@ -720,7 +766,6 @@ export default function ComplimentaryManagementPage() {
           </Table>
         </TableContainer>
       </TabPanel>
-
       <TabPanel value={tabValue} index={1}>
         {/* Guest Credits */}
         <Paper sx={{ p: 2 }}>
@@ -738,7 +783,9 @@ export default function ComplimentaryManagementPage() {
             </Button>
           </Box>
           {(!guestCredits || guestCredits.length === 0) ? (
-            <Typography color="text.secondary">No guests with complimentary credits</Typography>
+            <Typography sx={{
+              color: "text.secondary"
+            }}>No guests with complimentary credits</Typography>
           ) : (
             <DataTable<GuestCredit>
               data={guestCredits}
@@ -748,7 +795,6 @@ export default function ComplimentaryManagementPage() {
           )}
         </Paper>
       </TabPanel>
-
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Complimentary Booking</DialogTitle>
@@ -768,12 +814,14 @@ export default function ComplimentaryManagementPage() {
                     onChange={(e) =>
                       setEditFormData({ ...editFormData, complimentary_start_date: e.target.value })
                     }
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{
-                      min: selectedBooking.check_in_date,
-                      max: selectedBooking.check_out_date,
-                    }}
-                  />
+                    slotProps={{
+                      htmlInput: {
+                        min: selectedBooking.check_in_date,
+                        max: selectedBooking.check_out_date,
+                      },
+
+                      inputLabel: { shrink: true }
+                    }} />
                 </Grid>
                 <Grid size={6}>
                   <TextField
@@ -784,12 +832,14 @@ export default function ComplimentaryManagementPage() {
                     onChange={(e) =>
                       setEditFormData({ ...editFormData, complimentary_end_date: e.target.value })
                     }
-                    InputLabelProps={{ shrink: true }}
-                    inputProps={{
-                      min: selectedBooking.check_in_date,
-                      max: selectedBooking.check_out_date,
-                    }}
-                  />
+                    slotProps={{
+                      htmlInput: {
+                        min: selectedBooking.check_in_date,
+                        max: selectedBooking.check_out_date,
+                      },
+
+                      inputLabel: { shrink: true }
+                    }} />
                 </Grid>
                 <Grid size={12}>
                   <TextField
@@ -814,7 +864,6 @@ export default function ComplimentaryManagementPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Remove Complimentary Status</DialogTitle>
@@ -850,7 +899,6 @@ export default function ComplimentaryManagementPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Add Credit Dialog */}
       <Dialog open={addCreditDialogOpen} onClose={() => setAddCreditDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add Complimentary Credits</DialogTitle>
@@ -889,7 +937,9 @@ export default function ComplimentaryManagementPage() {
                   type="number"
                   value={creditFormData.nights}
                   onChange={(e) => setCreditFormData({ ...creditFormData, nights: parseInt(e.target.value) || 0 })}
-                  inputProps={{ min: 1 }}
+                  slotProps={{
+                    htmlInput: { min: 1 }
+                  }}
                 />
               </Grid>
               <Grid size={12}>
@@ -921,7 +971,6 @@ export default function ComplimentaryManagementPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Edit Credit Dialog */}
       <Dialog open={editCreditDialogOpen} onClose={() => setEditCreditDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Complimentary Credits</DialogTitle>
@@ -944,7 +993,9 @@ export default function ComplimentaryManagementPage() {
                     type="number"
                     value={editCreditFormData.nights_available}
                     onChange={(e) => setEditCreditFormData({ ...editCreditFormData, nights_available: parseInt(e.target.value) || 0 })}
-                    inputProps={{ min: 0 }}
+                    slotProps={{
+                      htmlInput: { min: 0 }
+                    }}
                   />
                 </Grid>
                 <Grid size={12}>
@@ -968,7 +1019,6 @@ export default function ComplimentaryManagementPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete Credit Confirmation Dialog */}
       <Dialog open={deleteCreditDialogOpen} onClose={() => setDeleteCreditDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Delete Complimentary Credits</DialogTitle>
@@ -997,7 +1047,6 @@ export default function ComplimentaryManagementPage() {
           </Button>
         </DialogActions>
       </Dialog>
-
     </Box>
   );
 }

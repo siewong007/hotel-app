@@ -450,11 +450,12 @@ const SettingsPage: React.FC = () => {
   if (loading) {
     return (
       <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="400px"
-      >
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -465,22 +466,24 @@ const SettingsPage: React.FC = () => {
       <Typography variant="h4" component="h1" gutterBottom>
         Hotel Settings
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 3
+        }}>
         Configure your hotel's operational settings
       </Typography>
-
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
           {error}
         </Alert>
       )}
-
       {success && (
         <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess("")}>
           {success}
         </Alert>
       )}
-
       {/* Hotel Information */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -541,7 +544,6 @@ const SettingsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
       {/* Check-in/Check-out Settings */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -560,7 +562,9 @@ const SettingsPage: React.FC = () => {
                 value={checkInTime}
                 onChange={(e) => setCheckInTime(e.target.value)}
                 helperText="Standard time when guests can check in"
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -571,7 +575,9 @@ const SettingsPage: React.FC = () => {
                 value={checkOutTime}
                 onChange={(e) => setCheckOutTime(e.target.value)}
                 helperText="Standard time when guests must check out"
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -582,7 +588,9 @@ const SettingsPage: React.FC = () => {
                 value={nightShiftTime}
                 onChange={(e) => setNightShiftTime(e.target.value)}
                 helperText="Time when daily data is posted for reporting (e.g., 11:00 PM)"
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -598,9 +606,10 @@ const SettingsPage: React.FC = () => {
               />
               <Typography
                 variant="caption"
-                color="text.secondary"
-                display="block"
-              >
+                sx={{
+                  color: "text.secondary",
+                  display: "block"
+                }}>
                 When on, the system posts the night audit at the time above (and
                 catches up any missed days). When off, run it manually from the
                 Night Audit page.
@@ -614,7 +623,6 @@ const SettingsPage: React.FC = () => {
           </Alert>
         </CardContent>
       </Card>
-
       {/* Operational Settings */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -634,7 +642,9 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => setCurrency(e.target.value)}
                 helperText="All prices and charges will be displayed in this currency"
                 disabled={!isAdmin}
-                SelectProps={{ native: true }}
+                slotProps={{
+                  select: { native: true }
+                }}
               >
                 <optgroup label="Recommended">
                   <option value="MYR">RM - Malaysian Ringgit (MYR)</option>
@@ -660,7 +670,9 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => setTimezone(e.target.value)}
                 helperText="Select your hotel's timezone for accurate time tracking"
                 disabled={!isAdmin}
-                SelectProps={{ native: true }}
+                slotProps={{
+                  select: { native: true }
+                }}
               >
                 <optgroup label="Asia & Pacific">
                   {TIMEZONES.filter(
@@ -712,7 +724,6 @@ const SettingsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
       {/* Charges & Deposits */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -733,15 +744,17 @@ const SettingsPage: React.FC = () => {
                   setServiceTaxRate(parseFloat(e.target.value) || 0)
                 }
                 helperText="Tax percentage applied to all bookings"
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>%</Typography>,
-                }}
-                inputProps={{
-                  min: 0,
-                  max: 100,
-                  step: 0.1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>%</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: 0,
+                    max: 100,
+                    step: 0.1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
@@ -753,16 +766,18 @@ const SettingsPage: React.FC = () => {
                   setTourismTaxRate(parseFloat(e.target.value) || 0)
                 }
                 helperText="Per night charge for tourist guests"
-                InputProps={{
-                  startAdornment: (
-                    <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
-                  ),
-                }}
-                inputProps={{
-                  min: 0,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
+                    ),
+                  },
+
+                  htmlInput: {
+                    min: 0,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
@@ -774,16 +789,18 @@ const SettingsPage: React.FC = () => {
                   setDepositAmount(parseFloat(e.target.value) || 0)
                 }
                 helperText="Default deposit amount collected at check-in"
-                InputProps={{
-                  startAdornment: (
-                    <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
-                  ),
-                }}
-                inputProps={{
-                  min: 0,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
+                    ),
+                  },
+
+                  htmlInput: {
+                    min: 0,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
@@ -795,14 +812,16 @@ const SettingsPage: React.FC = () => {
                   setDefaultPaymentTermsDays(parseInt(e.target.value, 10) || 1)
                 }
                 helperText="Default invoice due-date offset"
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>days</Typography>,
-                }}
-                inputProps={{
-                  min: 1,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>days</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: 1,
+                    step: 1,
+                  }
+                }} />
             </Grid>
           </Grid>
 
@@ -812,7 +831,6 @@ const SettingsPage: React.FC = () => {
           </Alert>
         </CardContent>
       </Card>
-
       {/* Report Settings */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -832,7 +850,9 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => applyReportTypographyPreset(e.target.value)}
                 helperText={reportPresetHelperText}
                 disabled={!isAdmin}
-                SelectProps={{ native: true }}
+                slotProps={{
+                  select: { native: true }
+                }}
               >
                 <option value="custom">Custom</option>
                 {REPORT_TYPOGRAPHY_PRESETS.map((preset) => (
@@ -851,7 +871,9 @@ const SettingsPage: React.FC = () => {
                 onChange={(e) => setReportFontFamily(e.target.value)}
                 helperText="Font used by generated report previews and print output"
                 disabled={!isAdmin}
-                SelectProps={{ native: true }}
+                slotProps={{
+                  select: { native: true }
+                }}
               >
                 {REPORT_FONT_FAMILY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -873,15 +895,17 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Main report text size"
                 disabled={!isAdmin}
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                }}
-                inputProps={{
-                  min: REPORT_FONT_SIZE_MIN,
-                  max: REPORT_FONT_SIZE_MAX,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: REPORT_FONT_SIZE_MIN,
+                    max: REPORT_FONT_SIZE_MAX,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
@@ -897,15 +921,17 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Large report titles and metric values"
                 disabled={!isAdmin}
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                }}
-                inputProps={{
-                  min: REPORT_DISPLAY_FONT_SIZE_MIN,
-                  max: REPORT_DISPLAY_FONT_SIZE_MAX,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: REPORT_DISPLAY_FONT_SIZE_MIN,
+                    max: REPORT_DISPLAY_FONT_SIZE_MAX,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
@@ -920,15 +946,17 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Report section labels and subheads"
                 disabled={!isAdmin}
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                }}
-                inputProps={{
-                  min: REPORT_FONT_SIZE_MIN,
-                  max: REPORT_DISPLAY_FONT_SIZE_MAX,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: REPORT_FONT_SIZE_MIN,
+                    max: REPORT_DISPLAY_FONT_SIZE_MAX,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
@@ -943,15 +971,17 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Rows, totals, and table headers"
                 disabled={!isAdmin}
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                }}
-                inputProps={{
-                  min: REPORT_FONT_SIZE_MIN,
-                  max: REPORT_FONT_SIZE_MAX,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: REPORT_FONT_SIZE_MIN,
+                    max: REPORT_FONT_SIZE_MAX,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
@@ -966,15 +996,17 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Secondary labels and captions"
                 disabled={!isAdmin}
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                }}
-                inputProps={{
-                  min: REPORT_FONT_SIZE_MIN,
-                  max: REPORT_FONT_SIZE_MAX,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: REPORT_FONT_SIZE_MIN,
+                    max: REPORT_FONT_SIZE_MAX,
+                    step: 1,
+                  }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <TextField
@@ -989,20 +1021,21 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Payment and posting status chips"
                 disabled={!isAdmin}
-                InputProps={{
-                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                }}
-                inputProps={{
-                  min: REPORT_FONT_SIZE_MIN,
-                  max: REPORT_FONT_SIZE_MAX,
-                  step: 1,
-                }}
-              />
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
+                  },
+
+                  htmlInput: {
+                    min: REPORT_FONT_SIZE_MIN,
+                    max: REPORT_FONT_SIZE_MAX,
+                    step: 1,
+                  }
+                }} />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6">Guest Booking Cancellation</Typography>
@@ -1019,13 +1052,14 @@ const SettingsPage: React.FC = () => {
             }
             label="Allow guests to cancel eligible future bookings in the portal"
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Non-cancellable voucher terms and bookings that have reached
             check-in still block cancellation.
           </Typography>
         </CardContent>
       </Card>
-
       {/* Guest Support Workflow */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -1045,20 +1079,30 @@ const SettingsPage: React.FC = () => {
             }
             label="Allow guests to start support conversations in the portal"
           />
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 3
+            }}>
             Existing conversations remain visible to staff when new guest
             requests are paused.
           </Typography>
 
-          <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: "medium"
+          }}>
             Guest support topics
           </Typography>
           <Stack
             direction="row"
-            flexWrap="wrap"
             useFlexGap
-            sx={{ mb: 3, columnGap: 1, rowGap: 0 }}
-          >
+            sx={{
+              flexWrap: "wrap",
+              mb: 3,
+              columnGap: 1,
+              rowGap: 0
+            }}>
             {Object.entries(SUPPORT_CATEGORY_LABELS).map(
               ([category, label]) => {
                 const isEnabled = supportCategories.includes(category);
@@ -1091,7 +1135,9 @@ const SettingsPage: React.FC = () => {
 
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: "medium"
+              }}>
                 First response target
               </Typography>
               <Grid container spacing={2}>
@@ -1112,14 +1158,18 @@ const SettingsPage: React.FC = () => {
                         }))
                       }
                       disabled={!isAdmin}
-                      inputProps={{ min: 1, step: 1 }}
+                      slotProps={{
+                        htmlInput: { min: 1, step: 1 }
+                      }}
                     />
                   </Grid>
                 ))}
               </Grid>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: "medium"
+              }}>
                 Resolution target
               </Typography>
               <Grid container spacing={2}>
@@ -1140,7 +1190,9 @@ const SettingsPage: React.FC = () => {
                         }))
                       }
                       disabled={!isAdmin}
-                      inputProps={{ min: 1, step: 1 }}
+                      slotProps={{
+                        htmlInput: { min: 1, step: 1 }
+                      }}
                     />
                   </Grid>
                 ))}
@@ -1159,13 +1211,14 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Days after resolution during which a guest can reopen a conversation"
                 disabled={!isAdmin}
-                inputProps={{ min: 1, step: 1 }}
+                slotProps={{
+                  htmlInput: { min: 1, step: 1 }
+                }}
               />
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
       {/* Security & Identity */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -1187,10 +1240,12 @@ const SettingsPage: React.FC = () => {
                 }
                 helperText="Failed attempts before account lockout"
                 disabled={!isAdmin}
-                inputProps={{
-                  min: 1,
-                  max: 20,
-                  step: 1,
+                slotProps={{
+                  htmlInput: {
+                    min: 1,
+                    max: 20,
+                    step: 1,
+                  }
                 }}
               />
             </Grid>
@@ -1217,7 +1272,6 @@ const SettingsPage: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
-
       {/* Appearance */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -1227,10 +1281,14 @@ const SettingsPage: React.FC = () => {
           </Box>
           <Divider sx={{ mb: 3 }} />
 
-          <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: "medium"
+          }}>
             Theme Mode
           </Typography>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
+          <Typography variant="body2" gutterBottom sx={{
+            color: "text.secondary"
+          }}>
             Choose how the interface looks on this device. This preference is
             saved locally and applies immediately.
           </Typography>
@@ -1271,7 +1329,6 @@ const SettingsPage: React.FC = () => {
           </ToggleButtonGroup>
         </CardContent>
       </Card>
-
       {/* System Configuration */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -1284,16 +1341,20 @@ const SettingsPage: React.FC = () => {
           <Grid container spacing={3}>
             {/* Rate Codes */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: "medium"
+              }}>
                 Rate Codes
               </Typography>
 
               <Stack
                 direction="row"
                 spacing={1}
-                flexWrap="wrap"
-                sx={{ mt: 2, mb: 2 }}
-              >
+                sx={{
+                  flexWrap: "wrap",
+                  mt: 2,
+                  mb: 2
+                }}>
                 {rateCodes.map((code, index) => (
                   <Chip
                     key={`${code}-${index}`}
@@ -1345,16 +1406,20 @@ const SettingsPage: React.FC = () => {
 
             {/* Market Codes */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: "medium"
+              }}>
                 Market Codes
               </Typography>
 
               <Stack
                 direction="row"
                 spacing={1}
-                flexWrap="wrap"
-                sx={{ mt: 2, mb: 2 }}
-              >
+                sx={{
+                  flexWrap: "wrap",
+                  mt: 2,
+                  mb: 2
+                }}>
                 {marketCodes.map((code, index) => (
                   <Chip
                     key={`${code}-${index}`}
@@ -1406,10 +1471,14 @@ const SettingsPage: React.FC = () => {
 
             {/* Booking Channels */}
             <Grid size={12}>
-              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: "medium"
+              }}>
                 Online Booking Channels
               </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Typography variant="body2" gutterBottom sx={{
+                color: "text.secondary"
+              }}>
                 Configure channel name + abbreviation pairs (e.g., Booking.com /
                 B.C). Abbreviations appear next to guest names in the Room Sold
                 Detail by Date report.
@@ -1418,9 +1487,11 @@ const SettingsPage: React.FC = () => {
               <Stack
                 direction="row"
                 spacing={1}
-                flexWrap="wrap"
-                sx={{ mt: 2, mb: 2 }}
-              >
+                sx={{
+                  flexWrap: "wrap",
+                  mt: 2,
+                  mb: 2
+                }}>
                 {bookingChannels.map((channel, index) => (
                   <Chip
                     key={index}
@@ -1479,19 +1550,25 @@ const SettingsPage: React.FC = () => {
 
             {/* Payment Methods */}
             <Grid size={12}>
-              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: "medium"
+              }}>
                 Payment Methods
               </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Typography variant="body2" gutterBottom sx={{
+                color: "text.secondary"
+              }}>
                 Configure available payment methods for walk-in guests
               </Typography>
 
               <Stack
                 direction="row"
                 spacing={1}
-                flexWrap="wrap"
-                sx={{ mt: 2, mb: 2 }}
-              >
+                sx={{
+                  flexWrap: "wrap",
+                  mt: 2,
+                  mb: 2
+                }}>
                 {paymentMethods.map((method, index) => (
                   <Chip
                     key={index}
@@ -1549,7 +1626,6 @@ const SettingsPage: React.FC = () => {
           </Alert>
         </CardContent>
       </Card>
-
       {/* Save Button */}
       <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
         <Button variant="outlined" onClick={loadSettings} disabled={saving}>

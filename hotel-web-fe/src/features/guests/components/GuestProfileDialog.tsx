@@ -76,7 +76,12 @@ const Metric = ({ label, value }: { label: string; value: React.ReactNode }) => 
       minHeight: 76,
     }}
   >
-    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+    <Typography
+      variant="caption"
+      sx={{
+        color: "text.secondary",
+        display: 'block'
+      }}>
       {label}
     </Typography>
     <Typography variant="h6" sx={{ fontWeight: 800, mt: 0.5 }}>
@@ -90,7 +95,12 @@ const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) 
 
   return (
     <Box sx={{ minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          display: 'block'
+        }}>
         {label}
       </Typography>
       <Typography variant="body2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
@@ -122,7 +132,9 @@ const ReservationsTab = ({
         {reservations.length === 0 ? (
           <TableRow>
             <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No reservations found
               </Typography>
             </TableCell>
@@ -134,7 +146,9 @@ const ReservationsTab = ({
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>
                   {booking.booking_number || `#${booking.id}`}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   {booking.source ? formatStatus(booking.source) : 'Direct'}
                 </Typography>
               </TableCell>
@@ -142,13 +156,17 @@ const ReservationsTab = ({
                 <Typography variant="body2">
                   {formatDate(booking.check_in_date)} - {formatDate(booking.check_out_date)}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   {booking.nights} night{booking.nights === 1 ? '' : 's'}
                 </Typography>
               </TableCell>
               <TableCell>
                 <Typography variant="body2">Room {booking.room_number}</Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   {booking.room_type || 'N/A'}
                 </Typography>
               </TableCell>
@@ -196,16 +214,29 @@ const DuplicatesTab = ({ candidates }: { candidates: GuestDuplicateCandidate[] }
             p: 1.5,
           }}
         >
-          <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{
+              justifyContent: "space-between",
+              alignItems: "flex-start"
+            }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
                 {candidate.guest.full_name}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  overflowWrap: 'anywhere'
+                }}>
                 #{candidate.guest.id} - {candidate.guest.email || 'No email'} - {candidate.guest.phone || 'No phone'}
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={1} sx={{
+              alignItems: "center"
+            }}>
               <Chip
                 label={recommendationLabel(candidate)}
                 size="small"
@@ -215,7 +246,14 @@ const DuplicatesTab = ({ candidates }: { candidates: GuestDuplicateCandidate[] }
             </Stack>
           </Stack>
 
-          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            useFlexGap
+            sx={{
+              flexWrap: "wrap",
+              mt: 1
+            }}>
             {candidate.match_reasons.map((reason) => (
               <Chip key={reason} label={reason} size="small" variant="outlined" />
             ))}
@@ -246,7 +284,13 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({ open, guestId, 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ px: 3, py: 2 }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
           <Typography variant="h6" sx={{ fontWeight: 800 }}>
             Guest Profile
           </Typography>
@@ -274,12 +318,21 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({ open, guestId, 
         ) : guest && summary ? (
           <Stack spacing={2.5}>
             <Box>
-              <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1.5}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{
+                justifyContent: "space-between"
+              }}>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography variant="h5" sx={{ fontWeight: 900, overflowWrap: 'anywhere' }}>
                     {guest.full_name}
                   </Typography>
-                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    sx={{
+                      flexWrap: "wrap",
+                      mt: 1
+                    }}>
                     {guest.guest_type === 'member' && <Chip label="Member" size="small" color="primary" />}
                     {summary.completed_stays > 0 && <Chip label="Returning Guest" size="small" color="success" />}
                     {guest.company_name && <Chip label={guest.company_name} size="small" variant="outlined" />}
@@ -287,10 +340,14 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({ open, guestId, 
                   </Stack>
                 </Box>
                 <Box sx={{ textAlign: { xs: 'left', sm: 'right' } }}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Last stay: {formatDate(summary.last_stay_at)}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Next stay: {formatDate(summary.next_stay_at)}
                   </Typography>
                 </Box>

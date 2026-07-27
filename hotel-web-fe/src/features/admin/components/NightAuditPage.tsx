@@ -91,7 +91,6 @@ function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
       <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
         Journal Entries
       </Typography>
-
       {sections.map((section) => (
         <Paper key={section.entry_type} variant="outlined" sx={{ mb: 2 }}>
           <Box
@@ -110,19 +109,25 @@ function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
               <IconButton size="small">
                 {expandedSections.has(section.entry_type) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
               </IconButton>
-              <Typography variant="subtitle2" fontWeight="bold">
+              <Typography variant="subtitle2" sx={{
+                fontWeight: "bold"
+              }}>
                 {section.display_name}
               </Typography>
               <Chip label={`${section.entries.length} entries`} size="small" variant="outlined" />
             </Box>
             <Box sx={{ display: 'flex', gap: 3 }}>
               {Number(section.total_debit) > 0 && (
-                <Typography variant="body2" color="error.main">
+                <Typography variant="body2" sx={{
+                  color: "error.main"
+                }}>
                   <strong>Debit:</strong> {formatCurrency(Number(section.total_debit))}
                 </Typography>
               )}
               {Number(section.total_credit) > 0 && (
-                <Typography variant="body2" color="success.main">
+                <Typography variant="body2" sx={{
+                  color: "success.main"
+                }}>
                   <strong>Credit:</strong> {formatCurrency(Number(section.total_credit))}
                 </Typography>
               )}
@@ -171,11 +176,12 @@ function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
           </Collapse>
         </Paper>
       ))}
-
       {/* Grand Total */}
       <Paper variant="outlined" sx={{ p: 2, bgcolor: 'primary.light' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="subtitle1" fontWeight="bold">Grand Total</Typography>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: "bold"
+          }}>Grand Total</Typography>
           <Box sx={{ display: 'flex', gap: 4 }}>
             <Typography variant="body1">
               <strong>Total Debit:</strong> {formatCurrency(grandTotalDebit)}
@@ -756,14 +762,15 @@ const NightAuditPage: React.FC = () => {
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" fontWeight="bold">
+        <Typography variant="h4" sx={{
+          fontWeight: "bold"
+        }}>
           Night Audit
         </Typography>
         <IconButton onClick={() => { fetchPreview(); fetchHistory(); }}>
           <RefreshIcon />
         </IconButton>
       </Box>
-
       {/* Alerts */}
       {effectiveError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -775,19 +782,19 @@ const NightAuditPage: React.FC = () => {
           {success}
         </Alert>
       )}
-
       {/* Tabs */}
       <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }} aria-label="Night audit tabs">
         <Tab label="Run Audit" {...getTabA11yProps(0, 'night-audit')} />
         <Tab label="Audit History" {...getTabA11yProps(1, 'night-audit')} />
       </Tabs>
-
       {/* Tab 1: Run Audit */}
       <TabPanel value={tabValue} index={0} idPrefix="night-audit" contentSx={{ pt: 2 }}>
         {/* Date Selector */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} sx={{
+              alignItems: "center"
+            }}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   label="Audit Date"
@@ -795,7 +802,9 @@ const NightAuditPage: React.FC = () => {
                   value={auditDate}
                   onChange={(e) => setAuditDate(e.target.value)}
                   fullWidth
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -843,7 +852,12 @@ const NightAuditPage: React.FC = () => {
               <Typography variant="h5" sx={{ mb: 1, fontWeight: 'bold' }}>
                 Night Audit Report Preview
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3
+                }}>
                 {new Date(auditDate + 'T00:00:00').toLocaleDateString('en-US', {
                   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
                 })}
@@ -851,7 +865,7 @@ const NightAuditPage: React.FC = () => {
 
               {preview.already_run ? (
                 // Completed Audit Report
-                (() => {
+                ((() => {
                   const normalizeDate = (d: string) => d.split('T')[0];
                   const completedAudit = auditHistory.find(a => normalizeDate(a.audit_date) === normalizeDate(auditDate));
                   if (completedAudit) {
@@ -860,37 +874,48 @@ const NightAuditPage: React.FC = () => {
                         <Alert severity="success" sx={{ mb: 3 }} icon={<CheckIcon />}>
                           Audit completed at {new Date(completedAudit.run_at).toLocaleString()} by {completedAudit.run_by_username || 'System'}
                         </Alert>
-
                         {/* Summary Row */}
                         <Grid container spacing={2} sx={{ mb: 3 }}>
                           <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
-                              <Typography variant="h4" fontWeight="bold">{completedAudit.total_bookings_posted}</Typography>
+                              <Typography variant="h4" sx={{
+                                fontWeight: "bold"
+                              }}>{completedAudit.total_bookings_posted}</Typography>
                               <Typography variant="body2">Bookings Posted</Typography>
                             </Box>
                           </Grid>
                           <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
-                              <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkins}</Typography>
+                              <Typography variant="h4" sx={{
+                                fontWeight: "bold"
+                              }}>{completedAudit.total_checkins}</Typography>
                               <Typography variant="body2">Check-ins</Typography>
                             </Box>
                           </Grid>
                           <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
-                              <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkouts}</Typography>
+                              <Typography variant="h4" sx={{
+                                fontWeight: "bold"
+                              }}>{completedAudit.total_checkouts}</Typography>
                               <Typography variant="body2">Check-outs</Typography>
                             </Box>
                           </Grid>
                           <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
-                              <Typography variant="h4" fontWeight="bold">{Number(completedAudit.occupancy_rate).toFixed(0)}%</Typography>
+                              <Typography variant="h4" sx={{
+                                fontWeight: "bold"
+                              }}>{Number(completedAudit.occupancy_rate).toFixed(0)}%</Typography>
                               <Typography variant="body2">Occupancy</Typography>
                             </Box>
                           </Grid>
                         </Grid>
-
                         {/* Room Status */}
-                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Room Status at Audit Time</Typography>
+                        <Typography
+                          variant="subtitle2"
+                          sx={{
+                            color: "text.secondary",
+                            mb: 1
+                          }}>Room Status at Audit Time</Typography>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                           <Chip label={`${completedAudit.rooms_available} Available`} color="success" variant="outlined" />
                           <Chip label={`${completedAudit.rooms_occupied} Occupied`} color="error" variant="outlined" />
@@ -898,7 +923,6 @@ const NightAuditPage: React.FC = () => {
                           <Chip label={`${completedAudit.rooms_maintenance} Maintenance`} color="warning" variant="outlined" />
                           <Chip label={`${completedAudit.rooms_dirty} Dirty`} variant="outlined" />
                         </Box>
-
                         {/* Journal Sections for completed audit */}
                         {detailsLoading.has(completedAudit.id) ? (
                           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
@@ -930,7 +954,6 @@ const NightAuditPage: React.FC = () => {
                             Load Journal Entries
                           </Button>
                         ) : null}
-
                         {/* Export and Rerun Buttons */}
                         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
                           <Button
@@ -964,33 +987,41 @@ const NightAuditPage: React.FC = () => {
                     );
                   }
                   return <Alert severity="success">Night audit completed. Check History tab for details.</Alert>;
-                })()
+                })())
               ) : (
                 // Pending Audit Preview
-                <>
+                (<>
                   {/* Summary Row */}
                   <Grid container spacing={2} sx={{ mb: 3 }}>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
-                        <Typography variant="h4" fontWeight="bold">{preview.total_unposted}</Typography>
+                        <Typography variant="h4" sx={{
+                          fontWeight: "bold"
+                        }}>{preview.total_unposted}</Typography>
                         <Typography variant="body2">Bookings to Post</Typography>
                       </Box>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
-                        <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.occupied}</Typography>
+                        <Typography variant="h4" sx={{
+                          fontWeight: "bold"
+                        }}>{preview.room_snapshot.occupied}</Typography>
                         <Typography variant="body2">Occupied Rooms</Typography>
                       </Box>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
-                        <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.available}</Typography>
+                        <Typography variant="h4" sx={{
+                          fontWeight: "bold"
+                        }}>{preview.room_snapshot.available}</Typography>
                         <Typography variant="body2">Available Rooms</Typography>
                       </Box>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
-                        <Typography variant="h4" fontWeight="bold">
+                        <Typography variant="h4" sx={{
+                          fontWeight: "bold"
+                        }}>
                           {preview.room_snapshot.total > 0
                             ? Math.round((preview.room_snapshot.occupied / preview.room_snapshot.total) * 100)
                             : 0}%
@@ -999,9 +1030,13 @@ const NightAuditPage: React.FC = () => {
                       </Box>
                     </Grid>
                   </Grid>
-
                   {/* Bookings Table */}
-                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      color: "text.secondary",
+                      mb: 1
+                    }}>
                     Bookings to be Posted ({preview.unposted_bookings.length})
                   </Typography>
                   {preview.unposted_bookings.length > 0 ? (
@@ -1045,13 +1080,12 @@ const NightAuditPage: React.FC = () => {
                   ) : (
                     <Alert severity="info">No bookings to post for this date.</Alert>
                   )}
-                </>
+                </>)
               )}
             </Paper>
           </>
         ) : null}
       </TabPanel>
-
       {/* Tab 2: Audit History */}
       <TabPanel value={tabValue} index={1} idPrefix="night-audit" contentSx={{ pt: 2 }}>
         {/* Year/Month Filter Controls */}
@@ -1066,7 +1100,9 @@ const NightAuditPage: React.FC = () => {
             }}
             size="small"
             sx={{ minWidth: 120 }}
-            SelectProps={{ native: true }}
+            slotProps={{
+              select: { native: true }
+            }}
           >
             {Array.from({ length: 6 }, (_, i) => {
               const year = new Date().getFullYear() - i;
@@ -1088,7 +1124,9 @@ const NightAuditPage: React.FC = () => {
             }}
             size="small"
             sx={{ minWidth: 140 }}
-            SelectProps={{ native: true }}
+            slotProps={{
+              select: { native: true }
+            }}
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i + 1} value={i + 1}>
@@ -1097,7 +1135,12 @@ const NightAuditPage: React.FC = () => {
             ))}
           </TextField>
 
-          <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto' }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              ml: 'auto'
+            }}>
             {historyTotal} audit{historyTotal === 1 ? '' : 's'} found
           </Typography>
         </Box>
@@ -1146,13 +1189,27 @@ const NightAuditPage: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "text.secondary",
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}>
                             <TimeIcon fontSize="small" />
                             {new Date(audit.run_at).toLocaleString()}
                           </Typography>
                         </TableCell>
                         <TableCell>
-                          <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "text.secondary",
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}>
                             <PersonIcon fontSize="small" />
                             {audit.run_by_username || 'System'}
                           </Typography>
@@ -1178,23 +1235,33 @@ const NightAuditPage: React.FC = () => {
                                   <Card variant="outlined">
                                     <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                                       <Typography variant="h4" color="primary">{audit.total_bookings_posted}</Typography>
-                                      <Typography variant="body2" color="text.secondary">Bookings Posted</Typography>
+                                      <Typography variant="body2" sx={{
+                                        color: "text.secondary"
+                                      }}>Bookings Posted</Typography>
                                     </CardContent>
                                   </Card>
                                 </Grid>
                                 <Grid size={{ xs: 6, sm: 4 }}>
                                   <Card variant="outlined">
                                     <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                                      <Typography variant="h4" color="success.main">{audit.total_checkins}</Typography>
-                                      <Typography variant="body2" color="text.secondary">Check-ins</Typography>
+                                      <Typography variant="h4" sx={{
+                                        color: "success.main"
+                                      }}>{audit.total_checkins}</Typography>
+                                      <Typography variant="body2" sx={{
+                                        color: "text.secondary"
+                                      }}>Check-ins</Typography>
                                     </CardContent>
                                   </Card>
                                 </Grid>
                                 <Grid size={{ xs: 6, sm: 4 }}>
                                   <Card variant="outlined">
                                     <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                                      <Typography variant="h4" color="warning.main">{audit.total_checkouts}</Typography>
-                                      <Typography variant="body2" color="text.secondary">Check-outs</Typography>
+                                      <Typography variant="h4" sx={{
+                                        color: "warning.main"
+                                      }}>{audit.total_checkouts}</Typography>
+                                      <Typography variant="body2" sx={{
+                                        color: "text.secondary"
+                                      }}>Check-outs</Typography>
                                     </CardContent>
                                   </Card>
                                 </Grid>
@@ -1339,7 +1406,6 @@ const NightAuditPage: React.FC = () => {
           <Alert severity="info">No audit history available.</Alert>
         )}
       </TabPanel>
-
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialogOpen} onClose={() => setConfirmDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Confirm Night Audit</DialogTitle>

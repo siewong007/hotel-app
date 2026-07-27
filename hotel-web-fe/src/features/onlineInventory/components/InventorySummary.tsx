@@ -22,7 +22,13 @@ const SummaryItem = ({
   icon: React.ReactNode;
   color: string;
 }) => (
-  <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+  <Stack
+    direction="row"
+    spacing={1.5}
+    sx={{
+      alignItems: "center",
+      minWidth: 0
+    }}>
     <Box
       sx={{
         display: 'grid',
@@ -38,12 +44,24 @@ const SummaryItem = ({
       {icon}
     </Box>
     <Box sx={{ minWidth: 0 }}>
-      <Typography variant="caption" color="text.secondary" fontWeight={700} sx={{ letterSpacing: 0.3 }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          fontWeight: 700,
+          letterSpacing: 0.3
+        }}>
         {label.toUpperCase()}
       </Typography>
-      <Stack direction="row" spacing={1} alignItems="baseline">
-        <Typography variant="h5" fontWeight={800}>{value}</Typography>
-        <Typography variant="body2" color="text.secondary" noWrap>{helper}</Typography>
+      <Stack direction="row" spacing={1} sx={{
+        alignItems: "baseline"
+      }}>
+        <Typography variant="h5" sx={{
+          fontWeight: 800
+        }}>{value}</Typography>
+        <Typography variant="body2" noWrap sx={{
+          color: "text.secondary"
+        }}>{helper}</Typography>
       </Stack>
     </Box>
   </Stack>

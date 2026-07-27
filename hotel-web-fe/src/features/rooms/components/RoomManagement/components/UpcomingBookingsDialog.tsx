@@ -60,7 +60,13 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
       </DialogTitle>
       <DialogContent sx={{ pt: 3 }}>
         {loading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" py={4}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              py: 4
+            }}>
             <CircularProgress />
           </Box>
         ) : bookings.length === 0 ? (
@@ -80,20 +86,33 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                   borderColor: booking.status === 'checked_in' ? 'warning.main' : 'info.main',
                 }}
               >
-                <Grid container spacing={2} alignItems="center">
+                <Grid container spacing={2} sx={{
+                  alignItems: "center"
+                }}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="subtitle1" fontWeight={600}>
+                    <Typography variant="subtitle1" sx={{
+                      fontWeight: 600
+                    }}>
                       {booking.guest_name || 'Unknown Guest'}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {booking.guest_email || ''} {booking.guest_phone ? `• ${booking.guest_phone}` : ''}
                     </Typography>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 3 }}>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        display: "block"
+                      }}>
                       Check-in
                     </Typography>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {new Date(booking.check_in_date).toLocaleDateString('en-US', {
                         weekday: 'short',
                         month: 'short',
@@ -102,10 +121,17 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                     </Typography>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 3 }}>
-                    <Typography variant="caption" color="text.secondary" display="block">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        display: "block"
+                      }}>
                       Check-out
                     </Typography>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {new Date(booking.check_out_date).toLocaleDateString('en-US', {
                         weekday: 'short',
                         month: 'short',
@@ -114,7 +140,14 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                     </Typography>
                   </Grid>
                   <Grid size={12}>
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      useFlexGap
+                      sx={{
+                        flexWrap: "wrap",
+                        alignItems: "center"
+                      }}>
                       {(() => {
                         const checkInDate = new Date(booking.check_in_date);
                         checkInDate.setHours(0, 0, 0, 0);
@@ -171,7 +204,9 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                   </Grid>
                   {booking.special_requests && (
                     <Grid size={12}>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         <strong>Notes:</strong> {booking.special_requests}
                       </Typography>
                     </Grid>

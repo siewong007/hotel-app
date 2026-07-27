@@ -69,7 +69,6 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
           </Typography>
         </Box>
       </DialogTitle>
-
       <DialogContent sx={{ pt: 3 }}>
         <Grid container spacing={3}>
           {/* Current Room Info */}
@@ -80,17 +79,23 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
               </Typography>
               <Grid container spacing={1}>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room Number:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{
+                    fontWeight: "bold"
+                  }}>
                     {currentRoom?.room_number}
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room Type:
                   </Typography>
                 </Grid>
@@ -100,7 +105,9 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Current Rate:
                   </Typography>
                 </Grid>
@@ -154,11 +161,13 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
               onChange={(e) => onCustomRateChange(e.target.value)}
               placeholder={selectedNewRoom ? toMoneyNumber(selectedNewRoom.price_per_night).toFixed(2) : ''}
               helperText={selectedNewRoom ? `Default room rate: ${currencySymbol}${toMoneyNumber(selectedNewRoom.price_per_night).toFixed(2)}/night. Leave empty to use default.` : 'Select a room first, or enter a custom rate.'}
-              InputProps={{
-                startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>{currencySymbol}</Typography>,
-              }}
-              inputProps={{ min: 0, step: '0.01' }}
-            />
+              slotProps={{
+                input: {
+                  startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>{currencySymbol}</Typography>,
+                },
+
+                htmlInput: { min: 0, step: '0.01' }
+              }} />
           </Grid>
 
           {/* Price Difference */}
@@ -171,31 +180,41 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                   </Typography>
                   <Grid container spacing={1}>
                     <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         New Rate:
                       </Typography>
                     </Grid>
                     <Grid size={6}>
-                      <Typography variant="body2" fontWeight="bold">
+                      <Typography variant="body2" sx={{
+                        fontWeight: "bold"
+                      }}>
                         {currencySymbol}{effectiveSelectedRate.toFixed(2)} / night
                         {hasCustomRate && (
-                          <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
+                          <Typography component="span" variant="caption" sx={{
+                            color: "text.secondary"
+                          }}> (custom)</Typography>
                         )}
                       </Typography>
                     </Grid>
                     <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Difference per Night:
                       </Typography>
                     </Grid>
                     <Grid size={6}>
                       <Typography
                         variant="body2"
-                        fontWeight="bold"
                         color={(() => {
                           const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
                           return isGreaterMoney(diff, 0) ? 'error.main' : isLessMoney(diff, 0) ? 'success.main' : 'text.primary';
                         })()}
+                        sx={{
+                          fontWeight: "bold"
+                        }}
                       >
                         {(() => {
                           const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
@@ -214,7 +233,6 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
           )}
         </Grid>
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onCancel} disabled={changing}>
           Cancel

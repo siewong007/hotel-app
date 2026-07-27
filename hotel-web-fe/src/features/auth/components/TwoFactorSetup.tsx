@@ -166,7 +166,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 <SecurityIcon />
                 Two-Factor Authentication
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Add an extra layer of security to your account
               </Typography>
             </Box>
@@ -182,10 +184,17 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           {!twoFactorStatus.enabled ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <SecurityIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-              <Typography variant="h6" color="text.secondary" gutterBottom>
+              <Typography variant="h6" gutterBottom sx={{
+                color: "text.secondary"
+              }}>
                 Two-factor authentication is not enabled
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3
+                }}>
                 Protect your account with Google Authenticator, Authy, or any TOTP app
               </Typography>
               <Button
@@ -211,7 +220,12 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       Backup Codes
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        mb: 2
+                      }}>
                       {twoFactorStatus.backup_codes_remaining} codes remaining
                     </Typography>
                     <Button
@@ -229,7 +243,12 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       Disable 2FA
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        mb: 2
+                      }}>
                       Disabling 2FA will make your account less secure
                     </Typography>
                     <Button
@@ -247,7 +266,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           )}
         </CardContent>
       </Card>
-
       {/* Setup 2FA Dialog */}
       <Dialog open={showSetupDialog} onClose={() => setShowSetupDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Set Up Two-Factor Authentication</DialogTitle>
@@ -290,10 +308,14 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 label="Verification Code"
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                inputProps={{ maxLength: 6 }}
                 sx={{ mb: 1 }}
+                slotProps={{
+                  htmlInput: { maxLength: 6 }
+                }}
               />
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Your backup codes will be shown after 2FA is enabled.
               </Typography>
             </Box>
@@ -310,7 +332,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Backup Codes Dialog — shown exactly once, right after 2FA is enabled */}
       <Dialog open={enableBackupCodes.length > 0} maxWidth="sm" fullWidth>
         <DialogTitle>Save Your Backup Codes</DialogTitle>
@@ -349,7 +370,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Disable 2FA Dialog */}
       <Dialog open={showDisableDialog} onClose={() => setShowDisableDialog(false)}>
         <DialogTitle>Disable Two-Factor Authentication</DialogTitle>
@@ -364,7 +384,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
             onChange={(e) => setDisableCode(e.target.value)}
             sx={{ mb: 1 }}
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             This action cannot be undone. Make sure you have access to your authenticator app or backup codes.
           </Typography>
         </DialogContent>
@@ -380,7 +402,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Regenerate Backup Codes Dialog */}
       <Dialog open={showRegenerateDialog} onClose={() => setShowRegenerateDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Regenerate Backup Codes</DialogTitle>
@@ -433,7 +454,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
           </Button>
         </DialogActions>
       </Dialog>
-
     </Box>
   );
 };

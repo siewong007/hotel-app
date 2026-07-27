@@ -50,11 +50,21 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     <DialogTitle>
-      <Box display="flex" alignItems="center" gap={1}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1
+        }}>
         <CreditNoteIcon color="error" />
         Issue Credit Note
         {activeCompany && (
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              ml: 1
+            }}>
             · {activeCompany.company_name}
           </Typography>
         )}
@@ -85,7 +95,13 @@ const CreditNoteDialog: React.FC<CreditNoteDialogProps> = ({
             ))}
           </TextField>
           {reversibleEntries.length === 0 && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                mt: 0.5,
+                display: 'block'
+              }}>
               No reversible entries for this company.
             </Typography>
           )}

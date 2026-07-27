@@ -91,7 +91,13 @@ const PersonalizedReportsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -99,8 +105,18 @@ const PersonalizedReportsPage: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Box display="flex" alignItems="center">
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 3
+        }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center"
+          }}>
           <PersonIcon sx={{ mr: 2, fontSize: 32 }} />
           <Typography variant="h4" component="h1">
             Personalized Report
@@ -119,38 +135,55 @@ const PersonalizedReportsPage: React.FC = () => {
           </Select>
         </FormControl>
       </Box>
-
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
-
       {report && (
         <>
           {/* User Context */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 2
+                }}>
                 <PersonIcon sx={{ mr: 1 }} />
                 <Typography variant="h6">Report Context</Typography>
               </Box>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Report Scope: <strong>{report.reportScope === 'all' ? 'System-wide' : 'Personal'}</strong>
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1
+                    }}>
                     Your Roles: {report.userRoles.map(role => (
                       <Chip key={role} label={role} size="small" sx={{ ml: 0.5 }} />
                     ))}
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Generated: {formatDate(report.generatedAt)}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1
+                    }}>
                     Period: {period.charAt(0).toUpperCase() + period.slice(1)}
                   </Typography>
                 </Grid>
@@ -159,18 +192,27 @@ const PersonalizedReportsPage: React.FC = () => {
           </Card>
 
           {/* Summary Cards */}
-          <Grid container spacing={3} mb={3}>
+          <Grid container spacing={3} sx={{
+            mb: 3
+          }}>
             <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
-                  <Box display="flex" alignItems="center" mb={1}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      mb: 1
+                    }}>
                     <ReportIcon color="primary" sx={{ mr: 1 }} />
                     <Typography variant="h6">Total Bookings</Typography>
                   </Box>
                   <Typography variant="h3" color="primary">
                     {report.summary.totalBookings}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {report.reportScope === 'all' ? 'System-wide' : 'Your bookings'}
                   </Typography>
                 </CardContent>
@@ -180,14 +222,23 @@ const PersonalizedReportsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
-                  <Box display="flex" alignItems="center" mb={1}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      mb: 1
+                    }}>
                     <TrendingUpIcon color="success" sx={{ mr: 1 }} />
                     <Typography variant="h6">Total Revenue</Typography>
                   </Box>
-                  <Typography variant="h3" color="success.main">
+                  <Typography variant="h3" sx={{
+                    color: "success.main"
+                  }}>
                     {formatCurrency(report.summary.totalRevenue)}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {report.reportScope === 'all' ? 'All revenue' : 'Your generated revenue'}
                   </Typography>
                 </CardContent>
@@ -197,14 +248,23 @@ const PersonalizedReportsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
-                  <Box display="flex" alignItems="center" mb={1}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      mb: 1
+                    }}>
                     <ReportIcon color="secondary" sx={{ mr: 1 }} />
                     <Typography variant="h6">Avg Booking</Typography>
                   </Box>
-                  <Typography variant="h3" color="secondary.main">
+                  <Typography variant="h3" sx={{
+                    color: "secondary.main"
+                  }}>
                     {formatCurrency(report.summary.averageBookingValue)}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Average booking value
                   </Typography>
                 </CardContent>
@@ -214,14 +274,23 @@ const PersonalizedReportsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
-                  <Box display="flex" alignItems="center" mb={1}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      mb: 1
+                    }}>
                     <CalendarIcon color="warning" sx={{ mr: 1 }} />
                     <Typography variant="h6">Occupancy</Typography>
                   </Box>
-                  <Typography variant="h3" color="warning.main">
+                  <Typography variant="h3" sx={{
+                    color: "warning.main"
+                  }}>
                     {report.summary.occupancyRate.toFixed(1)}%
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {report.summary.occupiedRooms}/{report.summary.totalRooms} rooms
                   </Typography>
                 </CardContent>
@@ -301,7 +370,12 @@ const PersonalizedReportsPage: React.FC = () => {
           </Card>
 
           {/* Refresh Button */}
-          <Box mt={3} display="flex" justifyContent="center">
+          <Box
+            sx={{
+              mt: 3,
+              display: "flex",
+              justifyContent: "center"
+            }}>
             <Button
               variant="contained"
               onClick={loadReport}

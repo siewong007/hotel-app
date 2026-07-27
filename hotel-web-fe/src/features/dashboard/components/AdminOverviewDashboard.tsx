@@ -140,7 +140,13 @@ const AdminOverviewDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -148,7 +154,9 @@ const AdminOverviewDashboard: React.FC = () => {
 
   if (error) {
     return (
-      <Box p={3}>
+      <Box sx={{
+        p: 3
+      }}>
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
         </Alert>
@@ -158,26 +166,35 @@ const AdminOverviewDashboard: React.FC = () => {
 
   if (!stats) {
     return (
-      <Box p={3}>
+      <Box sx={{
+        p: 3
+      }}>
         <Alert severity="info">No data available</Alert>
       </Box>
     );
   }
 
   return (
-    <Box p={3}>
+    <Box sx={{
+      p: 3
+    }}>
       {/* Welcome Header */}
-      <Box mb={4}>
+      <Box sx={{
+        mb: 4
+      }}>
         <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
           Welcome back, {user?.username || 'Admin'}
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" sx={{
+          color: "text.secondary"
+        }}>
           Here's what's happening with your hotel today
         </Typography>
       </Box>
-
       {/* Key Metrics - Top Row */}
-      <Grid container spacing={3} mb={3}>
+      <Grid container spacing={3} sx={{
+        mb: 3
+      }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Occupancy Rate"
@@ -225,13 +242,20 @@ const AdminOverviewDashboard: React.FC = () => {
           />
         </Grid>
       </Grid>
-
       {/* Today's Activity */}
-      <Grid container spacing={3} mb={3}>
+      <Grid container spacing={3} sx={{
+        mb: 3
+      }}>
         <Grid size={{ xs: 12, md: 8 }}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 2
+                }}>
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Today's Activity
                 </Typography>
@@ -253,9 +277,16 @@ const AdminOverviewDashboard: React.FC = () => {
                       borderRadius: 2,
                     }}
                   >
-                    <Box display="flex" alignItems="center" mb={1}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        mb: 1
+                      }}>
                       <CheckCircle sx={{ color: 'success.main', mr: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Check-ins Today
                       </Typography>
                     </Box>
@@ -274,9 +305,16 @@ const AdminOverviewDashboard: React.FC = () => {
                       borderRadius: 2,
                     }}
                   >
-                    <Box display="flex" alignItems="center" mb={1}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        mb: 1
+                      }}>
                       <Schedule sx={{ color: 'info.main', mr: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Check-outs Today
                       </Typography>
                     </Box>
@@ -293,19 +331,35 @@ const AdminOverviewDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 2
+                }}>
                 <Star sx={{ color: 'warning.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Room Status
                 </Typography>
               </Box>
 
-              <Box mb={2}>
-                <Box display="flex" justifyContent="space-between" mb={0.5}>
-                  <Typography variant="body2" color="text.secondary">
+              <Box sx={{
+                mb: 2
+              }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    mb: 0.5
+                  }}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Available
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 600
+                  }}>
                     {stats.availableRooms} rooms
                   </Typography>
                 </Box>
@@ -324,11 +378,20 @@ const AdminOverviewDashboard: React.FC = () => {
               </Box>
 
               <Box>
-                <Box display="flex" justifyContent="space-between" mb={0.5}>
-                  <Typography variant="body2" color="text.secondary">
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    mb: 0.5
+                  }}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Occupied
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 600
+                  }}>
                     {stats.occupiedRooms} rooms
                   </Typography>
                 </Box>
@@ -349,13 +412,17 @@ const AdminOverviewDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
-
       {/* Revenue Overview */}
       <Grid container spacing={3}>
         <Grid size={12}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={3}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 3
+                }}>
                 <Assessment sx={{ color: 'primary.main', mr: 1 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Revenue Overview
@@ -365,7 +432,9 @@ const AdminOverviewDashboard: React.FC = () => {
               <Grid container spacing={3}>
                 <Grid size={{ xs: 12, sm: 4 }}>
                   <Box>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                    <Typography variant="body2" gutterBottom sx={{
+                      color: "text.secondary"
+                    }}>
                       Total Revenue
                     </Typography>
                     <Typography variant="h5" sx={{ fontWeight: 600, color: 'primary.main' }}>
@@ -376,7 +445,9 @@ const AdminOverviewDashboard: React.FC = () => {
 
                 <Grid size={{ xs: 12, sm: 4 }}>
                   <Box>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                    <Typography variant="body2" gutterBottom sx={{
+                      color: "text.secondary"
+                    }}>
                       This Month
                     </Typography>
                     <Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -387,7 +458,9 @@ const AdminOverviewDashboard: React.FC = () => {
 
                 <Grid size={{ xs: 12, sm: 4 }}>
                   <Box>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                    <Typography variant="body2" gutterBottom sx={{
+                      color: "text.secondary"
+                    }}>
                       Last 7 Days
                     </Typography>
                     <Typography variant="h5" sx={{ fontWeight: 600 }}>

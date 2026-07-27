@@ -75,7 +75,12 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
     return (
       <Card sx={{ borderLeft: '4px solid', borderColor: 'warning.main' }}>
         <CardContent>
-          <Box display="flex" alignItems="center" mb={2}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              mb: 2
+            }}>
             <WarningIcon sx={{ color: 'warning.main', mr: 1, fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Account Deactivated
@@ -86,7 +91,12 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             Your account is currently deactivated. You won't be able to make new bookings or access certain features.
           </Alert>
 
-          <Typography variant="body2" color="text.secondary" paragraph>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              marginBottom: "16px"
+            }}>
             You can reactivate your account at any time to restore full access.
           </Typography>
 
@@ -119,28 +129,46 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
     <>
       <Card sx={{ borderLeft: '4px solid', borderColor: 'error.main' }}>
         <CardContent>
-          <Box display="flex" alignItems="center" mb={2}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              mb: 2
+            }}>
             <WarningIcon sx={{ color: 'error.main', mr: 1, fontSize: 28 }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Deactivate Account
             </Typography>
           </Box>
 
-          <Typography variant="body2" color="text.secondary" paragraph>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              marginBottom: "16px"
+            }}>
             Deactivating your account will:
           </Typography>
 
           <Box component="ul" sx={{ pl: 2, mb: 2 }}>
-            <Typography component="li" variant="body2" color="text.secondary">
+            <Typography component="li" variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Mark your account as inactive
             </Typography>
-            <Typography component="li" variant="body2" color="text.secondary">
+            <Typography component="li" variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Prevent new bookings
             </Typography>
-            <Typography component="li" variant="body2" color="text.secondary">
+            <Typography component="li" variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Preserve your booking history
             </Typography>
-            <Typography component="li" variant="body2" color="text.secondary">
+            <Typography component="li" variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Allow you to reactivate anytime
             </Typography>
           </Box>
@@ -159,10 +187,13 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
           </Button>
         </CardContent>
       </Card>
-
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <Box display="flex" alignItems="center">
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center"
+            }}>
             <WarningIcon sx={{ color: 'error.main', mr: 1 }} />
             Confirm Account Deactivation
           </Box>
@@ -173,7 +204,12 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
             Are you sure you want to deactivate your account? You can reactivate it anytime.
           </Alert>
 
-          <Typography variant="body2" color="text.secondary" paragraph>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              marginBottom: "16px"
+            }}>
             Optionally, let us know why you're deactivating your account:
           </Typography>
 

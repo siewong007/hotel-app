@@ -68,7 +68,12 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     <DialogTitle>
-      <Box display="flex" alignItems="center" gap={1}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1
+        }}>
         <PaymentIcon color="primary" />
         Record Payment
       </Box>
@@ -76,7 +81,9 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
     <DialogContent>
       {paymentCompany && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2" fontWeight={600}>
+          <Typography variant="body2" sx={{
+            fontWeight: 600
+          }}>
             {paymentCompany.company_name}
           </Typography>
           {paymentCompany.contact_person && (
@@ -106,7 +113,9 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                       onChange={(e) => setSelectedLedgersForPayment(e.target.checked ? [...paymentCompanyLedgers] : [])}
                     />
                   }
-                  label={<Typography variant="body2" fontWeight={600}>Select All</Typography>}
+                  label={<Typography variant="body2" sx={{
+                    fontWeight: 600
+                  }}>Select All</Typography>}
                 />
               </Box>
               {paymentCompanyLedgers.map((ledger) => {
@@ -138,7 +147,14 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                           <Typography variant="body2" noWrap sx={{ flex: 1 }}>
                             {ledger.description}
                           </Typography>
-                          <Typography variant="body2" color="error.main" fontWeight={600} sx={{ ml: 2, whiteSpace: 'nowrap' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "error.main",
+                              fontWeight: 600,
+                              ml: 2,
+                              whiteSpace: 'nowrap'
+                            }}>
                             Due: {formatCurrency(balanceDue)}
                           </Typography>
                         </Box>
@@ -156,11 +172,15 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
               <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
                 <Grid container spacing={1}>
                   <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Selected Entries</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Selected Entries</Typography>
                     <Typography variant="body2">{selectedLedgersForPayment.length} of {paymentCompanyLedgers.length} entries</Typography>
                   </Grid>
                   <Grid size={3}>
-                    <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Total Amount</Typography>
                     <Typography variant="body2">
                       {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => {
                         return sumMoney([sum, l.amount]);
@@ -168,8 +188,15 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                     </Typography>
                   </Grid>
                   <Grid size={3}>
-                    <Typography variant="caption" color="text.secondary">Total Balance Due</Typography>
-                    <Typography variant="body2" color="error.main" fontWeight={600}>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>Total Balance Due</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "error.main",
+                        fontWeight: 600
+                      }}>
                       {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => {
                         const amount = asMoney(l.amount);
                         const balanceDue = l.balance_due === null || l.balance_due === undefined
@@ -230,18 +257,6 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
               type="number"
               value={companyPaymentForm.payment_amount}
               onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_amount: e.target.value })}
-              InputProps={{
-                startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
-                inputProps: paymentCompany
-                  ? {
-                      min: 0,
-                      max: ledgers
-                        .filter(l => l.company_name === paymentCompany.company_name)
-                        .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0)
-                        .toFixed(2),
-                    }
-                  : { min: 0 },
-              }}
               helperText={
                 paymentCompany
                   ? `Max ${formatCurrency(
@@ -251,6 +266,20 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                     )}`
                   : undefined
               }
+              slotProps={{
+                input: {
+                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+                  inputProps: paymentCompany
+                    ? {
+                        min: 0,
+                        max: ledgers
+                          .filter(l => l.company_name === paymentCompany.company_name)
+                          .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0)
+                          .toFixed(2),
+                      }
+                    : { min: 0 },
+                }
+              }}
             />
           </Grid>
 
@@ -300,7 +329,9 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
               type="date"
               value={companyPaymentForm.payment_date}
               onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_date: e.target.value })}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 

@@ -350,20 +350,26 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      TransitionProps={{
-        timeout: {
-          enter: 400,
-          exit: 300,
-        },
-      }}
       sx={{
         '& .MuiDialog-paper': {
           transition: 'all 0.3s ease-in-out',
         },
       }}
+      slotProps={{
+        transition: {
+          timeout: {
+            enter: 400,
+            exit: 300,
+          },
+        }
+      }}
     >
       <DialogTitle>
-        <Box display="flex" alignItems="center">
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center"
+          }}>
           <SettingsIcon sx={{ mr: 1, color: 'primary.main' }} />
           <Typography variant="h6">
             Room {roomNumber || roomId} - Status Management
@@ -378,7 +384,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           />
         )}
       </DialogTitle>
-
       <DialogContent dividers>
         {/* Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
@@ -571,7 +576,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
           {/* Room Details Card */}
           {loadingDetails ? (
-            <Box display="flex" justifyContent="center" p={2}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "center",
+                p: 2
+              }}>
               <CircularProgress size={30} />
             </Box>
           ) : detailedStatus && (
@@ -582,7 +592,9 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                 </Typography>
                 <Grid container spacing={1}>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Room Type:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Room Type:</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -592,7 +604,9 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   {detailedStatus.current_booking && (
                     <>
                       <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">Current Guest:</Typography>
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>Current Guest:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -600,7 +614,9 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                         </Typography>
                       </Grid>
                       <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">Check-in Date:</Typography>
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>Check-in Date:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -608,7 +624,9 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                         </Typography>
                       </Grid>
                       <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">Check-out Date:</Typography>
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>Check-out Date:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -620,7 +638,9 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   {detailedStatus.next_booking && (
                     <>
                       <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">Next Booking:</Typography>
+                        <Typography variant="body2" sx={{
+                          color: "text.secondary"
+                        }}>Next Booking:</Typography>
                       </Grid>
                       <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -687,8 +707,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           label="Start Date & Time"
                           value={reservedStartDate}
                           onChange={(e) => setReservedStartDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
                           required
+                          slotProps={{
+                            inputLabel: { shrink: true }
+                          }}
                         />
                       </Grid>
                       <Grid size={6}>
@@ -698,8 +720,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           label="End Date & Time"
                           value={reservedEndDate}
                           onChange={(e) => setReservedEndDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
                           required
+                          slotProps={{
+                            inputLabel: { shrink: true }
+                          }}
                         />
                       </Grid>
                     </>
@@ -724,10 +748,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                             setMaintenanceStartDate(newValue);
                             setError(null); // Clear error when user starts typing
                           }}
-                          InputLabelProps={{ shrink: true }}
                           required
                           error={!maintenanceStartDate && error !== null}
                           helperText={!maintenanceStartDate && error ? "Required" : "When will maintenance start?"}
+                          slotProps={{
+                            inputLabel: { shrink: true }
+                          }}
                         />
                       </Grid>
                       <Grid size={6}>
@@ -741,10 +767,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                             setMaintenanceEndDate(newValue);
                             setError(null); // Clear error when user starts typing
                           }}
-                          InputLabelProps={{ shrink: true }}
                           required
                           error={!maintenanceEndDate && error !== null}
                           helperText={!maintenanceEndDate && error ? "Required" : "When will maintenance be completed?"}
+                          slotProps={{
+                            inputLabel: { shrink: true }
+                          }}
                         />
                       </Grid>
                     </>
@@ -773,7 +801,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           <RoomHistoryTimeline roomId={roomId} />
         )}
       </DialogContent>
-
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>
           Cancel

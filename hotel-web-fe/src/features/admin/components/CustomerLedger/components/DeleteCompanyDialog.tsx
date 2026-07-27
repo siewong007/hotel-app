@@ -30,7 +30,12 @@ const DeleteCompanyDialog: React.FC<DeleteCompanyDialogProps> = ({
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
     <DialogTitle>
-      <Box display="flex" alignItems="center" gap={1}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1
+        }}>
         <DeleteIcon color="error" />
         Delete Company
       </Box>
@@ -44,13 +49,19 @@ const DeleteCompanyDialog: React.FC<DeleteCompanyDialogProps> = ({
       </Typography>
       {company && (
         <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             <strong>Contact:</strong> {company.contact_person || 'N/A'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             <strong>Email:</strong> {company.contact_email || 'N/A'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             <strong>Phone:</strong> {company.contact_phone || 'N/A'}
           </Typography>
         </Box>

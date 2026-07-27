@@ -89,7 +89,9 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
   if (permissions.length === 0) {
     return (
       <Box sx={{ py: 2, textAlign: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           No permissions assigned yet
         </Typography>
       </Box>
@@ -98,10 +100,14 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
 
   return (
     <Box>
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+          mb: 2
+        }}>
         Assigned permissions ({permissions.length} total)
       </Typography>
-
       <Stack spacing={1}>
         {groupedPermissions.map((group) => {
           const isExpanded = expandedCategories.has(group.name);
@@ -135,9 +141,10 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography
                     variant="body2"
-                    fontWeight={600}
-                    sx={{ color: group.color }}
-                  >
+                    sx={{
+                      fontWeight: 600,
+                      color: group.color
+                    }}>
                     {group.displayName}
                   </Typography>
                   <Chip
@@ -159,11 +166,12 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
                   )}
                 </IconButton>
               </Box>
-
               {/* Permissions list */}
               <Collapse in={isExpanded}>
                 <Box sx={{ p: 1.5, pt: 1 }}>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                  <Stack direction="row" spacing={0.5} useFlexGap sx={{
+                    flexWrap: "wrap"
+                  }}>
                     {group.permissions.map((permission) => (
                       <Chip
                         key={permission.id}

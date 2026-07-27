@@ -120,10 +120,18 @@ export default function SupportManagementPage() {
   return (
     <Container maxWidth="xl" sx={{ py: 3 }}>
       <Stack spacing={2}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { sm: 'center' },
+            gap: 1
+          }}>
           <Box>
             <Typography variant="h5">Guest support</Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Triage, reply to, and resolve guest conversations.
             </Typography>
           </Box>
@@ -173,15 +181,19 @@ export default function SupportManagementPage() {
           </Tabs>
 
           <Box sx={{ p: 1.5, bgcolor: 'background.default', borderBottom: 1, borderColor: 'divider' }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} gap={1}>
+            <Stack direction={{ xs: 'column', md: 'row' }} sx={{
+              gap: 1
+            }}>
               <TextField
                 size="small"
                 label="Search"
                 placeholder="Guest, booking, or conversation number"
                 value={params.search ?? ''}
                 onChange={(event) => updateParams({ search: event.target.value })}
-                InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }}
                 sx={{ minWidth: { md: 300 }, flex: 1 }}
+                slotProps={{
+                  input: { startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }
+                }}
               />
               <FormControl size="small" sx={{ minWidth: 180 }}>
                 <InputLabel id="support-status-filter">Status</InputLabel>
