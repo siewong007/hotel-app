@@ -188,7 +188,7 @@ function CancellationUnavailable({
           color: "text.secondary",
           fontWeight: 600
         }}>
-        Refund unavailable
+        {booking.completed_payment_id != null ? "Refund" : "Cancellation"} unavailable
       </Typography>
       <Typography id={reasonId} variant="caption" sx={{
         color: "text.secondary"
@@ -231,6 +231,9 @@ function RefundBookingDialog({
 
   if (!booking) return null;
 
+  const isRefund = booking.completed_payment_id != null;
+  const actionLabel = isRefund ? "Refund" : "Cancel booking";
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const reason = selectedReason === "Other" ? customReason.trim() : selectedReason;
@@ -255,7 +258,7 @@ function RefundBookingDialog({
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
         <DialogTitle sx={{ color: FOREST, fontWeight: 700 }}>
-          Request refund for {booking.booking_number}?
+          {isRefund ? "Request refund" : "Cancel booking"} for {booking.booking_number}?
         </DialogTitle>
         <DialogContent>
           <Typography id="refund-booking-details" sx={{
@@ -274,7 +277,9 @@ function RefundBookingDialog({
             </Alert>
           ) : null}
           <FormControl component="fieldset" fullWidth sx={{ mt: 2 }}>
-            <FormLabel component="legend">Reason for refund</FormLabel>
+            <FormLabel component="legend">
+              Reason for {isRefund ? "refund" : "cancellation"}
+            </FormLabel>
             <RadioGroup
               value={selectedReason}
               onChange={(event) => setSelectedReason(event.target.value)}
@@ -295,7 +300,7 @@ function RefundBookingDialog({
               fullWidth
               multiline
               minRows={3}
-              label="Custom refund reason"
+              label={`Custom ${isRefund ? "refund" : "cancellation"} reason`}
               value={customReason}
               onChange={(event) => setCustomReason(event.target.value)}
               helperText={`${1000 - customReason.length} characters remaining`}
@@ -332,7 +337,7 @@ function RefundBookingDialog({
               ) : undefined
             }
           >
-            {isSubmitting ? "Submitting…" : "Request refund"}
+            {isSubmitting ? "Submitting…" : actionLabel}
           </Button>
         </DialogActions>
       </Box>
@@ -821,14 +826,16 @@ export function BookingsSection({ token }: { token: string }) {
         reason,
         token,
       );
-      setCancellationSuccess(`Refund request for booking ${bookingToCancel.booking_number} was submitted.`);
+      setCancellationSuccess(
+        `${bookingToCancel.completed_payment_id != null ? "Refund" : "Cancellation"} request for booking ${bookingToCancel.booking_number} was submitted.`,
+      );
       setBookingToCancel(null);
       void load();
     } catch (caught) {
       setCancellationError(
         caught instanceof Error
           ? caught.message
-          : "Unable to submit this refund request.",
+          : `Unable to submit this ${bookingToCancel.completed_payment_id != null ? "refund" : "cancellation"} request.`,
       );
       if (caught instanceof HTTPError && caught.response.status === 409) {
         void load();
@@ -1006,7 +1013,7 @@ export function BookingsSection({ token }: { token: string }) {
                             }}
                             sx={{ minHeight: 44 }}
                           >
-                            Refund
+                            {booking.completed_payment_id != null ? "Refund" : "Cancel booking"}
                           </Button>
                         ) : (
                           <CancellationUnavailable
@@ -1088,7 +1095,7 @@ export function BookingsSection({ token }: { token: string }) {
                         }}
                         sx={{ mt: 1, minHeight: 44 }}
                       >
-                        Refund
+                        {booking.completed_payment_id != null ? "Refund" : "Cancel booking"}
                       </Button>
                     ) : (
                       <Box sx={{ mt: 1.5 }}>
