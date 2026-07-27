@@ -23,7 +23,9 @@
 [extend]
 useDefault = true
 
-[[allowlists]]
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
 description = "generic-api-key matches English prose in agent-generated reports"
-targetRules = ["generic-api-key"]
 paths = ['''^\.claude/reports/.*''']
