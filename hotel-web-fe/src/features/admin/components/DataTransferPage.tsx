@@ -265,23 +265,28 @@ const DataTransferPage: React.FC = () => {
   // Record count for a category: from the parsed file in import context,
   // otherwise from the last preview/export's cached counts.
   const countOf = (id: CategoryId): number | null => {
-    if (isImportContext) return importFile?.[id]?.length ?? 0;
-    if (exportCounts) return exportCounts[id] ?? 0;
+    if (isImportContext) return importFile?.tables?.[`public.${id}`]?.length ?? importFile?.[id]?.length ?? 0;
+    if (exportCounts) return exportCounts[id] ?? exportCounts[`public.${id}`] ?? 0;
     return null;
   };
 
   const selectedRecords = useMemo(
-    () =>
-      selectedIds.reduce((sum, id) => {
+    () => {
+      if (isImportContext && importFile?.tables) {
+        return Object.values(importFile.tables).reduce((sum, rows) => sum + rows.length, 0);
+      }
+      return selectedIds.reduce((sum, id) => {
         let n = 0;
-        if (isImportContext) n = importFile?.[id]?.length ?? 0;
-        else if (exportCounts) n = exportCounts[id] ?? 0;
+        if (isImportContext) n = importFile?.tables?.[`public.${id}`]?.length ?? importFile?.[id]?.length ?? 0;
+        else if (exportCounts) n = exportCounts[id] ?? exportCounts[`public.${id}`] ?? 0;
         return sum + n;
-      }, 0),
+      }, 0);
+    },
     [selectedIds, importFile, exportCounts, isImportContext]
   );
 
   const selectedCategoryNames = () => {
+    if (importFile?.tables) return 'Full database';
     const names = selectedIds.map((id) => nameOf(id));
     if (names.length === 0) return '—';
     if (names.length <= 3) return names.join(', ');
@@ -290,6 +295,13 @@ const DataTransferPage: React.FC = () => {
 
   const countsFromExportData = (data: BookingDataExport): Record<string, number> => {
     const counts: Record<string, number> = {};
+    if (data.tables) {
+      Object.entries(data.tables).forEach(([name, rows]) => {
+        counts[name] = rows.length;
+        if (name.startsWith('public.')) counts[name.slice('public.'.length)] = rows.length;
+      });
+      return counts;
+    }
     ALL_CATEGORY_IDS.forEach((id) => (counts[id] = data[id]?.length ?? 0));
     return counts;
   };
@@ -421,11 +433,15 @@ const DataTransferPage: React.FC = () => {
       const counts = countsFromExportData(data);
       setExportCounts(counts);
 
-      // filter the payload down to the selected categories (client-side)
-      const filtered: Partial<BookingDataExport> = { version: data.version, exported_at: data.exported_at };
-      ALL_CATEGORY_IDS.forEach((id) => {
-        assignCategoryRows(filtered, data, id, selected[id]);
-      });
+      // V2 is a literal full-database backup: all schema tables travel together.
+      const filtered: Partial<BookingDataExport> = data.tables
+        ? data
+        : { version: data.version, exported_at: data.exported_at };
+      if (!data.tables) {
+        ALL_CATEGORY_IDS.forEach((id) => {
+          assignCategoryRows(filtered, data, id, selected[id]);
+        });
+      }
 
       const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -437,9 +453,16 @@ const DataTransferPage: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      const records = selectedRecordCountFromCounts(counts);
-      pushHistory({ type: 'export', categories: selectedCategoryNames(), records, status: 'success' });
-      notify(`Export ready — ${formatNum(records)} records downloaded.`);
+      const records = data.tables
+        ? Object.values(data.tables).reduce((sum, rows) => sum + rows.length, 0)
+        : selectedRecordCountFromCounts(counts);
+      const categories = data.tables ? 'Full database' : selectedCategoryNames();
+      pushHistory({ type: 'export', categories, records, status: 'success' });
+      notify(
+        data.tables
+          ? `Full database export ready — ${formatNum(records)} records, including credential and session material.`
+          : `Export ready — ${formatNum(records)} records downloaded.`
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : undefined;
       pushHistory({ type: 'export', categories: selectedCategoryNames(), records: 0, status: 'failed', error: message });
@@ -457,7 +480,7 @@ const DataTransferPage: React.FC = () => {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target?.result as string) as BookingDataExport;
-        if (!data.version || !Array.isArray(data.bookings)) {
+        if (!data.version || (!Array.isArray(data.bookings) && !data.tables)) {
           notify('Invalid file format — please select a valid export file.', 'error');
           return;
         }
@@ -465,7 +488,9 @@ const DataTransferPage: React.FC = () => {
         setImportFileName(file.name);
         // pre-select every category that has rows, then close over their
         // dependencies so the initial selection is referentially complete.
-        const present = ALL_CATEGORY_IDS.filter((id) => (data[id]?.length ?? 0) > 0);
+        const present = data.tables
+          ? ALL_CATEGORY_IDS
+          : ALL_CATEGORY_IDS.filter((id) => (data[id]?.length ?? 0) > 0);
         let sel = emptySelection();
         present.forEach((id) => {
           sel = selectWithDependencies(sel, id).selection;
@@ -510,16 +535,24 @@ const DataTransferPage: React.FC = () => {
       notify('Please acknowledge before importing.', 'warning');
       return;
     }
-    // build a payload with only the selected categories' rows
-    const payload: Partial<BookingDataExport> = { version: importFile.version, exported_at: importFile.exported_at };
-    ALL_CATEGORY_IDS.forEach((id) => {
-      assignCategoryRows(payload, importFile, id, selected[id]);
-    });
+    // V2 files are literal full-database restores. V1 preserves category selection.
+    const payload: Partial<BookingDataExport> = importFile.tables
+      ? importFile
+      : { version: importFile.version, exported_at: importFile.exported_at };
+    if (!importFile.tables) {
+      ALL_CATEGORY_IDS.forEach((id) => {
+        assignCategoryRows(payload, importFile, id, selected[id]);
+      });
+    }
 
     const records = selectedRecords;
     const names = selectedCategoryNames();
     try {
-      const result = await importMutation.mutateAsync({ mode: importMode, data: payload as BookingDataExport, tables: selectedIds });
+      const result = await importMutation.mutateAsync({
+        mode: importMode,
+        data: payload as BookingDataExport,
+        tables: importFile.tables ? Object.keys(importFile.tables) : selectedIds,
+      });
       setImportResult(result);
       const failed = result.errors ? Object.values(result.errors).reduce((a, e) => a + (e.failed || 0), 0) : 0;
       pushHistory({
@@ -1372,6 +1405,14 @@ const DataTransferPage: React.FC = () => {
             </Alert>
           )}
 
+          {importFile?.tables && (
+            <Alert severity="error" sx={{ textAlign: 'left', mb: 2, borderRadius: 2 }}>
+              <AlertTitle sx={{ fontWeight: 700 }}>Full database restore</AlertTitle>
+              This file contains account credentials, passkeys, two-factor recovery data, active sessions, refresh tokens,
+              and audit history. All schema tables in the backup will be restored together.
+            </Alert>
+          )}
+
           {missingDeps.length > 0 && (
             <Alert severity="warning" sx={{ textAlign: 'left', mb: 2, borderRadius: 2 }}>
               <AlertTitle sx={{ fontWeight: 700 }}>Missing dependencies</AlertTitle>
@@ -1389,7 +1430,9 @@ const DataTransferPage: React.FC = () => {
           >
             <Checkbox checked={ack} size="small" sx={{ p: 0 }} onChange={() => setAck((a) => !a)} onClick={(e) => e.stopPropagation()} />
             <Typography variant="body2">
-              I understand this may overwrite existing data and that the action will be recorded.
+              {importFile?.tables
+                ? 'I understand this restores credential and session material along with all other database records.'
+                : 'I understand this may overwrite existing data and that the action will be recorded.'}
             </Typography>
           </Box>
         </DialogContent>

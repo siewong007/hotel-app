@@ -7,8 +7,13 @@ use serde_json::Value;
 use crate::constants::ImportMode;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
-use crate::models::{BookingDataExport, ExportPreview, ImportRequest};
-use crate::repositories::data_transfer::{DataTransferRepository, ImportRowPolicy};
+use crate::models::{
+    BookingDataExport, ExportPreview, FullDataExport, ImportRequest, TransferPayload,
+    TransferTablePreview,
+};
+use crate::repositories::data_transfer::{
+    DataTransferRepository, ImportRowPolicy, QualifiedTable, TransferTable, transfer_order,
+};
 
 /// Every transferable table in foreign-key-safe **insert** order (parents
 /// before children). Clearing for overwrite walks this in reverse. This is the
@@ -192,83 +197,42 @@ const OVERWRITE_DELETE_DEPENDENCIES: &[(&str, &str)] = &[
 pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiError> {
     let mut counts = HashMap::new();
     let mut total_records = 0_i64;
+    let mut tables = Vec::new();
 
-    for table in ALL_IMPORT_TABLES {
-        let count = DataTransferRepository::count_table(pool, table).await?;
-        counts.insert((*table).to_string(), count);
+    for table in DataTransferRepository::transfer_tables(pool).await? {
+        let count = DataTransferRepository::count_transfer_table(pool, &table).await?;
+        let name = table.table.key();
+        counts.insert(name.clone(), count);
         total_records += count;
+        let mut dependencies: Vec<String> = table.dependencies.into_iter().collect();
+        dependencies.sort();
+        tables.push(TransferTablePreview {
+            name,
+            count,
+            dependencies,
+        });
     }
 
     Ok(ExportPreview {
         generated_at: chrono::Utc::now().to_rfc3339(),
         counts,
         total_records,
+        tables,
     })
 }
 
-pub async fn export_booking_data(pool: &DbPool) -> Result<BookingDataExport, ApiError> {
-    Ok(BookingDataExport {
-        version: "1.0".to_string(),
-        exported_at: chrono::Utc::now().to_rfc3339(),
-        guests: export_table(pool, "guests").await?,
-        guest_complimentary_credits: export_table(pool, "guest_complimentary_credits").await?,
-        companies: export_table(pool, "companies").await?,
-        bookings: export_table(pool, "bookings").await?,
-        payments: export_table(pool, "payments").await?,
-        invoices: export_table(pool, "invoices").await?,
-        booking_guests: export_table(pool, "booking_guests").await?,
-        booking_modifications: export_table(pool, "booking_modifications").await?,
-        booking_history: export_table(pool, "booking_history").await?,
-        night_audit_runs: export_table(pool, "night_audit_runs").await?,
-        night_audit_details: export_table(pool, "night_audit_details").await?,
-        customer_ledgers: export_table(pool, "customer_ledgers").await?,
-        customer_ledger_payments: export_table(pool, "customer_ledger_payments").await?,
-        room_changes: export_table(pool, "room_changes").await?,
-        user_guests: export_table(pool, "user_guests").await?,
-        room_types: export_table(pool, "room_types").await?,
-        rooms: export_table(pool, "rooms").await?,
-        promotions: export_table(pool, "promotions").await?,
-        promotion_room_types: export_table(pool, "promotion_room_types").await?,
-        vouchers: export_table(pool, "vouchers").await?,
-        voucher_redemptions: export_table(pool, "voucher_redemptions").await?,
-        voucher_redemption_allocations: export_table(pool, "voucher_redemption_allocations")
-            .await?,
+pub async fn export_booking_data(pool: &DbPool) -> Result<FullDataExport, ApiError> {
+    let mut tables = std::collections::BTreeMap::new();
+    for table in DataTransferRepository::transfer_tables(pool).await? {
+        let name = table.table.key();
+        let rows = DataTransferRepository::export_transfer_table(pool, &table).await?;
+        tables.insert(name, rows);
+    }
 
-        // ----- Extended full-backup tables -----
-        system_settings: export_table(pool, "system_settings").await?,
-        rate_plans: export_table(pool, "rate_plans").await?,
-        room_rates: export_table(pool, "room_rates").await?,
-        amenities: export_table(pool, "amenities").await?,
-        room_type_amenities: export_table(pool, "room_type_amenities").await?,
-        services: export_table(pool, "services").await?,
-        booking_services: export_table(pool, "booking_services").await?,
-        booking_channels: export_table(pool, "booking_channels").await?,
-        room_status_transitions: export_table(pool, "room_status_transitions").await?,
-        room_history: export_table(pool, "room_history").await?,
-        room_status_change_log: export_table(pool, "room_status_change_log").await?,
-        email_templates: export_table(pool, "email_templates").await?,
-        loyalty_programs: export_table(pool, "loyalty_programs").await?,
-        loyalty_tiers: export_table(pool, "loyalty_tiers").await?,
-        loyalty_memberships: export_table(pool, "loyalty_memberships").await?,
-        loyalty_members: export_table(pool, "loyalty_members").await?,
-        loyalty_accounts: export_table(pool, "loyalty_accounts").await?,
-        points_transactions: export_table(pool, "points_transactions").await?,
-        loyalty_transactions: export_table(pool, "loyalty_transactions").await?,
-        reward_catalog: export_table(pool, "reward_catalog").await?,
-        loyalty_rewards: export_table(pool, "loyalty_rewards").await?,
-        reward_redemptions: export_table(pool, "reward_redemptions").await?,
-        loyalty_redemptions: export_table(pool, "loyalty_redemptions").await?,
-        loyalty_program_rules: export_table(pool, "loyalty_program_rules").await?,
-        corporate_accounts: export_table(pool, "corporate_accounts").await?,
-        corporate_account_contacts: export_table(pool, "corporate_account_contacts").await?,
-        housekeeping_tasks: export_table(pool, "housekeeping_tasks").await?,
-        maintenance_tickets: export_table(pool, "maintenance_tickets").await?,
-        guest_documents: export_table(pool, "guest_documents").await?,
-        guest_notes: export_table(pool, "guest_notes").await?,
-        guest_preferences: export_table(pool, "guest_preferences").await?,
-        guest_reviews: export_table(pool, "guest_reviews").await?,
-        self_checkin_events: export_table(pool, "self_checkin_events").await?,
-        night_audit_posted_nights: export_table(pool, "night_audit_posted_nights").await?,
+    Ok(FullDataExport {
+        version: "2.0".to_string(),
+        exported_at: chrono::Utc::now().to_rfc3339(),
+        tables,
     })
 }
 
@@ -278,6 +242,21 @@ pub async fn import_booking_data(
     request: ImportRequest,
 ) -> Result<Value, ApiError> {
     let ImportRequest { mode, data, tables } = request;
+    match data {
+        TransferPayload::V1(data) => {
+            import_legacy_booking_data(pool, import_user_id, mode, *data, tables).await
+        }
+        TransferPayload::V2(data) => import_full_data(pool, mode, data, tables).await,
+    }
+}
+
+async fn import_legacy_booking_data(
+    pool: &DbPool,
+    import_user_id: i64,
+    mode: ImportMode,
+    data: BookingDataExport,
+    tables: Vec<String>,
+) -> Result<Value, ApiError> {
     let is_overwrite = mode == ImportMode::Overwrite;
 
     let mut generated_columns = base_generated_columns();
@@ -500,8 +479,126 @@ pub async fn import_booking_data(
     Ok(response)
 }
 
-async fn export_table(pool: &DbPool, table: &str) -> Result<Vec<Value>, ApiError> {
-    DataTransferRepository::export_table(pool, table).await
+async fn import_full_data(
+    pool: &DbPool,
+    mode: ImportMode,
+    data: FullDataExport,
+    requested_tables: Vec<String>,
+) -> Result<Value, ApiError> {
+    if data.version != "2.0" {
+        return Err(ApiError::BadRequest(format!(
+            "Unsupported schema-driven transfer version '{}'",
+            data.version
+        )));
+    }
+    let descriptors = DataTransferRepository::transfer_tables(pool).await?;
+    let descriptor_by_name: HashMap<String, TransferTable> = descriptors
+        .into_iter()
+        .map(|descriptor| (descriptor.table.key(), descriptor))
+        .collect();
+
+    for table in data.tables.keys() {
+        QualifiedTable::parse(table)?;
+        if !descriptor_by_name.contains_key(table) {
+            return Err(ApiError::BadRequest(format!(
+                "Transfer table '{table}' does not exist in the destination schema"
+            )));
+        }
+    }
+
+    let mut selected: HashSet<String> = if requested_tables.is_empty() {
+        data.tables.keys().cloned().collect()
+    } else {
+        requested_tables.into_iter().collect()
+    };
+    for table in &selected {
+        QualifiedTable::parse(table)?;
+        if !data.tables.contains_key(table) {
+            return Err(ApiError::BadRequest(format!(
+                "Selected transfer table '{table}' is missing from the import file"
+            )));
+        }
+        if !descriptor_by_name.contains_key(table) {
+            return Err(ApiError::BadRequest(format!(
+                "Unknown transfer table '{table}' was requested"
+            )));
+        }
+    }
+
+    let dependencies: HashMap<String, HashSet<String>> = descriptor_by_name
+        .iter()
+        .map(|(name, descriptor)| (name.clone(), descriptor.dependencies.clone()))
+        .collect();
+    if mode == ImportMode::Overwrite {
+        expand_full_overwrite_tables(&mut selected, &dependencies);
+    }
+    let selected_names: Vec<String> = selected.into_iter().collect();
+    let order = transfer_order(&selected_names, &dependencies)?;
+    let ordered_tables: Vec<TransferTable> = order
+        .iter()
+        .map(|name| {
+            descriptor_by_name
+                .get(name)
+                .cloned()
+                .expect("selected tables were validated against catalog")
+        })
+        .collect();
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    if mode == ImportMode::Overwrite {
+        let clear_tables: Vec<_> = ordered_tables.iter().rev().cloned().collect();
+        DataTransferRepository::clear_transfer_tables(&mut tx, &clear_tables).await?;
+    }
+
+    DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, false).await?;
+    sqlx::query("SET CONSTRAINTS ALL DEFERRED")
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+    let mut counts = serde_json::Map::new();
+    for table in &ordered_tables {
+        let name = table.table.key();
+        let rows = data.tables.get(&name).map(Vec::as_slice).unwrap_or(&[]);
+        let mut inserted = 0_u64;
+        for (row_index, row) in rows.iter().enumerate() {
+            let object = row.as_object().ok_or_else(|| {
+                ApiError::BadRequest(format!(
+                    "Import failed for table {name} row {} because the row is not a JSON object",
+                    row_index + 1
+                ))
+            })?;
+            inserted += DataTransferRepository::insert_transfer_row(&mut tx, table, object).await?;
+        }
+        counts.insert(name, Value::Number(inserted.into()));
+    }
+
+    DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, true).await?;
+    DataTransferRepository::reset_transfer_sequences(&mut tx, &ordered_tables).await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(serde_json::json!({
+        "success": true,
+        "mode": if mode == ImportMode::Overwrite { "overwrite" } else { "import" },
+        "records_imported": counts,
+    }))
+}
+
+fn expand_full_overwrite_tables(
+    selected: &mut HashSet<String>,
+    dependencies: &HashMap<String, HashSet<String>>,
+) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (child, parents) in dependencies {
+            if parents.iter().any(|parent| selected.contains(parent))
+                && selected.insert(child.clone())
+            {
+                changed = true;
+            }
+        }
+    }
 }
 
 fn base_generated_columns() -> HashMap<String, HashSet<String>> {
