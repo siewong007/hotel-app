@@ -24,6 +24,7 @@ pub fn routes() -> Router<DbPool> {
         // Profile management
         .route("/profile", get(get_profile))
         .route("/profile", patch(update_profile))
+        .route("/profile/complete", post(complete_profile))
         .route("/profile/password", post(update_password))
         .route("/profile/sessions", get(list_sessions))
         .route("/profile/sessions/{id}", delete(revoke_session))
@@ -57,6 +58,15 @@ async fn update_profile(
     let user_id = require_auth(&headers).await?;
     handlers::profile::update_user_profile_handler(State(pool), Extension(user_id), Json(input))
         .await
+}
+
+async fn complete_profile(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::CompleteGuestProfileRequest>,
+) -> Result<Json<models::UserProfile>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+    handlers::profile::complete_profile_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn update_password(
