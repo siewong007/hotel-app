@@ -84,6 +84,9 @@ temp/
 # CodeGraph local index
 /.codegraph/
 
+# Local Git worktrees
+/.worktrees/
+
 # design-sync (local build artifacts)
 .ds-sync/
 ds-bundle/
