@@ -319,7 +319,6 @@ pub async fn login(
 
 /// Authenticates a guest from a verified Google ID token. The credential is
 /// consumed only by Google verification and is never written to logs or audits.
-#[allow(dead_code)]
 pub async fn login_with_google(
     pool: &DbPool,
     credential: &str,
@@ -381,6 +380,8 @@ async fn issue_authenticated_response(
 
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
+    let profile_completion = crate::services::profile::completion_for_user(pool, user.id).await?;
+
     Ok((
         AuthResponse {
             access_token,
@@ -390,6 +391,12 @@ async fn issue_authenticated_response(
             route_policies,
             is_first_login,
             recovery_codes_remaining: None,
+            profile_complete: profile_completion.complete,
+            missing_profile_fields: profile_completion
+                .missing_fields
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
         },
         refresh_token,
     ))

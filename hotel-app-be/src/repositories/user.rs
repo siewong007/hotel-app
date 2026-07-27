@@ -39,6 +39,21 @@ impl UserRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// The linked guest record for a user, if any. `Ok(None)` covers both "no
+    /// such active user" and "user exists but is not a guest account" — callers
+    /// that need the profile-completion verdict treat both the same way (a
+    /// non-guest account has nothing to complete).
+    pub async fn guest_id_for_user(pool: &DbPool, user_id: i64) -> Result<Option<i64>, ApiError> {
+        sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT guest_id FROM users WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map(|value| value.flatten())
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
     /// Whether a non-deleted user with this id exists.
     pub async fn exists(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
         let id: Option<i64> =

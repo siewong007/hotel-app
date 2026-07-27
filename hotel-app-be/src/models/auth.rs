@@ -21,7 +21,6 @@ pub struct LoginRequest {
 }
 
 /// Google Identity Services credential exchange request.
-#[allow(dead_code)]
 #[derive(Deserialize, Validate)]
 pub struct GoogleLoginRequest {
     #[validate(length(min = 1, message = "Google credential is required"))]
@@ -196,6 +195,14 @@ pub struct AuthResponse {
     /// to regenerate when the supply runs low.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_codes_remaining: Option<usize>,
+    /// Whether the account's guest-contact details are complete. Always
+    /// `true` for non-guest accounts. See
+    /// `services::profile::completion_for_user`, the single source of this
+    /// verdict — both this response and `POST /profile/complete` must agree.
+    pub profile_complete: bool,
+    /// The guest-contact fields still missing when `profile_complete` is
+    /// `false` (e.g. `"first_name"`, `"last_name"`, `"phone"`).
+    pub missing_profile_fields: Vec<String>,
 }
 
 /// Current user's dynamic access snapshot.

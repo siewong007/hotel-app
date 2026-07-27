@@ -5,8 +5,10 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate, UserSessionInfo};
+use crate::repositories::guest::GuestRepository;
 use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
+use crate::services::google_identity::{self, ProfileCompletion};
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
 use validator::Validate;
@@ -180,6 +182,44 @@ pub async fn revoke_session(pool: &DbPool, user_id: i64, session_id: &str) -> Re
     .await;
 
     Ok(())
+}
+
+/// The single source of the guest profile-completion verdict. Both the login
+/// response (`AuthResponse::profile_complete`/`missing_profile_fields`, wired
+/// from `services::auth::issue_authenticated_response`) and the standalone
+/// `POST /profile/complete` endpoint (a separate follow-up task) MUST call this
+/// helper rather than re-deriving completeness themselves — otherwise the
+/// booking guard and the profile endpoint could disagree about whether a guest
+/// still owes contact details.
+pub(crate) async fn completion_for_user(
+    pool: &DbPool,
+    user_id: i64,
+) -> Result<ProfileCompletion, ApiError> {
+    let Some(guest_id) = UserRepository::guest_id_for_user(pool, user_id).await? else {
+        // Not a guest account (or the user no longer exists) — the
+        // completion rule only applies to guests, so there is nothing to complete.
+        return Ok(ProfileCompletion {
+            complete: true,
+            missing_fields: Vec::new(),
+        });
+    };
+
+    let (first_name, last_name, guest_phone) =
+        GuestRepository::completion_fields(pool, guest_id).await?;
+    let phone = guest_phone.filter(|value| !value.trim().is_empty());
+    let phone = if phone.is_some() {
+        phone
+    } else {
+        UserRepository::find_by_id(pool, user_id)
+            .await?
+            .and_then(|user| user.phone)
+    };
+
+    Ok(google_identity::profile_completion(
+        first_name.as_deref(),
+        last_name.as_deref(),
+        phone.as_deref(),
+    ))
 }
 
 fn mask_ip_address(ip: String) -> String {

@@ -22,7 +22,6 @@ const GOOGLE_JWKS_UNKNOWN_KID_COOLDOWN: Duration = Duration::from_secs(60);
 const GOOGLE_ISSUERS: [&str; 2] = ["accounts.google.com", "https://accounts.google.com"];
 
 /// A verified Google identity claim suitable for guest-account resolution.
-#[allow(dead_code)]
 #[derive(Clone, PartialEq, Eq)]
 pub struct GoogleIdentity {
     pub subject: String,
@@ -107,7 +106,6 @@ static GOOGLE_HTTP_CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock:
 
 /// Verifies a Google ID token against Google's rotating RSA signing keys before
 /// exposing its identity claims to account-resolution code.
-#[allow(dead_code)]
 pub async fn verify_id_token(
     credential: &str,
     configured_client_id: Option<&str>,
@@ -367,15 +365,17 @@ fn google_http_client() -> Result<&'static reqwest::Client, ApiError> {
 }
 
 /// The required guest-contact fields that still need to be supplied.
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileCompletion {
     pub complete: bool,
     pub missing_fields: Vec<&'static str>,
 }
 
-#[allow(dead_code)]
 impl ProfileCompletion {
+    // Not yet called from production code — reserved for the follow-up
+    // `POST /profile/complete` task, which will build a "still missing" verdict
+    // directly from `CompleteGuestProfileRequest` validation failures.
+    #[allow(dead_code)]
     pub fn missing(missing_fields: Vec<&'static str>) -> Self {
         Self {
             complete: false,
@@ -384,7 +384,6 @@ impl ProfileCompletion {
     }
 }
 
-#[allow(dead_code)]
 pub fn profile_completion(
     first_name: Option<&str>,
     last_name: Option<&str>,

@@ -310,7 +310,6 @@ impl AuthRepository {
     /// Resolves a verified Google identity to an active guest account. The
     /// Google subject is the durable identity; email is used only to link an
     /// unlinked guest during the first successful Google sign-in.
-    #[allow(dead_code)]
     pub async fn resolve_google_guest(
         pool: &DbPool,
         identity: &GoogleIdentity,

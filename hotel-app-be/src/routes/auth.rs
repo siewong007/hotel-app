@@ -37,6 +37,7 @@ fn refresh_request_from_cookie(jar: &CookieJar) -> Result<models::RefreshTokenRe
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/auth/login", post(login))
+        .route("/auth/google", post(google_login))
         .route("/auth/access", get(access_snapshot))
         .route("/auth/refresh", post(refresh))
         .route("/auth/logout", post(logout))
@@ -79,6 +80,39 @@ async fn login(
         .and_then(|value| value.to_str().ok())
         .map(|value| value.chars().take(512).collect());
     handlers::auth::login_handler(
+        State(pool),
+        jar,
+        Json(req),
+        Some(ip.to_string()),
+        user_agent,
+    )
+    .await
+}
+
+async fn google_login(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    jar: CookieJar,
+    Json(req): Json<models::GoogleLoginRequest>,
+) -> Result<(CookieJar, Json<models::AuthResponse>), ApiError> {
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many Google sign-in attempts. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.chars().take(512).collect());
+    handlers::auth::google_login_handler(
         State(pool),
         jar,
         Json(req),
