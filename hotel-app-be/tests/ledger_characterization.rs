@@ -22,19 +22,9 @@
 //! prior run of THIS file are removed by the same company-scoped cleanup
 //! that runs at the start of every test (proving idempotency on rerun).
 //!
-//! KNOWN BUGS (do not enshrine — see `.claude/rules/lessons.md` and
-//! `docs/ongoing-dev.md` tasks #11 / #19). Three scenarios below are written
-//! asserting the DECIDED-CORRECT behavior and marked `#[ignore]` because the
-//! current code does the opposite:
-//! - `void_ledger` (repositories/ledger.rs:935) never checks `paid_amount`,
-//!   so voiding a ledger that has collected payments makes that money vanish
-//!   from `get_ledger_summary` (which excludes `status = 'void'` rows).
-//!   Correct: refuse the void when `paid_amount > 0`.
-//! - `update_customer_ledger` (repositories/ledger.rs:479) lets `status` be
-//!   set to `'void'` on a request gated by `ledgers:update`
-//!   (`src/routes/ledgers.rs` PATCH `/ledgers/{id}`) instead of
-//!   `ledgers:void`, leaving `void_at`/`void_by`/`void_reason` NULL. Correct:
-//!   that path must refuse `status = 'void'`.
+//! KNOWN BUG (do not enshrine — see `.claude/rules/lessons.md`). The scenario
+//! below asserts the decided-correct behavior and is marked `#[ignore]`
+//! because the current code does the opposite:
 //! - `get_ledger_summary` (repositories/ledger.rs:896-908) sums
 //!   `amount`/`paid_amount`/`balance_due` over every non-void row with NO
 //!   `transaction_type` sign handling (`transaction_type` never appears in
@@ -295,7 +285,9 @@ mod postgres_tests {
         .await
         .expect("first partial payment should succeed");
 
-        let mid = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let mid = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(mid.paid_amount, Decimal::new(20_000, 2));
         assert_eq!(mid.balance_due, Decimal::new(30_000, 2));
         assert_eq!(mid.status, "partial", "partial boundary: 0 < paid < total");
@@ -309,7 +301,9 @@ mod postgres_tests {
         .await
         .expect("final payment exactly settling the ledger should succeed");
 
-        let settled = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let settled = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(settled.paid_amount, Decimal::new(50_000, 2));
         assert_eq!(settled.balance_due, Decimal::ZERO);
         assert_eq!(
@@ -368,7 +362,9 @@ mod postgres_tests {
         .await
         .expect("second payment should succeed");
 
-        let before = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let before = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(before.paid_amount, Decimal::new(30_000, 2));
         assert_eq!(before.status, "partial");
 
@@ -390,7 +386,9 @@ mod postgres_tests {
         .expect("raising a payment amount within the outstanding balance should succeed");
         assert_eq!(updated1.payment_amount, Decimal::new(35_000, 2));
 
-        let mid = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let mid = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(mid.paid_amount, Decimal::new(45_000, 2));
         assert_eq!(mid.status, "partial", "450 < 500 stays partial");
 
@@ -411,9 +409,14 @@ mod postgres_tests {
         .await
         .expect("raising a payment to exactly settle the ledger should succeed");
 
-        let after = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let after = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(after.paid_amount, Decimal::new(50_000, 2));
-        assert_eq!(after.status, "paid", "paid boundary reached via a payment update");
+        assert_eq!(
+            after.status, "paid",
+            "paid boundary reached via a payment update"
+        );
 
         assert_eq!(
             count_audit_logs(&pool, "ledger_payment_updated", ledger.id).await,
@@ -465,14 +468,18 @@ mod postgres_tests {
         .await
         .expect("second payment should succeed");
 
-        let fully_paid = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let fully_paid = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(fully_paid.status, "paid");
 
         ledgers::delete_ledger_payment(&pool, ledger.id, payment2.id, actor_id)
             .await
             .expect("deleting a payment should succeed");
 
-        let partial = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let partial = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(partial.paid_amount, Decimal::new(30_000, 2));
         assert_eq!(partial.status, "partial", "300 < 500 drops back to partial");
 
@@ -480,9 +487,14 @@ mod postgres_tests {
             .await
             .expect("deleting the last remaining payment should succeed");
 
-        let empty = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let empty = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(empty.paid_amount, Decimal::ZERO);
-        assert_eq!(empty.status, "pending", "zero paid boundary drops back to pending");
+        assert_eq!(
+            empty.status, "pending",
+            "zero paid boundary drops back to pending"
+        );
 
         assert_eq!(
             count_audit_logs(&pool, "ledger_payment_deleted", ledger.id).await,
@@ -583,7 +595,10 @@ mod postgres_tests {
             "reversing an already-reversal entry must be refused"
         );
         assert!(
-            double_reversal.unwrap_err().to_string().contains("Cannot reverse a reversal"),
+            double_reversal
+                .unwrap_err()
+                .to_string()
+                .contains("Cannot reverse a reversal"),
             "error message should explain why the reversal was refused"
         );
 
@@ -678,8 +693,7 @@ mod postgres_tests {
     // -----------------------------------------------------------------
     // void_ledger: stamps void_at/void_by/void_reason and refuses a double
     // void, on a ledger with zero payments collected (correct, unambiguous
-    // behavior today - the paid_amount > 0 case is covered separately below
-    // as an #[ignore]d, decided-correct-but-not-yet-implemented scenario).
+    // behavior today; the paid_amount > 0 case is covered separately below).
     // -----------------------------------------------------------------
     #[tokio::test]
     async fn postgres_void_ledger_stamps_fields_and_refuses_double_void() {
@@ -715,11 +729,16 @@ mod postgres_tests {
 
         assert_eq!(voided.status, "void");
         assert_eq!(voided.void_by, Some(actor_id));
-        assert_eq!(voided.void_reason.as_deref(), Some("Lgr940 void test reason"));
+        assert_eq!(
+            voided.void_reason.as_deref(),
+            Some("Lgr940 void test reason")
+        );
         let void_at = voided.void_at.expect("void_at should be stamped");
+        let after_void = Utc::now();
+        let clock_tolerance = chrono::Duration::seconds(1);
         assert!(
-            void_at >= before_void && (Utc::now() - void_at).num_minutes() < 5,
-            "void_at should decode as a sane, recent UTC instant, got {void_at:?}"
+            void_at >= before_void - clock_tolerance && void_at <= after_void + clock_tolerance,
+            "void_at should decode as a sane, recent UTC instant; before={before_void:?}, void_at={void_at:?}, after={after_void:?}"
         );
 
         assert_eq!(
@@ -737,9 +756,15 @@ mod postgres_tests {
             },
         )
         .await;
-        assert!(double_void.is_err(), "voiding an already-voided ledger must be refused");
         assert!(
-            double_void.unwrap_err().to_string().contains("already voided"),
+            double_void.is_err(),
+            "voiding an already-voided ledger must be refused"
+        );
+        assert!(
+            double_void
+                .unwrap_err()
+                .to_string()
+                .contains("already voided"),
             "error message should explain why the void was refused"
         );
 
@@ -803,39 +828,56 @@ mod postgres_tests {
             "update_customer_ledger should write one audit_logs row"
         );
 
-        // An all-`None` request must be rejected rather than silently running
-        // an UPDATE that only touches updated_by/updated_at. The guard used to
-        // sit AFTER the unconditional updated_by/updated_at pushes, where
-        // `updates.len()` is always >= 2, so it could never fire; it is now
-        // checked while `updates` still holds only caller-supplied fields.
-        let empty_update = ledgers::update_customer_ledger(
-            &pool,
-            ledger.id,
-            actor_id,
-            empty_ledger_update(),
-        )
-        .await;
-
-        assert!(
-            empty_update.is_err(),
-            "an update request with every field None must be rejected, not silently applied"
-        );
-        assert!(
-            empty_update.unwrap_err().to_string().contains("No fields to update"),
-            "the rejection should say no fields were supplied"
-        );
-
-        // The rejected no-op must not have bumped updated_by/updated_at or
-        // written a second audit row.
-        assert_eq!(
-            count_audit_logs(&pool, "customer_ledger_updated", ledger.id).await,
-            1,
-            "a rejected empty update must not write an audit_logs row"
-        );
-
         cleanup_ledger_fixture(&pool, original_company_name).await;
         cleanup_ledger_fixture(&pool, renamed_company_name).await;
         cleanup_actor(&pool, actor_id).await;
+    }
+
+    // -----------------------------------------------------------------
+    // update_customer_ledger: an all-`None` request must be refused without
+    // touching audit fields or writing an audit-log entry.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn postgres_update_customer_ledger_refuses_an_empty_request() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_110;
+        let company_name = "Lgr940 EmptyUpdate Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+
+        let ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 empty-update charge", 100.0),
+        )
+        .await
+        .expect("creating a standalone customer ledger should succeed");
+
+        let empty_update =
+            ledgers::update_customer_ledger(&pool, ledger.id, actor_id, empty_ledger_update())
+                .await;
+        let audit_rows = count_audit_logs(&pool, "customer_ledger_updated", ledger.id).await;
+
+        // Clean up before asserting so a regression cannot leak fixtures into
+        // the shared, persistent dev database.
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        let err = empty_update.expect_err(
+            "an update request with every field None must be refused, not silently applied",
+        );
+        assert!(
+            err.to_string().contains("No fields to update"),
+            "the rejection should say no fields were supplied, got: {err}"
+        );
+        assert_eq!(
+            audit_rows, 0,
+            "a refused empty update must not write an audit_logs row"
+        );
     }
 
     // -----------------------------------------------------------------
@@ -873,12 +915,11 @@ mod postgres_tests {
         .await
         .expect("creating a standalone customer ledger should succeed");
 
-        // Baseline: the INSERT trigger computed net_amount = 200 - 10 - 5.
-        assert_eq!(
-            ledger.net_amount,
-            Some(Decimal::new(18_500, 2)),
-            "the BEFORE INSERT trigger should seed net_amount from amount/tax/service"
-        );
+        // Every service call runs FIRST and its result is captured as plain
+        // data; cleanup happens before any assertion, because the accounting
+        // assertions below are expected to panic until the fix lands and a
+        // panic must not leak fixtures into the shared, persistent dev DB.
+        let baseline_net_amount = ledger.net_amount;
 
         let updated = ledgers::update_customer_ledger(
             &pool,
@@ -898,6 +939,60 @@ mod postgres_tests {
         .await
         .expect("updating the ledger accounting fields should succeed");
 
+        // Changing ONLY `amount` must also recompute net_amount, using the
+        // tax/service values already stored on the row (20 and 8). This is the
+        // case where the derived clause reads the untouched columns' old
+        // values rather than a bound parameter.
+        let reamounted = ledgers::update_customer_ledger(
+            &pool,
+            ledger.id,
+            actor_id,
+            CustomerLedgerUpdateRequest {
+                amount: Some(300.0),
+                ..empty_ledger_update()
+            },
+        )
+        .await
+        .expect("updating only the amount should succeed");
+
+        // An unrelated edit must NOT disturb the derived total.
+        let renamed = ledgers::update_customer_ledger(
+            &pool,
+            ledger.id,
+            actor_id,
+            CustomerLedgerUpdateRequest {
+                notes: Some("Lgr940 accounting notes".to_string()),
+                ..empty_ledger_update()
+            },
+        )
+        .await
+        .expect("editing notes should succeed");
+
+        // `post_type` is constrained by the `valid_post_type` CHECK; an unknown
+        // value must be a 400 from the service layer, not a database 500.
+        let bad_post_type = ledgers::update_customer_ledger(
+            &pool,
+            ledger.id,
+            actor_id,
+            CustomerLedgerUpdateRequest {
+                post_type: Some("not_a_real_post_type".to_string()),
+                ..empty_ledger_update()
+            },
+        )
+        .await;
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        // Baseline: the BEFORE INSERT trigger computed net_amount = 200 - 10 - 5.
+        assert_eq!(
+            baseline_net_amount,
+            Some(Decimal::new(18_500, 2)),
+            "the BEFORE INSERT trigger should seed net_amount from amount/tax/service"
+        );
+
+        // These mutable accounting fields must all persist rather than being
+        // accepted and silently discarded.
         assert_eq!(updated.post_type.as_deref(), Some("laundry"));
         assert_eq!(updated.department_code.as_deref(), Some("HK"));
         assert_eq!(updated.transaction_code.as_deref(), Some("TXN-940-109"));
@@ -919,22 +1014,6 @@ mod postgres_tests {
             "net_amount must be recomputed as 200 - 20 - 8 when tax/service change"
         );
 
-        // Changing ONLY `amount` must also recompute net_amount, using the
-        // tax/service values already stored on the row (20 and 8). This is the
-        // case where the derived clause reads the untouched columns' old
-        // values rather than a bound parameter.
-        let reamounted = ledgers::update_customer_ledger(
-            &pool,
-            ledger.id,
-            actor_id,
-            CustomerLedgerUpdateRequest {
-                amount: Some(300.0),
-                ..empty_ledger_update()
-            },
-        )
-        .await
-        .expect("updating only the amount should succeed");
-
         assert_eq!(reamounted.amount, Decimal::new(30_000, 2));
         assert_eq!(
             reamounted.tax_amount,
@@ -947,40 +1026,11 @@ mod postgres_tests {
             "net_amount must be recomputed as 300 - 20 - 8 when only amount changes"
         );
 
-        // An unrelated edit must NOT disturb the derived total.
-        let renamed = ledgers::update_customer_ledger(
-            &pool,
-            ledger.id,
-            actor_id,
-            CustomerLedgerUpdateRequest {
-                notes: Some("Lgr940 accounting notes".to_string()),
-                ..empty_ledger_update()
-            },
-        )
-        .await
-        .expect("editing notes should succeed");
-
         assert_eq!(
             renamed.net_amount,
             Some(Decimal::new(27_200, 2)),
             "an edit that touches none of amount/tax/service must leave net_amount alone"
         );
-
-        // `post_type` is constrained by the `valid_post_type` CHECK; an unknown
-        // value must be a 400 from the service layer, not a database 500.
-        let bad_post_type = ledgers::update_customer_ledger(
-            &pool,
-            ledger.id,
-            actor_id,
-            CustomerLedgerUpdateRequest {
-                post_type: Some("not_a_real_post_type".to_string()),
-                ..empty_ledger_update()
-            },
-        )
-        .await;
-
-        cleanup_ledger_fixture(&pool, company_name).await;
-        cleanup_actor(&pool, actor_id).await;
 
         let err = bad_post_type
             .expect_err("an unknown post_type must be rejected rather than hitting the CHECK");
@@ -1001,7 +1051,6 @@ mod postgres_tests {
     // "Block voiding a ledger that has collected payments".
     // -----------------------------------------------------------------
     #[tokio::test]
-    #[ignore = "void_ledger does not check paid_amount before voiding — pending fix: task #19 Block voiding a ledger that has collected payments"]
     async fn postgres_void_ledger_refuses_when_paid_amount_positive() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
@@ -1040,10 +1089,8 @@ mod postgres_tests {
         )
         .await;
 
-        // Clean up BEFORE asserting: this test is expected to fail (that is
-        // the point of `#[ignore]`ing a known bug), and an assertion panic
-        // must not skip teardown and leak fixture rows on a persistent,
-        // shared database.
+        // Clean up before asserting so a regression cannot leak fixtures into
+        // the shared, persistent database.
         cleanup_ledger_fixture(&pool, company_name).await;
         cleanup_actor(&pool, actor_id).await;
 
@@ -1068,7 +1115,6 @@ mod postgres_tests {
     // without the void permission".
     // -----------------------------------------------------------------
     #[tokio::test]
-    #[ignore = "update_customer_ledger applies status='void' without stamping void_at/void_by/void_reason — pending fix: task #11 Stop update_customer_ledger from voiding without the void permission. The rejection MUST live in the service/repository layer (allow-list update_customer_ledger's mutable columns and reject status='void' there, forcing voids through POST /ledgers/{id}/void), NOT only as a route-level permission gate — a route-only fix (e.g. requiring ledgers:void on PATCH /ledgers/{id}) would leave this exact service-layer call, and this test, permanently red"]
     async fn postgres_update_customer_ledger_refuses_status_void() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
             return;
@@ -1099,10 +1145,8 @@ mod postgres_tests {
         )
         .await;
 
-        // Clean up BEFORE asserting: this test is expected to fail (that is
-        // the point of `#[ignore]`ing a known bug), and an assertion panic
-        // must not skip teardown and leak fixture rows on a persistent,
-        // shared database.
+        // Clean up before asserting so a regression cannot leak fixtures into
+        // the shared, persistent database.
         cleanup_ledger_fixture(&pool, company_name).await;
         cleanup_actor(&pool, actor_id).await;
 

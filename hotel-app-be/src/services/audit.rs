@@ -1,5 +1,6 @@
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     AuditCategoryCounts, AuditLogEntryWithUser, AuditLogQuery, AuditLogResponse, AuditLogRow,
     DbStatementsQuery,
@@ -8,7 +9,6 @@ use crate::repositories::audit::AuditRepository;
 use crate::utils::pagination::normalize_pagination;
 use chrono::Utc;
 use serde_json::Value;
-use crate::models::AuditEvent;
 
 /// Audit logging service for tracking sensitive operations
 pub struct AuditLog;
@@ -199,27 +199,6 @@ impl AuditLog {
         .await
     }
 
-    /// Log booking modification
-    pub async fn log_booking_updated(
-        pool: &DbPool,
-        user_id: i64,
-        booking_id: i64,
-        changes: Value,
-    ) -> Result<(), ApiError> {
-        Self::log_event(
-            pool,
-            AuditEvent {
-                user_id: Some(user_id),
-                action: "booking_updated",
-                resource_type: "booking",
-                resource_id: Some(booking_id),
-                details: Some(changes),
-                ..Default::default()
-            },
-        )
-        .await
-    }
-
     /// Log booking voiding with the current audit action name.
     pub async fn log_booking_voided_tx(
         tx: &mut DbTransaction<'_>,
@@ -255,7 +234,6 @@ impl AuditLog {
         )
         .await
     }
-
 }
 
 /// Single source of truth mapping an activity stream to the `resource_type`
