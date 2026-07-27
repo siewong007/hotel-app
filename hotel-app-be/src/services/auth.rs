@@ -3,19 +3,20 @@
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginRequest, RefreshTokenRequest,
-    RefreshTokenResponse, RegisterRequest, ResendVerificationRequest, UserResponse,
+    RefreshTokenResponse, RegisterRequest, ResendVerificationRequest, User, UserResponse,
 };
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::guest::GuestRepository;
 use crate::repositories::rbac::RbacRepository;
 use crate::services::audit::AuditLog;
+use crate::services::google_identity;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
 use serde_json::json;
 use validator::Validate;
-use crate::models::AuditEvent;
 
 /// Re-authenticate an already-authenticated user before a high-value account
 /// change (currently: registering a passkey).
@@ -122,14 +123,25 @@ pub async fn login(
     let user = match user {
         Some(user) if user.is_active => user,
         Some(_) => {
-            let _ =
-                AuditLog::log_login_failure(pool, &req.username, "Account is inactive", audit_ip(), audit_ua())
-                    .await;
+            let _ = AuditLog::log_login_failure(
+                pool,
+                &req.username,
+                "Account is inactive",
+                audit_ip(),
+                audit_ua(),
+            )
+            .await;
             return Err(ApiError::Unauthorized("Account is inactive".to_string()));
         }
         None => {
-            let _ = AuditLog::log_login_failure(pool, &req.username, "User not found", audit_ip(), audit_ua())
-                .await;
+            let _ = AuditLog::log_login_failure(
+                pool,
+                &req.username,
+                "User not found",
+                audit_ip(),
+                audit_ua(),
+            )
+            .await;
             return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
         }
     };
@@ -186,9 +198,14 @@ pub async fn login(
 
         let _ = AuthRepository::update_failed_login_attempts(pool, user.id, new_attempts).await;
         let remaining = max_attempts - new_attempts;
-        let _ =
-            AuditLog::log_login_failure(pool, &req.username, "Invalid password", audit_ip(), audit_ua())
-                .await;
+        let _ = AuditLog::log_login_failure(
+            pool,
+            &req.username,
+            "Invalid password",
+            audit_ip(),
+            audit_ua(),
+        )
+        .await;
         return Err(ApiError::Unauthorized(format!(
             "Invalid credentials. {} attempt(s) remaining before account lockout.",
             remaining
@@ -235,8 +252,7 @@ pub async fn login(
             // consume_recovery_code then spends that exact entry atomically,
             // so a concurrent login replaying the same code loses the race
             // and falls through to the failure path below.
-            let consumed = match AuthService::check_recovery_code(submitted_code, &recovery_codes)
-            {
+            let consumed = match AuthService::check_recovery_code(submitted_code, &recovery_codes) {
                 Some(index) => {
                     AuthService::consume_recovery_code(pool, user.id, &recovery_codes[index])
                         .await
@@ -286,33 +302,6 @@ pub async fn login(
 
     let _ = AuthRepository::reset_login_attempts(pool, user.id).await;
 
-    let roles = AuthService::get_user_roles(pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    let permissions = AuthService::get_user_permissions(pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
-
-    let refresh_token = AuthService::generate_refresh_token();
-    let is_first_login = AuthRepository::is_first_login(pool, user.id)
-        .await
-        .unwrap_or(false);
-
-    let session_id =
-        AuthService::store_refresh_token(pool, user.id, &refresh_token, 30, ip_address, user_agent)
-            .await
-            .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
-    let access_token = AuthService::generate_session_jwt(
-        user.id,
-        user.username.clone(),
-        roles.clone(),
-        session_id,
-    )
-    .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
-
-    let _ = AuthRepository::update_last_login(pool, user.id).await;
-
     let login_method = if recovery_codes_remaining.is_some() {
         "password+2fa_recovery"
     } else if two_factor_enabled.unwrap_or(false) {
@@ -320,17 +309,87 @@ pub async fn login(
     } else {
         "password"
     };
+    let (mut response, refresh_token) =
+        issue_authenticated_response(pool, &user, ip_address, user_agent).await?;
+    response.recovery_codes_remaining = recovery_codes_remaining;
     let _ = AuditLog::log_login_success(pool, user.id, login_method, audit_ip(), audit_ua()).await;
+
+    Ok((response, refresh_token))
+}
+
+/// Authenticates a guest from a verified Google ID token. The credential is
+/// consumed only by Google verification and is never written to logs or audits.
+#[allow(dead_code)]
+pub async fn login_with_google(
+    pool: &DbPool,
+    credential: &str,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(AuthResponse, String), ApiError> {
+    let identity = google_identity::verify_id_token(
+        credential,
+        crate::core::config::get().google_client_id.as_deref(),
+    )
+    .await?;
+    let user = AuthRepository::resolve_google_guest(pool, &identity).await?;
+
+    ensure_not_locked(pool, user.id, &user.username, ip_address, user_agent).await?;
+    let _ = AuthRepository::reset_login_attempts(pool, user.id).await;
+    let response = issue_authenticated_response(pool, &user, ip_address, user_agent).await?;
+    let _ = AuditLog::log_login_success(
+        pool,
+        user.id,
+        "google",
+        ip_address.map(str::to_string),
+        user_agent.map(str::to_string),
+    )
+    .await;
+
+    Ok(response)
+}
+
+async fn issue_authenticated_response(
+    pool: &DbPool,
+    user: &User,
+    ip_address: Option<&str>,
+    user_agent: Option<&str>,
+) -> Result<(AuthResponse, String), ApiError> {
+    let roles = AuthService::get_user_roles(pool, user.id)
+        .await
+        .map_err(|error| ApiError::Database(error.to_string()))?;
+    let permissions = AuthService::get_user_permissions(pool, user.id)
+        .await
+        .map_err(|error| ApiError::Database(error.to_string()))?;
+    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
+    let refresh_token = AuthService::generate_refresh_token();
+    let is_first_login = AuthRepository::is_first_login(pool, user.id)
+        .await
+        .unwrap_or(false);
+    let session_id =
+        AuthService::store_refresh_token(pool, user.id, &refresh_token, 30, ip_address, user_agent)
+            .await
+            .map_err(|error| {
+                ApiError::Database(format!("Failed to store refresh token: {error}"))
+            })?;
+    let access_token = AuthService::generate_session_jwt(
+        user.id,
+        user.username.clone(),
+        roles.clone(),
+        session_id,
+    )
+    .map_err(|error| ApiError::Internal(format!("Token generation failed: {error}")))?;
+
+    let _ = AuthRepository::update_last_login(pool, user.id).await;
 
     Ok((
         AuthResponse {
             access_token,
-            user: UserResponse::from(user),
+            user: UserResponse::from(user.clone()),
             roles,
             permissions,
             route_policies,
             is_first_login,
-            recovery_codes_remaining,
+            recovery_codes_remaining: None,
         },
         refresh_token,
     ))
