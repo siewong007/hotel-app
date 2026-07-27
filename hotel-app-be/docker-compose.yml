@@ -13,8 +13,7 @@ services:
       # in a version subdir) — mounting at .../data makes the container refuse to start
       - postgres_data:/var/lib/postgresql
       - ./database/postgres/migrations/0001_v1_baseline.sql:/docker-entrypoint-initdb.d/01_v1_baseline.sql:ro
-      - ./database/postgres/data.sql:/docker-entrypoint-initdb.d/02_data.sql:ro
-      - ./database/postgres/seed.sql:/docker-entrypoint-initdb.d/03_seed.sql:ro
+      - ./database/postgres/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

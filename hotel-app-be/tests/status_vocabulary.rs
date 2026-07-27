@@ -1,8 +1,6 @@
 //! Regression tests for the persisted status vocabulary.
 
 const POSTGRES_SCHEMA: &str = include_str!("../database/postgres/migrations/0001_v1_baseline.sql");
-const POSTGRES_UPGRADE: &str = include_str!("../database/postgres/upgrade/pg18_4_to_v1.sql");
-const POSTGRES_DATA: &str = include_str!("../database/postgres/data.sql");
 const POSTGRES_SEED: &str = include_str!("../database/postgres/seed.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
@@ -56,23 +54,6 @@ fn active_postgres_status_constraints_do_not_accept_cancelled() {
             is_communications_lifecycle_status(&block)
                 || (!block.contains("cancelled") && !block.contains("comp_cancelled")),
             "active status constraint still accepts legacy cancelled status:\n{block}"
-        );
-    }
-}
-
-#[test]
-fn legacy_cancelled_values_are_migrated_to_void_names() {
-    for expected in [
-        "UPDATE bookings SET status = 'voided' WHERE status = 'cancelled'",
-        "UPDATE bookings SET status = 'comp_void' WHERE status = 'comp_cancelled'",
-        "UPDATE bookings SET payment_status = 'void' WHERE payment_status = 'cancelled'",
-        "UPDATE payments SET status = 'void' WHERE status = 'cancelled'",
-        "UPDATE invoices SET status = 'void' WHERE status = 'cancelled'",
-        "UPDATE ekyc_verifications SET status = 'void' WHERE status = 'cancelled'",
-    ] {
-        assert!(
-            POSTGRES_UPGRADE.contains(expected),
-            "missing legacy status normalization: {expected}"
         );
     }
 }
@@ -164,10 +145,6 @@ fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
         "idx_loyalty_members_number",
     ] {
         assert!(
-            POSTGRES_UPGRADE.contains(&format!("DROP INDEX IF EXISTS {index_name};")),
-            "PG18.4 upgrade must remove redundant index {index_name}"
-        );
-        assert!(
             !POSTGRES_SCHEMA.lines().any(|line| {
                 let line = line.trim();
                 line.starts_with("CREATE") && line.contains("INDEX") && line.contains(index_name)
@@ -180,11 +157,11 @@ fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
 #[test]
 fn postgres_permission_constraint_accepts_seeded_refund_action() {
     assert!(
-        POSTGRES_DATA.contains("'void', 'refund',"),
+        POSTGRES_SEED.contains("'void', 'refund',"),
         "seed data action constraint must accept the payments:refund permission"
     );
 
-    let validation_blocks = POSTGRES_DATA
+    let validation_blocks = POSTGRES_SEED
         .split("p.action NOT IN (")
         .skip(1)
         .map(|sql| sql.split(')').next().expect("action allowlist must close"))
@@ -201,8 +178,23 @@ fn postgres_permission_constraint_accepts_seeded_refund_action() {
     }
 }
 
+#[test]
+fn postgres_initialization_has_only_baseline_and_seed() {
+    let postgres_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres");
+    assert!(
+        postgres_dir
+            .join("migrations/0001_v1_baseline.sql")
+            .is_file()
+    );
+    assert!(postgres_dir.join("seed.sql").is_file());
+    assert!(!postgres_dir.join("data.sql").exists());
+    assert!(!postgres_dir.join("patches").exists());
+    assert!(!postgres_dir.join("upgrade").exists());
+}
+
 mod postgres_smoke {
-    use super::{POSTGRES_DATA, POSTGRES_SCHEMA, POSTGRES_SEED};
+    use super::{POSTGRES_SCHEMA, POSTGRES_SEED};
     use sqlx::{Connection, Executor, PgConnection, PgPool};
 
     fn quote_ident(identifier: &str) -> String {
@@ -268,7 +260,7 @@ mod postgres_smoke {
             );
 
             // The simple-query protocol does not understand psql meta-commands.
-            for script in [POSTGRES_SCHEMA, POSTGRES_DATA, POSTGRES_SEED] {
+            for script in [POSTGRES_SCHEMA, POSTGRES_SEED] {
                 sqlx::raw_sql(&psql_script_for_sqlx(script))
                     .execute(&pool)
                     .await?;

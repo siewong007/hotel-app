@@ -169,11 +169,9 @@ async fn main() {
         }
     };
 
-    // The 2026-07-26 pg19 patch retyped the customer-ledger timestamp columns
-    // to timestamptz; against an unpatched database those reads degrade
-    // silently (epoch fallbacks, voided-ledger balances no longer zeroed), so
-    // refuse to start instead. A missing column means the schema is not
-    // installed yet and is left to the normal install flow.
+    // The current baseline stores customer-ledger timestamps as timestamptz.
+    // Older schemas can degrade these reads silently, so refuse to start and
+    // require a fresh rebuild. A missing column is left to the install flow.
     match sqlx::query_scalar::<_, String>(
         "SELECT data_type FROM information_schema.columns \
          WHERE table_schema = 'public' AND table_name = 'customer_ledgers' \
@@ -184,10 +182,10 @@ async fn main() {
     {
         Ok(Some(t)) if t != "timestamp with time zone" => {
             log::error!(
-                "✗ customer_ledgers.payment_date is '{}': this database predates the PG19 physical-design patch; apply database/postgres/patches/2026-07-26-pg19-native-physical-design.sql before starting this backend",
+                "✗ customer_ledgers.payment_date is '{}': this database uses a legacy schema; export required data and rebuild from the current baseline and seed",
                 t
             );
-            eprintln!("FATAL: database schema predates the 2026-07-26 pg19 patch");
+            eprintln!("FATAL: legacy database schema; a fresh rebuild is required");
             std::process::exit(1);
         }
         Ok(_) => {}
@@ -198,9 +196,9 @@ async fn main() {
     // and `team_members` are read on EVERY authorization check. Against a
     // database that has `users` but not those tables, the join fails and every
     // permission check in the application returns an error — an app-wide
-    // authorization outage, not a degraded feature. Refuse to start and name
-    // the patch instead. `users` absent means the schema is not installed at
-    // all, which the normal install flow handles.
+    // authorization outage, not a degraded feature. Refuse to start and
+    // require a fresh rebuild. `users` absent means the schema is not installed
+    // at all, which the normal install flow handles.
     match sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM information_schema.tables \
          WHERE table_schema = 'public' AND table_name IN ('users', 'team_roles', 'team_members')",
@@ -210,9 +208,9 @@ async fn main() {
     {
         Ok(count) if (1..3).contains(&count) => {
             log::error!(
-                "✗ this database has the users table but not team_roles/team_members: permission resolution reads them on every request; apply database/postgres/patches/2026-07-27-teams.sql before starting this backend"
+                "✗ this database has the users table but not team_roles/team_members: export required data and rebuild from the current baseline and seed"
             );
-            eprintln!("FATAL: database schema predates the 2026-07-27 teams patch");
+            eprintln!("FATAL: legacy database schema; a fresh rebuild is required");
             std::process::exit(1);
         }
         Ok(_) => {}

@@ -56,7 +56,7 @@ the complete server command so Compose's command replacement keeps those PG19
 settings while adding the 12 GB VM sizing assumptions.
 
 There is no per-boot database bootstrap service. PostgreSQL's entrypoint applies
-the V1 baseline, `data.sql`, and `seed.sql` once when it initializes a new empty
+the V1 baseline and `seed.sql` once when it initializes a new empty
 volume. Existing V1 volumes are left unchanged on later boots.
 
 ## Prerequisites

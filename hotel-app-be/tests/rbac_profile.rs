@@ -8,7 +8,7 @@
 //! (users `920_0xx`, roles `920_1xx`) so reruns against a persistent dev
 //! database are deterministic. No custom `permissions` rows are created --
 //! every scenario below is expressed with the existing seeded
-//! `housekeeping:*` permissions (see `database/postgres/data.sql`), per the
+//! `housekeeping:*` permissions (see `database/postgres/seed.sql`), per the
 //! task's preference for reusing system permissions over inserting new ones.
 
 use hotel_app_be::core::error::ApiError;
@@ -170,7 +170,7 @@ async fn permission_id(pool: &PgPool, name: &str) -> i64 {
         .bind(name)
         .fetch_one(pool)
         .await
-        .unwrap_or_else(|e| panic!("seeded permission '{name}' must exist in data.sql: {e}"))
+        .unwrap_or_else(|e| panic!("seeded permission '{name}' must exist in seed.sql: {e}"))
 }
 
 async fn role_id_by_name(pool: &PgPool, name: &str) -> i64 {
@@ -178,7 +178,7 @@ async fn role_id_by_name(pool: &PgPool, name: &str) -> i64 {
         .bind(name)
         .fetch_one(pool)
         .await
-        .unwrap_or_else(|e| panic!("seeded role '{name}' must exist in data.sql: {e}"))
+        .unwrap_or_else(|e| panic!("seeded role '{name}' must exist in seed.sql: {e}"))
 }
 
 /// Cleans up every row this file's fixtures may have touched for the given

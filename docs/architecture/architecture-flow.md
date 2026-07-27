@@ -35,12 +35,11 @@ A new empty database is initialized exactly once:
 
 ```text
 database/postgres/migrations/0001_v1_baseline.sql
-  → database/postgres/data.sql
   → database/postgres/seed.sql
 ```
 
-Docker, server, and desktop deployments share this sequence. Existing databases
-are not automatically reinitialized. See the
+Docker, server, and desktop deployments share this sequence. Legacy databases
+must be exported and rebuilt rather than upgraded in place. See the
 [database lifecycle](../../hotel-app-be/database/README.md).
 
 ## Payments and PayPal webhooks

@@ -5,10 +5,7 @@ PostgreSQL is the application's only database engine.
 ```text
 database/postgres/
 ├── migrations/0001_v1_baseline.sql
-├── data.sql
 ├── seed.sql
-├── patches/<date>-*.sql
-├── upgrade/pg18_4_to_v1.sql
 └── optimization/pg19_beta2*.sql
 ```
 
@@ -18,19 +15,16 @@ For a new PostgreSQL database, execute these files once in order:
 
 ```bash
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-psql "$DATABASE_URL" -f database/postgres/data.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql
 ```
 
-`data.sql` creates required system and reference records. `seed.sql` creates
-fresh-install bootstrap records. Neither file is a startup task or safe to
-rerun against an existing V1 database.
+`seed.sql` creates all required system/reference records and fresh-install
+bootstrap records, then records the completed V1 revision. It is not a startup
+task and is not safe to rerun against an existing V1 database.
 
-`postgres/upgrade/pg18_4_to_v1.sql` is retained only for the controlled legacy
-upgrade path referenced by `tests/status_vocabulary.rs`, the
-`db-upgrade-pg18_4-to-v1` Make target, and desktop recovery messaging.
-Dated files under `patches/` bring already-initialized V1 databases (including
-one upgraded from 18.4) up to date; apply them in date order.
+Older database layouts are not upgraded in place. Export any data that must be
+retained, initialize a fresh PostgreSQL 19 database from the current baseline
+and seed, then import the compatible application data.
 
 ## PostgreSQL 19 physical design (2026-07-26)
 
@@ -41,12 +35,8 @@ generated columns are virtual (computed on read), and every persisted timestamp
 is `timestamptz`. Explicit-id INSERTs — seeds, JSON imports, test fixtures —
 must say `OVERRIDING SYSTEM VALUE`.
 
-Existing V1 databases converge via
-`patches/2026-07-26-pg19-native-physical-design.sql` (idempotent; interprets
-the legacy naive ledger timestamps in the `system_settings` hotel timezone).
-Apply it BEFORE starting a backend built at or after 2026-07-26: the backend
-decodes the customer-ledger timestamp columns as `timestamptz` and refuses to
-start against an unpatched database (startup schema guard in `main.rs`).
+The backend validates schema-critical columns and tables at startup. It refuses
+legacy layouts rather than mutating them automatically.
 
 The baseline also defines `public.hotel_graph`, a native SQL/PGQ property
 graph (guests/rooms/staff/companies vertices; bookings `stayed_in` and
@@ -73,13 +63,8 @@ PostgreSQL 19 Beta 2 is prerelease software for testing, not production.
 
 ## Docker and desktop
 
-Docker and desktop bundles use the same V1 sequence: baseline, data, then seed,
-only for a new empty PostgreSQL database. The desktop launcher does not alter a
-non-empty unversioned database. Recovery is a manual, backup-first operation.
-Optimization scripts are never bundled or applied automatically.
-
-The desktop bundle also ships the pg19 physical-design patch
-(`sync-desktop-resources.mjs` mirrors it into `src-tauri/database/postgres/patches/`).
-At startup, an existing V1 desktop database that still predates the patch is
-backed up (`pg_dump` into the app's backups directory) and patched in place
-before the backend sidecar launches, so the sidecar's schema guard passes.
+Docker and desktop bundles use the same V1 sequence: baseline, then seed, only
+for a new empty PostgreSQL database. The desktop launcher does not alter a
+non-empty unversioned or legacy database. Recovery is a manual, backup-first
+export and fresh rebuild. Optimization scripts are never bundled or applied
+automatically.

@@ -45,7 +45,6 @@ cargo check --all-features                    # minimum bar before claiming done
 cargo clippy --all-features -- -D warnings    # what CI actually runs
 cargo run --bin hotel-app-be                  # PostgreSQL mode, port 3030 (bare `cargo run` errors: multiple bins)
 psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-psql "$DATABASE_URL" -f database/postgres/data.sql
 psql "$DATABASE_URL" -f database/postgres/seed.sql                 # one-time V1 initialization
 cargo test <name>                             # single test by substring
 cargo run --bin hash_password -- <password>   # helper bins in src/bin/
@@ -84,8 +83,8 @@ Backend request flow: `routes/<domain>.rs` → auth middleware → `handlers/<do
 
 PostgreSQL is the only database engine. Every SQL change must compile under
 `--all-features`. PostgreSQL V1 initialization is the baseline migration,
-`data.sql`, then `seed.sql`, exactly once for a new empty database. Docker and
-desktop use that same sequence.
+then `seed.sql`, exactly once for a new empty database. Docker and desktop use
+that same sequence. Legacy schemas require export and a fresh rebuild.
 
 Frontend:
 - `src/features/<domain>/` feature modules; `src/api/*.service.ts` one per backend domain.

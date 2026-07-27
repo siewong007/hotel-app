@@ -112,7 +112,7 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
           HOTEL_RUN_PG_SCHEMA_SMOKE: "1"
-        run: cargo test --features postgres --no-default-features --test status_vocabulary postgres_schema_reruns_and_normalizes_legacy_cancelled_statuses
+        run: cargo test --features postgres --no-default-features --test status_vocabulary postgres_smoke::postgres_v1_lifecycle_builds_the_final_schema
 
       - name: Prepare PostgreSQL workflow database
         run: |
@@ -177,10 +177,9 @@ jobs:
       - name: Apply PostgreSQL schema and seed data
         run: |
           psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-          psql "$DATABASE_URL" -f database/postgres/data.sql
           psql "$DATABASE_URL" -f database/postgres/seed.sql
 
-      # The V1 baseline/data/seed set is intentionally one-shot. Reapplying it
+      # The V1 baseline/seed set is intentionally one-shot. Reapplying it
       # is an invalid lifecycle operation, so assert the completed installation
       # and its core schema instead of expecting those files to be idempotent.
       - name: Verify PostgreSQL V1 installation
