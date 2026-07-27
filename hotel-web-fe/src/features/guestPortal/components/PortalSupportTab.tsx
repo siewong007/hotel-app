@@ -158,7 +158,9 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
       fullWidth
       maxWidth="sm"
       aria-describedby="support-conversation-safety-note"
-      PaperProps={{ sx: { borderRadius: 3 } }}
+      slotProps={{
+        paper: { sx: { borderRadius: 3 } }
+      }}
     >
       <Box component="form" onSubmit={handleSubmit}>
         <DialogTitle sx={{ pb: 1 }}>Contact hotel support</DialogTitle>
@@ -175,9 +177,11 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
             label="What do you need help with?"
             value={category}
             onChange={event => setCategory(event.target.value as PortalSupportCategory)}
-            SelectProps={{ native: true }}
             disabled={isSubmitting}
             sx={{ mb: 2 }}
+            slotProps={{
+              select: { native: true }
+            }}
           >
             {PORTAL_SUPPORT_CATEGORIES.filter(option => categories.includes(option.value)).map(option => (
               <option key={option.value} value={option.value}>
@@ -195,9 +199,11 @@ function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubm
             placeholder="Please share the details. Do not include card or payment details."
             value={message}
             onChange={event => setMessage(event.target.value)}
-            inputProps={{ maxLength: MAX_MESSAGE_LENGTH }}
             helperText={`${message.length}/${MAX_MESSAGE_LENGTH}`}
             disabled={isSubmitting}
+            slotProps={{
+              htmlInput: { maxLength: MAX_MESSAGE_LENGTH }
+            }}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
@@ -234,12 +240,16 @@ function ConversationListItem({
               color={supportStatusColor(conversation.status)}
               size="small"
             />
-            <Typography component="span" variant="caption" color="text.secondary">
+            <Typography component="span" variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               Updated {formatDateTime(conversation.last_activity_at || conversation.updated_at)}
             </Typography>
           </Stack>
         }
-        primaryTypographyProps={{ noWrap: true, fontWeight: selected ? 700 : 500 }}
+        slotProps={{
+          primary: { noWrap: true, sx: { fontWeight: selected ? 700 : 500 } }
+        }}
       />
     </ListItemButton>
   );
@@ -252,7 +262,9 @@ function MessageBubble({ message }: { message: PortalSupportMessage }) {
   if (isSystem) {
     return (
       <Box sx={{ textAlign: 'center', my: 1.5 }}>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           {message.body} · {formatDateTime(message.created_at)}
         </Typography>
       </Box>
@@ -322,7 +334,17 @@ function ConversationDetail({
   }, [detail?.conversation.id]);
 
   const mobileNavigation = (
-    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ display: { xs: 'flex', md: 'none' }, px: 1, py: 0.5, borderBottom: 1, borderColor: 'divider' }}>
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "center",
+        display: { xs: 'flex', md: 'none' },
+        px: 1,
+        py: 0.5,
+        borderBottom: 1,
+        borderColor: 'divider'
+      }}>
       <Button startIcon={<ArrowBackOutlinedIcon />} onClick={onBack} sx={{ minHeight: 44 }}>
         Back to conversations
       </Button>
@@ -364,7 +386,9 @@ function ConversationDetail({
           <Box>
             <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 42, mb: 1 }} />
             <Typography variant="h6">Select a conversation</Typography>
-            <Typography color="text.secondary">Choose a support conversation to read or reply.</Typography>
+            <Typography sx={{
+              color: "text.secondary"
+            }}>Choose a support conversation to read or reply.</Typography>
           </Box>
         </Box>
       </Box>
@@ -403,17 +427,24 @@ function ConversationDetail({
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: { xs: 'calc(100dvh - 172px)', md: 540 }, bgcolor: '#fffdf9' }}>
       <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ mx: { xs: -1, md: 0 }, mt: { xs: -1.5, md: 0 }, mb: { xs: 1, md: 0 } }}>{mobileNavigation}</Box>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { sm: 'center' }
+          }}>
           <Box>
             <Typography variant="h6">{conversation.subject?.trim() || supportCategoryLabel(conversation.category)}</Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Started {formatDateTime(conversation.created_at)}
             </Typography>
           </Box>
           <Chip label={supportStatusLabel(conversation.status)} color={supportStatusColor(conversation.status)} size="small" />
         </Stack>
       </Box>
-
       <Box role="log" aria-live="polite" aria-label="Conversation messages" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: '#f8f5ef' }}>
         {conversation.resolution_summary ? (
           <Alert severity="success" sx={{ mb: 2 }}>
@@ -423,7 +454,6 @@ function ConversationDetail({
         ) : null}
         {messages.map(messageItem => <MessageBubble key={String(messageItem.id)} message={messageItem} />)}
       </Box>
-
       <Divider />
       <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#fffdf9', position: { xs: 'sticky', md: 'static' }, bottom: 0, pb: { xs: 'max(16px, env(safe-area-inset-bottom))', md: 3 }, boxShadow: { xs: '0 -8px 24px rgba(6,17,14,.08)', md: 'none' } }}>
         {sendError && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
@@ -438,9 +468,11 @@ function ConversationDetail({
               placeholder="Type your message"
               value={message}
               onChange={event => setMessage(event.target.value)}
-              inputProps={{ maxLength: MAX_MESSAGE_LENGTH }}
               helperText={`${message.length}/${MAX_MESSAGE_LENGTH}`}
               disabled={isSending}
+              slotProps={{
+                htmlInput: { maxLength: MAX_MESSAGE_LENGTH }
+              }}
             />
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5 }}>
               <Button type="submit" variant="contained" disabled={isSending || !message.trim()} sx={{ minHeight: 44 }} startIcon={isSending ? <CircularProgress size={18} color="inherit" /> : <SendOutlinedIcon />}>
@@ -521,10 +553,22 @@ export function PortalSupportTab({ token }: { token: string }) {
 
   return (
     <Box>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ sm: 'center' }} sx={{ mb: 3 }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: { sm: 'center' },
+          mb: 3
+        }}>
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 700, color: '#06110e' }}>Message the hotel team</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Ask about your stay or account and keep every response together.</Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: 0.5
+            }}>Ask about your stay or account and keep every response together.</Typography>
         </Box>
         <Button
           variant="contained"
@@ -536,17 +580,14 @@ export function PortalSupportTab({ token }: { token: string }) {
           New conversation
         </Button>
       </Stack>
-
       {!isSupportEnabled ? (
         <Alert severity="info" sx={{ mb: 2 }}>
           The hotel is not accepting new support conversations right now. You can still read existing conversations below.
         </Alert>
       ) : null}
-
       <Alert severity="warning" sx={{ mb: 3 }}>
         For an emergency, contact local emergency services or the hotel front desk. Support chat is not monitored for emergencies.
       </Alert>
-
       {conversationsQuery.isLoading ? (
         <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 280 }}><CircularProgress /></Box>
       ) : conversationsQuery.error ? (
@@ -557,7 +598,11 @@ export function PortalSupportTab({ token }: { token: string }) {
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
           <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 48, mb: 1 }} />
           <Typography variant="h6" gutterBottom>No support conversations yet</Typography>
-          <Typography color="text.secondary" sx={{ mb: 2 }}>Start a conversation and the hotel team will get back to you here.</Typography>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>Start a conversation and the hotel team will get back to you here.</Typography>
           <Button variant="contained" onClick={() => setNewConversationOpen(true)} disabled={!isSupportEnabled}>Contact support</Button>
         </Paper>
       ) : (
@@ -606,7 +651,6 @@ export function PortalSupportTab({ token }: { token: string }) {
           </Paper>
         </Box>
       )}
-
       <NewConversationDialog
         open={newConversationOpen}
         isSubmitting={createConversation.isPending}

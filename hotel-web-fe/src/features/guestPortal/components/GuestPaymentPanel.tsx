@@ -204,7 +204,9 @@ export function GuestPaymentPanel({
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 2 }}>
         <CircularProgress size={20} />
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           Loading payment options…
         </Typography>
       </Box>
@@ -250,7 +252,6 @@ export function GuestPaymentPanel({
           Amount due: {formattedAmount}
         </Typography>
       ) : null}
-
       <FormControl component="fieldset" fullWidth>
         <Typography component="legend" variant="subtitle2" sx={{ mb: 1 }}>
           Choose a payment method
@@ -280,7 +281,6 @@ export function GuestPaymentPanel({
           ) : null}
         </RadioGroup>
       </FormControl>
-
       {paymentMethod === 'bank_transfer' && showBankTransfer ? <Box sx={{ mt: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
           Bank transfer details
@@ -314,7 +314,9 @@ export function GuestPaymentPanel({
         </Alert>
       ) : null}
       {hasBankDetails ? (
-        <Stack spacing={1.25} alignItems="flex-start">
+        <Stack spacing={1.25} sx={{
+          alignItems: "flex-start"
+        }}>
           <Button component="label" size="small" startIcon={<UploadFileOutlinedIcon />}>
             {receiptFile ? `Receipt selected: ${receiptFile.name}` : 'Attach receipt (optional)'}
             <input
@@ -324,7 +326,9 @@ export function GuestPaymentPanel({
               onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
             />
           </Button>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Optional JPEG, PNG, WebP, or PDF proof of payment (up to 10MB).
           </Typography>
           <Button
@@ -337,7 +341,6 @@ export function GuestPaymentPanel({
         </Stack>
       ) : null}
       </Box> : null}
-
       {paymentMethod === 'paypal' && paypalReady ? (
         <Box sx={{ mt: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>

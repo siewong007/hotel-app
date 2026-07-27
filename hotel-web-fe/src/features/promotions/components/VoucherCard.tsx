@@ -1,5 +1,5 @@
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
 import {
@@ -107,8 +107,16 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             }}
           />
 
-          <Stack direction="row" alignItems="center" justifyContent="space-between" gap={2}>
-            <Stack direction="row" alignItems="center" spacing={1}>
+          <Stack
+            direction="row"
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2
+            }}>
+            <Stack direction="row" spacing={1} sx={{
+              alignItems: "center"
+            }}>
               <ConfirmationNumberOutlinedIcon sx={{ color: '#9b742f', fontSize: 20 }} />
               <Typography
                 variant="overline"
@@ -146,7 +154,9 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             spacing={{ xs: 1, sm: 2.5 }}
             sx={{ mt: 3, color: 'text.secondary' }}
           >
-            <Stack direction="row" alignItems="center" spacing={0.75}>
+            <Stack direction="row" spacing={0.75} sx={{
+              alignItems: "center"
+            }}>
               <CalendarMonthOutlinedIcon sx={{ fontSize: 18 }} />
               <Typography variant="body2">
                 {expiresAt ? `Valid until ${expiresAt}` : 'No expiry date'}

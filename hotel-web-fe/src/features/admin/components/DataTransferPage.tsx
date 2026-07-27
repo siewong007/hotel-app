@@ -634,11 +634,16 @@ const DataTransferPage: React.FC = () => {
           </Box>
           <Checkbox checked={checked} size="small" sx={{ p: 0.25, mt: -0.25 }} onClick={(e) => e.stopPropagation()} onChange={() => toggle(meta.id)} />
         </Box>
-
-        <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5, lineHeight: 1.45, flex: 1 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            fontSize: 12.5,
+            lineHeight: 1.45,
+            flex: 1
+          }}>
           {meta.desc}
         </Typography>
-
         {(count != null || depNames) && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 'auto', flexWrap: 'wrap' }}>
             {count != null && (
@@ -734,20 +739,32 @@ const DataTransferPage: React.FC = () => {
           </Box>
           <Box>
             <Typography sx={{ fontWeight: 800, fontSize: 15 }}>{title}</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                fontSize: 12.5
+              }}>
               {subtitle}
             </Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontWeight: 600
+            }}>
             {selCount} of {ids.length} selected
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Button size="small" onClick={() => selectGroup(ids)} sx={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}>
               Select all
             </Button>
-            <Typography variant="caption" color="text.disabled">
+            <Typography variant="caption" sx={{
+              color: "text.disabled"
+            }}>
               ·
             </Typography>
             <Button size="small" color="inherit" onClick={() => clearGroup(ids)} sx={{ minWidth: 0, fontSize: 12, fontWeight: 700, color: 'text.secondary' }}>
@@ -779,7 +796,9 @@ const DataTransferPage: React.FC = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: 20, lineHeight: 1 }}>{selectedIds.length}</Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             categories
           </Typography>
         </Box>
@@ -788,7 +807,9 @@ const DataTransferPage: React.FC = () => {
           <Typography sx={{ fontWeight: 800, fontSize: 20, lineHeight: 1 }}>
             {isImportContext || exportCounts ? formatNum(selectedRecords) : '—'}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {recordsLabel}
           </Typography>
         </Box>
@@ -805,7 +826,9 @@ const DataTransferPage: React.FC = () => {
         </Box>
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: 14 }}>Suggested combinations</Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Dependency-complete bundles — each pulls in the tables it references, so the result can never lose data.
           </Typography>
         </Box>
@@ -919,7 +942,13 @@ const DataTransferPage: React.FC = () => {
       </Box>
       <Box>
         <Typography sx={{ fontWeight: 800, fontSize: 18 }}>Select a backup file to import</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 480 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mt: 0.5,
+            maxWidth: 480
+          }}>
           Upload a previously exported <strong>.json</strong> file. Categories are detected automatically; you choose
           which to import and confirm before anything is written.
         </Typography>
@@ -949,7 +978,9 @@ const DataTransferPage: React.FC = () => {
               <Typography sx={{ fontWeight: 700, fontSize: 14 }} noWrap>
                 {importFileName}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {detected} categories detected · parsed successfully
               </Typography>
             </Box>
@@ -958,13 +989,11 @@ const DataTransferPage: React.FC = () => {
             Remove file
           </Button>
         </Paper>
-
         <Alert severity="warning" icon={<WarningIcon />} sx={{ borderRadius: 2 }}>
           <strong>Operational data depends on system configuration.</strong> Selecting a category auto-includes the
           tables it references; categories required by your selection are pulled in for you.
         </Alert>
         {renderPresets()}
-
         <Section
           title="System Configuration"
           subtitle="Import these first so operational references resolve."
@@ -997,7 +1026,12 @@ const DataTransferPage: React.FC = () => {
     <Paper elevation={0} sx={cardSx}>
       <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
         <Typography sx={{ fontWeight: 800, fontSize: 15 }}>Transfer History</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            fontSize: 12.5
+          }}>
           Every export and import performed on this device is logged with the user, time, and outcome.
         </Typography>
       </Box>
@@ -1037,7 +1071,9 @@ const DataTransferPage: React.FC = () => {
                       {h.categories}
                     </Typography>
                     {h.error && (
-                      <Typography variant="caption" color="error.main">
+                      <Typography variant="caption" sx={{
+                        color: "error.main"
+                      }}>
                         {h.error}
                       </Typography>
                     )}
@@ -1082,7 +1118,13 @@ const DataTransferPage: React.FC = () => {
               sx={{ height: 22, fontSize: 11, fontWeight: 600, fontFamily: 'monospace' }}
             />
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 680 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: 0.5,
+              maxWidth: 680
+            }}>
             Export, import, and migrate property data. System configuration and operational records are grouped so you
             can move exactly what you need without breaking references.
           </Typography>
@@ -1096,7 +1138,6 @@ const DataTransferPage: React.FC = () => {
           </Button>
         </Box>
       </Box>
-
       {/* Tabs */}
       <ToggleButtonGroup
         value={tab}
@@ -1133,11 +1174,9 @@ const DataTransferPage: React.FC = () => {
           <HistoryIcon sx={{ fontSize: 18, mr: 0.75 }} /> History
         </ToggleButton>
       </ToggleButtonGroup>
-
       {tab === 'export' && renderExport()}
       {tab === 'import' && (importFile ? renderImportLoaded() : renderImportDropzone())}
       {tab === 'history' && renderHistory()}
-
       {/* Last import result */}
       {importResult && tab !== 'history' && (
         <Paper elevation={0} sx={{ ...cardSx, mt: 2, p: 2 }}>
@@ -1167,9 +1206,10 @@ const DataTransferPage: React.FC = () => {
           </TableContainer>
         </Paper>
       )}
-
       {/* ===== Preview (pre-flight summary) modal ===== */}
-      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="sm" fullWidth slotProps={{
+        paper: { sx: { borderRadius: 3 } }
+      }}>
         <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${theme.palette.divider}` }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 40, height: 40, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(theme.palette.primary.main, 0.12), color: 'primary.main' }}>
@@ -1180,7 +1220,9 @@ const DataTransferPage: React.FC = () => {
                 <Typography sx={{ fontWeight: 800, fontSize: 16 }}>Import preview</Typography>
                 <Chip label="Summary" size="small" sx={{ height: 18, fontSize: 10, fontWeight: 700 }} />
               </Box>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 Review what will be sent — nothing is written until you confirm.
               </Typography>
             </Box>
@@ -1197,7 +1239,9 @@ const DataTransferPage: React.FC = () => {
               { label: 'Warnings', value: previewWarnings.length },
             ].map((s) => (
               <Paper key={s.label} variant="outlined" sx={{ flex: 1, p: 1.5, borderRadius: 2, textAlign: 'center' }}>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   {s.label}
                 </Typography>
                 <Typography sx={{ fontWeight: 800, fontSize: 20 }}>{s.value}</Typography>
@@ -1214,7 +1258,9 @@ const DataTransferPage: React.FC = () => {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {nameOf(id)}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {formatNum(countOf(id) ?? 0)} records
                   </Typography>
                 </Box>
@@ -1238,7 +1284,9 @@ const DataTransferPage: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 2.5, justifyContent: 'space-between' }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Import runs in a single transaction.
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -1251,9 +1299,10 @@ const DataTransferPage: React.FC = () => {
           </Box>
         </DialogActions>
       </Dialog>
-
       {/* ===== Confirm dialog ===== */}
-      <Dialog open={confirmOpen} onClose={closeConfirm} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog open={confirmOpen} onClose={closeConfirm} maxWidth="xs" fullWidth slotProps={{
+        paper: { sx: { borderRadius: 3 } }
+      }}>
         <DialogContent sx={{ p: 3, textAlign: 'center' }}>
           <Box
             sx={{
@@ -1273,7 +1322,12 @@ const DataTransferPage: React.FC = () => {
             {importMode === 'overwrite' ? <ErrorIcon /> : <WarningIcon />}
           </Box>
           <Typography sx={{ fontWeight: 800, fontSize: 18, mb: 1 }}>Confirm import</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             You're about to import <strong>{formatNum(selectedRecords)} records</strong> across{' '}
             <strong>{selectedIds.length} categories</strong>. This action is logged to the transfer history.
           </Typography>
@@ -1356,7 +1410,6 @@ const DataTransferPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* ===== Toast ===== */}
       <Snackbar
         open={toast.open}

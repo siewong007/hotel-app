@@ -163,7 +163,9 @@ export const GuestCheckInForm: React.FC = () => {
           <Typography variant="h4" component="h1" gutterBottom>
             Update Your Information
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Please review and update your details for a smooth check-in
           </Typography>
         </Box>
@@ -329,7 +331,9 @@ export const GuestCheckInForm: React.FC = () => {
         <TabPanel value={activeTab} index={1}>
           <Grid container spacing={2}>
             <Grid size={12}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Typography variant="body2" gutterBottom sx={{
+                color: "text.secondary"
+              }}>
                 The following information is read-only. Please contact the hotel if you need to make changes.
               </Typography>
             </Grid>

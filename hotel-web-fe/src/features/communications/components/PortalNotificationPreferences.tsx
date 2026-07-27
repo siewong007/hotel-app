@@ -73,7 +73,13 @@ export default function PortalNotificationPreferences({ token }: { token: string
         <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
           Email preferences
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, mb: 2 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mt: 0.5,
+            mb: 2
+          }}>
           You only receive the email topics you choose. All optional communications require your opt-in.
         </Typography>
         <Box role="status" aria-live="polite" aria-atomic="true" sx={{ minHeight: savedMessage || error ? 40 : 0, mb: savedMessage || error ? 1.5 : 0 }}>
@@ -88,11 +94,19 @@ export default function PortalNotificationPreferences({ token }: { token: string
             <Stack
               key={s.topic}
               direction="row"
-              justifyContent="space-between"
-              alignItems="center"
-              sx={{ minHeight: 52, px: 1.5, borderRadius: 2, bgcolor: s.subscribed ? 'rgba(217,181,114,.16)' : 'rgba(6,17,14,.03)' }}
-            >
-              <Box><Typography variant="body2" fontWeight={600}>{TOPIC_LABELS[s.topic] ?? s.topic}</Typography><Typography variant="caption" color="text.secondary">{s.subscribed ? 'Email updates enabled' : 'Email updates disabled'}</Typography></Box>
+              sx={{
+                justifyContent: "space-between",
+                alignItems: "center",
+                minHeight: 52,
+                px: 1.5,
+                borderRadius: 2,
+                bgcolor: s.subscribed ? 'rgba(217,181,114,.16)' : 'rgba(6,17,14,.03)'
+              }}>
+              <Box><Typography variant="body2" sx={{
+                fontWeight: 600
+              }}>{TOPIC_LABELS[s.topic] ?? s.topic}</Typography><Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>{s.subscribed ? 'Email updates enabled' : 'Email updates disabled'}</Typography></Box>
               <Switch
                 checked={s.subscribed}
                 disabled={update.isPending}

@@ -129,12 +129,19 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
         <Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 1
+            }}>
             {totalPermissions} permissions across {totalCategories} categories
           </Typography>
 
           {/* Role legend */}
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={0.5} useFlexGap sx={{
+            flexWrap: "wrap"
+          }}>
             {roles.map((role) => (
               <Chip
                 key={role.id}
@@ -157,14 +164,16 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
             placeholder="Search permissions..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" color="action" />
-                </InputAdornment>
-              ),
-            }}
             sx={{ width: 250 }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }
+            }}
           />
 
           <Button
@@ -176,7 +185,6 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
           </Button>
         </Box>
       </Box>
-
       {/* Permission categories */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -184,7 +192,9 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
         </Box>
       ) : filteredCategories.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary">
+          <Typography sx={{
+            color: "text.secondary"
+          }}>
             {searchQuery ? 'No permissions match your search' : 'No permissions configured'}
           </Typography>
         </Paper>
@@ -202,7 +212,6 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
           />
         ))
       )}
-
       {/* Create Permission Dialog */}
       <Dialog
         open={createDialogOpen}

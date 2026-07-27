@@ -57,7 +57,6 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
           </Typography>
         </Box>
       </DialogTitle>
-
       <DialogContent sx={{ pt: 3 }}>
         {booking && (
           <Grid container spacing={3}>
@@ -69,27 +68,37 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                 </Typography>
                 <Grid container spacing={1}>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Room:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold">
+                    <Typography variant="body2" sx={{
+                      fontWeight: "bold"
+                    }}>
                       {room?.room_number} - {room?.room_type}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Guest:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold">
+                    <Typography variant="body2" sx={{
+                      fontWeight: "bold"
+                    }}>
                       {booking.guest_name}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Check-in Date:
                     </Typography>
                   </Grid>
@@ -99,7 +108,9 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Check-out Date:
                     </Typography>
                   </Grid>
@@ -109,7 +120,9 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Original Amount:
                     </Typography>
                   </Grid>
@@ -119,12 +132,19 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       New Amount:
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: "bold",
+                        color: "success.main"
+                      }}>
                       {currencySymbol}0.00 (Complimentary)
                     </Typography>
                   </Grid>
@@ -155,7 +175,6 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
           </Grid>
         )}
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onCancel} disabled={processing}>
           Cancel

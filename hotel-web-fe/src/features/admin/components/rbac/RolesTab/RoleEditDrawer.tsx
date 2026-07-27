@@ -140,11 +140,13 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{
-        sx: {
-          width: { xs: '100%', sm: 420 },
-          maxWidth: '100%',
-        },
+      slotProps={{
+        paper: {
+          sx: {
+            width: { xs: '100%', sm: 420 },
+            maxWidth: '100%',
+          },
+        }
       }}
     >
       {/* Header */}
@@ -160,14 +162,15 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
           backgroundColor: alpha(color, 0.05),
         }}
       >
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" sx={{
+          fontWeight: 600
+        }}>
           {role ? `Edit Role: ${role.name}` : 'Edit Role'}
         </Typography>
         <IconButton onClick={onClose} size="small">
           <CloseIcon />
         </IconButton>
       </Box>
-
       {/* Content */}
       <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
         {error && (
@@ -178,7 +181,12 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
 
         {/* Basic Info Section */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 600,
+              mb: 2
+            }}>
             Basic Information
           </Typography>
 
@@ -213,7 +221,12 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
 
         {/* Navigation Access Section */}
         <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 600,
+              mb: 2
+            }}>
             Navigation Access
           </Typography>
 
@@ -229,7 +242,12 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
 
         {/* Permission Summary Section */}
         <Box>
-          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              fontWeight: 600,
+              mb: 2
+            }}>
             Permission Summary
           </Typography>
 
@@ -239,7 +257,6 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
           />
         </Box>
       </Box>
-
       {/* Footer */}
       <Box
         sx={{

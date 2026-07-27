@@ -129,7 +129,9 @@ const EmailVerificationPage: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Verifying your email...
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Please wait while we verify your email address.
               </Typography>
             </Box>
@@ -141,7 +143,12 @@ const EmailVerificationPage: React.FC = () => {
               <Typography variant="h6" gutterBottom sx={{ color: 'success.main' }}>
                 {message}
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3
+                }}>
                 You can now log in to your account.
               </Typography>
               <Alert severity="info" sx={{ mb: 3 }}>
@@ -169,7 +176,12 @@ const EmailVerificationPage: React.FC = () => {
               <Typography variant="h6" gutterBottom sx={{ color: 'error.main' }}>
                 Verification Failed
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  mb: 3
+                }}>
                 {message}
               </Typography>
               <Alert severity="warning" sx={{ mb: 3 }}>

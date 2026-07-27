@@ -13,7 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 
 import { GuestPortalDashboardService } from '../../api/guestPortalDashboard.service';
@@ -223,11 +223,16 @@ export function IdentitySection({ token }: { token: string }) {
         title="Identity verification"
         description="Verify your identity before you arrive so check-in takes moments instead of minutes. Your documents are encrypted and only seen by our front-desk team."
       />
-
       {status && presentation ? (
         <Card sx={{ mb: 3, border: '1px solid rgba(6,17,14,.12)' }}>
           <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+            <Stack
+              direction="row"
+              spacing={1.5}
+              sx={{
+                alignItems: "center",
+                mb: 1.5
+              }}>
               <Chip
                 label={presentation.label}
                 color={presentation.tone}
@@ -235,7 +240,9 @@ export function IdentitySection({ token }: { token: string }) {
                 icon={presentation.tone === 'success' ? <CheckCircleOutlineIcon /> : undefined}
               />
               {status.submitted_at ? (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   Submitted {formatPortalDate(status.submitted_at)}
                 </Typography>
               ) : null}
@@ -249,7 +256,6 @@ export function IdentitySection({ token }: { token: string }) {
           </CardContent>
         </Card>
       ) : null}
-
       {presentation?.blocking ? null : (
         <Box component="form" noValidate onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }}>
           {status ? (
@@ -275,9 +281,11 @@ export function IdentitySection({ token }: { token: string }) {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth required type="date" label="Date of birth"
-                InputLabelProps={{ shrink: true }}
-                value={fields.dateOfBirth} onChange={setField('dateOfBirth')}
-                error={Boolean(errorFor('dateOfBirth'))} helperText={errorFor('dateOfBirth')}
+                value={fields.dateOfBirth}
+                onChange={setField('dateOfBirth')} error={Boolean(errorFor('dateOfBirth'))}
+                helperText={errorFor('dateOfBirth')} slotProps={{
+                inputLabel: { shrink: true }
+              }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -307,9 +315,11 @@ export function IdentitySection({ token }: { token: string }) {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth required type="date" label="ID expiry date"
-                InputLabelProps={{ shrink: true }}
-                value={fields.idExpiryDate} onChange={setField('idExpiryDate')}
-                error={Boolean(errorFor('idExpiryDate'))} helperText={errorFor('idExpiryDate')}
+                value={fields.idExpiryDate}
+                onChange={setField('idExpiryDate')} error={Boolean(errorFor('idExpiryDate'))}
+                helperText={errorFor('idExpiryDate')} slotProps={{
+                inputLabel: { shrink: true }
+              }}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -345,16 +355,30 @@ export function IdentitySection({ token }: { token: string }) {
           <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700, mt: 4, mb: 1 }}>
             Documents
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             Clear photos, JPEG/PNG/WebP, up to 10MB each.
           </Typography>
 
-          <Stack spacing={1.5} alignItems="flex-start">
+          <Stack spacing={1.5} sx={{
+            alignItems: "flex-start"
+          }}>
             {DOCUMENT_SLOTS.map((slot) => {
               const required = slot.key === 'id_back' ? idBackRequired : slot.required;
               const stored = paths[slot.key];
               return (
-                <Stack key={slot.key} direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                <Stack
+                  key={slot.key}
+                  direction="row"
+                  spacing={1.5}
+                  sx={{
+                    alignItems: "center",
+                    flexWrap: "wrap"
+                  }}>
                   <Button
                     component="label"
                     size="small"

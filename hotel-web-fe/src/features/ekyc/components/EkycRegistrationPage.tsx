@@ -265,11 +265,15 @@ const EkycRegistrationPage: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Personal Information
               </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  marginBottom: "16px"
+                }}>
                 Please provide your personal details as they appear on your ID document.
               </Typography>
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -280,7 +284,6 @@ const EkycRegistrationPage: React.FC = () => {
                 placeholder="As shown on ID"
               />
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
                 label="Date of Birth"
@@ -290,7 +293,6 @@ const EkycRegistrationPage: React.FC = () => {
                 required
               />
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -307,7 +309,6 @@ const EkycRegistrationPage: React.FC = () => {
                 ))}
               </TextField>
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -324,7 +325,6 @@ const EkycRegistrationPage: React.FC = () => {
                 placeholder="+1-234-567-8900"
               />
             </Grid>
-
             <Grid size={12}>
               <TextField
                 fullWidth
@@ -341,7 +341,6 @@ const EkycRegistrationPage: React.FC = () => {
                 helperText={emailError}
               />
             </Grid>
-
             <Grid size={12}>
               <TextField
                 fullWidth
@@ -364,11 +363,15 @@ const EkycRegistrationPage: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Identity Document Details
               </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  marginBottom: "16px"
+                }}>
                 Enter the details from your government-issued ID.
               </Typography>
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -385,7 +388,6 @@ const EkycRegistrationPage: React.FC = () => {
                 ))}
               </TextField>
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -395,7 +397,6 @@ const EkycRegistrationPage: React.FC = () => {
                 onChange={(e) => setDocumentInfo({ ...documentInfo, idNumber: e.target.value })}
               />
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -412,7 +413,6 @@ const EkycRegistrationPage: React.FC = () => {
                 ))}
               </TextField>
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
                 label="Issue Date (Optional)"
@@ -421,7 +421,6 @@ const EkycRegistrationPage: React.FC = () => {
                 maxDate={formatLocalDate()}
               />
             </Grid>
-
             <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
                 label="Expiry Date"
@@ -441,11 +440,15 @@ const EkycRegistrationPage: React.FC = () => {
               <Typography variant="h6" gutterBottom>
                 Upload Documents
               </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  marginBottom: "16px"
+                }}>
                 Please upload clear photos of your ID and a recent selfie.
               </Typography>
             </Grid>
-
             {/* ID Front */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card variant="outlined">
@@ -494,7 +497,6 @@ const EkycRegistrationPage: React.FC = () => {
                 </CardContent>
               </Card>
             </Grid>
-
             {/* ID Back */}
             {documentInfo.idType !== 'passport' && (
               <Grid size={{ xs: 12, md: 6 }}>
@@ -545,7 +547,6 @@ const EkycRegistrationPage: React.FC = () => {
                 </Card>
               </Grid>
             )}
-
             {/* Selfie */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card variant="outlined">
@@ -553,7 +554,13 @@ const EkycRegistrationPage: React.FC = () => {
                   <Typography variant="subtitle2" gutterBottom>
                     Selfie Photo <Chip label="Required" color="error" size="small" />
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      display: "block",
+                      mb: 2
+                    }}>
                     Take a clear photo of your face for verification
                   </Typography>
                   <Box sx={{ mt: 2 }}>
@@ -598,7 +605,6 @@ const EkycRegistrationPage: React.FC = () => {
                 </CardContent>
               </Card>
             </Grid>
-
             {/* Proof of Address (Optional) */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Card variant="outlined">
@@ -606,7 +612,13 @@ const EkycRegistrationPage: React.FC = () => {
                   <Typography variant="subtitle2" gutterBottom>
                     Proof of Address <Chip label="Optional" size="small" />
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      display: "block",
+                      mb: 2
+                    }}>
                     Utility bill, bank statement, etc.
                   </Typography>
                   <Box sx={{ mt: 2 }}>
@@ -659,10 +671,14 @@ const EkycRegistrationPage: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Review & Submit
             </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                marginBottom: "16px"
+              }}>
               Please review your information before submitting.
             </Typography>
-
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
@@ -670,29 +686,38 @@ const EkycRegistrationPage: React.FC = () => {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Full Name:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Full Name:</Typography>
                     <Typography variant="body1">{personalInfo.fullName}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Date of Birth:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Date of Birth:</Typography>
                     <Typography variant="body1">{personalInfo.dateOfBirth}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Nationality:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Nationality:</Typography>
                     <Typography variant="body1">{personalInfo.nationality}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Phone:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Phone:</Typography>
                     <Typography variant="body1">{personalInfo.phone}</Typography>
                   </Grid>
                   <Grid size={12}>
-                    <Typography variant="body2" color="text.secondary">Email:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Email:</Typography>
                     <Typography variant="body1">{personalInfo.email}</Typography>
                   </Grid>
                 </Grid>
               </CardContent>
             </Card>
-
             <Card variant="outlined" sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
@@ -700,27 +725,34 @@ const EkycRegistrationPage: React.FC = () => {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">ID Type:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>ID Type:</Typography>
                     <Typography variant="body1">
                       {idTypes.find(t => t.value === documentInfo.idType)?.label}
                     </Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">ID Number:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>ID Number:</Typography>
                     <Typography variant="body1">{documentInfo.idNumber}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Issuing Country:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Issuing Country:</Typography>
                     <Typography variant="body1">{documentInfo.idIssuingCountry}</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Expiry Date:</Typography>
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>Expiry Date:</Typography>
                     <Typography variant="body1">{documentInfo.idExpiryDate}</Typography>
                   </Grid>
                 </Grid>
               </CardContent>
             </Card>
-
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="subtitle2" color="primary" gutterBottom>
@@ -742,7 +774,6 @@ const EkycRegistrationPage: React.FC = () => {
                 </Box>
               </CardContent>
             </Card>
-
             <Alert severity="info" sx={{ mt: 3 }}>
               <Typography variant="body2">
                 Your information will be securely processed and verified. You will be notified once your verification is complete.
@@ -765,11 +796,18 @@ const EkycRegistrationPage: React.FC = () => {
           <Typography variant="h4" gutterBottom>
             eKYC Submitted Successfully!
           </Typography>
-          <Typography variant="body1" color="text.secondary" paragraph>
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+              marginBottom: "16px"
+            }}>
             Your identity verification has been submitted and is under review.
             You will receive an email notification once your verification is approved.
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Redirecting to your profile...
           </Typography>
         </Paper>
@@ -784,7 +822,9 @@ const EkycRegistrationPage: React.FC = () => {
           <Typography variant="h4" gutterBottom>
             eKYC Registration
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{
+            color: "text.secondary"
+          }}>
             Complete your identity verification to enable self-check-in
           </Typography>
         </Box>

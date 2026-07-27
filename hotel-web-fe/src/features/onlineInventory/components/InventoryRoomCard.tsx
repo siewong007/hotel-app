@@ -57,28 +57,54 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
       }}
     >
       <Stack spacing={2.25}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "flex-start"
+          }}>
           <Box sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Typography variant="h6" fontWeight={800}>{item.room_type_name}</Typography>
+            <Stack
+              direction="row"
+              spacing={1}
+              useFlexGap
+              sx={{
+                alignItems: "center",
+                flexWrap: "wrap"
+              }}>
+              <Typography variant="h6" sx={{
+                fontWeight: 800
+              }}>{item.room_type_name}</Typography>
               <Chip label={item.room_type_code} size="small" variant="outlined" />
               {isChanged && <Chip label="Unsaved" size="small" color="primary" />}
             </Stack>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mt: 0.5
+              }}>
               {item.physical_available_rooms} physically available for this stay date
             </Typography>
           </Box>
           <Tooltip title={item.online_booking_enabled ? 'Guests can book this room type online' : 'This room type is hidden from online booking'}>
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <Typography variant="body2" fontWeight={700} color={item.online_booking_enabled ? 'success.main' : 'text.secondary'}>
+            <Stack direction="row" spacing={0.5} sx={{
+              alignItems: "center"
+            }}>
+              <Typography variant="body2" color={item.online_booking_enabled ? 'success.main' : 'text.secondary'} sx={{
+                fontWeight: 700
+              }}>
                 {item.online_booking_enabled ? 'Online' : 'Offline'}
               </Typography>
               <Switch
                 checked={item.online_booking_enabled}
                 disabled={isDisabled}
-                inputProps={{ 'aria-label': `Online booking for ${item.room_type_name}` }}
                 onChange={(event) => onChange({ online_booking_enabled: event.target.checked })}
                 color="success"
+                slotProps={{
+                  input: { 'aria-label': `Online booking for ${item.room_type_name}` }
+                }}
               />
             </Stack>
           </Tooltip>
@@ -88,13 +114,25 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
 
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(250px, 1fr) minmax(240px, 1fr) minmax(260px, 1fr)' }, gap: 2.5, alignItems: 'center' }}>
           <Box>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <Stack
+              direction="row"
+              sx={{
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 1
+              }}>
               <Box>
-                <Typography fontWeight={750}>Hold for walk-ins</Typography>
-                <Typography variant="body2" color="text.secondary">These rooms will not appear online.</Typography>
+                <Typography sx={{
+                  fontWeight: 750
+                }}>Hold for walk-ins</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>These rooms will not appear online.</Typography>
               </Box>
             </Stack>
-            <Stack direction="row" alignItems="center" spacing={1}>
+            <Stack direction="row" spacing={1} sx={{
+              alignItems: "center"
+            }}>
               <IconButton
                 aria-label={`Decrease walk-in reserve for ${item.room_type_name}`}
                 onClick={() => setReserve(item.walk_in_reserved_rooms - 1)}
@@ -110,8 +148,10 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
                 type="number"
                 size="small"
                 error={reserveExceedsInventory}
-                inputProps={{ min: 0, 'aria-label': `Walk-in reserve for ${item.room_type_name}` }}
                 sx={{ width: 92, '& input': { textAlign: 'center', fontWeight: 800, fontSize: '1rem' } }}
+                slotProps={{
+                  htmlInput: { min: 0, 'aria-label': `Walk-in reserve for ${item.room_type_name}` }
+                }}
               />
               <IconButton
                 aria-label={`Increase walk-in reserve for ${item.room_type_name}`}
@@ -126,17 +166,33 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
               )}
             </Stack>
             {reserveExceedsInventory && (
-              <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 0.75 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "error.main",
+                  display: 'block',
+                  mt: 0.75
+                }}>
                 Reserve is higher than today’s physical availability.
               </Typography>
             )}
           </Box>
 
           <Box>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <Stack
+              direction="row"
+              sx={{
+                justifyContent: "space-between",
+                alignItems: "center",
+                mb: 1
+              }}>
               <Box>
-                <Typography fontWeight={750}>Custom online price</Typography>
-                <Typography variant="body2" color="text.secondary">Overrides the normal rate for this date.</Typography>
+                <Typography sx={{
+                  fontWeight: 750
+                }}>Custom online price</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Overrides the normal rate for this date.</Typography>
               </Box>
               {item.custom_price !== null && (
                 <Button size="small" onClick={() => onChange({ custom_price: null })} disabled={isDisabled}>Reset</Button>
@@ -151,9 +207,10 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
               fullWidth
               error={customPriceInvalid}
               helperText={customPriceInvalid ? 'Enter a price greater than zero.' : 'Leave blank to use the current room or rate-plan price.'}
-              inputProps={{ min: 0.01, step: 0.01, 'aria-label': `Custom online price for ${item.room_type_name}` }}
-              InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
-            />
+              slotProps={{
+                input: { startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> },
+                htmlInput: { min: 0.01, step: 0.01, 'aria-label': `Custom online price for ${item.room_type_name}` }
+              }} />
           </Box>
 
           <Box
@@ -168,19 +225,40 @@ export const InventoryRoomCard = ({ item, isChanged, isDisabled, onChange }: Inv
             }}
           >
             <Box>
-              <Stack direction="row" spacing={0.75} alignItems="center" color="text.secondary">
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{
+                  alignItems: "center",
+                  color: "text.secondary"
+                }}>
                 <StorefrontOutlinedIcon fontSize="small" />
-                <Typography variant="caption" fontWeight={700}>WALK-IN HOLD</Typography>
+                <Typography variant="caption" sx={{
+                  fontWeight: 700
+                }}>WALK-IN HOLD</Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800}>{item.walk_in_reserved_rooms}</Typography>
+              <Typography variant="h5" sx={{
+                fontWeight: 800
+              }}>{item.walk_in_reserved_rooms}</Typography>
             </Box>
             <Divider orientation="vertical" flexItem />
             <Box sx={{ textAlign: 'right' }}>
-              <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="flex-end" color={item.online_booking_enabled ? 'success.main' : 'text.secondary'}>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  color: item.online_booking_enabled ? 'success.main' : 'text.secondary'
+                }}>
                 <LanguageOutlinedIcon fontSize="small" />
-                <Typography variant="caption" fontWeight={700}>ONLINE NOW</Typography>
+                <Typography variant="caption" sx={{
+                  fontWeight: 700
+                }}>ONLINE NOW</Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800} color={item.online_booking_enabled ? 'success.main' : 'text.secondary'}>
+              <Typography variant="h5" color={item.online_booking_enabled ? 'success.main' : 'text.secondary'} sx={{
+                fontWeight: 800
+              }}>
                 {onlineAvailable}
               </Typography>
             </Box>

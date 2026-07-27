@@ -253,7 +253,9 @@ const RegisterPage: React.FC = () => {
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2" fontWeight={600}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 600
+                    }}>
                       {success}
                     </Typography>
                     {redirectCountdown !== null && (
@@ -286,7 +288,12 @@ const RegisterPage: React.FC = () => {
                           justifyContent: 'center',
                         }}
                       >
-                        <Typography variant="caption" fontWeight={700} color="success.main">
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 700,
+                            color: "success.main"
+                          }}>
                           {redirectCountdown}
                         </Typography>
                       </Box>
@@ -409,7 +416,6 @@ const RegisterPage: React.FC = () => {
                   onChange={handleInputChange}
                   multiline
                   minRows={2}
-                  inputProps={{ maxLength: 255 }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       transition: 'all 0.3s',
@@ -417,6 +423,9 @@ const RegisterPage: React.FC = () => {
                         transform: 'translateY(-2px)',
                       },
                     },
+                  }}
+                  slotProps={{
+                    htmlInput: { maxLength: 255 }
                   }}
                 />
               </Grid>

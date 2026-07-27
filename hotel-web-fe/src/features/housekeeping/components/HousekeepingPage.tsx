@@ -95,12 +95,22 @@ function RoomTaskRow({
       }}
     >
       <Stack spacing={1}>
-        <Stack direction="row" justifyContent="space-between" gap={1} alignItems="center">
-          <Box minWidth={0}>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "space-between",
+            gap: 1,
+            alignItems: "center"
+          }}>
+          <Box sx={{
+            minWidth: 0
+          }}>
             <Typography variant="subtitle2" noWrap>
               Room {room.room_number}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap component="div">
+            <Typography variant="caption" noWrap component="div" sx={{
+              color: "text.secondary"
+            }}>
               {room.room_type}{room.floor != null ? ` · Floor ${room.floor}` : ''}
             </Typography>
           </Box>
@@ -109,19 +119,25 @@ function RoomTaskRow({
 
         {task ? (
           <>
-            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+            <Stack direction="row" spacing={0.75} useFlexGap sx={{
+              flexWrap: "wrap"
+            }}>
               <Chip size="small" color={priorityColor(task.priority)} label={statusLabel(task.priority)} />
               <Chip size="small" color={taskStatusColor(task.status)} label={statusLabel(task.status)} />
               {task.assigned_to_name ? <Chip size="small" label={task.assigned_to_name} /> : null}
               {task.scheduled_date ? <Chip size="small" label={task.scheduled_date} /> : null}
             </Stack>
             {task.notes ? (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {task.notes}
               </Typography>
             ) : null}
             {canUpdate ? (
-              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" spacing={0.75} useFlexGap sx={{
+                flexWrap: "wrap"
+              }}>
                 {!task.assigned_to && currentUserId ? (
                   <Button
                     size="small"
@@ -184,7 +200,9 @@ function RoomTaskRow({
                 </Button>
               </>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No open task
               </Typography>
             )}
@@ -252,16 +270,30 @@ export default function HousekeepingPage() {
 
         {tab === 0 ? (
           <Stack spacing={2.5}>
-            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2}>
+            <Stack
+              direction={{ xs: 'column', md: 'row' }}
+              sx={{
+                justifyContent: "space-between",
+                gap: 2
+              }}>
               <Box>
                 <Typography variant="h4" component="h1">
                   Housekeeping
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   {formatLocalDate()} · {filteredRooms.length} rooms
                 </Typography>
               </Box>
-              <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap alignItems="center">
+              <Stack
+                direction="row"
+                spacing={1.25}
+                useFlexGap
+                sx={{
+                  flexWrap: "wrap",
+                  alignItems: "center"
+                }}>
                 {canSyncStatuses ? (
                   <Button
                     variant="outlined"
@@ -320,7 +352,11 @@ export default function HousekeepingPage() {
             ) : null}
 
             {boardQuery.isLoading ? (
-              <Stack alignItems="center" sx={{ py: 8 }}>
+              <Stack
+                sx={{
+                  alignItems: "center",
+                  py: 8
+                }}>
                 <CircularProgress />
               </Stack>
             ) : (
@@ -345,7 +381,12 @@ export default function HousekeepingPage() {
                     }}
                   >
                     <Stack spacing={1.25}>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                      <Stack
+                        direction="row"
+                        sx={{
+                          justifyContent: "space-between",
+                          alignItems: "center"
+                        }}>
                         <Typography variant="subtitle1">{statusLabel(status)}</Typography>
                         <Chip size="small" label={statusRooms.length} />
                       </Stack>

@@ -34,12 +34,20 @@ export function StatusPage({ statusCode }: StatusPageProps) {
       aria-labelledby="status-page-title"
     >
       <Paper elevation={0} sx={{ maxWidth: 520, width: '100%', p: { xs: 3, sm: 5 }, textAlign: 'center' }}>
-        <Stack spacing={2.5} alignItems="center">
+        <Stack spacing={2.5} sx={{
+          alignItems: "center"
+        }}>
           <Icon color="primary" sx={{ fontSize: 56 }} aria-hidden="true" />
-          <Typography variant="overline" color="text.secondary">Error {statusCode}</Typography>
+          <Typography variant="overline" sx={{
+            color: "text.secondary"
+          }}>Error {statusCode}</Typography>
           <Typography id="status-page-title" variant="h4" component="h1">{title}</Typography>
-          <Typography color="text.secondary">{message}</Typography>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="center">
+          <Typography sx={{
+            color: "text.secondary"
+          }}>{message}</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{
+            justifyContent: "center"
+          }}>
             <Button component={Link} to="/" variant="contained" startIcon={<Home />}>
               Go home
             </Button>

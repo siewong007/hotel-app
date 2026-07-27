@@ -17,7 +17,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import PersonIcon from '@mui/icons-material/Person';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import HotelIcon from '@mui/icons-material/Hotel';
@@ -559,7 +559,9 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
         >
           <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{user?.full_name || user?.username}</Typography>
-            <Typography variant="caption" color="text.secondary">{displayEmail || user?.username}</Typography>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>{displayEmail || user?.username}</Typography>
           </Box>
           <MenuItem onClick={() => handleMenuItemClick('/profile?edit=true')} sx={{ py: 1.25 }} onMouseEnter={() => preloadRoute('/profile')}>
             <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
@@ -582,7 +584,6 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           </MenuItem>
         </Menu>
       </Box>
-
       {/* ---------- Row 2: grouped pill tabs ---------- */}
       <Box
         sx={{

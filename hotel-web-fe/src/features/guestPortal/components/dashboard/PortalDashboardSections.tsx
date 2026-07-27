@@ -90,7 +90,9 @@ export function LoadingState({ label = "Loading your details…" }: { label?: st
       }}
     >
       <CircularProgress size={22} />
-      <Typography color="text.secondary">{label}</Typography>
+      <Typography sx={{
+        color: "text.secondary"
+      }}>{label}</Typography>
     </Box>
   );
 }
@@ -121,7 +123,9 @@ export function ErrorState({
 export function EmptyState({ message }: { message: string }) {
   return (
     <Box sx={{ py: 6, textAlign: "center" }}>
-      <Typography color="text.secondary">{message}</Typography>
+      <Typography sx={{
+        color: "text.secondary"
+      }}>{message}</Typography>
     </Box>
   );
 }
@@ -154,7 +158,11 @@ export function SectionHeading({
       >
         {title}
       </Typography>
-      <Typography color="text.secondary" sx={{ mt: 1 }}>
+      <Typography
+        sx={{
+          color: "text.secondary",
+          mt: 1
+        }}>
         {description}
       </Typography>
     </Box>
@@ -174,10 +182,17 @@ function CancellationUnavailable({
     "This booking cannot be cancelled online.";
   return (
     <Box role="status" aria-describedby={reasonId}>
-      <Typography variant="body2" color="text.secondary" fontWeight={600}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          fontWeight: 600
+        }}>
         Refund unavailable
       </Typography>
-      <Typography id={reasonId} variant="caption" color="text.secondary">
+      <Typography id={reasonId} variant="caption" sx={{
+        color: "text.secondary"
+      }}>
         {reason}
       </Typography>
     </Box>
@@ -234,14 +249,18 @@ function RefundBookingDialog({
       transitionDuration={
         prefersReducedMotion ? 0 : { enter: 180, exit: 140 }
       }
-      PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}
+      slotProps={{
+        paper: { sx: { borderRadius: { xs: 0, sm: 3 } } }
+      }}
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
         <DialogTitle sx={{ color: FOREST, fontWeight: 700 }}>
           Request refund for {booking.booking_number}?
         </DialogTitle>
         <DialogContent>
-          <Typography id="refund-booking-details" color="text.secondary">
+          <Typography id="refund-booking-details" sx={{
+            color: "text.secondary"
+          }}>
             {formatPortalDate(booking.check_in_date)} —{" "}
             {formatPortalDate(booking.check_out_date)} ·{" "}
             {formatPortalCurrency(booking.total_amount)}
@@ -279,10 +298,12 @@ function RefundBookingDialog({
               label="Custom refund reason"
               value={customReason}
               onChange={(event) => setCustomReason(event.target.value)}
-              inputProps={{ maxLength: 1000 }}
               helperText={`${1000 - customReason.length} characters remaining`}
               disabled={isSubmitting}
               sx={{ mt: 1 }}
+              slotProps={{
+                htmlInput: { maxLength: 1000 }
+              }}
             />
           ) : null}
         </DialogContent>
@@ -403,7 +424,11 @@ export function OverviewSection({
         >
           Welcome back, {firstName(me?.guest.full_name)}.
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 1 }}>
+        <Typography
+          sx={{
+            color: "text.secondary",
+            mt: 1
+          }}>
           Everything for your stay, in one calm place.
         </Typography>
       </Box>
@@ -426,10 +451,11 @@ export function OverviewSection({
             >
               <Stack
                 direction="row"
-                justifyContent="space-between"
-                alignItems="flex-start"
                 spacing={2}
-              >
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: "flex-start"
+                }}>
                 <Box>
                   <Typography
                     variant="overline"
@@ -494,7 +520,9 @@ export function OverviewSection({
                 "&:last-child": { pb: { xs: 3, sm: 4 } },
               }}
             >
-              <Stack direction="row" justifyContent="space-between">
+              <Stack direction="row" sx={{
+                justifyContent: "space-between"
+              }}>
                 <Box>
                   <Typography
                     variant="overline"
@@ -508,7 +536,9 @@ export function OverviewSection({
                   >
                     {member ? member.points_balance.toLocaleString() : "—"}
                   </Typography>
-                  <Typography color="text.secondary">
+                  <Typography sx={{
+                    color: "text.secondary"
+                  }}>
                     {member
                       ? `${member.tier_name} · points available`
                       : "Not enrolled yet"}
@@ -539,14 +569,17 @@ export function OverviewSection({
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
-          alignItems={{ sm: "center" }}
-          justifyContent="space-between"
-        >
+          sx={{
+            alignItems: { sm: "center" },
+            justifyContent: "space-between"
+          }}>
           <Box>
             <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
               Plan another visit
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Browse current offers before your next stay.
             </Typography>
           </Box>
@@ -618,10 +651,18 @@ function BookingDetailsDialog({
         </Stack>
         {hasReceipt ? (
           <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "success.50" }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+            <Stack
+              direction="row"
+              spacing={2}
+              sx={{
+                justifyContent: "space-between",
+                alignItems: "flex-start"
+              }}>
               <Box>
                 <Typography id="payment-receipt-heading" variant="h6">Booking receipt</Typography>
-                <Typography variant="body2" color="text.secondary">Your booking is confirmed.</Typography>
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Your booking is confirmed.</Typography>
               </Box>
               <Chip label="Paid" color="success" size="small" />
             </Stack>
@@ -645,7 +686,9 @@ function BookingDetailsDialog({
             variant="filled"
             sx={{ mt: 2, boxShadow: "0 4px 14px rgba(166,66,43,.22)" }}
           >
-            <Typography variant="subtitle2" fontWeight={800}>
+            <Typography variant="subtitle2" sx={{
+              fontWeight: 800
+            }}>
               Action required: upload your receipt
             </Typography>
             <Typography variant="body2">
@@ -665,10 +708,17 @@ function BookingDetailsDialog({
         ) : booking.receipt_request_payment_id ? (
           <Box sx={{ mt: 2 }}>
             <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Upload payment receipt</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 1
+              }}>
               Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
             </Typography>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{
+              alignItems: { sm: 'center' }
+            }}>
                 <Button component="label" variant="outlined" disabled={receiptUploading}>
                   {receiptFile ? receiptFile.name : 'Choose receipt file'}
                   <input
@@ -844,7 +894,9 @@ export function BookingsSection({ token }: { token: string }) {
                 boxShadow: "0 6px 18px rgba(166,66,43,.24)",
               }}
             >
-              <Typography variant="subtitle1" fontWeight={800}>
+              <Typography variant="subtitle1" sx={{
+                fontWeight: 800
+              }}>
                 Action required: upload your payment receipt
               </Typography>
               <Typography variant="body2">
@@ -914,7 +966,9 @@ export function BookingsSection({ token }: { token: string }) {
                         {formatPortalDate(booking.check_out_date)}
                       </TableCell>
                       <TableCell>
-                        <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">
+                        <Stack direction="row" spacing={0.5} useFlexGap sx={{
+                          flexWrap: "wrap"
+                        }}>
                           <Chip
                             label={humanizePortalStatus(booking.status)}
                             size="small"
@@ -926,7 +980,9 @@ export function BookingsSection({ token }: { token: string }) {
                         {formatPortalCurrency(booking.total_amount)}
                       </TableCell>
                       <TableCell align="right">
-                        <Stack direction="row" justifyContent="flex-end" spacing={1}>
+                        <Stack direction="row" spacing={1} sx={{
+                          justifyContent: "flex-end"
+                        }}>
                           {receiptUploadRequired ? (
                             <Button variant="contained" color="error" size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44, fontWeight: 800 }}>
                               Upload receipt
@@ -973,13 +1029,19 @@ export function BookingsSection({ token }: { token: string }) {
                   <CardContent>
                     <Stack
                       direction="row"
-                      justifyContent="space-between"
                       spacing={1}
+                      sx={{
+                        justifyContent: "space-between"
+                      }}
                     >
-                      <Typography fontWeight={700}>
+                      <Typography sx={{
+                        fontWeight: 700
+                      }}>
                         {booking.booking_number}
                       </Typography>
-                      <Stack spacing={0.5} alignItems="flex-end">
+                      <Stack spacing={0.5} sx={{
+                        alignItems: "flex-end"
+                      }}>
                         <Chip
                           label={humanizePortalStatus(booking.status)}
                           size="small"
@@ -989,13 +1051,18 @@ export function BookingsSection({ token }: { token: string }) {
                     </Stack>
                     <Typography
                       variant="body2"
-                      color="text.secondary"
-                      sx={{ mt: 1 }}
-                    >
+                      sx={{
+                        color: "text.secondary",
+                        mt: 1
+                      }}>
                       {formatPortalDate(booking.check_in_date)} —{" "}
                       {formatPortalDate(booking.check_out_date)}
                     </Typography>
-                    <Typography fontWeight={700} sx={{ mt: 1 }}>
+                    <Typography
+                      sx={{
+                        fontWeight: 700,
+                        mt: 1
+                      }}>
                       {formatPortalCurrency(booking.total_amount)}
                     </Typography>
                     {receiptUploadRequired ? (
@@ -1254,14 +1321,20 @@ export function PaymentsSection({ token }: { token: string }) {
             {pendingBookings.map((booking) => (
               <Card key={`pending-booking-${booking.id}`} variant="outlined">
                 <CardContent>
-                  <Stack direction="row" justifyContent="space-between" spacing={1}>
+                  <Stack direction="row" spacing={1} sx={{
+                    justifyContent: "space-between"
+                  }}>
                     <Chip icon={<CreditCardOutlinedIcon />} label="Payment" size="small" />
-                    <Typography fontWeight={700}>
+                    <Typography sx={{
+                      fontWeight: 700
+                    }}>
                       {formatPortalCurrency(booking.total_amount)}
                     </Typography>
                   </Stack>
                   <Typography sx={{ mt: 1 }}>Booking {booking.booking_number}</Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Awaiting payment
                   </Typography>
                   <Box sx={{ mt: 2 }}>
@@ -1293,27 +1366,35 @@ export function PaymentsSection({ token }: { token: string }) {
                   <CardContent>
                     <Stack
                       direction="row"
-                      justifyContent="space-between"
                       spacing={1}
+                      sx={{
+                        justifyContent: "space-between"
+                      }}
                     >
                       <Chip
                         icon={<TransactionIcon />}
                         label={tx.kind === "payment" ? "Payment" : "Invoice"}
                         size="small"
                       />
-                      <Typography fontWeight={700}>
+                      <Typography sx={{
+                        fontWeight: 700
+                      }}>
                         {formatPortalCurrency(tx.amount)}
                       </Typography>
                     </Stack>
                     <Typography sx={{ mt: 1 }}>
                       {tx.invoice_number ?? tx.reference ?? "Transaction"}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       {formatPortalDate(tx.date)} ·{" "}
                       {humanizePortalStatus(tx.status)}
                     </Typography>
                     {tx.booking_number ? (
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Booking {tx.booking_number}
                       </Typography>
                     ) : null}
@@ -1423,7 +1504,9 @@ export function CreditsSection({ token }: { token: string }) {
                 <ListItemText
                   primary={credit.room_type_name}
                   secondary={`${credit.room_type_code} · ${credit.nights_available} free night${credit.nights_available === 1 ? "" : "s"}`}
-                  primaryTypographyProps={{ fontWeight: 700, color: FOREST }}
+                  slotProps={{
+                    primary: { sx: { fontWeight: 700, color: FOREST } }
+                  }}
                 />
               </ListItem>
             ))}

@@ -100,7 +100,9 @@ export const GuestCheckInVerify: React.FC = () => {
           <Typography variant="h4" component="h1" gutterBottom>
             Your Booking Details
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Please review your booking information before continuing
           </Typography>
         </Box>
@@ -112,17 +114,23 @@ export const GuestCheckInVerify: React.FC = () => {
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Name:
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" fontWeight="bold">
+              <Typography variant="body2" sx={{
+                fontWeight: "bold"
+              }}>
                 {guest.full_name}
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Email:
               </Typography>
             </Grid>
@@ -130,7 +138,9 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2">{guest.email}</Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Phone:
               </Typography>
             </Grid>
@@ -147,17 +157,23 @@ export const GuestCheckInVerify: React.FC = () => {
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Booking Number:
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" fontWeight="bold">
+              <Typography variant="body2" sx={{
+                fontWeight: "bold"
+              }}>
                 {booking.folio_number || booking.id}
               </Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Check-in:
               </Typography>
             </Grid>
@@ -165,7 +181,9 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2">{formatDate(booking.check_in_date)}</Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Check-out:
               </Typography>
             </Grid>
@@ -173,7 +191,9 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2">{formatDate(booking.check_out_date)}</Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Nights:
               </Typography>
             </Grid>
@@ -181,7 +201,9 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2">{calculateNights()}</Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Room Type:
               </Typography>
             </Grid>
@@ -189,7 +211,9 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2">{booking.room_type || 'Standard'}</Typography>
             </Grid>
             <Grid size={6}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Guests:
               </Typography>
             </Grid>

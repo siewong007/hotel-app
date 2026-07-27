@@ -79,16 +79,24 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
       }}
     >
       <Box sx={{ flex: 1, minWidth: 0, mr: 2 }}>
-        <Typography variant="body2" fontWeight={600} sx={{ mb: 0.25 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: 600,
+            mb: 0.25
+          }}>
           {permission.name}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           {permission.description || `${formatPermissionName(permission.name)} access for ${permission.resource}`}
         </Typography>
       </Box>
-
       <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}>
-        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={0.5} useFlexGap sx={{
+          flexWrap: "wrap"
+        }}>
           {assignedRoles.map((role) => (
             <RoleChip
               key={role.id}
@@ -103,7 +111,12 @@ const PermissionRow: React.FC<PermissionRowProps> = ({
           ))}
 
           {assignedRoles.length === 0 && (
-            <Typography variant="caption" color="text.disabled" sx={{ fontStyle: 'italic' }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.disabled",
+                fontStyle: 'italic'
+              }}>
               No roles assigned
             </Typography>
           )}

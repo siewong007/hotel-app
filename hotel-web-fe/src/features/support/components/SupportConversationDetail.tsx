@@ -21,7 +21,7 @@ import {
 } from '@mui/material';
 import {
   AssignmentInd as ClaimIcon,
-  CheckCircleOutline as ResolveIcon,
+  CheckCircleOutlined as ResolveIcon,
   Close as CloseIcon,
   EscalatorWarning as EscalateIcon,
   PersonAddAlt as AssignIcon,
@@ -209,18 +209,38 @@ export default function SupportConversationDetail({
 
   if (isLoading) {
     return (
-      <Stack alignItems="center" justifyContent="center" height="100%" minHeight={360} spacing={1}>
+      <Stack
+        spacing={1}
+        sx={{
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          minHeight: 360
+        }}>
         <CircularProgress size={28} />
-        <Typography variant="body2" color="text.secondary">Loading conversation…</Typography>
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>Loading conversation…</Typography>
       </Stack>
     );
   }
 
   if (!conversation) {
     return (
-      <Stack alignItems="center" justifyContent="center" height="100%" minHeight={360} spacing={0.5} sx={{ px: 3, textAlign: 'center' }}>
+      <Stack
+        spacing={0.5}
+        sx={{
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          minHeight: 360,
+          px: 3,
+          textAlign: 'center'
+        }}>
         <Typography variant="subtitle1">Select a conversation</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           Choose a conversation from the queue to view messages and actions.
         </Typography>
       </Stack>
@@ -237,17 +257,35 @@ export default function SupportConversationDetail({
   const activeComposerMode = composerMode === 'note' && !access.canAddInternalNote ? 'reply' : composerMode;
 
   return (
-    <Stack height="100%" minHeight={0}>
+    <Stack
+      sx={{
+        height: "100%",
+        minHeight: 0
+      }}>
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Stack spacing={1.25}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'flex-start' }} justifyContent="space-between" gap={1}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            sx={{
+              alignItems: { sm: 'flex-start' },
+              justifyContent: "space-between",
+              gap: 1
+            }}>
             <Box>
               <Typography variant="h6">{conversation.guest_name || 'Guest'}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {conversation.conversation_number} · {humanizeSupportValue(conversation.category)}
               </Typography>
             </Box>
-            <Stack direction="row" gap={0.75} flexWrap="wrap" useFlexGap>
+            <Stack
+              direction="row"
+              useFlexGap
+              sx={{
+                gap: 0.75,
+                flexWrap: "wrap"
+              }}>
               <SupportStatusChip status={conversation.status} />
               <SupportPriorityChip priority={conversation.priority} />
               <SupportSlaChip
@@ -258,22 +296,43 @@ export default function SupportConversationDetail({
             </Stack>
           </Stack>
 
-          <Stack direction="row" gap={1.5} flexWrap="wrap" useFlexGap>
-            <Typography variant="caption" color="text.secondary">
+          <Stack
+            direction="row"
+            useFlexGap
+            sx={{
+              gap: 1.5,
+              flexWrap: "wrap"
+            }}>
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {conversation.booking_reference ? `Booking ${conversation.booking_reference}` : 'No linked booking'}
             </Typography>
             {conversation.room_number ? (
-              <Typography variant="caption" color="text.secondary">Room {conversation.room_number}</Typography>
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>Room {conversation.room_number}</Typography>
             ) : null}
             {conversation.stay_status ? (
-              <Typography variant="caption" color="text.secondary">{humanizeSupportValue(conversation.stay_status)}</Typography>
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>{humanizeSupportValue(conversation.stay_status)}</Typography>
             ) : null}
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {conversation.assigned_to_name ? `Assigned to ${conversation.assigned_to_name}` : 'Unassigned'}
             </Typography>
           </Stack>
 
-          <Stack direction="row" gap={0.75} flexWrap="wrap" useFlexGap alignItems="center">
+          <Stack
+            direction="row"
+            useFlexGap
+            sx={{
+              gap: 0.75,
+              flexWrap: "wrap",
+              alignItems: "center"
+            }}>
             {access.canClaim ? (
               <Button size="small" variant="outlined" startIcon={<ClaimIcon />} disabled={isBusy} onClick={() => void performAction({ action: 'claim' })}>
                 Claim
@@ -328,11 +387,23 @@ export default function SupportConversationDetail({
           </Stack>
         </Stack>
       </Box>
-
-      <Box flex={1} minHeight={0} overflow="auto" sx={{ p: 2, bgcolor: 'background.default' }}>
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "auto",
+          p: 2,
+          bgcolor: 'background.default'
+        }}>
         <Stack spacing={1.25}>
           {timeline.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 5 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                textAlign: 'center',
+                py: 5
+              }}>
               No activity yet.
             </Typography>
           ) : timeline.map((item) => {
@@ -344,25 +415,52 @@ export default function SupportConversationDetail({
                   variant="outlined"
                   sx={{ alignSelf: 'stretch', p: 1.25, bgcolor: isInternalNote ? 'warning.50' : 'action.hover' }}
                 >
-                  <Stack direction="row" justifyContent="space-between" gap={1}>
-                    <Stack direction="row" gap={0.75} alignItems="center">
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      gap: 1
+                    }}>
+                    <Stack
+                      direction="row"
+                      sx={{
+                        gap: 0.75,
+                        alignItems: "center"
+                      }}>
                       {isInternalNote ? <InternalNoteIcon fontSize="small" color="warning" /> : null}
-                      <Typography variant="caption" fontWeight={700}>
+                      <Typography variant="caption" sx={{
+                        fontWeight: 700
+                      }}>
                         {eventLabel(item.value)}
                       </Typography>
-                      {isInternalNote ? <Typography variant="caption" color="warning.dark">Staff only</Typography> : null}
+                      {isInternalNote ? <Typography variant="caption" sx={{
+                        color: "warning.dark"
+                      }}>Staff only</Typography> : null}
                     </Stack>
-                    <Typography variant="caption" color="text.secondary">{formatSupportDate(item.value.created_at)}</Typography>
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>{formatSupportDate(item.value.created_at)}</Typography>
                   </Stack>
                   {item.value.body ? <Typography variant="body2" sx={{ mt: 0.75, whiteSpace: 'pre-wrap' }}>{item.value.body}</Typography> : null}
-                  {item.value.actor_name ? <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.75 }}>{item.value.actor_name}</Typography> : null}
+                  {item.value.actor_name ? <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      display: "block",
+                      mt: 0.75
+                    }}>{item.value.actor_name}</Typography> : null}
                 </Paper>
               );
             }
 
             const isGuest = item.value.author_type === 'guest';
             return (
-              <Box key={`message-${item.value.id}`} alignSelf={isGuest ? 'flex-start' : 'flex-end'} maxWidth={{ xs: '100%', sm: '80%' }}>
+              <Box
+                key={`message-${item.value.id}`}
+                sx={{
+                  alignSelf: isGuest ? 'flex-start' : 'flex-end',
+                  maxWidth: { xs: '100%', sm: '80%' }
+                }}>
                 <Paper
                   elevation={0}
                   sx={{
@@ -373,8 +471,15 @@ export default function SupportConversationDetail({
                     borderColor: 'divider',
                   }}
                 >
-                  <Stack direction="row" justifyContent="space-between" gap={2}>
-                    <Typography variant="caption" fontWeight={700}>{messageLabel(item.value)}</Typography>
+                  <Stack
+                    direction="row"
+                    sx={{
+                      justifyContent: "space-between",
+                      gap: 2
+                    }}>
+                    <Typography variant="caption" sx={{
+                      fontWeight: 700
+                    }}>{messageLabel(item.value)}</Typography>
                     <Typography variant="caption" sx={{ color: isGuest ? 'text.secondary' : 'inherit', opacity: 0.8 }}>
                       {formatSupportDate(item.value.created_at)}
                     </Typography>
@@ -388,7 +493,6 @@ export default function SupportConversationDetail({
           })}
         </Stack>
       </Box>
-
       <Divider />
       <Box sx={{ p: 2 }}>
         {localError ? <Alert severity="error" sx={{ mb: 1.25 }} onClose={() => setLocalError(null)}>{localError}</Alert> : null}
@@ -424,7 +528,9 @@ export default function SupportConversationDetail({
               disabled={isBusy}
               onChange={(event) => setDraft(event.target.value)}
             />
-            <Stack direction="row" justifyContent="flex-end">
+            <Stack direction="row" sx={{
+              justifyContent: "flex-end"
+            }}>
               <Button
                 variant="contained"
                 color={activeComposerMode === 'note' ? 'warning' : 'primary'}
@@ -438,7 +544,6 @@ export default function SupportConversationDetail({
           </Stack>
         )}
       </Box>
-
       <Dialog open={dialogMode !== null} onClose={isBusy ? undefined : resetDialog} fullWidth maxWidth="sm">
         <DialogTitle>
           {dialogMode === 'assign' && 'Assign conversation'}

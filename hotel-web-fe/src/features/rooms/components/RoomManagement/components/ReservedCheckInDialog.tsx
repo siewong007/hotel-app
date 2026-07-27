@@ -122,32 +122,46 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
           <Box>
             {/* Booking Summary */}
             <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              <Typography variant="subtitle2" gutterBottom sx={{
+                color: "text.secondary"
+              }}>
                 Booking #{booking.booking_number}
               </Typography>
 
               <Grid container spacing={2} sx={{ mt: 1 }}>
                 <Grid size={12}>
-                  <Typography variant="h6" fontWeight={600}>
+                  <Typography variant="h6" sx={{
+                    fontWeight: 600
+                  }}>
                     {booking.guest_name}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {booking.guest_email}
                     {booking.guest_phone && ` • ${booking.guest_phone}`}
                   </Typography>
                 </Grid>
 
                 <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Check-in</Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Check-in</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {new Date(booking.check_in_date).toLocaleDateString('en-US', {
                       weekday: 'short', month: 'short', day: 'numeric'
                     })}
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Check-out</Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Check-out</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {new Date(booking.check_out_date).toLocaleDateString('en-US', {
                       weekday: 'short', month: 'short', day: 'numeric'
                     })}
@@ -155,14 +169,22 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                 </Grid>
 
                 <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Room Type</Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Room Type</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {booking.room_type}
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Total Amount</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {formatCurrency(toMoneyNumber(booking.total_amount))}
                   </Typography>
                 </Grid>
@@ -249,9 +271,11 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                     type="number"
                     value={amountPaid}
                     onChange={(e) => onAmountPaidChange(toMoneyNumber(e.target.value))}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                      inputProps: { min: 0, step: 0.01 },
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                        inputProps: { min: 0, step: 0.01 },
+                      }
                     }}
                   />
                 </Grid>
@@ -308,9 +332,11 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                     type="number"
                     value={depositAmount}
                     onChange={(e) => onDepositAmountChange(toMoneyNumber(e.target.value))}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                      inputProps: { min: 0, step: 0.01 },
+                    slotProps={{
+                      input: {
+                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                        inputProps: { min: 0, step: 0.01 },
+                      }
                     }}
                   />
                 </Grid>

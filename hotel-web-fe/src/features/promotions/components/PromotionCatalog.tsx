@@ -63,7 +63,9 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
     return (
       <Box sx={{ textAlign: 'center', py: 7 }}>
         <Typography variant="h6">No offers are available right now</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           Please check again soon for new hotel deals.
         </Typography>
       </Box>

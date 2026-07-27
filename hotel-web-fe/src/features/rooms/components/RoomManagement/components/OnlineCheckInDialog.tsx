@@ -105,7 +105,6 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
           </Typography>
         </Box>
       </DialogTitle>
-
       <DialogContent sx={{ pt: 3 }}>
         <Grid container spacing={3}>
           {/* Toggle between existing guest and new guest */}
@@ -258,7 +257,9 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
               label="Check-in Date"
               value={checkInDate}
               onChange={(e) => onCheckInDateChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -271,7 +272,9 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
               label="Check-out Date"
               value={checkOutDate}
               onChange={(e) => onCheckOutDateChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -283,7 +286,9 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
               </Typography>
               <Grid container spacing={1}>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Number of Nights:
                   </Typography>
                 </Grid>
@@ -293,7 +298,9 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room Rate:
                   </Typography>
                 </Grid>
@@ -303,12 +310,16 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Total Amount:
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{
+                    fontWeight: "bold"
+                  }}>
                     {currencySymbol}{(() => {
 	                      return multiplyMoney(toMoneyNumber(roomPricePerNight), numberOfNights).toFixed(2);
 	                    })()}
@@ -319,7 +330,6 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
           </Grid>
         </Grid>
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} disabled={creating}>
           Cancel

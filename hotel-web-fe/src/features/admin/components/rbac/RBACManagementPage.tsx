@@ -22,7 +22,7 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   ContentCopy as CopyIcon,
-  DeleteOutline as DeleteIcon,
+  DeleteOutlined as DeleteIcon,
   Check as CheckIcon,
   ChevronRight as ChevronRightIcon,
   Lock as LockIcon,
@@ -444,19 +444,16 @@ const RBACManagementPage: React.FC = () => {
           </span>
         </Tooltip>
       </Box>
-
       {/* Page tabs */}
       <Box sx={{ display: 'inline-flex', bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '11px', p: '4px', mb: 2 }}>
         <PtabBtn id="roles" label="Roles & Permissions" count={`${roles.length} / ${totalPerms}`} />
         <PtabBtn id="users" label="Users" count={`${users.length}`} />
       </Box>
-
       {loading && (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
           <CircularProgress />
         </Box>
       )}
-
       {!loading && tab === 'roles' && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '300px 1fr' }, gap: 2, alignItems: 'start' }}>
           {/* Sidebar */}
@@ -589,8 +586,10 @@ const RBACManagementPage: React.FC = () => {
                 <TextField
                   size="small" value={permSearch} onChange={(e) => setPermSearch(e.target.value)}
                   placeholder="Search permissions by name, code or description…"
-                  InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }}
                   sx={{ flex: 1, minWidth: 240, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+                  slotProps={{
+                    input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
+                  }}
                 />
                 <Box sx={{ display: 'inline-flex', bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
                   {([
@@ -774,7 +773,6 @@ const RBACManagementPage: React.FC = () => {
           )}
         </Box>
       )}
-
       {!loading && tab === 'users' && (
         <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', p: 2 }}>
           <UsersTab
@@ -788,7 +786,6 @@ const RBACManagementPage: React.FC = () => {
           />
         </Box>
       )}
-
       {/* Create / Rename role dialog */}
       <Dialog open={!!roleDialog} onClose={() => setRoleDialog(null)} maxWidth="xs" fullWidth>
         <DialogTitle>{roleDialog === 'create' ? 'New role' : 'Rename role'}</DialogTitle>
@@ -812,7 +809,6 @@ const RBACManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete role */}
       <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete role</DialogTitle>

@@ -4,7 +4,7 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import EventNoteIcon from '@mui/icons-material/EventNote';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';

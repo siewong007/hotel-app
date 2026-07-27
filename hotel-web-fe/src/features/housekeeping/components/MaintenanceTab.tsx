@@ -133,8 +133,16 @@ export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" gap={1}>
-        <Typography variant="body2" color="text.secondary">
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 1
+        }}>
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {tickets.length} tickets
         </Typography>
         {canWrite ? (
@@ -148,15 +156,17 @@ export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
           </Button>
         ) : null}
       </Stack>
-
       {error ? (
         <Alert severity="error">
           {error instanceof Error ? error.message : 'Maintenance request failed'}
         </Alert>
       ) : null}
-
       {ticketsQuery.isLoading ? (
-        <Stack alignItems="center" sx={{ py: 8 }}>
+        <Stack
+          sx={{
+            alignItems: "center",
+            py: 8
+          }}>
           <CircularProgress />
         </Stack>
       ) : (
@@ -190,7 +200,14 @@ export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
                   <TableCell>{ticket.assigned_to_name ?? '—'}</TableCell>
                   {canWrite ? (
                     <TableCell align="right">
-                      <Stack direction="row" spacing={0.5} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
+                      <Stack
+                        direction="row"
+                        spacing={0.5}
+                        useFlexGap
+                        sx={{
+                          justifyContent: "flex-end",
+                          flexWrap: "wrap"
+                        }}>
                         {ticket.status === 'open' || ticket.status === 'on_hold' ? (
                           <Button
                             size="small"
@@ -234,7 +251,13 @@ export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
               {tickets.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={canWrite ? 8 : 7}>
-                    <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        py: 3,
+                        textAlign: 'center'
+                      }}>
                       No maintenance tickets
                     </Typography>
                   </TableCell>
@@ -244,7 +267,6 @@ export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
           </Table>
         </TableContainer>
       )}
-
       <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth>
         <DialogTitle>New maintenance ticket</DialogTitle>
         <DialogContent>

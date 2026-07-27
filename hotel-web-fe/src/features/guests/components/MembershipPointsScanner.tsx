@@ -108,11 +108,20 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
       >
         Scan Membership QR
       </Button>
-
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1
+              }}>
               <QrIcon color="primary" />
               <Typography variant="h6">Add Membership Points</Typography>
             </Box>
@@ -146,14 +155,16 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
               onChange={(e) => setMembershipNumber(e.target.value)}
               disabled={loading || !!success}
               autoFocus
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <QrIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
               helperText="Scan QR code or enter membership number manually"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <QrIcon color="action" />
+                    </InputAdornment>
+                  ),
+                }
+              }}
             />
 
             <TextField
@@ -163,15 +174,17 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
               value={points}
               onChange={(e) => setPoints(parseInt(e.target.value) || 0)}
               disabled={loading || !!success}
-              inputProps={{ min: 1, step: 1 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <AddIcon color="action" />
-                  </InputAdornment>
-                ),
-              }}
-            />
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <AddIcon color="action" />
+                    </InputAdornment>
+                  ),
+                },
+
+                htmlInput: { min: 1, step: 1 }
+              }} />
 
             <TextField
               fullWidth
@@ -193,10 +206,18 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
                 borderColor: 'primary.main',
               }}
             >
-              <Typography variant="body2" color="primary.dark" gutterBottom sx={{ fontWeight: 600 }}>
+              <Typography
+                variant="body2"
+                gutterBottom
+                sx={{
+                  color: "primary.dark",
+                  fontWeight: 600
+                }}>
                 QR Code Scanning Instructions:
               </Typography>
-              <Typography variant="caption" color="primary.dark">
+              <Typography variant="caption" sx={{
+                color: "primary.dark"
+              }}>
                 1. Use your device camera to scan the membership QR code
                 <br />
                 2. The membership number will appear in the field above

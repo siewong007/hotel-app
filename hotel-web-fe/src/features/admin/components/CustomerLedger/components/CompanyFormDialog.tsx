@@ -65,7 +65,12 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Box display="flex" alignItems="center" gap={1}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1
+          }}>
           {isCreate ? <BusinessIcon color="primary" /> : <EditIcon color="primary" />}
           {isCreate ? 'Register New Company' : 'Edit Company'}
         </Box>
@@ -190,8 +195,10 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
               value={form.credit_limit}
               onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
               placeholder={ph('0.00')}
-              InputProps={{
-                startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+              slotProps={{
+                input: {
+                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+                }
               }}
             />
           </Grid>

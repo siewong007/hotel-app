@@ -178,15 +178,21 @@ const ReportsPage: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
           Booking Reports
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" sx={{
+          color: "text.secondary"
+        }}>
           Generate and export comprehensive booking reports with filters
         </Typography>
       </Box>
-
       {/* Filter Card */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box display="flex" alignItems="center" mb={3}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              mb: 3
+            }}>
             <ReportIcon sx={{ mr: 1, color: 'primary.main' }} />
             <Typography variant="h6" sx={{ fontWeight: 600 }}>
               Report Filters
@@ -263,13 +269,20 @@ const ReportsPage: React.FC = () => {
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
               </Grid>
             )}
 
             <Grid size={{ xs: 12, md: filterType === 'date' ? 6 : 3 }}>
-              <Box display="flex" gap={2} height="100%">
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 2,
+                  height: "100%"
+                }}>
                 <Button
                   variant="contained"
                   startIcon={<RefreshIcon />}
@@ -295,7 +308,9 @@ const ReportsPage: React.FC = () => {
           </Grid>
 
           {bookings.length > 0 && (
-            <Box mt={2}>
+            <Box sx={{
+              mt: 2
+            }}>
               <Alert severity="info">
                 <strong>Report Summary:</strong> {getFilterDescription()} - {bookings.length} booking(s) found
               </Alert>
@@ -303,26 +318,34 @@ const ReportsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
-
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
       )}
-
       {/* Report Table */}
       {loading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: "400px"
+          }}>
           <CircularProgress />
         </Box>
       ) : bookings.length === 0 ? (
         <Card>
           <CardContent sx={{ textAlign: 'center', py: 8 }}>
             <ReportIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{
+              color: "text.secondary"
+            }}>
               No Bookings Found
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Click "Generate Report" to view booking data
             </Typography>
           </CardContent>
@@ -358,10 +381,14 @@ const ReportsPage: React.FC = () => {
                   <TableRow key={booking.id} hover>
                     <TableCell>{booking.created_at ? formatDate(booking.created_at) : '-'}</TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {booking.room_number}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {booking.room_type}
                       </Typography>
                     </TableCell>
@@ -398,7 +425,9 @@ const ReportsPage: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       {depositAmount > 0 ? (
-                        <Typography variant="body2" color="success.main">
+                        <Typography variant="body2" sx={{
+                          color: "success.main"
+                        }}>
                           {formatCurrency(depositAmount)}
                         </Typography>
                       ) : '-'}

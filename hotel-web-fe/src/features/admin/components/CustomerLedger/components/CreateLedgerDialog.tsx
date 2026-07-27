@@ -112,7 +112,9 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
                     <Box>
                       <Typography>{option.company_name}</Typography>
                       {option.contact_person && (
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
                           Contact: {option.contact_person}
                         </Typography>
                       )}
@@ -208,8 +210,10 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
             type="number"
             value={createFormData.amount}
             onChange={(e) => setCreateFormData({ ...createFormData, amount: toMoneyNumber(e.target.value) })}
-            InputProps={{
-              startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+              }
             }}
           />
         </Grid>
@@ -229,10 +233,20 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
               const { key, ...otherProps } = props;
               return (
                 <li key={key} {...otherProps}>
-                  <Box display="flex" justifyContent="space-between" width="100%" gap={2}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      gap: 2
+                    }}>
                     <Box>
-                      <Typography fontWeight="medium">Room {option.room_number}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography sx={{
+                        fontWeight: "medium"
+                      }}>Room {option.room_number}</Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {option.room_type} {option.floor != null ? `| Floor ${option.floor}` : ''}
                       </Typography>
                     </Box>
@@ -249,20 +263,24 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
                 label="Room"
                 placeholder="Choose a room"
                 helperText="Used to detect possible duplicate stay charges"
-                InputProps={{
-                  ...params.InputProps,
-                  startAdornment: (
-                    <>
-                      <HotelIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
-                      {params.InputProps.startAdornment}
-                    </>
-                  ),
-                  endAdornment: (
-                    <>
-                      {loadingLedgerRooms ? <CircularProgress color="inherit" size={20} /> : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
+                slotProps={{
+                  ...params.slotProps,
+
+                  input: {
+                    ...params.slotProps.input,
+                    startAdornment: (
+                      <>
+                        <HotelIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                        {params.slotProps.input.startAdornment}
+                      </>
+                    ),
+                    endAdornment: (
+                      <>
+                        {loadingLedgerRooms ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.slotProps.input.endAdornment}
+                      </>
+                    ),
+                  }
                 }}
               />
             )}
@@ -279,8 +297,10 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
               posting_date: e.target.value,
               transaction_date: e.target.value,
             })}
-            InputLabelProps={{ shrink: true }}
             helperText="Company + room + date + amount is checked for duplicates"
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -290,7 +310,9 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
             type="date"
             value={createFormData.invoice_date || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, invoice_date: e.target.value })}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -300,7 +322,9 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
             type="date"
             value={createFormData.due_date || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, due_date: e.target.value })}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{
+              inputLabel: { shrink: true }
+            }}
           />
         </Grid>
         <Grid size={12}>

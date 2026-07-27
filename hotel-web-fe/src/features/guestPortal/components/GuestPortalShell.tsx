@@ -312,13 +312,17 @@ export function GuestPortalShell({ children }: GuestPortalShellProps) {
                 sx={{ minHeight: 52 }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: FOREST }}>{link.icon}</ListItemIcon>
-                <ListItemText primary={link.label} primaryTypographyProps={{ fontWeight: 600 }} />
+              <ListItemText primary={link.label} slotProps={{
+                  primary: { sx: { fontWeight: 600 } }
+                }} />
               </ListItemButton>
             ))}
             <Divider component="li" sx={{ my: 1 }} />
             <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={{ minHeight: 52 }}>
               <ListItemIcon sx={{ minWidth: 40, color: FOREST }}><OpenInNewOutlinedIcon /></ListItemIcon>
-              <ListItemText primary="Explore hotel" primaryTypographyProps={{ fontWeight: 600 }} />
+              <ListItemText primary="Explore hotel" slotProps={{
+                primary: { sx: { fontWeight: 600 } }
+              }} />
             </ListItemButton>
           </List>
         </Drawer>

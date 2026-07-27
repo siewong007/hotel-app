@@ -1011,16 +1011,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       onClose={() => !processing && onClose()}
       maxWidth={false}
       fullWidth
-      PaperProps={{
-        sx: {
-          width: 'min(1040px, 100%)',
-          maxWidth: 'calc(100vw - 48px)',
-          maxHeight: 'calc(100vh - 48px)',
-          borderRadius: 2,
-          overflow: 'hidden',
-          border: `1px solid ${D.border}`,
-          boxShadow: '0 20px 50px rgba(15,23,42,0.18)',
-        },
+      slotProps={{
+        paper: {
+          sx: {
+            width: 'min(1040px, 100%)',
+            maxWidth: 'calc(100vw - 48px)',
+            maxHeight: 'calc(100vh - 48px)',
+            borderRadius: 2,
+            overflow: 'hidden',
+            border: `1px solid ${D.border}`,
+            boxShadow: '0 20px 50px rgba(15,23,42,0.18)',
+          },
+        }
       }}
     >
       {/* ============= HEADER ============= */}
@@ -1033,7 +1035,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         processing={processing}
         onClose={onClose}
       />
-
       {/* ============= BODY ============= */}
       <Box sx={{
         display: 'grid',
@@ -1230,7 +1231,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           formatHumanDate={formatHumanDate}
         />
       </Box>
-
       {/* ============= FOOTER ============= */}
       <BookingModalFooter
         D={D}

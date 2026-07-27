@@ -19,7 +19,7 @@ import {
   AdminPanelSettings as AdminIcon,
   SupervisorAccount as ManagerIcon,
   Person as PersonIcon,
-  PersonOutline as GuestIcon,
+  PersonOutlined as GuestIcon,
 } from '@mui/icons-material';
 import type { RoleWithStats } from '../types';
 import { getRoleColor } from '../constants';
@@ -76,18 +76,22 @@ const RoleCard: React.FC<RoleCardProps> = ({ role, onEdit, onDelete }) => {
 
             {/* Role Info */}
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: 600,
+                  mb: 0.5
+                }}>
                 {role.name}
               </Typography>
               <Typography
                 variant="body2"
-                color="text.secondary"
                 sx={{
+                  color: "text.secondary",
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
+                  whiteSpace: 'nowrap'
+                }}>
                 {role.description || 'No description'}
               </Typography>
 

@@ -436,7 +436,6 @@ const AuditLogPage: React.FC = () => {
           </Button>
         </Box>
       </Box>
-
       {/* Category rail */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(5,1fr)' }, gap: 1.25, mb: 2 }}>
         {CATEGORIES.map((cat, i) => {
@@ -482,7 +481,6 @@ const AuditLogPage: React.FC = () => {
           );
         })}
       </Box>
-
       {/* Toolbar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.75, flexWrap: 'wrap' }}>
         <TextField
@@ -490,8 +488,10 @@ const AuditLogPage: React.FC = () => {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search this stream by user, target, code, or action…"
-          InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }}
           sx={{ flex: 1, minWidth: 280, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+          slotProps={{
+            input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
+          }}
         />
         <Box sx={{ display: 'inline-flex', bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
           {availableVerbs.map((v) => {
@@ -547,12 +547,16 @@ const AuditLogPage: React.FC = () => {
           <TextField
             size="small" fullWidth type="datetime-local" label="From"
             value={draftStart} onChange={(e) => setDraftStart(e.target.value)}
-            InputLabelProps={{ shrink: true }} sx={{ mb: 1.25 }}
+            sx={{ mb: 1.25 }} slotProps={{
+            inputLabel: { shrink: true }
+          }}
           />
           <TextField
             size="small" fullWidth type="datetime-local" label="To"
             value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)}
-            InputLabelProps={{ shrink: true }} sx={{ mb: 1.5 }}
+            sx={{ mb: 1.5 }} slotProps={{
+            inputLabel: { shrink: true }
+          }}
           />
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
             <Button size="small" onClick={() => applyRange(undefined, undefined)} sx={{ textTransform: 'none', color: T.ink2 }}>
@@ -568,7 +572,6 @@ const AuditLogPage: React.FC = () => {
           </Box>
         </Menu>
       </Box>
-
       {/* Log panel */}
       <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, p: '14px 18px', borderBottom: `1px solid ${T.border}`, background: `linear-gradient(180deg, ${T.surface} 0%, ${T.surface2} 100%)` }}>

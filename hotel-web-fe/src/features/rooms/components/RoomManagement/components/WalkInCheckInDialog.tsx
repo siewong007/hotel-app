@@ -92,7 +92,6 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
           </Typography>
         </Box>
       </DialogTitle>
-
       <DialogContent sx={{ pt: 3 }}>
         <Grid container spacing={3}>
           {/* Toggle between existing guest and new guest */}
@@ -131,7 +130,9 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
                     <Box component="li" key={key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body2">{option.full_name}</Typography>
-                        {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
+                        {option.email && <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>{option.email}</Typography>}
                       </Box>
                       {option.guest_type === 'member' && (
                         <Chip
@@ -243,7 +244,9 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
               label="Check-in Date"
               value={checkInDate}
               onChange={(e) => onCheckInDateChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -256,7 +259,9 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
               label="Check-out Date"
               value={checkOutDate}
               onChange={(e) => onCheckOutDateChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -268,7 +273,9 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
               </Typography>
               <Grid container spacing={1}>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Number of Nights:
                   </Typography>
                 </Grid>
@@ -278,7 +285,9 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room Rate:
                   </Typography>
                 </Grid>
@@ -288,7 +297,9 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room Charges:
                   </Typography>
                 </Grid>
@@ -305,7 +316,6 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
 
         </Grid>
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} disabled={creating}>
           Cancel

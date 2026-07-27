@@ -1674,7 +1674,13 @@ const CustomerLedgerPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -1722,7 +1728,12 @@ const CustomerLedgerPage: React.FC = () => {
               sx={{ fontWeight: 700, height: 24 }}
             />
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: 0.5
+            }}>
             Corporate accounts, balances and direct check-ins.
           </Typography>
         </Box>
@@ -1771,7 +1782,6 @@ const CustomerLedgerPage: React.FC = () => {
           </Menu>
         </Box>
       </Box>
-
       {error && (
         <Alert
           severity="error"
@@ -1785,7 +1795,6 @@ const CustomerLedgerPage: React.FC = () => {
           {error}
         </Alert>
       )}
-
       {/* Slim stats strip: Billed / Collected / Outstanding / Overdue */}
       <LedgerSummaryStrip
         summary={summary}
@@ -1794,7 +1803,6 @@ const CustomerLedgerPage: React.FC = () => {
         formatCurrency={formatCurrency}
         currencySymbol={currencySymbol}
       />
-
       {/* Two-pane workspace: company list (left) + detail pane (right) */}
       <Box
         sx={{
@@ -1853,7 +1861,13 @@ const CustomerLedgerPage: React.FC = () => {
               <Typography sx={{ fontWeight: 600, fontSize: 16, color: 'text.primary', mb: 0.5 }}>
                 Pick a company on the left
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 320, mx: 'auto' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  maxWidth: 320,
+                  mx: 'auto'
+                }}>
                 Select a company to view its ledger entries, balance, and take actions like
                 check-in, payment, or invoicing.
               </Typography>
@@ -2031,7 +2045,6 @@ const CustomerLedgerPage: React.FC = () => {
           )}
         </Card>
       </Box>
-
       {/* Create Ledger Dialog */}
       <CreateLedgerDialog
         open={createDialogOpen}
@@ -2050,7 +2063,6 @@ const CustomerLedgerPage: React.FC = () => {
         onCancel={() => { setCreateDialogOpen(false); resetCreateForm(); }}
         currencySymbol={currencySymbol}
       />
-
       {/* Possible Duplicate Ledger Dialog */}
       <DuplicateLedgerDialog
         open={duplicateDialogOpen}
@@ -2067,7 +2079,6 @@ const CustomerLedgerPage: React.FC = () => {
         onCreateAnyway={() => handleCreateLedger(true)}
         formatCurrency={formatCurrency}
       />
-
       {/* Edit Ledger Dialog */}
       <EditLedgerDialog
         open={editDialogOpen}
@@ -2082,7 +2093,6 @@ const CustomerLedgerPage: React.FC = () => {
         onUpdate={handleUpdateLedger}
         currencySymbol={currencySymbol}
       />
-
       {/* Void Ledger Dialog */}
       <VoidLedgerDialog
         open={voidDialogOpen}
@@ -2094,7 +2104,6 @@ const CustomerLedgerPage: React.FC = () => {
         onConfirm={handleConfirmVoidLedger}
         formatCurrency={formatCurrency}
       />
-
       {/* Payment Dialog */}
       <PaymentDialog
         open={paymentDialogOpen}
@@ -2118,7 +2127,6 @@ const CustomerLedgerPage: React.FC = () => {
         formatCurrency={formatCurrency}
         getLedgerBalanceDue={getLedgerBalanceDue}
       />
-
       {/* Company Check-In Dialog */}
       <CompanyCheckInDialog
         open={checkInDialogOpen}
@@ -2148,14 +2156,12 @@ const CustomerLedgerPage: React.FC = () => {
         currencySymbol={currencySymbol}
         formatCurrency={formatCurrency}
       />
-
       {/* Checkout Invoice Modal */}
       {/* Shared checkout + read-only receipt modals */}
       <CheckoutInvoiceModals
         flow={checkoutFlow}
         onReceiptPaymentsChanged={() => { void loadData(); }}
       />
-
       {/* Company Registration Dialog */}
       <CompanyFormDialog
         open={companyRegDialogOpen}
@@ -2168,7 +2174,6 @@ const CustomerLedgerPage: React.FC = () => {
         currencySymbol={currencySymbol}
         onSubmit={handleRegisterCompany}
       />
-
       {/* Edit Company Dialog */}
       <CompanyFormDialog
         open={companyEditDialogOpen}
@@ -2181,7 +2186,6 @@ const CustomerLedgerPage: React.FC = () => {
         currencySymbol={currencySymbol}
         onSubmit={handleUpdateCompany}
       />
-
       {/* Delete Company Confirmation Dialog */}
       <DeleteCompanyDialog
         open={companyDeleteDialogOpen}
@@ -2190,7 +2194,6 @@ const CustomerLedgerPage: React.FC = () => {
         deleting={deletingCompany}
         onConfirm={handleDeleteCompany}
       />
-
       {/* Record Payment Dialog */}
       <RecordCompanyPaymentDialog
         open={companyPaymentDialogOpen}
@@ -2207,7 +2210,6 @@ const CustomerLedgerPage: React.FC = () => {
         currencySymbol={currencySymbol}
         formatCurrency={formatCurrency}
       />
-
       {/* Company Invoice Dialog */}
       <CompanyInvoiceDialog
         open={companyInvoiceDialogOpen}
@@ -2243,7 +2245,6 @@ const CustomerLedgerPage: React.FC = () => {
         onDownload={handleDownloadCompanyInvoice}
         formatCurrency={formatCurrency}
       />
-
       {/* Credit Note Dialog — posts to the backend reversal endpoint */}
       <CreditNoteDialog
         open={creditNoteDialogOpen}
@@ -2260,7 +2261,6 @@ const CustomerLedgerPage: React.FC = () => {
         onSubmit={handleSubmitCreditNote}
         formatCurrency={formatCurrency}
       />
-
     </Box>
   );
 };

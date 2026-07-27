@@ -83,14 +83,18 @@ const REDEMPTION_STATUS_COLOR: Record<LoyaltyRedemptionStatus, 'warning' | 'succ
 
 const StatCard: React.FC<{ label: string; value: string; hint?: string }> = ({ label, value, hint }) => (
   <Paper variant="outlined" sx={{ p: 2, flex: '1 1 180px', minWidth: 180 }}>
-    <Typography variant="caption" color="text.secondary">
+    <Typography variant="caption" sx={{
+      color: "text.secondary"
+    }}>
       {label}
     </Typography>
     <Typography variant="h5" sx={{ fontWeight: 600 }}>
       {value}
     </Typography>
     {hint && (
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>
         {hint}
       </Typography>
     )}
@@ -126,13 +130,14 @@ const OverviewTab: React.FC = () => {
           hint="awaiting review"
         />
       </Box>
-
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
           Members by tier
         </Typography>
         {stats.byTier.length === 0 ? (
-          <Typography color="text.secondary">No members enrolled yet.</Typography>
+          <Typography sx={{
+            color: "text.secondary"
+          }}>No members enrolled yet.</Typography>
         ) : (
           <Stack spacing={1}>
             {stats.byTier.map(([tier, count]) => {
@@ -141,7 +146,9 @@ const OverviewTab: React.FC = () => {
                 <Box key={tier}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2">{tier}</Typography>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       {count} ({Math.round(pct)}%)
                     </Typography>
                   </Box>
@@ -213,7 +220,9 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                 value={Math.min(100, detail.tier_progress.progress_percent)}
                 sx={{ height: 10, borderRadius: 1, mb: 0.5 }}
               />
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {detail.tier_progress.next_tier_name
                   ? `${fmt(detail.tier_progress.remaining_to_next_tier ?? 0)} to ${detail.tier_progress.next_tier_name}`
                   : 'Highest tier reached'}
@@ -231,15 +240,19 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                   {giftError}
                 </Alert>
               )}
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="flex-start">
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{
+                alignItems: "flex-start"
+              }}>
                 <TextField
                   label="Points"
                   type="number"
                   size="small"
                   value={points}
                   onChange={(e) => setPoints(e.target.value)}
-                  inputProps={{ min: 1 }}
                   sx={{ width: 140 }}
+                  slotProps={{
+                    htmlInput: { min: 1 }
+                  }}
                 />
                 <TextField
                   label="Reason (required)"
@@ -336,7 +349,6 @@ const MembersTab: React.FC = () => {
           </Select>
         </FormControl>
       </Stack>
-
       {membersQuery.isLoading ? (
         <Loading />
       ) : membersQuery.error ? (
@@ -368,7 +380,9 @@ const MembersTab: React.FC = () => {
                     <TableCell>{m.member_number}</TableCell>
                     <TableCell>
                       <Typography variant="body2">{m.guest_name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {m.guest_email ?? m.guest_phone ?? ''}
                       </Typography>
                     </TableCell>
@@ -391,7 +405,6 @@ const MembersTab: React.FC = () => {
           </Table>
         </TableContainer>
       )}
-
       <MemberDetailDialog memberId={selected} onClose={() => setSelected(null)} />
     </Stack>
   );
@@ -527,7 +540,9 @@ const RewardDialog: React.FC<{
               value={form.valid_from ?? ''}
               onChange={(e) => set('valid_from', e.target.value || null)}
               fullWidth
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
             <TextField
               label="Valid to"
@@ -535,7 +550,9 @@ const RewardDialog: React.FC<{
               value={form.valid_to ?? ''}
               onChange={(e) => set('valid_to', e.target.value || null)}
               fullWidth
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Stack>
           <TextField
@@ -589,7 +606,12 @@ const RewardsTab: React.FC = () => {
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
         <FormControlLabel
           control={<Switch checked={includeInactive} onChange={(e) => setIncludeInactive(e.target.checked)} />}
           label="Show inactive"
@@ -598,7 +620,6 @@ const RewardsTab: React.FC = () => {
           New reward
         </Button>
       </Stack>
-
       {rewardsQuery.isLoading ? (
         <Loading />
       ) : rewardsQuery.error ? (
@@ -648,7 +669,6 @@ const RewardsTab: React.FC = () => {
           </Table>
         </TableContainer>
       )}
-
       <RewardDialog open={dialogOpen} reward={editing} onClose={() => setDialogOpen(false)} />
     </Stack>
   );
@@ -707,9 +727,7 @@ const RedemptionsTab: React.FC = () => {
           <MenuItem value="rejected">Rejected</MenuItem>
         </Select>
       </FormControl>
-
       {actionError && <Alert severity="error">{actionError}</Alert>}
-
       {redemptionsQuery.isLoading ? (
         <Loading />
       ) : redemptionsQuery.error ? (
@@ -740,7 +758,9 @@ const RedemptionsTab: React.FC = () => {
                     <TableCell>{fmtDateTime(r.requested_at)}</TableCell>
                     <TableCell>
                       <Typography variant="body2">{r.guest_name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {r.member_number}
                       </Typography>
                     </TableCell>
@@ -753,7 +773,9 @@ const RedemptionsTab: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       {r.status === 'pending' && (
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Stack direction="row" spacing={1} sx={{
+                          justifyContent: "flex-end"
+                        }}>
                           <Button
                             size="small"
                             color="success"
@@ -785,7 +807,6 @@ const RedemptionsTab: React.FC = () => {
           </Table>
         </TableContainer>
       )}
-
       <Dialog open={rejectTarget != null} onClose={() => setRejectTarget(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Reject redemption</DialogTitle>
         <DialogContent dividers>
@@ -939,7 +960,13 @@ const LoyaltyPortal: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+      <Stack
+        direction="row"
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2
+        }}>
         <Typography variant="h4" sx={{ fontWeight: 600 }}>
           Loyalty
         </Typography>
@@ -949,7 +976,6 @@ const LoyaltyPortal: React.FC = () => {
           </Button>
         </Tooltip>
       </Stack>
-
       <Paper variant="outlined" sx={{ mb: 2 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
           <Tab label="Overview" />
@@ -959,7 +985,6 @@ const LoyaltyPortal: React.FC = () => {
           <Tab label="Rules" />
         </Tabs>
       </Paper>
-
       {tab === 0 && <OverviewTab />}
       {tab === 1 && <MembersTab />}
       {tab === 2 && <RewardsTab />}

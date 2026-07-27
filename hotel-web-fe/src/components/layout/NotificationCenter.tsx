@@ -10,10 +10,10 @@ import {
 } from '@mui/material';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import CloseIcon from '@mui/icons-material/Close';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import type { ApiNotificationSeverity } from '../../utils/apiNotifications';
 import {
   clearAll,

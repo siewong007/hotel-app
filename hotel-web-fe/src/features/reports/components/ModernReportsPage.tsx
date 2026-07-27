@@ -546,13 +546,16 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Guest Ledger</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Guest Ledger</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
           </Typography>
         </Box>
-
         {reportData.sections.map((section: GeneralJournalSection, idx: number) => (
           <Box key={idx} sx={{ mb: 3 }}>
             <Typography variant="h6" sx={{ bgcolor: 'grey.200', p: 1 }}>{section.name}</Typography>
@@ -593,7 +596,6 @@ const ModernReportsPage: React.FC = () => {
             </TableContainer>
           </Box>
         ))}
-
         <Divider sx={{ my: 2 }} />
         <Typography variant="h6" align="right">
           Balance: {currencySymbol}{Number(reportData.balance || 0).toFixed(2)}
@@ -614,20 +616,27 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={6}>
-            <Typography variant="h4" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
+            <Typography variant="h4" sx={{
+              fontWeight: "bold"
+            }}>{hotelSettings.hotel_name}</Typography>
             <Typography variant="body2">{hotelSettings.hotel_address}</Typography>
           </Grid>
           <Grid sx={{ textAlign: 'right' }} size={6}>
-            <Typography variant="h4" fontWeight="bold">Account Statement</Typography>
+            <Typography variant="h4" sx={{
+              fontWeight: "bold"
+            }}>Account Statement</Typography>
             <Typography variant="body2">Date: {statement_date}</Typography>
           </Grid>
         </Grid>
-
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={6}>
             <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Bill To:</Typography>
-              <Typography variant="h6" fontWeight="bold">{company?.name}</Typography>
+              <Typography variant="subtitle2" sx={{
+                color: "text.secondary"
+              }}>Bill To:</Typography>
+              <Typography variant="h6" sx={{
+                fontWeight: "bold"
+              }}>{company?.name}</Typography>
               {company?.contact_person && <Typography>Attn: {company.contact_person}</Typography>}
               {company?.address?.line1 && <Typography variant="body2">{company.address.line1}</Typography>}
             </Paper>
@@ -639,7 +648,6 @@ const ModernReportsPage: React.FC = () => {
             </Paper>
           </Grid>
         </Grid>
-
         <Typography variant="h6" gutterBottom>Aging Summary</Typography>
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
           <Table size="small">
@@ -663,7 +671,6 @@ const ModernReportsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
         <Typography variant="h6" gutterBottom>Transactions</Typography>
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -708,11 +715,12 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Balance Sheet</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Balance Sheet</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2">As of {new Date(endDate).toLocaleDateString()}</Typography>
         </Box>
-
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
@@ -774,24 +782,31 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Payment Records Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Payment Records Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {period?.start} to {period?.end}
           </Typography>
         </Box>
-
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
-              <Typography variant="h3" color="primary.main">{summary?.total_bookings || 0}</Typography>
+              <Typography variant="h3" sx={{
+                color: "primary.main"
+              }}>{summary?.total_bookings || 0}</Typography>
               <Typography variant="subtitle2">Total Bookings</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-              <Typography variant="h4" color="success.main">
+              <Typography variant="h4" sx={{
+                color: "success.main"
+              }}>
                 {currencySymbol}{Number(summary?.total_revenue || 0).toFixed(2)}
               </Typography>
               <Typography variant="subtitle2">Total Revenue</Typography>
@@ -799,7 +814,9 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
-              <Typography variant="h4" color="warning.main">
+              <Typography variant="h4" sx={{
+                color: "warning.main"
+              }}>
                 {currencySymbol}{Number(summary?.total_deposits || 0).toFixed(2)}
               </Typography>
               <Typography variant="subtitle2">Deposits Collected</Typography>
@@ -807,14 +824,15 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
-              <Typography variant="h4" color="secondary.main">
+              <Typography variant="h4" sx={{
+                color: "secondary.main"
+              }}>
                 {by_payment_method?.length || 0}
               </Typography>
               <Typography variant="subtitle2">Payment Methods</Typography>
             </Paper>
           </Grid>
         </Grid>
-
         {/* Payment Method Summary */}
         {by_payment_method && by_payment_method.length > 0 && (
           <Box sx={{ mb: 3 }}>
@@ -843,7 +861,6 @@ const ModernReportsPage: React.FC = () => {
             </TableContainer>
           </Box>
         )}
-
         {/* Detailed Payment Records */}
         <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1, mb: 1 }}>
           Payment Records ({payments?.length || 0})
@@ -871,7 +888,12 @@ const ModernReportsPage: React.FC = () => {
                   <TableCell>{p.guest_name}</TableCell>
                   <TableCell>
                     {p.room_number}
-                    {p.room_type && <Typography variant="caption" display="block" color="text.secondary">{p.room_type}</Typography>}
+                    {p.room_type && <Typography
+                      variant="caption"
+                      sx={{
+                        display: "block",
+                        color: "text.secondary"
+                      }}>{p.room_type}</Typography>}
                   </TableCell>
                   <TableCell>{formatSource(p.source)}</TableCell>
                   <TableCell>{formatPaymentMethod(p.payment_method)}</TableCell>
@@ -885,9 +907,13 @@ const ModernReportsPage: React.FC = () => {
                   <TableCell align="right">{currencySymbol}{Number(p.amount || 0).toFixed(2)}</TableCell>
                   <TableCell align="right">
                     {p.deposit_paid ? (
-                      <Typography color="success.main">{currencySymbol}{Number(p.deposit_amount || 0).toFixed(2)}</Typography>
+                      <Typography sx={{
+                        color: "success.main"
+                      }}>{currencySymbol}{Number(p.deposit_amount || 0).toFixed(2)}</Typography>
                     ) : (
-                      <Typography color="text.secondary">-</Typography>
+                      <Typography sx={{
+                        color: "text.secondary"
+                      }}>-</Typography>
                     )}
                   </TableCell>
                 </TableRow>
@@ -932,13 +958,14 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Rooms Sold Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Rooms Sold Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2">
             {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
           </Typography>
         </Box>
-
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
@@ -971,7 +998,6 @@ const ModernReportsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
         <Typography variant="h6" sx={{ mt: 2 }} align="right">
           Total Rooms Sold: {reportData.total_rooms || reportData.bookings.length}
         </Typography>
@@ -990,39 +1016,49 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Daily Operations Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Daily Operations Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">Date: {reportData.date}</Typography>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>Date: {reportData.date}</Typography>
         </Box>
-
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-              <Typography variant="h3" color="success.main">{reportData.arrivals_count || 0}</Typography>
+              <Typography variant="h3" sx={{
+                color: "success.main"
+              }}>{reportData.arrivals_count || 0}</Typography>
               <Typography variant="subtitle2">Arrivals Today</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
-              <Typography variant="h3" color="warning.main">{reportData.departures_count || 0}</Typography>
+              <Typography variant="h3" sx={{
+                color: "warning.main"
+              }}>{reportData.departures_count || 0}</Typography>
               <Typography variant="subtitle2">Departures Today</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
-              <Typography variant="h3" color="primary.main">{reportData.in_house_count || 0}</Typography>
+              <Typography variant="h3" sx={{
+                color: "primary.main"
+              }}>{reportData.in_house_count || 0}</Typography>
               <Typography variant="subtitle2">In-House Guests</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
-              <Typography variant="h3" color="secondary.main">{reportData.occupancy_rate?.toFixed(1) || 0}%</Typography>
+              <Typography variant="h3" sx={{
+                color: "secondary.main"
+              }}>{reportData.occupancy_rate?.toFixed(1) || 0}%</Typography>
               <Typography variant="subtitle2">Occupancy Rate</Typography>
             </Paper>
           </Grid>
         </Grid>
-
         {/* Arrivals */}
         <Typography variant="h6" sx={{ bgcolor: 'success.main', color: 'white', p: 1, mb: 1 }}>
           Today's Arrivals ({reportData.arrivals?.length || 0})
@@ -1054,7 +1090,6 @@ const ModernReportsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
         {/* Departures */}
         <Typography variant="h6" sx={{ bgcolor: 'warning.main', color: 'white', p: 1, mb: 1 }}>
           Today's Departures ({reportData.departures?.length || 0})
@@ -1086,7 +1121,6 @@ const ModernReportsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
         {/* In-House */}
         <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1, mb: 1 }}>
           In-House Guests ({reportData.in_house?.length || 0})
@@ -1130,13 +1164,16 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Occupancy Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Occupancy Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         {/* KPI Cards */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 2 }}>
@@ -1147,7 +1184,9 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main">{summary.rooms_sold}</Typography>
+              <Typography variant="h4" sx={{
+                color: "success.main"
+              }}>{summary.rooms_sold}</Typography>
               <Typography variant="caption">Rooms Sold</Typography>
             </Paper>
           </Grid>
@@ -1159,24 +1198,29 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" color="info.main">{currencySymbol}{summary.adr?.toFixed(2)}</Typography>
+              <Typography variant="h4" sx={{
+                color: "info.main"
+              }}>{currencySymbol}{summary.adr?.toFixed(2)}</Typography>
               <Typography variant="caption">ADR</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" color="warning.main">{currencySymbol}{summary.revpar?.toFixed(2)}</Typography>
+              <Typography variant="h4" sx={{
+                color: "warning.main"
+              }}>{currencySymbol}{summary.revpar?.toFixed(2)}</Typography>
               <Typography variant="caption">RevPAR</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main">{currencySymbol}{summary.total_revenue?.toFixed(0)}</Typography>
+              <Typography variant="h4" sx={{
+                color: "success.main"
+              }}>{currencySymbol}{summary.total_revenue?.toFixed(0)}</Typography>
               <Typography variant="caption">Total Revenue</Typography>
             </Paper>
           </Grid>
         </Grid>
-
         {/* By Room Type */}
         <Typography variant="h6" gutterBottom>Occupancy by Room Type</Typography>
         <TableContainer component={Paper} variant="outlined">
@@ -1210,20 +1254,24 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Revenue Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Revenue Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-          <Typography variant="h3" color="success.main">
+          <Typography variant="h3" sx={{
+            color: "success.main"
+          }}>
             {currencySymbol}{reportData.total_revenue?.toFixed(2)}
           </Typography>
           <Typography variant="subtitle1">Total Revenue</Typography>
         </Paper>
-
         <Grid container spacing={3}>
           {/* By Room Type */}
           <Grid size={{ xs: 12, md: 4 }}>
@@ -1300,7 +1348,9 @@ const ModernReportsPage: React.FC = () => {
 
   const renderChannelCommissionEditor = () => (
     <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
-      <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+      <Typography variant="subtitle1" gutterBottom sx={{
+        fontWeight: "medium"
+      }}>
         Channel Commission Rates
       </Typography>
       {channelSaveError && <Alert severity="error" sx={{ mb: 2 }}>{channelSaveError}</Alert>}
@@ -1367,8 +1417,10 @@ const ModernReportsPage: React.FC = () => {
                     type="number"
                     value={channel.default_commission_value}
                     onChange={(e) => handleChannelFieldChange(channel.id, 'default_commission_value', e.target.value)}
-                    inputProps={{ min: 0, step: '0.01' }}
                     disabled={channel.default_commission_type === 'none'}
+                    slotProps={{
+                      htmlInput: { min: 0, step: '0.01' }
+                    }}
                   />
                 </TableCell>
                 <TableCell sx={{ minWidth: 130 }}>
@@ -1412,7 +1464,9 @@ const ModernReportsPage: React.FC = () => {
         </Table>
       </TableContainer>
 
-      <Grid container spacing={1} alignItems="center">
+      <Grid container spacing={1} sx={{
+        alignItems: "center"
+      }}>
         <Grid size={{ xs: 12, sm: 6, md: 4 }}>
           <TextField
             size="small"
@@ -1481,35 +1535,46 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Channel Net Revenue</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Channel Net Revenue</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-              <Typography variant="h5" color="success.main">{formatMoney(summary?.total_gross_revenue)}</Typography>
+              <Typography variant="h5" sx={{
+                color: "success.main"
+              }}>{formatMoney(summary?.total_gross_revenue)}</Typography>
               <Typography variant="caption">Gross Room Revenue</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
-              <Typography variant="h5" color="warning.main">{formatMoney(summary?.total_platform_commission)}</Typography>
+              <Typography variant="h5" sx={{
+                color: "warning.main"
+              }}>{formatMoney(summary?.total_platform_commission)}</Typography>
               <Typography variant="caption">Platform Commission</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
-              <Typography variant="h5" color="primary.main">{formatMoney(summary?.total_net_hotel_revenue)}</Typography>
+              <Typography variant="h5" sx={{
+                color: "primary.main"
+              }}>{formatMoney(summary?.total_net_hotel_revenue)}</Typography>
               <Typography variant="caption">Net Hotel Revenue</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
-              <Typography variant="h5" color="secondary.main">
+              <Typography variant="h5" sx={{
+                color: "secondary.main"
+              }}>
                 {Number(summary?.average_commission_percentage || 0).toFixed(2)}%
               </Typography>
               <Typography variant="caption">Average Commission</Typography>
@@ -1540,7 +1605,6 @@ const ModernReportsPage: React.FC = () => {
             </Paper>
           </Grid>
         </Grid>
-
         <Typography variant="h6" gutterBottom>By Channel</Typography>
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
           <Table size="small">
@@ -1568,7 +1632,6 @@ const ModernReportsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
         <Typography variant="h6" gutterBottom>Booking Detail</Typography>
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -1639,11 +1702,12 @@ const ModernReportsPage: React.FC = () => {
           return (
             <Box key={`${statement.channel_id || statement.platform}`} className="ota-statement-page" sx={{ mb: 4 }}>
               <Box className="header" sx={{ textAlign: 'center', mb: 2 }}>
-                <Typography variant="h5" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
+                <Typography variant="h5" sx={{
+                  fontWeight: "bold"
+                }}>{hotelSettings.hotel_name}</Typography>
                 <Typography variant="subtitle1">Statement Date: {reportData.statement_date}</Typography>
                 <Typography variant="h6">{statement.platform} - {reportData.period?.month_label}</Typography>
               </Box>
-
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
@@ -1686,8 +1750,12 @@ const ModernReportsPage: React.FC = () => {
           );
         }) : (
           <Box className="header" sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h5" fontWeight="bold">OTA Monthly Statement</Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="h5" sx={{
+              fontWeight: "bold"
+            }}>OTA Monthly Statement</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               No statement rows found for {reportData.period?.month_label || 'this month'}.
             </Typography>
           </Box>
@@ -1703,17 +1771,22 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Payment Status Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Payment Status Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={6}>
             <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#ffebee' }}>
-              <Typography variant="h3" color="error.main">
+              <Typography variant="h3" sx={{
+                color: "error.main"
+              }}>
                 {currencySymbol}{reportData.outstanding_balance?.toFixed(2)}
               </Typography>
               <Typography variant="subtitle1">Outstanding Balance</Typography>
@@ -1721,12 +1794,13 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={6}>
             <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#fff3e0' }}>
-              <Typography variant="h3" color="warning.main">{reportData.overdue_count || 0}</Typography>
+              <Typography variant="h3" sx={{
+                color: "warning.main"
+              }}>{reportData.overdue_count || 0}</Typography>
               <Typography variant="subtitle1">Overdue Payments</Typography>
             </Paper>
           </Grid>
         </Grid>
-
         {/* By Status */}
         <Typography variant="h6" gutterBottom>Breakdown by Status</Typography>
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
@@ -1752,7 +1826,6 @@ const ModernReportsPage: React.FC = () => {
             </TableBody>
           </Table>
         </TableContainer>
-
         {/* Overdue */}
         {reportData.overdue?.length > 0 && (
           <>
@@ -1796,13 +1869,16 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Complimentary Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Complimentary Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         {/* Summary */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 2 }}>
@@ -1819,30 +1895,37 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" color="info.main">{summary?.partial_complimentary || 0}</Typography>
+              <Typography variant="h4" sx={{
+                color: "info.main"
+              }}>{summary?.partial_complimentary || 0}</Typography>
               <Typography variant="caption">Partial Comp.</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main">{summary?.fully_complimentary || 0}</Typography>
+              <Typography variant="h4" sx={{
+                color: "success.main"
+              }}>{summary?.fully_complimentary || 0}</Typography>
               <Typography variant="caption">Fully Comp.</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
-              <Typography variant="h5" color="warning.main">{currencySymbol}{summary?.discount_given?.toFixed(0) || 0}</Typography>
+              <Typography variant="h5" sx={{
+                color: "warning.main"
+              }}>{currencySymbol}{summary?.discount_given?.toFixed(0) || 0}</Typography>
               <Typography variant="caption">Discount Given</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-              <Typography variant="h5" color="success.main">{currencySymbol}{summary?.actual_revenue?.toFixed(0) || 0}</Typography>
+              <Typography variant="h5" sx={{
+                color: "success.main"
+              }}>{currencySymbol}{summary?.actual_revenue?.toFixed(0) || 0}</Typography>
               <Typography variant="caption">Actual Revenue</Typography>
             </Paper>
           </Grid>
         </Grid>
-
         {/* Bookings */}
         <Typography variant="h6" gutterBottom>Complimentary Bookings</Typography>
         <TableContainer component={Paper} variant="outlined">
@@ -1888,13 +1971,16 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Guest Statistics</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Guest Statistics</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         {/* Summary */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 2 }}>
@@ -1905,13 +1991,17 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
-              <Typography variant="h4" color="success.main">{summary.new_guests}</Typography>
+              <Typography variant="h4" sx={{
+                color: "success.main"
+              }}>{summary.new_guests}</Typography>
               <Typography variant="caption">New Guests</Typography>
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 2 }}>
             <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
-              <Typography variant="h4" color="info.main">{summary.returning_guests}</Typography>
+              <Typography variant="h4" sx={{
+                color: "info.main"
+              }}>{summary.returning_guests}</Typography>
               <Typography variant="caption">Returning</Typography>
             </Paper>
           </Grid>
@@ -1934,7 +2024,6 @@ const ModernReportsPage: React.FC = () => {
             </Paper>
           </Grid>
         </Grid>
-
         <Grid container spacing={3}>
           {/* Top Guests */}
           <Grid size={{ xs: 12, md: 6 }}>
@@ -1997,13 +2086,16 @@ const ModernReportsPage: React.FC = () => {
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Room Performance Report</Typography>
+          <Typography variant="h4" sx={{
+            fontWeight: "bold"
+          }}>Room Performance Report</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
         </Box>
-
         <Grid container spacing={3}>
           {/* By Room Type */}
           <Grid size={{ xs: 12, md: 6 }}>
@@ -2034,7 +2126,9 @@ const ModernReportsPage: React.FC = () => {
 
           {/* Underperforming */}
           <Grid size={{ xs: 12, md: 6 }}>
-            <Typography variant="h6" gutterBottom color="warning.main">Underperforming Rooms</Typography>
+            <Typography variant="h6" gutterBottom sx={{
+              color: "warning.main"
+            }}>Underperforming Rooms</Typography>
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
@@ -2059,7 +2153,6 @@ const ModernReportsPage: React.FC = () => {
             </TableContainer>
           </Grid>
         </Grid>
-
         {/* By Room */}
         <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>All Rooms Performance</Typography>
         <TableContainer component={Paper} variant="outlined">
@@ -2116,7 +2209,6 @@ const ModernReportsPage: React.FC = () => {
         <ReportIcon fontSize="large" />
         Reports
       </Typography>
-
       {/* Report Type Selection */}
       <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>Select Report Type</Typography>
       <Grid container spacing={2} sx={{ mb: 4 }}>
@@ -2134,8 +2226,12 @@ const ModernReportsPage: React.FC = () => {
             >
               <CardContent sx={{ textAlign: 'center', py: 2 }}>
                 <Box sx={{ color: config.color, mb: 1 }}>{config.icon}</Box>
-                <Typography variant="subtitle2" fontWeight="bold">{config.label}</Typography>
-                <Typography variant="caption" color="text.secondary">{config.description}</Typography>
+                <Typography variant="subtitle2" sx={{
+                  fontWeight: "bold"
+                }}>{config.label}</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>{config.description}</Typography>
                 {selectedReport === config.type && (
                   <Chip label="Selected" size="small" color="primary" sx={{ mt: 1 }} />
                 )}
@@ -2144,13 +2240,14 @@ const ModernReportsPage: React.FC = () => {
           </Grid>
         ))}
       </Grid>
-
       {/* Parameters */}
       {selectedReport && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Typography variant="h6" gutterBottom>Report Parameters</Typography>
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} sx={{
+              alignItems: "center"
+            }}>
               {selectedReport === 'ota_monthly_statement' ? (
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                   <TextField
@@ -2159,7 +2256,9 @@ const ModernReportsPage: React.FC = () => {
                     type="month"
                     value={startDate.slice(0, 7)}
                     onChange={(e) => handleStatementMonthChange(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
+                    slotProps={{
+                      inputLabel: { shrink: true }
+                    }}
                   />
                 </Grid>
               ) : (
@@ -2171,7 +2270,9 @@ const ModernReportsPage: React.FC = () => {
                       type="date"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
+                      slotProps={{
+                        inputLabel: { shrink: true }
+                      }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -2181,7 +2282,9 @@ const ModernReportsPage: React.FC = () => {
                       type="date"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      InputLabelProps={{ shrink: true }}
+                      slotProps={{
+                        inputLabel: { shrink: true }
+                      }}
                     />
                   </Grid>
                 </>
@@ -2312,9 +2415,7 @@ const ModernReportsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
       {/* Report Preview */}
       {reportData && (
         <Card>
@@ -2327,17 +2428,18 @@ const ModernReportsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
       {/* Print Preview Dialog */}
       <Dialog
         open={printPreviewOpen}
         onClose={handleClosePrintPreview}
         maxWidth="lg"
         fullWidth
-        PaperProps={{
-          sx: {
-            height: '90vh',
-            maxHeight: '90vh',
+        slotProps={{
+          paper: {
+            sx: {
+              height: '90vh',
+              maxHeight: '90vh',
+            }
           }
         }}
       >

@@ -168,7 +168,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
 
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3 }}>
-        <Dialog open disableEscapeKeyDown maxWidth="sm" fullWidth>
+        <Dialog open maxWidth="sm" fullWidth>
           <DialogTitle>Database upgrade required</DialogTitle>
           <DialogContent>
             <DialogContentText component="div">
@@ -196,7 +196,12 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
               {isUpgrading && (
                 <Box sx={{ mt: 2 }}>
                   <LinearProgress />
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1
+                    }}>
                     Upgrading database. This may take a few minutes; do not close the app.
                   </Typography>
                 </Box>
@@ -235,13 +240,17 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3 }}>
       <Box sx={{ width: '100%', maxWidth: 560, bgcolor: 'background.paper', borderRadius: 2, boxShadow: 3, p: { xs: 3, sm: 4 } }}>
         <Stack spacing={3}>
-          <Stack direction="row" spacing={2} alignItems="center">
+          <Stack direction="row" spacing={2} sx={{
+            alignItems: "center"
+          }}>
             <Box sx={{ width: 48, height: 48, borderRadius: 2, bgcolor: 'primary.main', display: 'grid', placeItems: 'center', color: 'primary.contrastText' }}>
               {status?.backend_starting || isRestarting ? <CircularProgress size={24} color="inherit" /> : <StorageIcon />}
             </Box>
             <Box>
               <Typography variant="h6">{serviceLabel}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {status?.backend_url || 'Waiting for the local API address'}
               </Typography>
             </Box>
@@ -252,7 +261,12 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
           {error && <Alert severity="warning">{error}</Alert>}
 
           {status?.data_directory && (
-            <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                wordBreak: 'break-all'
+              }}>
               Data folder: {status.data_directory}
             </Typography>
           )}

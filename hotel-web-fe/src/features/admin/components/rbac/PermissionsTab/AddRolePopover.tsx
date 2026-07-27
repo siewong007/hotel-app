@@ -55,19 +55,25 @@ const AddRolePopover: React.FC<AddRolePopoverProps> = ({
         vertical: 'top',
         horizontal: 'left',
       }}
-      PaperProps={{
-        sx: { minWidth: 200, maxHeight: 300 },
+      slotProps={{
+        paper: {
+          sx: { minWidth: 200, maxHeight: 300 },
+        }
       }}
     >
       <Box sx={{ p: 1.5, pb: 1 }}>
-        <Typography variant="subtitle2" color="text.secondary">
+        <Typography variant="subtitle2" sx={{
+          color: "text.secondary"
+        }}>
           Add role to permission
         </Typography>
       </Box>
       <Divider />
       {availableRoles.length === 0 ? (
         <Box sx={{ p: 2, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             All roles have this permission
           </Typography>
         </Box>
@@ -88,15 +94,19 @@ const AddRolePopover: React.FC<AddRolePopoverProps> = ({
               <ListItemText
                 primary={role.name}
                 secondary={role.description}
-                primaryTypographyProps={{
-                  fontWeight: 500,
-                  color: getRoleColor(role.name),
-                }}
-                secondaryTypographyProps={{
-                  variant: 'caption',
-                  noWrap: true,
-                }}
-              />
+                slotProps={{
+                  primary: {
+                    sx: {
+                      fontWeight: 500,
+                      color: getRoleColor(role.name),
+                    },
+                  },
+
+                  secondary: {
+                    variant: 'caption',
+                    noWrap: true,
+                  }
+                }} />
               {addingRoleId === role.id ? (
                 <CircularProgress size={16} sx={{ ml: 1 }} />
               ) : (

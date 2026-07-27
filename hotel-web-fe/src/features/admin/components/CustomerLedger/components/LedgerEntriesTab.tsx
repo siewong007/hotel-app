@@ -156,16 +156,16 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
           ))}
         </Box>
       </Box>
-
       {loading && <LinearProgress sx={{ height: 2 }} />}
-
       {entries.length === 0 && loading ? (
         <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
           <CircularProgress size={28} />
         </Box>
       ) : entries.length === 0 ? (
         <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {entryCount === 0
               ? 'No ledger entries for this company yet.'
               : 'No entries match this filter.'}

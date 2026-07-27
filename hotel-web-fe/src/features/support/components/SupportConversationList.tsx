@@ -43,26 +43,60 @@ export default function SupportConversationList({
   onPageSizeChange,
 }: SupportConversationListProps) {
   return (
-    <Stack height="100%" minHeight={0}>
+    <Stack
+      sx={{
+        height: "100%",
+        minHeight: 0
+      }}>
       <Box sx={{ px: 2, py: 1.25, borderBottom: 1, borderColor: 'divider' }}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
+        <Stack
+          direction="row"
+          sx={{
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1
+          }}>
           <Typography variant="subtitle2">Conversations</Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {isFetching && !isLoading ? 'Refreshing…' : `${total} total`}
           </Typography>
         </Stack>
       </Box>
-
-      <Box flex={1} minHeight={0} overflow="auto">
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflow: "auto"
+        }}>
         {isLoading ? (
-          <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 240 }} spacing={1}>
+          <Stack
+            spacing={1}
+            sx={{
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 240
+            }}>
             <CircularProgress size={28} />
-            <Typography variant="body2" color="text.secondary">Loading conversations…</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>Loading conversations…</Typography>
           </Stack>
         ) : conversations.length === 0 ? (
-          <Stack alignItems="center" justifyContent="center" sx={{ minHeight: 240, px: 3, textAlign: 'center' }} spacing={0.5}>
+          <Stack
+            spacing={0.5}
+            sx={{
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 240,
+              px: 3,
+              textAlign: 'center'
+            }}>
             <Typography variant="subtitle2">No conversations found</Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Adjust the filters or check another queue.
             </Typography>
           </Stack>
@@ -77,26 +111,57 @@ export default function SupportConversationList({
                   alignItems="flex-start"
                   sx={{ px: 2, py: 1.5 }}
                 >
-                  <Stack spacing={0.8} width="100%" minWidth={0}>
-                    <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
-                      <Box minWidth={0}>
-                        <Typography variant="body2" fontWeight={700} noWrap>
+                  <Stack
+                    spacing={0.8}
+                    sx={{
+                      width: "100%",
+                      minWidth: 0
+                    }}>
+                    <Stack
+                      direction="row"
+                      sx={{
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 1
+                      }}>
+                      <Box sx={{
+                        minWidth: 0
+                      }}>
+                        <Typography variant="body2" noWrap sx={{
+                          fontWeight: 700
+                        }}>
                           {conversation.guest_name || 'Guest'}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary" noWrap>
+                        <Typography variant="caption" noWrap sx={{
+                          color: "text.secondary"
+                        }}>
                           {conversation.conversation_number} · {humanizeSupportValue(conversation.category)}
                         </Typography>
                       </Box>
-                      <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          whiteSpace: "nowrap"
+                        }}>
                         {formatSupportDate(conversation.last_activity_at)}
                       </Typography>
                     </Stack>
 
-                    <Typography variant="body2" color="text.secondary" noWrap>
+                    <Typography variant="body2" noWrap sx={{
+                      color: "text.secondary"
+                    }}>
                       {conversation.last_message_preview || 'No guest-visible message yet'}
                     </Typography>
 
-                    <Stack direction="row" gap={0.75} flexWrap="wrap" useFlexGap alignItems="center">
+                    <Stack
+                      direction="row"
+                      useFlexGap
+                      sx={{
+                        gap: 0.75,
+                        flexWrap: "wrap",
+                        alignItems: "center"
+                      }}>
                       <SupportStatusChip status={conversation.status} />
                       <SupportPriorityChip priority={conversation.priority} />
                       <SupportSlaChip
@@ -105,13 +170,20 @@ export default function SupportConversationList({
                         dueAt={conversation.first_response_due_at ?? conversation.resolution_due_at}
                       />
                       {conversation.unread_count > 0 ? (
-                        <Typography variant="caption" fontWeight={700} color="primary.main">
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 700,
+                            color: "primary.main"
+                          }}>
                           {conversation.unread_count} unread
                         </Typography>
                       ) : null}
                     </Stack>
 
-                    <Typography variant="caption" color="text.secondary" noWrap>
+                    <Typography variant="caption" noWrap sx={{
+                      color: "text.secondary"
+                    }}>
                       {conversation.assigned_to_name ? `Assigned to ${conversation.assigned_to_name}` : 'Unassigned'}
                       {conversation.room_number ? ` · Room ${conversation.room_number}` : ''}
                     </Typography>
@@ -122,7 +194,6 @@ export default function SupportConversationList({
           </List>
         )}
       </Box>
-
       <TablePagination
         component="div"
         count={total}

@@ -252,7 +252,12 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
     <Dialog open={open} onClose={close} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 700 }}>Create eKYC verification</DialogTitle>
       <DialogContent dividers>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 2
+          }}>
           Verify a customer's identity documents at the front desk. The verification is created
           as <strong>approved</strong>, so the customer can check in directly.
         </Typography>
@@ -285,14 +290,18 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
                   label="Guest *"
                   placeholder={lockGuest ? undefined : 'Search by name, email, or phone'}
                   helperText={lockGuest ? 'Selected guest' : "Pick the guest this verification is for. Create the guest first if they don't exist."}
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {!lockGuest && guestLoading ? <CircularProgress size={18} /> : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
+                  slotProps={{
+                    ...params.slotProps,
+
+                    input: {
+                      ...params.slotProps.input,
+                      endAdornment: (
+                        <>
+                          {!lockGuest && guestLoading ? <CircularProgress size={18} /> : null}
+                          {params.slotProps.input.endAdornment}
+                        </>
+                      ),
+                    }
                   }}
                 />
               )}
@@ -312,9 +321,11 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
               label="Date of birth *"
               type="date"
               fullWidth
-              InputLabelProps={{ shrink: true }}
               value={form.dateOfBirth}
               onChange={(e) => set('dateOfBirth', e.target.value)}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -355,9 +366,11 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
               label="Issue date"
               type="date"
               fullWidth
-              InputLabelProps={{ shrink: true }}
               value={form.idIssueDate}
               onChange={(e) => set('idIssueDate', e.target.value)}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
@@ -365,9 +378,11 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
               label="Expiry date *"
               type="date"
               fullWidth
-              InputLabelProps={{ shrink: true }}
               value={form.idExpiryDate}
               onChange={(e) => set('idExpiryDate', e.target.value)}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -404,7 +419,13 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
         </Button>
         <Box sx={{ flex: 1 }} />
         {validationError && (
-          <Typography variant="caption" color="text.secondary" sx={{ mr: 1, textAlign: 'right' }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              mr: 1,
+              textAlign: 'right'
+            }}>
             {validationError}
           </Typography>
         )}

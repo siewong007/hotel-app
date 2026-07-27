@@ -1287,7 +1287,13 @@ const RoomManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -1313,7 +1319,6 @@ const RoomManagementPage: React.FC = () => {
         dailyCleaningCount={dailyCleaningCount}
         noCleaningCount={noCleaningCount}
       />
-
       {overdueCheckoutBookings.length > 0 && (
         <Alert
           severity="warning"
@@ -1337,12 +1342,13 @@ const RoomManagementPage: React.FC = () => {
           <Typography variant="body2" sx={{ fontWeight: 800 }}>
             {overdueCheckoutBookings.length} room{overdueCheckoutBookings.length === 1 ? '' : 's'} past scheduled checkout
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Review checked-in bookings whose checkout date has already passed.
           </Typography>
         </Alert>
       )}
-
       {/* Room Grid */}
       <Paper
         elevation={0}
@@ -1399,7 +1405,6 @@ const RoomManagementPage: React.FC = () => {
         })}
       </Box>
       </Paper>
-
       {/* Context Menu */}
       <RoomContextMenu
         menuPosition={menuPosition}
@@ -1409,7 +1414,6 @@ const RoomManagementPage: React.FC = () => {
         getMenuLayout={getMenuLayout}
         formatCurrency={formatCurrency}
       />
-
       <Dialog
         open={overdueCheckoutDialogOpen}
         onClose={() => setOverdueCheckoutDialogOpen(false)}
@@ -1424,7 +1428,9 @@ const RoomManagementPage: React.FC = () => {
               <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
                 No overdue checkouts
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 All checked-in rooms are within their scheduled checkout dates.
               </Typography>
             </Box>
@@ -1450,7 +1456,15 @@ const RoomManagementPage: React.FC = () => {
                     }}
                   >
                     <Box sx={{ minWidth: 0 }}>
-                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mb: 0.75 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        useFlexGap
+                        sx={{
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          mb: 0.75
+                        }}>
                         <Chip
                           size="small"
                           color="warning"
@@ -1467,7 +1481,9 @@ const RoomManagementPage: React.FC = () => {
                       <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
                         Room {booking.room_number || room?.room_number || booking.room_id} · {booking.guest_name || 'Unknown guest'}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Stay {formatReviewDate(booking.check_in_date)} - {formatReviewDate(booking.check_out_date)}
                       </Typography>
                     </Box>
@@ -1499,7 +1515,6 @@ const RoomManagementPage: React.FC = () => {
           <Button onClick={() => setOverdueCheckoutDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-
       {/* Walk-in Guest Dialog */}
       <WalkInCheckInDialog
         open={walkInDialogOpen}
@@ -1538,7 +1553,6 @@ const RoomManagementPage: React.FC = () => {
         creating={creatingBooking}
         onSubmit={handleWalkInGuestSelected}
       />
-
       {/* Online Check-in Dialog */}
       <OnlineCheckInDialog
         open={onlineCheckInDialogOpen}
@@ -1576,7 +1590,6 @@ const RoomManagementPage: React.FC = () => {
         creating={creatingBooking}
         onSubmit={handleOnlineGuestSelected}
       />
-
       {/* Complimentary Check-in Dialog */}
       <ComplimentaryCheckInDialog
         open={complimentaryCheckInDialogOpen}
@@ -1606,7 +1619,6 @@ const RoomManagementPage: React.FC = () => {
         creating={creatingBooking}
         onSubmit={handleComplimentaryBookingSubmit}
       />
-
       {/* Extend Checkout Date Dialog */}
       <UpdateCheckoutDateDialog
         open={updateCheckoutDialogOpen}
@@ -1617,7 +1629,6 @@ const RoomManagementPage: React.FC = () => {
           loadData();
         }}
       />
-
       {/* Change Room Dialog */}
       <ChangeRoomDialog
         open={changeRoomDialogOpen}
@@ -1633,7 +1644,6 @@ const RoomManagementPage: React.FC = () => {
         changing={changingRoom}
         onConfirm={handleConfirmRoomChange}
       />
-
       {/* Unified Booking Modal */}
       <UnifiedBookingModal
         open={unifiedBookingOpen}
@@ -1646,10 +1656,8 @@ const RoomManagementPage: React.FC = () => {
         onBookingCreated={handleUnifiedBookingCreated}
         onRefreshData={loadData}
       />
-
       {/* Check Out Dialog with Invoice (shared flow; no read-only receipt here) */}
       <CheckoutInvoiceModals flow={checkoutFlow} withReceipt={false} />
-
       {/* Room History Dialog - Enhanced */}
       <RoomHistoryDialog
         open={historyDialogOpen}
@@ -1660,7 +1668,6 @@ const RoomManagementPage: React.FC = () => {
         currentBooking={selectedRoom ? roomBookings.get(selectedRoom.id) : undefined}
         onViewGuestDetails={handleViewGuestDetails}
       />
-
       {/* Room Properties Dialog - Placeholder */}
       <RoomDetailsDialog
         open={roomDetailsDialogOpen}
@@ -1668,7 +1675,6 @@ const RoomManagementPage: React.FC = () => {
         room={selectedRoom}
         formatCurrency={formatCurrency}
       />
-
       {/* Edit Room Notes Dialog */}
       <RoomNotesDialog
         open={notesDialogOpen}
@@ -1679,14 +1685,12 @@ const RoomManagementPage: React.FC = () => {
         onSave={saveRoomNotes}
         saving={savingNotes}
       />
-
       <RoomStatusDialog
         open={roomStatusDialogOpen}
         room={selectedRoom}
         onClose={() => setRoomStatusDialogOpen(false)}
         onSubmit={handleSaveRoomStatus}
       />
-
       {/* Booking Notes Edit Dialog */}
       <BookingNotesDialog
         open={bookingNotesDialogOpen}
@@ -1699,7 +1703,6 @@ const RoomManagementPage: React.FC = () => {
         onSave={handleSaveBookingNotes}
         saving={savingBookingNotes}
       />
-
       {/* Upcoming Bookings Dialog */}
       <UpcomingBookingsDialog
         open={upcomingBookings.open}
@@ -1714,7 +1717,6 @@ const RoomManagementPage: React.FC = () => {
           reservedCheckIn.openWithBooking(booking);
         }}
       />
-
       {/* Reserved Check-In Dialog - Streamlined check-in for reserved rooms */}
       <ReservedCheckInDialog
         open={reservedCheckIn.dialogOpen}
@@ -1745,7 +1747,6 @@ const RoomManagementPage: React.FC = () => {
         processing={reservedCheckIn.processing}
         onCheckIn={reservedCheckIn.checkIn}
       />
-
       {/* Payment Collection Dialog */}
       <CollectDepositDialog
         open={paymentDialogOpen}
@@ -1768,7 +1769,6 @@ const RoomManagementPage: React.FC = () => {
         processing={processingPayment}
         onCollect={handleCollectPayment}
       />
-
       {/* Guest Details Dialog with Tabs */}
       <GuestDetailsDialog
         open={guestCreditsWorkflow.dialogOpen}
@@ -1798,7 +1798,6 @@ const RoomManagementPage: React.FC = () => {
         onToggleDate={guestCreditsWorkflow.toggleDate}
         onBookWithCredits={guestCreditsWorkflow.bookWithCreditsAndCheckIn}
       />
-
       {/* Mark as Complimentary Dialog */}
       <MarkComplimentaryDialog
         open={complimentaryDialogOpen}
@@ -1812,7 +1811,6 @@ const RoomManagementPage: React.FC = () => {
         processing={markingComplimentary}
         onConfirm={handleConfirmMarkComplimentary}
       />
-
     </Box>
   );
 };

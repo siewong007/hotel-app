@@ -644,8 +644,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Box display="flex" alignItems="center">
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between"
+          }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center"
+            }}>
             <ReceiptIcon sx={{ mr: 1, color: 'primary.main' }} />
             <Typography variant="h6">
               {readOnly
@@ -663,11 +672,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           />
         </Box>
       </DialogTitle>
-
       <DialogContent dividers>
         {(readOnly || checkoutStep === 'preview') ? (
           // STEP 1: Invoice Preview (Default View)
-          <Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333' }}>
+          (<Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333' }}>
             {error && (
               <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
                 {error}
@@ -675,11 +683,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             )}
             {!readOnly && (
               <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body2" fontWeight={600}>Please review the invoice carefully before proceeding with checkout.</Typography>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>Please review the invoice carefully before proceeding with checkout.</Typography>
                 <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>
               </Alert>
             )}
-
             {/* Company Billing Indicator */}
             {booking.company_id && booking.company_name && (
               <Alert
@@ -687,7 +696,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 icon={<BusinessIcon />}
                 sx={{ mb: 3 }}
               >
-                <Typography variant="body2" fontWeight={600}>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>
                   Company Billing: {booking.company_name}
                 </Typography>
                 <Typography variant="caption">
@@ -695,20 +706,22 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Alert>
             )}
-
             {/* Invoice Header */}
             <Box sx={{ textAlign: 'center', mb: 4, borderBottom: '2px solid #1976d2', pb: 2 }}>
               <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 700, mb: 0.5 }}>
                 {hotelSettings.hotel_name}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {hotelSettings.hotel_address}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}
               </Typography>
             </Box>
-
             {/* Invoice Meta */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
               <Grid size={{ xs: 12, md: 4 }}>
@@ -812,7 +825,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Grid>
             </Grid>
-
             {/* Charges Table */}
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               <Box sx={{ bgcolor: '#1976d2', color: 'white', p: 1.5 }}>
@@ -888,7 +900,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         return (
                           <React.Fragment key={i}>
                             <Box sx={{ p: 1.5, borderBottom: isPositiveMoney(dayTax) ? 'none' : '1px solid #ddd' }}>
-                              <Grid container alignItems="center">
+                              <Grid container sx={{
+                                alignItems: "center"
+                              }}>
                                 <Grid size={editingRates ? 5 : 8}>
                                   <Typography variant="body2">
                                     Room Charge — {dateStr}
@@ -904,12 +918,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                         const val = toMoneyNumber(e.target.value);
                                         setEditableDailyRates(prev => ({ ...prev, [dateKey]: val }));
                                       }}
-                                      InputProps={{
-                                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                                      }}
-                                      inputProps={{ min: 0, step: 0.01 }}
                                       sx={{ width: 160, '& .MuiInputBase-input': { textAlign: 'right', py: 0.5 } }}
-                                    />
+                                      slotProps={{
+                                        input: {
+                                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                        },
+
+                                        htmlInput: { min: 0, step: 0.01 }
+                                      }} />
                                   ) : (
                                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                                       {formatCurrency(dayRate)}
@@ -922,12 +938,19 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               <Box sx={{ p: 1.5, pl: 3, borderBottom: '1px solid #ddd', bgcolor: '#fafafa' }}>
                                 <Grid container>
                                   <Grid size={8}>
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography variant="body2" sx={{
+                                      color: "text.secondary"
+                                    }}>
                                       Service Tax ({hotelSettings.service_tax_rate}%)
                                     </Typography>
                                   </Grid>
                                   <Grid sx={{ textAlign: 'right' }} size={4}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        color: "text.secondary",
+                                        fontWeight: 600
+                                      }}>
                                       {formatCurrency(dayTax)}
                                     </Typography>
                                   </Grid>
@@ -999,7 +1022,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       {isPositiveMoney(charges.extraBedServiceTax) && (
                         <>
                           <Grid size={8}>
-                            <Typography variant="body2" color="text.secondary" sx={{ pl: 2, fontSize: '0.8rem' }}>
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                color: "text.secondary",
+                                pl: 2,
+                                fontSize: '0.8rem'
+                              }}>
                               Service Tax ({hotelSettings.service_tax_rate}%)
                             </Typography>
                           </Grid>
@@ -1033,17 +1062,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               </Box>
             </Box>
-
             {/* Deposit Refund Section */}
             {isPositiveMoney(charges.depositRefund) && !depositWaived ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
-                  <Grid container alignItems="center">
+                  <Grid container sx={{
+                    alignItems: "center"
+                  }}>
                     <Grid size={5}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
                         Deposit Refund
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded or waived before checkout'}
                       </Typography>
                     </Grid>
@@ -1102,9 +1134,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {/* Waive Deposit Option */}
                 {!depositRefunded && (
                   <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
-                    <Grid container alignItems="center" spacing={1}>
+                    <Grid container spacing={1} sx={{
+                      alignItems: "center"
+                    }}>
                       <Grid size={12}>
-                        <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "text.secondary",
+                            mb: 1,
+                            display: 'block'
+                          }}>
                           Or waive the deposit (e.g., lost keycard, special arrangement):
                         </Typography>
                       </Grid>
@@ -1142,12 +1182,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             ) : depositWaived ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
-                  <Grid container alignItems="center">
+                  <Grid container sx={{
+                    alignItems: "center"
+                  }}>
                     <Grid size={8}>
                       <Typography variant="body2" sx={{ color: '#e65100', fontWeight: 600 }}>
                         Deposit
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         Waived: {depositWaiveReason}
                       </Typography>
                     </Grid>
@@ -1172,7 +1216,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             ) : (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: '#e3f2fd' }}>
-                  <Grid container alignItems="center">
+                  <Grid container sx={{
+                    alignItems: "center"
+                  }}>
                     <Grid size={8}>
                       <Typography variant="body2" sx={{ color: '#1565c0' }}>
                         Deposit
@@ -1189,7 +1235,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               </Box>
             )}
-
             {/* Payment Required Alert */}
             {requiresFullPaymentBeforeCheckout && (
               <Alert severity="warning" sx={{ mb: 2 }}>
@@ -1198,7 +1243,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Alert>
             )}
-
             {/* Payments Section */}
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1226,7 +1270,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee' }}>
                       {editingPayment?.id === p.id ? (
                         // Edit form inline
-                        <Box>
+                        (<Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
                             <Grid size={4}>
                               <TextField
@@ -1236,8 +1280,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 fullWidth
                                 value={editAmount || ''}
                                 onChange={(e) => setEditAmount(toMoneyNumber(e.target.value))}
-                                InputProps={{
-                                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                slotProps={{
+                                  input: {
+                                    startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                  }
                                 }}
                               />
                             </Grid>
@@ -1263,7 +1309,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 fullWidth
                                 value={editDate}
                                 onChange={(e) => setEditDate(e.target.value)}
-                                InputLabelProps={{ shrink: true }}
+                                slotProps={{
+                                  inputLabel: { shrink: true }
+                                }}
                               />
                             </Grid>
                             <Grid size={6}>
@@ -1302,20 +1350,26 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               {updatingPayment ? 'Saving...' : 'Save'}
                             </Button>
                           </Box>
-                        </Box>
+                        </Box>)
                       ) : (
                         // Normal display
-                        <Grid container alignItems="center">
+                        (<Grid container sx={{
+                        alignItems: "center"
+                      }}>
                           <Grid size={4}>
                             <Typography variant="body2">
                               {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>
                               {formatPaymentDateTime(p)}
                             </Typography>
                           </Grid>
                           <Grid size={3}>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>
                               {p.transaction_reference || p.notes || ''}
                             </Typography>
                           </Grid>
@@ -1349,7 +1403,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               </Button>
                             </Box>
                           </Grid>
-                        </Grid>
+                        </Grid>)
                       )}
                     </Box>
                   ))}
@@ -1372,8 +1426,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 fullWidth
                                 value={editAmount || ''}
                                 onChange={(e) => setEditAmount(toMoneyNumber(e.target.value))}
-                                InputProps={{
-                                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                slotProps={{
+                                  input: {
+                                    startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                  }
                                 }}
                               />
                             </Grid>
@@ -1399,7 +1455,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 fullWidth
                                 value={editDate}
                                 onChange={(e) => setEditDate(e.target.value)}
-                                InputLabelProps={{ shrink: true }}
+                                slotProps={{
+                                  inputLabel: { shrink: true }
+                                }}
                               />
                             </Grid>
                             <Grid size={6}>
@@ -1440,12 +1498,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           </Box>
                         </Box>
                       ) : (
-                        <Grid container alignItems="center">
+                        <Grid container sx={{
+                          alignItems: "center"
+                        }}>
                           <Grid size={5}>
                             <Typography variant="body2" sx={{ color: '#2e7d32' }}>
                               Deposit Refund ({p.payment_method?.replace('_', ' ')})
                             </Typography>
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>
                               {formatPaymentDateTime(p)}
                             </Typography>
                           </Grid>
@@ -1491,7 +1553,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
               {payments.length === 0 && (
                 <Box sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">No payments recorded yet</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>No payments recorded yet</Typography>
                 </Box>
               )}
 
@@ -1508,8 +1572,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         fullWidth
                         value={paymentAmount || ''}
                         onChange={(e) => setPaymentAmount(toMoneyNumber(e.target.value))}
-                        InputProps={{
-                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                        slotProps={{
+                          input: {
+                            startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                          }
                         }}
                       />
                     </Grid>
@@ -1535,7 +1601,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         fullWidth
                         value={paymentDate}
                         onChange={(e) => setPaymentDate(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
+                        slotProps={{
+                          inputLabel: { shrink: true }
+                        }}
                       />
                     </Grid>
                     <Grid size={6}>
@@ -1587,11 +1655,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Grid>
               </Box>
             </Box>
-
             {/* Notes */}
             {isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !readOnly && (
               <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="body2" fontWeight={600}>
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>
                   Deposit refund required
                 </Typography>
                 <Typography variant="caption">
@@ -1599,7 +1668,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Alert>
             )}
-
             {depositRefunded && (
               <Alert severity="success" sx={{ mb: 2 }}>
                 <Typography variant="body2">
@@ -1607,301 +1675,327 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Alert>
             )}
-          </Box>
+          </Box>)
         ) : (
           // STEP 3: Confirmation Summary (After Review)
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {error && (
-            <Alert severity="error" onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
-
-          {/* Company Billing Indicator */}
-          {booking.company_id && booking.company_name && (
-            <Alert
-              severity="warning"
-              icon={<BusinessIcon />}
-            >
-              <Typography variant="body2" fontWeight={600}>
-                Company Billing: {booking.company_name}
+          (<Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {error && (
+              <Alert severity="error" onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            )}
+            {/* Company Billing Indicator */}
+            {booking.company_id && booking.company_name && (
+              <Alert
+                severity="warning"
+                icon={<BusinessIcon />}
+              >
+                <Typography variant="body2" sx={{
+                  fontWeight: 600
+                }}>
+                  Company Billing: {booking.company_name}
+                </Typography>
+                <Typography variant="caption">
+                  Room charges will be automatically posted to the company ledger.
+                </Typography>
+              </Alert>
+            )}
+            {/* Guest Information */}
+            <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                Guest Information
               </Typography>
-              <Typography variant="caption">
-                Room charges will be automatically posted to the company ledger.
+              <Grid container spacing={1}>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
+                    Guest Name:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {booking.guest_name}
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
+                    Room:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {booking.room_number} - {booking.room_type}
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
+                    Check-in:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {new Date(booking.check_in_date).toLocaleString()}
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
+                    Check-out:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
+                    {getActualCheckoutDate().toLocaleString()}
+                    {isEarlyCheckout() && (
+                      <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                    )}
+                    {isLateCheckout() && (
+                      <Chip label="Late" size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                    )}
+                  </Typography>
+                </Grid>
+                {getCheckoutVariance() && (
+                  <>
+                    <Grid size={6}>
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
+                        Scheduled:
+                      </Typography>
+                    </Grid>
+                    <Grid size={6}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                        {new Date(booking.check_out_date).toLocaleDateString()}
+                      </Typography>
+                    </Grid>
+                  </>
+                )}
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
+                    Duration:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {calculateNights()} night(s)
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+            {/* Charges Breakdown */}
+            <Paper elevation={0} sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 2 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                Charges Breakdown
               </Typography>
-            </Alert>
-          )}
+              <Grid container spacing={1}>
+                {/* Room Charges */}
+                <Grid size={8}>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
+                    Room Charges ({calculateNights()} nights)
+                  </Typography>
+                </Grid>
+                <Grid sx={{ textAlign: 'right' }} size={4}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {formatCurrency(charges.roomCharges)}
+                  </Typography>
+                </Grid>
 
-          {/* Guest Information */}
-          <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-              Guest Information
-            </Typography>
-            <Grid container spacing={1}>
-              <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Guest Name:
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {booking.guest_name}
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Room:
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {booking.room_number} - {booking.room_type}
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Check-in:
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {new Date(booking.check_in_date).toLocaleString()}
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Check-out:
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
-                  {getActualCheckoutDate().toLocaleString()}
-                  {isEarlyCheckout() && (
-                    <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
-                  )}
-                  {isLateCheckout() && (
-                    <Chip label="Late" size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
-                  )}
-                </Typography>
-              </Grid>
-              {getCheckoutVariance() && (
-                <>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Scheduled:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-                      {new Date(booking.check_out_date).toLocaleDateString()}
-                    </Typography>
-                  </Grid>
-                </>
-              )}
-              <Grid size={6}>
-                <Typography variant="body2" color="text.secondary">
-                  Duration:
-                </Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {calculateNights()} night(s)
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
+                {/* Service Tax */}
+                {isPositiveMoney(charges.serviceTax) && (
+                  <>
+                    <Grid size={8}>
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
+                        Service Tax ({hotelSettings.service_tax_rate}%)
+                      </Typography>
+                    </Grid>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
+                      <Typography variant="body2">
+                        {formatCurrency(charges.serviceTax)}
+                      </Typography>
+                    </Grid>
+                  </>
+                )}
 
-          {/* Charges Breakdown */}
-          <Paper elevation={0} sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 2 }}>
-            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-              Charges Breakdown
-            </Typography>
-            <Grid container spacing={1}>
-              {/* Room Charges */}
-              <Grid size={8}>
-                <Typography variant="body2" color="text.secondary">
-                  Room Charges ({calculateNights()} nights)
-                </Typography>
-              </Grid>
-              <Grid sx={{ textAlign: 'right' }} size={4}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {formatCurrency(charges.roomCharges)}
-                </Typography>
-              </Grid>
+                {/* Tourism Tax — billed per night */}
+                {isPositiveMoney(charges.tourismTax) && (() => {
+                  const nights = calculateNights();
+                  if (isHourlyBooking || nights <= 0) {
+                    return (
+                      <React.Fragment key="tt-single">
+                        <Grid size={8}>
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>
+                            Tourism Tax
+                          </Typography>
+                        </Grid>
+                        <Grid sx={{ textAlign: 'right' }} size={4}>
+                          <Typography variant="body2">
+                            {formatCurrency(charges.tourismTax)}
+                          </Typography>
+                        </Grid>
+                      </React.Fragment>
+                    );
+                  }
+                    const perNight = divideMoney(charges.tourismTax, nights);
+                  const checkIn = new Date(booking.check_in_date);
+                  return Array.from({ length: nights }, (_, i) => {
+                    const date = new Date(checkIn);
+                    date.setDate(date.getDate() + i);
+                    return (
+                      <React.Fragment key={`tt-${i}`}>
+                        <Grid size={8}>
+                          <Typography variant="body2" sx={{
+                            color: "text.secondary"
+                          }}>
+                            Tourism Tax — {date.toLocaleDateString()}
+                          </Typography>
+                        </Grid>
+                        <Grid sx={{ textAlign: 'right' }} size={4}>
+                          <Typography variant="body2">
+                            {formatCurrency(perNight)}
+                          </Typography>
+                        </Grid>
+                      </React.Fragment>
+                    );
+                  });
+                })()}
 
-              {/* Service Tax */}
-              {isPositiveMoney(charges.serviceTax) && (
-                <>
-                  <Grid size={8}>
-                    <Typography variant="body2" color="text.secondary">
-                      Service Tax ({hotelSettings.service_tax_rate}%)
-                    </Typography>
-                  </Grid>
-                  <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2">
-                      {formatCurrency(charges.serviceTax)}
-                    </Typography>
-                  </Grid>
-                </>
-              )}
-
-              {/* Tourism Tax — billed per night */}
-              {isPositiveMoney(charges.tourismTax) && (() => {
-                const nights = calculateNights();
-                if (isHourlyBooking || nights <= 0) {
-                  return (
-                    <React.Fragment key="tt-single">
-                      <Grid size={8}>
-                        <Typography variant="body2" color="text.secondary">
-                          Tourism Tax
-                        </Typography>
-                      </Grid>
-                      <Grid sx={{ textAlign: 'right' }} size={4}>
-                        <Typography variant="body2">
-                          {formatCurrency(charges.tourismTax)}
-                        </Typography>
-                      </Grid>
-                    </React.Fragment>
-                  );
-                }
-                  const perNight = divideMoney(charges.tourismTax, nights);
-                const checkIn = new Date(booking.check_in_date);
-                return Array.from({ length: nights }, (_, i) => {
-                  const date = new Date(checkIn);
-                  date.setDate(date.getDate() + i);
-                  return (
-                    <React.Fragment key={`tt-${i}`}>
-                      <Grid size={8}>
-                        <Typography variant="body2" color="text.secondary">
-                          Tourism Tax — {date.toLocaleDateString()}
-                        </Typography>
-                      </Grid>
-                      <Grid sx={{ textAlign: 'right' }} size={4}>
-                        <Typography variant="body2">
-                          {formatCurrency(perNight)}
-                        </Typography>
-                      </Grid>
-                    </React.Fragment>
-                  );
-                });
-              })()}
-
-              {/* Extra Bed */}
-              {isPositiveMoney(charges.extraBedCharge) && (
-                <>
-                  <Grid size={8}>
-                    <Typography variant="body2" color="text.secondary">
-                      Extra Bed Charge
-                    </Typography>
-                  </Grid>
-                  <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2">
-                      {formatCurrency(charges.extraBedCharge)}
-                    </Typography>
-                  </Grid>
-                  {isPositiveMoney(charges.extraBedServiceTax) && (
-                    <>
-                      <Grid size={8}>
-                        <Typography variant="body2" color="text.secondary" sx={{ pl: 2 }}>
-                          Service Tax ({hotelSettings.service_tax_rate}%)
-                        </Typography>
-                      </Grid>
-                      <Grid sx={{ textAlign: 'right' }} size={4}>
-                        <Typography variant="body2">
-                          {formatCurrency(charges.extraBedServiceTax)}
-                        </Typography>
-                      </Grid>
-                    </>
-                  )}
-                </>
-              )}
+                {/* Extra Bed */}
+                {isPositiveMoney(charges.extraBedCharge) && (
+                  <>
+                    <Grid size={8}>
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
+                        Extra Bed Charge
+                      </Typography>
+                    </Grid>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
+                      <Typography variant="body2">
+                        {formatCurrency(charges.extraBedCharge)}
+                      </Typography>
+                    </Grid>
+                    {isPositiveMoney(charges.extraBedServiceTax) && (
+                      <>
+                        <Grid size={8}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "text.secondary",
+                              pl: 2
+                            }}>
+                            Service Tax ({hotelSettings.service_tax_rate}%)
+                          </Typography>
+                        </Grid>
+                        <Grid sx={{ textAlign: 'right' }} size={4}>
+                          <Typography variant="body2">
+                            {formatCurrency(charges.extraBedServiceTax)}
+                          </Typography>
+                        </Grid>
+                      </>
+                    )}
+                  </>
+                )}
 
 
 
-              <Grid size={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
+                <Grid size={12}>
+                  <Divider sx={{ my: 1 }} />
+                </Grid>
 
-              {/* Subtotal */}
-              <Grid size={8}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Subtotal
+                {/* Subtotal */}
+                <Grid size={8}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Subtotal
+                  </Typography>
+                </Grid>
+                <Grid sx={{ textAlign: 'right' }} size={4}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {formatCurrency(charges.subtotal)}
+                  </Typography>
+                </Grid>
+
+                {/* Deposit Refund Status */}
+                {depositWaived ? (
+                  <>
+                    <Grid size={8}>
+                      <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                        Deposit
+                      </Typography>
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
+                        {depositWaiveReason}
+                      </Typography>
+                    </Grid>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
+                      <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    </Grid>
+                  </>
+                ) : isPositiveMoney(charges.depositRefund) && (
+                  <>
+                    <Grid size={8}>
+                      <Typography variant="body2" sx={{ color: 'success.main' }}>
+                        Deposit
+                      </Typography>
+                    </Grid>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
+                      <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    </Grid>
+                  </>
+                )}
+
+                <Grid size={12}>
+                  <Divider sx={{ my: 1 }} />
+                </Grid>
+
+                {/* Grand Total */}
+                <Grid size={8}>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    {charges.grandTotal >= 0 ? 'Total to Collect' : 'Total to Refund'}
+                  </Typography>
+                </Grid>
+                <Grid sx={{ textAlign: 'right' }} size={4}>
+                  <Typography
+                    variant="h5"
+                    color={charges.grandTotal >= 0 ? 'primary' : 'success'}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    {formatCurrency(Math.abs(charges.grandTotal))}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+            {/* Additional Info */}
+            {depositWaived ? (
+              <Alert severity="warning">
+                <Typography variant="body2">
+                  Room card deposit has been waived. Reason: {depositWaiveReason}
                 </Typography>
-              </Grid>
-              <Grid sx={{ textAlign: 'right' }} size={4}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {formatCurrency(charges.subtotal)}
+              </Alert>
+            ) : isPositiveMoney(charges.depositRefund) && (
+              <Alert severity="success">
+                <Typography variant="body2">
+                  Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded to the guest.
                 </Typography>
-              </Grid>
-
-              {/* Deposit Refund Status */}
-              {depositWaived ? (
-                <>
-                  <Grid size={8}>
-                    <Typography variant="body2" sx={{ color: 'warning.main' }}>
-                      Deposit
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {depositWaiveReason}
-                    </Typography>
-                  </Grid>
-                  <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
-                  </Grid>
-                </>
-              ) : isPositiveMoney(charges.depositRefund) && (
-                <>
-                  <Grid size={8}>
-                    <Typography variant="body2" sx={{ color: 'success.main' }}>
-                      Deposit
-                    </Typography>
-                  </Grid>
-                  <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
-                  </Grid>
-                </>
-              )}
-
-              <Grid size={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
-
-              {/* Grand Total */}
-              <Grid size={8}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                  {charges.grandTotal >= 0 ? 'Total to Collect' : 'Total to Refund'}
-                </Typography>
-              </Grid>
-              <Grid sx={{ textAlign: 'right' }} size={4}>
-                <Typography
-                  variant="h5"
-                  color={charges.grandTotal >= 0 ? 'primary' : 'success'}
-                  sx={{ fontWeight: 700 }}
-                >
-                  {formatCurrency(Math.abs(charges.grandTotal))}
-                </Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-
-          {/* Additional Info */}
-          {depositWaived ? (
-            <Alert severity="warning">
-              <Typography variant="body2">
-                Room card deposit has been waived. Reason: {depositWaiveReason}
-              </Typography>
-            </Alert>
-          ) : isPositiveMoney(charges.depositRefund) && (
-            <Alert severity="success">
-              <Typography variant="body2">
-                Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded to the guest.
-              </Typography>
-            </Alert>
-          )}
-          </Box>
+              </Alert>
+            )}
+          </Box>)
         )}
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2 }}>
         {readOnly ? (
           <>
@@ -1958,7 +2052,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           </>
         )}
       </DialogActions>
-
       <CheckoutInvoicePrintView
         booking={booking}
         hotelSettings={hotelSettings}

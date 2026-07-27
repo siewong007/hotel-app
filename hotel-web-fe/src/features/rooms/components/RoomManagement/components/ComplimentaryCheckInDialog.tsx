@@ -70,7 +70,6 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
           </Typography>
         </Box>
       </DialogTitle>
-
       <DialogContent sx={{ pt: 3 }}>
         <Grid container spacing={3}>
           {/* Info Banner */}
@@ -107,7 +106,9 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Box>
                             <Typography variant="body1">{option.full_name}</Typography>
-                            {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
+                            {option.email && <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>{option.email}</Typography>}
                           </Box>
                           <Chip
                             icon={<GiftIcon sx={{ fontSize: 14 }} />}
@@ -155,7 +156,9 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
               label="Check-in Date"
               value={checkInDate}
               onChange={(e) => onCheckInDateChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -168,7 +171,9 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
               label="Check-out Date"
               value={checkOutDate}
               onChange={(e) => onCheckOutDateChange(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{
+                inputLabel: { shrink: true }
+              }}
             />
           </Grid>
 
@@ -180,13 +185,17 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
               </Typography>
               <Grid container spacing={1}>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">Number of Nights:</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>Number of Nights:</Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2">{numberOfNights}</Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">Room Rate:</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>Room Rate:</Typography>
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
@@ -194,17 +203,26 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>Total Amount:</Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" fontWeight="bold" color="success.main">
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: "bold",
+                      color: "success.main"
+                    }}>
                     FREE (Complimentary)
                   </Typography>
                 </Grid>
                 {selectedGuest && (
                   <>
                     <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">Credits Available:</Typography>
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>Credits Available:</Typography>
                     </Grid>
                     <Grid size={6}>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -227,7 +245,6 @@ const ComplimentaryCheckInDialog: React.FC<ComplimentaryCheckInDialogProps> = ({
           </Grid>
         </Grid>
       </DialogContent>
-
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} disabled={creating}>
           Cancel

@@ -122,11 +122,12 @@ const Dashboard: React.FC = () => {
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
           Hotel Dashboard
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" sx={{
+          color: "text.secondary"
+        }}>
           Welcome back! Here's an overview of your hotel operations.
         </Typography>
       </Box>
-
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
@@ -183,34 +184,63 @@ const Dashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 2
+                }}>
                 <BookingIcon sx={{ mr: 1, color: 'primary.main' }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Recent Activity
                 </Typography>
               </Box>
               <Box sx={{ mt: 2, '& > *': { mb: 1.5 } }}>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     {stats.availableRooms} rooms currently available for booking
                   </Typography>
                 </Box>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     {stats.totalGuests} guests registered in the system
                   </Typography>
                 </Box>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'secondary.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     {stats.totalBookings} bookings made this period
                   </Typography>
                 </Box>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     Estimated revenue: <strong>{formatCurrency(stats.totalRevenue)}</strong>
                   </Typography>
                 </Box>
@@ -222,28 +252,51 @@ const Dashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 2
+                }}>
                 <HotelIcon sx={{ mr: 1, color: 'primary.main' }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   System Status
                 </Typography>
               </Box>
               <Box sx={{ mt: 2, '& > *': { mb: 1.5 } }}>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     Backend API: <strong>Connected</strong>
                   </Typography>
                 </Box>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     Database: <strong>Active</strong>
                   </Typography>
                 </Box>
-                <Box display="flex" alignItems="center">
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center"
+                  }}>
                   <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: 'success.main', mr: 2 }} />
-                  <Typography variant="body1" color="text.primary">
+                  <Typography variant="body1" sx={{
+                    color: "text.primary"
+                  }}>
                     Mobile App: <strong>Integration Ready</strong>
                   </Typography>
                 </Box>
@@ -256,7 +309,12 @@ const Dashboard: React.FC = () => {
         <Grid size={12}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={3}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 3
+                }}>
                 <EventIcon sx={{ mr: 1, color: 'primary.main', fontSize: 28 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Upcoming Bookings
@@ -284,7 +342,9 @@ const Dashboard: React.FC = () => {
                               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                 {booking.room_type}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography variant="caption" sx={{
+                                color: "text.secondary"
+                              }}>
                                 Room {booking.room_number}
                               </Typography>
                             </Box>
@@ -321,7 +381,12 @@ const Dashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={3}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 3
+                }}>
                 <OfferIcon sx={{ mr: 1, color: 'secondary.main', fontSize: 28 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Active Promotions
@@ -333,10 +398,21 @@ const Dashboard: React.FC = () => {
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'secondary.main' }}>
                     Weekend Special - 20% Off
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 0.5
+                    }}>
                     Book 2+ nights on weekends and save 20%
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1,
+                      display: 'block'
+                    }}>
                     Valid until: Dec 31, 2025
                   </Typography>
                 </Card>
@@ -345,10 +421,21 @@ const Dashboard: React.FC = () => {
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'primary.main' }}>
                     Early Bird Discount
                   </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 0.5
+                    }}>
                     Book 30 days in advance for 15% off
                   </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1,
+                      display: 'block'
+                    }}>
                     Valid until: Mar 31, 2026
                   </Typography>
                 </Card>
@@ -360,7 +447,12 @@ const Dashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={3}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 3
+                }}>
                 <VoucherIcon sx={{ mr: 1, color: 'success.main', fontSize: 28 }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
                   Available Rewards
@@ -369,12 +461,22 @@ const Dashboard: React.FC = () => {
 
               <Box sx={{ '& > *': { mb: 2 } }}>
                 <Card variant="outlined" sx={{ p: 2, borderLeft: '4px solid', borderColor: 'success.main' }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="start">
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "start"
+                    }}>
                     <Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'success.main' }}>
                         Free Room Upgrade
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          mt: 0.5
+                        }}>
                         Upgrade to next room category
                       </Typography>
                     </Box>
@@ -383,12 +485,22 @@ const Dashboard: React.FC = () => {
                 </Card>
 
                 <Card variant="outlined" sx={{ p: 2, borderLeft: '4px solid', borderColor: 'info.main' }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="start">
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "start"
+                    }}>
                     <Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'info.main' }}>
                         Complimentary Breakfast
                       </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                          mt: 0.5
+                        }}>
                         Free breakfast for 2 guests
                       </Typography>
                     </Box>

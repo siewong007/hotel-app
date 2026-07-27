@@ -80,12 +80,14 @@ const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
       helperText={helperText}
       size={size}
       margin={margin}
-      InputLabelProps={{
-        shrink: true,
-      }}
-      inputProps={{
-        min: minDate,
-        max: maxDate,
+      slotProps={{
+        inputLabel: {
+          shrink: true,
+        },
+        htmlInput: {
+          min: minDate,
+          max: maxDate,
+        },
       }}
       variant="outlined"
     />

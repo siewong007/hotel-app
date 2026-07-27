@@ -91,10 +91,14 @@ function FormSection({
   return (
     <Grid size={{ xs: 12 }}>
       <Box sx={{ pt: 1 }}>
-        <Typography variant="subtitle1" fontWeight={700}>
+        <Typography variant="subtitle1" sx={{
+          fontWeight: 700
+        }}>
           {title}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {description}
         </Typography>
         <Divider sx={{ mt: 1.25 }} />
@@ -219,10 +223,14 @@ export function PromotionEditorDialog({
       fullWidth
     >
       <DialogTitle sx={{ pb: 1.5 }}>
-        <Typography variant="h6" fontWeight={750}>
+        <Typography variant="h6" sx={{
+          fontWeight: 750
+        }}>
           {promotion ? "Edit promotion" : "Create promotion"}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {promotion
             ? "Update the offer details and save your changes. Publishing is managed from the promotion list."
             : "Set up the offer details now, then publish the draft when it is ready for guests."}

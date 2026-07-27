@@ -119,10 +119,6 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                 type="number"
                 value={paymentFormData.payment_amount}
                 onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_amount: toMoneyNumber(e.target.value) })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                }}
-                inputProps={{ min: 0, max: paymentLedger ? getLedgerBalanceDue(paymentLedger) : undefined, step: 0.01 }}
                 error={!!paymentLedger && isGreaterMoney(paymentFormData.payment_amount, getLedgerBalanceDue(paymentLedger))}
                 helperText={
                   paymentLedger
@@ -131,7 +127,13 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                       : `Outstanding balance: ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
                     : undefined
                 }
-              />
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                  },
+
+                  htmlInput: { min: 0, max: paymentLedger ? getLedgerBalanceDue(paymentLedger) : undefined, step: 0.01 }
+                }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required>
@@ -173,7 +175,9 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                 type="date"
                 value={paymentFormData.payment_date || ''}
                 onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_date: e.target.value })}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{
+                  inputLabel: { shrink: true }
+                }}
               />
             </Grid>
             <Grid size={12}>
@@ -193,7 +197,12 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
       {paymentTab === 1 && (
         <Box>
           {paymentHistory.length === 0 ? (
-            <Typography color="text.secondary" textAlign="center" py={3}>
+            <Typography
+              sx={{
+                color: "text.secondary",
+                textAlign: "center",
+                py: 3
+              }}>
               No payment history yet
             </Typography>
           ) : (
@@ -203,7 +212,11 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                   <ListItem
                     secondaryAction={
                       editingPaymentId === payment.id ? (
-                        <Box display="flex" gap={0.5}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            gap: 0.5
+                          }}>
                           <IconButton
                             size="small"
                             color="primary"
@@ -220,7 +233,11 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                           </IconButton>
                         </Box>
                       ) : (
-                        <Box display="flex" gap={0.5}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            gap: 0.5
+                          }}>
                           <IconButton
                             size="small"
                             color="primary"
@@ -246,8 +263,16 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                   >
                     <ListItemText
                       primary={
-                        <Box display="flex" justifyContent="space-between" alignItems="center" pr={6}>
-                          <Typography variant="body1" fontWeight="medium">
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            pr: 6
+                          }}>
+                          <Typography variant="body1" sx={{
+                            fontWeight: "medium"
+                          }}>
                             {formatCurrency(toMoneyNumber(payment.payment_amount))}
                           </Typography>
                           <Chip label={payment.payment_method} size="small" variant="outlined" />
@@ -262,21 +287,32 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                               label="Payment Date"
                               value={editingPaymentDate}
                               onChange={(e) => setEditingPaymentDate(e.target.value)}
-                              InputLabelProps={{ shrink: true }}
                               sx={{ mt: 1 }}
+                              slotProps={{
+                                inputLabel: { shrink: true }
+                              }}
                             />
                           ) : (
-                            <Typography variant="body2" color="text.secondary">
+                            <Typography variant="body2" sx={{
+                              color: "text.secondary"
+                            }}>
                               {formatDateForDisplay(payment.payment_date)}
                             </Typography>
                           )}
                           {payment.payment_reference && (
-                            <Typography variant="caption" color="text.secondary">
+                            <Typography variant="caption" sx={{
+                              color: "text.secondary"
+                            }}>
                               Ref: {payment.payment_reference}
                             </Typography>
                           )}
                           {payment.notes && (
-                            <Typography variant="caption" display="block" color="text.secondary">
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                color: "text.secondary"
+                              }}>
                               {payment.notes}
                             </Typography>
                           )}

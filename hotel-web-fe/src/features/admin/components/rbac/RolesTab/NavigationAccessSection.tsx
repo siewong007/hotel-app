@@ -78,10 +78,14 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
 
   return (
     <Box>
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+          mb: 2
+        }}>
         Which tabs can this role access?
       </Typography>
-
       {categories.map((category) => {
         const items = navByCategory[category] || [];
         if (items.length === 0) return null;
@@ -90,18 +94,16 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
           <Box key={category} sx={{ mb: 2 }}>
             <Typography
               variant="caption"
-              fontWeight={600}
-              color="text.secondary"
               sx={{
+                fontWeight: 600,
+                color: "text.secondary",
                 display: 'block',
                 mb: 1,
                 textTransform: 'uppercase',
-                letterSpacing: 0.5,
-              }}
-            >
+                letterSpacing: 0.5
+              }}>
               {NAVIGATION_CATEGORY_LABELS[category]}
             </Typography>
-
             <Box
               sx={{
                 display: 'flex',
@@ -171,7 +173,6 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
                 );
               })}
             </Box>
-
             {category !== 'system' && <Divider sx={{ mt: 2 }} />}
           </Box>
         );

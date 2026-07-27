@@ -239,7 +239,13 @@ const AnalyticsDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "400px"
+        }}>
         <CircularProgress />
       </Box>
     );
@@ -247,32 +253,44 @@ const AnalyticsDashboard: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" alignItems="center" mb={3}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          mb: 3
+        }}>
         <TrendingUpIcon sx={{ mr: 2, fontSize: 32 }} />
         <Typography variant="h4" component="h1">
           Analytics Dashboard
         </Typography>
       </Box>
-
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
       )}
-
       {/* KPI Cards */}
-      <Grid container spacing={3} mb={3}>
+      <Grid container spacing={3} sx={{
+        mb: 3
+      }}>
         <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <HotelIcon color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Occupancy Rate</Typography>
               </Box>
               <Typography variant="h3" color="primary">
                 {occupancyReport?.occupancyRate.toFixed(1)}%
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {occupancyReport?.occupiedRooms}/{occupancyReport?.totalRooms} rooms occupied
               </Typography>
             </CardContent>
@@ -282,14 +300,23 @@ const AnalyticsDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <MoneyIcon color="success" sx={{ mr: 1 }} />
                 <Typography variant="h6">Total Revenue</Typography>
               </Box>
-              <Typography variant="h3" color="success.main">
+              <Typography variant="h3" sx={{
+                color: "success.main"
+              }}>
                 {formatCurrency(bookingAnalytics?.totalRevenue || 0)}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 From {bookingAnalytics?.totalBookings} bookings
               </Typography>
             </CardContent>
@@ -299,14 +326,23 @@ const AnalyticsDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <ChartIcon color="secondary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Avg Booking Value</Typography>
               </Box>
-              <Typography variant="h3" color="secondary.main">
+              <Typography variant="h3" sx={{
+                color: "secondary.main"
+              }}>
                 {formatCurrency(bookingAnalytics?.averageBookingValue || 0)}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Per booking average
               </Typography>
             </CardContent>
@@ -316,21 +352,29 @@ const AnalyticsDashboard: React.FC = () => {
         <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  mb: 1
+                }}>
                 <HotelIcon color="warning" sx={{ mr: 1 }} />
                 <Typography variant="h6">Available Rooms</Typography>
               </Box>
-              <Typography variant="h3" color="warning.main">
+              <Typography variant="h3" sx={{
+                color: "warning.main"
+              }}>
                 {occupancyReport?.availableRooms}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Ready for booking
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
-
       {/* Charts Section */}
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 6 }}>
@@ -366,7 +410,6 @@ const AnalyticsDashboard: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
-
       {/* Room Type Performance */}
       {bookingAnalytics && (
         <Card sx={{ mt: 3 }}>
@@ -374,7 +417,12 @@ const AnalyticsDashboard: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Room Type Performance
             </Typography>
-            <Box display="flex" gap={1} flexWrap="wrap">
+            <Box
+              sx={{
+                display: "flex",
+                gap: 1,
+                flexWrap: "wrap"
+              }}>
               {Object.entries(bookingAnalytics.bookingsByRoomType).map(([type, count]) => (
                 <Chip
                   key={type}
@@ -387,7 +435,6 @@ const AnalyticsDashboard: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
       {/* Performance Insights */}
       <Card sx={{ mt: 3 }}>
         <CardContent>

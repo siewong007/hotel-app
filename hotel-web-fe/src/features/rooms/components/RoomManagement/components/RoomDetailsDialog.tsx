@@ -41,28 +41,50 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
           <Box sx={{ mt: 2 }}>
             <Grid container spacing={2}>
               <Grid size={6}>
-                <Typography variant="caption" color="text.secondary">Room Number</Typography>
-                <Typography variant="body1" fontWeight={600}>{room.room_number}</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Room Number</Typography>
+                <Typography variant="body1" sx={{
+                  fontWeight: 600
+                }}>{room.room_number}</Typography>
               </Grid>
               <Grid size={6}>
-                <Typography variant="caption" color="text.secondary">Room Type</Typography>
-                <Typography variant="body1" fontWeight={600}>{room.room_type}</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Room Type</Typography>
+                <Typography variant="body1" sx={{
+                  fontWeight: 600
+                }}>{room.room_type}</Typography>
               </Grid>
               <Grid size={6}>
-                <Typography variant="caption" color="text.secondary">Price per Night</Typography>
-                <Typography variant="body1" fontWeight={600}>{formatCurrency(toMoneyNumber(room.price_per_night))}</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Price per Night</Typography>
+                <Typography variant="body1" sx={{
+                  fontWeight: 600
+                }}>{formatCurrency(toMoneyNumber(room.price_per_night))}</Typography>
               </Grid>
               <Grid size={6}>
-                <Typography variant="caption" color="text.secondary">Max Occupancy</Typography>
-                <Typography variant="body1" fontWeight={600}>{room.max_occupancy} guests</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Max Occupancy</Typography>
+                <Typography variant="body1" sx={{
+                  fontWeight: 600
+                }}>{room.max_occupancy} guests</Typography>
               </Grid>
               <Grid size={12}>
-                <Typography variant="caption" color="text.secondary">Status</Typography>
-                <Typography variant="body1" fontWeight={600}>{room.status}</Typography>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Status</Typography>
+                <Typography variant="body1" sx={{
+                  fontWeight: 600
+                }}>{room.status}</Typography>
               </Grid>
               {room.description && (
                 <Grid size={12}>
-                  <Typography variant="caption" color="text.secondary">Description</Typography>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Description</Typography>
                   <Typography variant="body2">{room.description}</Typography>
                 </Grid>
               )}

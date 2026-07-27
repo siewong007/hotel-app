@@ -62,31 +62,45 @@ const CollectDepositDialog: React.FC<CollectDepositDialogProps> = ({
           <Box>
             {/* Booking Summary */}
             <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              <Typography variant="subtitle2" gutterBottom sx={{
+                color: "text.secondary"
+              }}>
                 Booking #{booking.booking_number}
               </Typography>
 
               <Grid container spacing={2} sx={{ mt: 1 }}>
                 <Grid size={12}>
-                  <Typography variant="h6" fontWeight={600}>
+                  <Typography variant="h6" sx={{
+                    fontWeight: 600
+                  }}>
                     {booking.guest_name}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {booking.guest_email}
                   </Typography>
                 </Grid>
 
                 <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Check-in</Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Check-in</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {new Date(booking.check_in_date).toLocaleDateString('en-US', {
                       weekday: 'short', month: 'short', day: 'numeric'
                     })}
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Check-out</Typography>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>Check-out</Typography>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {new Date(booking.check_out_date).toLocaleDateString('en-US', {
                       weekday: 'short', month: 'short', day: 'numeric'
                     })}

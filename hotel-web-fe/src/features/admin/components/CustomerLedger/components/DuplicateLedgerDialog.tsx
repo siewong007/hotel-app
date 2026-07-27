@@ -40,7 +40,9 @@ const DuplicateLedgerDialog: React.FC<DuplicateLedgerDialogProps> = ({
       {duplicate && (
         <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
           <Typography sx={{ fontWeight: 700 }}>{duplicate.description}</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Room {duplicate.room_number || '-'} / {formatDateForDisplay(duplicate.posting_date || duplicate.created_at)}
           </Typography>
           <Typography variant="body2" sx={{ mt: 1 }}>

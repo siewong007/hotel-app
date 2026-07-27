@@ -67,7 +67,12 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
             <Typography variant="body2">Resistant to phishing attacks</Typography>
           </li>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 2
+          }}>
           You can add up to 10 passkeys to your account and manage them in your profile settings.
         </Typography>
         {error && (

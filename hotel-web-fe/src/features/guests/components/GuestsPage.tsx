@@ -61,12 +61,20 @@ const GuestsPage: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3
+        }}>
         <Box>
           <Typography variant="h4" component="h1" gutterBottom>
             All Guest Users
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Registered users with guest access. New guests register through the registration page.
           </Typography>
         </Box>
@@ -78,7 +86,6 @@ const GuestsPage: React.FC = () => {
           Refresh
         </Button>
       </Box>
-
       {error && (
         <Alert
           severity="error"
@@ -92,12 +99,13 @@ const GuestsPage: React.FC = () => {
           {error}
         </Alert>
       )}
-
       {/* Stats + Search row */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Card elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
           <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Total registered guests: <strong>{totalGuests}</strong>
               {searchQuery && ` · ${totalGuests} matching`}
             </Typography>
@@ -110,16 +118,17 @@ const GuestsPage: React.FC = () => {
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           sx={{ width: 320 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }
           }}
         />
       </Box>
-
       {/* Guests Table */}
       <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
         <Table>
@@ -145,7 +154,9 @@ const GuestsPage: React.FC = () => {
             ) : guests.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
-                  <Typography variant="body1" color="text.secondary">
+                  <Typography variant="body1" sx={{
+                    color: "text.secondary"
+                  }}>
                     {searchQuery ? `No guests found matching "${searchQuery}"` : 'No guest users registered yet'}
                   </Typography>
                 </TableCell>
@@ -162,7 +173,9 @@ const GuestsPage: React.FC = () => {
                       {guest.bookings_count ?? 0}
                     </Typography>
                     {guest.last_stay_date && (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         Last {new Date(guest.last_stay_date).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
@@ -211,11 +224,19 @@ const GuestsPage: React.FC = () => {
           </TableBody>
         </Table>
       </TableContainer>
-
       {/* Pagination */}
       {guestPagination.hasMultiplePages && (
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
-          <Typography variant="body2" color="text.secondary">
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            mt: 2,
+            px: 1
+          }}>
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Showing {guestPagination.startItem}–{guestPagination.endItem} of {guestPagination.totalItems} guests
           </Typography>
           <Pagination
@@ -229,7 +250,6 @@ const GuestsPage: React.FC = () => {
           />
         </Stack>
       )}
-
       <GuestProfileDialog
         open={selectedGuestId != null}
         guestId={selectedGuestId}

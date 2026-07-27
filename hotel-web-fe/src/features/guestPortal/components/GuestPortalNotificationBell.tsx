@@ -14,7 +14,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
@@ -187,7 +187,6 @@ export function GuestPortalNotificationBell({
           </Badge>
         </IconButton>
       </Tooltip>
-
       <Popover
         open={open}
         anchorEl={anchorEl}
@@ -197,13 +196,17 @@ export function GuestPortalNotificationBell({
         slotProps={{ paper: { sx: { mt: 1, width: 'min(390px, calc(100vw - 24px))', borderRadius: 2.5, overflow: 'hidden' } } }}
       >
         <Box sx={{ px: 2.25, py: 1.75, bgcolor: pendingCount > 0 ? '#FFF3F0' : '#FFFCF6', borderBottom: '1px solid', borderColor: pendingCount > 0 ? '#E6B7AD' : 'divider' }}>
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{
+            alignItems: "center"
+          }}>
             {pendingCount > 0 ? <ErrorOutlineIcon sx={{ color: URGENT }} aria-hidden="true" /> : null}
             <Box>
               <Typography variant="subtitle1" sx={{ color: FOREST, fontWeight: 800 }}>
                 {pendingCount > 0 ? 'Action needed' : 'Notifications'}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {pendingCount > 0
                   ? `${pendingCount} receipt ${pendingCount === 1 ? 'request needs' : 'requests need'} a response.`
                   : 'You are all caught up.'}
@@ -219,7 +222,9 @@ export function GuestPortalNotificationBell({
             </Box>
           ) : loadError ? (
             <Box sx={{ px: 2.25, py: 3 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 We could not refresh your notifications. Please try again shortly.
               </Typography>
               <Button size="small" onClick={() => void loadNotifications()} sx={{ mt: 1, px: 0 }}>
@@ -239,7 +244,9 @@ export function GuestPortalNotificationBell({
                 '& + &': { mt: 1.25 },
               }}
             >
-              <Stack direction="row" spacing={1.25} alignItems="flex-start">
+              <Stack direction="row" spacing={1.25} sx={{
+                alignItems: "flex-start"
+              }}>
                 <ReceiptLongOutlinedIcon sx={{ color: URGENT, mt: 0.25 }} aria-hidden="true" />
                 <Box sx={{ minWidth: 0, flex: 1 }}>
                   <Typography variant="subtitle2" sx={{ color: FOREST, fontWeight: 800 }}>
@@ -266,14 +273,15 @@ export function GuestPortalNotificationBell({
             </Box>
           )) : (
             <Box sx={{ px: 2.25, py: 3.5, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 There are no actions waiting for you.
               </Typography>
             </Box>
           )}
         </Box>
       </Popover>
-
       <Dialog
         open={Boolean(receiptRequest)}
         onClose={closeReceiptRequest}
@@ -284,7 +292,9 @@ export function GuestPortalNotificationBell({
         <DialogTitle id="receipt-upload-request-title">Upload payment receipt</DialogTitle>
         <DialogContent dividers>
           {uploadSucceeded ? (
-            <Typography color="success.main">
+            <Typography sx={{
+              color: "success.main"
+            }}>
               Your receipt has been submitted and is pending confirmation from our team.
             </Typography>
           ) : (
@@ -293,11 +303,15 @@ export function GuestPortalNotificationBell({
                 Upload the bank-transfer receipt for booking <strong>{receiptRequest?.booking_number}</strong>.
               </Typography>
               {receiptRequest?.receipt_request_message ? (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   {receiptRequest.receipt_request_message}
                 </Typography>
               ) : null}
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
               </Typography>
               <Button component="label" variant="outlined" disabled={isUploading}>

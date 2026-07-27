@@ -95,7 +95,6 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
           Add
         </Button>
       </Box>
-
       <Box
         sx={{
           p: 1.25,
@@ -110,24 +109,26 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
           placeholder="Search by name, contact, phone..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-              </InputAdornment>
-            ),
-            endAdornment: search ? (
-              <InputAdornment position="end">
-                <IconButton
-                  size="small"
-                  onClick={() => onSearchChange('')}
-                  sx={{ p: 0.25 }}
-                >
-                  <CloseIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </InputAdornment>
-            ) : null,
-            sx: { bgcolor: 'background.paper', fontSize: 13 },
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+              endAdornment: search ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => onSearchChange('')}
+                    sx={{ p: 0.25 }}
+                  >
+                    <CloseIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+              sx: { bgcolor: 'background.paper', fontSize: 13 },
+            }
           }}
         />
         <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
@@ -174,7 +175,6 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
           ))}
         </Box>
       </Box>
-
       <Box
         sx={{
           maxHeight: { md: 'calc(100vh - 360px)' },
@@ -183,7 +183,12 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
       >
         {companies.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 1.5
+              }}>
               No companies registered yet.
             </Typography>
             <Button
@@ -197,7 +202,9 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
           </Box>
         ) : companyListRows.length === 0 ? (
           <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               No companies match.
             </Typography>
           </Box>

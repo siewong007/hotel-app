@@ -392,17 +392,22 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Box display="flex" alignItems="center">
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center"
+          }}>
           <BookIcon sx={{ mr: 1, color: 'primary.main' }} />
           <Typography variant="h6">
             Quick Booking - Room {room?.room_number}
           </Typography>
         </Box>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           {room?.room_type} • {formatCurrency(toMoneyNumber(room?.price_per_night))}/night
         </Typography>
       </DialogTitle>
-
       <DialogContent dividers>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {error && (
@@ -418,7 +423,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
           {checkingAvailability && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <CircularProgress size={16} />
-              <Typography variant="body2" color="text.secondary">Checking room availability...</Typography>
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>Checking room availability...</Typography>
             </Box>
           )}
 
@@ -446,14 +453,18 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   {...params}
                   label="Search Guest"
                   placeholder="Type guest name or email..."
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {guestsLoading ? <CircularProgress color="inherit" size={20} /> : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
+                  slotProps={{
+                    ...params.slotProps,
+
+                    input: {
+                      ...params.slotProps.input,
+                      endAdornment: (
+                        <>
+                          {guestsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.slotProps.input.endAdornment}
+                        </>
+                      ),
+                    }
                   }}
                 />
               )}
@@ -465,7 +476,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {option.full_name}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         {option.email} {option.phone && `• ${option.phone}`}
                       </Typography>
                     </Box>
@@ -499,7 +512,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
           {/* New Guest Form */}
           {!guestMode && showNewGuestForm && (
             <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 2
+                }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   New Guest Registration
                 </Typography>
@@ -628,13 +647,15 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   type="time"
                   value={checkInTime}
                   onChange={(e) => setCheckInTime(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
                   required
                   helperText={`Default: ${new Date(`2000-01-01T${defaultCheckInTime}`).toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true
                   })}`}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -653,13 +674,15 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   type="time"
                   value={checkOutTime}
                   onChange={(e) => setCheckOutTime(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
                   required
                   helperText={`Default: ${new Date(`2000-01-01T${defaultCheckOutTime}`).toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true
                   })}`}
+                  slotProps={{
+                    inputLabel: { shrink: true }
+                  }}
                 />
               </Grid>
               <Grid size={12}>
@@ -685,7 +708,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Custom Daily Rates
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         Override the rate for each day of the stay
                       </Typography>
                     </Box>
@@ -695,11 +720,19 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
               {useCustomRate && getStayDates().length > 0 && (
                 <Grid size={12}>
                   <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mb: 1
+                      }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                         Rate per Day
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         Default: {formatCurrency(toMoneyNumber(room?.price_per_night))}/night
                       </Typography>
                     </Box>
@@ -719,11 +752,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                                 const val = toMoneyNumber(e.target.value);
                                 setDailyRates(prev => ({ ...prev, [date]: val }));
                               }}
-                              InputProps={{
-                                startAdornment: <Typography sx={{ mr: 0.5, fontSize: '0.8rem' }}>{currencySymbol}</Typography>,
-                              }}
-                              inputProps={{ min: 0, step: 0.01 }}
-                            />
+                              slotProps={{
+                                input: {
+                                  startAdornment: <Typography sx={{ mr: 0.5, fontSize: '0.8rem' }}>{currencySymbol}</Typography>,
+                                },
+
+                                htmlInput: { min: 0, step: 0.01 }
+                              }} />
                           </Grid>
                         );
                       })}
@@ -766,7 +801,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Guest is a Tourist
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         Tourism tax will be applied automatically
                       </Typography>
                     </Box>
@@ -780,12 +817,14 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   label="Tourism Tax (Auto-calculated)"
                   type="number"
                   value={tourismTax}
-                  InputProps={{
-                    startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                    readOnly: true
-                  }}
                   disabled={!isTourist}
                   helperText={isTourist ? `${calculateNights()} night(s) × ${formatCurrency(getHotelSettings().tourism_tax_rate)}/night` : 'Check "Guest is a Tourist" to apply'}
+                  slotProps={{
+                    input: {
+                      startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                      readOnly: true
+                    }
+                  }}
                 />
               </Grid>
               {allowsExtraBed && maxExtraBeds > 0 && (
@@ -801,8 +840,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                         setExtraBedCount(count);
                         setExtraBedCharge(multiplyMoney(extraBedChargePerBed, count));
                       }}
-                      inputProps={{ min: 0, max: maxExtraBeds }}
                       helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
+                      slotProps={{
+                        htmlInput: { min: 0, max: maxExtraBeds }
+                      }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -812,8 +853,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       type="number"
                       value={extraBedCharge}
                       onChange={(e) => setExtraBedCharge(toMoneyNumber(e.target.value))}
-                      InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
                       helperText="Auto-calculated or manually adjust"
+                      slotProps={{
+                        input: { startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }
+                      }}
                     />
                   </Grid>
                 </>
@@ -829,7 +872,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
               </Typography>
               <Grid container spacing={1}>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room:
                   </Typography>
                 </Grid>
@@ -839,7 +884,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Duration:
                   </Typography>
                 </Grid>
@@ -849,7 +896,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   </Typography>
                 </Grid>
                 <Grid size={6}>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     Room Rate{useCustomRate ? ' (Custom)' : ''}:
                   </Typography>
                 </Grid>
@@ -857,7 +906,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {formatCurrency(calculateRoomTotal())}
                     {useCustomRate && Object.keys(dailyRates).length > 0 && (
-                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          ml: 1
+                        }}>
                         (per-day rates)
                       </Typography>
                     )}
@@ -866,7 +921,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 {isPositiveMoney(tourismTax) && (
                   <>
                     <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Tourism Tax:
                       </Typography>
                     </Grid>
@@ -880,7 +937,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 {isPositiveMoney(extraBedCharge) && (
                   <>
                     <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         Extra Bed:
                       </Typography>
                     </Grid>
@@ -909,7 +968,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
           )}
         </Box>
       </DialogContent>
-
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>
           Cancel
