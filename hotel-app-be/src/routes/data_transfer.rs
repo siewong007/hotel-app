@@ -19,14 +19,16 @@ pub fn routes() -> Router<DbPool> {
         .route("/data-transfer/export", get(export_data))
         .route(
             "/data-transfer/import",
-            post(import_data).layer(DefaultBodyLimit::max(100 * 1024 * 1024)), // 100MB limit
+            // Full database exports include audit/session history and can exceed
+            // the former 100 MB business-data limit.
+            post(import_data).layer(DefaultBodyLimit::max(1024 * 1024 * 1024)),
         )
 }
 
 async fn export_data(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<models::BookingDataExport>, ApiError> {
+) -> Result<Json<models::FullDataExport>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "settings:manage").await?;
     let export = handlers::data_transfer::export_booking_data_handler(State(pool.clone())).await?;
 
@@ -42,12 +44,8 @@ async fn export_data(
             action: "data_export",
             resource_type: "data_transfer",
             details: Some(serde_json::json!({
-                "guests": payload.guests.len(),
-                "companies": payload.companies.len(),
-                "bookings": payload.bookings.len(),
-                "payments": payload.payments.len(),
-                "invoices": payload.invoices.len(),
-                "customer_ledgers": payload.customer_ledgers.len(),
+                "table_count": payload.tables.len(),
+                "record_count": payload.tables.values().map(Vec::len).sum::<usize>(),
             })),
             ..Default::default()
         },

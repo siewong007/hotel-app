@@ -935,6 +935,9 @@ export interface DataTransferSelfCheckinEventRow {
 export interface BookingDataExport {
   version: string;
   exported_at: string;
+  /** Schema-driven v2 full backup. Keys are qualified names such as
+   * `public.users`; values intentionally retain raw credential/session rows. */
+  tables?: Record<string, Record<string, unknown>[]>;
   guests: DataTransferGuestRow[];
   guest_complimentary_credits: DataTransferGuestComplimentaryCreditRow[];
   // `companies` matches the `Company` API type column-for-column.
@@ -1003,6 +1006,7 @@ export interface ExportPreview {
   generated_at: string;
   counts: Record<string, number>;
   total_records: number;
+  tables?: Array<{ name: string; count: number; dependencies: string[] }>;
 }
 
 export interface ImportResult {

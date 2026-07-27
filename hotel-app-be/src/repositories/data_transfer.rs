@@ -1,6 +1,6 @@
 //! Data-transfer persistence helpers
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde_json::Value;
 
@@ -8,6 +8,117 @@ use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 
 pub struct DataTransferRepository;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct QualifiedTable {
+    pub schema: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransferTable {
+    pub table: QualifiedTable,
+    pub is_partitioned: bool,
+    pub columns: HashSet<String>,
+    pub generated_columns: HashSet<String>,
+    pub primary_key_columns: Vec<String>,
+    pub dependencies: HashSet<String>,
+}
+
+impl TransferTable {
+    fn source(&self) -> String {
+        if self.is_partitioned {
+            self.table.quoted()
+        } else {
+            format!("ONLY {}", self.table.quoted())
+        }
+    }
+}
+
+impl QualifiedTable {
+    pub fn parse(key: &str) -> Result<Self, ApiError> {
+        let Some((schema, name)) = key.split_once('.') else {
+            return Err(ApiError::BadRequest(format!(
+                "Transfer table '{key}' must be schema-qualified"
+            )));
+        };
+        if key.matches('.').count() != 1 || !is_identifier(schema) || !is_identifier(name) {
+            return Err(ApiError::BadRequest(format!(
+                "Invalid transfer table '{key}'"
+            )));
+        }
+
+        Ok(Self {
+            schema: schema.to_string(),
+            name: name.to_string(),
+        })
+    }
+
+    pub fn key(&self) -> String {
+        format!("{}.{}", self.schema, self.name)
+    }
+
+    pub fn quoted(&self) -> String {
+        format!(
+            "{}.{}",
+            quote_identifier(&self.schema),
+            quote_identifier(&self.name)
+        )
+    }
+}
+
+fn is_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+pub fn transfer_order(
+    selected: &[String],
+    dependencies: &HashMap<String, HashSet<String>>,
+) -> Result<Vec<String>, ApiError> {
+    let selected: BTreeSet<String> = selected.iter().cloned().collect();
+    let mut unresolved: HashMap<String, BTreeSet<String>> = selected
+        .iter()
+        .map(|table| {
+            (
+                table.clone(),
+                dependencies
+                    .get(table)
+                    .into_iter()
+                    .flatten()
+                    .filter(|dependency| selected.contains(*dependency))
+                    .cloned()
+                    .collect(),
+            )
+        })
+        .collect();
+    let mut ordered = Vec::with_capacity(selected.len());
+
+    while !unresolved.is_empty() {
+        let ready: Vec<String> = unresolved
+            .iter()
+            .filter(|(_, dependencies)| dependencies.is_empty())
+            .map(|(table, _)| table.clone())
+            .collect();
+        if ready.is_empty() {
+            return Err(ApiError::BadRequest(
+                "Selected transfer tables contain a circular foreign-key dependency".to_string(),
+            ));
+        }
+
+        for table in ready {
+            unresolved.remove(&table);
+            for dependencies in unresolved.values_mut() {
+                dependencies.remove(&table);
+            }
+            ordered.push(table);
+        }
+    }
+
+    Ok(ordered)
+}
 
 /// Whitelist of tables the data-transfer subsystem is allowed to reference in
 /// dynamically-built SQL (`format!`-interpolated table names). Mirrors
@@ -97,31 +208,274 @@ pub struct ImportRowPolicy<'a> {
 }
 
 impl DataTransferRepository {
-    pub async fn count_table(pool: &DbPool, table: &str) -> Result<i64, ApiError> {
-        ensure_known_table(table)?;
-        let count = sqlx::query_scalar::<_, i64>(&format!("SELECT COUNT(*) FROM {}", table))
-            .fetch_one(pool)
-            .await
-            .map_err(ApiError::from)?;
+    pub async fn transfer_tables(pool: &DbPool) -> Result<Vec<TransferTable>, ApiError> {
+        let table_rows: Vec<(String, String, String)> = sqlx::query_as(
+            r#"
+            SELECT namespace.nspname, class.relname, class.relkind::text
+            FROM pg_class class
+            JOIN pg_namespace namespace ON namespace.oid = class.relnamespace
+            WHERE class.relkind IN ('r', 'p')
+              AND namespace.nspname <> 'information_schema'
+              AND namespace.nspname !~ '^pg_'
+              AND (class.relkind = 'p' OR NOT EXISTS (
+                  SELECT 1 FROM pg_inherits WHERE inhrelid = class.oid
+              ))
+            ORDER BY namespace.nspname, class.relname
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
 
-        Ok(count)
+        let tables: Vec<(QualifiedTable, bool)> = table_rows
+            .into_iter()
+            .map(|(schema, name, relkind)| (QualifiedTable { schema, name }, relkind == "p"))
+            .collect();
+        let table_names: Vec<QualifiedTable> =
+            tables.iter().map(|(table, _)| table.clone()).collect();
+        let known: HashSet<String> = table_names.iter().map(QualifiedTable::key).collect();
+        let columns = Self::transfer_columns(pool, &table_names).await?;
+        let primary_keys = Self::transfer_primary_keys(pool, &table_names).await?;
+        let dependencies = Self::transfer_dependencies(pool, &known).await?;
+
+        Ok(tables
+            .into_iter()
+            .map(|(table, is_partitioned)| {
+                let key = table.key();
+                let (columns, generated_columns) = columns
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_else(|| (HashSet::new(), HashSet::new()));
+                TransferTable {
+                    table,
+                    is_partitioned,
+                    columns,
+                    generated_columns,
+                    primary_key_columns: primary_keys.get(&key).cloned().unwrap_or_default(),
+                    dependencies: dependencies.get(&key).cloned().unwrap_or_default(),
+                }
+            })
+            .collect())
     }
 
-    pub async fn export_table(pool: &DbPool, table: &str) -> Result<Vec<Value>, ApiError> {
-        ensure_known_table(table)?;
-        // Most tables have a serial `id`; composite-keyed tables are ordered by
-        // their primary-key columns instead so export stays deterministic.
-        let order_by = match table {
-            "room_type_amenities" => "room_type_id, amenity_id",
-            "room_status_transitions" => "from_status, to_status",
-            "promotion_room_types" => "promotion_id, room_type_id",
-            _ => "id",
-        };
-        Self::export_query(
-            pool,
-            &format!("SELECT * FROM {} ORDER BY {}", table, order_by),
+    async fn transfer_columns(
+        pool: &DbPool,
+        tables: &[QualifiedTable],
+    ) -> Result<HashMap<String, (HashSet<String>, HashSet<String>)>, ApiError> {
+        let mut metadata = HashMap::new();
+        for table in tables {
+            let rows: Vec<(String, String)> = sqlx::query_as(
+                "SELECT column_name, is_generated FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2",
+            )
+            .bind(&table.schema)
+            .bind(&table.name)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+            metadata.insert(
+                table.key(),
+                (
+                    rows.iter().map(|(column, _)| column.clone()).collect(),
+                    rows.into_iter()
+                        .filter(|(_, generated)| generated != "NEVER")
+                        .map(|(column, _)| column)
+                        .collect(),
+                ),
+            );
+        }
+        Ok(metadata)
+    }
+
+    async fn transfer_dependencies(
+        pool: &DbPool,
+        known: &HashSet<String>,
+    ) -> Result<HashMap<String, HashSet<String>>, ApiError> {
+        let rows: Vec<(String, String, String, String)> = sqlx::query_as(
+            r#"
+            SELECT child_namespace.nspname, child.relname, parent_namespace.nspname, parent.relname
+            FROM pg_constraint constraint
+            JOIN pg_class child ON child.oid = constraint.conrelid
+            JOIN pg_namespace child_namespace ON child_namespace.oid = child.relnamespace
+            JOIN pg_class parent ON parent.oid = constraint.confrelid
+            JOIN pg_namespace parent_namespace ON parent_namespace.oid = parent.relnamespace
+            WHERE constraint.contype = 'f'
+            "#,
         )
+        .fetch_all(pool)
         .await
+        .map_err(ApiError::from)?;
+
+        let mut dependencies: HashMap<String, HashSet<String>> = HashMap::new();
+        for (child_schema, child_name, parent_schema, parent_name) in rows {
+            let child = format!("{child_schema}.{child_name}");
+            let parent = format!("{parent_schema}.{parent_name}");
+            if child != parent && known.contains(&child) && known.contains(&parent) {
+                dependencies.entry(child).or_default().insert(parent);
+            }
+        }
+        Ok(dependencies)
+    }
+
+    async fn transfer_primary_keys(
+        pool: &DbPool,
+        tables: &[QualifiedTable],
+    ) -> Result<HashMap<String, Vec<String>>, ApiError> {
+        let mut primary_keys = HashMap::new();
+        for table in tables {
+            let columns: Vec<(String,)> = sqlx::query_as(
+                r#"
+                SELECT attribute.attname
+                FROM pg_index index
+                JOIN pg_class class ON class.oid = index.indrelid
+                JOIN pg_namespace namespace ON namespace.oid = class.relnamespace
+                JOIN unnest(index.indkey) WITH ORDINALITY key(attnum, position) ON true
+                JOIN pg_attribute attribute ON attribute.attrelid = class.oid AND attribute.attnum = key.attnum
+                WHERE index.indisprimary AND namespace.nspname = $1 AND class.relname = $2
+                ORDER BY key.position
+                "#,
+            )
+            .bind(&table.schema)
+            .bind(&table.name)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+            primary_keys.insert(
+                table.key(),
+                columns.into_iter().map(|(column,)| column).collect(),
+            );
+        }
+        Ok(primary_keys)
+    }
+
+    pub async fn count_transfer_table(
+        pool: &DbPool,
+        table: &TransferTable,
+    ) -> Result<i64, ApiError> {
+        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table.source()))
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)
+    }
+
+    pub async fn export_transfer_table(
+        pool: &DbPool,
+        table: &TransferTable,
+    ) -> Result<Vec<Value>, ApiError> {
+        let order_by = if table.primary_key_columns.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " ORDER BY {}",
+                table
+                    .primary_key_columns
+                    .iter()
+                    .map(|column| quote_identifier(column))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
+        Self::export_query(pool, &format!("SELECT * FROM {}{order_by}", table.source())).await
+    }
+
+    pub async fn clear_transfer_tables(
+        tx: &mut DbTransaction<'_>,
+        tables: &[TransferTable],
+    ) -> Result<(), ApiError> {
+        for table in tables {
+            sqlx::query(&format!("DELETE FROM {}", table.source()))
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+        }
+        Ok(())
+    }
+
+    pub async fn insert_transfer_row(
+        tx: &mut DbTransaction<'_>,
+        table: &TransferTable,
+        row: &serde_json::Map<String, Value>,
+    ) -> Result<u64, ApiError> {
+        if let Some(column) = row.keys().find(|column| !table.columns.contains(*column)) {
+            return Err(ApiError::BadRequest(format!(
+                "{}.{} does not exist in the destination schema",
+                table.table.key(),
+                column
+            )));
+        }
+        let values: serde_json::Map<String, Value> = row
+            .iter()
+            .filter(|(column, _)| {
+                table.columns.contains(*column) && !table.generated_columns.contains(*column)
+            })
+            .map(|(column, value)| (column.clone(), value.clone()))
+            .collect();
+        if values.is_empty() {
+            return Ok(0);
+        }
+        let columns = values
+            .keys()
+            .map(|column| quote_identifier(column))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let quoted = table.table.quoted();
+        let sql = format!(
+            "INSERT INTO {quoted} ({columns}) OVERRIDING SYSTEM VALUE SELECT {columns} FROM jsonb_populate_record(NULL::{quoted}, $1::jsonb) ON CONFLICT DO NOTHING"
+        );
+        sqlx::query(&sql)
+            .bind(Value::Object(values))
+            .execute(&mut **tx)
+            .await
+            .map(|result| result.rows_affected())
+            .map_err(ApiError::from)
+    }
+
+    pub async fn set_transfer_triggers(
+        tx: &mut DbTransaction<'_>,
+        tables: &[TransferTable],
+        enabled: bool,
+    ) -> Result<(), ApiError> {
+        let action = if enabled { "ENABLE" } else { "DISABLE" };
+        for table in tables {
+            sqlx::query(&format!(
+                "ALTER TABLE {} {action} TRIGGER USER",
+                table.table.quoted()
+            ))
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        }
+        Ok(())
+    }
+
+    pub async fn reset_transfer_sequences(
+        tx: &mut DbTransaction<'_>,
+        tables: &[TransferTable],
+    ) -> Result<(), ApiError> {
+        for table in tables {
+            for column in &table.columns {
+                let sequence: Option<String> =
+                    sqlx::query_scalar("SELECT pg_get_serial_sequence($1, $2)")
+                        .bind(table.table.key())
+                        .bind(column)
+                        .fetch_one(&mut **tx)
+                        .await
+                        .map_err(ApiError::from)?;
+                let Some(sequence) = sequence else {
+                    continue;
+                };
+                let source = table.source();
+                let quoted_column = quote_identifier(column);
+                let reset_sql = format!(
+                    "SELECT setval($1::regclass, COALESCE((SELECT MAX({quoted_column})::bigint FROM {source}), 1), EXISTS (SELECT 1 FROM {source}))"
+                );
+                sqlx::query(&reset_sql)
+                    .bind(sequence)
+                    .execute(&mut **tx)
+                    .await
+                    .map_err(ApiError::from)?;
+            }
+        }
+        Ok(())
     }
 
     pub async fn export_query(pool: &DbPool, query: &str) -> Result<Vec<Value>, ApiError> {
@@ -695,5 +1049,45 @@ mod tests {
         assert!(sql.contains("pg_get_serial_sequence('public.odd''table', 'id')"));
         assert!(sql.contains("table_name = 'odd''table'"));
         assert!(sql.contains("FROM \"odd''table\""));
+    }
+
+    #[test]
+    fn orders_parents_before_children_and_rejects_invalid_qualified_names() {
+        let order = transfer_order(
+            &[
+                "public.user_sessions".to_string(),
+                "public.users".to_string(),
+            ],
+            &HashMap::from([(
+                "public.user_sessions".to_string(),
+                HashSet::from(["public.users".to_string()]),
+            )]),
+        )
+        .expect("acyclic dependencies should order");
+
+        assert_eq!(order, vec!["public.users", "public.user_sessions"]);
+        assert!(QualifiedTable::parse("public.users").is_ok());
+        assert!(QualifiedTable::parse("public.users; DROP TABLE users").is_err());
+        assert!(QualifiedTable::parse("users").is_err());
+    }
+
+    #[test]
+    fn partitioned_parent_is_read_and_cleared_through_its_routing_table() {
+        let parent = TransferTable {
+            table: QualifiedTable::parse("public.audit_logs").unwrap(),
+            is_partitioned: true,
+            columns: HashSet::new(),
+            generated_columns: HashSet::new(),
+            primary_key_columns: vec!["id".to_string()],
+            dependencies: HashSet::new(),
+        };
+        let ordinary = TransferTable {
+            table: QualifiedTable::parse("public.users").unwrap(),
+            is_partitioned: false,
+            ..parent.clone()
+        };
+
+        assert_eq!(parent.source(), "\"public\".\"audit_logs\"");
+        assert_eq!(ordinary.source(), "ONLY \"public\".\"users\"");
     }
 }

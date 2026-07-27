@@ -36,9 +36,13 @@ function buildHttpError(status: number, body: unknown, url = 'http://localhost/a
   return new HTTPError(response, request, {} as any);
 }
 
-// BookingDataExport is a huge full-database-backup shape; the service only
-// forwards it opaquely to the backend, so a cast stands in for a real payload.
-const fakeExport = {} as unknown as BookingDataExport;
+const fakeExport: BookingDataExport = {
+  version: '2.0',
+  exported_at: '2026-07-27T00:00:00Z',
+  tables: {
+    'public.users': [{ id: 1, password_hash: 'stored-hash' }],
+  },
+} as unknown as BookingDataExport;
 
 describe('DataTransferService', () => {
   beforeEach(() => {
@@ -103,14 +107,14 @@ describe('DataTransferService', () => {
   });
 
   describe('importData', () => {
-    it('posts mode, data and tables as json with no timeout', async () => {
+    it('posts schema-qualified v2 tables unchanged with no timeout', async () => {
       const result: ImportResult = { success: true, mode: 'import', records_imported: { guests: 10 } };
       post.mockReturnValue(mockJsonResponse(result));
 
-      const outcome = await DataTransferService.importData('import', fakeExport, ['guests', 'bookings']);
+      const outcome = await DataTransferService.importData('import', fakeExport, ['public.users']);
 
       expect(post).toHaveBeenCalledWith('data-transfer/import', {
-        json: { mode: 'import', data: fakeExport, tables: ['guests', 'bookings'] },
+        json: { mode: 'import', data: fakeExport, tables: ['public.users'] },
         timeout: false,
       });
       expect(outcome).toEqual(result);

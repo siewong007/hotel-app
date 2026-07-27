@@ -1,6 +1,6 @@
 //! Data-transfer API models.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -116,26 +116,52 @@ pub struct BookingDataExport {
     pub night_audit_posted_nights: Vec<Value>,
 }
 
+/// Schema-driven full database export. Table keys are always schema-qualified
+/// (for example, `public.users`) so rows from application schemas cannot
+/// collide with public tables of the same name.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FullDataExport {
+    pub version: String,
+    pub exported_at: String,
+    pub tables: BTreeMap<String, Vec<Value>>,
+}
+
+/// Accept both historic flat exports and schema-driven full exports.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum TransferPayload {
+    V2(FullDataExport),
+    V1(Box<BookingDataExport>),
+}
+
 /// Count preview for all transferable tables before generating an export file.
 #[derive(Debug, Serialize)]
 pub struct ExportPreview {
     pub generated_at: String,
     pub counts: HashMap<String, i64>,
     pub total_records: i64,
+    pub tables: Vec<TransferTablePreview>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TransferTablePreview {
+    pub name: String,
+    pub count: i64,
+    pub dependencies: Vec<String>,
 }
 
 /// Import request wrapper.
 #[derive(Debug, Deserialize)]
 pub struct ImportRequest {
     pub mode: ImportMode,
-    pub data: BookingDataExport,
+    pub data: TransferPayload,
     #[serde(default)]
     pub tables: Vec<String>,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::BookingDataExport;
+    use super::{BookingDataExport, TransferPayload};
     use serde_json::{Value, json};
 
     fn legacy_payload() -> Value {
@@ -199,5 +225,27 @@ mod tests {
 
         let serialized = serde_json::to_value(export).expect("payload should serialize");
         assert_eq!(serialized["voucher_redemption_allocations"][0]["id"], 5);
+    }
+
+    #[test]
+    fn v2_payload_preserves_schema_qualified_credential_rows() {
+        let payload = json!({
+            "version": "2.0",
+            "exported_at": "2026-07-27T00:00:00Z",
+            "tables": {
+                "public.users": [{"id": 1, "password_hash": "stored-hash"}]
+            }
+        });
+
+        let export: TransferPayload =
+            serde_json::from_value(payload).expect("v2 payload should deserialize");
+
+        let TransferPayload::V2(export) = export else {
+            panic!("v2 payload should use schema-driven transfer format");
+        };
+        assert_eq!(
+            export.tables["public.users"][0]["password_hash"],
+            "stored-hash"
+        );
     }
 }
