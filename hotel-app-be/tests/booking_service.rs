@@ -1798,13 +1798,15 @@ mod postgres_guest_portal_race_tests {
         .unwrap();
         for guest_id in guest_ids {
             sqlx::query(
-                "INSERT INTO guests (id, first_name, last_name, full_name, email) \
-                 OVERRIDING SYSTEM VALUE VALUES ($1, 'Portal', 'Guest', $2, $3) \
-                 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, email = EXCLUDED.email",
+                "INSERT INTO guests (id, first_name, last_name, full_name, email, phone) \
+                 OVERRIDING SYSTEM VALUE VALUES ($1, 'Portal', 'Guest', $2, $3, $4) \
+                 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, \
+                     email = EXCLUDED.email, phone = EXCLUDED.phone",
             )
             .bind(guest_id)
             .bind(format!("Portal Guest {guest_id}"))
             .bind(format!("portal-race-{guest_id}@hotel.test"))
+            .bind(format!("+1555010{guest_id}"))
             .execute(pool)
             .await
             .unwrap();

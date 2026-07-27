@@ -22,6 +22,8 @@ use crate::models::AuditEvent;
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::services::audit::AuditLog;
+use crate::services::google_identity::ProfileCompletion;
+use crate::services::profile::completion_for_guest;
 use crate::utils::sanitization::Sanitizer;
 
 const PORTAL_SOURCE: &str = "website";
@@ -461,6 +463,18 @@ pub async fn update_online_inventory(
         .ok_or_else(|| ApiError::NotFound("Room type not found".to_string()))
 }
 
+/// Maps an incomplete profile-completion verdict into the 422 the booking
+/// guard returns, carrying the missing field names for the client.
+fn profile_incomplete_error(completion: ProfileCompletion) -> ApiError {
+    ApiError::ProfileIncomplete(
+        completion
+            .missing_fields
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+    )
+}
+
 pub async fn create(
     pool: &DbPool,
     hub: &AvailabilityHub,
@@ -472,6 +486,11 @@ pub async fn create(
     let request_id = validate_client_request_id(&request.client_request_id)?;
     if let Some(existing) = Repository::find_by_request_id(pool, guest_id, &request_id).await? {
         return Ok(existing);
+    }
+
+    let completion = completion_for_guest(pool, guest_id).await?;
+    if !completion.complete {
+        return Err(profile_incomplete_error(completion));
     }
 
     let quote = quote(
@@ -873,5 +892,28 @@ mod tests {
         let (discount, total) = settlement(Decimal::from(400), Decimal::ZERO, Some(&voucher));
         assert_eq!(discount, Decimal::from(40));
         assert_eq!(total, Decimal::from(360));
+    }
+
+    #[test]
+    fn incomplete_profile_renders_as_422_with_missing_fields() {
+        // ApiError has no status_code() helper — assert on the real rendered
+        // response so this test tracks IntoResponse rather than a fabricated API.
+        use axum::response::IntoResponse;
+
+        let completion = ProfileCompletion {
+            complete: false,
+            missing_fields: vec!["phone"],
+        };
+        let error = profile_incomplete_error(completion);
+
+        match &error {
+            ApiError::ProfileIncomplete(fields) => {
+                assert_eq!(fields, &vec!["phone".to_string()]);
+            }
+            other => panic!("expected ApiError::ProfileIncomplete, got {other:?}"),
+        }
+
+        let response = error.into_response();
+        assert_eq!(response.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
     }
 }

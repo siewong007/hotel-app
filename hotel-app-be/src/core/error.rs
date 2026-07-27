@@ -31,6 +31,9 @@ pub enum ApiError {
     TooManyRequests(String),
     /// Rate limit exceeded with Retry-After header
     TooManyRequestsRetryAfter(String, u64),
+    /// A guest tried to book before supplying the contact details bookings require.
+    /// Carries the missing field names so the client can route them to completion.
+    ProfileIncomplete(Vec<String>),
 }
 
 impl std::fmt::Display for ApiError {
@@ -47,6 +50,9 @@ impl std::fmt::Display for ApiError {
             ApiError::TooManyRequests(msg) => write!(f, "Too many requests: {}", msg),
             ApiError::TooManyRequestsRetryAfter(msg, secs) => {
                 write!(f, "Too many requests (retry after {}s): {}", secs, msg)
+            }
+            ApiError::ProfileIncomplete(fields) => {
+                write!(f, "Profile incomplete: missing {}", fields.join(", "))
             }
         }
     }
@@ -148,7 +154,24 @@ impl IntoResponse for ApiError {
                 StatusCode::TOO_MANY_REQUESTS,
                 polish_message(msg, "Too many requests. Please slow down and try again."),
             ),
+            ApiError::ProfileIncomplete(_) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "Complete your profile before making a booking.".to_string(),
+            ),
         };
+
+        // Profile-incomplete errors carry the missing field names so the client
+        // can route the guest straight to profile completion, deviating from the
+        // uniform `{"error": ...}` body the same way TooManyRequestsRetryAfter
+        // deviates below to add its own header.
+        if let ApiError::ProfileIncomplete(missing_fields) = &self {
+            let body = Json(serde_json::json!({
+                "error": message,
+                "code": "profile_incomplete",
+                "missing_profile_fields": missing_fields
+            }));
+            return (status, body).into_response();
+        }
 
         let body = Json(serde_json::json!({
             "error": message
