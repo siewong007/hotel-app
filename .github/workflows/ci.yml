@@ -202,6 +202,23 @@ jobs:
       - name: Run PostgreSQL tests
         run: cargo test --features postgres --no-default-features
 
+      # Fix-gated characterization tests (tests/*_characterization.rs) assert the
+      # DECIDED-CORRECT money behavior for bugs that are not fixed yet, so they are
+      # #[ignore]d and are EXPECTED to fail here. This step therefore does NOT fail
+      # when they fail. It fails when one of them PASSES, which means the fix landed
+      # and the #[ignore] is now stale: remove the attribute so the test becomes a
+      # real regression guard. Each #[ignore] reason names the pending fix.
+      - name: Report fix-gated tests and catch stale ignores
+        run: |
+          cargo test --features postgres --no-default-features -- --ignored > /tmp/ignored.txt 2>&1 || true
+          cat /tmp/ignored.txt
+          if grep -qE '^test .+ \.\.\. ok$' /tmp/ignored.txt; then
+            echo "::error::A fix-gated #[ignore]d test now PASSES — its fix has landed, so remove the #[ignore] attribute:"
+            grep -E '^test .+ \.\.\. ok$' /tmp/ignored.txt
+            exit 1
+          fi
+          echo "OK: every fix-gated test still fails as expected — no stale #[ignore]."
+
       # Build the binary in its own step so the health-check loop below only
       # waits on startup, not a cold compile. `cargo run` compiles first, which
       # can exceed the 30s probe window and make the check spuriously fail.

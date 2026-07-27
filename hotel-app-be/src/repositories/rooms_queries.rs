@@ -111,14 +111,14 @@ WITH current_bookings AS (
         check_in_date,
         check_out_date
     FROM bookings
-    WHERE status IN ('checked_in', 'auto_checked_in', 'confirmed', 'pending')
+    WHERE status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
       AND check_out_date >= CURRENT_DATE
     ORDER BY room_id,
         CASE
             WHEN status IN ('checked_in', 'auto_checked_in') THEN 1
             WHEN status = 'confirmed' AND check_in_date <= CURRENT_DATE THEN 2
             WHEN status = 'confirmed' THEN 3
-            WHEN status = 'pending' AND check_in_date <= CURRENT_DATE THEN 4
+            WHEN status IN ('pending', 'pending_payment', 'pending_confirmation') AND check_in_date <= CURRENT_DATE THEN 4
             ELSE 5
         END,
         check_in_date
@@ -130,7 +130,7 @@ SELECT
     COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN false
-        WHEN cb.booking_status IN ('confirmed', 'pending') THEN false
+        WHEN cb.booking_status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation') THEN false
         WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN false
         ELSE true
     END as available,
@@ -143,7 +143,7 @@ SELECT
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 'occupied'
         WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN r.status
-        WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE THEN 'reserved'
+        WHEN cb.booking_status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation') AND cb.check_in_date <= CURRENT_DATE THEN 'reserved'
         ELSE 'available'
     END as status,
     r.maintenance_start_date,
@@ -173,7 +173,7 @@ const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+    WHERE status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
       AND (check_in_date < $2 AND check_out_date > $1)
       AND ($3::BIGINT IS NULL OR id != $3)
 )
@@ -236,13 +236,14 @@ WITH current_bookings AS (
         status as booking_status,
         check_in_date
     FROM bookings
-    WHERE status IN ('checked_in', 'auto_checked_in', 'confirmed', 'pending')
+    WHERE status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
       AND check_out_date >= CURRENT_DATE
     ORDER BY room_id,
         CASE
             WHEN status IN ('checked_in', 'auto_checked_in') THEN 1
             WHEN status = 'confirmed' AND check_in_date <= CURRENT_DATE THEN 2
-            ELSE 3
+            WHEN status IN ('pending', 'pending_payment', 'pending_confirmation') AND check_in_date <= CURRENT_DATE THEN 3
+            ELSE 4
         END,
         check_in_date
 )
@@ -274,7 +275,7 @@ WHERE r.is_active = true
   AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty', 'occupied', 'reserved')
   AND (cb.room_id IS NULL OR NOT (
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
-      (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE)
+      (cb.booking_status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation') AND cb.check_in_date <= CURRENT_DATE)
   ))
   AND ($1::text IS NULL OR LOWER(rt.name) = LOWER($1) OR LOWER(rt.code) = LOWER($1))
   AND ($2::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $2)
@@ -1835,7 +1836,9 @@ const ROOM_CURRENT_OCCUPANCY_COLUMNS: &str = r#"
     is_occupied
 "#;
 
-pub async fn fetch_all_room_occupancy(pool: &DbPool) -> Result<Vec<RoomCurrentOccupancy>, ApiError> {
+pub async fn fetch_all_room_occupancy(
+    pool: &DbPool,
+) -> Result<Vec<RoomCurrentOccupancy>, ApiError> {
     let query = format!(
         "SELECT {} FROM room_current_occupancy ORDER BY room_number",
         ROOM_CURRENT_OCCUPANCY_COLUMNS
@@ -1863,7 +1866,9 @@ pub async fn fetch_room_occupancy(
     Ok(row.map(|row| row_mappers::row_to_room_current_occupancy(&row)))
 }
 
-pub async fn fetch_hotel_occupancy_summary(pool: &DbPool) -> Result<HotelOccupancySummary, ApiError> {
+pub async fn fetch_hotel_occupancy_summary(
+    pool: &DbPool,
+) -> Result<HotelOccupancySummary, ApiError> {
     let row = sqlx::query(
         r#"
         SELECT

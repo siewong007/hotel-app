@@ -373,7 +373,13 @@ function buildLedgers(): CustomerLedger[] {
       amount: 100,
       status: 'void',
       paid_amount: 0,
-      balance_due: 0,
+      // customer_ledgers.balance_due is a GENERATED column (amount -
+      // paid_amount); voiding never touches it, so a real voided-but-unpaid
+      // row has balance_due == amount (100), never 0. A zeroed balance_due
+      // here would make this fixture impossible to produce from the
+      // database and would let the test pass whether or not the void
+      // exclusion below actually works.
+      balance_due: 100,
       void_at: '2026-07-10T00:00:00Z',
       void_reason: 'Duplicate entry',
       created_at: '2026-07-03T03:00:00Z',
@@ -500,8 +506,12 @@ describe('CustomerLedgerPage', () => {
     expect(mocks.captured.ledgerSummaryStrip).toMatchObject({
       companiesCount: 2,
       summary: {
-        total_entries: 4,
-        total_amount: 1150,
+        // The voided entry (id 103, $100) is excluded from every summary
+        // field, matching the backend's own /ledgers/summary
+        // (`WHERE status NOT IN ('void')`): 4 fixtures minus 1 void = 3
+        // entries, and $1150 total minus the voided $100 = $1050.
+        total_entries: 3,
+        total_amount: 1050,
         total_paid: 350,
         total_outstanding: 700,
         pending_count: 1,
@@ -515,8 +525,11 @@ describe('CustomerLedgerPage', () => {
       'Acme Corp',
       'Zen Traders',
     ]);
-    expect(mocks.captured.companyDetailHeader).toMatchObject({ entryCount: 3 });
-    expect(mocks.captured.ledgerEntriesTab).toMatchObject({ entryCount: 3 });
+    // entryCount comes from the per-company aggregate (activeAgg.count),
+    // which now excludes the voided entry (id 103) the same way `summary`
+    // does — 3 Acme Corp fixtures minus 1 void = 2.
+    expect(mocks.captured.companyDetailHeader).toMatchObject({ entryCount: 2 });
+    expect(mocks.captured.ledgerEntriesTab).toMatchObject({ entryCount: 2 });
   });
 
   it('switches the detail pane to a newly selected company', async () => {

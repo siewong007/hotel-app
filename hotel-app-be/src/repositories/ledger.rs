@@ -133,9 +133,11 @@ const DELETE_LEDGER_PAYMENTS_QUERY: &str =
 // PostgreSQL query for deleting ledger
 const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = $1";
 
-// PostgreSQL query for getting ledger info for payment
-const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
-    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1";
+// PostgreSQL query for getting ledger info for payment - locks the row for
+// the duration of the enclosing transaction so a concurrent payment write
+// cannot read a stale paid_amount.
+const GET_LEDGER_FOR_PAYMENT_LOCKED_QUERY: &str =
+    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1 FOR UPDATE";
 
 /// List all customer ledgers with optional filters
 pub async fn list_customer_ledgers(
@@ -470,6 +472,39 @@ pub async fn create_customer_ledger(
     Ok(ledger)
 }
 
+// Mirrors the `valid_post_type` CHECK constraint on `customer_ledgers`
+// (database/postgres/migrations/0001_v1_baseline.sql). Kept in sync by hand -
+// an unknown value must be refused here as a 400, not left to hit the
+// database CHECK as an opaque 500.
+const VALID_POST_TYPES: &[&str] = &[
+    "room_charge",
+    "room_tax",
+    "service_charge",
+    "tourism_tax",
+    "fnb_restaurant",
+    "fnb_room_service",
+    "fnb_minibar",
+    "fnb_banquet",
+    "laundry",
+    "telephone",
+    "internet",
+    "parking",
+    "spa",
+    "gym",
+    "transportation",
+    "miscellaneous",
+    "advance_deposit",
+    "payment",
+    "adjustment",
+    "rebate",
+    "discount",
+    "commission",
+    "refund",
+    "transfer_in",
+    "transfer_out",
+    "city_ledger_transfer",
+];
+
 /// Update a customer ledger entry (PostgreSQL version)
 pub async fn update_customer_ledger(
     pool: &DbPool,
@@ -477,15 +512,36 @@ pub async fn update_customer_ledger(
     user_id: i64,
     request: CustomerLedgerUpdateRequest,
 ) -> Result<CustomerLedger, ApiError> {
-    let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM customer_ledgers WHERE id = $1)")
+    let current_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM customer_ledgers WHERE id = $1")
             .bind(ledger_id)
-            .fetch_one(pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if !exists {
+    let Some(current_status) = current_status else {
         return Err(ApiError::NotFound("Customer ledger not found".to_string()));
+    };
+
+    // Only `void_ledger` may TRANSITION status to 'void' - that path stamps
+    // void_at/void_by/void_reason. This generic update is gated by
+    // `ledgers:update` at the route layer (not `ledgers:void`), so letting a
+    // pending/other row flip to status='void' through here would produce an
+    // unattributable void. An already-void row echoing status='void' back
+    // unchanged (e.g. editing notes on a voided ledger) is not a transition
+    // and must be allowed through.
+    if request.status.as_deref() == Some("void") && current_status != "void" {
+        return Err(ApiError::BadRequest(
+            "Cannot set status to 'void' via update; use the void endpoint instead".to_string(),
+        ));
+    }
+
+    if let Some(post_type) = request.post_type.as_deref()
+        && !VALID_POST_TYPES.contains(&post_type)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "Invalid post_type '{post_type}'"
+        )));
     }
 
     let mut updates = Vec::new();
@@ -818,9 +874,16 @@ pub async fn create_ledger_payment(
     user_id: i64,
     request: CustomerLedgerPaymentRequest,
 ) -> Result<CustomerLedgerPayment, ApiError> {
-    let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_QUERY)
+    // The whole read-modify-write of customer_ledgers.paid_amount/status must
+    // be one transaction with the ledger row locked FOR UPDATE - otherwise two
+    // concurrent payments on the same ledger both read the same current_paid,
+    // and the second write clobbers the first's contribution (money collected
+    // that never reaches the recorded receivable).
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+    let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_LOCKED_QUERY)
         .bind(ledger_id)
-        .fetch_optional(pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -867,7 +930,7 @@ pub async fn create_ledger_payment(
             "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER($1))",
         )
         .bind(receipt_number)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -916,7 +979,7 @@ pub async fn create_ledger_payment(
     .bind(&request.receipt_file_url)
     .bind(&request.notes)
     .bind(user_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -942,9 +1005,11 @@ pub async fn create_ledger_payment(
     .bind(payment_date_ts)
     .bind(user_id)
     .bind(ledger_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(payment)
 }
@@ -1023,18 +1088,43 @@ pub async fn void_ledger(
     user_id: i64,
     request: LedgerVoidRequest,
 ) -> Result<CustomerLedger, ApiError> {
-    // Check if ledger exists and is not already voided
-    let exists: Option<bool> =
-        sqlx::query_scalar("SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1")
-            .bind(ledger_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+    // Check if ledger exists, is not already voided, and has not already
+    // collected any payments - get_ledger_summary excludes status = 'void'
+    // rows entirely, so voiding a ledger with paid_amount > 0 would make
+    // collected money vanish from every outstanding/collected total.
+    //
+    // The probe and the UPDATE must run in one transaction against a row
+    // locked FOR UPDATE - otherwise a concurrent create_ledger_payment can
+    // insert a payment (taking the row lock first) while this probe reads
+    // the pre-payment paid_amount = 0 under MVCC and passes the guard; the
+    // UPDATE would then block on the payment's lock and, once released,
+    // apply against the new row version - voiding a ledger that now has
+    // paid_amount > 0, exactly the state this guard exists to forbid.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-    match exists {
+    let existing_row = sqlx::query(
+        "SELECT void_at IS NOT NULL AS is_voided, paid_amount FROM customer_ledgers WHERE id = $1 FOR UPDATE",
+    )
+    .bind(ledger_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let row = match existing_row {
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
-        Some(true) => return Err(ApiError::BadRequest("Ledger is already voided".to_string())),
-        Some(false) => {}
+        Some(row) => row,
+    };
+
+    let is_voided: bool = row.try_get("is_voided").unwrap_or(false);
+    if is_voided {
+        return Err(ApiError::BadRequest("Ledger is already voided".to_string()));
+    }
+
+    let paid_amount = get_decimal(&row, "paid_amount");
+    if paid_amount > Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Cannot void a ledger with a paid_amount greater than zero; collected payments cannot be voided away".to_string(),
+        ));
     }
 
     let query_str = format!(
@@ -1056,11 +1146,13 @@ pub async fn void_ledger(
         .bind(user_id)
         .bind(&request.reason)
         .bind(ledger_id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(ledger)
 }
@@ -1174,18 +1266,33 @@ pub async fn update_ledger_payment(
     let payment_date_ts = chrono::NaiveDate::parse_from_str(&request.payment_date, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?;
 
+    // One transaction for the whole read-modify-write, with the ledger row
+    // locked FOR UPDATE up front, so a concurrent payment write on the same
+    // ledger cannot read a stale total/paid_amount and lose a contribution.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     // Verify the payment belongs to this ledger
     let exists =
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if exists.is_none() {
         return Err(ApiError::NotFound("Payment not found".to_string()));
     }
+
+    // Lock the ledger row now; its amount is used both for the over-payment
+    // guard below and for the final status recompute.
+    let total_amount: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1 FOR UPDATE",
+    )
+    .bind(ledger_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Validate the optional new amount and guard against over-payment (the sum
     // of the other payments plus this one must not exceed the ledger total).
@@ -1198,19 +1305,12 @@ pub async fn update_ledger_payment(
                     "Payment amount must be positive".to_string(),
                 ));
             }
-            let total_amount: Decimal = sqlx::query_scalar(
-                "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1",
-            )
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
             let others_paid: Decimal = sqlx::query_scalar(
                 "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1 AND id <> $2",
             )
             .bind(ledger_id)
             .bind(payment_id)
-            .fetch_one(pool)
+            .fetch_one(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
             if others_paid + dec > total_amount {
@@ -1245,7 +1345,7 @@ pub async fn update_ledger_payment(
     .bind(request.payment_reference.as_deref())
     .bind(request.notes.as_deref())
     .bind(payment_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1254,16 +1354,9 @@ pub async fn update_ledger_payment(
         "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1",
     )
     .bind(ledger_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let total_amount: Decimal =
-        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1")
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let new_status = if new_paid >= total_amount {
         "paid"
@@ -1286,9 +1379,11 @@ pub async fn update_ledger_payment(
     .bind(new_paid)
     .bind(new_status)
     .bind(ledger_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(row_to_customer_ledger_payment(&payment_row))
 }
@@ -1299,12 +1394,17 @@ pub async fn delete_ledger_payment(
     ledger_id: i64,
     payment_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
+    // One transaction for the whole read-modify-write, with the ledger row
+    // locked FOR UPDATE before the delete, so a concurrent payment write on
+    // the same ledger cannot read a stale paid_amount.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     // Verify the payment belongs to this ledger
     let exists =
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1312,10 +1412,18 @@ pub async fn delete_ledger_payment(
         return Err(ApiError::NotFound("Payment not found".to_string()));
     }
 
+    let total_amount: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1 FOR UPDATE",
+    )
+    .bind(ledger_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
     // Delete the payment
     sqlx::query("DELETE FROM customer_ledger_payments WHERE id = $1")
         .bind(payment_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1324,16 +1432,9 @@ pub async fn delete_ledger_payment(
         "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1"
     )
     .bind(ledger_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let total_amount: Decimal =
-        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1")
-            .bind(ledger_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let new_status = if new_paid >= total_amount {
         "paid"
@@ -1356,9 +1457,11 @@ pub async fn delete_ledger_payment(
     .bind(new_paid)
     .bind(new_status)
     .bind(ledger_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({
         "message": "Payment deleted successfully",
