@@ -14,7 +14,7 @@ use crate::repositories::passkey::PasskeyRepository;
 use crate::repositories::rbac::RbacRepository;
 use base64::Engine;
 use base64::engine::general_purpose;
-use rand::Rng;
+use rand::RngExt;
 use ring::signature;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};

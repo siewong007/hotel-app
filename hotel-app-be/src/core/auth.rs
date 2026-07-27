@@ -4,7 +4,7 @@ use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{Duration, Utc};
 use hex;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use rand::Rng;
+use rand::RngExt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
