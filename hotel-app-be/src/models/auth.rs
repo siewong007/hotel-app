@@ -60,6 +60,8 @@ pub struct CompleteGuestProfileRequest {
 impl CompleteGuestProfileRequest {
     #[allow(dead_code)]
     pub fn normalize_and_validate(&mut self) -> Result<(), ValidationErrors> {
+        self.validate()?;
+
         self.first_name = Sanitizer::sanitize_guest_name(&self.first_name);
         self.last_name = Sanitizer::sanitize_guest_name(&self.last_name);
         self.phone = Sanitizer::sanitize_phone(&self.phone);
@@ -141,6 +143,15 @@ mod google_guest_profile_tests {
                 .validate()
                 .is_err()
         );
+    }
+
+    #[test]
+    fn complete_guest_profile_normalization_rejects_raw_invalid_phone_characters() {
+        let mut letters = request("Aisha", "Rahman", "abc12345678");
+        let mut repeated_plus = request("Aisha", "Rahman", "++60123456789");
+
+        assert!(letters.normalize_and_validate().is_err());
+        assert!(repeated_plus.normalize_and_validate().is_err());
     }
 
     #[test]
