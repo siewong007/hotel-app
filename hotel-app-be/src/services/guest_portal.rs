@@ -2,13 +2,14 @@
 
 use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
-use rand::Rng;
+use rand::RngExt;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
+use crate::models::AuditEvent;
 use crate::models::{
     Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
     GuestPortalCreditsResponse, GuestPortalLoginResponse, GuestPortalMeResponse,
@@ -19,7 +20,6 @@ use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
-use crate::models::AuditEvent;
 
 /// Generate a 256-bit random token as a hex string.
 fn generate_session_token() -> String {

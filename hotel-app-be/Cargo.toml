@@ -51,7 +51,7 @@ hmac = "0.13"
 # lettre TLS backend so no OpenSSL/native-tls is required.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "hostname", "pool", "tokio1", "tokio1-rustls-tls"] }
-rand = "0.9"
+rand = "0.10"
 regex = "1.11"
 ring = "0.17"
 constant_time_eq = "0.5"
