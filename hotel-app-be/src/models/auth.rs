@@ -19,6 +19,41 @@ pub struct LoginRequest {
     pub totp_code: Option<String>,
 }
 
+/// Google Identity Services credential exchange request.
+#[allow(dead_code)]
+#[derive(Deserialize, Validate)]
+pub struct GoogleLoginRequest {
+    #[validate(length(min = 1, message = "Google credential is required"))]
+    pub credential: String,
+}
+
+// A Google credential is a bearer token and must not appear in debug logs.
+impl std::fmt::Debug for GoogleLoginRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GoogleLoginRequest")
+            .field("credential", &"<redacted>")
+            .finish()
+    }
+}
+
+/// Guest contact details supplied after Google sign-in.
+#[allow(dead_code)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct CompleteGuestProfileRequest {
+    #[validate(length(min = 1, max = 50, message = "First name is required"))]
+    pub first_name: String,
+    #[validate(length(min = 1, max = 50, message = "Last name is required"))]
+    pub last_name: String,
+    #[validate(length(
+        min = 8,
+        max = 16,
+        message = "Phone number must contain between 8 and 15 digits"
+    ))]
+    pub phone: String,
+    #[validate(length(max = 255, message = "Address is too long"))]
+    pub address_line1: Option<String>,
+}
+
 /// Authentication response after login
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthResponse {

@@ -12,6 +12,7 @@ pub mod bookings;
 pub mod companies;
 pub mod data_transfer;
 // eKYC service logic lives in modules::ekyc.
+pub mod google_identity;
 pub mod guest_portal;
 pub mod guests;
 pub mod housekeeping;

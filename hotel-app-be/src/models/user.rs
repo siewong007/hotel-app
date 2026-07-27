@@ -12,6 +12,8 @@ pub struct User {
     pub id: i64,
     pub username: String,
     pub email: String,
+    #[serde(skip_serializing)]
+    pub google_subject: Option<String>,
     pub full_name: Option<String>,
     pub phone: Option<String>,
     pub is_active: bool,
@@ -33,6 +35,10 @@ impl std::fmt::Debug for User {
             .field("id", &self.id)
             .field("username", &self.username)
             .field("email", &self.email)
+            .field(
+                "google_subject",
+                &self.google_subject.as_ref().map(|_| "<redacted>"),
+            )
             .field("full_name", &self.full_name)
             .field("phone", &self.phone)
             .field("is_active", &self.is_active)
