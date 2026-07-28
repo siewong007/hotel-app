@@ -18,6 +18,7 @@ import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
+import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
 import { Route as ComplimentaryRouteImport } from './routes/complimentary'
 import { Route as DataTransferRouteImport } from './routes/data-transfer'
 import { Route as EkycRouteImport } from './routes/ekyc'
@@ -95,6 +96,11 @@ const CommunicationsRoute = CommunicationsRouteImport.update({
 const CompanyLedgerRoute = CompanyLedgerRouteImport.update({
   id: '/company-ledger',
   path: '/company-ledger',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompleteProfileRoute = CompleteProfileRouteImport.update({
+  id: '/complete-profile',
+  path: '/complete-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ComplimentaryRoute = ComplimentaryRouteImport.update({
@@ -273,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/bookings': typeof BookingsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
+  '/complete-profile': typeof CompleteProfileRoute
   '/complimentary': typeof ComplimentaryRoute
   '/data-transfer': typeof DataTransferRoute
   '/ekyc': typeof EkycRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByTo {
   '/bookings': typeof BookingsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
+  '/complete-profile': typeof CompleteProfileRoute
   '/complimentary': typeof ComplimentaryRoute
   '/data-transfer': typeof DataTransferRoute
   '/ekyc': typeof EkycRoute
@@ -362,6 +370,7 @@ export interface FileRoutesById {
   '/bookings': typeof BookingsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
+  '/complete-profile': typeof CompleteProfileRoute
   '/complimentary': typeof ComplimentaryRoute
   '/data-transfer': typeof DataTransferRoute
   '/ekyc': typeof EkycRoute
@@ -408,6 +417,7 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/communications'
     | '/company-ledger'
+    | '/complete-profile'
     | '/complimentary'
     | '/data-transfer'
     | '/ekyc'
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/communications'
     | '/company-ledger'
+    | '/complete-profile'
     | '/complimentary'
     | '/data-transfer'
     | '/ekyc'
@@ -496,6 +507,7 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/communications'
     | '/company-ledger'
+    | '/complete-profile'
     | '/complimentary'
     | '/data-transfer'
     | '/ekyc'
@@ -541,6 +553,7 @@ export interface RootRouteChildren {
   BookingsRoute: typeof BookingsRoute
   CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
+  CompleteProfileRoute: typeof CompleteProfileRoute
   ComplimentaryRoute: typeof ComplimentaryRoute
   DataTransferRoute: typeof DataTransferRoute
   EkycRoute: typeof EkycRoute
@@ -639,6 +652,13 @@ declare module '@tanstack/react-router' {
       path: '/company-ledger'
       fullPath: '/company-ledger'
       preLoaderRoute: typeof CompanyLedgerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/complete-profile': {
+      id: '/complete-profile'
+      path: '/complete-profile'
+      fullPath: '/complete-profile'
+      preLoaderRoute: typeof CompleteProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/complimentary': {
@@ -885,6 +905,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookingsRoute: BookingsRoute,
   CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,
+  CompleteProfileRoute: CompleteProfileRoute,
   ComplimentaryRoute: ComplimentaryRoute,
   DataTransferRoute: DataTransferRoute,
   EkycRoute: EkycRoute,

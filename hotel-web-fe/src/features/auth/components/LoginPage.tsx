@@ -16,6 +16,7 @@ import {
   Collapse,
   Card,
   CardContent,
+  Divider,
 } from '@mui/material';
 import {
   Lock as LockIcon,
@@ -32,6 +33,7 @@ import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 import { LoadingSpinner } from '../../../components';
 import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDashboard.service';
 import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
+import { GoogleSignInButton } from './GoogleSignInButton';
 import {
   isCompleteTwoFactorCode,
   notifyRecoveryCodeUsed,
@@ -62,7 +64,7 @@ const LoginPage: React.FC = () => {
   const [showPasswordField, setShowPasswordField] = useState(false);
   const [passkeyCheckInProgress, setPasskeyCheckInProgress] = useState(false);
   const [usernameSubmitted, setUsernameSubmitted] = useState(false);
-  const { login, loginWithPasskey, registerPasskey } = useAuth();
+  const { login, loginWithPasskey, registerPasskey, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -169,6 +171,44 @@ const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       setError(err.message || 'Passkey login failed');
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      await loginWithGoogle(credential);
+
+      // Route by the freshly-stored account, same as completeSignIn() does —
+      // Google sign-in is guest-only, but a guest whose profile is still
+      // missing required fields must finish that step first.
+      const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
+      if (storedUser?.profile_complete === false) {
+        const redirectParam = searchParams.get('redirect');
+        navigate(
+          redirectParam
+            ? `/complete-profile?redirect=${encodeURIComponent(redirectParam)}`
+            : '/complete-profile',
+          { replace: true }
+        );
+        return;
+      }
+
+      completeSignIn();
+    } catch (err: any) {
+      const message = err?.message || 'Google sign-in failed';
+      // The backend reports a missing/misconfigured client id or a Google API
+      // outage as a 503 with a message that always starts this way (see
+      // hotel-app-be/src/services/google_identity.rs) — surface that as
+      // "unavailable" rather than a credential failure.
+      setError(
+        message.startsWith('Google sign-in is')
+          ? 'Google sign-in is unavailable right now. Please sign in with your username instead.'
+          : message
+      );
       setLoading(false);
     }
   };
@@ -767,6 +807,13 @@ const LoginPage: React.FC = () => {
                       >
                         Sign in with passkey
                       </Button>
+
+                      {userType === 'guest' && (
+                        <>
+                          <Divider sx={{ my: 2 }}>or</Divider>
+                          <GoogleSignInButton onCredential={handleGoogleCredential} />
+                        </>
+                      )}
                     </form>
                   )}
 

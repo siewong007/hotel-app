@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from '../../../router';
+import { useNavigate, useSearchParams } from '../../../router';
 import {
   Box,
   Container,
@@ -12,11 +12,14 @@ import {
   Fade,
   Collapse,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import { PersonAdd as RegisterIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import { LoadingSpinner } from '../../../components';
+import { storage } from '../../../utils/storage';
+import { GoogleSignInButton } from './GoogleSignInButton';
 
 const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
@@ -37,8 +40,10 @@ const RegisterPage: React.FC = () => {
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [googleError, setGoogleError] = useState('');
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -147,6 +152,38 @@ const RegisterPage: React.FC = () => {
       setError(err.message || 'Registration failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    setGoogleError('');
+    setError('');
+
+    try {
+      await loginWithGoogle(credential);
+
+      const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
+      const redirectParam = searchParams.get('redirect');
+      if (storedUser?.profile_complete === false) {
+        navigate(
+          redirectParam
+            ? `/complete-profile?redirect=${encodeURIComponent(redirectParam)}`
+            : '/complete-profile',
+          { replace: true }
+        );
+        return;
+      }
+
+      navigate(redirectParam === '/portal/book' ? '/portal/book' : '/guest-portal', { replace: true });
+    } catch (err: any) {
+      const message = err?.message || 'Google sign-in failed';
+      // Same 503 message prefix contract as LoginPage.tsx's Google handler —
+      // see hotel-app-be/src/services/google_identity.rs.
+      setGoogleError(
+        message.startsWith('Google sign-in is')
+          ? 'Google sign-in is unavailable right now. Please create an account below instead.'
+          : message
+      );
     }
   };
 
@@ -302,6 +339,19 @@ const RegisterPage: React.FC = () => {
                 </Box>
               </Alert>
             </Collapse>
+
+            {/* Google Guest Sign-In */}
+            {!success && (
+              <>
+                <Collapse in={!!googleError}>
+                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGoogleError('')}>
+                    {googleError}
+                  </Alert>
+                </Collapse>
+                <GoogleSignInButton onCredential={handleGoogleCredential} />
+                <Divider sx={{ my: 3 }}>or create an account</Divider>
+              </>
+            )}
 
           <form onSubmit={handleRegister}>
             <Grid container spacing={2}>
