@@ -29,6 +29,13 @@ export interface GuestPortalLoginResponse {
 
 export interface GuestPortalMeResponse {
   guest: GuestPortalGuest;
+  /**
+   * Backend-authoritative completion verdict from `services::profile::completion_for_guest`.
+   * Optional so a portal backend that predates this field keeps working — treat
+   * a missing value as complete rather than trapping the guest in a loop.
+   */
+  profile_complete?: boolean;
+  missing_profile_fields?: string[];
 }
 
 export interface GuestPortalBookingSummary {

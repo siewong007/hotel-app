@@ -119,6 +119,11 @@ pub struct GuestPortalLoginResponse {
 #[derive(Debug, Serialize)]
 pub struct GuestPortalMeResponse {
     pub guest: GuestPortalGuestView,
+    /// Resolved via `services::profile::completion_for_guest` — the same
+    /// primitive backing the login response and the booking-creation guard,
+    /// so the portal session never disagrees with them.
+    pub profile_complete: bool,
+    pub missing_profile_fields: Vec<String>,
 }
 
 /// One booking row in the guest's booking history.
