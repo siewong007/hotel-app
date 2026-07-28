@@ -16,6 +16,8 @@ import { PortalPromotionsApi } from '../../promotions/api/portalPromotionsApi';
 import type { Voucher } from '../../promotions/types';
 import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
+import { HTTPError } from 'ky';
+import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { GuestBookingApi } from './api';
 import type { AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch } from './types';
 import type { PaymentActionResponse } from '../../../types';
@@ -46,6 +48,21 @@ function isVoucherEligibilityError(error: unknown): boolean {
   return error instanceof Error && error.message.toLowerCase().includes('voucher is not eligible');
 }
 
+const COMPLETE_PROFILE_REDIRECT = '/complete-profile?redirect=%2Fportal%2Fbook';
+
+// The backend re-checks completion at booking-creation time (`ApiError::ProfileIncomplete`,
+// 422 `code: "profile_incomplete"`) in case it changed after this page loaded. Detect that
+// exact shape rather than matching on the generic error message text.
+async function readProfileIncompleteFields(error: unknown): Promise<string[] | null> {
+  if (!(error instanceof HTTPError) || error.response.status !== 422) return null;
+  const body = await error.response.json().catch(() => null);
+  if (!body || typeof body !== 'object' || (body as { code?: unknown }).code !== 'profile_incomplete') {
+    return null;
+  }
+  const missing = (body as { missing_profile_fields?: unknown }).missing_profile_fields;
+  return Array.isArray(missing) ? missing.filter((field): field is string => typeof field === 'string') : [];
+}
+
 function offerImage(offer: GuestBookingOffer): string | null {
   return offer.images?.find((image) => typeof image === 'string' && image.trim().length > 0) ?? null;
 }
@@ -72,12 +89,26 @@ const PortalBookingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [availabilityLost, setAvailabilityLost] = useState(false);
+  // Default to complete: a portal backend that predates this field, or a
+  // transient fetch failure, must never trap the guest in a completion loop.
+  // The backend booking guard (`ApiError::ProfileIncomplete`) remains
+  // authoritative regardless of this client-side value.
+  const [profileComplete, setProfileComplete] = useState(true);
 
   useEffect(() => {
     if (!token) return;
     void PortalPromotionsApi.listVouchers({ page_size: 100 }, token)
       .then((response) => setVouchers(response.items.filter((voucher) => voucher.status === 'available')))
       .catch(() => setVouchers([]));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void GuestPortalDashboardService.me(token)
+      .then((me) => { if (!cancelled) setProfileComplete(me.profile_complete ?? true); })
+      .catch(() => { if (!cancelled) setProfileComplete(true); });
+    return () => { cancelled = true; };
   }, [token]);
 
   const runSearch = useCallback(async () => {
@@ -153,6 +184,13 @@ const PortalBookingPage: React.FC = () => {
 
   const submitBooking = useCallback(async () => {
     if (!token || !quote) return;
+    // Usability guard only — the backend re-checks and is authoritative (see
+    // the 422 profile_incomplete handling below for the race where completion
+    // changed after this page loaded).
+    if (!profileComplete) {
+      navigate(COMPLETE_PROFILE_REDIRECT);
+      return;
+    }
     setIsSubmitting(true); setError(null);
     try {
       // Submit the nights the server itself priced, so what is booked is
@@ -160,11 +198,17 @@ const PortalBookingPage: React.FC = () => {
       const result = await GuestBookingApi.create({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates, client_request_id: requestId, expected_total: quote.total_amount, special_requests: specialRequests.trim() || undefined, cleaning_preference: cleaningPreference }, token);
       setConfirmation(result);
     } catch (createError) {
+      const missingFields = await readProfileIncompleteFields(createError);
+      if (missingFields) {
+        setProfileComplete(false);
+        navigate(COMPLETE_PROFILE_REDIRECT);
+        return;
+      }
       setError(errorMessage(createError, 'Unable to create the booking.'));
       try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, quote, requestId, runSearch, search, specialRequests, token]);
+  }, [cleaningPreference, navigate, profileComplete, quote, requestId, runSearch, search, specialRequests, token]);
 
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;

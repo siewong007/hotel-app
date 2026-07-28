@@ -332,7 +332,16 @@ pub async fn require_guest_session_token(token: &str, pool: &DbPool) -> Result<i
 /// GET /guest-portal/me
 pub async fn get_me(pool: &DbPool, guest_id: i64) -> Result<GuestPortalMeResponse, ApiError> {
     let guest = GuestPortalSessionRepository::find_guest_view(pool, guest_id).await?;
-    Ok(GuestPortalMeResponse { guest })
+    let completion = crate::services::profile::completion_for_guest(pool, guest_id).await?;
+    Ok(GuestPortalMeResponse {
+        guest,
+        profile_complete: completion.complete,
+        missing_profile_fields: completion
+            .missing_fields
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+    })
 }
 
 /// GET /guest-portal/me/bookings

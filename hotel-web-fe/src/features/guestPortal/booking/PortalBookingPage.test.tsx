@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createBooking: vi.fn(),
   createSession: vi.fn(),
   listVouchers: vi.fn(),
+  me: vi.fn(),
   navigate: vi.fn(),
   paymentConfig: vi.fn(),
   quote: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('../../promotions/api/portalPromotionsApi', () => ({
 vi.mock('../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
     createSession: (...args: unknown[]) => mocks.createSession(...args),
+    me: (...args: unknown[]) => mocks.me(...args),
   },
 }));
 
@@ -126,6 +128,7 @@ describe('PortalBookingPage voucher eligibility', () => {
       page: 1,
       page_size: 100,
     });
+    mocks.me.mockReset().mockResolvedValue({ guest: {}, profile_complete: true });
     mocks.navigate.mockReset();
     mocks.search.mockReset().mockResolvedValue([offer]);
     mocks.quote.mockReset();
@@ -228,6 +231,57 @@ describe('PortalBookingPage voucher eligibility', () => {
   });
 });
 
+describe('PortalBookingPage profile completion guard', () => {
+  beforeEach(() => {
+    mocks.createBooking.mockReset();
+    mocks.createSession.mockReset();
+    mocks.listVouchers.mockReset().mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      page_size: 100,
+    });
+    mocks.navigate.mockReset();
+    mocks.paymentConfig.mockReset().mockResolvedValue({
+      paypal_enabled: false,
+      paypal_client_id: null,
+      bank_details: {
+        bank_name: 'Maybank',
+        account_name: 'Salim Inn',
+        account_number: '511270052595',
+      },
+    });
+    mocks.search.mockReset().mockResolvedValue([offer]);
+    mocks.quote.mockReset();
+    mocks.voucherOptions.mockReset().mockResolvedValue({
+      quote,
+      eligible_voucher_ids: [],
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('redirects to complete-profile instead of submitting, when the guest profile is incomplete', async () => {
+    mocks.me.mockReset().mockResolvedValue({ guest: {}, profile_complete: false });
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+
+    await waitFor(() => expect(mocks.me).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fportal%2Fbook'),
+    );
+    expect(mocks.createBooking).not.toHaveBeenCalled();
+  });
+});
+
 describe('PortalBookingPage complimentary nights', () => {
   const twoNightOffer = {
     ...offer,
@@ -251,6 +305,7 @@ describe('PortalBookingPage complimentary nights', () => {
     mocks.createBooking.mockReset();
     mocks.createSession.mockReset();
     mocks.listVouchers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 100 });
+    mocks.me.mockReset().mockResolvedValue({ guest: {}, profile_complete: true });
     mocks.navigate.mockReset();
     mocks.paymentConfig.mockReset();
     mocks.search.mockReset().mockResolvedValue([twoNightOffer]);
