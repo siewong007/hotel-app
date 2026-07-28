@@ -25,7 +25,7 @@ export const RootLayout: React.FC = () => {
   const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
   const account = (location.search as { account?: string }).account;
   const isGuestLogin = pathname === '/login' && account === 'guest';
-  const isGuestExperience = isGuestPortal || isOffersPage || pathname === '/register' || isGuestLogin;
+  const isGuestExperience = isGuestPortal || isOffersPage || pathname === '/register' || isGuestLogin || pathname === '/complete-profile';
   const isGuestModelHome = isGuestPortal;
   const isTimelinePage = pathname.startsWith('/timeline');
   const boardSkinActive =
