@@ -5,7 +5,7 @@ import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
 import { storage } from '../utils/storage';
 import { setAccessToken, clearAccessToken } from './tokenStore';
-import type { RouteAccessPolicy } from '../types';
+import type { RouteAccessPolicy, UserProfile } from '../types';
 import { normalizeAuthUser, type AuthUserShape } from './authUser';
 
 export interface User extends AuthUserShape {}
@@ -33,6 +33,11 @@ export interface LoginResult {
 interface AuthContextType extends AuthState {
   login: (username: string, password: string, totpCode?: string) => Promise<LoginResult>;
   loginWithGoogle: (credential: string) => Promise<LoginResult>;
+  // Merges a freshly-returned profile (e.g. from POST /profile/complete) into
+  // the in-memory auth user and its storage cache, without a network round
+  // trip or a full-page reload. See applyAuthSession for the same
+  // state+storage write-through pattern this mirrors.
+  applyProfileUpdate: (profile: UserProfile) => void;
   register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
@@ -342,16 +347,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error: any) {
       console.error('Google login error:', error);
 
-      let errorMessage = 'Google sign-in failed';
+      // Rethrow APIError as-is so callers can branch on `error.statusCode`
+      // (e.g. 503 when GOOGLE_CLIENT_ID is unset/Google is unreachable — see
+      // hotel-app-be/src/services/google_identity.rs) instead of matching
+      // message text, which silently breaks if the backend copy changes.
       if (error instanceof APIError) {
-        errorMessage = error.message;
-      } else if (error?.message) {
-        errorMessage = error.message;
+        throw error;
       }
 
-      throw new Error(errorMessage);
+      throw new Error(error?.message || 'Google sign-in failed');
     }
   }, [applyAuthSession]);
+
+  // Merges a freshly-returned UserProfile (POST /profile/complete's response)
+  // into the current auth user, without a network round trip. Mirrors
+  // applyAuthSession's state+storage write-through, scoped to just `user`.
+  const applyProfileUpdate = useCallback((profile: UserProfile) => {
+    setAuthState(prev => {
+      if (!prev.user) {
+        return prev;
+      }
+
+      const user = normalizeAuthUser({ ...prev.user, ...profile }, prev.roles);
+      storage.setItems({ user });
+
+      return { ...prev, user };
+    });
+  }, []);
 
   const logout = useCallback(() => {
     // Best-effort server-side revoke + cookie clear. The refresh token rides the
@@ -678,6 +700,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     ...authState,
     login,
     loginWithGoogle,
+    applyProfileUpdate,
     register,
     logout,
     hasPermission,
@@ -691,6 +714,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     authState,
     login,
     loginWithGoogle,
+    applyProfileUpdate,
     register,
     logout,
     hasPermission,

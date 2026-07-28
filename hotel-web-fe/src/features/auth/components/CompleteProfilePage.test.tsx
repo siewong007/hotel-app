@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
       profile_complete: false,
       missing_profile_fields: ['first_name', 'last_name', 'phone'] as const,
     },
+    applyProfileUpdate: vi.fn(),
   },
   profile: {
     id: 1,
@@ -88,6 +89,7 @@ describe('CompleteProfilePage', () => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
     mocks.completeGuestProfile.mockReset();
+    mocks.authState.applyProfileUpdate.mockReset();
     mocks.search = '';
     mocks.authState.isAuthenticated = true;
     mocks.authState.isLoading = false;
@@ -158,6 +160,30 @@ describe('CompleteProfilePage', () => {
         phone: '0123456789',
         address_line1: undefined,
       });
+    });
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/guest-portal', { replace: true }));
+  });
+
+  it('updates the auth context with the returned profile before navigating away', async () => {
+    const updatedProfile = {
+      ...mocks.profile,
+      phone: '0123456789',
+      profile_complete: true,
+      missing_profile_fields: [],
+    };
+    mocks.completeGuestProfile.mockResolvedValue(updatedProfile);
+
+    renderPage();
+
+    await waitFor(() =>
+      expect((screen.getByLabelText(/First Name/) as HTMLInputElement).value).toBe('Jane')
+    );
+    fireEvent.change(screen.getByLabelText(/Phone Number/), { target: { value: '0123456789' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+
+    await waitFor(() => {
+      expect(mocks.authState.applyProfileUpdate).toHaveBeenCalledWith(updatedProfile);
     });
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/guest-portal', { replace: true }));
   });

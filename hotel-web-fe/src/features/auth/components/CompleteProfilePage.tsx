@@ -32,7 +32,7 @@ function splitFullName(fullName: string | undefined): { firstName: string; lastN
 }
 
 const CompleteProfilePage: React.FC = () => {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, applyProfileUpdate } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -107,12 +107,12 @@ const CompleteProfilePage: React.FC = () => {
       });
 
       // Keep the cached profile in sync for anything reading it via
-      // useProfileQuery (same pattern as useUpdateProfileMutation). Note:
-      // AuthContext's own `user.profile_complete` flag is only refreshed on a
-      // full reload (see src/auth/AuthContext.tsx initializeAuth) — it exposes
-      // no setter for updating it in place, so this page relies on navigating
-      // away immediately rather than on that flag flipping live.
+      // useProfileQuery (same pattern as useUpdateProfileMutation), and flip
+      // AuthContext's in-memory `user.profile_complete` so a Back navigation
+      // to this page (or any future guard reading it from context) sees the
+      // completed state immediately rather than the stale pre-submit value.
       queryClient.setQueryData(queryKeys.profile.me(), updatedProfile);
+      applyProfileUpdate(updatedProfile);
 
       const redirectTarget = searchParams.get('redirect');
       navigate(redirectTarget === '/portal/book' ? '/portal/book' : '/guest-portal', { replace: true });

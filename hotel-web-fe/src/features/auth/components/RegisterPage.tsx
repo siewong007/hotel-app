@@ -177,10 +177,10 @@ const RegisterPage: React.FC = () => {
       navigate(redirectParam === '/portal/book' ? '/portal/book' : '/guest-portal', { replace: true });
     } catch (err: any) {
       const message = err?.message || 'Google sign-in failed';
-      // Same 503 message prefix contract as LoginPage.tsx's Google handler —
-      // see hotel-app-be/src/services/google_identity.rs.
+      // Same 503-on-status contract as LoginPage.tsx's Google handler — see
+      // hotel-app-be/src/services/google_identity.rs.
       setGoogleError(
-        message.startsWith('Google sign-in is')
+        err?.statusCode === 503
           ? 'Google sign-in is unavailable right now. Please create an account below instead.'
           : message
       );
