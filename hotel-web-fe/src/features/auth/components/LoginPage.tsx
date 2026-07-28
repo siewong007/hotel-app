@@ -201,11 +201,11 @@ const LoginPage: React.FC = () => {
     } catch (err: any) {
       const message = err?.message || 'Google sign-in failed';
       // The backend reports a missing/misconfigured client id or a Google API
-      // outage as a 503 with a message that always starts this way (see
-      // hotel-app-be/src/services/google_identity.rs) — surface that as
-      // "unavailable" rather than a credential failure.
+      // outage as a 503 (see hotel-app-be/src/services/google_identity.rs) —
+      // branch on the status AuthContext's loginWithGoogle preserves, not the
+      // message text, which can be reworded without breaking this check.
       setError(
-        message.startsWith('Google sign-in is')
+        err?.statusCode === 503
           ? 'Google sign-in is unavailable right now. Please sign in with your username instead.'
           : message
       );

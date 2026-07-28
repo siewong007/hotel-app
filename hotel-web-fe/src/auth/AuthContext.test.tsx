@@ -14,10 +14,26 @@ const mocks = vi.hoisted(() => ({
 
 // AuthContext talks to the network only through these two modules — mock both
 // wholesale so no real HTTP is ever attempted (per repo test convention).
-vi.mock('../api/client', () => ({
-  api: { post: (...args: unknown[]) => mocks.apiPost(...args) },
-  refreshAccessToken: (...args: unknown[]) => mocks.refreshAccessToken(...args),
-}));
+// APIError is re-implemented here (not imported from the real module) so that
+// `error instanceof APIError` inside AuthContext.tsx checks against the SAME
+// class the test constructs instances of below.
+vi.mock('../api/client', () => {
+  class APIError extends Error {
+    statusCode?: number;
+    details?: unknown;
+    constructor(message: string, statusCode?: number, details?: unknown) {
+      super(message);
+      this.name = 'APIError';
+      this.statusCode = statusCode;
+      this.details = details;
+    }
+  }
+  return {
+    api: { post: (...args: unknown[]) => mocks.apiPost(...args) },
+    refreshAccessToken: (...args: unknown[]) => mocks.refreshAccessToken(...args),
+    APIError,
+  };
+});
 
 vi.mock('../api/auth.service', () => ({
   AuthService: {
@@ -33,6 +49,7 @@ vi.mock('../api/users.service', () => ({
   },
 }));
 
+import { APIError } from '../api/client';
 import { AuthProvider, useAuth } from './AuthContext';
 
 function createLocalStorageStub() {
@@ -264,6 +281,78 @@ describe('AuthContext', () => {
 
       expect(result.current.user?.profile_complete).toBe(true);
       expect(result.current.user?.missing_profile_fields).toEqual([]);
+    });
+
+    it('surfaces a 503 as a status the caller can check without reading the message text', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      // The backend words this however it likes (see
+      // hotel-app-be/src/services/google_identity.rs) — the message text here
+      // is deliberately generic to prove the caller never has to parse it.
+      mocks.loginWithGoogle.mockRejectedValue(
+        new APIError('Google sign-in is currently unavailable', 503)
+      );
+
+      let caught: any;
+      await act(async () => {
+        try {
+          await result.current.loginWithGoogle('google-id-token-3');
+        } catch (err) {
+          caught = err;
+        }
+      });
+
+      expect(caught).toBeInstanceOf(APIError);
+      expect(caught.statusCode).toBe(503);
+    });
+  });
+
+  describe('applyProfileUpdate', () => {
+    it('flips profile_complete on the context user and writes through to storage', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      mocks.loginWithGoogle.mockResolvedValue({
+        access_token: 'google-access-4',
+        user: { id: '101', username: 'guest2@example.com', email: 'guest2@example.com', is_active: true },
+        roles: ['guest'],
+        permissions: [],
+        route_policies: [],
+        is_first_login: true,
+        profile_complete: false,
+        missing_profile_fields: ['first_name', 'last_name', 'phone'],
+      });
+
+      await act(async () => {
+        await result.current.loginWithGoogle('google-id-token-4');
+      });
+
+      expect(result.current.user?.profile_complete).toBe(false);
+
+      act(() => {
+        result.current.applyProfileUpdate({
+          id: 101,
+          username: 'guest2@example.com',
+          email: 'guest2@example.com',
+          email_configured: true,
+          is_verified: true,
+          full_name: 'Guest Two',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
+          profile_complete: true,
+          missing_profile_fields: [],
+        });
+      });
+
+      expect(result.current.user?.profile_complete).toBe(true);
+      expect(result.current.user?.missing_profile_fields).toEqual([]);
+      expect(result.current.user?.full_name).toBe('Guest Two');
+      expect(JSON.parse(localStorage.getItem('user') ?? 'null')?.profile_complete).toBe(true);
     });
   });
 
