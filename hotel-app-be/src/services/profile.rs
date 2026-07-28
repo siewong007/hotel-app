@@ -194,13 +194,36 @@ pub async fn revoke_session(pool: &DbPool, user_id: i64, session_id: &str) -> Re
     Ok(())
 }
 
-/// The single source of the guest profile-completion verdict. Both the login
-/// response (`AuthResponse::profile_complete`/`missing_profile_fields`, wired
-/// from `services::auth::issue_authenticated_response`) and the standalone
-/// `POST /profile/complete` endpoint (a separate follow-up task) MUST call this
-/// helper rather than re-deriving completeness themselves — otherwise the
+/// The single source of the guest profile-completion verdict. All three
+/// surfaces — the login response (`AuthResponse::profile_complete`/
+/// `missing_profile_fields`, wired from `services::auth::issue_authenticated_response`),
+/// the standalone `GET /profile` endpoint, and the guest-booking creation guard
+/// (`modules::guest_booking::service::create`) — MUST resolve through this one
+/// primitive rather than re-deriving completeness themselves — otherwise the
 /// booking guard and the profile endpoint could disagree about whether a guest
 /// still owes contact details.
+///
+/// Guest fields only — no `users.phone` fallback. `AuthRepository::register_guest_user`
+/// and `GuestRepository::complete_profile` both keep `guests.phone`/`users.phone`
+/// in sync, so falling back here would only mask stale rows and would make this
+/// helper disagree with a guard that only ever has a `guest_id` to work from.
+pub(crate) async fn completion_for_guest(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<ProfileCompletion, ApiError> {
+    let (first_name, last_name, phone) =
+        GuestRepository::completion_fields(pool, guest_id).await?;
+
+    Ok(google_identity::profile_completion(
+        first_name.as_deref(),
+        last_name.as_deref(),
+        phone.as_deref(),
+    ))
+}
+
+/// Resolves the calling user's linked guest (if any) and delegates to
+/// `completion_for_guest`. Non-guest accounts (or a `user_id` that no longer
+/// resolves to a guest) are exempt and always report complete.
 pub(crate) async fn completion_for_user(
     pool: &DbPool,
     user_id: i64,
@@ -214,22 +237,7 @@ pub(crate) async fn completion_for_user(
         });
     };
 
-    let (first_name, last_name, guest_phone) =
-        GuestRepository::completion_fields(pool, guest_id).await?;
-    let phone = guest_phone.filter(|value| !value.trim().is_empty());
-    let phone = if phone.is_some() {
-        phone
-    } else {
-        UserRepository::find_by_id(pool, user_id)
-            .await?
-            .and_then(|user| user.phone)
-    };
-
-    Ok(google_identity::profile_completion(
-        first_name.as_deref(),
-        last_name.as_deref(),
-        phone.as_deref(),
-    ))
+    completion_for_guest(pool, guest_id).await
 }
 
 /// `POST /profile/complete` — the Google-guest profile-completion write path.
