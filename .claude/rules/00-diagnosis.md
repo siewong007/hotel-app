@@ -5,9 +5,9 @@ Every rule here is executable — no judgment required.
 
 ## Leak #1: Reading large files whole (biggest token leak)
 
-The hot files in this repo are huge. `hotel-app-be/src/repositories/bookings/lifecycle.rs`
-(~3.5k lines) and `repositories/ledger.rs` (~1.3k; handlers are thin wrappers now) are the worst; `database/postgres/migrations/0001_v1_baseline.sql` is large;
-so are `BookingsPage.tsx` and `CustomerLedgerPage.tsx`. Reading one of these whole
+The hot files are huge (sizes verified 2026-08-02): `repositories/bookings/lifecycle.rs`
+~3.0k lines, `BookingsPage.tsx` ~2.9k, `repositories/ledger.rs` ~1.5k (handlers are thin
+wrappers now), plus `CustomerLedgerPage.tsx` and the V1 baseline SQL. Reading one whole
 can burn 30–60k tokens in a single call.
 
 **Fix (mandatory procedure):**
@@ -18,7 +18,7 @@ can burn 30–60k tokens in a single call.
 3. If the file is >400 lines, NEVER Read it without `offset`/`limit`. Grep for the
    function name first to get a line number, then Read ±80 lines around it.
 4. CLAUDE.md and `.claude/refs/*.md` already list known line anchors
-   (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:900). Start from those, but verify
+   (e.g. `create_booking_handler` at repositories/bookings/lifecycle.rs:922). Start from those, but verify
    with Grep — anchors rot as code moves.
 5. If you need a broad sweep ("where is X handled across the repo"), delegate to an
    Explore subagent (see `model-dispatch.md`) instead of reading files yourself.
@@ -61,8 +61,8 @@ symptom is "it compiles but the endpoint 404s in dev" or "lint fails on CI only"
 - ✅ Good: after adding `/api/housekeeping` routes, vite.config.ts diff shows the new proxy entry.
 - ❌ Bad: endpoint works via curl to :3030 but the FE dev server returns HTML 404 — item 3 skipped.
 
-## Honorable mention: doing everything in the main context
+## Leak #4: doing everything in the main context
 
-Long sessions in this repo die from accumulation: file dumps, test output, repeated
-re-reads. The fix is structural, not willpower — follow `model-dispatch.md`: the main
-session delegates scanning/batch work to subagents and receives conclusions + file:line only.
+Long sessions die from accumulation — file dumps, test output, repeated re-reads. The fix
+is structural: per `.claude/refs/model-dispatch.md`, the main session delegates scanning
+and batch work, and receives conclusions + `file:line` only.

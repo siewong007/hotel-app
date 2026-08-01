@@ -1,38 +1,31 @@
 # Judgment Rubrics
 
-High-level judgment converted into checklists a smaller model can execute.
-Each rubric: criteria, one positive example, one negative example.
-When a rubric and your instinct disagree, follow the rubric and note the
-disagreement in `.claude/rules/lessons.md`.
+High-level judgment converted into checklists a smaller model can execute. Each rubric:
+criteria, one positive example, one negative example. When a rubric and your instinct
+disagree, follow the rubric and note the disagreement in `lessons.md`.
 
-## 1. When to upgrade the model (see also model-dispatch.md)
+## 1. When to upgrade the model (see also `.claude/refs/model-dispatch.md`)
 
 Upgrade when ANY of these is true:
-- The task touches ≥2 of: SQL schema, auth/RBAC, money math (payments, ledgers,
-  invoices, tax), booking state machine.
+- The task touches ≥2 of: SQL schema, auth/RBAC, money math (payments, ledgers, invoices, tax), booking state machine.
 - You have failed the same subtask twice with different approaches.
-- The fix requires holding >3 files' invariants in your head at once
-  (e.g. bookings.rs + ledgers.rs + the V1 baseline SQL + a frontend page).
+- The fix requires holding >3 files' invariants in your head at once (e.g. bookings.rs + ledgers.rs + the V1 baseline SQL + a frontend page).
 - You are about to write "probably" or "should work" about a correctness claim.
 
-Do NOT upgrade for: volume (many files, mechanical pattern — that's a spec + haiku
-batch job), or unfamiliarity you can resolve by reading one more file.
+Do NOT upgrade for: volume (many files, mechanical pattern — that's a spec + haiku batch
+job), or unfamiliarity you can resolve by reading one more file.
 
-- ✅ Upgrade: "changing how `auto_post_company_ledger` computes `due_date` — this
-  interacts with the partial unique index and booking-edit delta sync" → opus.
-- ❌ Don't upgrade: "rename `folio_type` display label in 14 frontend files" →
-  exact spec + haiku.
+- ✅ Upgrade: "changing how `auto_post_company_ledger` computes `due_date` — interacts with the partial unique index and booking-edit delta sync" → opus.
+- ❌ Don't upgrade: "rename `folio_type` display label in 14 frontend files" → exact spec + haiku.
 
 ## 2. When something counts as truly complete
 
 A task is complete ONLY when all of these hold:
-1. The stated acceptance criteria pass, verified by execution or fresh read-back —
-   not by re-reading your own diff.
-2. Backend touched → `cargo check --all-features` passes (clippy for CI-ready).
-   Frontend touched → `npm run typecheck && npm run lint && npm run test` pass.
+1. The stated acceptance criteria pass, verified by execution or fresh read-back — not by re-reading your own diff.
+2. Backend touched → `cargo check --all-features` passes (clippy for CI-ready). Frontend touched → `bun run typecheck && bun run lint && bun run test` pass.
 3. Cross-cutting checklist from `00-diagnosis.md` Leak #3 walked item-by-item.
-5. The user-visible summary states what was verified and HOW ("clippy clean, 42
-   tests pass"), not "should be fine".
+4. Any command you cite as evidence was run bare and its real exit code read — see `lessons.md` theme 2.
+5. The user-visible summary states what was verified and HOW ("clippy clean, 42 tests pass"), not "should be fine".
 
 "It compiles" is not complete. "The subagent said it's done" is not complete.
 

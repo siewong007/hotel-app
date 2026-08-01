@@ -8,7 +8,7 @@ authority for this repo. Written 2026-07-05; model facts verified in-session tha
 Agent tool `model` parameter accepts exactly: `haiku`, `sonnet`, `opus`, `fable`.
 - `haiku`  → claude-haiku-4-5-20251001 (cheapest)
 - `sonnet` → claude-sonnet-5 (default workhorse)
-- `opus`   → claude-opus-4-8 (escalation tier)
+- `opus`   → claude-opus-5 (escalation tier; was claude-opus-4-8 when this file was written — corrected 2026-08-02)
 - `fable`  → claude-fable-5 (rarely available; if a delegation with `model: "fable"`
   errors or is unavailable, fall back to `opus` — do not retry fable)
 
@@ -58,7 +58,7 @@ Every Agent prompt MUST contain, explicitly labeled:
    with sections A,B,C", not "code is clean".
 3. **Report format** — max length and structure of the final message.
 
-Templates for each task type: `.claude/rules/delegation-templates.md`. Use them.
+Templates for each task type: `.claude/refs/delegation-templates.md`. Use them.
 
 ## Reporting contract (put this in every delegation prompt)
 

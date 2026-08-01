@@ -52,7 +52,7 @@ const info = await invoke('check_for_updates');
 Driving the actual download/install (`update.downloadAndInstall()` +
 `relaunch()`) can be added once endpoints and keys are live.
 
-## Frontend update UI (as of 2026-07-05)
+## Frontend update UI (re-verified 2026-08-02)
 
 A grep of `hotel-web-fe/src` for `updater`, `check_for_update(s)`, `checkForUpdate`,
 `update-available`, `@tauri-apps/plugin-updater`, `relaunch`, and

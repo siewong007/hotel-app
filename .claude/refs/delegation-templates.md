@@ -34,7 +34,7 @@ contains a trailing space after "SSD". Always double-quote paths in shell comman
 > DO NOT: {out-of-scope things, e.g. "refactor surrounding code, touch CI config"}.
 > ACCEPTANCE CRITERIA: (1) {behavioral check, e.g. "POST /x returns 201 and row
 > appears"}; (2) `cargo check --all-features` exits 0 [backend] and/or
-> `npm run typecheck && npm run lint && npm run test` exit 0 [frontend];
+> `bun run typecheck && bun run lint && bun run test` exit 0 [frontend];
 > (3) new-endpoint checklist in 00-diagnosis.md Leak #3 walked — list each item
 > and its status; (4) diff contains no unwrap-on-fallible, no raw fetch(), no
 > literal NOW()/$1 in new SQL.
