@@ -6,9 +6,12 @@ PostgreSQL is the application's only database engine.
 database/postgres/
 ├── migrations/0001_v1_baseline.sql
 ├── seed.sql
-├── patches/YYYY-MM-DD-<change>.sql
 └── optimization/pg19_beta2*.sql
 ```
+
+Those two SQL files are the whole install set. Nothing here reads a second
+migration file, so an additional `000N_*.sql` would never be applied — see
+"Same-generation additive changes" below for where such a change actually goes.
 
 ## V1 lifecycle
 
