@@ -252,10 +252,17 @@ HOTEL_LOG_DIR=./logs           # Log directory
 
 ## Environment Configuration
 
+Two example files with distinct scopes: the repository-root `.env.example` is what
+`docker compose` reads (credentials, ports, TLS, image tags), and
+`hotel-app-be/.env.example` is the full backend-process reference for running the API
+directly. Every variable in either file is read by something — neither carries
+aspirational settings.
+
 ### Required and Security Variables
 
 | Variable | Type | Default / Example | Purpose |
 |----------|------|--------------------|---------|
+| `POSTGRES_PASSWORD` | Required (Compose) | (blank in `.env.example`) | Database password. Declared `:?` in every compose file, so an unset or empty value aborts `docker compose` with an actionable error rather than starting insecurely |
 | `DATABASE_URL` | Required | `postgres://user:pass@host:5432/db` | PostgreSQL connection string |
 | `JWT_SECRET` | Required | `your-random-secret-at-least-32-characters` | Token signing key (≥32 chars) |
 | `ALLOWED_ORIGINS` | Required | `https://app.domain.com,http://localhost:3000` | CORS allowed origins |
@@ -314,11 +321,7 @@ Verify:
 psql "$DATABASE_URL" -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name='google_subject'"
 ```
 
-
-
-```bash
-cd hotel-app-be
-```
+### Administrator password
 
 The bootstrap seed deliberately does not install a shared usable password.
 Set the administrator password before the first login:

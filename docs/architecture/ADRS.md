@@ -111,26 +111,35 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 ---
 
-## ADR 006: Frontend State Management (React Query + Zustand)
+## ADR 006: Frontend State Management (TanStack Query, no client-state library)
 
-**Status:** Accepted (2025)
+**Status:** Accepted (2025), amended 2026-08-02
 
 **Context:** The frontend needed server-state management, caching, and some client-side state.
 
-**Decision:** Use TanStack Query (React Query) for server state management and Zustand for client-side state. All HTTP communication goes through a configured `ky` instance in `src/api/client.ts`.
+**Decision:** Use TanStack Query (React Query) for server state. All HTTP communication
+goes through a configured `ky` instance in `src/api/client.ts`. Client-side state stays
+in React state and context.
+
+**Amendment (2026-08-02):** This ADR originally paired TanStack Query with Zustand for
+client state. Zustand was never adopted — it is not a dependency and appears nowhere in
+`src/`. Nearly all non-server state turned out to be either route state (owned by
+TanStack Router) or component-local, and auth state is served by `src/auth/AuthContext.tsx`.
+Introducing a store library now requires a new ADR.
 
 **Key patterns:**
 - `src/api/*.service.ts` — One service per backend domain
-- `src/api/client.ts` — Handles auth token injection, retries, 401 handling
+- `src/api/client.ts` — In-memory access token, HttpOnly refresh cookie, idempotent-GET retries, one refresh-and-retry per 401
 - `src/api/queryKeys.ts` — Centralized query key definitions
 - TanStack Query hooks in `features/<domain>/hooks/`
 
 **Consequences:**
 - ✅ Automatic caching, retry, and refetch
 - ✅ Clean separation between API layer and UI
-- ✅ Centralized auth token management
+- ✅ Centralized auth token management, with no token in `localStorage`
+- ✅ One less state abstraction to keep consistent
 - ❌ Requires discipline to keep query keys consistent
-- ❌ Some components still have local fetch patterns
+- ❌ Genuinely cross-cutting client state has no established home, so context providers accumulate
 
 ---
 
@@ -176,16 +185,24 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 ## ADR 009: MCP Server Integration
 
-**Status:** Accepted (2025)
+**Status:** Proposed — never implemented (recorded as Accepted in 2025; corrected 2026-08-02)
 
-**Context:** The project needed API access from AI assistants like Claude Desktop and Cursor.
+**Context:** The project wanted API access from AI assistants like Claude Desktop and Cursor.
 
-**Decision:** Create MCP servers under `hotel-app-be/mcp-server/` that wrap the REST API. They authenticate via JWT and access the backend through the same database, bypassing the HTTP layer.
+**Decision (as originally recorded):** Create MCP servers under `hotel-app-be/mcp-server/`
+that wrap the REST API, authenticating via JWT.
+
+**Correction:** No such directory exists and none ever has. Documentation across the
+repository described these servers as shipped for roughly a year. Nothing depends on them.
+
+**If this is revived,** the open question that stalled it is the one flagged below: an
+MCP server that reaches the database directly bypasses the route-layer RBAC gate, which
+is where this codebase enforces permissions. Any implementation must call the HTTP API
+as a normal client, or re-implement `check_permission` at its own boundary.
 
 **Consequences:**
 - ✅ Direct AI assistant access to hotel data
-- ✅ No separate API surface to maintain
-- ❌ MCP servers could bypass auth middleware if not careful
+- ❌ An MCP server on the database bypasses the auth middleware that carries the permission model
 - ❌ Additional surface area to secure
 
 ---
@@ -196,6 +213,25 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 **Context:** The PostgreSQL schema was maintained differently from typical sqlx migration patterns, using raw SQL files.
 
+**Decision:** Treat the schema itself as the source of truth. A new empty database is
+initialized exactly once, in order:
+
+```text
+database/postgres/migrations/0001_v1_baseline.sql  →  database/postgres/seed.sql
+```
+
+Docker, server, and desktop deployments all run that same sequence. There is no
+migration runner and no second migration file — every install path hardcodes the
+baseline filename, so a new `000N_*.sql` would never be applied. Additive schema changes
+go into the baseline (so fresh installs get them) plus an idempotent patch applied to
+live databases of the same generation. Legacy schemas are exported and rebuilt rather
+than upgraded in place. `seed.sql` is one self-validating transaction that raises on
+re-apply.
+
+Verify any baseline edit by installing the baseline and seed into a scratch
+`postgres:19beta2` container before claiming it works — the SQL is an opaque
+`include_str!` to the compiler, so `cargo check` and the test suite cannot detect a
+baseline that will not install.
 
 **Consequences:**
 - ✅ Single source of truth for PostgreSQL schema

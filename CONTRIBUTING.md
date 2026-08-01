@@ -21,7 +21,7 @@ By participating in this project, you agree to abide by the [Code of Conduct](CO
 
 ### Initial Setup
 
-See [README.md](README.md#quick-start) for installation instructions and `hotel-app-be/.env.example` for environment configuration.
+See [README.md](README.md#docker-compose-quick-start) for installation instructions and `hotel-app-be/.env.example` for environment configuration.
 
 ### Development Commands
 
@@ -82,7 +82,10 @@ make docker-up
 
 ## Project Structure
 
-Project layout: see [README.md](README.md#project-structure) for the monorepo structure and module descriptions.
+Project layout: see [README.md](README.md#project-structure) for the monorepo structure and
+module descriptions. Layer responsibilities, naming conventions, and refactoring safety
+rules are in [AGENTS.md](AGENTS.md).
+
 ## Coding Standards
 
 ### Backend (Rust)
@@ -114,8 +117,9 @@ Project layout: see [README.md](README.md#project-structure) for the monorepo st
 - **API calls:** Always use `src/api/client.ts` (never `fetch` directly)
 - **Storage:** Always use `src/utils/storage.ts` for localStorage access
 - **State management:**
-  - Server state: TanStack Query
-  - Client state: Zustand
+  - Server state: TanStack Query (`src/api/queryKeys.ts` owns the key definitions)
+  - Client state: React state and context — there is no separate store library
+- **Dates:** Use `src/utils/date.ts`; `toISOString().split/.slice` is lint-banned and fails CI
 - **UI:** Prefer MUI components and existing shared components
 
 ### Desktop (Rust/Tauri)
@@ -131,8 +135,9 @@ Project layout: see [README.md](README.md#project-structure) for the monorepo st
 - **Unit tests:** Pure logic tests without database
   - Place in the same file as the code being tested (inline `#[cfg(test)]`)
   - Or in separate test modules under `tests/`
-- **Integration tests:** Database-backed tests
+- **Integration tests:** Database-backed tests in `hotel-app-be/tests/`
   - PostgreSQL tests: `cargo test --features postgres --no-default-features`
+  - **Fifteen of the 19 files return early when `DATABASE_URL` is unset, and the suite still exits 0.** Export `DATABASE_URL` and check the reported run count before treating a green run as evidence.
 - **What to test:**
   - Pure business logic and calculations
   - SQL query builders and PostgreSQL helpers
@@ -171,7 +176,7 @@ make test-fe
    - [ ] Linting passes (`clippy` for Rust, `eslint` for frontend)
    - [ ] All existing tests pass
    - [ ] New tests cover your changes
-   - [ ] Formatting is applied (`cargo fmt`, Prettier for frontend)
+   - [ ] Formatting is applied (`cargo fmt`; the frontend is formatted by ESLint rules, not Prettier)
    - [ ] Documentation is updated (README, inline docs, ADRs)
    - [ ] No unnecessary dependencies added
 
@@ -231,10 +236,18 @@ docs: update deployment guide with Docker Compose
 
 ## Documentation
 
-- **README.md** — Project overview, features, installation
+Each fact has exactly one owning document. Update it there rather than restating it:
+
+- **README.md** — Project overview, features, tech stack, installation, API surface
+- **CLAUDE.md** — Agent routing index: commands, CI jobs, environment, architecture essentials
+- **AGENTS.md** — Layer responsibilities, naming, refactoring safety, dependency policy
+- **CONTRIBUTING.md** — Contribution process: branching, PR checklist, commit conventions
 - **docs/architecture/architecture-flow.md** — One-page system flow
-- **docs/guides/deployment.md** — Deployment guide
 - **docs/architecture/ADRS.md** — Architecture Decision Records
+- **docs/guides/deployment.md** — Deployment guide
+- **docs/security/** — Production operations runbook and backup/restore drill
+- **docs/ongoing-dev.md** — The live tracker for open work
+- **hotel-app-be/database/README.md** — Schema, baseline, and seed lifecycle
 - **Inline documentation** — Rust docstrings (`///`) and TypeScript JSDoc
 
 When adding a new feature (in your commits):

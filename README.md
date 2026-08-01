@@ -63,12 +63,12 @@ This project addresses that problem by implementing a centralized administrative
 | Layer | Technologies |
 | --- | --- |
 | Backend API | Rust 1.95.0, Axum 0.8, Tokio, SQLx 0.8, Serde, Validator |
-| Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, Zustand, ky |
+| Frontend | React 19, TypeScript 6, Vite 8, MUI v9, TanStack Router, TanStack Query, TanStack Table, ky |
 | Desktop | Tauri 2, Rust commands, backend sidecar, bundled PostgreSQL resources |
 | Database | PostgreSQL 19, SQLx migrations and parameterized queries |
 | Security | JWT, refresh tokens, RBAC, TOTP 2FA, passkey endpoints, rate limiting, CORS, and security headers |
 | Reporting | Recharts, jsPDF, jsPDF AutoTable, backend analytics endpoints |
-| CI/CD | GitHub Actions for frontend typecheck/build and backend check/clippy/build; Docker image workflow for backend |
+| CI/CD | GitHub Actions: secret scan and `cargo audit`, frontend typecheck/lint/test/build, backend check/test/clippy/release, PostgreSQL schema and workflow smoke, desktop compile check; separate Docker image, desktop build, security, and production deploy workflows |
 
 ## 🧱 Architecture
 
@@ -201,16 +201,17 @@ The desktop shell and browser deployment use the same React and Axum application
 hotel-app/
 ├── hotel-app-be/                 # Rust backend API
 │   ├── src/
-│   │   ├── core/                 # Auth, database pool, errors, middleware, rate limiting
+│   │   ├── core/                 # Auth, database pool, errors, middleware, rate limiting, metrics
 │   │   ├── handlers/             # HTTP handler functions
 │   │   ├── models/               # DTOs and domain data models
+│   │   ├── modules/              # Newer self-contained domain modules
 │   │   ├── repositories/         # SQL persistence modules
 │   │   ├── routes/               # Axum route registration by domain
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
 │   │   └── postgres/             # V1 baseline, one-time data/seed, PG19 tuning
-│   └── tests/                    # Focused backend tests
+│   └── tests/                    # Integration tests (most require DATABASE_URL)
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/
 │   │   ├── api/                  # ky-based API service layer
@@ -237,7 +238,9 @@ hotel-app/
 git clone https://github.com/siewong007/hotel-app.git
 cd hotel-app
 cp .env.example .env
-# Edit .env — at minimum set JWT_SECRET and POSTGRES_PASSWORD
+# Edit .env — POSTGRES_PASSWORD and JWT_SECRET ship blank and are required.
+# Compose refuses to start until you set them, so an unedited copy cannot
+# bring the stack up on a weak or published credential.
 
 docker compose up -d
 docker compose ps
@@ -249,15 +252,23 @@ Services: frontend at `http://localhost:80`, backend API at `http://localhost:30
 
 ## Environment Variables
 
+Two example files, each with a distinct scope:
+
+- **[.env.example](.env.example)** (repository root) — what `docker compose` reads: Postgres credentials, ports, TLS/domain settings, image tags, and the values passed through to the backend container. This is the file the Quick Start copies.
+- **[hotel-app-be/.env.example](hotel-app-be/.env.example)** — the full backend-process reference, for running the API directly with `cargo run`. Every variable listed there is read at startup.
+
 | Variable | Used by | Required | Description |
 | --- | --- | --- | --- |
+| `POSTGRES_PASSWORD` | Docker Compose | Yes | Database password. Ships blank; compose refuses to start until it is set. |
 | `DATABASE_URL` | Backend/Desktop sidecar | Yes | PostgreSQL connection string. |
-| `JWT_SECRET` | Backend/Desktop sidecar | Yes | JWT signing secret; use at least 32 characters. |
+| `JWT_SECRET` | Backend/Desktop sidecar | Yes | JWT signing secret; use at least 32 characters. Rotating it invalidates all staff access tokens. |
+| `ENVIRONMENT` | Backend | In production | `development`/`staging`/`production`. Production startup refuses insecure CORS, passkey, and email-verification combinations. |
 | `BACKEND_PORT` | Backend/Desktop | No | API port, default `3030`. |
 | `ALLOWED_ORIGINS` | Backend | No | Comma-separated CORS origins. |
+| `TRUST_PROXY_HEADERS` | Backend | No | Set true only behind a trusted TLS-terminating proxy. |
 | `VITE_API_URL` | Frontend | No | Optional build-time API-origin override. Leave unset for dynamic same-origin routing. |
 
-Never commit real `.env` files or local credentials. Full variable reference: [hotel-app-be/.env.example](hotel-app-be/.env.example) and the [Deployment Guide](docs/guides/deployment.md#environment-configuration).
+Never commit real `.env` files or local credentials. See also the [Deployment Guide](docs/guides/deployment.md#environment-configuration).
 
 ## Deployment Security Notes
 
@@ -294,25 +305,6 @@ Representative domain paths are listed below. Prefix them with `/api` when calli
 
 Most operational endpoints require a bearer token and, in many cases, a specific RBAC permission.
 
-## Repository Appearance Suggestions
-
-Suggested GitHub repository description:
-
-```text
-Full-stack hotel administrative panel built with Rust, React, PostgreSQL, and Tauri.
-```
-
-Suggested topics:
-
-```text
-```
-
-Logo/banner idea:
-
-- A clean horizontal banner with a simple hotel-building icon, the title "Hotel app", and the subtitle "Administrative panel for hotel operations".
-- Use a restrained palette such as deep navy, teal, and warm gold accents.
-- Keep the banner readable at GitHub README width and avoid heavy gradients or overly detailed illustrations.
-
 ## 🗺️ Roadmap
 
 ### Completed ✓
@@ -321,29 +313,32 @@ Logo/banner idea:
 - ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
 - ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
 - ✅ **Project Makefile** — Convenience commands for all development workflows
-- ✅ **Frontend test suite** — Vitest + Testing Library component and utility tests
-- ✅ **Backend service tests** — Rate limiter, booking service, and core utility tests
-- ✅ **CI workflow fix** — Removed duplicate test step; frontend typecheck + lint + test enforced
+- ✅ **Frontend test suite** — Vitest + Testing Library across ~89 test files
+- ✅ **Backend integration tests** — 19 test files covering auth/RBAC, bookings, payments, ledgers, rooms, and night audit
+- ✅ **Security CI gate** — Committed-secret scan, `cargo audit`, CodeQL, and dependency review
 - ✅ **Architecture Decision Records (ADRs)** — 11 documented architectural decisions
 - ✅ **Deployment guide** — Comprehensive production deployment documentation
-- ✅ **Contributing guide** — Updated with detailed guidelines, conventions, and testing instructions
-- ✅ **Screenshots directory** — Placeholder structure for visual documentation
-- ✅ **Security documentation** — Deployment security checklist and hardening guidelines
+- ✅ **Contributing guide** — Guidelines, conventions, and testing instructions
+- ✅ **Security documentation** — Deployment checklist, production runbook, and backup/restore drill
+- ✅ **Desktop CI packaging** — macOS installer built and verified from a workflow artifact
 
 ### Planned
 
 - **OpenAPI/Swagger documentation** — Generate from backend route and model definitions
-- **Distributed caching** — Replace in-memory RBAC/settings caches with Redis for multi-instance
+- **Distributed caching** — Replace in-memory RBAC/settings caches for multi-instance deployment
 - **Strict TypeScript mode** — Enable `strict: true` incrementally in tsconfig
-- **Backend domain module migration** — Incremental move toward `modules/<domain>/` structure
-- **Frontend component tests** — Expand coverage for major feature components
+- **Backend domain module migration** — Continue moving flat-by-layer domains into `modules/<domain>/` (nine migrated so far)
+- **Frontend component tests** — Expand coverage for the remaining large feature pages
 - **Desktop backup/restore** — Complete managed backup solution with recovery procedures
+- **Windows and Linux desktop packaging** — Extend the desktop build workflow beyond macOS
 
 ## Limitations
 
 - The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
-- Frontend automated tests are still being expanded (utilities and select components covered; full feature coverage in progress).
+- Automated test coverage is uneven — core money, booking, and auth paths are covered, but several feature pages and portal flows are not.
+- Backend integration tests skip silently unless `DATABASE_URL` is set, so a green `cargo test` is only meaningful alongside its run count.
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
+- Desktop packaging is built and verified for macOS only; Windows and Linux are built manually.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.
 - API documentation is currently README-based rather than generated from a formal OpenAPI schema.
 - Rate limiting and caching are in-memory only, which limits to single-instance deployments.
@@ -375,7 +370,12 @@ environment is for development and benchmarking only.
 - [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
 - [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions
 - [Database Lifecycle](hotel-app-be/database/README.md) — Schema, migrations, and seed data workflow
+- [Production Security Operations](docs/security/production-operations.md) — Release controls, access reviews, incident response
+- [Backup and Restore Drill](docs/security/backup-restore.md) — Off-host backup and quarterly restore procedure
+- [VPS Access Guide](docs/guides/vps-access.md) — Production host access and database maintenance
+- [Desktop Build Guide](hotel-desktop/BUILD_SPEED.md) — Desktop build pipeline and caching
 - [OCI Always Free Terraform](infra/terraform/oci/README.md) — Free-tier-shaped development environment
+- [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) — Coding-agent routing index and repository conventions
 
 ## License
 
