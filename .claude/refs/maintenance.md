@@ -18,7 +18,7 @@ Who may change what, where lessons go, and when to clean up.
 ## Files that require ASKING THE USER first
 
 - `CLAUDE.md` — structural/semantic changes (fixing a stale path or command is fine).
-- `.claude/rules/model-dispatch.md` routing table and escalation semantics.
+- `.claude/refs/model-dispatch.md` routing table and escalation semantics.
 - `.claude/rules/judgment-rubrics.md` rule semantics.
 - `AGENTS.md` (Codex-oriented; owned by the user's other tooling).
 - `.github/workflows/ci.yml`, `hotel-app-be/database/` baseline SQL structure, anything under

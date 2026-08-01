@@ -1,55 +1,111 @@
-<div align="center">
-  <img src="https://img.icons8.com/color/96/000000/5-star-hotel.png" alt="HotelApp Logo" width="80" />
+# hotel-app-be
 
-  <h2>oh — HotelApp: Open Hotel Harness</h2>
+Rust backend API for the hotel administrative panel: Axum 0.8, SQLx 0.8, PostgreSQL 19.
+It serves the React frontend in web deployments and runs as a sidecar process inside the
+Tauri desktop app.
 
-  <p>
-    <strong>HotelApp delivers core lightweight hospitality infrastructure: AI-tool-use, real-time sync, analytics, and booking coordination.</strong>
-  </p>
+Project overview and the endpoint table are in the [root README](../README.md).
+Architecture essentials and agent routing are in [CLAUDE.md](../CLAUDE.md); layer
+responsibilities and conventions are in [AGENTS.md](../AGENTS.md).
 
-  <p>
-    <strong>Join the community</strong>: contribute to HotelApp for open system development.
-  </p>
-
-  <p>
-    <a href="#quick-start"><img src="https://img.shields.io/badge/QUICK_START-5_MIN-00A9E0?style=for-the-badge" alt="Quick Start" /></a>
-    <img src="https://img.shields.io/badge/ARCHITECTURE-RUST_%7C_POSTGRES-ff69b4?style=for-the-badge" alt="Architecture" />
-    <img src="https://img.shields.io/badge/TOOLS-14+-yellow?style=for-the-badge" alt="Tools" />
-    <img src="https://img.shields.io/badge/TESTS-PASSING-32CD32?style=for-the-badge" alt="Tests" />
-    <img src="https://img.shields.io/badge/LICENSE-MIT-FFA500?style=for-the-badge" alt="License" />
-  </p>
-
-  <p>
-    <img src="https://img.shields.io/badge/Rust-%E2%89%A51.95.0-blue?logo=rust" alt="Rust" />
-    <img src="https://img.shields.io/badge/TypeScript-Frontend-blue?logo=typescript" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/Docker-CI-brightgreen?logo=docker" alt="Docker CI" />
-  </p>
-</div>
-
-<br/>
-
-One Command to Launch **HotelApp** and Unlock All AI Agent Harnesses.
-
-Supports direct integration with Claude Desktop, Cursor, and more.
-
----
-
-### 🚀 MCP Servers
-
-MCP servers (analytics, hotel-search): planned only — no `mcp-server/` directory exists yet.
-
-### 🖥️ Rebuild the Desktop App
-
-See `../hotel-desktop/BUILD_SPEED.md` for comprehensive build and development instructions.
-
-### 🛑 Stop Previous Processes
-
-Stop interactive processes with `Ctrl+C`. Kill lingering ports on macOS:
+## Quick start
 
 ```bash
-kill $(lsof -ti tcp:3000)  # frontend
-kill $(lsof -ti tcp:3030)  # backend
-kill $(lsof -ti tcp:3031)  # alternate backend
+cp .env.example .env          # set DATABASE_URL and a JWT_SECRET of at least 32 chars
+createdb hotel_management
+psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
+psql "$DATABASE_URL" -f database/postgres/seed.sql
+cargo run --bin hotel-app-be  # http://localhost:3030
 ```
 
-To stop desktop PostgreSQL: `cd hotel-desktop/src-tauri && ./pgsql/bin/pg_ctl stop -D "$HOME/Library/Application Support/HotelApp/pgdata" -m fast`
+The bootstrap seed does not install a usable shared password. Set the administrator
+password before the first login:
+
+```bash
+cargo run --bin fix_password -- admin '<strong-admin-password>'
+```
+
+Verify the service is up:
+
+```bash
+curl http://localhost:3030/health
+```
+
+## Verification commands
+
+```bash
+cargo check --all-features                    # minimum bar
+cargo clippy --all-features -- -D warnings    # exactly what CI runs
+cargo test --all-features                     # see the DATABASE_URL caveat below
+cargo fmt
+```
+
+`cargo check` does not compile the `tests/` targets, so it cannot catch a broken
+integration test after a signature change — run `cargo test`, or at least
+`cargo check --tests`.
+
+Fifteen of the 19 files under `tests/` return early when `DATABASE_URL` is unset, and the
+suite still exits 0. Export `DATABASE_URL` and check the reported run count: a full run is roughly
+513 passed with 10 ignored, while about 209 means only the library unit tests ran.
+
+## Layout
+
+```text
+src/
+  core/           Auth, DB pool, errors, middleware, rate limiting, metrics, caches, SQL compat
+  routes/         Axum route registration and the RBAC gate, merged in routes/mod.rs
+  handlers/       Thin HTTP input/output translation
+  services/       Business workflows, transactions, audit decisions
+  repositories/   SQL persistence and row mapping
+  models/         Request/response DTOs and domain structs
+  modules/        Newer self-contained domain modules (analytics, communications, ekyc,
+                  guest_booking, loyalty, promotions, settings, support, teams)
+  utils/          Sanitization and small pure helpers
+  bin/            hash_password, fix_password
+database/postgres/  V1 baseline, seed, and PostgreSQL 19 tuning scripts
+tests/              Integration tests, most requiring DATABASE_URL
+```
+
+Every new domain router must be merged in `routes/mod.rs::create_router` or it is dead.
+Database lifecycle rules are in [database/README.md](database/README.md).
+
+## Environment
+
+`DATABASE_URL` and `JWT_SECRET` are required; everything else has a default. Optional
+variables cover the listen address, CORS origins, proxy trust, passkey relying-party ID,
+Google sign-in, SMTP delivery, desktop mode, and pool/cache tuning. The full annotated
+list is [.env.example](.env.example). Production additionally requires
+`ENVIRONMENT=production`, and startup refuses insecure combinations such as a wildcard
+CORS origin or skipped email verification.
+
+Never commit a real `.env` file or local credentials.
+
+## Desktop mode
+
+With `HOTEL_DESKTOP_MODE` set, the backend binds `127.0.0.1` on a dynamically probed free
+port starting at `BACKEND_PORT`, and the Tauri shell passes an explicit `ALLOWED_ORIGINS`
+list rather than a wildcard. Build and packaging instructions are in
+[../hotel-desktop/BUILD_SPEED.md](../hotel-desktop/BUILD_SPEED.md).
+
+## Stopping local processes
+
+Stop interactive processes with `Ctrl+C`. To free lingering ports on macOS:
+
+```bash
+kill $(lsof -ti tcp:3000)   # frontend
+kill $(lsof -ti tcp:3030)   # backend
+kill $(lsof -ti tcp:3031)   # alternate backend
+```
+
+To stop the desktop app's embedded PostgreSQL:
+
+```bash
+cd ../hotel-desktop/src-tauri
+./pgsql/bin/pg_ctl stop -D "$HOME/Library/Application Support/HotelApp/pgdata" -m fast
+```
+
+## MCP servers
+
+Not implemented. Earlier documentation described MCP servers under `mcp-server/`; no such
+directory exists. See ADR 009 in [../docs/architecture/ADRS.md](../docs/architecture/ADRS.md)
+for the authorization constraint any future implementation has to satisfy.

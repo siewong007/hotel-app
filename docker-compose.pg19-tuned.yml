@@ -37,7 +37,7 @@ services:
     image: postgres:19beta2
     restart: "no"
     environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_TO_STRONG_PASSWORD_MIN_16_CHARS}
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — copy .env.example to .env and set a strong value}"
     volumes:
       - ./hotel-app-be/database/postgres/optimization/pg19_beta2.sql:/opt/hotel-app/pg19_beta2.sql:ro
     command:
