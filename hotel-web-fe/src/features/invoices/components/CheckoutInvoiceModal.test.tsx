@@ -179,10 +179,13 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
     await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(1));
+    const firstRequest = mocks.createLedgerPayment.mock.calls[0][1];
+
+    fireEvent.change(within(dialog).getByLabelText('Reference (Optional)'), { target: { value: '   ' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
     await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(2));
-    const firstRequest = mocks.createLedgerPayment.mock.calls[0][1];
     expect(mocks.createLedgerPayment.mock.calls[1][1].idempotency_key).toBe(firstRequest.idempotency_key);
+    expect(mocks.createLedgerPayment.mock.calls[1][1].payment_reference).toBeUndefined();
 
     fireEvent.mouseDown(within(dialog).getByRole('combobox'));
     fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));

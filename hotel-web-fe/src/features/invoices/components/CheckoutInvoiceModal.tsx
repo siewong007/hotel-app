@@ -70,6 +70,11 @@ interface CheckoutInvoiceModalProps {
   onLedgerPaymentsChanged?: () => void;
 }
 
+const normalizeLedgerPaymentText = (value: string): string | undefined => {
+  const normalized = value.trim();
+  return normalized || undefined;
+};
+
 const getPaymentTimestamp = (payment: CheckoutPaymentRecord): string => (
   payment.payment_date || payment.created_at || ''
 );
@@ -222,14 +227,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const handleRecordPayment = async () => {
     if (!booking || !isPositiveMoney(paymentAmount)) return;
     const amount = toMoneyNumber(paymentAmount);
-    const paymentReferenceValue = paymentReference || undefined;
-    const notes = paymentNotes || undefined;
-    const paymentDateValue = paymentDate || undefined;
+    const paymentMethodValue = isLedgerView ? paymentMethod.trim() : paymentMethod;
+    const paymentReferenceValue = isLedgerView
+      ? normalizeLedgerPaymentText(paymentReference)
+      : paymentReference || undefined;
+    const notes = isLedgerView ? normalizeLedgerPaymentText(paymentNotes) : paymentNotes || undefined;
+    const paymentDateValue = isLedgerView ? normalizeLedgerPaymentText(paymentDate) : paymentDate || undefined;
     const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
       kind: isLedgerView ? 'ledger-payment' : 'booking-payment',
       id: isLedgerView ? ledger?.id : Number(booking.id),
       amount: amount.toFixed(2),
-      payment_method: paymentMethod,
+      payment_method: paymentMethodValue,
       payment_type: undefined,
       payment_reference: paymentReferenceValue,
       receipt_number: undefined,
@@ -243,7 +251,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         // City-ledger invoice: post against the customer ledger, not the booking.
         await LedgerService.createLedgerPayment(ledger.id, {
           payment_amount: amount,
-          payment_method: paymentMethod,
+          payment_method: paymentMethodValue,
           payment_reference: paymentReferenceValue,
           notes,
           payment_date: paymentDateValue,
@@ -256,7 +264,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         const newPayment = await InvoicesService.recordPayment({
           booking_id: Number(booking.id),
           amount,
-          payment_method: paymentMethod,
+          payment_method: paymentMethodValue,
           transaction_reference: paymentReferenceValue,
           notes,
           payment_date: paymentDateValue,
