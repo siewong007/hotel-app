@@ -138,6 +138,11 @@ import LedgerEntriesTab from './components/LedgerEntriesTab';
 import CompanyInfoTab from './components/CompanyInfoTab';
 import { useCustomerLedgerWorkspace } from './hooks/useCustomerLedgerWorkspace';
 
+const normalizeOptionalPaymentText = (value?: string): string | undefined => {
+  const normalized = value?.trim();
+  return normalized || undefined;
+};
+
 const CustomerLedgerPage: React.FC = () => {
   const [pageSearchParams] = useSearchParams();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -968,11 +973,11 @@ const CustomerLedgerPage: React.FC = () => {
       const request = {
         ledger_ids: selectedLedgersForPayment.map((ledger) => ledger.id),
         payment_amount: paymentAmount,
-        payment_method: companyPaymentForm.payment_method,
-        payment_reference: companyPaymentForm.payment_reference || undefined,
-        receipt_number: companyPaymentForm.receipt_number || undefined,
-        notes: companyPaymentForm.notes || undefined,
-        payment_date: companyPaymentForm.payment_date || undefined,
+        payment_method: companyPaymentForm.payment_method.trim(),
+        payment_reference: normalizeOptionalPaymentText(companyPaymentForm.payment_reference),
+        receipt_number: normalizeOptionalPaymentText(companyPaymentForm.receipt_number),
+        notes: normalizeOptionalPaymentText(companyPaymentForm.notes),
+        payment_date: normalizeOptionalPaymentText(companyPaymentForm.payment_date),
       };
       const attempt = getIdempotencyAttempt(companyPaymentAttemptRef.current, JSON.stringify({
         ...request,
@@ -1360,22 +1365,27 @@ const CustomerLedgerPage: React.FC = () => {
       }
     }
 
+    const paymentAmount = toMoneyNumber(paymentFormData.payment_amount);
+    const paymentRequest = {
+      payment_amount: paymentAmount,
+      payment_method: paymentFormData.payment_method.trim(),
+      payment_reference: normalizeOptionalPaymentText(paymentFormData.payment_reference),
+      receipt_number: normalizeOptionalPaymentText(paymentFormData.receipt_number),
+      receipt_file_url: normalizeOptionalPaymentText(paymentFormData.receipt_file_url),
+      notes: normalizeOptionalPaymentText(paymentFormData.notes),
+      payment_date: normalizeOptionalPaymentText(paymentFormData.payment_date),
+    };
     const attempt = getIdempotencyAttempt(ledgerPaymentAttemptRef.current, JSON.stringify({
       ledger_id: paymentLedger.id,
-      payment_amount: toMoneyNumber(paymentFormData.payment_amount).toFixed(2),
-      payment_method: paymentFormData.payment_method,
-      payment_reference: paymentFormData.payment_reference || undefined,
-      receipt_number: paymentFormData.receipt_number || undefined,
-      receipt_file_url: paymentFormData.receipt_file_url || undefined,
-      notes: paymentFormData.notes || undefined,
-      payment_date: paymentFormData.payment_date || undefined,
+      ...paymentRequest,
+      payment_amount: paymentAmount.toFixed(2),
     }));
     ledgerPaymentAttemptRef.current = attempt;
 
     try {
       setProcessingPayment(true);
       await LedgerService.createLedgerPayment(paymentLedger.id, {
-        ...paymentFormData,
+        ...paymentRequest,
         idempotency_key: attempt.key,
       });
       ledgerPaymentAttemptRef.current = null;
