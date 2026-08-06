@@ -143,6 +143,9 @@ const normalizeOptionalPaymentText = (value?: string): string | undefined => {
   return normalized || undefined;
 };
 
+const normalizeReceiptNumber = (value?: string): string | undefined =>
+  normalizeOptionalPaymentText(value)?.toLowerCase();
+
 const CustomerLedgerPage: React.FC = () => {
   const [pageSearchParams] = useSearchParams();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -957,11 +960,12 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
-    const receiptNumber = companyPaymentForm.receipt_number.trim();
+    const receiptNumber = normalizeReceiptNumber(companyPaymentForm.receipt_number);
     if (receiptNumber) {
-      const receiptExists = Object.values(activeCompanyPayments)
-        .flat()
-        .some(payment => payment.receipt_number?.trim().toLowerCase() === receiptNumber.toLowerCase());
+      const receiptExists = selectedLedgersForPayment.some(ledger =>
+        (activeCompanyPayments[ledger.id] ?? [])
+          .some(payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber),
+      );
       if (receiptExists) {
         showSnackbar('Receipt number already exists', 'warning');
         return;
@@ -1354,11 +1358,10 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
-    const receiptNumber = paymentFormData.receipt_number?.trim();
+    const receiptNumber = normalizeReceiptNumber(paymentFormData.receipt_number);
     if (receiptNumber) {
-      const receiptExists = Object.values(activeCompanyPayments)
-        .flat()
-        .some(payment => payment.receipt_number?.trim().toLowerCase() === receiptNumber.toLowerCase());
+      const receiptExists = (activeCompanyPayments[paymentLedger.id] ?? [])
+        .some(payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber);
       if (receiptExists) {
         showSnackbar('Receipt number already exists', 'warning');
         return;

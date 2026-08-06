@@ -126,7 +126,10 @@ describe('EnhancedCheckInModal payment idempotency', () => {
     await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
     expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
     const firstRequest = mocks.recordPayment.mock.calls[0][0];
-    expect(mocks.recordPayment.mock.calls[1][0].idempotency_key).toBe(firstRequest.idempotency_key);
+    const retryRequest = mocks.recordPayment.mock.calls[1][0];
+    expect(firstRequest.payment_type).toBe('booking');
+    expect(retryRequest.payment_type).toBe('booking');
+    expect(retryRequest.idempotency_key).toBe(firstRequest.idempotency_key);
 
     fireEvent.click(within(dialog).getByRole('tab', { name: 'Payment' }));
     fireEvent.change(within(dialog).getByLabelText('Amount Paid'), { target: { value: '125' } });

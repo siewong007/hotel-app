@@ -9,7 +9,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Company, CustomerLedger } from '../../../../types';
+import type { Company, CustomerLedger, CustomerLedgerPayment } from '../../../../types';
 
 const mocks = vi.hoisted(() => ({
   useLedgersReturn: {
@@ -404,6 +404,24 @@ function buildLedgers(): CustomerLedger[] {
   ];
 }
 
+function buildLedgerPayment(ledgerId: number, receiptNumber: string): CustomerLedgerPayment {
+  return {
+    id: 900 + ledgerId,
+    ledger_id: ledgerId,
+    payment_amount: 50,
+    payment_method: 'cash',
+    receipt_number: receiptNumber,
+    payment_date: '2026-08-01',
+    created_at: '2026-08-01T00:00:00Z',
+  };
+}
+
+function mockReceiptOnLedger(ledgerId: number, receiptNumber: string) {
+  mocks.hotelApi.getLedgerPayments.mockImplementation((requestedLedgerId: number) =>
+    Promise.resolve(requestedLedgerId === ledgerId ? [buildLedgerPayment(ledgerId, receiptNumber)] : []),
+  );
+}
+
 async function openCreateMenu() {
   fireEvent.click(screen.getByRole('button', { name: 'Create' }));
   await screen.findByRole('menuitem', { name: /New Ledger Entry/i });
@@ -650,6 +668,62 @@ describe('CustomerLedgerPage', () => {
     await waitFor(() => expect(mocks.captured.paymentDialog?.paymentHistory).toEqual([paymentFixture]));
   });
 
+  it('allows a single-ledger receipt already used on a different ledger', async () => {
+    mockReceiptOnLedger(102, ' Receipt-77 ');
+    mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
+    mocks.hotelApi.getCustomerLedger.mockResolvedValue({
+      ...buildLedgers()[0],
+      status: 'paid',
+      paid_amount: 500,
+      balance_due: 0,
+    });
+
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[102]).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
+    await waitFor(() => expect(mocks.captured.paymentDialog?.paymentLedger?.id).toBe(101));
+
+    await act(async () => {
+      mocks.captured.paymentDialog!.setPaymentFormData({
+        ...mocks.captured.paymentDialog!.paymentFormData,
+        receipt_number: 'receipt-77',
+      });
+    });
+    await act(async () => {
+      await mocks.captured.paymentDialog!.onRecordPayment();
+    });
+
+    expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({ receipt_number: 'receipt-77' }),
+    );
+  });
+
+  it('rejects a single-ledger receipt already used on that ledger after trim and case normalization', async () => {
+    mockReceiptOnLedger(101, ' Receipt-77 ');
+
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[101]).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
+    await waitFor(() => expect(mocks.captured.paymentDialog?.paymentLedger?.id).toBe(101));
+
+    await act(async () => {
+      mocks.captured.paymentDialog!.setPaymentFormData({
+        ...mocks.captured.paymentDialog!.paymentFormData,
+        receipt_number: 'receipt-77',
+      });
+    });
+    await act(async () => {
+      await mocks.captured.paymentDialog!.onRecordPayment();
+    });
+
+    expect(mocks.hotelApi.createLedgerPayment).not.toHaveBeenCalled();
+    expect(mocks.emitApiNotification).toHaveBeenCalledWith({
+      message: 'Receipt number already exists',
+      severity: 'warning',
+    });
+  });
+
   it('reuses a failed single-ledger key, rotates it after an edit, and clears it after success', async () => {
     const timeout = new Error('timeout');
     mocks.hotelApi.createLedgerPayment
@@ -745,6 +819,67 @@ describe('CustomerLedgerPage', () => {
     expect(
       mocks.captured.recordCompanyPaymentDialog?.paymentCompanyLedgers.map((l: any) => l.id).sort(),
     ).toEqual([101, 102]);
+  });
+
+  it('allows one company receipt on every selected ledger when it exists only on an unselected ledger', async () => {
+    mockReceiptOnLedger(103, ' Receipt-88 ');
+    mocks.hotelApi.createCompanyLedgerPayment.mockResolvedValue({ payments: [], payment_amount: 700 });
+    mocks.hotelApi.getCustomerLedger.mockImplementation((ledgerId: number) =>
+      Promise.resolve(buildLedgers().find((ledger) => ledger.id === ledgerId)),
+    );
+
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[103]).toHaveLength(1));
+    await openCreateMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Record Payment/i }));
+    await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.open).toBe(true));
+
+    const dialog = mocks.captured.recordCompanyPaymentDialog!;
+    await act(async () => {
+      dialog.setCompanyPaymentForm({
+        ...dialog.companyPaymentForm,
+        payment_amount: '700',
+        receipt_number: 'receipt-88',
+      });
+    });
+    await act(async () => {
+      await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+    });
+
+    expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ledger_ids: [101, 102],
+        receipt_number: 'receipt-88',
+      }),
+    );
+  });
+
+  it('rejects a company receipt already used on any selected ledger after trim and case normalization', async () => {
+    mockReceiptOnLedger(102, ' Receipt-99 ');
+
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[102]).toHaveLength(1));
+    await openCreateMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Record Payment/i }));
+    await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.open).toBe(true));
+
+    const dialog = mocks.captured.recordCompanyPaymentDialog!;
+    await act(async () => {
+      dialog.setCompanyPaymentForm({
+        ...dialog.companyPaymentForm,
+        payment_amount: '700',
+        receipt_number: 'receipt-99',
+      });
+    });
+    await act(async () => {
+      await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+    });
+
+    expect(mocks.hotelApi.createCompanyLedgerPayment).not.toHaveBeenCalled();
+    expect(mocks.emitApiNotification).toHaveBeenCalledWith({
+      message: 'Receipt number already exists',
+      severity: 'warning',
+    });
   });
 
   it('retries an unchanged company payment with one key, rotates on edits, and clears after success', async () => {

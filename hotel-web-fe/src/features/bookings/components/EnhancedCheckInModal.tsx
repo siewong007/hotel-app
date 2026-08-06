@@ -521,7 +521,7 @@ export default function EnhancedCheckInModal({
       booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
       amount: paymentAmount.toFixed(2),
       payment_method: paymentType,
-      payment_type: 'room_charge',
+      payment_type: 'booking',
       transaction_reference: undefined,
       notes: 'Payment collected at check-in',
       payment_date: undefined,
@@ -531,7 +531,7 @@ export default function EnhancedCheckInModal({
       booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
       amount: paymentAmount,
       payment_method: paymentType,
-      payment_type: 'room_charge',
+      payment_type: 'booking',
       notes: 'Payment collected at check-in',
       idempotency_key: attempt.key,
     });
