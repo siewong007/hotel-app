@@ -77,6 +77,16 @@ pub async fn create_ledger_payment_handler(
     ))
 }
 
+pub async fn create_company_ledger_payment_handler(
+    State(pool): State<DbPool>,
+    Json(request): Json<CompanyLedgerPaymentRequest>,
+    user_id: i64,
+) -> Result<Json<CompanyLedgerPaymentResponse>, ApiError> {
+    Ok(Json(
+        svc::create_company_ledger_payment(&pool, user_id, request).await?,
+    ))
+}
+
 pub async fn get_ledger_payments_handler(
     State(pool): State<DbPool>,
     Path(ledger_id): Path<i64>,

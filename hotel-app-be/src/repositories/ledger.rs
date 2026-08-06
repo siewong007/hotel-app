@@ -4,9 +4,12 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use sha2::{Digest, Sha256};
 use sqlx::Row;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write;
 
-use crate::core::db::{DbPool, hotel_today};
+use crate::core::db::{DbPool, DbTransaction, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::row_mappers::{
@@ -112,7 +115,8 @@ const GET_LEDGER_BY_ID_QUERY: &str = r#"
 // PostgreSQL query for getting ledger payments
 const GET_LEDGER_PAYMENTS_QUERY: &str = r#"
     SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
-           payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
+           payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at,
+           idempotency_key, idempotency_fingerprint
     FROM customer_ledger_payments
     WHERE ledger_id = $1
     ORDER BY payment_date DESC
@@ -132,12 +136,6 @@ const DELETE_LEDGER_PAYMENTS_QUERY: &str =
 
 // PostgreSQL query for deleting ledger
 const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = $1";
-
-// PostgreSQL query for getting ledger info for payment - locks the row for
-// the duration of the enclosing transaction so a concurrent payment write
-// cannot read a stale paid_amount.
-const GET_LEDGER_FOR_PAYMENT_LOCKED_QUERY: &str =
-    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1 FOR UPDATE";
 
 /// List all customer ledgers with optional filters
 pub async fn list_customer_ledgers(
@@ -899,150 +897,639 @@ pub async fn delete_customer_ledger(
     }))
 }
 
-/// Record a payment against a customer ledger (PostgreSQL version)
+#[derive(Debug)]
+struct LockedLedger {
+    id: i64,
+    company_name: String,
+    amount: Decimal,
+    paid_amount: Decimal,
+    status: String,
+    is_voided: bool,
+}
+
+#[derive(Debug)]
+struct LedgerPaymentValues {
+    amount: Decimal,
+    payment_method: String,
+    payment_reference: Option<String>,
+    receipt_number: Option<String>,
+    receipt_file_url: Option<String>,
+    notes: Option<String>,
+    payment_date: Option<NaiveDate>,
+}
+
+pub(crate) struct LedgerPaymentOutcome {
+    pub payment: CustomerLedgerPayment,
+    pub was_inserted: bool,
+}
+
+pub(crate) struct CompanyLedgerPaymentOutcome {
+    pub response: CompanyLedgerPaymentResponse,
+    pub was_inserted: bool,
+}
+
+fn normalized_option(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn normalized_payment_date(value: Option<&str>) -> Result<Option<NaiveDate>, ApiError> {
+    match normalized_option(value) {
+        Some(value) => NaiveDate::parse_from_str(&value, "%Y-%m-%d")
+            .map(Some)
+            .map_err(|_| ApiError::BadRequest("Payment date must use YYYY-MM-DD".to_string())),
+        None => Ok(None),
+    }
+}
+
+fn payment_values(
+    amount: f64,
+    payment_method: &str,
+    payment_reference: Option<&str>,
+    receipt_number: Option<&str>,
+    receipt_file_url: Option<&str>,
+    notes: Option<&str>,
+    payment_date: Option<&str>,
+) -> Result<LedgerPaymentValues, ApiError> {
+    let amount = Decimal::from_f64_retain(amount)
+        .ok_or_else(|| ApiError::BadRequest("Invalid payment amount".to_string()))?;
+    if amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Payment amount must be positive".to_string(),
+        ));
+    }
+
+    Ok(LedgerPaymentValues {
+        amount,
+        payment_method: payment_method.trim().to_string(),
+        payment_reference: normalized_option(payment_reference),
+        receipt_number: normalized_option(receipt_number),
+        receipt_file_url: normalized_option(receipt_file_url),
+        notes: normalized_option(notes),
+        payment_date: normalized_payment_date(payment_date)?,
+    })
+}
+
+fn append_fingerprint_field(payload: &mut String, name: &str, value: Option<&str>) {
+    payload.push_str(name);
+    payload.push(':');
+    match value {
+        Some(value) => {
+            payload.push_str("S:");
+            payload.push_str(&value.len().to_string());
+            payload.push(':');
+            payload.push_str(value);
+        }
+        None => payload.push('N'),
+    }
+    payload.push('|');
+}
+
+fn fingerprint(payload: String) -> String {
+    let digest = Sha256::digest(payload.as_bytes());
+    let mut result = String::with_capacity(64);
+    for byte in digest {
+        write!(&mut result, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    result
+}
+
+fn canonical_ledger_payment_fingerprint(ledger_id: i64, values: &LedgerPaymentValues) -> String {
+    let amount = values.amount.normalize().to_string();
+    let payment_date = values.payment_date.map(|value| value.to_string());
+    let mut payload = String::new();
+    append_fingerprint_field(&mut payload, "kind", Some("ledger-payment-v1"));
+    append_fingerprint_field(&mut payload, "ledger_id", Some(&ledger_id.to_string()));
+    append_fingerprint_field(&mut payload, "payment_amount", Some(&amount));
+    append_fingerprint_field(&mut payload, "payment_method", Some(&values.payment_method));
+    append_fingerprint_field(
+        &mut payload,
+        "payment_reference",
+        values.payment_reference.as_deref(),
+    );
+    append_fingerprint_field(
+        &mut payload,
+        "receipt_number",
+        values.receipt_number.as_deref(),
+    );
+    append_fingerprint_field(
+        &mut payload,
+        "receipt_file_url",
+        values.receipt_file_url.as_deref(),
+    );
+    append_fingerprint_field(&mut payload, "notes", values.notes.as_deref());
+    append_fingerprint_field(&mut payload, "payment_date", payment_date.as_deref());
+    fingerprint(payload)
+}
+
+fn canonical_company_payment_fingerprint(
+    request: &CompanyLedgerPaymentRequest,
+    values: &LedgerPaymentValues,
+) -> String {
+    let amount = values.amount.normalize().to_string();
+    let payment_date = values.payment_date.map(|value| value.to_string());
+    let ledger_ids = request
+        .ledger_ids
+        .iter()
+        .map(i64::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut payload = String::new();
+    append_fingerprint_field(&mut payload, "kind", Some("company-ledger-payment-v1"));
+    append_fingerprint_field(&mut payload, "ledger_ids", Some(&ledger_ids));
+    append_fingerprint_field(&mut payload, "payment_amount", Some(&amount));
+    append_fingerprint_field(&mut payload, "payment_method", Some(&values.payment_method));
+    append_fingerprint_field(
+        &mut payload,
+        "payment_reference",
+        values.payment_reference.as_deref(),
+    );
+    append_fingerprint_field(
+        &mut payload,
+        "receipt_number",
+        values.receipt_number.as_deref(),
+    );
+    append_fingerprint_field(&mut payload, "notes", values.notes.as_deref());
+    append_fingerprint_field(&mut payload, "payment_date", payment_date.as_deref());
+    fingerprint(payload)
+}
+
+fn batch_storage_key(raw_key: &str) -> String {
+    let digest = Sha256::digest(raw_key.as_bytes());
+    let mut key = String::from("batch:v1:");
+    for byte in digest {
+        write!(&mut key, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    key
+}
+
+async fn lock_ledger_for_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    ledger_id: i64,
+) -> Result<LockedLedger, ApiError> {
+    let sql = format!(
+        "SELECT id, company_name, amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = {} FOR UPDATE",
+        crate::param!(1),
+    );
+    let row = sqlx::query(&sql)
+        .bind(ledger_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::NotFound("Customer ledger not found".to_string()))?;
+
+    Ok(LockedLedger {
+        id: row.try_get("id").map_err(ApiError::from)?,
+        company_name: row.try_get("company_name").map_err(ApiError::from)?,
+        amount: get_decimal(&row, "amount"),
+        paid_amount: get_decimal(&row, "paid_amount"),
+        status: row.try_get("status").map_err(ApiError::from)?,
+        is_voided: row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("void_at")
+            .map_err(ApiError::from)?
+            .is_some(),
+    })
+}
+
+fn ensure_payable(ledger: &LockedLedger) -> Result<(), ApiError> {
+    if ledger.status == "void" || ledger.is_voided {
+        return Err(ApiError::BadRequest(
+            "Cannot record payment for a voided ledger".to_string(),
+        ));
+    }
+    if !matches!(ledger.status.as_str(), "pending" | "partial" | "overdue")
+        || ledger.amount - ledger.paid_amount <= Decimal::ZERO
+    {
+        return Err(ApiError::BadRequest(
+            "All selected ledgers must have an outstanding payable balance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+async fn find_ledger_payment_by_key_tx(
+    tx: &mut DbTransaction<'_>,
+    ledger_id: i64,
+    idempotency_key: &str,
+) -> Result<Option<CustomerLedgerPayment>, ApiError> {
+    let sql = format!(
+        r#"
+        SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
+               payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at,
+               idempotency_key, idempotency_fingerprint
+        FROM customer_ledger_payments
+        WHERE ledger_id = {} AND idempotency_key = {}
+        LIMIT 1
+        "#,
+        crate::param!(1),
+        crate::param!(2),
+    );
+    sqlx::query(&sql)
+        .bind(ledger_id)
+        .bind(idempotency_key)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)
+        .map(|row| row.as_ref().map(row_to_customer_ledger_payment))
+}
+
+async fn insert_locked_ledger_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    ledger: &LockedLedger,
+    user_id: i64,
+    values: &LedgerPaymentValues,
+    idempotency_key: &str,
+    idempotency_fingerprint: &str,
+) -> Result<LedgerPaymentOutcome, ApiError> {
+    if let Some(existing) = find_ledger_payment_by_key_tx(tx, ledger.id, idempotency_key).await? {
+        if existing.idempotency_fingerprint.as_deref() == Some(idempotency_fingerprint) {
+            return Ok(LedgerPaymentOutcome {
+                payment: existing,
+                was_inserted: false,
+            });
+        }
+        return Err(ApiError::Conflict(
+            "Idempotency key was already used with different payment data".to_string(),
+        ));
+    }
+
+    ensure_payable(ledger)?;
+    let outstanding = ledger.amount - ledger.paid_amount;
+    if values.amount > outstanding {
+        return Err(ApiError::BadRequest(
+            "Payment amount cannot exceed outstanding balance".to_string(),
+        ));
+    }
+
+    if let Some(receipt_number) = values.receipt_number.as_deref() {
+        let receipt_sql = format!(
+            "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE ledger_id = {} AND LOWER(TRIM(receipt_number)) = LOWER({}))",
+            crate::param!(1),
+            crate::param!(2),
+        );
+        let receipt_exists: bool = sqlx::query_scalar(&receipt_sql)
+            .bind(ledger.id)
+            .bind(receipt_number)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        if receipt_exists {
+            return Err(ApiError::BadRequest(
+                "Receipt number already exists for this ledger".to_string(),
+            ));
+        }
+    }
+
+    let payment_sql = format!(
+        r#"
+        INSERT INTO customer_ledger_payments (
+            ledger_id, payment_amount, payment_method, payment_reference, payment_date,
+            receipt_number, receipt_file_url, notes, processed_by, idempotency_key,
+            idempotency_fingerprint
+        )
+        VALUES ({}, {}, {}, {}, COALESCE({} + INTERVAL '12 hours', {}), {}, {}, {}, {}, {}, {})
+        RETURNING id, ledger_id, payment_amount, payment_method, payment_reference,
+                  payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at,
+                  idempotency_key, idempotency_fingerprint
+        "#,
+        crate::param!(1),
+        crate::param!(2),
+        crate::param!(3),
+        crate::param!(4),
+        crate::param!(5),
+        crate::core::sql_compat::current_timestamp(),
+        crate::param!(6),
+        crate::param!(7),
+        crate::param!(8),
+        crate::param!(9),
+        crate::param!(10),
+        crate::param!(11),
+    );
+    let payment_row = sqlx::query(&payment_sql)
+        .bind(ledger.id)
+        .bind(values.amount)
+        .bind(&values.payment_method)
+        .bind(&values.payment_reference)
+        .bind(values.payment_date)
+        .bind(&values.receipt_number)
+        .bind(&values.receipt_file_url)
+        .bind(&values.notes)
+        .bind(user_id)
+        .bind(idempotency_key)
+        .bind(idempotency_fingerprint)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+    let new_total_paid = ledger.paid_amount + values.amount;
+    let new_status = if new_total_paid >= ledger.amount {
+        "paid"
+    } else {
+        "partial"
+    };
+    let update_sql = format!(
+        r#"
+        UPDATE customer_ledgers
+        SET paid_amount = {}, status = {}, payment_method = {}, payment_reference = {},
+            payment_date = COALESCE({} + INTERVAL '12 hours', {}),
+            updated_at = {}, updated_by = {}
+        WHERE id = {}
+        "#,
+        crate::param!(1),
+        crate::param!(2),
+        crate::param!(3),
+        crate::param!(4),
+        crate::param!(5),
+        crate::core::sql_compat::current_timestamp(),
+        crate::core::sql_compat::current_timestamp(),
+        crate::param!(6),
+        crate::param!(7),
+    );
+    sqlx::query(&update_sql)
+        .bind(new_total_paid)
+        .bind(new_status)
+        .bind(&values.payment_method)
+        .bind(&values.payment_reference)
+        .bind(values.payment_date)
+        .bind(user_id)
+        .bind(ledger.id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok(LedgerPaymentOutcome {
+        payment: row_to_customer_ledger_payment(&payment_row),
+        was_inserted: true,
+    })
+}
+
+/// The service needs the replay flag to suppress duplicate audits; the public
+/// wrapper below preserves the original repository return type for callers.
+pub(crate) async fn create_ledger_payment_with_outcome(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: CustomerLedgerPaymentRequest,
+) -> Result<LedgerPaymentOutcome, ApiError> {
+    let key = crate::services::payments::normalized_idempotency_key(&request.idempotency_key)?;
+    let values = payment_values(
+        request.payment_amount,
+        &request.payment_method,
+        request.payment_reference.as_deref(),
+        request.receipt_number.as_deref(),
+        request.receipt_file_url.as_deref(),
+        request.notes.as_deref(),
+        request.payment_date.as_deref(),
+    )?;
+    let fingerprint = canonical_ledger_payment_fingerprint(ledger_id, &values);
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let ledger = lock_ledger_for_payment_tx(&mut tx, ledger_id).await?;
+    let outcome =
+        insert_locked_ledger_payment_tx(&mut tx, &ledger, user_id, &values, key, &fingerprint)
+            .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(outcome)
+}
+
+/// Record a payment against a customer ledger (PostgreSQL version).
+#[allow(dead_code)] // Public compatibility wrapper; services require the replay flag below.
 pub async fn create_ledger_payment(
     pool: &DbPool,
     ledger_id: i64,
     user_id: i64,
     request: CustomerLedgerPaymentRequest,
 ) -> Result<CustomerLedgerPayment, ApiError> {
-    // The whole read-modify-write of customer_ledgers.paid_amount/status must
-    // be one transaction with the ledger row locked FOR UPDATE - otherwise two
-    // concurrent payments on the same ledger both read the same current_paid,
-    // and the second write clobbers the first's contribution (money collected
-    // that never reaches the recorded receivable).
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    Ok(
+        create_ledger_payment_with_outcome(pool, ledger_id, user_id, request)
+            .await?
+            .payment,
+    )
+}
 
-    let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_LOCKED_QUERY)
-        .bind(ledger_id)
-        .fetch_optional(&mut *tx)
+async fn find_company_batch_replay_tx(
+    tx: &mut DbTransaction<'_>,
+    batch_key: &str,
+    request: &CompanyLedgerPaymentRequest,
+    fingerprint: &str,
+) -> Result<Option<Vec<CustomerLedgerPayment>>, ApiError> {
+    let sql = format!(
+        r#"
+        SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
+               payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at,
+               idempotency_key, idempotency_fingerprint
+        FROM customer_ledger_payments
+        WHERE idempotency_key = {}
+        "#,
+        crate::param!(1),
+    );
+    let rows = sqlx::query(&sql)
+        .bind(batch_key)
+        .fetch_all(&mut **tx)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let (total_amount, current_paid, current_status, is_voided) = match ledger_row {
-        Some(row) => {
-            let amount = get_decimal(&row, "amount");
-            let paid = get_decimal(&row, "paid_amount");
-            let status: String = row.try_get("status").unwrap_or_default();
-            let void_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("void_at").ok();
-            (amount, paid, status, void_at.is_some())
-        }
-        None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
-    };
-
-    if current_status == "void" || is_voided {
-        return Err(ApiError::BadRequest(
-            "Cannot record payment for a voided ledger".to_string(),
-        ));
+        .map_err(ApiError::from)?;
+    if rows.is_empty() {
+        return Ok(None);
     }
 
-    let payment_amount = Decimal::from_f64_retain(request.payment_amount)
-        .ok_or_else(|| ApiError::BadRequest("Invalid payment amount".to_string()))?;
-
-    if payment_amount <= Decimal::ZERO {
-        return Err(ApiError::BadRequest(
-            "Payment amount must be positive".to_string(),
-        ));
-    }
-
-    let outstanding = total_amount - current_paid;
-    if payment_amount > outstanding {
-        return Err(ApiError::BadRequest(
-            "Payment amount cannot exceed outstanding balance".to_string(),
-        ));
-    }
-
-    if let Some(receipt_number) = request
-        .receipt_number
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
+    let payments: Vec<_> = rows.iter().map(row_to_customer_ledger_payment).collect();
+    if payments.len() > request.ledger_ids.len()
+        || payments
+            .iter()
+            .any(|payment| payment.idempotency_fingerprint.as_deref() != Some(fingerprint))
     {
-        let receipt_exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER($1))",
-        )
-        .bind(receipt_number)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        return Err(ApiError::Conflict(
+            "Idempotency key was already used with different company payment data".to_string(),
+        ));
+    }
 
-        if receipt_exists {
-            return Err(ApiError::BadRequest(
-                "Receipt number already exists".to_string(),
+    let payment_count = payments.len();
+    let by_ledger: BTreeMap<_, _> = payments
+        .into_iter()
+        .map(|payment| (payment.ledger_id, payment))
+        .collect();
+    if by_ledger.len() != payment_count
+        || by_ledger
+            .keys()
+            .any(|ledger_id| !request.ledger_ids.contains(ledger_id))
+    {
+        return Err(ApiError::Conflict(
+            "Idempotency key was already used with different company payment data".to_string(),
+        ));
+    }
+    let mut ordered = Vec::with_capacity(request.ledger_ids.len());
+    for ledger_id in &request.ledger_ids {
+        if let Some(payment) = by_ledger.get(ledger_id) {
+            ordered.push(payment.clone());
+        }
+    }
+    Ok(Some(ordered))
+}
+
+async fn lock_company_batch_key_tx(
+    tx: &mut DbTransaction<'_>,
+    batch_key: &str,
+) -> Result<(), ApiError> {
+    let sql = format!(
+        "SELECT pg_advisory_xact_lock(hashtextextended({}, 0))",
+        crate::param!(1),
+    );
+    sqlx::query(&sql)
+        .bind(batch_key)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+    Ok(())
+}
+
+pub(crate) async fn create_company_ledger_payment_with_outcome(
+    pool: &DbPool,
+    user_id: i64,
+    request: CompanyLedgerPaymentRequest,
+) -> Result<CompanyLedgerPaymentOutcome, ApiError> {
+    if request.ledger_ids.is_empty() {
+        return Err(ApiError::BadRequest(
+            "At least one ledger is required for a company payment".to_string(),
+        ));
+    }
+    let unique_ids: BTreeSet<_> = request.ledger_ids.iter().copied().collect();
+    if unique_ids.len() != request.ledger_ids.len() {
+        return Err(ApiError::BadRequest(
+            "A company payment cannot include the same ledger twice".to_string(),
+        ));
+    }
+
+    let key = crate::services::payments::normalized_idempotency_key(&request.idempotency_key)?;
+    let values = payment_values(
+        request.payment_amount,
+        &request.payment_method,
+        request.payment_reference.as_deref(),
+        request.receipt_number.as_deref(),
+        None,
+        request.notes.as_deref(),
+        request.payment_date.as_deref(),
+    )?;
+    let fingerprint = canonical_company_payment_fingerprint(&request, &values);
+    let batch_key = batch_storage_key(key);
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    lock_company_batch_key_tx(&mut tx, &batch_key).await?;
+
+    if let Some(payments) =
+        find_company_batch_replay_tx(&mut tx, &batch_key, &request, &fingerprint).await?
+    {
+        tx.commit().await.map_err(ApiError::from)?;
+        return Ok(CompanyLedgerPaymentOutcome {
+            response: CompanyLedgerPaymentResponse {
+                payments,
+                payment_amount: values.amount,
+            },
+            was_inserted: false,
+        });
+    }
+
+    let mut locked_ledgers = BTreeMap::new();
+    for ledger_id in unique_ids {
+        let ledger = lock_ledger_for_payment_tx(&mut tx, ledger_id).await?;
+        locked_ledgers.insert(ledger_id, ledger);
+    }
+
+    // A same-key request that began before another transaction committed must
+    // check again after acquiring the shared ledger locks, before allocation.
+    if let Some(payments) =
+        find_company_batch_replay_tx(&mut tx, &batch_key, &request, &fingerprint).await?
+    {
+        tx.commit().await.map_err(ApiError::from)?;
+        return Ok(CompanyLedgerPaymentOutcome {
+            response: CompanyLedgerPaymentResponse {
+                payments,
+                payment_amount: values.amount,
+            },
+            was_inserted: false,
+        });
+    }
+
+    let company_name = locked_ledgers
+        .values()
+        .next()
+        .expect("non-empty validated ledger ids")
+        .company_name
+        .clone();
+    if locked_ledgers
+        .values()
+        .any(|ledger| ledger.company_name != company_name)
+    {
+        return Err(ApiError::BadRequest(
+            "All selected ledgers must belong to the same company".to_string(),
+        ));
+    }
+    for ledger in locked_ledgers.values() {
+        ensure_payable(ledger)?;
+    }
+    let mut remaining = values.amount;
+    let mut payments = Vec::with_capacity(request.ledger_ids.len());
+    for ledger_id in &request.ledger_ids {
+        if remaining <= Decimal::ZERO {
+            break;
+        }
+        let ledger = locked_ledgers
+            .get(ledger_id)
+            .expect("every caller id was locked");
+        let outstanding = ledger.amount - ledger.paid_amount;
+        let allocation = remaining.min(outstanding);
+        let allocation_values = LedgerPaymentValues {
+            amount: allocation,
+            payment_method: values.payment_method.clone(),
+            payment_reference: values.payment_reference.clone(),
+            receipt_number: values.receipt_number.clone(),
+            receipt_file_url: None,
+            notes: values.notes.clone(),
+            payment_date: values.payment_date,
+        };
+        let outcome = insert_locked_ledger_payment_tx(
+            &mut tx,
+            ledger,
+            user_id,
+            &allocation_values,
+            &batch_key,
+            &fingerprint,
+        )
+        .await?;
+        if !outcome.was_inserted {
+            return Err(ApiError::Conflict(
+                "Idempotency key was already used with different company payment data".to_string(),
             ));
         }
+        remaining -= allocation;
+        payments.push(outcome.payment);
+    }
+    if remaining > Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Payment amount cannot exceed the selected ledgers' outstanding balance".to_string(),
+        ));
     }
 
-    let new_total_paid = current_paid + payment_amount;
-
-    let new_status = if new_total_paid >= total_amount {
-        "paid"
-    } else if new_total_paid > Decimal::ZERO {
-        "partial"
-    } else {
-        "pending"
-    };
-
-    // Resolve payment date: an explicit YYYY-MM-DD is stored by the SQL below
-    // as noon in the connection (hotel) timezone; otherwise use now.
-    let payment_date_ts: Option<chrono::NaiveDate> = request
-        .payment_date
-        .as_ref()
-        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-
-    let payment_row = sqlx::query(
-        r#"
-        INSERT INTO customer_ledger_payments (
-            ledger_id, payment_amount, payment_method, payment_reference,
-            payment_date, receipt_number, receipt_file_url, notes, processed_by
-        )
-        VALUES ($1, $2, $3, $4, COALESCE($5 + INTERVAL '12 hours', CURRENT_TIMESTAMP), $6, $7, $8, $9)
-        RETURNING id, ledger_id, payment_amount, payment_method, payment_reference,
-                  payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
-        "#,
-    )
-    .bind(ledger_id)
-    .bind(payment_amount)
-    .bind(&request.payment_method)
-    .bind(&request.payment_reference)
-    .bind(payment_date_ts)
-    .bind(&request.receipt_number)
-    .bind(&request.receipt_file_url)
-    .bind(&request.notes)
-    .bind(user_id)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let payment = row_to_customer_ledger_payment(&payment_row);
-
-    sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-        SET paid_amount = $1,
-            status = $2,
-            payment_method = $3,
-            payment_reference = $4,
-            payment_date = COALESCE($5 + INTERVAL '12 hours', CURRENT_TIMESTAMP),
-            updated_at = CURRENT_TIMESTAMP,
-            updated_by = $6
-        WHERE id = $7
-        "#,
-    )
-    .bind(new_total_paid)
-    .bind(new_status)
-    .bind(&request.payment_method)
-    .bind(&request.payment_reference)
-    .bind(payment_date_ts)
-    .bind(user_id)
-    .bind(ledger_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
     tx.commit().await.map_err(ApiError::from)?;
+    Ok(CompanyLedgerPaymentOutcome {
+        response: CompanyLedgerPaymentResponse {
+            payments,
+            payment_amount: values.amount,
+        },
+        was_inserted: true,
+    })
+}
 
-    Ok(payment)
+#[allow(dead_code)] // Public compatibility wrapper; services require the replay flag below.
+pub async fn create_company_ledger_payment(
+    pool: &DbPool,
+    user_id: i64,
+    request: CompanyLedgerPaymentRequest,
+) -> Result<CompanyLedgerPaymentResponse, ApiError> {
+    Ok(
+        create_company_ledger_payment_with_outcome(pool, user_id, request)
+            .await?
+            .response,
+    )
 }
 
 /// Get payment history for a ledger
