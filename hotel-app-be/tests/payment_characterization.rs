@@ -28,7 +28,7 @@
 
 use hotel_app_be::constants::PaymentMethod;
 use hotel_app_be::core::error::ApiError;
-use hotel_app_be::models::{PaymentRequest, RecordPaymentRequest};
+use hotel_app_be::models::{PaymentRequest, RecordPaymentRequest, UpdatePaymentRequest};
 use hotel_app_be::repositories::booking::BookingRepository;
 use hotel_app_be::repositories::payment::PaymentRepository;
 use hotel_app_be::services::payments;
@@ -37,6 +37,7 @@ use sqlx::{PgPool, postgres::PgPoolOptions};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Barrier;
+use tokio::time::{Duration, sleep, timeout};
 
 /// Parse a decimal literal for test fixtures/assertions.
 fn d(s: &str) -> Decimal {
@@ -429,6 +430,108 @@ async fn remove_payment_completion_delay(pool: &PgPool) -> Result<(), sqlx::Erro
         .execute(pool)
         .await?;
     sqlx::query("DROP FUNCTION IF EXISTS payment_characterization_delay_completion()")
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+async fn wait_for_advisory_waiter(pool: &PgPool) {
+    timeout(Duration::from_secs(5), async {
+        loop {
+            let is_waiting: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM pg_stat_activity \
+                 WHERE wait_event = 'advisory' AND query LIKE '%payments%')",
+            )
+            .fetch_one(pool)
+            .await
+            .unwrap();
+            if is_waiting {
+                break;
+            }
+            sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("a payment mutation must reach the test advisory gate");
+}
+
+async fn install_payment_mutation_gate(pool: &PgPool, operation: &str, advisory_key: i64) {
+    remove_payment_mutation_gate(pool).await.unwrap();
+    let function_sql = format!(
+        r#"
+        CREATE FUNCTION payment_characterization_gate_mutation()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            PERFORM pg_advisory_xact_lock({advisory_key});
+            RETURN COALESCE(NEW, OLD);
+        END;
+        $$
+        "#,
+    );
+    sqlx::query(&function_sql).execute(pool).await.unwrap();
+    let trigger_sql = format!(
+        "CREATE TRIGGER payment_characterization_gate_mutation \
+         BEFORE {operation} ON payments FOR EACH ROW \
+         EXECUTE FUNCTION payment_characterization_gate_mutation()"
+    );
+    sqlx::query(&trigger_sql).execute(pool).await.unwrap();
+}
+
+async fn remove_payment_mutation_gate(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query("DROP TRIGGER IF EXISTS payment_characterization_gate_mutation ON payments")
+        .execute(pool)
+        .await?;
+    sqlx::query("DROP FUNCTION IF EXISTS payment_characterization_gate_mutation()")
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+async fn install_booking_recompute_failure(pool: &PgPool, booking_id: i64) {
+    remove_booking_recompute_failure(pool).await.unwrap();
+    // Isolate the service-owned recompute boundary. The baseline also carries
+    // a database trigger as defense in depth; disabling it here proves the Rust
+    // transaction itself does not commit a replay row before its recompute.
+    sqlx::query("ALTER TABLE payments DISABLE TRIGGER trg_sync_booking_payment_status")
+        .execute(pool)
+        .await
+        .unwrap();
+    let function_sql = format!(
+        r#"
+        CREATE FUNCTION payment_characterization_fail_recompute()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.id = {booking_id} THEN
+                RAISE EXCEPTION 'forced payment-status recompute failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$
+        "#,
+    );
+    sqlx::query(&function_sql).execute(pool).await.unwrap();
+    sqlx::query(
+        "CREATE TRIGGER payment_characterization_fail_recompute \
+         BEFORE UPDATE OF payment_status ON bookings FOR EACH ROW \
+         EXECUTE FUNCTION payment_characterization_fail_recompute()",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn remove_booking_recompute_failure(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query("DROP TRIGGER IF EXISTS payment_characterization_fail_recompute ON bookings")
+        .execute(pool)
+        .await?;
+    sqlx::query("DROP FUNCTION IF EXISTS payment_characterization_fail_recompute()")
+        .execute(pool)
+        .await?;
+    sqlx::query("ALTER TABLE payments ENABLE TRIGGER trg_sync_booking_payment_status")
         .execute(pool)
         .await?;
     Ok(())
@@ -1045,6 +1148,312 @@ async fn concurrent_legacy_payment_approvals_complete_at_most_one_payment() {
     );
 }
 
+/// Updating a payment must hold the booking lock before it locks and refetches
+/// the payment. The gate freezes the update after it has reached the payment
+/// row; a concurrent create must then wait and revalidate the new balance.
+#[tokio::test]
+async fn concurrent_create_and_update_cannot_overpay_booking() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_700, 940_701, 940_702, 940_703, 940_704);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(booking_id, 100.0, "payment-char-940704-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+
+    const GATE: i64 = 940_704;
+    install_payment_mutation_gate(&pool, "UPDATE", GATE).await;
+    let mut gate_connection = pool.acquire().await.unwrap();
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let update_pool = pool.clone();
+    let update = tokio::spawn(async move {
+        payments::update_payment(
+            &update_pool,
+            actor_id,
+            payment_id,
+            UpdatePaymentRequest {
+                amount: Some(200.0),
+                payment_method: None,
+                transaction_reference: None,
+                notes: None,
+                payment_date: None,
+            },
+        )
+        .await
+    });
+    wait_for_advisory_waiter(&pool).await;
+
+    let create_pool = pool.clone();
+    let create = tokio::spawn(async move {
+        payments::record_payment(
+            &create_pool,
+            actor_id,
+            payment_request(booking_id, 200.0, "payment-char-940704-concurrent"),
+        )
+        .await
+    });
+    sleep(Duration::from_millis(100)).await;
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let updated = timeout(Duration::from_secs(5), update)
+        .await
+        .expect("update must not deadlock")
+        .unwrap();
+    let created = timeout(Duration::from_secs(5), create)
+        .await
+        .expect("create must not deadlock")
+        .unwrap();
+    let payment_total: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments \
+         WHERE booking_id = $1 AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (booking_status, payment_status) = fetch_booking_status(&pool, booking_id).await;
+
+    let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    trigger_cleanup.expect("the update gate must be removed");
+
+    assert!(
+        updated.is_ok(),
+        "the lock-owning update must succeed: {updated:?}"
+    );
+    assert!(
+        matches!(created, Err(ApiError::BadRequest(_))),
+        "create must re-read the RM100 balance after the update: {created:?}"
+    );
+    assert_eq!(payment_total, d("200.00"));
+    assert_eq!(booking_status, "pending");
+    assert_eq!(payment_status, "partial");
+}
+
+/// Deletion must lock booking -> payment. While the delete is paused after
+/// reaching its payment row, create must wait until the deleted installment is
+/// absent instead of confirming against money that is about to disappear.
+#[tokio::test]
+async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_710, 940_711, 940_712, 940_713, 940_714);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(booking_id, 100.0, "payment-char-940714-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+
+    const GATE: i64 = 940_714;
+    install_payment_mutation_gate(&pool, "DELETE", GATE).await;
+    let mut gate_connection = pool.acquire().await.unwrap();
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let delete_pool = pool.clone();
+    let delete =
+        tokio::spawn(
+            async move { payments::delete_payment(&delete_pool, actor_id, payment_id).await },
+        );
+    wait_for_advisory_waiter(&pool).await;
+
+    let create_pool = pool.clone();
+    let create = tokio::spawn(async move {
+        payments::record_payment(
+            &create_pool,
+            actor_id,
+            payment_request(booking_id, 200.0, "payment-char-940714-concurrent"),
+        )
+        .await
+    });
+    sleep(Duration::from_millis(100)).await;
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let deleted = timeout(Duration::from_secs(5), delete)
+        .await
+        .expect("delete must not deadlock")
+        .unwrap();
+    let created = timeout(Duration::from_secs(5), create)
+        .await
+        .expect("create must not deadlock")
+        .unwrap();
+    let payment_total: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments \
+         WHERE booking_id = $1 AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (booking_status, payment_status) = fetch_booking_status(&pool, booking_id).await;
+
+    let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    trigger_cleanup.expect("the delete gate must be removed");
+
+    assert!(deleted.is_ok(), "the delete must succeed: {deleted:?}");
+    assert!(
+        created.is_ok(),
+        "the partial create must succeed: {created:?}"
+    );
+    assert_eq!(payment_total, d("200.00"));
+    assert_eq!(booking_status, "pending");
+    assert_eq!(payment_status, "partial");
+}
+
+/// Approval and rejection must acquire locks in the same booking -> payment
+/// order. Pausing rejection at the payment row used to create a deterministic
+/// payment -> booking / booking -> payment deadlock with approval.
+#[tokio::test]
+async fn concurrent_approval_and_rejection_have_one_terminal_transition_without_deadlock() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_720, 940_721, 940_722, 940_723, 940_724);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "pending_confirmation",
+            check_in: "2031-07-01",
+            check_out: "2031-07-02",
+            base_price: d("300.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("300.00"),
+        actor_id,
+    )
+    .await;
+
+    const GATE: i64 = 940_724;
+    install_payment_mutation_gate(&pool, "UPDATE", GATE).await;
+    let mut gate_connection = pool.acquire().await.unwrap();
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let reject_pool = pool.clone();
+    let rejection = tokio::spawn(async move {
+        payments::reject_payment(&reject_pool, actor_id, payment_id, "Concurrent review").await
+    });
+    wait_for_advisory_waiter(&pool).await;
+
+    let approve_pool = pool.clone();
+    let approval = tokio::spawn(async move {
+        payments::approve_payment(&approve_pool, actor_id, payment_id).await
+    });
+    sleep(Duration::from_millis(100)).await;
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let rejection = timeout(Duration::from_secs(5), rejection)
+        .await
+        .expect("rejection must finish")
+        .unwrap();
+    let approval = timeout(Duration::from_secs(5), approval)
+        .await
+        .expect("approval must finish")
+        .unwrap();
+    let terminal_audits: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM audit_logs WHERE resource_type = 'payment' \
+         AND resource_id = $1 AND action IN ('payment_approved', 'payment_rejected')",
+    )
+    .bind(payment_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let payment_status = fetch_payment_status(&pool, payment_id).await;
+
+    let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    trigger_cleanup.expect("the approval/rejection gate must be removed");
+
+    for result in [&rejection, &approval] {
+        assert!(
+            !matches!(result, Err(ApiError::Database(message)) if message.contains("deadlock")),
+            "booking-first lock order must not deadlock: rejection={rejection:?}, approval={approval:?}"
+        );
+    }
+    assert_eq!(
+        [rejection.as_ref(), approval.as_ref()]
+            .into_iter()
+            .filter(|result| result.is_ok())
+            .count(),
+        1,
+        "exactly one terminal transition must win: rejection={rejection:?}, approval={approval:?}"
+    );
+    assert!(matches!(payment_status.as_str(), "completed" | "void"));
+    assert_eq!(terminal_audits, 1);
+}
+
 /// Replaying the same normalized key and canonical payload must return the
 /// original row, without recording a second status/history/audit workflow.
 #[tokio::test]
@@ -1113,6 +1522,208 @@ async fn record_payment_replays_exact_idempotency_key_without_side_effects() {
     assert_eq!(
         audit_count, 1,
         "an exact retry cannot write a second audit event"
+    );
+}
+
+/// A transaction reference is also a replay identity. A new idempotency key
+/// may replay only the exact canonical request; changed material must conflict.
+#[tokio::test]
+async fn transaction_reference_replay_requires_exact_canonical_payload() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_730, 940_731, 940_732, 940_733, 940_734);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    let mut original = payment_request(booking_id, 100.0, "payment-char-940734-original");
+    original.payment_method = "card".to_string();
+    original.transaction_reference = Some("PAY-940734".to_string());
+    original.notes = Some("Original".to_string());
+    original.payment_date = Some("2031-07-03".to_string());
+    let first = payments::record_payment(&pool, actor_id, original)
+        .await
+        .unwrap();
+
+    let mut exact = payment_request(booking_id, 100.0, "payment-char-940734-exact-retry");
+    exact.payment_method = "card".to_string();
+    exact.transaction_reference = Some("PAY-940734".to_string());
+    exact.notes = Some("Original".to_string());
+    exact.payment_date = Some("2031-07-03".to_string());
+    let replay = payments::record_payment(&pool, actor_id, exact)
+        .await
+        .expect("an exact transaction-reference retry must replay");
+
+    let mut changed_amount = payment_request(booking_id, 150.0, "payment-char-940734-amount");
+    changed_amount.payment_method = "card".to_string();
+    changed_amount.transaction_reference = Some("PAY-940734".to_string());
+    changed_amount.notes = Some("Original".to_string());
+    changed_amount.payment_date = Some("2031-07-03".to_string());
+    let changed_amount = payments::record_payment(&pool, actor_id, changed_amount).await;
+
+    let mut changed_method = payment_request(booking_id, 100.0, "payment-char-940734-method");
+    changed_method.payment_method = "cash".to_string();
+    changed_method.transaction_reference = Some("PAY-940734".to_string());
+    changed_method.notes = Some("Original".to_string());
+    changed_method.payment_date = Some("2031-07-03".to_string());
+    let changed_method = payments::record_payment(&pool, actor_id, changed_method).await;
+
+    let mut changed_type = payment_request(booking_id, 100.0, "payment-char-940734-type");
+    changed_type.payment_method = "card".to_string();
+    changed_type.payment_type = Some("deposit".to_string());
+    changed_type.transaction_reference = Some("PAY-940734".to_string());
+    changed_type.notes = Some("Original".to_string());
+    changed_type.payment_date = Some("2031-07-03".to_string());
+    let changed_type = payments::record_payment(&pool, actor_id, changed_type).await;
+
+    let mut changed_notes = payment_request(booking_id, 100.0, "payment-char-940734-notes");
+    changed_notes.payment_method = "card".to_string();
+    changed_notes.transaction_reference = Some("PAY-940734".to_string());
+    changed_notes.notes = Some("Changed".to_string());
+    changed_notes.payment_date = Some("2031-07-03".to_string());
+    let changed_notes = payments::record_payment(&pool, actor_id, changed_notes).await;
+
+    let mut changed_date = payment_request(booking_id, 100.0, "payment-char-940734-date");
+    changed_date.payment_method = "card".to_string();
+    changed_date.transaction_reference = Some("PAY-940734".to_string());
+    changed_date.notes = Some("Original".to_string());
+    changed_date.payment_date = Some("2031-07-04".to_string());
+    let changed_date = payments::record_payment(&pool, actor_id, changed_date).await;
+    let payment_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert_eq!(first["id"], replay["id"]);
+    for (field, result) in [
+        ("amount", changed_amount),
+        ("method", changed_method),
+        ("type", changed_type),
+        ("notes", changed_notes),
+        ("date", changed_date),
+    ] {
+        assert!(
+            matches!(result, Err(ApiError::Conflict(_))),
+            "a reused transaction reference with changed {field} must conflict: {result:?}"
+        );
+    }
+    assert_eq!(payment_count, 1);
+}
+
+/// Transaction references are global provenance: another booking cannot claim
+/// one, even if every other canonical field happens to match.
+#[tokio::test]
+async fn transaction_reference_cannot_be_reused_by_another_booking() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_a, room_a, guest_a, booking_a) =
+        (940_740, 940_741, 940_742, 940_743, 940_744);
+    let (room_type_b, room_b, guest_b, booking_b) = (940_745, 940_746, 940_747, 940_748);
+    cleanup(
+        &pool,
+        &[room_type_a, room_type_b],
+        &[room_a, room_b],
+        &[guest_a, guest_b],
+        &[booking_a, booking_b],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    for fixture in [
+        BookingFixture {
+            room_type_id: room_type_a,
+            room_id: room_a,
+            guest_id: guest_a,
+            booking_id: booking_a,
+            actor_id,
+            status: "pending",
+            check_in: "2031-07-04",
+            check_out: "2031-07-05",
+            base_price: d("300.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+        BookingFixture {
+            room_type_id: room_type_b,
+            room_id: room_b,
+            guest_id: guest_b,
+            booking_id: booking_b,
+            actor_id,
+            status: "pending",
+            check_in: "2031-07-04",
+            check_out: "2031-07-05",
+            base_price: d("300.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    ] {
+        seed_booking(&pool, &fixture).await;
+    }
+
+    let mut first = payment_request(booking_a, 100.0, "payment-char-940744");
+    first.transaction_reference = Some("PAY-GLOBAL-940744".to_string());
+    payments::record_payment(&pool, actor_id, first)
+        .await
+        .unwrap();
+    let mut second = payment_request(booking_b, 100.0, "payment-char-940748");
+    second.transaction_reference = Some("PAY-GLOBAL-940744".to_string());
+    let result = payments::record_payment(&pool, actor_id, second).await;
+
+    cleanup(
+        &pool,
+        &[room_type_a, room_type_b],
+        &[room_a, room_b],
+        &[guest_a, guest_b],
+        &[booking_a, booking_b],
+        &[actor_id],
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(ApiError::Conflict(_))),
+        "another booking must not replay a global transaction reference: {result:?}"
+    );
+}
+
+/// Rows written before fingerprints existed are ambiguous and must never be
+/// treated as safe replays merely because their transaction reference matches.
+#[tokio::test]
+async fn legacy_transaction_reference_without_fingerprint_fails_closed() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_750, 940_751, 940_752, 940_753, 940_754);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    sqlx::query(
+        "INSERT INTO payments \
+         (uuid, booking_id, amount, payment_method, payment_type, status, transaction_id, created_by) \
+         VALUES (gen_uuidv7(), $1, 100, 'cash', 'booking', 'completed', $2, $3)",
+    )
+    .bind(booking_id)
+    .bind("PAY-LEGACY-940754")
+    .bind(actor_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let mut retry = payment_request(booking_id, 100.0, "payment-char-940754-retry");
+    retry.transaction_reference = Some("PAY-LEGACY-940754".to_string());
+    let result = payments::record_payment(&pool, actor_id, retry).await;
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        matches!(result, Err(ApiError::Conflict(_))),
+        "a null legacy fingerprint must fail closed: {result:?}"
     );
 }
 
@@ -1317,6 +1928,71 @@ async fn create_payment_replays_an_exact_idempotency_key() {
         audit_count, 1,
         "a completed-payment replay cannot repeat its audit event"
     );
+}
+
+/// The legacy completed-payment insert and booking recompute are one atomic
+/// unit. A forced recompute failure must leave no replay row behind; after the
+/// trigger is removed, retrying the same request must perform the full workflow.
+#[tokio::test]
+async fn create_payment_rolls_back_when_booking_recompute_fails_then_retry_repairs() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_760, 940_761, 940_762, 940_763, 940_764);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    install_booking_recompute_failure(&pool, booking_id).await;
+
+    let make_request = || PaymentRequest {
+        booking_id,
+        payment_method: PaymentMethod::Cash,
+        amount: Some(300.0),
+        transaction_reference: Some("PAY-940764".to_string()),
+        card_last_four: None,
+        card_brand: None,
+        bank_name: None,
+        account_reference: None,
+        notes: Some("Atomic legacy payment".to_string()),
+        idempotency_key: "payment-char-940764-atomic".to_string(),
+    };
+
+    let failed = payments::create_payment(&pool, actor_id, make_request()).await;
+    let rows_after_failure: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    remove_booking_recompute_failure(&pool)
+        .await
+        .expect("the forced recompute failure trigger must be removed");
+
+    let retried = payments::create_payment(&pool, actor_id, make_request()).await;
+    let payment_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let (_, payment_status) = fetch_booking_status(&pool, booking_id).await;
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        matches!(failed, Err(ApiError::Database(_))),
+        "the forced recompute failure must surface: {failed:?}"
+    );
+    assert_eq!(
+        rows_after_failure, 0,
+        "the insert must roll back with recompute"
+    );
+    assert!(
+        retried.is_ok(),
+        "the same request must succeed after repair: {retried:?}"
+    );
+    assert_eq!(payment_count, 1);
+    assert_eq!(payment_status, "paid");
 }
 
 /// (2) `approve_payment`: only transitions a `pending` payment to

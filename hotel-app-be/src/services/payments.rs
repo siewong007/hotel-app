@@ -150,8 +150,10 @@ pub async fn create_payment(
         _ => None,
     };
 
-    let completed_payment = PaymentRepository::create_completed_payment(
-        pool,
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
+    let completed_payment = PaymentRepository::create_completed_payment_tx(
+        &mut tx,
         user_id,
         &request,
         &summary,
@@ -160,9 +162,11 @@ pub async fn create_payment(
     .await?;
     let payment = completed_payment.payment;
     if !completed_payment.was_inserted {
+        tx.commit().await.map_err(ApiError::from)?;
         return Ok(payment);
     }
-    recompute_payment_status(pool, payment.booking_id).await?;
+    recompute_payment_status_tx(&mut tx, payment.booking_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
     try_queue_paid_online_booking_room_assignment(pool, payment.booking_id).await;
 
     if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
@@ -602,8 +606,13 @@ pub async fn update_payment(
     payment_id: i64,
     request: UpdatePaymentRequest,
 ) -> Result<serde_json::Value, ApiError> {
-    let row = PaymentRepository::update_payment(pool, payment_id, &request).await?;
-    recompute_payment_status(pool, row.booking_id).await?;
+    let booking_id = PaymentRepository::payment_booking_id(pool, payment_id).await?;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    let row =
+        PaymentRepository::update_payment_tx(&mut tx, booking_id, payment_id, &request).await?;
+    recompute_payment_status_tx(&mut tx, booking_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
     try_queue_paid_online_booking_room_assignment(pool, row.booking_id).await;
     if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
         pool,
@@ -643,11 +652,12 @@ pub async fn delete_payment(
     user_id: i64,
     payment_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
-    let affected_booking_id = PaymentRepository::delete_payment(pool, payment_id).await?;
-
-    if let Some(booking_id) = affected_booking_id {
-        recompute_payment_status(pool, booking_id).await?;
-    }
+    let booking_id = PaymentRepository::payment_booking_id(pool, payment_id).await?;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    PaymentRepository::delete_payment_tx(&mut tx, booking_id, payment_id).await?;
+    recompute_payment_status_tx(&mut tx, booking_id).await?;
+    tx.commit().await.map_err(ApiError::from)?;
 
     let _ = AuditLog::log_event(
         pool,
@@ -657,7 +667,7 @@ pub async fn delete_payment(
             resource_type: "payment",
             resource_id: Some(payment_id),
             details: Some(serde_json::json!({
-                "booking_id": affected_booking_id,
+                "booking_id": booking_id,
             })),
             ..Default::default()
         },
@@ -1607,6 +1617,14 @@ async fn complete_and_confirm(
 ) -> Result<PaymentActionResponse, ApiError> {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
+    let status = PaymentRepository::lock_payment_status_tx(&mut tx, payment_id, booking_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if !matches!(status.as_str(), "pending" | "processing") {
+        return Err(ApiError::BadRequest(
+            "Payment is no longer pending.".to_string(),
+        ));
+    }
 
     // Defense in depth: even if a race slipped a second claim past the
     // pre-insert guard, never complete a payment when the booking already has a
@@ -1811,6 +1829,15 @@ async fn reject_payment_by(
     }
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, review.booking_id).await?;
+    let status = PaymentRepository::lock_payment_status_tx(&mut tx, payment_id, review.booking_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Payment not found.".to_string()))?;
+    if status != "pending" {
+        return Err(ApiError::BadRequest(
+            "Payment is no longer pending.".to_string(),
+        ));
+    }
     let rejected =
         PaymentRepository::mark_payment_rejected_tx(&mut tx, payment_id, actor_user_id, reason)
             .await?;

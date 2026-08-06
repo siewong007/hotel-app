@@ -160,6 +160,70 @@ impl PaymentRepository {
             .map_err(ApiError::from)
     }
 
+    pub async fn find_transaction_reference_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        transaction_reference: &str,
+    ) -> Result<Option<PaymentEntryRow>, ApiError> {
+        // Transaction references are global provenance. Serialize even the
+        // absent-row case so two bookings cannot concurrently claim one.
+        let lock_sql = format!(
+            "SELECT pg_advisory_xact_lock(hashtextextended({}, 0))",
+            crate::param!(1)
+        );
+        sqlx::query(&lock_sql)
+            .bind(transaction_reference)
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+
+        let sql = format!(
+            r#"
+            SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
+                   status AS payment_status, transaction_id AS transaction_reference, notes,
+                   created_at::date::text AS payment_date, created_at, idempotency_fingerprint
+            FROM payments
+            WHERE transaction_id = {}
+            LIMIT 1
+            FOR UPDATE
+            "#,
+            crate::param!(1)
+        );
+        sqlx::query_as::<_, PaymentEntryRow>(&sql)
+            .bind(transaction_reference)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(ApiError::from)
+    }
+
+    pub async fn payment_booking_id(pool: &DbPool, payment_id: i64) -> Result<i64, ApiError> {
+        sqlx::query_scalar(&format!(
+            "SELECT booking_id FROM payments WHERE id = {}",
+            crate::param!(1)
+        ))
+        .bind(payment_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::NotFound("Payment not found".to_string()))
+    }
+
+    pub async fn lock_payment_status_tx(
+        tx: &mut DbTransaction<'_>,
+        payment_id: i64,
+        booking_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        sqlx::query_scalar(&format!(
+            "SELECT status FROM payments WHERE id = {} AND booking_id = {} FOR UPDATE",
+            crate::param!(1),
+            crate::param!(2)
+        ))
+        .bind(payment_id)
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)
+    }
+
     pub async fn paid_online_booking_room_assignment(
         pool: &DbPool,
         booking_id: i64,
@@ -301,16 +365,13 @@ impl PaymentRepository {
         })
     }
 
-    pub async fn create_completed_payment(
-        pool: &DbPool,
+    pub async fn create_completed_payment_tx(
+        tx: &mut DbTransaction<'_>,
         user_id: i64,
         request: &PaymentRequest,
         summary: &PaymentSummary,
         payment_gateway: Option<&str>,
     ) -> Result<CompletedPayment, ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Self::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
-
         let payment_method = request.payment_method.to_string();
         let fingerprint = Self::canonical_payment_fingerprint(
             request.booking_id,
@@ -322,7 +383,7 @@ impl PaymentRepository {
             None,
         );
         if let Some(existing) =
-            Self::find_idempotent_payment_tx(&mut tx, request.booking_id, &request.idempotency_key)
+            Self::find_idempotent_payment_tx(tx, request.booking_id, &request.idempotency_key)
                 .await?
         {
             if existing.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
@@ -339,7 +400,7 @@ impl PaymentRepository {
                 crate::param!(1)
             ))
             .bind(existing.id)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
             .map_err(ApiError::from)?;
             let mut payment = row_mappers::row_to_payment(&row);
@@ -348,7 +409,42 @@ impl PaymentRepository {
             payment.tax_amount = summary.tax_amount;
             payment.keycard_deposit = summary.keycard_deposit;
 
-            tx.commit().await.map_err(ApiError::from)?;
+            return Ok(CompletedPayment {
+                payment,
+                was_inserted: false,
+            });
+        }
+
+        if let Some(transaction_reference) = request
+            .transaction_reference
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            && let Some(existing) =
+                Self::find_transaction_reference_payment_tx(tx, transaction_reference).await?
+        {
+            if existing.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+                return Err(ApiError::Conflict(
+                    "Transaction reference was already used with different payment data"
+                        .to_string(),
+                ));
+            }
+
+            let row = sqlx::query(&format!(
+                "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
+                 transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at, \
+                 idempotency_key, idempotency_fingerprint \
+                 FROM payments WHERE id = {}",
+                crate::param!(1)
+            ))
+            .bind(existing.id)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+            let mut payment = row_mappers::row_to_payment(&row);
+            payment.subtotal = summary.subtotal;
+            payment.service_charge = summary.service_charge;
+            payment.tax_amount = summary.tax_amount;
+            payment.keycard_deposit = summary.keycard_deposit;
             return Ok(CompletedPayment {
                 payment,
                 was_inserted: false,
@@ -362,7 +458,7 @@ impl PaymentRepository {
         let existing_payment: Option<i64> = sqlx::query_scalar(existing_sql)
             .bind(request.booking_id)
             .bind(PaymentStatus::Completed.to_string())
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)?;
 
@@ -413,11 +509,9 @@ impl PaymentRepository {
             .bind(user_id)
             .bind(&request.idempotency_key)
             .bind(&fingerprint)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
             .map_err(ApiError::from)?;
-
-        tx.commit().await.map_err(ApiError::from)?;
 
         // Build the response directly from known inputs. The breakdown fields
         // (subtotal/service_charge/tax/keycard) and bank_name/account_reference
@@ -458,30 +552,31 @@ impl PaymentRepository {
         payment_type: &str,
         created_at_override: Option<&str>,
     ) -> Result<RecordedPayment, ApiError> {
-        if let Some(ref txn_ref) = request.transaction_reference
-            && !txn_ref.is_empty()
+        if let Some(txn_ref) = request
+            .transaction_reference
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            && let Some(row) = Self::find_transaction_reference_payment_tx(tx, txn_ref).await?
         {
-            let duplicate_sql = r#"
-                SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                       status AS payment_status, transaction_id AS transaction_reference, notes,
-                       created_at::date::text AS payment_date, created_at
-                FROM payments
-                WHERE transaction_id = $1
-                LIMIT 1
-                "#;
-
-            let duplicate = sqlx::query_as::<_, PaymentEntryRow>(duplicate_sql)
-                .bind(txn_ref)
-                .fetch_optional(&mut **tx)
-                .await
-                .map_err(ApiError::from)?;
-
-            if let Some(row) = duplicate {
-                return Ok(RecordedPayment {
-                    row,
-                    was_inserted: false,
-                });
+            let fingerprint = Self::canonical_payment_fingerprint(
+                request.booking_id,
+                Some(amount),
+                &request.payment_method,
+                payment_type,
+                request.transaction_reference.as_deref(),
+                request.notes.as_deref(),
+                request.payment_date.as_deref(),
+            );
+            if row.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+                return Err(ApiError::Conflict(
+                    "Transaction reference was already used with different payment data"
+                        .to_string(),
+                ));
             }
+            return Ok(RecordedPayment {
+                row,
+                was_inserted: false,
+            });
         }
 
         let row = Self::insert_payment(
@@ -1361,24 +1456,23 @@ impl PaymentRepository {
         Ok(rows.iter().map(row_mappers::row_to_invoice).collect())
     }
 
-    pub async fn update_payment(
-        pool: &DbPool,
+    pub async fn update_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
         payment_id: i64,
         request: &UpdatePaymentRequest,
     ) -> Result<PaymentEntryRow, ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
-        let existing_sql = "SELECT id FROM payments WHERE id = $1";
-
-        let existing: Option<i64> = sqlx::query_scalar(existing_sql)
-            .bind(payment_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
-
-        if existing.is_none() {
-            return Err(ApiError::NotFound("Payment not found".to_string()));
-        }
+        let existing: Option<(Decimal, Option<String>, Option<String>)> = sqlx::query_as(
+            "SELECT amount, payment_type, status FROM payments \
+             WHERE id = $1 AND booking_id = $2 FOR UPDATE",
+        )
+        .bind(payment_id)
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        let (existing_amount, payment_type, payment_status) =
+            existing.ok_or_else(|| ApiError::NotFound("Payment not found".to_string()))?;
 
         let mut updates = Vec::new();
         let mut param_index = 1;
@@ -1408,6 +1502,29 @@ impl PaymentRepository {
             return Err(ApiError::BadRequest("No fields to update".to_string()));
         }
 
+        if let Some(amount) = request.amount {
+            let amount = Decimal::from_f64_retain(amount)
+                .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
+            if payment_type.as_deref().unwrap_or("booking") == "booking"
+                && payment_status.as_deref() == Some("completed")
+            {
+                if amount <= Decimal::ZERO {
+                    return Err(ApiError::BadRequest(
+                        "Payment amount must be positive".to_string(),
+                    ));
+                }
+                if let Some(summary) = Self::workflow_summary_row(&mut **tx, booking_id).await? {
+                    let revised_total = summary.total_paid - existing_amount + amount;
+                    if revised_total > summary.billable_total() + Decimal::new(5, 3) {
+                        return Err(ApiError::BadRequest(format!(
+                            "Payment amount cannot exceed the outstanding booking total of {}",
+                            summary.billable_total()
+                        )));
+                    }
+                }
+            }
+        }
+
         let query = format!(
             "UPDATE payments SET {} WHERE id = $1 RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type, status AS payment_status, transaction_id AS transaction_reference, notes, created_at::date::text AS payment_date, created_at",
             updates.join(", ")
@@ -1435,24 +1552,27 @@ impl PaymentRepository {
         }
 
         let row = query_builder
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
             .map_err(ApiError::from)?;
-
-        tx.commit().await.map_err(ApiError::from)?;
 
         Ok(row)
     }
 
-    pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<Option<i64>, ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
-        let payment_row =
-            sqlx::query("SELECT id, payment_type, booking_id FROM payments WHERE id = $1")
-                .bind(payment_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(ApiError::from)?;
+    pub async fn delete_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+        payment_id: i64,
+    ) -> Result<(), ApiError> {
+        let payment_row = sqlx::query(
+            "SELECT payment_type FROM payments \
+                 WHERE id = $1 AND booking_id = $2 FOR UPDATE",
+        )
+        .bind(payment_id)
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
 
         let payment_row = match payment_row {
             Some(row) => row,
@@ -1466,17 +1586,13 @@ impl PaymentRepository {
             ));
         }
 
-        let affected_booking_id: Option<i64> = Some(payment_row.get("booking_id"));
-
         sqlx::query("DELETE FROM payments WHERE id = $1")
             .bind(payment_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
 
-        tx.commit().await.map_err(ApiError::from)?;
-
-        Ok(affected_booking_id)
+        Ok(())
     }
 
     pub async fn existing_invoice_number<'e, E>(
@@ -1553,7 +1669,6 @@ impl PaymentRepository {
 
         Ok(())
     }
-
 }
 
 fn map_workflow_summary_row(row: &DbRow) -> PaymentWorkflowSummaryRow {
