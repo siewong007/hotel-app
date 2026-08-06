@@ -18,6 +18,8 @@ use tokio::time::sleep;
 
 use crate::get_data_directory;
 
+mod schema;
+
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -1018,9 +1020,9 @@ enum DatabaseSetupState {
 
 /// Initialize an empty desktop database at V1.
 ///
-/// `seed.sql` is part of first initialization only. Existing legacy schemas
-/// are not upgraded in place; operators must export their data and rebuild
-/// from the current baseline and seed.
+/// `seed.sql` is part of first initialization only. Existing unversioned
+/// schemas are not upgraded in place; V1 databases receive only explicitly
+/// supported, idempotent compatibility upgrades.
 pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresError> {
     create_database_if_needed(app_handle).await?;
     let resource_dir = clean_resource_dir(app_handle);
@@ -1044,7 +1046,18 @@ pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresEr
                     .to_string(),
             ));
         }
-        DatabaseSetupState::V1 => {}
+        DatabaseSetupState::V1 => {
+            let pgsql_bin = get_pgsql_bin_dir(app_handle);
+            let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
+            let connection = schema::PsqlConnection::new(
+                "localhost",
+                POSTGRES_PORT,
+                POSTGRES_USER,
+                POSTGRES_DB,
+                read_or_create_postgres_password()?,
+            );
+            schema::apply_v1_payment_idempotency_upgrade(&psql_path, &connection).await?;
+        }
     }
 
     if setup_state == DatabaseSetupState::Fresh {
