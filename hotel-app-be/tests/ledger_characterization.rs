@@ -205,6 +205,7 @@ mod postgres_tests {
             receipt_file_url: None,
             notes: None,
             payment_date: None,
+            idempotency_key: format!("ledger-characterization-{receipt_number}"),
         }
     }
 
