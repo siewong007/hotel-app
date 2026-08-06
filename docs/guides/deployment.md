@@ -321,6 +321,67 @@ Verify:
 psql "$DATABASE_URL" -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name='google_subject'"
 ```
 
+### One-time payment idempotency step (2026-08-06; PostgreSQL only)
+
+Fresh PostgreSQL installs already receive these objects from the V1 baseline.
+Run this block once against an existing PostgreSQL V1 database that predates
+2026-08-06. The application does not apply it automatically, and this is not a
+second migration file. The receipt index is deliberately rebuilt with
+ledger-scoped uniqueness so one company receipt can span several ledgers but
+cannot be reused on the same ledger.
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+ALTER TABLE public.payments
+    ADD COLUMN IF NOT EXISTS idempotency_key character varying(160),
+    ADD COLUMN IF NOT EXISTS idempotency_fingerprint character varying(64);
+
+ALTER TABLE public.customer_ledger_payments
+    ADD COLUMN IF NOT EXISTS idempotency_key character varying(160),
+    ADD COLUMN IF NOT EXISTS idempotency_fingerprint character varying(64);
+
+DROP INDEX IF EXISTS public.idx_customer_ledger_payments_receipt_unique;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_ledger_payments_receipt_unique
+    ON public.customer_ledger_payments
+    USING btree (ledger_id, lower(TRIM(BOTH FROM receipt_number)))
+    WHERE receipt_number IS NOT NULL AND TRIM(BOTH FROM receipt_number) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_booking_idempotency
+    ON public.payments
+    USING btree (booking_id, idempotency_key)
+    WHERE idempotency_key IS NOT NULL AND TRIM(BOTH FROM idempotency_key) <> '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ledger_payments_ledger_idempotency
+    ON public.customer_ledger_payments
+    USING btree (ledger_id, idempotency_key)
+    WHERE idempotency_key IS NOT NULL AND TRIM(BOTH FROM idempotency_key) <> '';
+SQL
+```
+
+Verify with read-only catalog queries:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+SELECT table_name, column_name, data_type, character_maximum_length, is_nullable
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('payments', 'customer_ledger_payments')
+  AND column_name IN ('idempotency_key', 'idempotency_fingerprint')
+ORDER BY table_name, column_name;
+
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND indexname IN (
+      'idx_customer_ledger_payments_receipt_unique',
+      'uq_payments_booking_idempotency',
+      'uq_ledger_payments_ledger_idempotency'
+  )
+ORDER BY indexname;
+SQL
+```
+
 ### Administrator password
 
 The bootstrap seed deliberately does not install a shared usable password.
