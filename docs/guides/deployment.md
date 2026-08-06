@@ -330,8 +330,17 @@ second migration file. The receipt index is deliberately rebuilt with
 ledger-scoped uniqueness so one company receipt can span several ledgers but
 cannot be reused on the same ledger.
 
+The block runs inside one transaction, matching the desktop launcher's V1
+compatibility step. That is load-bearing rather than tidiness: the receipt
+index is DROPped before its ledger-scoped replacement is created, so without a
+surrounding transaction any failure in between commits the drop and leaves the
+database with no receipt-uniqueness protection at all — silently, while the
+operator sees only the error from the statement that failed.
+
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+BEGIN;
+
 ALTER TABLE public.payments
     ADD COLUMN IF NOT EXISTS idempotency_key character varying(160),
     ADD COLUMN IF NOT EXISTS idempotency_fingerprint character varying(64);
@@ -356,6 +365,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ledger_payments_ledger_idempotency
     ON public.customer_ledger_payments
     USING btree (ledger_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL AND TRIM(BOTH FROM idempotency_key) <> '';
+
+COMMIT;
 SQL
 ```
 
