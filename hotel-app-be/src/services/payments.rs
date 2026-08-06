@@ -754,8 +754,8 @@ pub fn guest_payment_config() -> GuestPaymentConfig {
 /// Guard: a guest may only initiate payment while the booking is still awaiting
 /// it (`status = 'pending_payment'`). Anything else (already confirmed/checked-in,
 /// cancelled, voided) is a no-op the caller should reject.
-fn ensure_booking_awaiting_payment(booking: &Booking) -> Result<(), ApiError> {
-    if matches!(booking.status.as_str(), "pending" | "pending_payment") {
+fn ensure_booking_awaiting_payment(status: &str) -> Result<(), ApiError> {
+    if matches!(status, "pending" | "pending_payment") {
         Ok(())
     } else {
         Err(ApiError::BadRequest(
@@ -767,8 +767,11 @@ fn ensure_booking_awaiting_payment(booking: &Booking) -> Result<(), ApiError> {
 /// Guard: reject a new guest payment attempt when the booking already has a
 /// `booking`-type payment that is pending, processing, or completed. Prevents
 /// duplicate claims / orders (and the resulting double approval) for one booking.
-async fn ensure_no_active_booking_payment(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
-    if PaymentRepository::has_active_or_completed_booking_payment(pool, booking_id).await? {
+async fn ensure_no_active_booking_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    if PaymentRepository::has_active_or_completed_booking_payment_tx(tx, booking_id).await? {
         return Err(ApiError::Conflict(
             "A payment for this booking is already pending or completed.".to_string(),
         ));
@@ -782,11 +785,13 @@ pub async fn create_bank_transfer_claim(
     pool: &DbPool,
     booking: &Booking,
 ) -> Result<PaymentActionResponse, ApiError> {
-    ensure_booking_awaiting_payment(booking)?;
-    ensure_no_active_booking_payment(pool, booking.id).await?;
-
     let currency = booking_currency(booking);
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking.id).await?;
+    let status = PaymentRepository::booking_status_for_payment_tx(&mut tx, booking.id).await?;
+    ensure_booking_awaiting_payment(&status)?;
+    ensure_no_active_booking_payment_tx(&mut tx, booking.id).await?;
+
     let payment_id = PaymentRepository::insert_pending_payment_tx(
         &mut tx,
         PendingPaymentValues {
@@ -852,11 +857,13 @@ pub async fn create_paypal_order(
     pool: &DbPool,
     booking: &Booking,
 ) -> Result<PaypalCreateOrderResponse, ApiError> {
-    ensure_booking_awaiting_payment(booking)?;
-    ensure_no_active_booking_payment(pool, booking.id).await?;
-
     let currency = booking_currency(booking);
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking.id).await?;
+    let status = PaymentRepository::booking_status_for_payment_tx(&mut tx, booking.id).await?;
+    ensure_booking_awaiting_payment(&status)?;
+    ensure_no_active_booking_payment_tx(&mut tx, booking.id).await?;
+
     let payment_id = PaymentRepository::insert_pending_payment_tx(
         &mut tx,
         PendingPaymentValues {
@@ -1599,6 +1606,7 @@ async fn complete_and_confirm(
     audit_action: &str,
 ) -> Result<PaymentActionResponse, ApiError> {
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
 
     // Defense in depth: even if a race slipped a second claim past the
     // pre-insert guard, never complete a payment when the booking already has a

@@ -395,6 +395,45 @@ async fn remove_payment_insert_delay(pool: &PgPool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+async fn install_payment_completion_delay(pool: &PgPool) {
+    remove_payment_completion_delay(pool).await.unwrap();
+    sqlx::query(
+        r#"
+        CREATE FUNCTION payment_characterization_delay_completion()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            PERFORM pg_sleep(0.25);
+            RETURN NEW;
+        END;
+        $$
+        "#,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER payment_characterization_delay_completion \
+         BEFORE UPDATE OF status ON payments FOR EACH ROW \
+         WHEN (OLD.status IN ('pending', 'processing') AND NEW.status = 'completed') \
+         EXECUTE FUNCTION payment_characterization_delay_completion()",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn remove_payment_completion_delay(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query("DROP TRIGGER IF EXISTS payment_characterization_delay_completion ON payments")
+        .execute(pool)
+        .await?;
+    sqlx::query("DROP FUNCTION IF EXISTS payment_characterization_delay_completion()")
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 /// Deletes a set of fixtures seeded by `seed_booking`/`ensure_admin_actor`.
 /// `payments`/`booking_history`/`payment_receipt_requests` cascade-delete
 /// when their booking is deleted; `room_status_change_log` does NOT (FK on
@@ -764,6 +803,246 @@ async fn concurrent_full_booking_payments_record_only_one_row() {
     );
     assert_eq!(payment_count, 1, "only one payment row may be committed");
     assert_eq!(payment_total, d("300.00"));
+}
+
+/// Guest claims must serialize on the booking row. Removing either the lock or
+/// the status re-read lets both requests pass their initial reads while the
+/// insert trigger holds them, producing two active claims for one booking.
+#[tokio::test]
+async fn concurrent_bank_transfer_claims_create_at_most_one_active_payment() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_600, 940_601, 940_602, 940_603, 940_604);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "pending_payment",
+            check_in: "2031-06-22",
+            check_out: "2031-06-23",
+            base_price: d("300.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    let booking = BookingRepository::find_by_id(&pool, booking_id)
+        .await
+        .unwrap()
+        .expect("the guest-payment booking must exist");
+    install_payment_insert_delay(&pool).await;
+
+    let barrier = Arc::new(Barrier::new(2));
+    let first_pool = pool.clone();
+    let first_barrier = barrier.clone();
+    let first_booking = booking.clone();
+    let first = async move {
+        first_barrier.wait().await;
+        payments::create_bank_transfer_claim(&first_pool, &first_booking).await
+    };
+    let second_pool = pool.clone();
+    let second_barrier = barrier.clone();
+    let second = async move {
+        second_barrier.wait().await;
+        payments::create_bank_transfer_claim(&second_pool, &booking).await
+    };
+    let (first, second) = tokio::join!(first, second);
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments \
+         WHERE booking_id = $1 AND status IN ('pending', 'processing', 'completed')",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let payment_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    let trigger_cleanup = remove_payment_insert_delay(&pool).await;
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    trigger_cleanup.expect("the test-only payment insert trigger must be removed");
+
+    let successes = [first.as_ref(), second.as_ref()]
+        .into_iter()
+        .filter(|result| result.is_ok())
+        .count();
+    assert_eq!(
+        successes, 1,
+        "exactly one claim may succeed: first={first:?}, second={second:?}"
+    );
+    assert!(
+        [first, second]
+            .into_iter()
+            .any(|result| matches!(result, Err(ApiError::BadRequest(_)))),
+        "the request that acquires the booking lock after the winner must reject its stale awaiting-payment state"
+    );
+    assert_eq!(active_count, 1, "only one active guest claim may remain");
+    assert_eq!(
+        payment_count, 1,
+        "the losing claim transaction must roll back its row"
+    );
+}
+
+/// Legacy pending rows can exist from before guest initiation was serialized.
+/// Removing the booking lock before the completed-payment check lets both
+/// approvals observe no sibling completion and commit independently.
+#[tokio::test]
+async fn concurrent_legacy_payment_approvals_complete_at_most_one_payment() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_610, 940_611, 940_612, 940_613, 940_614);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "pending_payment",
+            check_in: "2031-06-24",
+            check_out: "2031-06-25",
+            base_price: d("300.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    let first_payment = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("300.00"),
+        actor_id,
+    )
+    .await;
+    let second_payment = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("300.00"),
+        actor_id,
+    )
+    .await;
+    install_payment_completion_delay(&pool).await;
+
+    let barrier = Arc::new(Barrier::new(2));
+    let first_pool = pool.clone();
+    let first_barrier = barrier.clone();
+    let first = async move {
+        first_barrier.wait().await;
+        payments::approve_payment(&first_pool, actor_id, first_payment).await
+    };
+    let second_pool = pool.clone();
+    let second_barrier = barrier.clone();
+    let second = async move {
+        second_barrier.wait().await;
+        payments::approve_payment(&second_pool, actor_id, second_payment).await
+    };
+    let (first, second) = tokio::join!(first, second);
+    let completed_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments WHERE booking_id = $1 AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let pending_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments WHERE booking_id = $1 AND status = 'pending'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let approval_audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM audit_logs \
+         WHERE action = 'payment_approved' AND resource_type = 'payment' \
+           AND (details->>'booking_id')::bigint = $1",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let trigger_cleanup = remove_payment_completion_delay(&pool).await;
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    trigger_cleanup.expect("the test-only payment completion trigger must be removed");
+
+    let successes = [first.as_ref(), second.as_ref()]
+        .into_iter()
+        .filter(|result| result.is_ok())
+        .count();
+    assert_eq!(
+        successes, 1,
+        "exactly one approval may succeed: first={first:?}, second={second:?}"
+    );
+    assert!(
+        [first, second]
+            .into_iter()
+            .any(|result| matches!(result, Err(ApiError::Conflict(_)))),
+        "the approval that sees the completed sibling under the booking lock must conflict"
+    );
+    assert_eq!(completed_count, 1, "only one legacy payment may complete");
+    assert_eq!(
+        pending_count, 1,
+        "the losing approval must roll back before changing its row"
+    );
+    assert_eq!(
+        approval_audit_count, 1,
+        "the losing approval must roll back its audit event"
+    );
 }
 
 /// Replaying the same normalized key and canonical payload must return the

@@ -117,6 +117,23 @@ impl PaymentRepository {
         Ok(())
     }
 
+    /// Read the current booking status after `lock_booking_for_payment_tx` has
+    /// serialized payment work for this booking.
+    pub async fn booking_status_for_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<String, ApiError> {
+        sqlx::query_scalar(&format!(
+            "SELECT status FROM bookings WHERE id = {}",
+            crate::param!(1)
+        ))
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))
+    }
+
     pub async fn find_idempotent_payment_tx(
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
@@ -734,21 +751,24 @@ impl PaymentRepository {
     /// payment attempts (a second bank-transfer claim / PayPal order) before a
     /// new pending row is inserted, so staff cannot approve two full-amount
     /// payments for one booking.
-    pub async fn has_active_or_completed_booking_payment(
-        pool: &DbPool,
+    pub async fn has_active_or_completed_booking_payment_tx(
+        tx: &mut DbTransaction<'_>,
         booking_id: i64,
     ) -> Result<bool, ApiError> {
-        let sql = r#"
+        let sql = format!(
+            r#"
                 SELECT EXISTS(
                     SELECT 1 FROM payments
-                    WHERE booking_id = $1
+                    WHERE booking_id = {}
                       AND payment_type = 'booking'
                       AND status IN ('pending', 'processing', 'completed')
                 )
-            "#;
-        sqlx::query_scalar::<_, bool>(sql)
+            "#,
+            crate::param!(1)
+        );
+        sqlx::query_scalar::<_, bool>(&sql)
             .bind(booking_id)
-            .fetch_one(pool)
+            .fetch_one(&mut **tx)
             .await
             .map_err(ApiError::from)
     }
