@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -46,6 +46,7 @@ import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -133,6 +134,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [paymentNotes, setPaymentNotes] = useState('');
   const [paymentDate, setPaymentDate] = useState(formatLocalDate());
   const [recordingPayment, setRecordingPayment] = useState(false);
+  const paymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
 
   // Payment editing state
   const [editingPayment, setEditingPayment] = useState<CheckoutPaymentRecord | null>(null);
@@ -219,28 +221,48 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   const handleRecordPayment = async () => {
     if (!booking || !isPositiveMoney(paymentAmount)) return;
+    const amount = toMoneyNumber(paymentAmount);
+    const paymentReferenceValue = paymentReference || undefined;
+    const notes = paymentNotes || undefined;
+    const paymentDateValue = paymentDate || undefined;
+    const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
+      kind: isLedgerView ? 'ledger-payment' : 'booking-payment',
+      id: isLedgerView ? ledger?.id : Number(booking.id),
+      amount: amount.toFixed(2),
+      payment_method: paymentMethod,
+      payment_type: undefined,
+      payment_reference: paymentReferenceValue,
+      receipt_number: undefined,
+      notes,
+      payment_date: paymentDateValue,
+    }));
+    paymentAttemptRef.current = attempt;
     try {
       setRecordingPayment(true);
       if (isLedgerView && ledger) {
         // City-ledger invoice: post against the customer ledger, not the booking.
         await LedgerService.createLedgerPayment(ledger.id, {
-          payment_amount: paymentAmount,
+          payment_amount: amount,
           payment_method: paymentMethod,
-          payment_reference: paymentReference || undefined,
-          notes: paymentNotes || undefined,
-          payment_date: paymentDate || undefined,
+          payment_reference: paymentReferenceValue,
+          notes,
+          payment_date: paymentDateValue,
+          idempotency_key: attempt.key,
         });
+        paymentAttemptRef.current = null;
         await reloadPayments();
         onLedgerPaymentsChanged?.();
       } else {
         const newPayment = await InvoicesService.recordPayment({
           booking_id: Number(booking.id),
-          amount: paymentAmount,
+          amount,
           payment_method: paymentMethod,
-          transaction_reference: paymentReference || undefined,
-          notes: paymentNotes || undefined,
-          payment_date: paymentDate || undefined,
+          transaction_reference: paymentReferenceValue,
+          notes,
+          payment_date: paymentDateValue,
+          idempotency_key: attempt.key,
         });
+        paymentAttemptRef.current = null;
         setPayments(prev => [...prev, newPayment]);
         invalidateInvoiceState();
       }

@@ -65,3 +65,29 @@ describe('InvoicesService.revertDepositRefund', () => {
     });
   });
 });
+
+describe('InvoicesService.recordPayment', () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  it('forwards the caller-owned idempotency key unchanged', async () => {
+    const input = {
+      booking_id: 42,
+      amount: 125,
+      payment_method: 'cash',
+      payment_type: 'booking',
+      transaction_reference: 'terminal-42',
+      notes: 'Paid at desk',
+      payment_date: '2026-08-06',
+      idempotency_key: 'booking-payment-attempt-1',
+    };
+    post.mockReturnValue({ json: () => Promise.resolve({ id: 7, ...input }) });
+
+    await InvoicesService.recordPayment(input);
+
+    expect(post).toHaveBeenCalledWith('payments/record-payment', {
+      json: input,
+    });
+  });
+});

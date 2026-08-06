@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -91,7 +91,8 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { useSearchParams } from '../../../../router';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../../utils/date';
-import { compareMoney, isGreaterMoney, isPositiveMoney, minMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
+import { compareMoney, isGreaterMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
+import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../../utils/idempotency';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
@@ -185,8 +186,10 @@ const CustomerLedgerPage: React.FC = () => {
     payment_amount: 0,
     payment_method: 'cash',
     payment_date: formatLocalDate(),
+    idempotency_key: '',
   });
   const [processingPayment, setProcessingPayment] = useState(false);
+  const ledgerPaymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
 
   // Company autocomplete state
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
@@ -301,6 +304,7 @@ const CustomerLedgerPage: React.FC = () => {
   const [paymentCompanyLedgers, setPaymentCompanyLedgers] = useState<CustomerLedger[]>([]);
   const [selectedLedgersForPayment, setSelectedLedgersForPayment] = useState<CustomerLedger[]>([]);
   const [processingCompanyPayment, setProcessingCompanyPayment] = useState(false);
+  const companyPaymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
   const [companyPaymentForm, setCompanyPaymentForm] = useState({
     payment_amount: '',
     payment_method: 'bank_transfer',
@@ -961,25 +965,22 @@ const CustomerLedgerPage: React.FC = () => {
 
     try {
       setProcessingCompanyPayment(true);
-
-      // Distribute payment across selected ledgers in order
-      let remaining = paymentAmount;
-      for (const ledger of selectedLedgersForPayment) {
-        if (!isPositiveMoney(remaining)) break;
-        const balance = getLedgerBalanceDue(ledger);
-        const allocate = minMoney(remaining, balance);
-        if (!isPositiveMoney(allocate)) continue;
-
-        await LedgerService.createLedgerPayment(ledger.id, {
-          payment_amount: allocate,
-          payment_method: companyPaymentForm.payment_method,
-          payment_reference: companyPaymentForm.payment_reference || undefined,
-          receipt_number: companyPaymentForm.receipt_number || undefined,
-          notes: companyPaymentForm.notes || undefined,
-          payment_date: companyPaymentForm.payment_date || undefined,
-        });
-        remaining = subtractMoney(remaining, allocate);
-      }
+      const request = {
+        ledger_ids: selectedLedgersForPayment.map((ledger) => ledger.id),
+        payment_amount: paymentAmount,
+        payment_method: companyPaymentForm.payment_method,
+        payment_reference: companyPaymentForm.payment_reference || undefined,
+        receipt_number: companyPaymentForm.receipt_number || undefined,
+        notes: companyPaymentForm.notes || undefined,
+        payment_date: companyPaymentForm.payment_date || undefined,
+      };
+      const attempt = getIdempotencyAttempt(companyPaymentAttemptRef.current, JSON.stringify({
+        ...request,
+        payment_amount: paymentAmount.toFixed(2),
+      }));
+      companyPaymentAttemptRef.current = attempt;
+      await LedgerService.createCompanyLedgerPayment({ ...request, idempotency_key: attempt.key });
+      companyPaymentAttemptRef.current = null;
 
       // Re-fetch the entries we just paid against to see what's still owed.
       const refreshed = await Promise.all(
@@ -1324,6 +1325,7 @@ const CustomerLedgerPage: React.FC = () => {
       payment_amount: getLedgerBalanceDue(ledger),
       payment_method: 'cash',
       payment_date: formatLocalDate(),
+      idempotency_key: '',
     });
     setPaymentTab(0);
     setPaymentDialogOpen(true);
@@ -1358,9 +1360,25 @@ const CustomerLedgerPage: React.FC = () => {
       }
     }
 
+    const attempt = getIdempotencyAttempt(ledgerPaymentAttemptRef.current, JSON.stringify({
+      ledger_id: paymentLedger.id,
+      payment_amount: toMoneyNumber(paymentFormData.payment_amount).toFixed(2),
+      payment_method: paymentFormData.payment_method,
+      payment_reference: paymentFormData.payment_reference || undefined,
+      receipt_number: paymentFormData.receipt_number || undefined,
+      receipt_file_url: paymentFormData.receipt_file_url || undefined,
+      notes: paymentFormData.notes || undefined,
+      payment_date: paymentFormData.payment_date || undefined,
+    }));
+    ledgerPaymentAttemptRef.current = attempt;
+
     try {
       setProcessingPayment(true);
-      await LedgerService.createLedgerPayment(paymentLedger.id, paymentFormData);
+      await LedgerService.createLedgerPayment(paymentLedger.id, {
+        ...paymentFormData,
+        idempotency_key: attempt.key,
+      });
+      ledgerPaymentAttemptRef.current = null;
 
       // Re-fetch the ledger + history so the dialog reflects the new balance.
       const [updatedLedger, payments] = await Promise.all([
@@ -1385,6 +1403,7 @@ const CustomerLedgerPage: React.FC = () => {
           payment_amount: remainingBalance,
           payment_method: paymentFormData.payment_method,
           payment_date: formatLocalDate(),
+          idempotency_key: '',
         });
       }
     } catch (err) {

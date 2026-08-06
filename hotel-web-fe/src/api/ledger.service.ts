@@ -5,6 +5,8 @@ import {
   CustomerLedgerUpdateRequest,
   CustomerLedgerPayment,
   CustomerLedgerPaymentRequest,
+  CompanyLedgerPaymentRequest,
+  CompanyLedgerPaymentResponse,
   CustomerLedgerWithPayments,
   CustomerLedgerSummary,
   LedgerVoidRequest,
@@ -171,6 +173,12 @@ export class LedgerService {
 
   static async createLedgerPayment(ledgerId: number, data: CustomerLedgerPaymentRequest): Promise<CustomerLedgerPayment> {
     return await api.post(`ledgers/${ledgerId}/payments`, { json: data }).json<CustomerLedgerPayment>();
+  }
+
+  static async createCompanyLedgerPayment(
+    request: CompanyLedgerPaymentRequest,
+  ): Promise<CompanyLedgerPaymentResponse> {
+    return await api.post('ledgers/company-payments', { json: request }).json<CompanyLedgerPaymentResponse>();
   }
 
   static async updateLedgerPaymentDate(ledgerId: number, paymentId: number, paymentDate: string): Promise<CustomerLedgerPayment> {

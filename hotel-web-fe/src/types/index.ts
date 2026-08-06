@@ -239,6 +239,8 @@ export type {
   CustomerLedgerUpdateRequest,
   CustomerLedgerPayment,
   CustomerLedgerPaymentRequest,
+  CompanyLedgerPaymentRequest,
+  CompanyLedgerPaymentResponse,
   CustomerLedgerWithPayments,
   CustomerLedgerSummary,
   LedgerVoidRequest,

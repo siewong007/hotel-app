@@ -274,7 +274,7 @@ describe('LedgerService', () => {
 
   describe('createLedgerPayment', () => {
     it('posts the payment input as json to ledgers/<id>/payments', async () => {
-      const input = { payment_amount: 50, payment_method: 'cash' };
+      const input = { payment_amount: 50, payment_method: 'cash', idempotency_key: 'ledger-payment-attempt-1' };
       const created = { id: 1, ledger_id: 9, payment_amount: 50, payment_method: 'cash', payment_date: '2026-07-01', created_at: '2026-07-01T00:00:00Z' };
       post.mockReturnValue(mockJsonResponse(created));
 
@@ -282,6 +282,29 @@ describe('LedgerService', () => {
 
       expect(post).toHaveBeenCalledWith('ledgers/9/payments', { json: input });
       expect(result).toEqual(created);
+    });
+  });
+
+  describe('createCompanyLedgerPayment', () => {
+    it('posts one ordered atomic company payment request', async () => {
+      const input = {
+        ledger_ids: [12, 9],
+        payment_amount: 125,
+        payment_method: 'bank_transfer',
+        payment_reference: 'bank-77',
+        receipt_number: 'receipt-77',
+        notes: 'August settlement',
+        payment_date: '2026-08-06',
+        idempotency_key: 'company-payment-attempt-1',
+      };
+      const response = { payments: [], payment_amount: 125 };
+      post.mockReturnValue(mockJsonResponse(response));
+
+      const result = await LedgerService.createCompanyLedgerPayment(input);
+
+      expect(post).toHaveBeenCalledTimes(1);
+      expect(post).toHaveBeenCalledWith('ledgers/company-payments', { json: input });
+      expect(result).toEqual(response);
     });
   });
 

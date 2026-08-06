@@ -43,6 +43,7 @@ import {
 import { format } from 'date-fns';
 import { BookingsService, CompaniesService, LedgerService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
+import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 import {
   Booking,
   Guest,
@@ -196,6 +197,7 @@ export default function EnhancedCheckInModal({
   const initializedRef = useRef<{ bookingId: string | null; guestId: number | null }>({ bookingId: null, guestId: null });
   // Track previous open state to detect true open/close transitions
   const wasOpenRef = useRef(false);
+  const paymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
 
   // Guest data state
   const [guestData, setGuestData] = useState<GuestUpdateRequest>({});
@@ -609,13 +611,26 @@ export default function EnhancedCheckInModal({
       // above via payment_record, so skip the duplicate posting here).
       if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid) && !collectingOnlineAtDesk) {
         try {
+          const paymentAmount = toMoneyNumber(amountPaid);
+          const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
+            booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
+            amount: paymentAmount.toFixed(2),
+            payment_method: paymentType,
+            payment_type: 'room_charge',
+            transaction_reference: undefined,
+            notes: 'Payment collected at check-in',
+            payment_date: undefined,
+          }));
+          paymentAttemptRef.current = attempt;
           await InvoicesService.recordPayment({
             booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
-            amount: toMoneyNumber(amountPaid),
+            amount: paymentAmount,
             payment_method: paymentType,
             payment_type: 'room_charge',
             notes: 'Payment collected at check-in',
+            idempotency_key: attempt.key,
           });
+          paymentAttemptRef.current = null;
         } catch (payErr) {
           console.error('Failed to record check-in payment:', payErr);
         }
