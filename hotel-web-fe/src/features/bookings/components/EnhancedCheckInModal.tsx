@@ -198,6 +198,7 @@ export default function EnhancedCheckInModal({
   // Track previous open state to detect true open/close transitions
   const wasOpenRef = useRef(false);
   const paymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
+  const [checkedInBookingPendingPayment, setCheckedInBookingPendingPayment] = useState<string | number | null>(null);
 
   // Guest data state
   const [guestData, setGuestData] = useState<GuestUpdateRequest>({});
@@ -513,8 +514,67 @@ export default function EnhancedCheckInModal({
     setBookingData(prev => ({ ...prev, [field]: value }));
   };
 
+  const recordCheckInPayment = async () => {
+    if (!booking) return;
+    const paymentAmount = toMoneyNumber(amountPaid);
+    const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
+      booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
+      amount: paymentAmount.toFixed(2),
+      payment_method: paymentType,
+      payment_type: 'room_charge',
+      transaction_reference: undefined,
+      notes: 'Payment collected at check-in',
+      payment_date: undefined,
+    }));
+    paymentAttemptRef.current = attempt;
+    await InvoicesService.recordPayment({
+      booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
+      amount: paymentAmount,
+      payment_method: paymentType,
+      payment_type: 'room_charge',
+      notes: 'Payment collected at check-in',
+      idempotency_key: attempt.key,
+    });
+    paymentAttemptRef.current = null;
+  };
+
+  const finishCheckIn = () => {
+    if (!guestData.phone?.trim() && !guestData.alt_phone?.trim()) {
+      emitApiNotification({
+        message: 'No phone number on file for this guest — please ask for a contact number when convenient.',
+        severity: 'info',
+      });
+    }
+
+    onCheckInSuccess();
+    onClose();
+  };
+
   const handleCheckIn = async () => {
     if (!booking) return;
+
+    if (checkedInBookingPendingPayment === booking.id) {
+      if (!isPositiveMoney(amountPaid)) {
+        setError('Check-in is complete. Enter a valid payment amount to retry recording it.');
+        setActiveTab(2);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        await recordCheckInPayment();
+        setCheckedInBookingPendingPayment(null);
+        finishCheckIn();
+      } catch (payErr: any) {
+        console.error('Failed to record check-in payment:', payErr);
+        setError('Guest is checked in, but payment could not be recorded. Please retry.');
+        setActiveTab(2);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
 
     // Validate all fields
     const errors = validateForm();
@@ -611,28 +671,13 @@ export default function EnhancedCheckInModal({
       // above via payment_record, so skip the duplicate posting here).
       if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid) && !collectingOnlineAtDesk) {
         try {
-          const paymentAmount = toMoneyNumber(amountPaid);
-          const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
-            booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
-            amount: paymentAmount.toFixed(2),
-            payment_method: paymentType,
-            payment_type: 'room_charge',
-            transaction_reference: undefined,
-            notes: 'Payment collected at check-in',
-            payment_date: undefined,
-          }));
-          paymentAttemptRef.current = attempt;
-          await InvoicesService.recordPayment({
-            booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
-            amount: paymentAmount,
-            payment_method: paymentType,
-            payment_type: 'room_charge',
-            notes: 'Payment collected at check-in',
-            idempotency_key: attempt.key,
-          });
-          paymentAttemptRef.current = null;
-        } catch (payErr) {
+          await recordCheckInPayment();
+        } catch (payErr: any) {
           console.error('Failed to record check-in payment:', payErr);
+          setCheckedInBookingPendingPayment(booking.id);
+          setError('Guest is checked in, but payment could not be recorded. Please retry.');
+          setActiveTab(2);
+          return;
         }
       }
 
@@ -641,17 +686,7 @@ export default function EnhancedCheckInModal({
       // postings or race conditions. Leave any admin-ledger creation to the
       // dedicated ledger UI.
 
-      // Non-blocking reminder: online bookings often arrive without a contact
-      // number. Prompt staff to collect one (does not force / block check-in).
-      if (!guestData.phone?.trim() && !guestData.alt_phone?.trim()) {
-        emitApiNotification({
-          message: 'No phone number on file for this guest — please ask for a contact number when convenient.',
-          severity: 'info',
-        });
-      }
-
-      onCheckInSuccess();
-      onClose();
+      finishCheckIn();
     } catch (err: any) {
       setError(err.message || 'Failed to check in guest');
     } finally {

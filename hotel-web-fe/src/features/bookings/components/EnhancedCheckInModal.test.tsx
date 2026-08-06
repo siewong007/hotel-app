@@ -97,13 +97,15 @@ describe('EnhancedCheckInModal payment idempotency', () => {
     vi.restoreAllMocks();
   });
 
-  it('reuses a failed check-in payment key, rotates it after an amount edit, and clears it after success', async () => {
+  it('retries only the payment after check-in, reuses its key, and rotates it after an amount edit', async () => {
     const timeout = new Error('timeout');
+    mocks.checkInGuest
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('already checked in'));
     mocks.recordPayment
       .mockRejectedValueOnce(timeout)
       .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce({ id: 1 })
-      .mockResolvedValueOnce({ id: 2 });
+      .mockResolvedValueOnce({ id: 1 });
 
     render(
       <EnhancedCheckInModal
@@ -122,6 +124,7 @@ describe('EnhancedCheckInModal payment idempotency', () => {
     await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
     await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
+    expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
     const firstRequest = mocks.recordPayment.mock.calls[0][0];
     expect(mocks.recordPayment.mock.calls[1][0].idempotency_key).toBe(firstRequest.idempotency_key);
 
@@ -131,10 +134,8 @@ describe('EnhancedCheckInModal payment idempotency', () => {
     await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(3));
     const changedRequest = mocks.recordPayment.mock.calls[2][0];
     expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(4));
-    expect(mocks.recordPayment.mock.calls[3][0].idempotency_key)
-      .not.toBe(changedRequest.idempotency_key);
+    expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
+    expect(mocks.onCheckInSuccess).toHaveBeenCalledTimes(1);
+    expect(mocks.onClose).toHaveBeenCalledTimes(1);
   });
 });
