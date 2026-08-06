@@ -19,6 +19,7 @@ pub struct PaymentRequest {
     pub bank_name: Option<String>,
     pub account_reference: Option<String>,
     pub notes: Option<String>,
+    #[serde(default)]
     pub idempotency_key: String,
 }
 
@@ -347,6 +348,7 @@ pub struct RecordPaymentRequest {
     pub notes: Option<String>,
     /// Payment date override (YYYY-MM-DD). Sets created_at to this date.
     pub payment_date: Option<String>,
+    #[serde(default)]
     pub idempotency_key: String,
 }
 

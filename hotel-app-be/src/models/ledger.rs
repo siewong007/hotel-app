@@ -214,6 +214,7 @@ pub struct CustomerLedgerPaymentRequest {
     pub receipt_file_url: Option<String>,
     pub notes: Option<String>,
     pub payment_date: Option<String>,
+    #[serde(default)]
     pub idempotency_key: String,
 }
 
@@ -227,6 +228,7 @@ pub struct CompanyLedgerPaymentRequest {
     pub receipt_number: Option<String>,
     pub notes: Option<String>,
     pub payment_date: Option<String>,
+    #[serde(default)]
     pub idempotency_key: String,
 }
 
