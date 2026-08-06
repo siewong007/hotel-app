@@ -271,12 +271,18 @@ sorted numeric order, validate one company and payable status, then allocate:
 
 ```rust
 let allocation = remaining.min(outstanding);
-let derived_key = format!("{}:{}", request.idempotency_key.trim(), ledger_id);
 let fingerprint = canonical_company_payment_fingerprint(&request);
 ```
 
-Reject any residual amount after all selected balances. Commit only after every
-insert/update succeeds.
+Store every resulting allocation under
+`batch:v1:<sha256(normalized raw batch key)>`, not `${batchKey}:${ledgerId}`.
+The former is 73 characters and therefore fits `VARCHAR(160)`. Before replay
+or allocation, take a PostgreSQL transaction advisory lock for that stored key
+and globally preflight every payment row that carries it; use the shared
+canonical complete-request fingerprint to return an exact replay or reject a
+conflict. This detects a reused key with completely disjoint ledger membership,
+which a ledger-scoped derived key cannot discover. Reject any residual amount
+after all selected balances. Commit only after every insert/update succeeds.
 
 - [ ] **Step 6: Wire route, handler, service, and audits**
 

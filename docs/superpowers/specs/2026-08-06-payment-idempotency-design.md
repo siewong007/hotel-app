@@ -99,12 +99,16 @@ Add one ledger-domain endpoint accepting:
 The backend rejects duplicate ledger IDs, loads and locks all selected ledger
 rows in sorted ID order to avoid deadlocks, verifies that they belong to the
 same company and are payable, and allocates the supplied total in the caller's
-original ledger order up to each outstanding balance. Every allocation uses a
-derived key consisting of the request key and ledger ID, and every allocation
-stores the same canonical fingerprint of the complete batch request. This
-detects reuse with changed membership, order, or payment data. All payment rows
-and parent ledger updates commit in one transaction. Any validation, insert, or
-update failure rolls everything back.
+original ledger order up to each outstanding balance. Every allocation stores
+the fixed-size key `batch:v1:<sha256(normalized raw batch key)>`; it is 73
+characters, so it fits `VARCHAR(160)`. The transaction first takes a
+PostgreSQL transaction advisory lock for that stored key, then globally
+preflights every allocation carrying it. Every persisted row must have the same
+canonical fingerprint of the complete ordered batch request. The preflight
+therefore catches a reused raw key even when its new ledger membership is
+completely disjoint, while the fingerprint detects changed membership, order,
+or payment data. All payment rows and parent ledger updates commit in one
+transaction. Any validation, insert, or update failure rolls everything back.
 
 An exact retry returns the previously created allocation rows. Reusing the
 batch key with different ledgers or payment data returns `409 Conflict`.
