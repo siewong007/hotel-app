@@ -578,6 +578,59 @@ describe('BookingsPage', () => {
         expect(icField.value).toBe('990101-01-1234');
       });
     });
+
+    // The Accept Payment dialog carries no date field, so the payments row is
+    // stamped with the server timestamp — recording a payment here dates it to
+    // the day the status is changed, not the day the guest handed over money.
+    // Staff must be told before they use this instead of the checkout invoice
+    // (the only path that sends an explicit payment_date).
+    it('the Accept Payment dialog warns that the payment is dated today', async () => {
+      renderPage();
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
+      fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
+
+      const notice = screen
+        .getAllByRole('alert')
+        .find(node => node.textContent?.includes('This payment will be dated'));
+
+      expect(notice).toBeDefined();
+      expect(notice?.textContent).toContain('not the day the guest actually paid');
+      expect(notice?.textContent).toContain('Record Payment');
+    });
+
+    // The date must resolve in the HOTEL timezone: the server stamps the row
+    // there, and formatHotelDate passes date-only strings straight through, so
+    // handing it a machine-local 'YYYY-MM-DD' would name the viewer's day.
+    //
+    // Pinned to an instant where the two genuinely disagree — a hotel in UTC+14
+    // has already rolled over to Aug 7 while every zone from UTC-11 to UTC+13
+    // is still on Aug 6. Without this the assertion proves nothing: the dev
+    // machine (Asia/Kuching) and the seeded hotel zone (Asia/Kuala_Lumpur) are
+    // both UTC+8, so a machine-local date renders identically.
+    it('dates the Accept Payment notice in the hotel timezone, not the viewer’s', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        vi.setSystemTime(new Date('2026-08-06T10:00:00Z'));
+        localStorage.setItem(
+          'hotelSettings',
+          JSON.stringify({ timezone: 'Pacific/Kiritimati' }),
+        );
+
+        renderPage();
+
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
+        fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
+
+        const notice = screen
+          .getAllByRole('alert')
+          .find(node => node.textContent?.includes('This payment will be dated'));
+
+        expect(notice?.textContent).toContain('today (Aug 7, 2026)');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe('permission gating', () => {

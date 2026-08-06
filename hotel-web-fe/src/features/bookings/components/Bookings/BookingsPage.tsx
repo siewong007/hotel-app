@@ -2612,9 +2612,14 @@ const BookingsPage: React.FC = () => {
               {/* This dialog has no date field, so the payments row is stamped
                   with the server timestamp — i.e. the moment the status is
                   flipped here. Back-dating is only possible from the checkout
-                  invoice screen, which does send an explicit payment_date. */}
+                  invoice screen, which does send an explicit payment_date.
+
+                  The instant (not `todayIso`) is what gets formatted: the server
+                  stamps the row in the hotel timezone, and formatHotelDate passes
+                  date-only strings through untouched, so feeding it a machine-local
+                  'YYYY-MM-DD' would name the viewer's day instead of the hotel's. */}
               <Alert severity="info">
-                This payment will be dated <strong>today ({formatHotelDate(todayIso)})</strong> — the day
+                This payment will be dated <strong>today ({formatHotelDate(new Date())})</strong> — the day
                 the payment status is changed here, not the day the guest actually paid. To record a
                 payment on an earlier date, use <strong>Record Payment</strong> in the checkout invoice
                 instead.
