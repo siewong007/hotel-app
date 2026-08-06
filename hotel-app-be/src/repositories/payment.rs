@@ -185,10 +185,10 @@ impl PaymentRepository {
         Ok(())
     }
 
-    pub async fn find_transaction_reference_payment_tx(
+    pub async fn list_transaction_reference_payments_tx(
         tx: &mut DbTransaction<'_>,
         transaction_reference: &str,
-    ) -> Result<Option<PaymentEntryRow>, ApiError> {
+    ) -> Result<Vec<PaymentEntryRow>, ApiError> {
         let sql = format!(
             r#"
             SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
@@ -196,13 +196,13 @@ impl PaymentRepository {
                    created_at::date::text AS payment_date, created_at, idempotency_fingerprint
             FROM payments
             WHERE transaction_id = {}
-            LIMIT 1
+            ORDER BY id
             "#,
             crate::param!(1)
         );
         sqlx::query_as::<_, PaymentEntryRow>(&sql)
             .bind(transaction_reference)
-            .fetch_optional(&mut **tx)
+            .fetch_all(&mut **tx)
             .await
             .map_err(ApiError::from)
     }
@@ -411,6 +411,50 @@ impl PaymentRepository {
             request.notes.as_deref(),
             None,
         );
+        if let Some(transaction_reference) = request
+            .transaction_reference
+            .as_deref()
+            .filter(|value| !value.is_empty())
+        {
+            Self::lock_transaction_references_tx(tx, &[transaction_reference]).await?;
+            let mut matches =
+                Self::list_transaction_reference_payments_tx(tx, transaction_reference).await?;
+            if matches.len() > 1 {
+                return Err(ApiError::Conflict(
+                    "Transaction reference has multiple existing payment owners".to_string(),
+                ));
+            }
+            if let Some(existing) = matches.pop() {
+                if existing.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+                    return Err(ApiError::Conflict(
+                        "Transaction reference was already used with different payment data"
+                            .to_string(),
+                    ));
+                }
+
+                let row = sqlx::query(&format!(
+                    "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
+                     transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at, \
+                     idempotency_key, idempotency_fingerprint \
+                     FROM payments WHERE id = {}",
+                    crate::param!(1)
+                ))
+                .bind(existing.id)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+                let mut payment = row_mappers::row_to_payment(&row);
+                payment.subtotal = summary.subtotal;
+                payment.service_charge = summary.service_charge;
+                payment.tax_amount = summary.tax_amount;
+                payment.keycard_deposit = summary.keycard_deposit;
+                return Ok(CompletedPayment {
+                    payment,
+                    was_inserted: false,
+                });
+            }
+        }
+
         if let Some(existing) =
             Self::find_idempotent_payment_tx(tx, request.booking_id, &request.idempotency_key)
                 .await?
@@ -442,45 +486,6 @@ impl PaymentRepository {
                 payment,
                 was_inserted: false,
             });
-        }
-
-        if let Some(transaction_reference) = request
-            .transaction_reference
-            .as_deref()
-            .filter(|value| !value.is_empty())
-        {
-            Self::lock_transaction_references_tx(tx, &[transaction_reference]).await?;
-            if let Some(existing) =
-                Self::find_transaction_reference_payment_tx(tx, transaction_reference).await?
-            {
-                if existing.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
-                    return Err(ApiError::Conflict(
-                        "Transaction reference was already used with different payment data"
-                            .to_string(),
-                    ));
-                }
-
-                let row = sqlx::query(&format!(
-                    "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
-                     transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at, \
-                     idempotency_key, idempotency_fingerprint \
-                     FROM payments WHERE id = {}",
-                    crate::param!(1)
-                ))
-                .bind(existing.id)
-                .fetch_one(&mut **tx)
-                .await
-                .map_err(ApiError::from)?;
-                let mut payment = row_mappers::row_to_payment(&row);
-                payment.subtotal = summary.subtotal;
-                payment.service_charge = summary.service_charge;
-                payment.tax_amount = summary.tax_amount;
-                payment.keycard_deposit = summary.keycard_deposit;
-                return Ok(CompletedPayment {
-                    payment,
-                    was_inserted: false,
-                });
-            }
         }
 
         // Reject a second completed payment for the booking. The real column is
@@ -1547,10 +1552,32 @@ impl PaymentRepository {
             .as_deref()
             .or(existing.transaction_reference.as_deref());
         let final_notes = request.notes.as_deref().or(existing.notes.as_deref());
-        let final_payment_date = request
-            .payment_date
-            .as_deref()
-            .or(existing.payment_date.as_deref());
+        let existing_fingerprint_without_requested_date = Self::canonical_payment_fingerprint(
+            booking_id,
+            Some(existing_amount),
+            &existing.payment_method,
+            existing.payment_type.as_deref().unwrap_or("booking"),
+            existing.transaction_reference.as_deref(),
+            existing.notes.as_deref(),
+            None,
+        );
+        let existing_fingerprint_with_requested_date = Self::canonical_payment_fingerprint(
+            booking_id,
+            Some(existing_amount),
+            &existing.payment_method,
+            existing.payment_type.as_deref().unwrap_or("booking"),
+            existing.transaction_reference.as_deref(),
+            existing.notes.as_deref(),
+            existing.payment_date.as_deref(),
+        );
+        let preserved_requested_date = match existing.idempotency_fingerprint.as_deref() {
+            Some(value) if value == existing_fingerprint_without_requested_date.as_str() => None,
+            Some(value) if value == existing_fingerprint_with_requested_date.as_str() => {
+                existing.payment_date.as_deref()
+            }
+            _ => None,
+        };
+        let final_payment_date = request.payment_date.as_deref().or(preserved_requested_date);
         let fingerprint = Self::canonical_payment_fingerprint(
             booking_id,
             Some(final_amount),

@@ -227,6 +227,33 @@ pub async fn record_payment(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
 
+    if let Some(transaction_reference) = request
+        .transaction_reference
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        PaymentRepository::lock_transaction_references_tx(&mut tx, &[transaction_reference])
+            .await?;
+        let mut matches = PaymentRepository::list_transaction_reference_payments_tx(
+            &mut tx,
+            transaction_reference,
+        )
+        .await?;
+        if matches.len() > 1 {
+            return Err(ApiError::Conflict(
+                "Transaction reference has multiple existing payment owners".to_string(),
+            ));
+        }
+        if let Some(existing) = matches.pop() {
+            if existing.idempotency_fingerprint.as_deref() == Some(fingerprint.as_str()) {
+                return Ok(existing.into_response());
+            }
+            return Err(ApiError::Conflict(
+                "Transaction reference was already used with different payment data".to_string(),
+            ));
+        }
+    }
+
     if let Some(existing) = PaymentRepository::find_idempotent_payment_tx(
         &mut tx,
         request.booking_id,
@@ -240,26 +267,6 @@ pub async fn record_payment(
         return Err(ApiError::Conflict(
             "Idempotency key was already used with different payment data".to_string(),
         ));
-    }
-
-    if let Some(transaction_reference) = request
-        .transaction_reference
-        .as_deref()
-        .filter(|value| !value.is_empty())
-    {
-        PaymentRepository::lock_transaction_references_tx(&mut tx, &[transaction_reference])
-            .await?;
-        if let Some(existing) =
-            PaymentRepository::find_transaction_reference_payment_tx(&mut tx, transaction_reference)
-                .await?
-        {
-            if existing.idempotency_fingerprint.as_deref() == Some(fingerprint.as_str()) {
-                return Ok(existing.into_response());
-            }
-            return Err(ApiError::Conflict(
-                "Transaction reference was already used with different payment data".to_string(),
-            ));
-        }
     }
 
     // Whether this payment settles the booking's outstanding balance in full —
