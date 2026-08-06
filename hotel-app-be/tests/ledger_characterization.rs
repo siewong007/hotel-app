@@ -362,6 +362,16 @@ mod postgres_tests {
         )
         .await
         .expect("second payment should succeed");
+        // Model two historical payments created before idempotency metadata existed.
+        sqlx::query(
+            "UPDATE customer_ledger_payments SET idempotency_key = NULL, \
+             idempotency_fingerprint = NULL WHERE id IN ($1, $2)",
+        )
+        .bind(payment1.id)
+        .bind(payment2.id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
         let before = ledgers::get_customer_ledger(&pool, ledger.id)
             .await
@@ -468,6 +478,16 @@ mod postgres_tests {
         )
         .await
         .expect("second payment should succeed");
+        // Model two historical payments created before idempotency metadata existed.
+        sqlx::query(
+            "UPDATE customer_ledger_payments SET idempotency_key = NULL, \
+             idempotency_fingerprint = NULL WHERE id IN ($1, $2)",
+        )
+        .bind(payment1.id)
+        .bind(payment2.id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
         let fully_paid = ledgers::get_customer_ledger(&pool, ledger.id)
             .await
@@ -1899,6 +1919,7 @@ mod postgres_tests {
         .expect("the partial batch must replay before reduced balances are recomputed");
         assert_eq!(replay.payments.len(), 1);
         assert_eq!(replay.payments[0].id, payment_id);
+        assert_eq!(replay.payment_amount, Decimal::new(20_000, 2));
         for changed in [
             company_payment_request(vec![first.id], 200.0, "lgr940-partial-batch"),
             company_payment_request(vec![second.id, first.id], 200.0, "lgr940-partial-batch"),
@@ -1909,7 +1930,441 @@ mod postgres_tests {
             ));
         }
 
+        let cents = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 partial exact cents", 500.0),
+        )
+        .await
+        .unwrap();
+        let cents_request =
+            || company_payment_request(vec![cents.id], 100.15, "lgr940-partial-exact-cents");
+        let cents_created =
+            ledgers::create_company_ledger_payment(&pool, actor_id, cents_request())
+                .await
+                .unwrap();
+        let cents_replay = ledgers::create_company_ledger_payment(&pool, actor_id, cents_request())
+            .await
+            .expect("a two-decimal company amount must replay exactly");
+        assert_eq!(cents_replay.payment_amount, Decimal::new(10_015, 2));
+        assert_eq!(cents_replay.payments[0].id, cents_created.payments[0].id);
+
         cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    #[tokio::test]
+    async fn postgres_idempotent_single_payment_is_immutable_but_legacy_unkeyed_payment_is_mutable()
+    {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_117;
+        let company_name = "Lgr940 Immutable Single Payment Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+        let ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 immutable single", 300.0),
+        )
+        .await
+        .unwrap();
+        let keyed = ledgers::create_ledger_payment(
+            &pool,
+            ledger.id,
+            actor_id,
+            payment_request(100.0, "LGR940-RCT-117-KEYED"),
+        )
+        .await
+        .unwrap();
+
+        let edit = ledgers::update_ledger_payment(
+            &pool,
+            ledger.id,
+            keyed.id,
+            actor_id,
+            UpdateLedgerPaymentRequest {
+                payment_date: "2032-04-01".to_string(),
+                payment_amount: Some(90.0),
+                payment_method: None,
+                payment_reference: None,
+                notes: Some("must not be applied".to_string()),
+            },
+        )
+        .await;
+        let malformed_edit = ledgers::update_ledger_payment(
+            &pool,
+            ledger.id,
+            keyed.id,
+            actor_id,
+            UpdateLedgerPaymentRequest {
+                payment_date: "not-a-date".to_string(),
+                payment_amount: None,
+                payment_method: None,
+                payment_reference: None,
+                notes: None,
+            },
+        )
+        .await;
+        let delete = ledgers::delete_ledger_payment(&pool, ledger.id, keyed.id, actor_id).await;
+        assert!(matches!(edit, Err(ApiError::Conflict(_))));
+        assert!(matches!(malformed_edit, Err(ApiError::Conflict(_))));
+        assert!(matches!(delete, Err(ApiError::Conflict(_))));
+        let after_keyed_attempts = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
+        assert_eq!(after_keyed_attempts.paid_amount, Decimal::new(10_000, 2));
+        assert_eq!(after_keyed_attempts.status, "partial");
+        let keyed_after = ledgers::get_ledger_payments(&pool, ledger.id)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|payment| payment.id == keyed.id)
+            .expect("the keyed payment must still exist");
+        assert_eq!(keyed_after.payment_amount, Decimal::new(10_000, 2));
+        assert_eq!(keyed_after.notes, None);
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_updated", ledger.id).await,
+            0
+        );
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_deleted", ledger.id).await,
+            0
+        );
+
+        // Historical rows with null or blank idempotency metadata remain mutable.
+        for (suffix, idempotency_key) in [
+            ("NULL", None),
+            ("EMPTY", Some("")),
+            ("WHITESPACE", Some("   ")),
+        ] {
+            let legacy_payment_id: i64 = sqlx::query_scalar(
+                "INSERT INTO customer_ledger_payments \
+                 (ledger_id, payment_amount, payment_method, payment_date, receipt_number, \
+                  processed_by, idempotency_key) \
+                 VALUES ($1, 50, 'cash', CURRENT_TIMESTAMP, $2, $3, $4) RETURNING id",
+            )
+            .bind(ledger.id)
+            .bind(format!("LGR940-RCT-117-LEGACY-{suffix}"))
+            .bind(actor_id)
+            .bind(idempotency_key)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            ledgers::update_ledger_payment(
+                &pool,
+                ledger.id,
+                legacy_payment_id,
+                actor_id,
+                UpdateLedgerPaymentRequest {
+                    payment_date: "2032-04-02".to_string(),
+                    payment_amount: Some(60.0),
+                    payment_method: None,
+                    payment_reference: None,
+                    notes: Some("legacy edit".to_string()),
+                },
+            )
+            .await
+            .expect("a null or blank-key legacy payment remains editable");
+            assert_eq!(
+                ledgers::get_customer_ledger(&pool, ledger.id)
+                    .await
+                    .unwrap()
+                    .paid_amount,
+                Decimal::new(16_000, 2)
+            );
+            ledgers::delete_ledger_payment(&pool, ledger.id, legacy_payment_id, actor_id)
+                .await
+                .expect("a null or blank-key legacy payment remains deletable");
+            assert_eq!(
+                ledgers::get_customer_ledger(&pool, ledger.id)
+                    .await
+                    .unwrap()
+                    .paid_amount,
+                Decimal::new(10_000, 2)
+            );
+        }
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_updated", ledger.id).await,
+            3
+        );
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_deleted", ledger.id).await,
+            3
+        );
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    #[tokio::test]
+    async fn postgres_idempotent_company_allocations_are_immutable_without_parent_or_audit_changes()
+    {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_118;
+        let company_name = "Lgr940 Immutable Company Allocations Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+        let first = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 immutable batch first", 500.0),
+        )
+        .await
+        .unwrap();
+        let second = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 immutable batch second", 500.0),
+        )
+        .await
+        .unwrap();
+        let batch = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![first.id, second.id], 700.0, "lgr940-immutable-batch"),
+        )
+        .await
+        .unwrap();
+
+        for payment in &batch.payments {
+            let edit = ledgers::update_ledger_payment(
+                &pool,
+                payment.ledger_id,
+                payment.id,
+                actor_id,
+                UpdateLedgerPaymentRequest {
+                    payment_date: "2032-04-03".to_string(),
+                    payment_amount: Some(1.0),
+                    payment_method: None,
+                    payment_reference: None,
+                    notes: None,
+                },
+            )
+            .await;
+            let delete =
+                ledgers::delete_ledger_payment(&pool, payment.ledger_id, payment.id, actor_id)
+                    .await;
+            assert!(matches!(edit, Err(ApiError::Conflict(_))));
+            assert!(matches!(delete, Err(ApiError::Conflict(_))));
+            assert_eq!(
+                count_audit_logs(&pool, "ledger_payment_updated", payment.ledger_id).await,
+                0
+            );
+            assert_eq!(
+                count_audit_logs(&pool, "ledger_payment_deleted", payment.ledger_id).await,
+                0
+            );
+        }
+        assert_eq!(
+            ledgers::get_customer_ledger(&pool, first.id)
+                .await
+                .unwrap()
+                .paid_amount,
+            Decimal::new(50_000, 2)
+        );
+        assert_eq!(
+            ledgers::get_customer_ledger(&pool, second.id)
+                .await
+                .unwrap()
+                .paid_amount,
+            Decimal::new(20_000, 2)
+        );
+        assert_eq!(payment_count(&pool, first.id).await, 1);
+        assert_eq!(payment_count(&pool, second.id).await, 1);
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    #[tokio::test]
+    async fn postgres_company_replay_rejects_corrupt_amounts_and_missing_allocations() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_119;
+        let partial_company = "Lgr940 Corrupt Partial Batch Co";
+        let subset_company = "Lgr940 Corrupt Subset Batch Co";
+
+        for company in [partial_company, subset_company] {
+            cleanup_ledger_fixture(&pool, company).await;
+        }
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+        let partial_first = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(partial_company, "Lgr940 corrupt partial first", 500.0),
+        )
+        .await
+        .unwrap();
+        let partial_second = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(partial_company, "Lgr940 corrupt partial second", 500.0),
+        )
+        .await
+        .unwrap();
+        let partial_request = company_payment_request(
+            vec![partial_first.id, partial_second.id],
+            200.0,
+            "lgr940-corrupt-partial",
+        );
+        let partial = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(
+                vec![partial_first.id, partial_second.id],
+                200.0,
+                "lgr940-corrupt-partial",
+            ),
+        )
+        .await
+        .unwrap();
+        let partial_ids: Vec<_> = partial.payments.iter().map(|payment| payment.id).collect();
+        let replay = ledgers::create_company_ledger_payment(&pool, actor_id, partial_request)
+            .await
+            .expect("an intact partial allocation set must replay");
+        assert_eq!(
+            replay
+                .payments
+                .iter()
+                .map(|payment| payment.id)
+                .collect::<Vec<_>>(),
+            partial_ids
+        );
+        assert_eq!(replay.payment_amount, Decimal::new(20_000, 2));
+
+        sqlx::query("UPDATE customer_ledger_payments SET notes = 'corrupted notes' WHERE id = $1")
+            .bind(partial_ids[0])
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            ledgers::create_company_ledger_payment(
+                &pool,
+                actor_id,
+                company_payment_request(
+                    vec![partial_first.id, partial_second.id],
+                    200.0,
+                    "lgr940-corrupt-partial",
+                ),
+            )
+            .await,
+            Err(ApiError::Conflict(_))
+        ));
+        sqlx::query("UPDATE customer_ledger_payments SET notes = 'batch settlement' WHERE id = $1")
+            .bind(partial_ids[0])
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Seed a historically corrupted keyed row without using a supported mutation API.
+        sqlx::query("UPDATE customer_ledger_payments SET payment_amount = 199 WHERE id = $1")
+            .bind(partial_ids[0])
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            ledgers::create_company_ledger_payment(
+                &pool,
+                actor_id,
+                company_payment_request(
+                    vec![partial_first.id, partial_second.id],
+                    200.0,
+                    "lgr940-corrupt-partial",
+                ),
+            )
+            .await,
+            Err(ApiError::Conflict(_))
+        ));
+
+        let subset_first = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(subset_company, "Lgr940 corrupt subset first", 500.0),
+        )
+        .await
+        .unwrap();
+        let subset_second = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(subset_company, "Lgr940 corrupt subset second", 500.0),
+        )
+        .await
+        .unwrap();
+        let full = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(
+                vec![subset_first.id, subset_second.id],
+                700.0,
+                "lgr940-corrupt-subset",
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(full.payments.len(), 2);
+        sqlx::query(
+            "UPDATE customer_ledger_payments SET payment_amount = CASE id \
+             WHEN $1 THEN 400 ELSE 300 END WHERE id IN ($1, $2)",
+        )
+        .bind(full.payments[0].id)
+        .bind(full.payments[1].id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert!(matches!(
+            ledgers::create_company_ledger_payment(
+                &pool,
+                actor_id,
+                company_payment_request(
+                    vec![subset_first.id, subset_second.id],
+                    700.0,
+                    "lgr940-corrupt-subset",
+                ),
+            )
+            .await,
+            Err(ApiError::Conflict(_))
+        ));
+        sqlx::query(
+            "UPDATE customer_ledger_payments SET payment_amount = CASE id \
+             WHEN $1 THEN 500 ELSE 200 END WHERE id IN ($1, $2)",
+        )
+        .bind(full.payments[0].id)
+        .bind(full.payments[1].id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM customer_ledger_payments WHERE id = $1")
+            .bind(full.payments[1].id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert!(matches!(
+            ledgers::create_company_ledger_payment(
+                &pool,
+                actor_id,
+                company_payment_request(
+                    vec![subset_first.id, subset_second.id],
+                    700.0,
+                    "lgr940-corrupt-subset",
+                ),
+            )
+            .await,
+            Err(ApiError::Conflict(_))
+        ));
+
+        for company in [partial_company, subset_company] {
+            cleanup_ledger_fixture(&pool, company).await;
+        }
         cleanup_actor(&pool, actor_id).await;
     }
 
