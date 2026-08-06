@@ -196,6 +196,12 @@ pub struct CustomerLedgerPayment {
     pub notes: Option<String>,
     pub processed_by: Option<i64>,
     pub created_at: DateTime<Utc>,
+    #[allow(dead_code)] // Consumed by idempotent replay lookups, introduced in the next task.
+    #[serde(skip)]
+    pub(crate) idempotency_key: Option<String>,
+    #[allow(dead_code)] // Consumed by idempotent replay lookups, introduced in the next task.
+    #[serde(skip)]
+    pub(crate) idempotency_fingerprint: Option<String>,
 }
 
 /// Input for creating a ledger payment
@@ -208,6 +214,27 @@ pub struct CustomerLedgerPaymentRequest {
     pub receipt_file_url: Option<String>,
     pub notes: Option<String>,
     pub payment_date: Option<String>,
+    pub idempotency_key: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)] // Wired to the company payment endpoint in the next task.
+pub struct CompanyLedgerPaymentRequest {
+    pub ledger_ids: Vec<i64>,
+    pub payment_amount: f64,
+    pub payment_method: String,
+    pub payment_reference: Option<String>,
+    pub receipt_number: Option<String>,
+    pub notes: Option<String>,
+    pub payment_date: Option<String>,
+    pub idempotency_key: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)] // Wired to the company payment endpoint in the next task.
+pub struct CompanyLedgerPaymentResponse {
+    pub payments: Vec<CustomerLedgerPayment>,
+    pub payment_amount: Decimal,
 }
 
 /// Input for updating a ledger payment. Only `payment_date` is required (so the
@@ -358,6 +385,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedgerPayment {
             notes: row.try_get("notes")?,
             processed_by: row.try_get("processed_by")?,
             created_at: row.try_get("created_at")?,
+            idempotency_key: row.try_get("idempotency_key")?,
+            idempotency_fingerprint: row.try_get("idempotency_fingerprint")?,
         })
     }
 }
