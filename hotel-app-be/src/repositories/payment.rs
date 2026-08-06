@@ -5,12 +5,14 @@ use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
-    Invoice, PaidOnlineBookingRoomAssignment, Payment, PaymentBookingStay,
-    PaymentEntryRow, PaymentReceiptFile, PaymentRequest, PaymentRoomPricing, PaymentSummary,
+    Invoice, PaidOnlineBookingRoomAssignment, Payment, PaymentBookingStay, PaymentEntryRow,
+    PaymentReceiptFile, PaymentRequest, PaymentRoomPricing, PaymentSummary,
     PaymentWorkflowSummaryRow, PendingPaymentEntry, RecordPaymentRequest, UpdatePaymentRequest,
 };
 use rust_decimal::Decimal;
+use sha2::{Digest, Sha256};
 use sqlx::Row;
+use std::fmt::Write;
 
 pub struct PaymentRepository;
 
@@ -41,7 +43,106 @@ pub struct PendingPaymentValues<'a> {
     pub created_by: Option<i64>,
 }
 
+pub struct RecordedPayment {
+    pub row: PaymentEntryRow,
+    pub was_inserted: bool,
+}
+
+pub struct CompletedPayment {
+    pub payment: Payment,
+    pub was_inserted: bool,
+}
+
 impl PaymentRepository {
+    pub fn canonical_payment_fingerprint(
+        booking_id: i64,
+        amount: Option<Decimal>,
+        payment_method: &str,
+        payment_type: &str,
+        transaction_reference: Option<&str>,
+        notes: Option<&str>,
+        payment_date: Option<&str>,
+    ) -> String {
+        fn append_field(payload: &mut String, name: &str, value: Option<&str>) {
+            payload.push_str(name);
+            payload.push(':');
+            match value {
+                Some(value) => {
+                    payload.push('S');
+                    payload.push(':');
+                    payload.push_str(&value.len().to_string());
+                    payload.push(':');
+                    payload.push_str(value);
+                }
+                None => payload.push('N'),
+            }
+            payload.push('|');
+        }
+
+        let normalized_amount = amount.map(|value| value.normalize().to_string());
+        let mut payload = String::new();
+        append_field(&mut payload, "booking_id", Some(&booking_id.to_string()));
+        append_field(&mut payload, "amount", normalized_amount.as_deref());
+        append_field(&mut payload, "payment_method", Some(payment_method));
+        append_field(&mut payload, "payment_type", Some(payment_type));
+        append_field(&mut payload, "transaction_reference", transaction_reference);
+        append_field(&mut payload, "notes", notes);
+        append_field(&mut payload, "payment_date", payment_date);
+
+        let digest = Sha256::digest(payload.as_bytes());
+        let mut fingerprint = String::with_capacity(64);
+        for byte in digest.iter() {
+            write!(&mut fingerprint, "{byte:02x}").expect("writing to a String cannot fail");
+        }
+        fingerprint
+    }
+
+    pub async fn lock_booking_for_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<(), ApiError> {
+        let booking_id: Option<i64> = sqlx::query_scalar(&format!(
+            "SELECT id FROM bookings WHERE id = {} FOR UPDATE",
+            crate::param!(1)
+        ))
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        if booking_id.is_none() {
+            return Err(ApiError::NotFound("Booking not found".to_string()));
+        }
+
+        Ok(())
+    }
+
+    pub async fn find_idempotent_payment_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+        idempotency_key: &str,
+    ) -> Result<Option<PaymentEntryRow>, ApiError> {
+        let sql = format!(
+            r#"
+            SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
+                   status AS payment_status, transaction_id AS transaction_reference, notes,
+                   created_at::date::text AS payment_date, created_at, idempotency_fingerprint
+            FROM payments
+            WHERE booking_id = {} AND idempotency_key = {}
+            LIMIT 1
+            "#,
+            crate::param!(1),
+            crate::param!(2)
+        );
+
+        sqlx::query_as::<_, PaymentEntryRow>(&sql)
+            .bind(booking_id)
+            .bind(idempotency_key)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(ApiError::from)
+    }
+
     pub async fn paid_online_booking_room_assignment(
         pool: &DbPool,
         booking_id: i64,
@@ -189,8 +290,53 @@ impl PaymentRepository {
         request: &PaymentRequest,
         summary: &PaymentSummary,
         payment_gateway: Option<&str>,
-    ) -> Result<Payment, ApiError> {
+    ) -> Result<CompletedPayment, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        Self::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
+
+        let payment_method = request.payment_method.to_string();
+        let fingerprint = Self::canonical_payment_fingerprint(
+            request.booking_id,
+            request.amount.and_then(Decimal::from_f64_retain),
+            &payment_method,
+            "booking",
+            request.transaction_reference.as_deref(),
+            request.notes.as_deref(),
+            None,
+        );
+        if let Some(existing) =
+            Self::find_idempotent_payment_tx(&mut tx, request.booking_id, &request.idempotency_key)
+                .await?
+        {
+            if existing.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+                return Err(ApiError::Conflict(
+                    "Idempotency key was already used with different payment data".to_string(),
+                ));
+            }
+
+            let row = sqlx::query(&format!(
+                "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
+                 transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at, \
+                 idempotency_key, idempotency_fingerprint \
+                 FROM payments WHERE id = {}",
+                crate::param!(1)
+            ))
+            .bind(existing.id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+            let mut payment = row_mappers::row_to_payment(&row);
+            payment.subtotal = summary.subtotal;
+            payment.service_charge = summary.service_charge;
+            payment.tax_amount = summary.tax_amount;
+            payment.keycard_deposit = summary.keycard_deposit;
+
+            tx.commit().await.map_err(ApiError::from)?;
+            return Ok(CompletedPayment {
+                payment,
+                was_inserted: false,
+            });
+        }
 
         // Reject a second completed payment for the booking. The real column is
         // `status` (there is no `payment_status` column); placeholders are
@@ -216,28 +362,43 @@ impl PaymentRepository {
         // card + gateway columns and uses `transaction_id`/`notes`/`created_by`;
         // `reference_number`/`description`/`processed_by`.
 
-        let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) = sqlx::query_as(
+        let insert_sql = format!(
             r#"
             INSERT INTO payments (
                 uuid, booking_id, amount, payment_method, payment_type, status,
-                transaction_id, card_last_four, card_brand, payment_gateway, notes, created_by
+                transaction_id, card_last_four, card_brand, payment_gateway, notes, created_by,
+                idempotency_key, idempotency_fingerprint
             )
-            VALUES (gen_uuidv7(), $1, $2, $3, 'booking', 'completed', $4, $5, $6, $7, $8, $9)
+            VALUES (gen_uuidv7(), {}, {}, {}, 'booking', 'completed', {}, {}, {}, {}, {}, {}, {}, {})
             RETURNING id, created_at
             "#,
-        )
-        .bind(request.booking_id)
-        .bind(decimal_to_db(summary.total_amount))
-        .bind(request.payment_method.to_string())
-        .bind(&request.transaction_reference)
-        .bind(&request.card_last_four)
-        .bind(&request.card_brand)
-        .bind(payment_gateway)
-        .bind(&request.notes)
-        .bind(user_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
+            crate::param!(1),
+            crate::param!(2),
+            crate::param!(3),
+            crate::param!(4),
+            crate::param!(5),
+            crate::param!(6),
+            crate::param!(7),
+            crate::param!(8),
+            crate::param!(9),
+            crate::param!(10),
+            crate::param!(11),
+        );
+        let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) = sqlx::query_as(&insert_sql)
+            .bind(request.booking_id)
+            .bind(decimal_to_db(summary.total_amount))
+            .bind(&payment_method)
+            .bind(&request.transaction_reference)
+            .bind(&request.card_last_four)
+            .bind(&request.card_brand)
+            .bind(payment_gateway)
+            .bind(&request.notes)
+            .bind(user_id)
+            .bind(&request.idempotency_key)
+            .bind(&fingerprint)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
 
         tx.commit().await.map_err(ApiError::from)?;
 
@@ -245,27 +406,30 @@ impl PaymentRepository {
         // (subtotal/service_charge/tax/keycard) and bank_name/account_reference
         // are surfaced from the request/summary even though the DB has nowhere to
         // persist them — they were never actually stored by this path.
-        Ok(Payment {
-            id,
-            booking_id: request.booking_id,
-            user_id: Some(user_id),
-            payment_method: request.payment_method.to_string(),
-            payment_status: PaymentStatus::Completed.to_string(),
-            subtotal: summary.subtotal,
-            service_charge: summary.service_charge,
-            tax_amount: summary.tax_amount,
-            keycard_deposit: summary.keycard_deposit,
-            total_amount: summary.total_amount,
-            transaction_reference: request.transaction_reference.clone(),
-            payment_gateway: payment_gateway.map(|s| s.to_string()),
-            card_last_four: request.card_last_four.clone(),
-            card_brand: request.card_brand.clone(),
-            bank_name: request.bank_name.clone(),
-            account_reference: request.account_reference.clone(),
-            notes: request.notes.clone(),
-            created_at,
-            idempotency_key: Some(request.idempotency_key.clone()),
-            idempotency_fingerprint: None,
+        Ok(CompletedPayment {
+            was_inserted: true,
+            payment: Payment {
+                id,
+                booking_id: request.booking_id,
+                user_id: Some(user_id),
+                payment_method,
+                payment_status: PaymentStatus::Completed.to_string(),
+                subtotal: summary.subtotal,
+                service_charge: summary.service_charge,
+                tax_amount: summary.tax_amount,
+                keycard_deposit: summary.keycard_deposit,
+                total_amount: summary.total_amount,
+                transaction_reference: request.transaction_reference.clone(),
+                payment_gateway: payment_gateway.map(|s| s.to_string()),
+                card_last_four: request.card_last_four.clone(),
+                card_brand: request.card_brand.clone(),
+                bank_name: request.bank_name.clone(),
+                account_reference: request.account_reference.clone(),
+                notes: request.notes.clone(),
+                created_at,
+                idempotency_key: Some(request.idempotency_key.clone()),
+                idempotency_fingerprint: Some(fingerprint),
+            },
         })
     }
 
@@ -276,7 +440,7 @@ impl PaymentRepository {
         amount: Decimal,
         payment_type: &str,
         created_at_override: Option<&str>,
-    ) -> Result<PaymentEntryRow, ApiError> {
+    ) -> Result<RecordedPayment, ApiError> {
         if let Some(ref txn_ref) = request.transaction_reference
             && !txn_ref.is_empty()
         {
@@ -296,7 +460,10 @@ impl PaymentRepository {
                 .map_err(ApiError::from)?;
 
             if let Some(row) = duplicate {
-                return Ok(row);
+                return Ok(RecordedPayment {
+                    row,
+                    was_inserted: false,
+                });
             }
         }
 
@@ -310,7 +477,10 @@ impl PaymentRepository {
         )
         .await?;
 
-        Ok(row)
+        Ok(RecordedPayment {
+            row,
+            was_inserted: true,
+        })
     }
 
     pub async fn insert_payment<'e, E>(
@@ -324,31 +494,66 @@ impl PaymentRepository {
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
     {
+        let fingerprint = Self::canonical_payment_fingerprint(
+            request.booking_id,
+            Some(amount),
+            &request.payment_method,
+            payment_type,
+            request.transaction_reference.as_deref(),
+            request.notes.as_deref(),
+            request.payment_date.as_deref(),
+        );
         let sql = if created_at_override.is_some() {
-            r#"
+            format!(
+                r#"
             INSERT INTO payments (
                 uuid, booking_id, amount, payment_method, payment_type,
-                status, transaction_id, notes, created_by, created_at
+                status, transaction_id, notes, created_by, created_at,
+                idempotency_key, idempotency_fingerprint
             )
-            VALUES (gen_uuidv7(), $1, $2, $3, $4, 'completed', $5, $6, $7, $8::timestamptz)
+            VALUES (gen_uuidv7(), {}, {}, {}, {}, 'completed', {}, {}, {}, {}::timestamptz, {}, {})
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                       status AS payment_status, transaction_id AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at
-            "#
+            "#,
+                crate::param!(1),
+                crate::param!(2),
+                crate::param!(3),
+                crate::param!(4),
+                crate::param!(5),
+                crate::param!(6),
+                crate::param!(7),
+                crate::param!(8),
+                crate::param!(9),
+                crate::param!(10),
+            )
         } else {
-            r#"
+            format!(
+                r#"
             INSERT INTO payments (
                 uuid, booking_id, amount, payment_method, payment_type,
-                status, transaction_id, notes, created_by, created_at
+                status, transaction_id, notes, created_by, created_at,
+                idempotency_key, idempotency_fingerprint
             )
-            VALUES (gen_uuidv7(), $1, $2, $3, $4, 'completed', $5, $6, $7, CURRENT_TIMESTAMP)
+            VALUES (gen_uuidv7(), {}, {}, {}, {}, 'completed', {}, {}, {}, {}, {}, {})
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                       status AS payment_status, transaction_id AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at
-            "#
+            "#,
+                crate::param!(1),
+                crate::param!(2),
+                crate::param!(3),
+                crate::param!(4),
+                crate::param!(5),
+                crate::param!(6),
+                crate::param!(7),
+                crate::core::sql_compat::current_timestamp(),
+                crate::param!(8),
+                crate::param!(9),
+            )
         };
 
-        let mut query = sqlx::query_as::<_, PaymentEntryRow>(sql)
+        let mut query = sqlx::query_as::<_, PaymentEntryRow>(&sql)
             .bind(request.booking_id)
             .bind(decimal_to_db(amount))
             .bind(&request.payment_method)
@@ -360,6 +565,8 @@ impl PaymentRepository {
         if let Some(date) = created_at_override {
             query = query.bind(date);
         }
+
+        query = query.bind(&request.idempotency_key).bind(&fingerprint);
 
         query.fetch_one(executor).await.map_err(ApiError::from)
     }
