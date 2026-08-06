@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -108,6 +108,7 @@ import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 import { formatHotelDate, formatLocalDate, parseLocalDate } from '../../../../utils/date';
 import { addMoney, compareMoney, divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
+import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../../utils/idempotency';
 import type { Company } from '../../../../types';
 
 type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance';
@@ -156,6 +157,7 @@ const BookingsPage: React.FC = () => {
   const markComplimentaryMutation = useMarkBookingComplimentaryMutation();
   const recordPaymentMutation = useRecordPaymentMutation();
   const checkInGuestMutation = useCheckInGuestMutation();
+  const paymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
 
   // Shared checkout + read-only receipt flow. Bookings keeps its react-query
   // mutation (cache invalidation) and lets the backend mark the room dirty.
@@ -680,6 +682,21 @@ const BookingsPage: React.FC = () => {
       return;
     }
 
+    const transactionReference = paymentDialogContext === 'checkout_required'
+      ? `checkout-${paymentBooking.id}-${paymentAmount.toFixed(2)}`
+      : undefined;
+    const notes = paymentNote.trim() || `Payment accepted (${paymentMethod})`;
+    const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
+      booking_id: Number(paymentBooking.id),
+      amount: toMoneyNumber(paymentAmount).toFixed(2),
+      payment_method: paymentMethod,
+      payment_type: 'booking',
+      transaction_reference: transactionReference,
+      notes,
+      payment_date: undefined,
+    }));
+    paymentAttemptRef.current = attempt;
+
     try {
       setUpdatingPayment(true);
       // Insert a real `payments` row (payment_type='booking'). The backend
@@ -689,11 +706,11 @@ const BookingsPage: React.FC = () => {
         amount: paymentAmount,
         payment_method: paymentMethod,
         payment_type: 'booking',
-        transaction_reference: paymentDialogContext === 'checkout_required'
-          ? `checkout-${paymentBooking.id}-${paymentAmount.toFixed(2)}`
-          : undefined,
-        notes: paymentNote.trim() || `Payment accepted (${paymentMethod})`,
+        transaction_reference: transactionReference,
+        notes,
+        idempotency_key: attempt.key,
       });
+      paymentAttemptRef.current = null;
 
       // Work out what's still owed after this payment.
       const prevBalance = getBookingBalance(paymentBooking);

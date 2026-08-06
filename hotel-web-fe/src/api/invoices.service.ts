@@ -43,6 +43,7 @@ export class InvoicesService {
     transaction_reference?: string;
     notes?: string;
     payment_date?: string;
+    idempotency_key: string;
   }): Promise<any> {
     try {
       // Ensure amount is a valid number

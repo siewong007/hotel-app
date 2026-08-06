@@ -164,6 +164,23 @@ export interface CustomerLedgerPaymentRequest {
   receipt_file_url?: string;
   notes?: string;
   payment_date?: string;
+  idempotency_key: string;
+}
+
+export interface CompanyLedgerPaymentRequest {
+  ledger_ids: number[];
+  payment_amount: number;
+  payment_method: string;
+  payment_reference?: string;
+  receipt_number?: string;
+  notes?: string;
+  payment_date?: string;
+  idempotency_key: string;
+}
+
+export interface CompanyLedgerPaymentResponse {
+  payments: CustomerLedgerPayment[];
+  payment_amount: number | string;
 }
 
 export interface CustomerLedgerWithPayments {
