@@ -52,6 +52,7 @@ Against disposable PostgreSQL container `codex-payment-final-fix` (the existing 
 - The first read-only review of `1077c467a..f33522c0` found that updates could bypass global reference ownership, full-settlement reference replay occurred after balance validation, concurrent reference claims lacked coverage, and the rollback test disabled a production trigger.
 - The follow-up commit centralizes advisory ownership across record/create/update, refreshes update fingerprints, moves replay/conflict before balance validation, adds three deterministic reference-claim races, and forces recompute failure without disabling the production trigger.
 - The second review found omitted-date canonical drift, incomplete validation of historical duplicate owners, and timing-based gates. The final fix infers the prior requested-date semantic from the stored fingerprint, validates every reference owner before idempotency replay, seeds duplicate-owner regressions for both APIs, and waits for two observable PostgreSQL advisory waiters before releasing each concurrency gate.
+- Final read-only re-review of `1077c467a..97458289` found no Critical, Important, or Minor issues and returned **Ready to merge**.
 
 ## Preserved work and known exclusions
 
