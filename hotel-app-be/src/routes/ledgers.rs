@@ -27,6 +27,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/ledgers", get(list_ledgers))
         .route("/ledgers", post(create_ledger))
         .route("/ledgers/summary", get(get_ledger_summary))
+        .route(
+            "/ledgers/company-payments",
+            post(create_company_ledger_payment),
+        )
         .route("/ledgers/{id}", get(get_ledger))
         .route("/ledgers/{id}", patch(update_ledger))
         .route("/ledgers/{id}", delete(delete_ledger))
@@ -125,6 +129,16 @@ async fn create_ledger_payment(
 ) -> Result<Json<models::CustomerLedgerPayment>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, LEDGERS_CREATE).await?;
     handlers::ledgers::create_ledger_payment_handler(State(pool), path, Json(input), user_id).await
+}
+
+async fn create_company_ledger_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::CompanyLedgerPaymentRequest>,
+) -> Result<Json<models::CompanyLedgerPaymentResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, LEDGERS_CREATE).await?;
+    handlers::ledgers::create_company_ledger_payment_handler(State(pool), Json(input), user_id)
+        .await
 }
 
 async fn update_ledger_payment(

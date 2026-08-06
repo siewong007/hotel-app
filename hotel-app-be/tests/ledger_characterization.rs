@@ -1289,4 +1289,664 @@ mod postgres_tests {
         assert_eq!(updated.status, "paid");
         assert_eq!(updated.balance_due, Decimal::ZERO);
     }
+
+    fn company_payment_request(
+        ledger_ids: Vec<i64>,
+        payment_amount: f64,
+        idempotency_key: &str,
+    ) -> hotel_app_be::models::CompanyLedgerPaymentRequest {
+        hotel_app_be::models::CompanyLedgerPaymentRequest {
+            ledger_ids,
+            payment_amount,
+            payment_method: "bank_transfer".to_string(),
+            payment_reference: Some("LGR940-BATCH-REF".to_string()),
+            receipt_number: Some("LGR940-BATCH-RCT".to_string()),
+            notes: Some("batch settlement".to_string()),
+            payment_date: Some("2032-02-03".to_string()),
+            idempotency_key: idempotency_key.to_string(),
+        }
+    }
+
+    async fn payment_count(pool: &PgPool, ledger_id: i64) -> i64 {
+        sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledger_payments WHERE ledger_id = $1")
+            .bind(ledger_id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    async fn install_ledger_payment_insert_delay(pool: &PgPool) {
+        remove_ledger_payment_insert_delay(pool).await;
+        sqlx::query(
+            r#"
+            CREATE FUNCTION ledger_characterization_delay_insert()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                PERFORM pg_sleep(0.25);
+                RETURN NEW;
+            END;
+            $$
+            "#,
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TRIGGER ledger_characterization_delay_insert \
+             BEFORE INSERT ON customer_ledger_payments FOR EACH ROW \
+             EXECUTE FUNCTION ledger_characterization_delay_insert()",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn remove_ledger_payment_insert_delay(pool: &PgPool) {
+        sqlx::query("DROP TRIGGER IF EXISTS ledger_characterization_delay_insert ON customer_ledger_payments")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DROP FUNCTION IF EXISTS ledger_characterization_delay_insert()")
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    async fn install_fail_second_batch_insert(
+        pool: &PgPool,
+        first_ledger_id: i64,
+        second_ledger_id: i64,
+    ) {
+        remove_fail_second_batch_insert(pool).await;
+        sqlx::query(&format!(
+            r#"
+            CREATE FUNCTION ledger_characterization_fail_second_batch_insert()
+            RETURNS trigger
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                IF (SELECT COUNT(*) FROM customer_ledger_payments
+                    WHERE ledger_id IN ({first_ledger_id}, {second_ledger_id})) > 0 THEN
+                    RAISE EXCEPTION 'forced task-4 batch insert failure';
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            "#,
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "CREATE TRIGGER ledger_characterization_fail_second_batch_insert \
+             BEFORE INSERT ON customer_ledger_payments FOR EACH ROW \
+             EXECUTE FUNCTION ledger_characterization_fail_second_batch_insert()",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn remove_fail_second_batch_insert(pool: &PgPool) {
+        sqlx::query("DROP TRIGGER IF EXISTS ledger_characterization_fail_second_batch_insert ON customer_ledger_payments")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DROP FUNCTION IF EXISTS ledger_characterization_fail_second_batch_insert()")
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    // -----------------------------------------------------------------
+    // Task 4: the ledger parent lock must serialize retries, while a persisted
+    // key/fingerprint distinguishes an exact retry from each material change.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn postgres_ledger_payment_replays_exact_retries_conflicts_on_every_material_change_and_allows_installments()
+     {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_113;
+        let company_name = "Lgr940 Payment Replay Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+        let concurrent_ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 concurrent retry", 500.0),
+        )
+        .await
+        .unwrap();
+        let concurrent_request = || CustomerLedgerPaymentRequest {
+            payment_amount: 200.0,
+            payment_method: "cash".to_string(),
+            payment_reference: Some("LGR940-REF-A".to_string()),
+            receipt_number: Some("LGR940-RCT-113-A".to_string()),
+            receipt_file_url: Some("https://example.invalid/113-a.pdf".to_string()),
+            notes: Some("first installment".to_string()),
+            payment_date: Some("2032-02-01".to_string()),
+            idempotency_key: "lgr940-concurrent-retry".to_string(),
+        };
+
+        install_ledger_payment_insert_delay(&pool).await;
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+        let first_pool = pool.clone();
+        let first_barrier = barrier.clone();
+        let first_request = concurrent_request();
+        let first = tokio::spawn(async move {
+            first_barrier.wait().await;
+            ledgers::create_ledger_payment(
+                &first_pool,
+                concurrent_ledger.id,
+                actor_id,
+                first_request,
+            )
+            .await
+        });
+        let second_pool = pool.clone();
+        let second_barrier = barrier.clone();
+        let second_request = concurrent_request();
+        let second = tokio::spawn(async move {
+            second_barrier.wait().await;
+            ledgers::create_ledger_payment(
+                &second_pool,
+                concurrent_ledger.id,
+                actor_id,
+                second_request,
+            )
+            .await
+        });
+        let first = first.await.unwrap();
+        let second = second.await.unwrap();
+        remove_ledger_payment_insert_delay(&pool).await;
+
+        let first = first.expect("first same-key request should succeed");
+        let second = second.expect("exact retry should replay successfully");
+        assert_eq!(
+            first.id, second.id,
+            "same key and full payload must return one payment"
+        );
+        assert_eq!(payment_count(&pool, concurrent_ledger.id).await, 1);
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_created", concurrent_ledger.id).await,
+            1
+        );
+
+        let installment_ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 fingerprint changes", 600.0),
+        )
+        .await
+        .unwrap();
+        let baseline = || CustomerLedgerPaymentRequest {
+            payment_amount: 200.0,
+            payment_method: "cash".to_string(),
+            payment_reference: Some("LGR940-REF-A".to_string()),
+            receipt_number: Some("LGR940-RCT-113-B".to_string()),
+            receipt_file_url: Some("https://example.invalid/113-a.pdf".to_string()),
+            notes: Some("first installment".to_string()),
+            payment_date: Some("2032-02-01".to_string()),
+            idempotency_key: "lgr940-material-fields".to_string(),
+        };
+        ledgers::create_ledger_payment(&pool, installment_ledger.id, actor_id, baseline())
+            .await
+            .unwrap();
+        let changed_requests = vec![
+            CustomerLedgerPaymentRequest {
+                payment_amount: 201.0,
+                ..baseline()
+            },
+            CustomerLedgerPaymentRequest {
+                payment_method: "card".to_string(),
+                ..baseline()
+            },
+            CustomerLedgerPaymentRequest {
+                payment_reference: Some("LGR940-REF-B".to_string()),
+                ..baseline()
+            },
+            CustomerLedgerPaymentRequest {
+                receipt_number: Some("LGR940-RCT-113-C".to_string()),
+                ..baseline()
+            },
+            CustomerLedgerPaymentRequest {
+                receipt_file_url: Some("https://example.invalid/113-b.pdf".to_string()),
+                ..baseline()
+            },
+            CustomerLedgerPaymentRequest {
+                notes: Some("changed notes".to_string()),
+                ..baseline()
+            },
+            CustomerLedgerPaymentRequest {
+                payment_date: Some("2032-02-02".to_string()),
+                ..baseline()
+            },
+        ];
+        for changed in changed_requests {
+            assert!(
+                matches!(
+                    ledgers::create_ledger_payment(&pool, installment_ledger.id, actor_id, changed)
+                        .await,
+                    Err(ApiError::Conflict(_))
+                ),
+                "each changed material field must conflict instead of creating a second payment"
+            );
+        }
+
+        let second_installment = CustomerLedgerPaymentRequest {
+            payment_amount: 200.0,
+            receipt_number: Some("LGR940-RCT-113-D".to_string()),
+            idempotency_key: "lgr940-material-fields-second".to_string(),
+            ..baseline()
+        };
+        ledgers::create_ledger_payment(&pool, installment_ledger.id, actor_id, second_installment)
+            .await
+            .expect("a different key must allow a legitimate second installment");
+        assert_eq!(payment_count(&pool, installment_ledger.id).await, 2);
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    // -----------------------------------------------------------------
+    // Task 4: the company endpoint must allocate in caller order, be atomic,
+    // and make batch keys globally replayable even when membership changes.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn postgres_company_ledger_payment_is_atomic_replay_safe_and_validates_batch_membership()
+    {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_114;
+        let company_name = "Lgr940 Company Batch Co";
+        let other_company_name = "Lgr940 Other Batch Co";
+
+        for company in [company_name, other_company_name] {
+            cleanup_ledger_fixture(&pool, company).await;
+        }
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+
+        let small = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 batch small", 200.0),
+        )
+        .await
+        .unwrap();
+        let large = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 batch large", 500.0),
+        )
+        .await
+        .unwrap();
+        let voided = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 batch void", 50.0),
+        )
+        .await
+        .unwrap();
+        let other_company = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(other_company_name, "Lgr940 other company", 100.0),
+        )
+        .await
+        .unwrap();
+        let concurrent_left = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 concurrent batch left", 40.0),
+        )
+        .await
+        .unwrap();
+        let concurrent_right = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 concurrent batch right", 60.0),
+        )
+        .await
+        .unwrap();
+        let long_key_ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 long batch key", 10.0),
+        )
+        .await
+        .unwrap();
+        ledgers::void_ledger(
+            &pool,
+            voided.id,
+            actor_id,
+            LedgerVoidRequest {
+                reason: "task-4 test".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+        let left_pool = pool.clone();
+        let left_barrier = barrier.clone();
+        let left = tokio::spawn(async move {
+            left_barrier.wait().await;
+            ledgers::create_company_ledger_payment(
+                &left_pool,
+                actor_id,
+                company_payment_request(
+                    vec![concurrent_left.id],
+                    40.0,
+                    "lgr940-concurrent-disjoint",
+                ),
+            )
+            .await
+        });
+        let right_pool = pool.clone();
+        let right_barrier = barrier.clone();
+        let right = tokio::spawn(async move {
+            right_barrier.wait().await;
+            ledgers::create_company_ledger_payment(
+                &right_pool,
+                actor_id,
+                company_payment_request(
+                    vec![concurrent_right.id],
+                    60.0,
+                    "lgr940-concurrent-disjoint",
+                ),
+            )
+            .await
+        });
+        let concurrent_results = [left.await.unwrap(), right.await.unwrap()];
+        assert_eq!(
+            concurrent_results
+                .iter()
+                .filter(|result| result.is_ok())
+                .count(),
+            1,
+            "the advisory key lock must admit only one first use of a raw batch key",
+        );
+        assert_eq!(
+            concurrent_results
+                .iter()
+                .filter(|result| matches!(result, Err(ApiError::Conflict(_))))
+                .count(),
+            1,
+            "the concurrent disjoint membership must observe the first batch and conflict",
+        );
+
+        let longest_valid_key = "k".repeat(160);
+        ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![long_key_ledger.id], 10.0, &longest_valid_key),
+        )
+        .await
+        .expect("a 160-character raw batch key must fit through the fixed-size internal key");
+
+        for invalid in [
+            company_payment_request(vec![large.id, large.id], 500.0, "lgr940-duplicate"),
+            company_payment_request(vec![large.id, other_company.id], 600.0, "lgr940-mixed"),
+            company_payment_request(vec![large.id, voided.id], 550.0, "lgr940-void"),
+            company_payment_request(vec![large.id, small.id], 701.0, "lgr940-over-limit"),
+        ] {
+            assert!(
+                matches!(
+                    ledgers::create_company_ledger_payment(&pool, actor_id, invalid).await,
+                    Err(ApiError::BadRequest(_))
+                ),
+                "invalid batch must be refused before any payment mutation"
+            );
+        }
+        assert_eq!(payment_count(&pool, large.id).await, 0);
+        assert_eq!(payment_count(&pool, small.id).await, 0);
+
+        install_fail_second_batch_insert(&pool, small.id, large.id).await;
+        let rollback = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-rollback"),
+        )
+        .await;
+        remove_fail_second_batch_insert(&pool).await;
+        assert!(
+            matches!(rollback, Err(ApiError::Database(_))),
+            "the injected second insert failure must surface"
+        );
+        assert_eq!(
+            payment_count(&pool, large.id).await,
+            0,
+            "rollback leaves no first allocation"
+        );
+        assert_eq!(
+            payment_count(&pool, small.id).await,
+            0,
+            "rollback leaves no second allocation"
+        );
+        assert_eq!(
+            ledgers::get_customer_ledger(&pool, large.id)
+                .await
+                .unwrap()
+                .paid_amount,
+            Decimal::ZERO
+        );
+        assert_eq!(
+            ledgers::get_customer_ledger(&pool, small.id)
+                .await
+                .unwrap()
+                .paid_amount,
+            Decimal::ZERO
+        );
+
+        let created = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay"),
+        )
+        .await
+        .expect("one batch should allocate 500 then 200 in caller order");
+        assert_eq!(created.payments.len(), 2);
+        assert_eq!(created.payments[0].ledger_id, large.id);
+        assert_eq!(created.payments[0].payment_amount, Decimal::new(50_000, 2));
+        assert_eq!(created.payments[1].ledger_id, small.id);
+        assert_eq!(created.payments[1].payment_amount, Decimal::new(20_000, 2));
+        let first_ids: Vec<_> = created.payments.iter().map(|payment| payment.id).collect();
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_created", large.id).await,
+            1
+        );
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_created", small.id).await,
+            1
+        );
+        assert_eq!(
+            count_audit_logs(&pool, "company_ledger_payment_created", large.id).await,
+            1
+        );
+
+        let replay = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay"),
+        )
+        .await
+        .expect("exact batch retry should replay its payment ids");
+        assert_eq!(
+            replay
+                .payments
+                .iter()
+                .map(|payment| payment.id)
+                .collect::<Vec<_>>(),
+            first_ids
+        );
+        assert_eq!(
+            count_audit_logs(&pool, "ledger_payment_created", large.id).await,
+            1
+        );
+        assert_eq!(
+            count_audit_logs(&pool, "company_ledger_payment_created", large.id).await,
+            1
+        );
+
+        let changed_payload =
+            company_payment_request(vec![large.id, small.id], 699.0, "lgr940-batch-replay");
+        let changed_membership =
+            company_payment_request(vec![large.id], 500.0, "lgr940-batch-replay");
+        let changed_order =
+            company_payment_request(vec![small.id, large.id], 700.0, "lgr940-batch-replay");
+        let disjoint = company_payment_request(vec![voided.id], 50.0, "lgr940-batch-replay");
+        let mut changed_method =
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay");
+        changed_method.payment_method = "cash".to_string();
+        let mut changed_reference =
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay");
+        changed_reference.payment_reference = Some("LGR940-BATCH-REF-CHANGED".to_string());
+        let mut changed_receipt =
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay");
+        changed_receipt.receipt_number = Some("LGR940-BATCH-RCT-CHANGED".to_string());
+        let mut changed_notes =
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay");
+        changed_notes.notes = Some("changed batch notes".to_string());
+        let mut changed_date =
+            company_payment_request(vec![large.id, small.id], 700.0, "lgr940-batch-replay");
+        changed_date.payment_date = Some("2032-02-04".to_string());
+        for changed in [
+            changed_payload,
+            changed_membership,
+            changed_order,
+            disjoint,
+            changed_method,
+            changed_reference,
+            changed_receipt,
+            changed_notes,
+            changed_date,
+        ] {
+            assert!(
+                matches!(
+                    ledgers::create_company_ledger_payment(&pool, actor_id, changed).await,
+                    Err(ApiError::Conflict(_))
+                ),
+                "reuse of a batch key with changed data, order, membership, or disjoint membership must conflict"
+            );
+        }
+
+        for company in [company_name, other_company_name] {
+            cleanup_ledger_fixture(&pool, company).await;
+        }
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    #[tokio::test]
+    async fn postgres_company_payment_preserves_partial_caller_order_and_replays_full_membership() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_116;
+        let company_name = "Lgr940 Partial Company Batch Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+        let first = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 partial first", 500.0),
+        )
+        .await
+        .unwrap();
+        let second = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 partial second", 500.0),
+        )
+        .await
+        .unwrap();
+
+        let created = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![first.id, second.id], 200.0, "lgr940-partial-batch"),
+        )
+        .await
+        .expect("a company payment may partially settle the first selected ledger");
+        assert_eq!(created.payments.len(), 1);
+        assert_eq!(created.payments[0].ledger_id, first.id);
+        assert_eq!(created.payments[0].payment_amount, Decimal::new(20_000, 2));
+        let payment_id = created.payments[0].id;
+        assert_eq!(
+            ledgers::get_customer_ledger(&pool, second.id)
+                .await
+                .unwrap()
+                .paid_amount,
+            Decimal::ZERO,
+            "the unallocated later ledger remains untouched"
+        );
+
+        let replay = ledgers::create_company_ledger_payment(
+            &pool,
+            actor_id,
+            company_payment_request(vec![first.id, second.id], 200.0, "lgr940-partial-batch"),
+        )
+        .await
+        .expect("the partial batch must replay before reduced balances are recomputed");
+        assert_eq!(replay.payments.len(), 1);
+        assert_eq!(replay.payments[0].id, payment_id);
+        for changed in [
+            company_payment_request(vec![first.id], 200.0, "lgr940-partial-batch"),
+            company_payment_request(vec![second.id, first.id], 200.0, "lgr940-partial-batch"),
+        ] {
+            assert!(matches!(
+                ledgers::create_company_ledger_payment(&pool, actor_id, changed).await,
+                Err(ApiError::Conflict(_))
+            ));
+        }
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    #[tokio::test]
+    async fn postgres_same_receipt_is_reusable_on_different_ledgers() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_115;
+        let company_name = "Lgr940 Receipt Scope Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+        let first = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 receipt first", 100.0),
+        )
+        .await
+        .unwrap();
+        let second = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 receipt second", 100.0),
+        )
+        .await
+        .unwrap();
+        let receipt = "LGR940-SHARED-RECEIPT";
+        ledgers::create_ledger_payment(&pool, first.id, actor_id, payment_request(100.0, receipt))
+            .await
+            .unwrap();
+        ledgers::create_ledger_payment(&pool, second.id, actor_id, payment_request(100.0, receipt))
+            .await
+            .expect("receipt uniqueness is ledger-scoped, so another ledger may reuse it");
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
 }

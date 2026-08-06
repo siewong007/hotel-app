@@ -174,7 +174,12 @@ pub async fn create_ledger_payment(
     user_id: i64,
     request: CustomerLedgerPaymentRequest,
 ) -> Result<CustomerLedgerPayment, ApiError> {
-    let payment = repo::create_ledger_payment(pool, ledger_id, user_id, request).await?;
+    let outcome =
+        repo::create_ledger_payment_with_outcome(pool, ledger_id, user_id, request).await?;
+    if !outcome.was_inserted {
+        return Ok(outcome.payment);
+    }
+    let payment = outcome.payment;
 
     let _ = AuditLog::log_event(
         pool,
@@ -194,6 +199,59 @@ pub async fn create_ledger_payment(
     .await;
 
     Ok(payment)
+}
+
+pub async fn create_company_ledger_payment(
+    pool: &DbPool,
+    user_id: i64,
+    request: CompanyLedgerPaymentRequest,
+) -> Result<CompanyLedgerPaymentResponse, ApiError> {
+    let outcome = repo::create_company_ledger_payment_with_outcome(pool, user_id, request).await?;
+    if !outcome.was_inserted {
+        return Ok(outcome.response);
+    }
+
+    for payment in &outcome.response.payments {
+        let _ = AuditLog::log_event(
+            pool,
+            AuditEvent {
+                user_id: Some(user_id),
+                action: "ledger_payment_created",
+                resource_type: "customer_ledger",
+                resource_id: Some(payment.ledger_id),
+                details: Some(serde_json::json!({
+                    "payment_id": payment.id,
+                    "payment_amount": payment.payment_amount,
+                    "payment_method": payment.payment_method,
+                })),
+                ..Default::default()
+            },
+        )
+        .await;
+    }
+    let first_ledger_id = outcome
+        .response
+        .payments
+        .first()
+        .map(|payment| payment.ledger_id);
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "company_ledger_payment_created",
+            resource_type: "customer_ledger",
+            resource_id: first_ledger_id,
+            details: Some(serde_json::json!({
+                "payment_ids": outcome.response.payments.iter().map(|payment| payment.id).collect::<Vec<_>>(),
+                "ledger_ids": outcome.response.payments.iter().map(|payment| payment.ledger_id).collect::<Vec<_>>(),
+                "payment_amount": outcome.response.payment_amount,
+            })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    Ok(outcome.response)
 }
 
 pub async fn get_ledger_payments(
