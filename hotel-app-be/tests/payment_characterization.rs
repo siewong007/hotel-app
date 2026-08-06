@@ -408,6 +408,7 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
             transaction_reference: None,
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-940214-zero".to_string(),
         },
     )
     .await;
@@ -427,6 +428,7 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
             transaction_reference: None,
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-940214-negative".to_string(),
         },
     )
     .await;
@@ -457,6 +459,7 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
             transaction_reference: Some("TXN-PAY-940214-A".to_string()),
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-940214-partial".to_string(),
         },
     )
     .await
@@ -495,6 +498,7 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
             transaction_reference: None,
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-940214-overlimit".to_string(),
         },
     )
     .await;
@@ -524,6 +528,7 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
             transaction_reference: Some("TXN-PAY-940214-B".to_string()),
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-940214-full".to_string(),
         },
     )
     .await
@@ -558,6 +563,7 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
             transaction_reference: None,
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-940214-after-paid".to_string(),
         },
     )
     .await;
@@ -859,6 +865,7 @@ async fn refund_deposit_and_revert_round_trip() {
             transaction_reference: None,
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-deposit-refund".to_string(),
         },
     )
     .await
@@ -1045,6 +1052,7 @@ async fn refund_deposit_refuses_when_no_deposit_held_or_amount_exceeds_it() {
             transaction_reference: None,
             notes: None,
             payment_date: None,
+            idempotency_key: "payment-char-deposit-over-limit".to_string(),
         },
     )
     .await
@@ -1260,6 +1268,7 @@ async fn create_payment_should_charge_the_billable_total_not_the_room_recalculat
         bank_name: None,
         account_reference: None,
         notes: None,
+        idempotency_key: "payment-char-completed-payment".to_string(),
     };
 
     let payment_result = payments::create_payment(&pool, actor_id, request).await;

@@ -252,6 +252,35 @@ mod postgres_smoke {
         index_definition.is_some_and(|definition| definition.starts_with("CREATE UNIQUE INDEX"))
     }
 
+    fn is_unique_violation(error: &sqlx::Error) -> bool {
+        error
+            .as_database_error()
+            .and_then(|database_error| database_error.code())
+            .is_some_and(|code| code == "23505")
+    }
+
+    async fn insert_booking_payment(pool: &PgPool, booking_id: i64, idempotency_key: &str) {
+        sqlx::query(
+            "INSERT INTO payments (booking_id, amount, payment_method, idempotency_key) VALUES ($1, 1, 'cash', $2)",
+        )
+        .bind(booking_id)
+        .bind(idempotency_key)
+        .execute(pool)
+        .await
+        .expect("insert disposable booking payment");
+    }
+
+    async fn insert_ledger_payment(pool: &PgPool, ledger_id: i64, idempotency_key: &str) {
+        sqlx::query(
+            "INSERT INTO customer_ledger_payments (ledger_id, payment_amount, payment_method, idempotency_key) VALUES ($1, 1, 'cash', $2)",
+        )
+        .bind(ledger_id)
+        .bind(idempotency_key)
+        .execute(pool)
+        .await
+        .expect("insert disposable ledger payment");
+    }
+
     pub(super) async fn assert_payment_idempotency_schema() {
         if std::env::var("HOTEL_RUN_PG_SCHEMA_SMOKE").ok().as_deref() != Some("1") {
             eprintln!("skipping PostgreSQL schema smoke; set HOTEL_RUN_PG_SCHEMA_SMOKE=1");
@@ -291,6 +320,40 @@ mod postgres_smoke {
             );
             assert!(index_is_unique(&pool, "uq_payments_booking_idempotency").await);
             assert!(index_is_unique(&pool, "uq_ledger_payments_ledger_idempotency").await);
+
+            sqlx::raw_sql(
+                "ALTER TABLE payments DISABLE TRIGGER ALL; ALTER TABLE customer_ledger_payments DISABLE TRIGGER ALL;",
+            )
+            .execute(&pool)
+            .await?;
+
+            insert_booking_payment(&pool, 1, "booking-key").await;
+            let booking_duplicate = sqlx::query(
+                "INSERT INTO payments (booking_id, amount, payment_method, idempotency_key) VALUES ($1, 1, 'cash', $2)",
+            )
+            .bind(1_i64)
+            .bind("booking-key")
+            .execute(&pool)
+            .await
+            .expect_err("duplicate booking payment key must be rejected");
+            assert!(is_unique_violation(&booking_duplicate));
+            insert_booking_payment(&pool, 2, "booking-key").await;
+            insert_booking_payment(&pool, 3, "").await;
+            insert_booking_payment(&pool, 3, "").await;
+
+            insert_ledger_payment(&pool, 1, "ledger-key").await;
+            let ledger_duplicate = sqlx::query(
+                "INSERT INTO customer_ledger_payments (ledger_id, payment_amount, payment_method, idempotency_key) VALUES ($1, 1, 'cash', $2)",
+            )
+            .bind(1_i64)
+            .bind("ledger-key")
+            .execute(&pool)
+            .await
+            .expect_err("duplicate ledger payment key must be rejected");
+            assert!(is_unique_violation(&ledger_duplicate));
+            insert_ledger_payment(&pool, 2, "ledger-key").await;
+            insert_ledger_payment(&pool, 3, "").await;
+            insert_ledger_payment(&pool, 3, "").await;
 
             pool.close().await;
             Ok::<(), sqlx::Error>(())

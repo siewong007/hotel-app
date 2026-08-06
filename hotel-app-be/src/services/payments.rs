@@ -1973,6 +1973,50 @@ mod receipt_tests {
 }
 
 #[cfg(test)]
+mod idempotency_key_tests {
+    use super::normalized_idempotency_key;
+    use crate::core::error::ApiError;
+
+    const INVALID_KEY_MESSAGE: &str = "Idempotency key must be between 1 and 160 characters";
+
+    #[test]
+    fn normalized_idempotency_key_trims_valid_input() {
+        assert_eq!(
+            normalized_idempotency_key("  payment-key  ").expect("valid key"),
+            "payment-key"
+        );
+    }
+
+    #[test]
+    fn normalized_idempotency_key_rejects_empty_or_whitespace_input() {
+        for value in ["", " \t\n "] {
+            assert!(matches!(
+                normalized_idempotency_key(value),
+                Err(ApiError::BadRequest(message)) if message == INVALID_KEY_MESSAGE
+            ));
+        }
+    }
+
+    #[test]
+    fn normalized_idempotency_key_accepts_exactly_160_characters() {
+        let value = "x".repeat(160);
+        assert_eq!(
+            normalized_idempotency_key(&value).expect("160-character key"),
+            value
+        );
+    }
+
+    #[test]
+    fn normalized_idempotency_key_rejects_161_characters() {
+        let value = "x".repeat(161);
+        assert!(matches!(
+            normalized_idempotency_key(&value),
+            Err(ApiError::BadRequest(message)) if message == INVALID_KEY_MESSAGE
+        ));
+    }
+}
+
+#[cfg(test)]
 mod paypal_capture_verification_tests {
     use super::verify_captured_against_stored;
     use crate::services::paypal_client::PaypalCaptureOutcome;
