@@ -1156,4 +1156,136 @@ mod postgres_tests {
              and only after stamping void_at/void_by/void_reason"
         );
     }
+
+    // -----------------------------------------------------------------
+    // update_customer_ledger writes the `status` column alone: it inserts no
+    // customer_ledger_payments row and never touches paid_amount. A hand-set
+    // 'paid' therefore left balance_due positive while the stored column made
+    // delete_customer_ledger refuse the row forever and reported it settled to
+    // anything filtering on raw `status`. 'paid' must be earned by a payment.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn postgres_update_customer_ledger_refuses_status_paid_while_balance_outstanding() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_111;
+        let company_name = "Lgr940 UpdatePaid Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+
+        let ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 update-paid charge", 400.0),
+        )
+        .await
+        .expect("creating a standalone customer ledger should succeed");
+
+        // Partially paid: 100 of 400, so 300 is still outstanding.
+        ledgers::create_ledger_payment(
+            &pool,
+            ledger.id,
+            actor_id,
+            payment_request(100.0, "LGR940-RCT-111-1"),
+        )
+        .await
+        .expect("partial payment should succeed");
+
+        let result = ledgers::update_customer_ledger(
+            &pool,
+            ledger.id,
+            actor_id,
+            CustomerLedgerUpdateRequest {
+                status: Some("paid".to_string()),
+                ..empty_ledger_update()
+            },
+        )
+        .await;
+
+        let after = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .expect("ledger should still be readable after the refused update");
+
+        // Clean up before asserting so a regression cannot leak fixtures into
+        // the shared, persistent database.
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        let err = result.expect_err(
+            "update_customer_ledger must refuse status='paid' while a balance is outstanding - \
+             it records no payment and no payment date, so 'paid' would be a bare label",
+        );
+        assert!(
+            err.to_string().to_lowercase().contains("outstanding"),
+            "error message should name the outstanding balance as the reason: {err}"
+        );
+        assert_eq!(
+            after.status, "partial",
+            "the refused update must leave the derived status untouched"
+        );
+        assert_eq!(
+            after.balance_due,
+            Decimal::new(30_000, 2),
+            "the refused update must not move paid_amount/balance_due"
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // The guard above blocks only the unearned transition. Once payments cover
+    // the full amount, create_ledger_payment has already derived 'paid', and
+    // an update echoing that value back (e.g. while editing notes) must pass.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn postgres_update_customer_ledger_allows_status_paid_once_fully_settled() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_112;
+        let company_name = "Lgr940 UpdatePaidOk Co";
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+        ensure_test_actor(&pool, actor_id).await;
+
+        let ledger = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            standalone_ledger_request(company_name, "Lgr940 update-paid-ok charge", 400.0),
+        )
+        .await
+        .expect("creating a standalone customer ledger should succeed");
+
+        ledgers::create_ledger_payment(
+            &pool,
+            ledger.id,
+            actor_id,
+            payment_request(400.0, "LGR940-RCT-112-1"),
+        )
+        .await
+        .expect("full payment should succeed");
+
+        let result = ledgers::update_customer_ledger(
+            &pool,
+            ledger.id,
+            actor_id,
+            CustomerLedgerUpdateRequest {
+                status: Some("paid".to_string()),
+                notes: Some("settled in full".to_string()),
+                ..empty_ledger_update()
+            },
+        )
+        .await;
+
+        cleanup_ledger_fixture(&pool, company_name).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        let updated = result.expect(
+            "update_customer_ledger must accept status='paid' once payments cover the amount",
+        );
+        assert_eq!(updated.status, "paid");
+        assert_eq!(updated.balance_due, Decimal::ZERO);
+    }
 }

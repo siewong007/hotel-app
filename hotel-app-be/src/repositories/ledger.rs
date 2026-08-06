@@ -512,16 +512,22 @@ pub async fn update_customer_ledger(
     user_id: i64,
     request: CustomerLedgerUpdateRequest,
 ) -> Result<CustomerLedger, ApiError> {
-    let current_status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM customer_ledgers WHERE id = $1")
+    let current_row =
+        sqlx::query("SELECT status, amount, paid_amount FROM customer_ledgers WHERE id = $1")
             .bind(ledger_id)
             .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let Some(current_status) = current_status else {
+    let Some(current_row) = current_row else {
         return Err(ApiError::NotFound("Customer ledger not found".to_string()));
     };
+
+    let current_status: String = current_row
+        .try_get("status")
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let current_amount = get_decimal(&current_row, "amount");
+    let current_paid = get_decimal(&current_row, "paid_amount");
 
     // Only `void_ledger` may TRANSITION status to 'void' - that path stamps
     // void_at/void_by/void_reason. This generic update is gated by
@@ -534,6 +540,32 @@ pub async fn update_customer_ledger(
         return Err(ApiError::BadRequest(
             "Cannot set status to 'void' via update; use the void endpoint instead".to_string(),
         ));
+    }
+
+    // 'paid' must be EARNED by money actually recorded, not typed in. This
+    // update writes the `status` column alone - it inserts no
+    // customer_ledger_payments row and never touches paid_amount, so a
+    // hand-set 'paid' left `balance_due` (GENERATED as amount - paid_amount)
+    // positive. The UI badge is balance-first (`ui_status_clause` keys 'paid'
+    // off `balance_due <= 0`) and so ignored the typed-in value entirely,
+    // while the stored column still, invisibly: made `delete_customer_ledger`
+    // refuse the row forever ("Cannot delete a paid ledger entry"), and
+    // reported it as settled to anything filtering on raw `status`.
+    // `record_ledger_payment` derives 'paid' from this same comparison, so a
+    // genuinely settled row reaches it without help.
+    //
+    // Only the TRANSITION is blocked, matching the void guard above: rows
+    // already carrying a hand-set 'paid' (written before this guard existed)
+    // must stay editable, or changing their notes would be impossible.
+    if request.status.as_deref() == Some("paid")
+        && current_status != "paid"
+        && current_paid < current_amount
+    {
+        let outstanding = current_amount - current_paid;
+        return Err(ApiError::BadRequest(format!(
+            "Cannot set status to 'paid' while {outstanding} is still outstanding; \
+             record a payment for the full balance instead"
+        )));
     }
 
     if let Some(post_type) = request.post_type.as_deref()
