@@ -1967,6 +1967,8 @@ CREATE TABLE public.customer_ledger_payments (
     notes text,
     processed_by bigint,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    idempotency_key character varying(160),
+    idempotency_fingerprint character varying(64),
     CONSTRAINT positive_payment CHECK ((payment_amount > (0)::numeric))
 );
 
@@ -3765,6 +3767,8 @@ CREATE TABLE public.payments (
     created_by bigint,
     processed_at timestamp with time zone,
     processed_by bigint,
+    idempotency_key character varying(160),
+    idempotency_fingerprint character varying(64),
     CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying])::text[]))),
     CONSTRAINT payments_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
 );
@@ -6626,7 +6630,14 @@ CREATE INDEX idx_customer_ledger_payments_ledger ON public.customer_ledger_payme
 -- Name: idx_customer_ledger_payments_receipt_unique; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_customer_ledger_payments_receipt_unique ON public.customer_ledger_payments USING btree (lower(TRIM(BOTH FROM receipt_number))) WHERE ((receipt_number IS NOT NULL) AND (TRIM(BOTH FROM receipt_number) <> ''::text));
+CREATE UNIQUE INDEX idx_customer_ledger_payments_receipt_unique ON public.customer_ledger_payments USING btree (ledger_id, lower(TRIM(BOTH FROM receipt_number))) WHERE ((receipt_number IS NOT NULL) AND (TRIM(BOTH FROM receipt_number) <> ''::text));
+
+
+--
+-- Name: uq_ledger_payments_ledger_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_ledger_payments_ledger_idempotency ON public.customer_ledger_payments USING btree (ledger_id, idempotency_key) WHERE ((idempotency_key IS NOT NULL) AND (TRIM(BOTH FROM idempotency_key) <> ''::text));
 
 
 --
@@ -7243,6 +7254,13 @@ CREATE INDEX idx_passkeys_user_id ON public.passkeys USING btree (user_id) WHERE
 --
 
 CREATE INDEX idx_payments_booking ON public.payments USING btree (booking_id);
+
+
+--
+-- Name: uq_payments_booking_idempotency; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_payments_booking_idempotency ON public.payments USING btree (booking_id, idempotency_key) WHERE ((idempotency_key IS NOT NULL) AND (TRIM(BOTH FROM idempotency_key) <> ''::text));
 
 
 --

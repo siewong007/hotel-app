@@ -54,8 +54,10 @@ be empty — and check the dumps are non-trivial first, because two failed dumps
 also diff to zero. Declare a new column in the position `ALTER TABLE ADD COLUMN`
 produces (last in the table body) or fresh and patched schemas diverge forever.
 
-Nothing is applied automatically anywhere — the desktop launcher in particular
-never alters an existing database.
+The baseline, seed, and operator patches are never applied automatically to an
+existing database. The desktop launcher may apply a narrowly scoped,
+idempotent compatibility upgrade to a recognized V1 database before starting
+the backend; it still refuses unversioned and legacy layouts.
 
 ## PostgreSQL 19 physical design (2026-07-26)
 
@@ -95,7 +97,8 @@ PostgreSQL 19 Beta 2 is prerelease software for testing, not production.
 ## Docker and desktop
 
 Docker and desktop bundles use the same V1 sequence: baseline, then seed, only
-for a new empty PostgreSQL database. The desktop launcher does not alter a
-non-empty unversioned or legacy database. Recovery is a manual, backup-first
-export and fresh rebuild. Optimization scripts are never bundled or applied
-automatically.
+for a new empty PostgreSQL database. For a recognized V1 database, the desktop
+launcher may apply an explicitly supported, idempotent compatibility upgrade
+before starting the backend. It does not alter a non-empty unversioned or legacy
+database; recovery for those layouts is a manual, backup-first export and fresh
+rebuild. Optimization scripts are never bundled or applied automatically.
