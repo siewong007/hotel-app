@@ -242,6 +242,26 @@ pub async fn record_payment(
         ));
     }
 
+    if let Some(transaction_reference) = request
+        .transaction_reference
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        PaymentRepository::lock_transaction_references_tx(&mut tx, &[transaction_reference])
+            .await?;
+        if let Some(existing) =
+            PaymentRepository::find_transaction_reference_payment_tx(&mut tx, transaction_reference)
+                .await?
+        {
+            if existing.idempotency_fingerprint.as_deref() == Some(fingerprint.as_str()) {
+                return Ok(existing.into_response());
+            }
+            return Err(ApiError::Conflict(
+                "Transaction reference was already used with different payment data".to_string(),
+            ));
+        }
+    }
+
     // Whether this payment settles the booking's outstanding balance in full —
     // if so, and the booking is still `pending` (a guest self-service booking
     // awaiting payment), staff recording a desk payment (e.g. cash/card at

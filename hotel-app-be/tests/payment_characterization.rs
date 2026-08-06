@@ -358,6 +358,60 @@ async fn cleanup_idempotency_booking(
     .await;
 }
 
+async fn seed_pending_booking_pair(
+    pool: &PgPool,
+    actor_id: i64,
+    first: (i64, i64, i64, i64),
+    second: (i64, i64, i64, i64),
+) {
+    cleanup(
+        pool,
+        &[first.0, second.0],
+        &[first.1, second.1],
+        &[first.2, second.2],
+        &[first.3, second.3],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(pool, actor_id).await;
+    for (room_type_id, room_id, guest_id, booking_id) in [first, second] {
+        seed_booking(
+            pool,
+            &BookingFixture {
+                room_type_id,
+                room_id,
+                guest_id,
+                booking_id,
+                actor_id,
+                status: "pending",
+                check_in: "2031-07-10",
+                check_out: "2031-07-11",
+                base_price: d("300.00"),
+                subtotal: d("300.00"),
+                total_amount: d("300.00"),
+            },
+        )
+        .await;
+    }
+}
+
+async fn cleanup_booking_pair(
+    pool: &PgPool,
+    actor_id: i64,
+    first: (i64, i64, i64, i64),
+    second: (i64, i64, i64, i64),
+) {
+    cleanup(
+        pool,
+        &[first.0, second.0],
+        &[first.1, second.1],
+        &[first.2, second.2],
+        &[first.3, second.3],
+        &[actor_id],
+    )
+    .await;
+}
+
 async fn install_payment_insert_delay(pool: &PgPool) {
     remove_payment_insert_delay(pool).await.unwrap();
     sqlx::query(
@@ -491,13 +545,6 @@ async fn remove_payment_mutation_gate(pool: &PgPool) -> Result<(), sqlx::Error> 
 
 async fn install_booking_recompute_failure(pool: &PgPool, booking_id: i64) {
     remove_booking_recompute_failure(pool).await.unwrap();
-    // Isolate the service-owned recompute boundary. The baseline also carries
-    // a database trigger as defense in depth; disabling it here proves the Rust
-    // transaction itself does not commit a replay row before its recompute.
-    sqlx::query("ALTER TABLE payments DISABLE TRIGGER trg_sync_booking_payment_status")
-        .execute(pool)
-        .await
-        .unwrap();
     let function_sql = format!(
         r#"
         CREATE FUNCTION payment_characterization_fail_recompute()
@@ -505,7 +552,10 @@ async fn install_booking_recompute_failure(pool: &PgPool, booking_id: i64) {
         LANGUAGE plpgsql
         AS $$
         BEGIN
-            IF NEW.id = {booking_id} THEN
+            -- The baseline's payment trigger performs the first real status
+            -- transition. Fail only the service's redundant unchanged-value
+            -- recompute, without disabling production triggers globally.
+            IF NEW.id = {booking_id} AND NEW.payment_status = OLD.payment_status THEN
                 RAISE EXCEPTION 'forced payment-status recompute failure';
             END IF;
             RETURN NEW;
@@ -529,9 +579,6 @@ async fn remove_booking_recompute_failure(pool: &PgPool) -> Result<(), sqlx::Err
         .execute(pool)
         .await?;
     sqlx::query("DROP FUNCTION IF EXISTS payment_characterization_fail_recompute()")
-        .execute(pool)
-        .await?;
-    sqlx::query("ALTER TABLE payments ENABLE TRIGGER trg_sync_booking_payment_status")
         .execute(pool)
         .await?;
     Ok(())
@@ -1537,7 +1584,7 @@ async fn transaction_reference_replay_requires_exact_canonical_payload() {
         (940_730, 940_731, 940_732, 940_733, 940_734);
     seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
 
-    let mut original = payment_request(booking_id, 100.0, "payment-char-940734-original");
+    let mut original = payment_request(booking_id, 300.0, "payment-char-940734-original");
     original.payment_method = "card".to_string();
     original.transaction_reference = Some("PAY-940734".to_string());
     original.notes = Some("Original".to_string());
@@ -1546,7 +1593,7 @@ async fn transaction_reference_replay_requires_exact_canonical_payload() {
         .await
         .unwrap();
 
-    let mut exact = payment_request(booking_id, 100.0, "payment-char-940734-exact-retry");
+    let mut exact = payment_request(booking_id, 300.0, "payment-char-940734-exact-retry");
     exact.payment_method = "card".to_string();
     exact.transaction_reference = Some("PAY-940734".to_string());
     exact.notes = Some("Original".to_string());
@@ -1555,21 +1602,21 @@ async fn transaction_reference_replay_requires_exact_canonical_payload() {
         .await
         .expect("an exact transaction-reference retry must replay");
 
-    let mut changed_amount = payment_request(booking_id, 150.0, "payment-char-940734-amount");
+    let mut changed_amount = payment_request(booking_id, 250.0, "payment-char-940734-amount");
     changed_amount.payment_method = "card".to_string();
     changed_amount.transaction_reference = Some("PAY-940734".to_string());
     changed_amount.notes = Some("Original".to_string());
     changed_amount.payment_date = Some("2031-07-03".to_string());
     let changed_amount = payments::record_payment(&pool, actor_id, changed_amount).await;
 
-    let mut changed_method = payment_request(booking_id, 100.0, "payment-char-940734-method");
+    let mut changed_method = payment_request(booking_id, 300.0, "payment-char-940734-method");
     changed_method.payment_method = "cash".to_string();
     changed_method.transaction_reference = Some("PAY-940734".to_string());
     changed_method.notes = Some("Original".to_string());
     changed_method.payment_date = Some("2031-07-03".to_string());
     let changed_method = payments::record_payment(&pool, actor_id, changed_method).await;
 
-    let mut changed_type = payment_request(booking_id, 100.0, "payment-char-940734-type");
+    let mut changed_type = payment_request(booking_id, 300.0, "payment-char-940734-type");
     changed_type.payment_method = "card".to_string();
     changed_type.payment_type = Some("deposit".to_string());
     changed_type.transaction_reference = Some("PAY-940734".to_string());
@@ -1577,14 +1624,14 @@ async fn transaction_reference_replay_requires_exact_canonical_payload() {
     changed_type.payment_date = Some("2031-07-03".to_string());
     let changed_type = payments::record_payment(&pool, actor_id, changed_type).await;
 
-    let mut changed_notes = payment_request(booking_id, 100.0, "payment-char-940734-notes");
+    let mut changed_notes = payment_request(booking_id, 300.0, "payment-char-940734-notes");
     changed_notes.payment_method = "card".to_string();
     changed_notes.transaction_reference = Some("PAY-940734".to_string());
     changed_notes.notes = Some("Changed".to_string());
     changed_notes.payment_date = Some("2031-07-03".to_string());
     let changed_notes = payments::record_payment(&pool, actor_id, changed_notes).await;
 
-    let mut changed_date = payment_request(booking_id, 100.0, "payment-char-940734-date");
+    let mut changed_date = payment_request(booking_id, 300.0, "payment-char-940734-date");
     changed_date.payment_method = "card".to_string();
     changed_date.transaction_reference = Some("PAY-940734".to_string());
     changed_date.notes = Some("Original".to_string());
@@ -1690,6 +1737,304 @@ async fn transaction_reference_cannot_be_reused_by_another_booking() {
         matches!(result, Err(ApiError::Conflict(_))),
         "another booking must not replay a global transaction reference: {result:?}"
     );
+}
+
+/// The absent-reference case must also serialize globally. Delaying the first
+/// insert gives a second booking time to perform its lookup; without the
+/// advisory claim both rows are inserted.
+#[tokio::test]
+async fn concurrent_bookings_cannot_claim_the_same_transaction_reference() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_770;
+    let first = (940_771, 940_772, 940_773, 940_774);
+    let second = (940_775, 940_776, 940_777, 940_778);
+    seed_pending_booking_pair(&pool, actor_id, first, second).await;
+    install_payment_insert_delay(&pool).await;
+
+    let barrier = Arc::new(Barrier::new(2));
+    let first_pool = pool.clone();
+    let first_barrier = barrier.clone();
+    let first_claim = tokio::spawn(async move {
+        let mut request = payment_request(first.3, 100.0, "payment-char-940774-reference-claim");
+        request.transaction_reference = Some("PAY-CONCURRENT-940770".to_string());
+        first_barrier.wait().await;
+        payments::record_payment(&first_pool, actor_id, request).await
+    });
+    let second_pool = pool.clone();
+    let second_barrier = barrier.clone();
+    let second_claim = tokio::spawn(async move {
+        let mut request = payment_request(second.3, 100.0, "payment-char-940778-reference-claim");
+        request.transaction_reference = Some("PAY-CONCURRENT-940770".to_string());
+        second_barrier.wait().await;
+        payments::record_payment(&second_pool, actor_id, request).await
+    });
+    let (first_claim, second_claim) = tokio::join!(first_claim, second_claim);
+    let first_claim = first_claim.unwrap();
+    let second_claim = second_claim.unwrap();
+    let reference_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE transaction_id = $1")
+            .bind("PAY-CONCURRENT-940770")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    let trigger_cleanup = remove_payment_insert_delay(&pool).await;
+    cleanup_booking_pair(&pool, actor_id, first, second).await;
+    trigger_cleanup.expect("the insert delay must be removed");
+
+    assert_eq!(
+        [first_claim.as_ref(), second_claim.as_ref()]
+            .into_iter()
+            .filter(|result| result.is_ok())
+            .count(),
+        1,
+        "exactly one booking may claim the reference: first={first_claim:?}, second={second_claim:?}"
+    );
+    assert!(
+        [first_claim, second_claim]
+            .into_iter()
+            .any(|result| matches!(result, Err(ApiError::Conflict(_))))
+    );
+    assert_eq!(reference_count, 1);
+}
+
+/// Updating a payment to claim a reference and creating another payment with
+/// that reference must share the same advisory serialization. The update also
+/// refreshes its fingerprint so its new canonical material can replay exactly.
+#[tokio::test]
+async fn concurrent_update_and_create_cannot_claim_the_same_transaction_reference() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_780;
+    let first = (940_781, 940_782, 940_783, 940_784);
+    let second = (940_785, 940_786, 940_787, 940_788);
+    seed_pending_booking_pair(&pool, actor_id, first, second).await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(first.3, 100.0, "payment-char-940784-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+
+    const GATE: i64 = 940_789;
+    install_payment_mutation_gate(&pool, "UPDATE", GATE).await;
+    let mut gate_connection = pool.acquire().await.unwrap();
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let update_pool = pool.clone();
+    let update = tokio::spawn(async move {
+        payments::update_payment(
+            &update_pool,
+            actor_id,
+            payment_id,
+            UpdatePaymentRequest {
+                amount: None,
+                payment_method: None,
+                transaction_reference: Some("PAY-UPDATE-CREATE-940780".to_string()),
+                notes: None,
+                payment_date: None,
+            },
+        )
+        .await
+    });
+    wait_for_advisory_waiter(&pool).await;
+
+    let create_pool = pool.clone();
+    let create = tokio::spawn(async move {
+        let mut request = payment_request(second.3, 100.0, "payment-char-940788-concurrent-create");
+        request.transaction_reference = Some("PAY-UPDATE-CREATE-940780".to_string());
+        payments::record_payment(&create_pool, actor_id, request).await
+    });
+    sleep(Duration::from_millis(100)).await;
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let updated = timeout(Duration::from_secs(5), update)
+        .await
+        .unwrap()
+        .unwrap();
+    let created = timeout(Duration::from_secs(5), create)
+        .await
+        .unwrap()
+        .unwrap();
+    let reference_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE transaction_id = $1")
+            .bind("PAY-UPDATE-CREATE-940780")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let payment_date: String =
+        sqlx::query_scalar("SELECT created_at::date::text FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let mut replay = payment_request(first.3, 100.0, "payment-char-940784-new-material");
+    replay.transaction_reference = Some("PAY-UPDATE-CREATE-940780".to_string());
+    replay.payment_date = Some(payment_date);
+    let replay = payments::record_payment(&pool, actor_id, replay).await;
+    let stale_replay = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(first.3, 100.0, "payment-char-940784-original"),
+    )
+    .await;
+
+    let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
+    cleanup_booking_pair(&pool, actor_id, first, second).await;
+    trigger_cleanup.expect("the update gate must be removed");
+
+    assert!(
+        updated.is_ok(),
+        "the update must claim the reference: {updated:?}"
+    );
+    assert!(
+        matches!(created, Err(ApiError::Conflict(_))),
+        "the concurrent create must conflict: {created:?}"
+    );
+    assert_eq!(reference_count, 1);
+    assert!(
+        replay.is_ok(),
+        "updated canonical material must replay: {replay:?}"
+    );
+    assert!(
+        matches!(stale_replay, Err(ApiError::Conflict(_))),
+        "the pre-update canonical payload must no longer replay: {stale_replay:?}"
+    );
+}
+
+/// Two updates on different bookings must serialize the same proposed
+/// reference and leave exactly one owner.
+#[tokio::test]
+async fn concurrent_updates_cannot_claim_the_same_transaction_reference() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_790;
+    let first = (940_791, 940_792, 940_793, 940_794);
+    let second = (940_795, 940_796, 940_797, 940_798);
+    seed_pending_booking_pair(&pool, actor_id, first, second).await;
+    let first_payment = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(first.3, 100.0, "payment-char-940794-original"),
+    )
+    .await
+    .unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    let second_payment = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(second.3, 100.0, "payment-char-940798-original"),
+    )
+    .await
+    .unwrap()["id"]
+        .as_i64()
+        .unwrap();
+
+    const GATE: i64 = 940_799;
+    install_payment_mutation_gate(&pool, "UPDATE", GATE).await;
+    let mut gate_connection = pool.acquire().await.unwrap();
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+    let barrier = Arc::new(Barrier::new(2));
+
+    let first_pool = pool.clone();
+    let first_barrier = barrier.clone();
+    let first_update = tokio::spawn(async move {
+        first_barrier.wait().await;
+        payments::update_payment(
+            &first_pool,
+            actor_id,
+            first_payment,
+            UpdatePaymentRequest {
+                amount: None,
+                payment_method: None,
+                transaction_reference: Some("PAY-UPDATE-UPDATE-940790".to_string()),
+                notes: None,
+                payment_date: None,
+            },
+        )
+        .await
+    });
+    let second_pool = pool.clone();
+    let second_barrier = barrier.clone();
+    let second_update = tokio::spawn(async move {
+        second_barrier.wait().await;
+        payments::update_payment(
+            &second_pool,
+            actor_id,
+            second_payment,
+            UpdatePaymentRequest {
+                amount: None,
+                payment_method: None,
+                transaction_reference: Some("PAY-UPDATE-UPDATE-940790".to_string()),
+                notes: None,
+                payment_date: None,
+            },
+        )
+        .await
+    });
+    wait_for_advisory_waiter(&pool).await;
+    sleep(Duration::from_millis(100)).await;
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(GATE)
+        .execute(&mut *gate_connection)
+        .await
+        .unwrap();
+
+    let first_update = timeout(Duration::from_secs(5), first_update)
+        .await
+        .unwrap()
+        .unwrap();
+    let second_update = timeout(Duration::from_secs(5), second_update)
+        .await
+        .unwrap()
+        .unwrap();
+    let reference_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE transaction_id = $1")
+            .bind("PAY-UPDATE-UPDATE-940790")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
+    cleanup_booking_pair(&pool, actor_id, first, second).await;
+    trigger_cleanup.expect("the update gate must be removed");
+
+    assert_eq!(
+        [first_update.as_ref(), second_update.as_ref()]
+            .into_iter()
+            .filter(|result| result.is_ok())
+            .count(),
+        1,
+        "exactly one update may claim the reference: first={first_update:?}, second={second_update:?}"
+    );
+    assert!(
+        [first_update, second_update]
+            .into_iter()
+            .any(|result| matches!(result, Err(ApiError::Conflict(_))))
+    );
+    assert_eq!(reference_count, 1);
 }
 
 /// Rows written before fingerprints existed are ambiguous and must never be
