@@ -340,6 +340,8 @@ mod postgres_smoke {
             insert_booking_payment(&pool, 2, "booking-key").await;
             insert_booking_payment(&pool, 3, "").await;
             insert_booking_payment(&pool, 3, "").await;
+            insert_booking_payment(&pool, 3, "   ").await;
+            insert_booking_payment(&pool, 3, "   ").await;
 
             insert_ledger_payment(&pool, 1, "ledger-key").await;
             let ledger_duplicate = sqlx::query(
@@ -354,6 +356,8 @@ mod postgres_smoke {
             insert_ledger_payment(&pool, 2, "ledger-key").await;
             insert_ledger_payment(&pool, 3, "").await;
             insert_ledger_payment(&pool, 3, "").await;
+            insert_ledger_payment(&pool, 3, "   ").await;
+            insert_ledger_payment(&pool, 3, "   ").await;
 
             pool.close().await;
             Ok::<(), sqlx::Error>(())

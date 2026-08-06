@@ -740,6 +740,7 @@ let Json(_) = bookings::update_booking_handler(
                 receipt_file_url: None,
                 notes: None,
                 payment_date: None,
+                idempotency_key: "lgr910-payment-1".to_string(),
             },
         )
         .await
@@ -763,6 +764,7 @@ let Json(_) = bookings::update_booking_handler(
                 receipt_file_url: None,
                 notes: None,
                 payment_date: None,
+                idempotency_key: "lgr910-payment-2".to_string(),
             },
         )
         .await
