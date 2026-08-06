@@ -422,6 +422,14 @@ function mockReceiptOnLedger(ledgerId: number, receiptNumber: string) {
   );
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 async function openCreateMenu() {
   fireEvent.click(screen.getByRole('button', { name: 'Create' }));
   await screen.findByRole('menuitem', { name: /New Ledger Entry/i });
@@ -668,6 +676,52 @@ describe('CustomerLedgerPage', () => {
     await waitFor(() => expect(mocks.captured.paymentDialog?.paymentHistory).toEqual([paymentFixture]));
   });
 
+  it('waits for fresh target-ledger history before creating a single-ledger payment', async () => {
+    const submitHistory = createDeferred<CustomerLedgerPayment[]>();
+    mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
+    mocks.hotelApi.getCustomerLedger.mockResolvedValue({
+      ...buildLedgers()[0],
+      status: 'paid',
+      paid_amount: 500,
+      balance_due: 0,
+    });
+
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[101]).toEqual([]));
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
+    await waitFor(() => expect(mocks.captured.paymentDialog?.paymentHistory).toEqual([]));
+
+    mocks.hotelApi.getLedgerPayments.mockClear();
+    mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
+      ledgerId === 101 ? submitHistory.promise : Promise.resolve([]),
+    );
+    await act(async () => {
+      mocks.captured.paymentDialog!.setPaymentFormData({
+        ...mocks.captured.paymentDialog!.paymentFormData,
+        receipt_number: 'receipt-fresh-101',
+      });
+    });
+
+    let submitPromise!: Promise<void>;
+    await act(async () => {
+      submitPromise = mocks.captured.paymentDialog!.onRecordPayment();
+      await Promise.resolve();
+    });
+
+    expect(mocks.hotelApi.getLedgerPayments.mock.calls.map(([ledgerId]) => ledgerId)).toEqual([101]);
+    expect(mocks.hotelApi.createLedgerPayment).not.toHaveBeenCalled();
+
+    await act(async () => {
+      submitHistory.resolve([]);
+      await submitPromise;
+    });
+
+    expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({ receipt_number: 'receipt-fresh-101' }),
+    );
+  });
+
   it('allows a single-ledger receipt already used on a different ledger', async () => {
     mockReceiptOnLedger(102, ' Receipt-77 ');
     mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
@@ -854,11 +908,14 @@ describe('CustomerLedgerPage', () => {
     );
   });
 
-  it('rejects a company receipt already used on any selected ledger after trim and case normalization', async () => {
-    mockReceiptOnLedger(102, ' Receipt-99 ');
+  it('rejects a fresh company duplicate on a selected ledger after a stale empty preload', async () => {
+    mocks.hotelApi.createCompanyLedgerPayment.mockResolvedValue({ payments: [], payment_amount: 700 });
+    mocks.hotelApi.getCustomerLedger.mockImplementation((ledgerId: number) =>
+      Promise.resolve(buildLedgers().find((ledger) => ledger.id === ledgerId)),
+    );
 
     render(<CustomerLedgerPage />);
-    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[102]).toHaveLength(1));
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[102]).toEqual([]));
     await openCreateMenu();
     fireEvent.click(screen.getByRole('menuitem', { name: /Record Payment/i }));
     await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.open).toBe(true));
@@ -871,6 +928,9 @@ describe('CustomerLedgerPage', () => {
         receipt_number: 'receipt-99',
       });
     });
+    mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
+      Promise.resolve(ledgerId === 102 ? [buildLedgerPayment(102, ' Receipt-99 ')] : []),
+    );
     await act(async () => {
       await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
     });
@@ -879,6 +939,48 @@ describe('CustomerLedgerPage', () => {
     expect(mocks.emitApiNotification).toHaveBeenCalledWith({
       message: 'Receipt number already exists',
       severity: 'warning',
+    });
+  });
+
+  it('blocks a company payment when fresh history fails for its only selected ledger', async () => {
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.payments?.[102]).toEqual([]));
+    await openCreateMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Record Payment/i }));
+    await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.open).toBe(true));
+
+    const dialog = mocks.captured.recordCompanyPaymentDialog!;
+    await act(async () => {
+      dialog.setSelectedLedgersForPayment([
+        dialog.paymentCompanyLedgers.find((ledger: CustomerLedger) => ledger.id === 102)!,
+      ]);
+      dialog.setCompanyPaymentForm({
+        ...dialog.companyPaymentForm,
+        payment_amount: '200',
+        receipt_number: 'receipt-retry-102',
+      });
+    });
+    await waitFor(() =>
+      expect(mocks.captured.recordCompanyPaymentDialog?.selectedLedgersForPayment.map(
+        (ledger: CustomerLedger) => ledger.id,
+      )).toEqual([102]),
+    );
+
+    mocks.hotelApi.getLedgerPayments.mockClear();
+    mocks.hotelApi.getLedgerPayments.mockRejectedValue(new Error('history unavailable'));
+    await act(async () => {
+      await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+    });
+
+    expect(mocks.hotelApi.getLedgerPayments.mock.calls.map(([ledgerId]) => ledgerId)).toEqual([102]);
+    expect(mocks.hotelApi.createCompanyLedgerPayment).not.toHaveBeenCalled();
+    expect(mocks.emitApiNotification).toHaveBeenCalledWith({
+      message: 'Unable to verify receipt number. Please try again.',
+      severity: 'error',
+    });
+    expect(mocks.captured.recordCompanyPaymentDialog).toMatchObject({
+      open: true,
+      companyPaymentForm: expect.objectContaining({ receipt_number: 'receipt-retry-102' }),
     });
   });
 

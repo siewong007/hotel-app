@@ -960,20 +960,30 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
-    const receiptNumber = normalizeReceiptNumber(companyPaymentForm.receipt_number);
-    if (receiptNumber) {
-      const receiptExists = selectedLedgersForPayment.some(ledger =>
-        (activeCompanyPayments[ledger.id] ?? [])
-          .some(payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber),
-      );
-      if (receiptExists) {
-        showSnackbar('Receipt number already exists', 'warning');
-        return;
-      }
-    }
-
     try {
       setProcessingCompanyPayment(true);
+      const receiptNumber = normalizeReceiptNumber(companyPaymentForm.receipt_number);
+      if (receiptNumber) {
+        let paymentHistories: CustomerLedgerPayment[][];
+        try {
+          paymentHistories = await Promise.all(
+            selectedLedgersForPayment.map(ledger => LedgerService.getLedgerPayments(ledger.id)),
+          );
+        } catch (error) {
+          console.error('Failed to verify receipt number:', error);
+          showSnackbar('Unable to verify receipt number. Please try again.', 'error');
+          return;
+        }
+
+        const receiptExists = paymentHistories.some(payments =>
+          payments.some(payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber),
+        );
+        if (receiptExists) {
+          showSnackbar('Receipt number already exists', 'warning');
+          return;
+        }
+      }
+
       const request = {
         ledger_ids: selectedLedgersForPayment.map((ledger) => ledger.id),
         payment_amount: paymentAmount,
@@ -1358,16 +1368,6 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
-    const receiptNumber = normalizeReceiptNumber(paymentFormData.receipt_number);
-    if (receiptNumber) {
-      const receiptExists = (activeCompanyPayments[paymentLedger.id] ?? [])
-        .some(payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber);
-      if (receiptExists) {
-        showSnackbar('Receipt number already exists', 'warning');
-        return;
-      }
-    }
-
     const paymentAmount = toMoneyNumber(paymentFormData.payment_amount);
     const paymentRequest = {
       payment_amount: paymentAmount,
@@ -1378,15 +1378,35 @@ const CustomerLedgerPage: React.FC = () => {
       notes: normalizeOptionalPaymentText(paymentFormData.notes),
       payment_date: normalizeOptionalPaymentText(paymentFormData.payment_date),
     };
-    const attempt = getIdempotencyAttempt(ledgerPaymentAttemptRef.current, JSON.stringify({
-      ledger_id: paymentLedger.id,
-      ...paymentRequest,
-      payment_amount: paymentAmount.toFixed(2),
-    }));
-    ledgerPaymentAttemptRef.current = attempt;
 
     try {
       setProcessingPayment(true);
+      const receiptNumber = normalizeReceiptNumber(paymentFormData.receipt_number);
+      if (receiptNumber) {
+        let payments: CustomerLedgerPayment[];
+        try {
+          payments = await LedgerService.getLedgerPayments(paymentLedger.id);
+        } catch (error) {
+          console.error('Failed to verify receipt number:', error);
+          showSnackbar('Unable to verify receipt number. Please try again.', 'error');
+          return;
+        }
+
+        const receiptExists = payments.some(
+          payment => normalizeReceiptNumber(payment.receipt_number) === receiptNumber,
+        );
+        if (receiptExists) {
+          showSnackbar('Receipt number already exists', 'warning');
+          return;
+        }
+      }
+
+      const attempt = getIdempotencyAttempt(ledgerPaymentAttemptRef.current, JSON.stringify({
+        ledger_id: paymentLedger.id,
+        ...paymentRequest,
+        payment_amount: paymentAmount.toFixed(2),
+      }));
+      ledgerPaymentAttemptRef.current = attempt;
       await LedgerService.createLedgerPayment(paymentLedger.id, {
         ...paymentRequest,
         idempotency_key: attempt.key,
