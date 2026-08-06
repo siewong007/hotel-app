@@ -24,7 +24,7 @@ Against disposable PostgreSQL container `codex-payment-final-fix` (the existing 
 
 ## GREEN and verification evidence
 
-- `DATABASE_URL=... cargo test --test payment_characterization -- --nocapture`: 22 passed, 3 pre-existing ignored, 0 failed.
+- `DATABASE_URL=... cargo test --test payment_characterization -- --nocapture`: 24 passed, 3 pre-existing ignored, 0 failed.
 - Create/update final state: update succeeded, the create re-read RM100 outstanding and returned `BadRequest`; completed total RM200, booking `pending`, payment status `partial`.
 - Create/delete final state: both valid serialized operations succeeded; completed total RM200, booking `pending`, payment status `partial`.
 - Approve/reject: no database deadlock, exactly one terminal transition and one terminal audit; the loser returned the normal stale-state error.
@@ -32,6 +32,7 @@ Against disposable PostgreSQL container `codex-payment-final-fix` (the existing 
 - Exact transaction-reference replay returned the original row. Changed canonical material, another booking, and a null fingerprint all returned conflict.
 - A fully settling payment replayed under a new key before the zero-balance guard. Deterministic reference races produced one owner in all three cases: create/create, update/create, and update/update.
 - Updating keyed payment material refreshed its fingerprint atomically: the old payload conflicted and the new material replayed.
+- Fingerprint refresh preserves whether the original requested date was absent or explicit. Reference validation reads the complete owner set before any keyed replay, so historical duplicate owners fail closed in both record and legacy-create paths.
 - `cargo test --tests --no-run`: all backend integration targets compiled.
 - `cargo check --all-features`: passed.
 - `cargo clippy --all-features --all-targets -- -D warnings`: passed.
@@ -44,11 +45,13 @@ Against disposable PostgreSQL container `codex-payment-final-fix` (the existing 
 - `hotel-app-be/tests/payment_characterization.rs`
 - Implementation commit: `0f0e555598a2b8d518e5851c59cc3d09b6461e6f` (`fix(payments): serialize booking payment mutations`)
 - Review-fix commit: `28d6bc5678b14369ff8aa52c837a35f692018fba` (`fix(payments): serialize reference ownership`)
+- Review-fix commit: `7a6cf728131aa5d5e9ba5896ad6dacae8e5422ff` (`fix(payments): fail closed on reference history`)
 
 ## Fresh review
 
 - The first read-only review of `1077c467a..f33522c0` found that updates could bypass global reference ownership, full-settlement reference replay occurred after balance validation, concurrent reference claims lacked coverage, and the rollback test disabled a production trigger.
 - The follow-up commit centralizes advisory ownership across record/create/update, refreshes update fingerprints, moves replay/conflict before balance validation, adds three deterministic reference-claim races, and forces recompute failure without disabling the production trigger.
+- The second review found omitted-date canonical drift, incomplete validation of historical duplicate owners, and timing-based gates. The final fix infers the prior requested-date semantic from the stored fingerprint, validates every reference owner before idempotency replay, seeds duplicate-owner regressions for both APIs, and waits for two observable PostgreSQL advisory waiters before releasing each concurrency gate.
 
 ## Preserved work and known exclusions
 
