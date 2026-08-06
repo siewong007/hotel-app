@@ -246,6 +246,8 @@ pub struct PaymentEntryRow {
     pub notes: Option<String>,
     pub payment_date: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub(crate) idempotency_fingerprint: Option<String>,
 }
 
 impl PaymentEntryRow {

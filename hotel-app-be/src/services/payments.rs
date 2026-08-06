@@ -139,8 +139,9 @@ pub async fn calculate_payment_summary(
 pub async fn create_payment(
     pool: &DbPool,
     user_id: i64,
-    request: PaymentRequest,
+    mut request: PaymentRequest,
 ) -> Result<Payment, ApiError> {
+    request.idempotency_key = normalized_idempotency_key(&request.idempotency_key)?.to_string();
     let summary = calculate_payment_summary(pool, request.booking_id).await?;
     let payment_gateway = match &request.payment_method {
         PaymentMethod::Card => Some("card_processor"),
@@ -149,7 +150,7 @@ pub async fn create_payment(
         _ => None,
     };
 
-    let payment = PaymentRepository::create_completed_payment(
+    let completed_payment = PaymentRepository::create_completed_payment(
         pool,
         user_id,
         &request,
@@ -157,6 +158,10 @@ pub async fn create_payment(
         payment_gateway,
     )
     .await?;
+    let payment = completed_payment.payment;
+    if !completed_payment.was_inserted {
+        return Ok(payment);
+    }
     recompute_payment_status(pool, payment.booking_id).await?;
     try_queue_paid_online_booking_room_assignment(pool, payment.booking_id).await;
 
@@ -198,14 +203,40 @@ pub async fn create_payment(
 pub async fn record_payment(
     pool: &DbPool,
     user_id: i64,
-    request: RecordPaymentRequest,
+    mut request: RecordPaymentRequest,
 ) -> Result<serde_json::Value, ApiError> {
+    request.idempotency_key = normalized_idempotency_key(&request.idempotency_key)?.to_string();
     let amount = Decimal::from_f64_retain(request.amount)
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
 
     let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+    let fingerprint = PaymentRepository::canonical_payment_fingerprint(
+        request.booking_id,
+        Some(amount),
+        &request.payment_method,
+        payment_type,
+        request.transaction_reference.as_deref(),
+        request.notes.as_deref(),
+        request.payment_date.as_deref(),
+    );
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    PaymentRepository::lock_booking_for_payment_tx(&mut tx, request.booking_id).await?;
+
+    if let Some(existing) = PaymentRepository::find_idempotent_payment_tx(
+        &mut tx,
+        request.booking_id,
+        &request.idempotency_key,
+    )
+    .await?
+    {
+        if existing.idempotency_fingerprint.as_deref() == Some(fingerprint.as_str()) {
+            return Ok(existing.into_response());
+        }
+        return Err(ApiError::Conflict(
+            "Idempotency key was already used with different payment data".to_string(),
+        ));
+    }
 
     // Whether this payment settles the booking's outstanding balance in full —
     // if so, and the booking is still `pending` (a guest self-service booking
@@ -255,7 +286,7 @@ pub async fn record_payment(
         .as_ref()
         .map(|d| format!("{} 12:00:00", d));
 
-    let row = PaymentRepository::record_payment(
+    let recorded_payment = PaymentRepository::record_payment(
         &mut tx,
         user_id,
         &request,
@@ -264,6 +295,10 @@ pub async fn record_payment(
         created_at_override.as_deref(),
     )
     .await?;
+    if !recorded_payment.was_inserted {
+        return Ok(recorded_payment.row.into_response());
+    }
+    let row = recorded_payment.row;
 
     recompute_payment_status_tx(&mut tx, request.booking_id).await?;
 
