@@ -528,7 +528,10 @@ async fn record_payment_recomputes_status_and_confirms_booking_on_full_settlemen
     )
     .await
     .expect("full settlement payment should succeed");
-    assert_eq!(full.get("total_amount").unwrap().as_str().unwrap(), "200.00");
+    assert_eq!(
+        full.get("total_amount").unwrap().as_str().unwrap(),
+        "200.00"
+    );
 
     let (status_after_full, payment_status_after_full) =
         fetch_booking_status(&pool, booking_id).await;
@@ -881,9 +884,18 @@ async fn refund_deposit_and_revert_round_trip() {
     )
     .await
     .expect("refunding a deposit should succeed");
-    assert_eq!(refund.get("total_amount").unwrap().as_str().unwrap(), "50.00");
-    assert_eq!(refund.get("payment_method").unwrap().as_str().unwrap(), "cash");
-    assert_eq!(refund.get("payment_type").unwrap().as_str().unwrap(), "refund");
+    assert_eq!(
+        refund.get("total_amount").unwrap().as_str().unwrap(),
+        "50.00"
+    );
+    assert_eq!(
+        refund.get("payment_method").unwrap().as_str().unwrap(),
+        "cash"
+    );
+    assert_eq!(
+        refund.get("payment_type").unwrap().as_str().unwrap(),
+        "refund"
+    );
     assert_eq!(
         refund.get("payment_status").unwrap().as_str().unwrap(),
         "refunded"
@@ -1161,10 +1173,9 @@ async fn capture_paypal_payment_boundary_checks_without_network() {
         .execute(&pool)
         .await
         .unwrap();
-    let retry =
-        payments::capture_paypal_payment(&pool, &booking_a_row, "ORDER-RETRY", payment_id)
-            .await
-            .expect("re-capturing an already-completed payment must succeed as a safe retry");
+    let retry = payments::capture_paypal_payment(&pool, &booking_a_row, "ORDER-RETRY", payment_id)
+        .await
+        .expect("re-capturing an already-completed payment must succeed as a safe retry");
     assert_eq!(retry.payment_id, payment_id);
     assert_eq!(retry.status, "completed");
 
@@ -1266,7 +1277,8 @@ async fn create_payment_should_charge_the_billable_total_not_the_room_recalculat
     )
     .await;
 
-    let payment = payment_result.expect("create_payment should succeed against a live booking fixture");
+    let payment =
+        payment_result.expect("create_payment should succeed against a live booking fixture");
     assert_eq!(
         payment.total_amount,
         d("500.00"),
@@ -1336,8 +1348,15 @@ async fn approve_payment_refuses_when_capture_is_not_verified() {
 
     // A pending PayPal payment with no evidence the gateway ever captured
     // funds -- exactly what an unverified/forged approval attempt looks like.
-    let payment_id =
-        insert_pending_payment(&pool, booking_id, "paypal", "booking", d("200.00"), actor_id).await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "paypal",
+        "booking",
+        d("200.00"),
+        actor_id,
+    )
+    .await;
 
     let result = payments::approve_payment(&pool, actor_id, payment_id).await;
 

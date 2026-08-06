@@ -106,7 +106,7 @@ import {
 } from '../../hooks/useBookingQueries';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
-import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { formatHotelDate, formatLocalDate, parseLocalDate } from '../../../../utils/date';
 import { addMoney, compareMoney, divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import type { Company } from '../../../../types';
 
@@ -2609,6 +2609,16 @@ const BookingsPage: React.FC = () => {
                   Checkout is blocked until this balance is fully settled.
                 </Alert>
               )}
+              {/* This dialog has no date field, so the payments row is stamped
+                  with the server timestamp — i.e. the moment the status is
+                  flipped here. Back-dating is only possible from the checkout
+                  invoice screen, which does send an explicit payment_date. */}
+              <Alert severity="info">
+                This payment will be dated <strong>today ({formatHotelDate(todayIso)})</strong> — the day
+                the payment status is changed here, not the day the guest actually paid. To record a
+                payment on an earlier date, use <strong>Record Payment</strong> in the checkout invoice
+                instead.
+              </Alert>
               <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                 <Stack
                   direction="row"

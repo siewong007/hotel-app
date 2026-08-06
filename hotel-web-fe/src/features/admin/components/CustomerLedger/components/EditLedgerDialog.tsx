@@ -11,10 +11,29 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  FormHelperText,
   InputAdornment,
 } from '@mui/material';
 import type { CustomerLedger, CustomerLedgerUpdateRequest } from '../../../../../types';
+import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { EXPENSE_TYPES } from '../constants';
+import { isLedgerVoided } from '../helpers';
+
+/**
+ * Whether the "Paid" status option must be withheld for this entry.
+ *
+ * Mirrors the backend guard in `repositories/ledger.rs::update_customer_ledger`,
+ * which refuses a TRANSITION to 'paid' while a balance is outstanding: that
+ * update writes the `status` column alone, so a typed-in 'paid' records no
+ * payment and no payment date. Blocking it here makes the option visibly
+ * unavailable instead of failing on submit. A row already stored as 'paid'
+ * stays selectable, matching the backend's transition-only rule.
+ */
+const isPaidStatusBlocked = (ledger: CustomerLedger | null): boolean =>
+  Boolean(ledger)
+  && ledger?.status !== 'paid'
+  && !isLedgerVoided(ledger as CustomerLedger)
+  && isPositiveMoney(toMoneyNumber(ledger?.balance_due));
 
 interface EditLedgerDialogProps {
   open: boolean;
@@ -116,9 +135,18 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
             >
               <MenuItem value="pending">Pending</MenuItem>
               <MenuItem value="partial">Partial</MenuItem>
-              <MenuItem value="paid">Paid</MenuItem>
+              <MenuItem value="paid" disabled={isPaidStatusBlocked(editingLedger)}>Paid</MenuItem>
               <MenuItem value="overdue">Overdue</MenuItem>
             </Select>
+            {/* `update_customer_ledger` writes only the `status` column — it does
+                not insert a customer_ledger_payments row, and leaves paid_amount,
+                balance_due and payment_date untouched. Only Record Payment does,
+                and that dialog carries its own payment-date field. */}
+            <FormHelperText>
+              {isPaidStatusBlocked(editingLedger)
+                ? 'Paid is unavailable while a balance is outstanding — it would record no payment and no payment date. Use Record Payment to settle the balance; the status then flips to Paid on its own.'
+                : 'Changing the status here only relabels the entry — it records no payment and sets no payment date. Use Record Payment to enter the amount and the date it was actually paid.'}
+            </FormHelperText>
           </FormControl>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
