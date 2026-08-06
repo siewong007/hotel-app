@@ -21,7 +21,7 @@
 
 ## File map
 
-- `hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql`: nullable idempotency columns and unique indexes; receipt index scope.
+- `hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql`: nullable idempotency key/fingerprint columns and unique indexes; receipt index scope.
 - `docs/guides/deployment.md`: one-time idempotent live-database SQL and verification queries.
 - `hotel-app-be/src/models/payment.rs`: required booking payment idempotency keys.
 - `hotel-app-be/src/models/ledger.rs`: ledger key, company allocation request, and allocation response DTOs.
@@ -53,18 +53,22 @@
 - `RecordPaymentRequest.idempotency_key: String`
 - `PaymentRequest.idempotency_key: String`
 - `CustomerLedgerPaymentRequest.idempotency_key: String`
+- Persisted payment rows carry `idempotency_fingerprint: Option<String>` internally; it is not added to public response JSON.
 - `CompanyLedgerPaymentRequest { ledger_ids: Vec<i64>, payment_amount: f64, payment_method: String, payment_reference: Option<String>, receipt_number: Option<String>, notes: Option<String>, payment_date: Option<String>, idempotency_key: String }`
 - `CompanyLedgerPaymentResponse { payments: Vec<CustomerLedgerPayment>, payment_amount: Decimal }`
 
-- [ ] **Step 1: Write the failing schema-contract test**
+- [ ] **Step 1: Write the failing live schema-contract test**
 
-Add assertions to `status_vocabulary.rs` that read the baseline and require:
+Add a PostgreSQL test that queries `information_schema.columns` and
+`pg_indexes` after real baseline initialization and requires:
 
 ```rust
-assert!(baseline.contains("idempotency_key character varying(160)"));
-assert!(baseline.contains("uq_payments_booking_idempotency"));
-assert!(baseline.contains("uq_ledger_payments_ledger_idempotency"));
-assert!(baseline.contains("ledger_id, lower(TRIM(BOTH FROM receipt_number))"));
+assert!(column_exists(&pool, "payments", "idempotency_key").await);
+assert!(column_exists(&pool, "payments", "idempotency_fingerprint").await);
+assert!(column_exists(&pool, "customer_ledger_payments", "idempotency_key").await);
+assert!(column_exists(&pool, "customer_ledger_payments", "idempotency_fingerprint").await);
+assert!(index_is_unique(&pool, "uq_payments_booking_idempotency").await);
+assert!(index_is_unique(&pool, "uq_ledger_payments_ledger_idempotency").await);
 ```
 
 - [ ] **Step 2: Run RED**
@@ -75,9 +79,13 @@ Expected: FAIL because the columns/indexes are absent.
 
 - [ ] **Step 3: Add the minimal schema**
 
-Append nullable columns to the two table definitions and replace/add indexes:
+Append nullable key and fingerprint columns to the two table definitions and replace/add indexes:
 
 ```sql
+-- Add both columns at the end of each table body so fresh and patched schemas converge.
+idempotency_key character varying(160),
+idempotency_fingerprint character varying(64)
+
 CREATE UNIQUE INDEX uq_payments_booking_idempotency
     ON public.payments USING btree (booking_id, idempotency_key)
     WHERE idempotency_key IS NOT NULL AND TRIM(BOTH FROM idempotency_key) <> '';
@@ -108,7 +116,7 @@ fn normalized_idempotency_key(value: &str) -> Result<&str, ApiError> {
 }
 ```
 
-Expose the stored key only where repositories need comparison; do not add it to existing public response JSON unless required for replay logic.
+Expose stored keys/fingerprints only where repositories need comparison; do not add them to existing public response JSON.
 
 - [ ] **Step 5: Run GREEN**
 
@@ -127,7 +135,7 @@ Run the named schema test and `cargo check --all-features`.
 **Interfaces:**
 - `PaymentRepository::lock_booking_for_payment_tx(tx, booking_id) -> Result<(), ApiError>`
 - `PaymentRepository::find_idempotent_payment_tx(tx, booking_id, key) -> Result<Option<PaymentEntryRow>, ApiError>`
-- `PaymentRepository::record_payment(...)` inserts `idempotency_key`.
+- `PaymentRepository::record_payment(...)` inserts `idempotency_key` and the canonical fingerprint.
 
 - [ ] **Step 1: Write failing booking concurrency tests**
 
@@ -160,9 +168,10 @@ The helper executes `SELECT id FROM bookings WHERE id = $1 FOR UPDATE` and retur
 
 - [ ] **Step 4: Implement exact replay and conflict**
 
-Under the booking lock, query `(booking_id, idempotency_key)`. Compare amount,
-method, type, reference, notes, and requested payment date. Exact equality
-returns the existing row and a replay flag. Mismatch returns `ApiError::Conflict`.
+Under the booking lock, query `(booking_id, idempotency_key)`. Compare the
+stored canonical SHA-256 fingerprint of booking ID, amount, method, type,
+reference, notes, and requested payment date. Equality returns the existing row
+and a replay flag. Mismatch returns `ApiError::Conflict`.
 Only a newly inserted row may recompute status, append booking history, award
 loyalty points, or write `payment_recorded` audit data.
 
@@ -252,7 +261,7 @@ and missing endpoint behavior.
 
 Implement a private helper that assumes the ledger row is already locked,
 checks replay/payload equality, validates outstanding balance, inserts the
-payment with its key, and updates parent totals. Both the single and batch paths
+payment with its key and canonical fingerprint, and updates parent totals. Both the single and batch paths
 call it; do not duplicate payment math.
 
 - [ ] **Step 5: Implement deterministic batch locking and allocation**
@@ -263,6 +272,7 @@ sorted numeric order, validate one company and payable status, then allocate:
 ```rust
 let allocation = remaining.min(outstanding);
 let derived_key = format!("{}:{}", request.idempotency_key.trim(), ledger_id);
+let fingerprint = canonical_company_payment_fingerprint(&request);
 ```
 
 Reject any residual amount after all selected balances. Commit only after every

@@ -36,8 +36,11 @@ one-payment-per-charge constraint would break supported installment payments.
 
 ## Database changes
 
-Add nullable `idempotency_key VARCHAR(160)` columns to `payments` and
-`customer_ledger_payments`. Add partial unique indexes on
+Add nullable `idempotency_key VARCHAR(160)` and
+`idempotency_fingerprint VARCHAR(64)` columns to `payments` and
+`customer_ledger_payments`. The fingerprint is a canonical SHA-256 digest of
+the material request fields and makes replay checks independent of
+database-generated timestamps. Add partial unique indexes on
 `(booking_id, idempotency_key)` and `(ledger_id, idempotency_key)` when the key
 is non-null and non-empty. Nullable columns keep legacy imports and internal
 historical rows compatible; the relevant HTTP create endpoints enforce a
@@ -55,8 +58,8 @@ PostgreSQL contract.
 ## Booking payment flow
 
 `record_payment` starts a transaction, locks the booking row with `FOR UPDATE`,
-then checks for an existing row with the same booking and idempotency key. An
-exact match returns the stored row without changing balances, status, booking
+then checks for an existing row with the same booking and idempotency key. A
+matching fingerprint returns the stored row without changing balances, status, booking
 history, loyalty points, or audit state. A mismatched payload returns `409
 Conflict`.
 
@@ -80,8 +83,8 @@ concurrently.
 
 The existing ledger `FOR UPDATE` lock remains the serialization point. Before
 balance validation or insertion, the repository checks `(ledger_id,
-idempotency_key)`. Exact replay returns the original payment; changed data with
-the same key returns `409 Conflict`. A new key proceeds through the existing
+idempotency_key)`. A matching fingerprint returns the original payment;
+changed data with the same key returns `409 Conflict`. A new key proceeds through the existing
 positive-amount, void-state, receipt, and outstanding-balance checks.
 
 ## Atomic company payment allocation
@@ -97,8 +100,10 @@ The backend rejects duplicate ledger IDs, loads and locks all selected ledger
 rows in sorted ID order to avoid deadlocks, verifies that they belong to the
 same company and are payable, and allocates the supplied total in the caller's
 original ledger order up to each outstanding balance. Every allocation uses a
-derived key consisting of the request key and ledger ID. All payment rows and
-parent ledger updates commit in one transaction. Any validation, insert, or
+derived key consisting of the request key and ledger ID, and every allocation
+stores the same canonical fingerprint of the complete batch request. This
+detects reuse with changed membership, order, or payment data. All payment rows
+and parent ledger updates commit in one transaction. Any validation, insert, or
 update failure rolls everything back.
 
 An exact retry returns the previously created allocation rows. Reusing the
