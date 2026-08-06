@@ -960,10 +960,27 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
+    const request = {
+      ledger_ids: selectedLedgersForPayment.map((ledger) => ledger.id),
+      payment_amount: paymentAmount,
+      payment_method: companyPaymentForm.payment_method.trim(),
+      payment_reference: normalizeOptionalPaymentText(companyPaymentForm.payment_reference),
+      receipt_number: normalizeOptionalPaymentText(companyPaymentForm.receipt_number),
+      notes: normalizeOptionalPaymentText(companyPaymentForm.notes),
+      payment_date: normalizeOptionalPaymentText(companyPaymentForm.payment_date),
+    };
+    const fingerprint = JSON.stringify({
+      ...request,
+      payment_amount: paymentAmount.toFixed(2),
+    });
+    const receiptNumber = normalizeReceiptNumber(request.receipt_number);
+    const retainedAttempt = companyPaymentAttemptRef.current?.fingerprint === fingerprint
+      ? companyPaymentAttemptRef.current
+      : null;
+
     try {
       setProcessingCompanyPayment(true);
-      const receiptNumber = normalizeReceiptNumber(companyPaymentForm.receipt_number);
-      if (receiptNumber) {
+      if (receiptNumber && !retainedAttempt) {
         let paymentHistories: CustomerLedgerPayment[][];
         try {
           paymentHistories = await Promise.all(
@@ -984,19 +1001,8 @@ const CustomerLedgerPage: React.FC = () => {
         }
       }
 
-      const request = {
-        ledger_ids: selectedLedgersForPayment.map((ledger) => ledger.id),
-        payment_amount: paymentAmount,
-        payment_method: companyPaymentForm.payment_method.trim(),
-        payment_reference: normalizeOptionalPaymentText(companyPaymentForm.payment_reference),
-        receipt_number: normalizeOptionalPaymentText(companyPaymentForm.receipt_number),
-        notes: normalizeOptionalPaymentText(companyPaymentForm.notes),
-        payment_date: normalizeOptionalPaymentText(companyPaymentForm.payment_date),
-      };
-      const attempt = getIdempotencyAttempt(companyPaymentAttemptRef.current, JSON.stringify({
-        ...request,
-        payment_amount: paymentAmount.toFixed(2),
-      }));
+      const attempt = retainedAttempt
+        ?? getIdempotencyAttempt(companyPaymentAttemptRef.current, fingerprint);
       companyPaymentAttemptRef.current = attempt;
       await LedgerService.createCompanyLedgerPayment({ ...request, idempotency_key: attempt.key });
       companyPaymentAttemptRef.current = null;
@@ -1378,11 +1384,19 @@ const CustomerLedgerPage: React.FC = () => {
       notes: normalizeOptionalPaymentText(paymentFormData.notes),
       payment_date: normalizeOptionalPaymentText(paymentFormData.payment_date),
     };
+    const fingerprint = JSON.stringify({
+      ledger_id: paymentLedger.id,
+      ...paymentRequest,
+      payment_amount: paymentAmount.toFixed(2),
+    });
+    const receiptNumber = normalizeReceiptNumber(paymentRequest.receipt_number);
+    const retainedAttempt = ledgerPaymentAttemptRef.current?.fingerprint === fingerprint
+      ? ledgerPaymentAttemptRef.current
+      : null;
 
     try {
       setProcessingPayment(true);
-      const receiptNumber = normalizeReceiptNumber(paymentFormData.receipt_number);
-      if (receiptNumber) {
+      if (receiptNumber && !retainedAttempt) {
         let payments: CustomerLedgerPayment[];
         try {
           payments = await LedgerService.getLedgerPayments(paymentLedger.id);
@@ -1401,11 +1415,8 @@ const CustomerLedgerPage: React.FC = () => {
         }
       }
 
-      const attempt = getIdempotencyAttempt(ledgerPaymentAttemptRef.current, JSON.stringify({
-        ledger_id: paymentLedger.id,
-        ...paymentRequest,
-        payment_amount: paymentAmount.toFixed(2),
-      }));
+      const attempt = retainedAttempt
+        ?? getIdempotencyAttempt(ledgerPaymentAttemptRef.current, fingerprint);
       ledgerPaymentAttemptRef.current = attempt;
       await LedgerService.createLedgerPayment(paymentLedger.id, {
         ...paymentRequest,
