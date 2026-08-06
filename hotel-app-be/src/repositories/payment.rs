@@ -264,6 +264,8 @@ impl PaymentRepository {
             account_reference: request.account_reference.clone(),
             notes: request.notes.clone(),
             created_at,
+            idempotency_key: Some(request.idempotency_key.clone()),
+            idempotency_fingerprint: None,
         })
     }
 

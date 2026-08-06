@@ -233,6 +233,8 @@ pub fn row_to_payment(row: &DbRow) -> Payment {
             .ok()
             .or_else(|| row.try_get("description").ok()),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+        idempotency_key: row.try_get("idempotency_key").ok(),
+        idempotency_fingerprint: row.try_get("idempotency_fingerprint").ok(),
     }
 }
 
@@ -432,6 +434,8 @@ pub fn row_to_customer_ledger_payment(row: &DbRow) -> CustomerLedgerPayment {
         created_at: row
             .try_get("created_at")
             .unwrap_or_else(|_| DateTime::<Utc>::default()),
+        idempotency_key: row.try_get("idempotency_key").ok(),
+        idempotency_fingerprint: row.try_get("idempotency_fingerprint").ok(),
     }
 }
 

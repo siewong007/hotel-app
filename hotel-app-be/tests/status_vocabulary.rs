@@ -3,6 +3,11 @@
 const POSTGRES_SCHEMA: &str = include_str!("../database/postgres/migrations/0001_v1_baseline.sql");
 const POSTGRES_SEED: &str = include_str!("../database/postgres/seed.sql");
 
+#[tokio::test]
+async fn payment_idempotency_schema() {
+    postgres_smoke::assert_payment_idempotency_schema().await;
+}
+
 fn status_check_blocks(sql: &str) -> Vec<String> {
     let mut blocks = Vec::new();
     let mut current: Option<String> = None;
@@ -222,6 +227,82 @@ mod postgres_smoke {
             .filter(|line| !line.trim_start().starts_with('\\'))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    async fn column_exists(pool: &PgPool, table_name: &str, column_name: &str) -> bool {
+        sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2)",
+        )
+        .bind(table_name)
+        .bind(column_name)
+        .fetch_one(pool)
+        .await
+        .expect("query schema columns")
+    }
+
+    async fn index_is_unique(pool: &PgPool, index_name: &str) -> bool {
+        let index_definition: Option<String> = sqlx::query_scalar(
+            "SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = $1",
+        )
+        .bind(index_name)
+        .fetch_optional(pool)
+        .await
+        .expect("query schema indexes");
+
+        index_definition.is_some_and(|definition| definition.starts_with("CREATE UNIQUE INDEX"))
+    }
+
+    pub(super) async fn assert_payment_idempotency_schema() {
+        if std::env::var("HOTEL_RUN_PG_SCHEMA_SMOKE").ok().as_deref() != Some("1") {
+            eprintln!("skipping PostgreSQL schema smoke; set HOTEL_RUN_PG_SCHEMA_SMOKE=1");
+            return;
+        }
+
+        let database_url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL is required when HOTEL_RUN_PG_SCHEMA_SMOKE=1");
+        let (admin_url, temp_url, db_name) = disposable_database_urls(&database_url)
+            .expect("DATABASE_URL must include a database path");
+        let db_ident = quote_ident(&db_name);
+        let mut admin = PgConnection::connect(&admin_url)
+            .await
+            .expect("connect to postgres admin database");
+
+        let _ = admin
+            .execute(format!("DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)").as_str())
+            .await;
+        admin
+            .execute(format!("CREATE DATABASE {db_ident}").as_str())
+            .await
+            .expect("create disposable schema smoke database");
+
+        let result = async {
+            let pool = PgPool::connect(&temp_url).await?;
+            for script in [POSTGRES_SCHEMA, POSTGRES_SEED] {
+                sqlx::raw_sql(&psql_script_for_sqlx(script))
+                    .execute(&pool)
+                    .await?;
+            }
+
+            assert!(column_exists(&pool, "payments", "idempotency_key").await);
+            assert!(column_exists(&pool, "payments", "idempotency_fingerprint").await);
+            assert!(column_exists(&pool, "customer_ledger_payments", "idempotency_key").await);
+            assert!(
+                column_exists(&pool, "customer_ledger_payments", "idempotency_fingerprint").await
+            );
+            assert!(index_is_unique(&pool, "uq_payments_booking_idempotency").await);
+            assert!(index_is_unique(&pool, "uq_ledger_payments_ledger_idempotency").await);
+
+            pool.close().await;
+            Ok::<(), sqlx::Error>(())
+        }
+        .await;
+
+        admin
+            .execute(format!("DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)").as_str())
+            .await
+            .expect("drop disposable schema smoke database");
+
+        result.expect("V1 schema should persist payment idempotency metadata");
     }
 
     #[tokio::test]

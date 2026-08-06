@@ -20,6 +20,17 @@ use crate::models::AuditEvent;
 const PAYMENT_RECEIPT_UPLOAD_DIR: &str = "private_uploads/payment_receipts";
 const MAX_PAYMENT_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
 
+#[allow(dead_code)] // Reused by ledger payment validation in the next task.
+pub(crate) fn normalized_idempotency_key(value: &str) -> Result<&str, ApiError> {
+    let key = value.trim();
+    if key.is_empty() || key.len() > 160 {
+        return Err(ApiError::BadRequest(
+            "Idempotency key must be between 1 and 160 characters".to_string(),
+        ));
+    }
+    Ok(key)
+}
+
 pub async fn queue_paid_online_booking_room_assignment(
     pool: &DbPool,
     booking_id: i64,

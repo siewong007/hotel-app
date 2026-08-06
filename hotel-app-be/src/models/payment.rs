@@ -19,6 +19,7 @@ pub struct PaymentRequest {
     pub bank_name: Option<String>,
     pub account_reference: Option<String>,
     pub notes: Option<String>,
+    pub idempotency_key: String,
 }
 
 /// Payment record
@@ -42,6 +43,12 @@ pub struct Payment {
     pub account_reference: Option<String>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[allow(dead_code)] // Consumed by idempotent replay lookups, introduced in the next task.
+    #[serde(skip)]
+    pub(crate) idempotency_key: Option<String>,
+    #[allow(dead_code)] // Consumed by idempotent replay lookups, introduced in the next task.
+    #[serde(skip)]
+    pub(crate) idempotency_fingerprint: Option<String>,
 }
 
 /// A payment awaiting staff review (bank-transfer claim or pre-capture record),
@@ -338,6 +345,7 @@ pub struct RecordPaymentRequest {
     pub notes: Option<String>,
     /// Payment date override (YYYY-MM-DD). Sets created_at to this date.
     pub payment_date: Option<String>,
+    pub idempotency_key: String,
 }
 
 /// Update payment request
