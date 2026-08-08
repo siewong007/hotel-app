@@ -185,7 +185,26 @@ impl PaymentRepository {
         Ok(())
     }
 
-    pub async fn list_transaction_reference_payments_tx(
+    /// Rows that could plausibly be a replay of an incoming payment carrying
+    /// `transaction_reference`.
+    ///
+    /// Scope stays GLOBAL — a reference is provenance, and the same one must not
+    /// be credited to two bookings — but KEYED rows only.
+    ///
+    /// A row written before idempotency existed has a NULL fingerprint, so
+    /// `None == Some(fingerprint)` can never hold: scanning those could only
+    /// ever conflict, never replay. `transaction_id` is free-text with just a
+    /// plain index, and history reuses receipt-book numbers ("003589") and
+    /// standing labels ("Tourism Tax") — 654 rows carry a reference, 62 values
+    /// are already duplicated, and all 3591 rows predate the fingerprint. So
+    /// including them made a legitimate new payment that happened to reuse any
+    /// historical reference unrecordable at any amount, permanently and with no
+    /// remedy in the error.
+    ///
+    /// Skipping them loses no protection that ever functioned: they carry no key
+    /// to replay against, so retry-collapsing was never possible for them, and
+    /// overpayment remains bounded by the outstanding-balance check.
+    pub async fn list_keyed_reference_payments_tx(
         tx: &mut DbTransaction<'_>,
         transaction_reference: &str,
     ) -> Result<Vec<PaymentEntryRow>, ApiError> {
@@ -195,7 +214,7 @@ impl PaymentRepository {
                    status AS payment_status, transaction_id AS transaction_reference, notes,
                    created_at::date::text AS payment_date, created_at, idempotency_fingerprint
             FROM payments
-            WHERE transaction_id = {}
+            WHERE transaction_id = {} AND idempotency_fingerprint IS NOT NULL
             ORDER BY id
             "#,
             crate::param!(1)
@@ -418,7 +437,7 @@ impl PaymentRepository {
         {
             Self::lock_transaction_references_tx(tx, &[transaction_reference]).await?;
             let mut matches =
-                Self::list_transaction_reference_payments_tx(tx, transaction_reference).await?;
+                Self::list_keyed_reference_payments_tx(tx, transaction_reference).await?;
             if matches.len() > 1 {
                 return Err(ApiError::Conflict(
                     "Transaction reference has multiple existing payment owners".to_string(),

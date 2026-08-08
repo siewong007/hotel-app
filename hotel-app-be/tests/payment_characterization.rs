@@ -2043,10 +2043,11 @@ async fn concurrent_updates_cannot_claim_the_same_transaction_reference() {
     assert_eq!(reference_count, 1);
 }
 
-/// Rows written before fingerprints existed are ambiguous and must never be
-/// treated as safe replays merely because their transaction reference matches.
+/// Rows written before fingerprints existed carry no key to replay against, so
+/// they must be IGNORED rather than block. Failing closed on them made every
+/// reused historical reference permanently unrecordable (review finding C1).
 #[tokio::test]
-async fn legacy_transaction_reference_without_fingerprint_fails_closed() {
+async fn legacy_transaction_reference_without_fingerprint_does_not_block_a_new_payment() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -2070,18 +2071,32 @@ async fn legacy_transaction_reference_without_fingerprint_fails_closed() {
     retry.transaction_reference = Some("PAY-LEGACY-940754".to_string());
     let result = payments::record_payment(&pool, actor_id, retry).await;
 
+    // Counted before cleanup: proves the request INSERTED rather than silently
+    // replaying the legacy row (both carry amount 100, so the amount alone
+    // cannot tell the two apart).
+    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM payments WHERE booking_id = $1")
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
     cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
 
     assert!(
-        matches!(result, Err(ApiError::Conflict(_))),
-        "a null legacy fingerprint must fail closed: {result:?}"
+        result.is_ok(),
+        "a keyless legacy row must not block a new payment reusing its reference: {result:?}"
+    );
+    assert_eq!(
+        rows, 2,
+        "the new payment must be inserted alongside the legacy row, not collapsed into it"
     );
 }
 
-/// Historical duplicate reference owners must fail closed even when one row's
-/// idempotency key and fingerprint exactly match the retry.
+/// A keyless historical row sharing the reference is unrelated noise: it must
+/// not block a legitimate keyed replay, which the idempotency key alone would
+/// have replayed anyway.
 #[tokio::test]
-async fn duplicate_transaction_reference_owners_block_record_payment_replay() {
+async fn legacy_duplicate_reference_owner_does_not_block_record_payment_replay() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -2092,7 +2107,7 @@ async fn duplicate_transaction_reference_owners_block_record_payment_replay() {
     seed_pending_booking_pair(&pool, actor_id, first, second).await;
     let mut original = payment_request(first.3, 100.0, "payment-char-940804-duplicate-owner");
     original.transaction_reference = Some("PAY-DUPLICATE-940800".to_string());
-    payments::record_payment(&pool, actor_id, original)
+    let original = payments::record_payment(&pool, actor_id, original)
         .await
         .unwrap();
     sqlx::query(
@@ -2112,16 +2127,21 @@ async fn duplicate_transaction_reference_owners_block_record_payment_replay() {
     let result = payments::record_payment(&pool, actor_id, replay).await;
 
     cleanup_booking_pair(&pool, actor_id, first, second).await;
-    assert!(
-        matches!(result, Err(ApiError::Conflict(_))),
-        "multiple owners must conflict before keyed replay: {result:?}"
-    );
+    match result {
+        Ok(replayed) => assert_eq!(
+            replayed["id"], original["id"],
+            "the keyed retry must replay its own payment, not be blocked by a keyless row"
+        ),
+        other => panic!(
+            "a keyless duplicate reference owner must not block a keyed replay: {other:?}"
+        ),
+    }
 }
 
-/// The older completed-payment path applies the same full-owner validation
-/// before its idempotency-key replay.
+/// The older completed-payment path applies the same keyed-only owner scan, so
+/// a keyless historical row does not block its idempotency-key replay either.
 #[tokio::test]
-async fn duplicate_transaction_reference_owners_block_create_payment_replay() {
+async fn legacy_duplicate_reference_owner_does_not_block_create_payment_replay() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -2142,7 +2162,7 @@ async fn duplicate_transaction_reference_owners_block_create_payment_replay() {
         notes: None,
         idempotency_key: "payment-char-940814-duplicate-owner".to_string(),
     };
-    payments::create_payment(&pool, actor_id, make_request())
+    let original = payments::create_payment(&pool, actor_id, make_request())
         .await
         .unwrap();
     sqlx::query(
@@ -2160,10 +2180,15 @@ async fn duplicate_transaction_reference_owners_block_create_payment_replay() {
     let result = payments::create_payment(&pool, actor_id, make_request()).await;
 
     cleanup_booking_pair(&pool, actor_id, first, second).await;
-    assert!(
-        matches!(result, Err(ApiError::Conflict(_))),
-        "legacy create must conflict before keyed replay when multiple owners exist: {result:?}"
-    );
+    match result {
+        Ok(replayed) => assert_eq!(
+            replayed.id, original.id,
+            "the keyed retry must replay its own payment, not be blocked by a keyless row"
+        ),
+        other => panic!(
+            "a keyless duplicate reference owner must not block a keyed create replay: {other:?}"
+        ),
+    }
 }
 
 /// A reused key represents one request only: changing an amount must conflict
@@ -3240,6 +3265,118 @@ async fn approve_payment_refuses_when_capture_is_not_verified() {
         }
         other => panic!(
             "approve_payment must refuse to confirm a payment whose capture was never verified with the gateway via an ApiError::BadRequest naming the defect, got: {other:?}"
+        ),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Whole-change review finding C1 (Critical).
+//
+// `transaction_id` is free-text business data, not an identity key: it carries
+// only a plain index, and real data reuses receipt-book numbers across bookings
+// ("Tourism Tax", "003589" -- 62 duplicate groups live today). The reference
+// guard scanned `payments` GLOBALLY and compared `idempotency_fingerprint`,
+// which is NULL on all 3591 rows written before this feature. `None ==
+// Some(fingerprint)` is always false, so against history the guard could only
+// conflict, never replay: a legitimate new payment carrying a reused reference
+// became unrecordable at any amount.
+//
+// The guard belongs in the same scope as the identity it protects
+// (`uq_payments_booking_idempotency` is per booking) and must ignore keyless
+// rows, which can never satisfy the replay comparison.
+// ---------------------------------------------------------------------------
+
+/// Write a payment row shaped the way this schema looked before idempotency
+/// existed: a real `transaction_id`, NULL key and NULL fingerprint.
+async fn seed_legacy_referenced_payment(
+    pool: &PgPool,
+    booking_id: i64,
+    actor_id: i64,
+    amount: Decimal,
+    transaction_reference: &str,
+) {
+    sqlx::query(
+        "INSERT INTO payments (booking_id, amount, payment_method, payment_type, status, \
+         transaction_id, created_by, processed_by, idempotency_key, idempotency_fingerprint) \
+         VALUES ($1, $2, 'cash', 'booking', 'completed', $3, $4, $4, NULL, NULL)",
+    )
+    .bind(booking_id)
+    .bind(amount)
+    .bind(transaction_reference)
+    .bind(actor_id)
+    .execute(pool)
+    .await
+    .expect("legacy payment fixture must insert");
+}
+
+#[tokio::test]
+async fn record_payment_allows_a_new_payment_reusing_a_legacy_only_reference() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_900, 940_901, 940_902, 940_903, 940_904);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    // Two historical rows sharing one receipt-book reference -- the exact shape
+    // the live database carries today.
+    seed_legacy_referenced_payment(&pool, booking_id, actor_id, d("10.00"), "003589").await;
+    seed_legacy_referenced_payment(&pool, booking_id, actor_id, d("10.00"), "003589").await;
+
+    let mut request = payment_request(booking_id, 120.0, "c1-new-payment-after-legacy-reuse");
+    request.transaction_reference = Some("003589".to_string());
+    let result = payments::record_payment(&pool, actor_id, request).await;
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    match result {
+        Ok(payment) => assert_eq!(
+            payment["total_amount"], "120.00",
+            "the new payment must record at its own amount, not replay a legacy row"
+        ),
+        other => panic!(
+            "a new payment reusing a reference carried only by legacy (keyless) rows must be \
+             recordable -- those rows have a NULL fingerprint and can never be replayed against. \
+             Got: {other:?}"
+        ),
+    }
+}
+
+#[tokio::test]
+async fn record_payment_still_conflicts_on_same_booking_reference_reuse_with_changed_data() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_920, 940_921, 940_922, 940_923, 940_924);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    // Both keyed, same booking, same reference, DIFFERENT amount: the guard's
+    // actual purpose. Narrowing its scope must not lose this.
+    let mut first = payment_request(booking_id, 50.0, "c1-guard-retained-first");
+    first.transaction_reference = Some("RCPT-9001".to_string());
+    let first_result = payments::record_payment(&pool, actor_id, first).await;
+
+    let mut second = payment_request(booking_id, 75.0, "c1-guard-retained-second");
+    second.transaction_reference = Some("RCPT-9001".to_string());
+    let second_result = payments::record_payment(&pool, actor_id, second).await;
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        first_result.is_ok(),
+        "first payment must record: {first_result:?}"
+    );
+    match second_result {
+        Err(ApiError::Conflict(msg)) => assert!(
+            msg.to_lowercase().contains("reference"),
+            "the conflict must name the transaction reference, got: {msg:?}"
+        ),
+        other => panic!(
+            "reusing a reference on the SAME booking with different payment data must still \
+             conflict, got: {other:?}"
         ),
     }
 }
