@@ -234,11 +234,9 @@ pub async fn record_payment(
     {
         PaymentRepository::lock_transaction_references_tx(&mut tx, &[transaction_reference])
             .await?;
-        let mut matches = PaymentRepository::list_transaction_reference_payments_tx(
-            &mut tx,
-            transaction_reference,
-        )
-        .await?;
+        let mut matches =
+            PaymentRepository::list_keyed_reference_payments_tx(&mut tx, transaction_reference)
+                .await?;
         if matches.len() > 1 {
             return Err(ApiError::Conflict(
                 "Transaction reference has multiple existing payment owners".to_string(),
