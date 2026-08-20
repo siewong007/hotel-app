@@ -365,6 +365,8 @@ export function printCompanyStatement(params: {
             <tr>
               <th>Invoice #</th>
               <th>Date</th>
+              <th>Check-in</th>
+              <th>Check-out</th>
               <th>Description</th>
               <th>Type</th>
               <th class="text-right">Amount</th>
@@ -378,6 +380,8 @@ export function printCompanyStatement(params: {
               <tr>
                 <td>${entry.invoice_number || '-'}</td>
                 <td>${formatDateForDisplay(entry.created_at)}</td>
+                <td>${formatDateForDisplay(entry.check_in_date)}</td>
+                <td>${formatDateForDisplay(entry.check_out_date)}</td>
                 <td>${entry.description}</td>
                 <td>${entry.expense_type}</td>
                 <td class="text-right">${formatCurrency(toMoneyNumber(entry.amount))}</td>
@@ -457,6 +461,14 @@ export function printSingleReceipt(params: {
           <div class="receipt-row">
             <span class="label">Date Created</span>
             <span class="value">${formatDateForDisplay(entry.created_at)}</span>
+          </div>
+          <div class="receipt-row">
+            <span class="label">Check-in Date</span>
+            <span class="value">${formatDateForDisplay(entry.check_in_date)}</span>
+          </div>
+          <div class="receipt-row">
+            <span class="label">Check-out Date</span>
+            <span class="value">${formatDateForDisplay(entry.check_out_date)}</span>
           </div>
           ${entry.payment_date ? `
           <div class="receipt-row">
