@@ -1,8 +1,16 @@
 use super::{command_output_details, PostgresError, PATH_SEP};
 use sha2::{Digest, Sha256};
+use std::fs::{File, Metadata, OpenOptions};
+use std::io::Read;
 use std::path::{Component, Path};
-use std::process::Stdio;
-use tokio::io::AsyncWriteExt;
+use std::process::{Output, Stdio};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
+
+#[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
+compile_error!("desktop patch file identity checks require Linux, Apple, or Windows");
+
+const DIAGNOSTIC_OUTPUT_LIMIT: usize = 32 * 1024;
+const DIAGNOSTIC_TRUNCATION_MARKER: &[u8] = b"\n[diagnostic output truncated after 32768 bytes]\n";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PatchManifestEntry {
@@ -217,14 +225,102 @@ fn parse_manifest(contents: &str) -> Result<Vec<PatchManifestEntry>, PostgresErr
     Ok(entries)
 }
 
-fn read_catalog_file(patch_dir: &Path, file: &str) -> Result<Vec<u8>, PostgresError> {
-    let path = patch_dir.join(file);
-    let metadata = std::fs::symlink_metadata(&path)
+#[cfg(unix)]
+fn open_catalog_file(path: &Path, file: &str) -> Result<File, PostgresError> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    #[cfg(target_os = "linux")]
+    const O_NOFOLLOW: i32 = 0x0002_0000;
+    #[cfg(target_vendor = "apple")]
+    const O_NOFOLLOW: i32 = 0x0000_0100;
+
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(O_NOFOLLOW)
+        .open(path)
+        .map_err(|error| catalog_error(format!("{file} is unavailable: {error}")))
+}
+
+#[cfg(windows)]
+fn open_catalog_file(path: &Path, file: &str) -> Result<File, PostgresError> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    // Omitting FILE_SHARE_DELETE keeps this path entry locked until its validated handle closes.
+    const FILE_SHARE_READ_WRITE: u32 = 0x0000_0001 | 0x0000_0002;
+
+    OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ_WRITE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+        .map_err(|error| catalog_error(format!("{file} is unavailable: {error}")))
+}
+
+#[cfg(unix)]
+fn same_file_identity(opened: &Metadata, path: &Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    opened.dev() == path.dev() && opened.ino() == path.ino()
+}
+
+#[cfg(windows)]
+fn same_file_identity(opened: &Metadata, path: &Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    // The open handle prevents replacement; stable metadata fields confirm both views agree.
+    opened.file_attributes() == path.file_attributes()
+        && opened.creation_time() == path.creation_time()
+        && opened.last_write_time() == path.last_write_time()
+        && opened.file_size() == path.file_size()
+}
+
+#[cfg(unix)]
+fn is_reparse_point(_metadata: &Metadata) -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn is_reparse_point(metadata: &Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+fn read_opened_catalog_file(
+    mut opened: File,
+    path: &Path,
+    file: &str,
+) -> Result<Vec<u8>, PostgresError> {
+    let opened_metadata = opened
+        .metadata()
         .map_err(|error| catalog_error(format!("{file} is unavailable: {error}")))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
+    let path_metadata = std::fs::symlink_metadata(path)
+        .map_err(|error| catalog_error(format!("{file} is unavailable: {error}")))?;
+    if !opened_metadata.is_file()
+        || !path_metadata.is_file()
+        || path_metadata.file_type().is_symlink()
+        || is_reparse_point(&opened_metadata)
+        || is_reparse_point(&path_metadata)
+    {
         return Err(catalog_error(format!("{file} is unavailable")));
     }
-    std::fs::read(&path).map_err(|error| catalog_error(format!("{file} cannot be read: {error}")))
+    if !same_file_identity(&opened_metadata, &path_metadata) {
+        return Err(catalog_error(format!("{file} changed while being read")));
+    }
+
+    let mut bytes = Vec::new();
+    opened
+        .read_to_end(&mut bytes)
+        .map_err(|error| catalog_error(format!("{file} cannot be read: {error}")))?;
+    Ok(bytes)
+}
+
+fn read_catalog_file(patch_dir: &Path, file: &str) -> Result<Vec<u8>, PostgresError> {
+    let path = patch_dir.join(file);
+    let opened = open_catalog_file(&path, file)?;
+    read_opened_catalog_file(opened, &path, file)
 }
 
 fn append_segment(source: &mut Vec<u8>, segment: &[u8]) {
@@ -269,6 +365,65 @@ fn redact_password(details: String, password: &str) -> String {
     } else {
         details.replace(password, "[redacted]")
     }
+}
+
+async fn drain_output(mut output: impl AsyncRead + Unpin) -> std::io::Result<Vec<u8>> {
+    let mut bytes =
+        Vec::with_capacity(DIAGNOSTIC_OUTPUT_LIMIT + DIAGNOSTIC_TRUNCATION_MARKER.len());
+    let mut chunk = [0_u8; 8192];
+    let mut truncated = false;
+    loop {
+        let read = output.read(&mut chunk).await?;
+        if read == 0 {
+            break;
+        }
+        let remaining = DIAGNOSTIC_OUTPUT_LIMIT.saturating_sub(bytes.len());
+        bytes.extend_from_slice(&chunk[..read.min(remaining)]);
+        truncated |= read > remaining;
+    }
+    if truncated {
+        bytes.extend_from_slice(DIAGNOSTIC_TRUNCATION_MARKER);
+    }
+    Ok(bytes)
+}
+
+async fn collected_output(
+    label: &str,
+    stream: &str,
+    task: tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
+) -> Result<Vec<u8>, PostgresError> {
+    task.await
+        .map_err(|error| {
+            PostgresError::MigrationFailed(format!(
+                "{label} failed while collecting {stream}: {error}"
+            ))
+        })?
+        .map_err(|error| {
+            PostgresError::MigrationFailed(format!(
+                "{label} failed while reading {stream}: {error}"
+            ))
+        })
+}
+
+async fn kill_and_reap(
+    child: &mut tokio::process::Child,
+    label: &str,
+) -> Result<std::process::ExitStatus, PostgresError> {
+    let kill_error = child
+        .start_kill()
+        .err()
+        .filter(|error| error.kind() != std::io::ErrorKind::InvalidInput);
+    let status = child.wait().await.map_err(|error| {
+        PostgresError::MigrationFailed(format!(
+            "{label} failed to reap after a stdin error: {error}"
+        ))
+    })?;
+    if let Some(error) = kill_error {
+        return Err(PostgresError::MigrationFailed(format!(
+            "{label} failed to terminate after a stdin error: {error}"
+        )));
+    }
+    Ok(status)
 }
 
 async fn apply_patch(
@@ -333,6 +488,14 @@ async fn apply_patch(
     let mut stdin = child.stdin.take().ok_or_else(|| {
         PostgresError::MigrationFailed(format!("{label} failed: stdin was unavailable"))
     })?;
+    let stdout = child.stdout.take().ok_or_else(|| {
+        PostgresError::MigrationFailed(format!("{label} failed: stdout was unavailable"))
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        PostgresError::MigrationFailed(format!("{label} failed: stderr was unavailable"))
+    })?;
+    let stdout_task = tokio::spawn(drain_output(stdout));
+    let stderr_task = tokio::spawn(drain_output(stderr));
     let write_stdin = async move {
         stdin
             .write_all(&patch.source)
@@ -340,10 +503,39 @@ async fn apply_patch(
             .map_err(|error| ("write", error))?;
         stdin.shutdown().await.map_err(|error| ("close", error))
     };
-    let (write_result, output_result) = tokio::join!(write_stdin, child.wait_with_output());
-    let output = output_result.map_err(|error| {
-        PostgresError::MigrationFailed(format!("{label} failed while waiting: {error}"))
-    })?;
+    tokio::pin!(write_stdin);
+    let (status, write_result) = tokio::select! {
+        write_result = &mut write_stdin => {
+            if let Err((action, error)) = write_result {
+                let termination = kill_and_reap(&mut child, &label).await;
+                let stdout = collected_output(&label, "stdout", stdout_task).await;
+                let stderr = collected_output(&label, "stderr", stderr_task).await;
+                termination?;
+                let _stdout = stdout?;
+                let _stderr = stderr?;
+                return Err(PostgresError::MigrationFailed(format!(
+                    "{label} failed to {action} stdin: {error}"
+                )));
+            }
+            let status = child.wait().await.map_err(|error| {
+                PostgresError::MigrationFailed(format!("{label} failed while waiting: {error}"))
+            })?;
+            (status, Ok(()))
+        }
+        status = child.wait() => {
+            let status = status.map_err(|error| {
+                PostgresError::MigrationFailed(format!("{label} failed while waiting: {error}"))
+            })?;
+            (status, write_stdin.await)
+        }
+    };
+    let stdout = collected_output(&label, "stdout", stdout_task).await?;
+    let stderr = collected_output(&label, "stderr", stderr_task).await?;
+    let output = Output {
+        status,
+        stdout,
+        stderr,
+    };
     if !output.status.success() {
         let details = redact_password(
             command_output_details(&label, &output),
@@ -383,7 +575,11 @@ pub(super) async fn apply_catalog(
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_catalog, parse_manifest, PatchManifestEntry, PsqlConnection};
+    use super::{
+        apply_catalog, parse_manifest, read_catalog_file, read_opened_catalog_file,
+        PatchManifestEntry, PsqlConnection,
+    };
+    use std::fs::File;
     use std::path::{Path, PathBuf};
     use std::process::Stdio;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -455,6 +651,18 @@ mod tests {
                 .expect("committed patch catalog must be readable");
             destination.write(file, &bytes);
         }
+    }
+
+    fn add_future_patch(directory: &TestPatchDir, file: &str, name: &str, bytes: &[u8]) {
+        let checksum = format!(
+            "sha256:{}",
+            hex::encode(<sha2::Sha256 as sha2::Digest>::digest(bytes))
+        );
+        directory.write(file, bytes);
+        let mut manifest = std::fs::read_to_string(directory.path().join("manifest.tsv"))
+            .expect("manifest must be readable");
+        manifest.push_str(&format!("1\t5\t{name}\t{checksum}\t{file}\n"));
+        directory.write("manifest.tsv", manifest.as_bytes());
     }
 
     fn live_connection(database_env: &str) -> Option<(PathBuf, PsqlConnection)> {
@@ -619,6 +827,32 @@ mod tests {
     }
 
     #[test]
+    fn rejects_empty_comment_only_and_whitespace_prefixed_comment_catalogs() {
+        for manifest in ["", "# comment only\n"] {
+            let error = parse_manifest(manifest).expect_err("an empty catalog must be rejected");
+            assert!(error.to_string().contains("committed V1 patch"));
+        }
+
+        let error = parse_manifest("  # not a manifest comment\n")
+            .expect_err("comments must begin in the first column");
+        assert!(error.to_string().contains("exactly five"));
+    }
+
+    #[test]
+    fn rejects_empty_and_unicode_manifest_fields() {
+        for (manifest, expected) in [
+            (manifest_with(&[("google-subject", "")]), "invalid name"),
+            (
+                manifest_with(&[("google-subject", "gøøgle-subject")]),
+                "invalid name",
+            ),
+        ] {
+            let error = parse_manifest(&manifest).expect_err("invalid fields must be rejected");
+            assert!(error.to_string().contains(expected));
+        }
+    }
+
+    #[test]
     fn rejects_duplicate_or_non_increasing_versions() {
         for version in ["2", "1"] {
             let manifest = manifest_with(&[(
@@ -663,6 +897,41 @@ mod tests {
             let error = parse_manifest(&manifest).expect_err("invalid checksum must be rejected");
             assert!(error.to_string().contains("checksum"));
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_direct_catalog_symlinks() {
+        let patch_dir = TestPatchDir::new();
+        patch_dir.write("target.sql", b"SELECT 1;\n");
+        std::os::unix::fs::symlink(
+            patch_dir.path().join("target.sql"),
+            patch_dir.path().join("linked.sql"),
+        )
+        .expect("test symlink must be created");
+
+        let error = read_catalog_file(patch_dir.path(), "linked.sql")
+            .expect_err("direct catalog symlink must be rejected");
+
+        assert!(error.to_string().contains("linked.sql is unavailable"));
+    }
+
+    #[test]
+    fn rejects_a_catalog_path_replaced_after_its_handle_is_opened() {
+        let patch_dir = TestPatchDir::new();
+        let path = patch_dir.path().join("patch.sql");
+        patch_dir.write("patch.sql", b"approved bytes\n");
+        let opened = File::open(&path).expect("approved catalog file must open");
+        std::fs::rename(&path, patch_dir.path().join("original.sql"))
+            .expect("approved path must be movable");
+        patch_dir.write("patch.sql", b"replacement bytes\n");
+
+        let error = read_opened_catalog_file(opened, &path, "patch.sql")
+            .expect_err("replacement must be detected before reading the handle");
+
+        assert!(error
+            .to_string()
+            .contains("patch.sql changed while being read"));
     }
 
     #[tokio::test]
@@ -856,21 +1125,45 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn bounds_and_marks_large_psql_failure_output() {
+        let patch_dir = TestPatchDir::new();
+        copy_committed_catalog(&patch_dir);
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\ncat >/dev/null\nprintf 'password=%s\\n' \"$PGPASSWORD\" >&2\nhead -c 1048576 /dev/zero | tr '\\000' x >&2\nexit 7\n",
+        );
+        let password = "large-output-secret";
+        let connection = PsqlConnection::new("localhost", 5432, "hotel", "hotel", password);
+
+        let error = apply_catalog(&psql_path, &connection, patch_dir.path())
+            .await
+            .expect_err("large nonzero psql output must be fatal");
+        let message = error.to_string();
+
+        assert!(message.contains("patch 1.2 google-subject"));
+        assert!(message.contains("[redacted]"));
+        assert!(!message.contains(password));
+        assert!(message.contains("[diagnostic output truncated after 32768 bytes]"));
+        assert!(
+            message.len() <= 34 * 1024,
+            "failure diagnostics must stay bounded, got {} bytes",
+            message.len()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn streams_stdin_while_draining_large_psql_output() {
         let patch_dir = TestPatchDir::new();
         copy_committed_catalog(&patch_dir);
         let large_patch = vec![b'-'; 4 * 1024 * 1024];
-        let checksum = format!(
-            "sha256:{}",
-            hex::encode(<sha2::Sha256 as sha2::Digest>::digest(&large_patch))
+        add_future_patch(
+            &patch_dir,
+            "0005_large_patch.sql",
+            "large-patch",
+            &large_patch,
         );
-        patch_dir.write("0005_large_patch.sql", &large_patch);
-        let mut manifest = std::fs::read_to_string(patch_dir.path().join("manifest.tsv"))
-            .expect("manifest must be readable");
-        manifest.push_str(&format!(
-            "1\t5\tlarge-patch\t{checksum}\t0005_large_patch.sql\n"
-        ));
-        patch_dir.write("manifest.tsv", manifest.as_bytes());
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &fake_dir,
@@ -884,6 +1177,45 @@ mod tests {
         .await
         .expect("psql stdin and output pipes must not deadlock")
         .expect("large valid patch must be streamed successfully");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn kills_and_reaps_psql_immediately_when_stdin_fails() {
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\nexec 0<&-\nprintf '%s' \"$$\" > child.pid\nexec sleep 30\n",
+        );
+        let patch = super::VerifiedPatch {
+            entry: PatchManifestEntry {
+                generation: 1,
+                version: 5,
+                name: "large-patch".to_string(),
+                checksum: "sha256:test-only".to_string(),
+                file: "0005_large_patch.sql".to_string(),
+            },
+            source: vec![b'-'; 4 * 1024 * 1024],
+        };
+
+        let error = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            super::apply_patch(&psql_path, &test_connection(), patch),
+        )
+        .await
+        .expect("stdin failure must not wait for a live psql child")
+        .expect_err("closed psql stdin must be fatal");
+        assert!(error.to_string().contains("failed to write stdin"));
+
+        let pid = std::fs::read_to_string(fake_dir.path().join("child.pid"))
+            .expect("fake psql PID must be captured");
+        let status = std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("process liveness probe must run");
+        assert!(!status.success(), "failed psql child must be reaped");
     }
 
     #[tokio::test]
