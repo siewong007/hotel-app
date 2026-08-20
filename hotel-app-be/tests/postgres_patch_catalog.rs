@@ -734,3 +734,105 @@ fn patch_runner_executes_the_validated_patch_snapshot() {
         "the runner must execute the validated snapshot rather than reopening a source path"
     );
 }
+
+/// Collapses every fenced code block of a Markdown document into one
+/// whitespace-normalized string.
+///
+/// Only fenced content is returned, so prose may still *name* an object an
+/// operator must no longer run by hand; normalization is what lets a single
+/// literal match a statement the document wraps over several lines.
+fn fenced_code_text(markdown: &str) -> String {
+    let mut inside_fence = false;
+    let mut collected = String::new();
+    for line in markdown.lines() {
+        if line.trim_start().starts_with("```") {
+            inside_fence = !inside_fence;
+            continue;
+        }
+        if inside_fence {
+            collected.push_str(line);
+            collected.push(' ');
+        }
+    }
+    assert!(
+        !inside_fence,
+        "markdown document must not leave a code fence open"
+    );
+    collected.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn documentation_fenced_code_extraction_ignores_prose_and_joins_wrapped_statements() {
+    let markdown = "Never run ALTER TABLE public.users by hand.\n\n```sql\nALTER TABLE public.payments\n    ADD COLUMN IF NOT EXISTS idempotency_key character varying(160);\n```\n";
+    let code = fenced_code_text(markdown);
+    assert!(!code.contains("Never run"));
+    assert!(code.contains(
+        "ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS idempotency_key character varying(160);"
+    ));
+}
+
+#[test]
+fn documentation_database_readme_describes_baseline_seed_and_patches() {
+    let readme = repository_file("hotel-app-be/database/README.md");
+
+    let baseline = readme
+        .find("migrations/0001_v1_baseline.sql")
+        .expect("the README must name the baseline");
+    let seed = readme[baseline..]
+        .find("seed.sql")
+        .map(|offset| baseline + offset)
+        .expect("the README must name the seed after the baseline");
+    readme[seed..]
+        .find("patches/")
+        .expect("the README must describe the patch catalog after baseline and seed");
+
+    for required in [
+        "patches/manifest.tsv",
+        "make db-patch",
+        "make db-schema-drift",
+    ] {
+        assert!(
+            readme.contains(required),
+            "the README must document {required}"
+        );
+    }
+
+    for obsolete in [
+        "This directory stays two files",
+        "Those two SQL files are the whole install set",
+        "postgres_initialization_has_only_baseline_and_seed",
+        "There is no `patches/`",
+    ] {
+        assert!(
+            !readme.contains(obsolete),
+            "the README must no longer claim: {obsolete}"
+        );
+    }
+}
+
+#[test]
+fn documentation_deployment_guide_replaces_one_off_operator_sql_with_the_runner() {
+    let guide = repository_file("docs/guides/deployment.md");
+    let code = fenced_code_text(&guide);
+
+    for forbidden in [
+        "ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_subject",
+        "ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS idempotency_key",
+        "ALTER TABLE public.customer_ledger_payments ADD COLUMN IF NOT EXISTS idempotency_key",
+        "DROP INDEX IF EXISTS public.idx_customer_ledger_payments_receipt_unique",
+    ] {
+        assert!(
+            !code.contains(forbidden),
+            "the deployment guide must not ship a runnable copy of: {forbidden}"
+        );
+    }
+
+    assert!(
+        code.contains("make db-patch DATABASE_URL="),
+        "the deployment guide must invoke the single patch runner"
+    );
+    assert!(
+        code.contains("make db-schema-drift"),
+        "the deployment guide must document read-only drift reporting"
+    );
+}
