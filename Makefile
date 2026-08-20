@@ -128,7 +128,7 @@ docker-logs: ## View Docker logs
 # ─── Database ─────────────────────────────────────────────────────────────────
 
 require-database-url:
-	@test -n "$$DATABASE_URL" || { printf '%s\n' 'DATABASE_URL is required' >&2; exit 1; }
+	@case "$$DATABASE_URL" in *[![:space:]]*) ;; *) printf '%s\n' 'DATABASE_URL is required' >&2; exit 1 ;; esac
 
 db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql

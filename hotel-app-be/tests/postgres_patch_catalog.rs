@@ -420,7 +420,7 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
     assert!(make_lines.contains(&"db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
     assert!(make_lines.contains(&"require-database-url:"));
     assert!(make_lines.contains(
-        &"@test -n \"$$DATABASE_URL\" || { printf '%s\\n' 'DATABASE_URL is required' >&2; exit 1; }"
+        &"@case \"$$DATABASE_URL\" in *[![:space:]]*) ;; *) printf '%s\\n' 'DATABASE_URL is required' >&2; exit 1 ;; esac"
     ));
     assert!(make_lines.contains(&"db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)"));
     assert!(make_lines.contains(&"db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)"));
@@ -492,6 +492,39 @@ fn deployment_local_database_targets_reject_empty_or_unset_url() {
                 capture, "",
                 "{invocation} {target} must not invoke psql or the patch runner"
             );
+        }
+    }
+}
+
+#[test]
+fn deployment_local_database_targets_reject_whitespace_only_url() {
+    for (whitespace, database_url) in [
+        ("spaces", "   "),
+        ("tabs", "\t\t"),
+        ("mixed", " \t \t"),
+    ] {
+        for (invocation, command_line) in [("environment", false), ("command-line", true)] {
+            for target in ["db-setup", "db-patch"] {
+                let case = format!("{whitespace}-{invocation}");
+                let (output, capture) = run_make_database_harness(
+                    &case,
+                    target,
+                    Some(database_url),
+                    command_line,
+                );
+                assert!(
+                    !output.status.success(),
+                    "{whitespace} {invocation} {target} must fail"
+                );
+                assert!(
+                    String::from_utf8_lossy(&output.stderr).contains("DATABASE_URL is required"),
+                    "{whitespace} {invocation} {target} must report the missing required value"
+                );
+                assert_eq!(
+                    capture, "",
+                    "{whitespace} {invocation} {target} must not invoke psql or the patch runner"
+                );
+            }
         }
     }
 }
