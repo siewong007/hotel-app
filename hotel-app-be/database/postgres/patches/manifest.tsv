@@ -1,0 +1,4 @@
+# generation	version	name	checksum	file
+1	2	google-subject	sha256:bcfaaa5939bdd4c84327cf6a175384a5801b83a72cf7a99569d9ede88b203bd1	0002_google_subject.sql
+1	3	payment-idempotency	sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36	0003_payment_idempotency.sql
+1	4	booking-status-vocabulary	sha256:005c7d7c99ff501823e6d88639191c744f17b90d57a271609ac19a79dbd36745	0004_booking_status_vocabulary.sql
