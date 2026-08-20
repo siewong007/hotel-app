@@ -4,6 +4,10 @@
 BUN ?= $(shell command -v bun 2>/dev/null || printf '%s' "$$HOME/.bun/bin/bun")
 override DATABASE_URL := $(value DATABASE_URL)
 export DATABASE_URL
+override BASELINE_DATABASE_URL := $(value BASELINE_DATABASE_URL)
+export BASELINE_DATABASE_URL
+override TARGET_DATABASE_URL := $(value TARGET_DATABASE_URL)
+export TARGET_DATABASE_URL
 
 .PHONY: help setup-all setup-be setup-fe setup-desktop \
         dev-be dev-fe dev-desktop \
@@ -13,6 +17,7 @@ export DATABASE_URL
         test-be test-fe \
         docker-up docker-up-pg19-tuned docker-down docker-build \
         db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
+        db-schema-drift require-schema-drift-urls \
         db-repack db-repack-full \
         prepare-desktop docs \
         fmt fmt-all \
@@ -130,6 +135,11 @@ docker-logs: ## View Docker logs
 require-database-url:
 	@case "$$DATABASE_URL" in *[![:space:]]*) ;; *) printf '%s\n' 'DATABASE_URL is required' >&2; exit 1 ;; esac
 
+require-schema-drift-urls:
+	@case "$$BASELINE_DATABASE_URL" in *[![:space:]]*) ;; *) printf '%s\n' 'BASELINE_DATABASE_URL is required' >&2; exit 1 ;; esac
+	@case "$$TARGET_DATABASE_URL" in *[![:space:]]*) ;; *) printf '%s\n' 'TARGET_DATABASE_URL is required' >&2; exit 1 ;; esac
+	@test "$$BASELINE_DATABASE_URL" != "$$TARGET_DATABASE_URL" || { printf '%s\n' 'baseline and target database URLs must be distinct' >&2; exit 1; }
+
 db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/seed.sql
@@ -137,6 +147,9 @@ db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 
 
 db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)
 	hotel-app-be/database/postgres/apply-patches.sh
+
+db-schema-drift: require-schema-drift-urls ## Compare target schema with a current-baseline database (read-only)
+	hotel-app-be/database/postgres/report-schema-drift.sh
 
 db-reset: ## Reset and re-create PostgreSQL database
 	psql "$$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"

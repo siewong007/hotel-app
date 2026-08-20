@@ -1,7 +1,9 @@
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand, Output, Stdio};
 use tokio::process::Command;
@@ -264,6 +266,64 @@ fn postgres_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres")
 }
 
+fn run_make_schema_drift_harness(
+    label: &str,
+    baseline_url: Option<&str>,
+    target_url: Option<&str>,
+    command_line: bool,
+) -> (Output, String) {
+    let temporary_root = std::env::temp_dir().join(format!(
+        "hotel-make-schema-drift-{label}-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4().simple()
+    ));
+    let reporter_dir = temporary_root.join("hotel-app-be/database/postgres");
+    std::fs::create_dir_all(&reporter_dir).expect("create fake schema drift reporter directory");
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("backend directory must have a repository parent")
+            .join("Makefile"),
+        temporary_root.join("Makefile"),
+    )
+    .expect("copy Makefile for schema drift harness");
+    let reporter = reporter_dir.join("report-schema-drift.sh");
+    std::fs::write(
+        &reporter,
+        "#!/usr/bin/env bash\nprintf 'baseline=<%s> target=<%s>\\n' \"$BASELINE_DATABASE_URL\" \"$TARGET_DATABASE_URL\" > \"$CAPTURE_FILE\"\n",
+    )
+    .expect("write fake schema drift reporter");
+    let mut permissions = std::fs::metadata(&reporter)
+        .expect("read fake reporter metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&reporter, permissions).expect("make fake reporter executable");
+    let capture_file = temporary_root.join("capture");
+
+    let mut make = StdCommand::new("make");
+    make.args(["--no-print-directory", "db-schema-drift"])
+        .current_dir(&temporary_root)
+        .env("CAPTURE_FILE", &capture_file)
+        .env_remove("BASELINE_DATABASE_URL")
+        .env_remove("TARGET_DATABASE_URL");
+    for (name, value) in [
+        ("BASELINE_DATABASE_URL", baseline_url),
+        ("TARGET_DATABASE_URL", target_url),
+    ] {
+        if let Some(value) = value {
+            if command_line {
+                make.arg(format!("{name}={value}"));
+            } else {
+                make.env(name, value);
+            }
+        }
+    }
+    let output = make.output().expect("start schema drift Make harness");
+    let capture = std::fs::read_to_string(capture_file).unwrap_or_default();
+    std::fs::remove_dir_all(temporary_root).expect("remove schema drift Make harness");
+    (output, capture)
+}
+
 fn quote_ident(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
 }
@@ -319,6 +379,22 @@ async fn run_patches(database: &TestDatabase, catalog_dir: Option<&Path>) -> Out
         .output()
         .await
         .expect("start PostgreSQL patch runner")
+}
+
+async fn schema_inventory(database: &TestDatabase) -> String {
+    let output = Command::new("psql")
+        .arg(&database.url)
+        .args(["-XAt", "-q", "-v", "ON_ERROR_STOP=1", "-f"])
+        .arg(postgres_dir().join("schema-inventory.sql"))
+        .output()
+        .await
+        .expect("run schema inventory");
+    assert!(
+        output.status.success(),
+        "schema inventory failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("schema inventory output must be UTF-8")
 }
 
 async fn wait_for_advisory_lock(pool: &PgPool, application_name: &str, granted: bool) {
@@ -650,6 +726,408 @@ async fn postgres_v1_patches_converge_and_are_idempotent() {
     fresh_pool.close().await;
     upgrade_pool.close().await;
     databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn schema_drift_report_is_read_only() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let baseline = databases.create("drift_baseline").await;
+    let target = databases.create("drift_target").await;
+    let baseline_pool = install_v1(&baseline).await;
+    let target_pool = install_v1(&target).await;
+
+    let baseline_revisions = revision_snapshot(&baseline_pool).await;
+    let target_revisions = revision_snapshot(&target_pool).await;
+    let baseline_objects = object_snapshot(&baseline_pool).await;
+    let target_objects = object_snapshot(&target_pool).await;
+
+    let baseline_inventory = schema_inventory(&baseline).await;
+    let target_inventory = schema_inventory(&target).await;
+    assert_eq!(baseline_inventory, target_inventory);
+    assert!(baseline_inventory.lines().all(|line| {
+        let fields = line.split('\t').collect::<Vec<_>>();
+        fields.len() == 3 && BASE64.decode(fields[2]).is_ok()
+    }));
+    for expected_identity in [
+        "table\tpublic.audit_logs\t",
+        "table\tpublic.audit_logs_default\t",
+        "view\tpublic.booking_summary\t",
+        "column\tpublic.bookings.nights\t",
+        "constraint\tpublic.bookings.bookings_status_check\t",
+        "index\tpublic.bookings_pkey\t",
+        "function\tpublic.auto_check_in_reservations(p_date date)\t",
+    ] {
+        assert!(
+            baseline_inventory
+                .lines()
+                .any(|line| line.starts_with(expected_identity)),
+            "schema inventory is missing {expected_identity:?}"
+        );
+    }
+
+    let no_drift = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("start schema drift reporter for matching databases");
+    assert_eq!(
+        no_drift.status.code(),
+        Some(0),
+        "expected no drift, got stdout={} stderr={}",
+        String::from_utf8_lossy(&no_drift.stdout),
+        String::from_utf8_lossy(&no_drift.stderr)
+    );
+    assert!(no_drift.stdout.is_empty());
+
+    sqlx::query("CREATE TABLE public.audit_extra_table(id bigint PRIMARY KEY)")
+        .execute(&target_pool)
+        .await
+        .expect("create target-only drift table");
+    let target_drift_inventory = schema_inventory(&target).await;
+
+    let output = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("start schema drift reporter");
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "expected reported drift, got stdout={} stderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).expect("drift report must be UTF-8");
+    assert!(stdout.starts_with("--- baseline\n+++ target\n"));
+    assert!(
+        stdout.contains("audit_extra_table"),
+        "drift report did not name the target-only table: {stdout}"
+    );
+
+    assert_eq!(revision_snapshot(&baseline_pool).await, baseline_revisions);
+    assert_eq!(revision_snapshot(&target_pool).await, target_revisions);
+    assert_eq!(object_snapshot(&baseline_pool).await, baseline_objects);
+    assert_eq!(object_snapshot(&target_pool).await, target_objects);
+    assert_eq!(schema_inventory(&baseline).await, baseline_inventory);
+    assert_eq!(schema_inventory(&target).await, target_drift_inventory);
+    let extra_table_exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.audit_extra_table') IS NOT NULL")
+            .fetch_one(&target_pool)
+            .await
+            .expect("check target-only table after drift reporting");
+    assert!(extra_table_exists);
+
+    baseline_pool.close().await;
+    target_pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn schema_drift_report_normalizes_session_settings_and_tracks_view_options() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let baseline = databases.create("drift_settings_baseline").await;
+    let target = databases.create("drift_settings_target").await;
+    let baseline_pool = PgPool::connect(&baseline.url)
+        .await
+        .expect("connect to baseline settings database");
+    let target_pool = PgPool::connect(&target.url)
+        .await
+        .expect("connect to target settings database");
+    let fixture = r#"
+        CREATE TABLE public.inventory_probe (
+            id bigint PRIMARY KEY,
+            happened_at timestamptz DEFAULT TIMESTAMPTZ '2026-08-21 00:00:00+00'
+        );
+        CREATE VIEW public.inventory_probe_view AS
+        SELECT id, happened_at FROM public.inventory_probe;
+    "#;
+    sqlx::raw_sql(fixture)
+        .execute(&baseline_pool)
+        .await
+        .expect("create baseline inventory fixture");
+    sqlx::raw_sql(fixture)
+        .execute(&target_pool)
+        .await
+        .expect("create target inventory fixture");
+    baseline_pool
+        .execute(
+            format!(
+                "ALTER DATABASE {} SET TimeZone TO 'UTC'",
+                quote_ident(&baseline.name)
+            )
+            .as_str(),
+        )
+        .await
+        .expect("set baseline database time zone");
+    target_pool
+        .execute(
+            format!(
+                "ALTER DATABASE {} SET TimeZone TO 'Asia/Kuala_Lumpur'",
+                quote_ident(&target.name)
+            )
+            .as_str(),
+        )
+        .await
+        .expect("set target database time zone");
+
+    let no_drift = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("compare schemas under different database time zones");
+    assert_eq!(
+        no_drift.status.code(),
+        Some(0),
+        "database time zones must not create schema drift: {}",
+        String::from_utf8_lossy(&no_drift.stdout)
+    );
+
+    target_pool
+        .execute("ALTER VIEW public.inventory_probe_view SET (security_barrier = true)")
+        .await
+        .expect("set target-only view security option");
+    let view_drift = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("compare schemas after view option drift");
+    assert_eq!(view_drift.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&view_drift.stdout).contains("public.inventory_probe_view"));
+
+    baseline_pool.close().await;
+    target_pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn schema_drift_report_rejects_missing_whitespace_and_equal_urls() {
+    let reporter = postgres_dir().join("report-schema-drift.sh");
+    for (label, baseline_url, target_url, expected_diagnostic) in [
+        ("missing", None, None, "BASELINE_DATABASE_URL is required"),
+        (
+            "whitespace",
+            Some(" \t "),
+            Some(" \t "),
+            "BASELINE_DATABASE_URL is required",
+        ),
+        (
+            "equal",
+            Some("postgresql://hotel:secret@invalid/equal"),
+            Some("postgresql://hotel:secret@invalid/equal"),
+            "database URLs must be distinct",
+        ),
+        (
+            "option-shaped",
+            Some("--version"),
+            Some("--help"),
+            "baseline schema inventory failed",
+        ),
+    ] {
+        let mut command = Command::new(&reporter);
+        command
+            .env_remove("BASELINE_DATABASE_URL")
+            .env_remove("TARGET_DATABASE_URL");
+        if let Some(baseline_url) = baseline_url {
+            command.env("BASELINE_DATABASE_URL", baseline_url);
+        }
+        if let Some(target_url) = target_url {
+            command.env("TARGET_DATABASE_URL", target_url);
+        }
+        let output = command
+            .output()
+            .await
+            .unwrap_or_else(|error| panic!("start schema drift reporter for {label}: {error}"));
+        assert_eq!(output.status.code(), Some(1), "{label} input must fail");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            stderr.contains(expected_diagnostic),
+            "{label} input reported an unexpected diagnostic: {stderr}"
+        );
+        assert!(!stderr.contains("postgresql://"));
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn schema_drift_make_target_preserves_urls_and_rejects_unsafe_inputs() {
+    let baseline_url = "postgresql://hotel:base$word@localhost/baseline?token=$base";
+    let target_url = "postgresql://hotel:target$word@localhost/target?token=$target";
+    for (label, command_line) in [("environment", false), ("command-line", true)] {
+        let (output, capture) = run_make_schema_drift_harness(
+            label,
+            Some(baseline_url),
+            Some(target_url),
+            command_line,
+        );
+        assert!(
+            output.status.success(),
+            "{label} Make invocation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            capture,
+            format!("baseline=<{baseline_url}> target=<{target_url}>\n")
+        );
+    }
+
+    for (label, baseline_url, target_url, diagnostic) in [
+        (
+            "missing-baseline",
+            None,
+            Some(target_url),
+            "BASELINE_DATABASE_URL is required",
+        ),
+        (
+            "missing-target",
+            Some(baseline_url),
+            None,
+            "TARGET_DATABASE_URL is required",
+        ),
+        (
+            "whitespace-baseline",
+            Some(" \t "),
+            Some(target_url),
+            "BASELINE_DATABASE_URL is required",
+        ),
+        (
+            "whitespace-target",
+            Some(baseline_url),
+            Some(" \t "),
+            "TARGET_DATABASE_URL is required",
+        ),
+        (
+            "equal",
+            Some(baseline_url),
+            Some(baseline_url),
+            "database URLs must be distinct",
+        ),
+    ] {
+        for command_line in [false, true] {
+            let (output, capture) =
+                run_make_schema_drift_harness(label, baseline_url, target_url, command_line);
+            assert!(!output.status.success(), "{label} Make input must fail");
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(diagnostic),
+                "{label} Make input reported an unexpected diagnostic: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(capture.is_empty(), "{label} must not invoke the reporter");
+        }
+    }
+}
+
+#[tokio::test]
+async fn schema_drift_report_propagates_tool_failures_and_removes_temp_files() {
+    let temporary_root = std::env::temp_dir().join(format!(
+        "hotel-schema-drift-failure-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4().simple()
+    ));
+    let command_dir = temporary_root.join("bin");
+    let inventory_dir = temporary_root.join("inventory");
+    std::fs::create_dir_all(&command_dir).expect("create fake command directory");
+    std::fs::create_dir(&inventory_dir).expect("create temporary inventory directory");
+    let capture_file = temporary_root.join("psql-calls");
+    let fake_psql = command_dir.join("psql");
+    std::fs::write(
+        &fake_psql,
+        "#!/usr/bin/env bash\nprintf 'called\\n' >> \"$CAPTURE_FILE\"\nif [[ ${FAIL_PSQL:-} == 1 ]]; then\n  printf 'injected psql failure\\n' >&2\n  exit 17\nfi\nprintf 'same-inventory\\n'\n",
+    )
+    .expect("write fake psql");
+    let fake_diff = command_dir.join("diff");
+    std::fs::write(
+        &fake_diff,
+        "#!/usr/bin/env bash\nprintf 'injected diff failure\\n' >&2\nexit 7\n",
+    )
+    .expect("write fake diff");
+    for command in [&fake_psql, &fake_diff] {
+        let mut permissions = std::fs::metadata(command)
+            .expect("read fake command metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(command, permissions).expect("make fake command executable");
+    }
+    let path = format!(
+        "{}:{}",
+        command_dir.display(),
+        std::env::var("PATH").expect("PATH must be set")
+    );
+
+    let output = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env(
+            "BASELINE_DATABASE_URL",
+            "postgresql://hotel:baseline-secret@invalid/baseline",
+        )
+        .env(
+            "TARGET_DATABASE_URL",
+            "postgresql://hotel:target-secret@invalid/target",
+        )
+        .env("CAPTURE_FILE", &capture_file)
+        .env("FAIL_PSQL", "1")
+        .env("PATH", path)
+        .env("TMPDIR", &inventory_dir)
+        .output()
+        .await
+        .expect("start schema drift reporter with failing psql");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(
+        std::fs::read_to_string(&capture_file).expect("read fake psql calls"),
+        "called\n"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("injected psql failure"));
+    assert!(stderr.contains("baseline schema inventory failed"));
+    assert!(!stderr.contains("baseline-secret"));
+    assert!(!stderr.contains("target-secret"));
+    assert!(
+        std::fs::read_dir(&inventory_dir)
+            .expect("read temporary inventory directory")
+            .next()
+            .is_none(),
+        "schema inventory temp files must be removed after psql failure"
+    );
+
+    std::fs::write(&capture_file, "").expect("reset fake psql calls");
+    let path = format!(
+        "{}:{}",
+        command_dir.display(),
+        std::env::var("PATH").expect("PATH must be set")
+    );
+    let output = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", "postgresql://unused/baseline")
+        .env("TARGET_DATABASE_URL", "postgresql://unused/target")
+        .env("CAPTURE_FILE", &capture_file)
+        .env("PATH", path)
+        .env("TMPDIR", &inventory_dir)
+        .output()
+        .await
+        .expect("start schema drift reporter with failing diff");
+    assert_eq!(output.status.code(), Some(7));
+    assert_eq!(
+        std::fs::read_to_string(&capture_file).expect("read fake psql calls"),
+        "called\ncalled\n"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("injected diff failure"));
+    assert!(
+        std::fs::read_dir(&inventory_dir)
+            .expect("read temporary inventory directory")
+            .next()
+            .is_none(),
+        "schema inventory temp files must be removed after diff failure"
+    );
+
+    std::fs::remove_dir_all(temporary_root).expect("remove schema drift test directory");
 }
 
 #[tokio::test]
