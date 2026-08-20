@@ -2132,9 +2132,9 @@ async fn legacy_duplicate_reference_owner_does_not_block_record_payment_replay()
             replayed["id"], original["id"],
             "the keyed retry must replay its own payment, not be blocked by a keyless row"
         ),
-        other => panic!(
-            "a keyless duplicate reference owner must not block a keyed replay: {other:?}"
-        ),
+        other => {
+            panic!("a keyless duplicate reference owner must not block a keyed replay: {other:?}")
+        }
     }
 }
 
@@ -2670,8 +2670,7 @@ async fn reject_payment_requires_reason_and_never_moves_money() {
 /// `completed` deposit payment for 50.00 is recorded via the actual
 /// `payments::record_payment` code path (payment_type = "deposit") BEFORE the
 /// refund, so the round-trip refunds an amount that was genuinely collected --
-/// see the sibling `#[ignore]`d test below for the currently-missing guards
-/// that this test must NOT (and does not) rely on.
+/// see the sibling boundary test below for the guard around that amount.
 #[tokio::test]
 async fn refund_deposit_and_revert_round_trip() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
@@ -2841,19 +2840,110 @@ async fn refund_deposit_and_revert_round_trip() {
     .await;
 }
 
-/// (KNOWN BUG -- ignored) `refund_deposit` must refuse to refund a keycard
-/// deposit that was never collected, AND must refuse to refund more than the
-/// amount actually held. Neither check exists today: `refund_deposit`
-/// (`src/services/payments.rs:390-419`) only checks that the requested amount
-/// is positive, and `PaymentRepository::refund_deposit`
-/// (`src/repositories/payment.rs:785-829`) only checks whether a refund has
-/// already been recorded for this booking -- nothing verifies a deposit was
-/// ever held, nor bounds the refund by `room_types.keycard_deposit_amount` /
-/// the booking's completed deposit payments. As written, BOTH scenarios below
-/// currently SUCCEED, i.e. an unbounded cash payout. Do not assert the
-/// current (succeeds) behavior.
+/// Existing hotel data records collected deposits on the booking. When both
+/// representations exist, the completed payment is a fallback rather than an
+/// additional deposit, so the same money cannot be counted twice.
 #[tokio::test]
-#[ignore = "refund_deposit (src/services/payments.rs:390-419) and PaymentRepository::refund_deposit (src/repositories/payment.rs:785-829) never verify a deposit was ever collected and never bound the refund by the amount actually held -- refunding with zero deposit collected, and refunding more than the collected deposit, both currently succeed as an unbounded cash payout; pending fix: bound refund_deposit by the booking's completed deposit payments / room_types.keycard_deposit_amount"]
+async fn refund_deposit_uses_legacy_booking_deposit_without_double_counting() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_250;
+    let room_type_id = 940_251;
+    let room_id = 940_252;
+    let guest_id = 940_253;
+    let booking_id = 940_254;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-06-12",
+            check_out: "2031-06-13",
+            base_price: d("100.00"),
+            subtotal: d("100.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    sqlx::query("UPDATE bookings SET deposit_paid = true, deposit_amount = $1 WHERE id = $2")
+        .bind(d("50.00"))
+        .bind(booking_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    payments::record_payment(
+        &pool,
+        actor_id,
+        RecordPaymentRequest {
+            booking_id,
+            amount: 50.0,
+            payment_method: "cash".to_string(),
+            payment_type: Some("deposit".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+            idempotency_key: "payment-char-legacy-deposit".to_string(),
+        },
+    )
+    .await
+    .expect("seeding the matching completed deposit payment should succeed");
+
+    let double_counted = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 75.0}),
+    )
+    .await;
+    let refund = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+    )
+    .await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert!(
+        matches!(double_counted, Err(ApiError::BadRequest(_))),
+        "booking and payment representations must not be added together: {double_counted:?}"
+    );
+    let refund = refund.expect("the booking's recorded 50.00 deposit should be refundable");
+    assert_eq!(refund.get("total_amount").unwrap().as_str(), Some("50.00"));
+}
+
+/// `refund_deposit` must refuse to refund a keycard deposit that was never
+/// collected, AND must refuse to refund more than the amount actually held.
+/// The repository guard must recognize both the legacy booking deposit fields
+/// and completed deposit payments without treating a configured room-type
+/// deposit as money already collected.
+#[tokio::test]
 async fn refund_deposit_refuses_when_no_deposit_held_or_amount_exceeds_it() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
@@ -2936,9 +3026,8 @@ async fn refund_deposit_refuses_when_no_deposit_held_or_amount_exceeds_it() {
     )
     .await;
 
-    // Clean up BEFORE asserting: this test is expected to fail (that is the
-    // point of `#[ignore]`ing a known bug), and an assertion panic must not
-    // skip teardown and leak fixture rows on a persistent, shared database.
+    // Clean up before asserting so a regression does not leak fixture rows on
+    // a persistent, shared database.
     cleanup(
         &pool,
         &[room_type_id],
