@@ -831,6 +831,41 @@ describe('CustomerLedgerPage', () => {
     });
   });
 
+  // Review finding I2. The existing lost-response tests reject createLedgerPayment
+  // itself. The dangerous case is the opposite: the POST COMMITS and a later step
+  // fails. The clear used to sit immediately after the POST, so the refetch error
+  // landed in the catch, told staff "Failed to record payment" for a payment that
+  // had succeeded, and the retry minted a NEW key -- a second real charge.
+  it('retains the idempotency key when the payment commits but the refetch fails', async () => {
+    mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
+    mocks.hotelApi.getCustomerLedger.mockRejectedValueOnce(new Error('network down'));
+
+    render(<CustomerLedgerPage />);
+    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.entries?.length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
+    await waitFor(() => expect(mocks.captured.paymentDialog?.open).toBe(true));
+
+    await act(async () => {
+      await mocks.captured.paymentDialog!.onRecordPayment();
+    });
+    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(1));
+    const committed = mocks.hotelApi.createLedgerPayment.mock.calls[0][1];
+
+    // The refetch rejected, so the dialog reports failure even though the money
+    // is recorded. Staff retry the identical form.
+    mocks.hotelApi.getCustomerLedger.mockResolvedValue({
+      ...mocks.useLedgersReturn.ledgers[0],
+      balance_due: 250,
+    });
+    await act(async () => {
+      await mocks.captured.paymentDialog!.onRecordPayment();
+    });
+    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2));
+
+    expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].idempotency_key)
+      .toBe(committed.idempotency_key);
+  });
+
   it('replays a lost-response single payment before validating an edited receipt with a new key', async () => {
     const timeout = new Error('timeout');
     const editedHistory = createDeferred<CustomerLedgerPayment[]>();
