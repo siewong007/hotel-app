@@ -82,7 +82,7 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
                 1,
                 4,
                 "booking-status-vocabulary",
-                "sha256:005c7d7c99ff501823e6d88639191c744f17b90d57a271609ac19a79dbd36745",
+                "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
                 "0004_booking_status_vocabulary.sql",
             ),
         ]
