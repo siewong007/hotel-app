@@ -1,0 +1,958 @@
+use super::{command_output_details, PostgresError, PATH_SEP};
+use sha2::{Digest, Sha256};
+use std::path::{Component, Path};
+use std::process::Stdio;
+use tokio::io::AsyncWriteExt;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PatchManifestEntry {
+    generation: i32,
+    version: i32,
+    name: String,
+    checksum: String,
+    file: String,
+}
+
+struct VerifiedPatch {
+    entry: PatchManifestEntry,
+    source: Vec<u8>,
+}
+
+pub(super) struct PsqlConnection {
+    pub(super) host: String,
+    pub(super) port: u16,
+    pub(super) user: String,
+    pub(super) database: String,
+    pub(super) password: String,
+}
+
+impl PsqlConnection {
+    pub(super) fn new(
+        host: impl Into<String>,
+        port: u16,
+        user: impl Into<String>,
+        database: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
+        Self {
+            host: host.into(),
+            port,
+            user: user.into(),
+            database: database.into(),
+            password: password.into(),
+        }
+    }
+}
+
+fn catalog_error(message: impl Into<String>) -> PostgresError {
+    PostgresError::MigrationFailed(format!(
+        "Invalid PostgreSQL patch catalog: {}",
+        message.into()
+    ))
+}
+
+fn is_positive_integer(value: &str) -> bool {
+    let mut bytes = value.bytes();
+    matches!(bytes.next(), Some(b'1'..=b'9')) && bytes.all(|byte| byte.is_ascii_digit())
+}
+
+fn is_patch_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        })
+}
+
+fn is_checksum(value: &str) -> bool {
+    value.strip_prefix("sha256:").is_some_and(|digest| {
+        digest.len() == 64
+            && digest
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    })
+}
+
+fn is_patch_file(value: &str) -> bool {
+    let path = Path::new(value);
+    let mut components = path.components();
+    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+        return false;
+    }
+
+    let Some(stem) = value.strip_suffix(".sql") else {
+        return false;
+    };
+    let bytes = stem.as_bytes();
+    bytes.len() > 5
+        && bytes[..4].iter().all(u8::is_ascii_digit)
+        && bytes[4] == b'_'
+        && bytes[5..]
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
+}
+
+fn parse_manifest(contents: &str) -> Result<Vec<PatchManifestEntry>, PostgresError> {
+    let mut entries: Vec<PatchManifestEntry> = Vec::new();
+
+    for (index, line) in contents.lines().enumerate() {
+        let line_number = index + 1;
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let fields = line.split('\t').collect::<Vec<_>>();
+        if fields.len() != 5 {
+            return Err(catalog_error(format!(
+                "manifest line {line_number} must have exactly five tab-separated fields"
+            )));
+        }
+        let [generation, version, name, checksum, file] = fields.as_slice() else {
+            unreachable!("field count was checked")
+        };
+
+        if !is_positive_integer(generation) {
+            return Err(catalog_error(format!(
+                "invalid generation on manifest line {line_number}"
+            )));
+        }
+        if !is_positive_integer(version) {
+            return Err(catalog_error(format!(
+                "invalid version on manifest line {line_number}"
+            )));
+        }
+        if !is_patch_name(name) {
+            return Err(catalog_error(format!(
+                "invalid name on manifest line {line_number}"
+            )));
+        }
+        if !is_checksum(checksum) {
+            return Err(catalog_error(format!(
+                "invalid checksum on manifest line {line_number}"
+            )));
+        }
+        if !is_patch_file(file) {
+            return Err(catalog_error(format!(
+                "invalid file on manifest line {line_number}"
+            )));
+        }
+
+        let generation = generation.parse::<i32>().map_err(|_| {
+            catalog_error(format!("invalid generation on manifest line {line_number}"))
+        })?;
+        let version = version.parse::<i32>().map_err(|_| {
+            catalog_error(format!("invalid version on manifest line {line_number}"))
+        })?;
+        if generation != 1 {
+            return Err(catalog_error(format!(
+                "unsupported generation on manifest line {line_number}"
+            )));
+        }
+
+        match entries.last() {
+            None if version != 2 => {
+                return Err(catalog_error("the first patch version must be 2"));
+            }
+            Some(previous) if version <= previous.version => {
+                return Err(catalog_error(format!(
+                    "duplicate or non-increasing patch version: {version}"
+                )));
+            }
+            Some(previous) if version != previous.version + 1 => {
+                return Err(catalog_error(format!(
+                    "patch versions must be contiguous: expected {}, found {version}",
+                    previous.version + 1
+                )));
+            }
+            _ => {}
+        }
+
+        entries.push(PatchManifestEntry {
+            generation,
+            version,
+            name: (*name).to_string(),
+            checksum: (*checksum).to_string(),
+            file: (*file).to_string(),
+        });
+    }
+
+    let required_prefix = [
+        (
+            2,
+            "google-subject",
+            "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
+            "0002_google_subject.sql",
+        ),
+        (
+            3,
+            "payment-idempotency",
+            "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36",
+            "0003_payment_idempotency.sql",
+        ),
+        (
+            4,
+            "booking-status-vocabulary",
+            "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
+            "0004_booking_status_vocabulary.sql",
+        ),
+    ];
+    if entries.len() < required_prefix.len()
+        || entries
+            .iter()
+            .zip(required_prefix)
+            .any(|(entry, (version, name, checksum, file))| {
+                entry.version != version
+                    || entry.name != name
+                    || entry.checksum != checksum
+                    || entry.file != file
+            })
+    {
+        return Err(catalog_error(
+            "manifest must begin with the committed V1 patch versions 2, 3, and 4",
+        ));
+    }
+
+    Ok(entries)
+}
+
+fn read_catalog_file(patch_dir: &Path, file: &str) -> Result<Vec<u8>, PostgresError> {
+    let path = patch_dir.join(file);
+    let metadata = std::fs::symlink_metadata(&path)
+        .map_err(|error| catalog_error(format!("{file} is unavailable: {error}")))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(catalog_error(format!("{file} is unavailable")));
+    }
+    std::fs::read(&path).map_err(|error| catalog_error(format!("{file} cannot be read: {error}")))
+}
+
+fn append_segment(source: &mut Vec<u8>, segment: &[u8]) {
+    source.extend_from_slice(segment);
+    if !source.ends_with(b"\n") {
+        source.push(b'\n');
+    }
+}
+
+fn load_catalog(patch_dir: &Path) -> Result<Vec<VerifiedPatch>, PostgresError> {
+    let manifest_bytes = read_catalog_file(patch_dir, "manifest.tsv")?;
+    let manifest = std::str::from_utf8(&manifest_bytes)
+        .map_err(|error| catalog_error(format!("manifest.tsv is not UTF-8: {error}")))?;
+    let entries = parse_manifest(manifest)?;
+    let begin = read_catalog_file(patch_dir, "_begin.sql")?;
+    let end = read_catalog_file(patch_dir, "_end.sql")?;
+
+    entries
+        .into_iter()
+        .map(|entry| {
+            let bytes = read_catalog_file(patch_dir, &entry.file)?;
+            let actual_checksum = format!("sha256:{}", hex::encode(Sha256::digest(&bytes)));
+            if actual_checksum != entry.checksum {
+                return Err(catalog_error(format!(
+                    "checksum mismatch for {}",
+                    entry.file
+                )));
+            }
+
+            let mut source = Vec::with_capacity(begin.len() + bytes.len() + end.len() + 3);
+            append_segment(&mut source, &begin);
+            append_segment(&mut source, &bytes);
+            append_segment(&mut source, &end);
+            Ok(VerifiedPatch { entry, source })
+        })
+        .collect()
+}
+
+fn redact_password(details: String, password: &str) -> String {
+    if password.is_empty() {
+        details
+    } else {
+        details.replace(password, "[redacted]")
+    }
+}
+
+async fn apply_patch(
+    psql_path: &Path,
+    connection: &PsqlConnection,
+    patch: VerifiedPatch,
+) -> Result<(), PostgresError> {
+    let label = format!(
+        "psql apply patch {}.{} {}",
+        patch.entry.generation, patch.entry.version, patch.entry.name
+    );
+    let port = connection.port.to_string();
+    let mut command = tokio::process::Command::new(psql_path);
+    command.args([
+        "-h",
+        &connection.host,
+        "-p",
+        &port,
+        "-U",
+        &connection.user,
+        "-d",
+        &connection.database,
+        "-X",
+        "-v",
+        "ON_ERROR_STOP=1",
+    ]);
+    command
+        .arg(format!("--set=patch_generation={}", patch.entry.generation))
+        .arg(format!("--set=patch_version={}", patch.entry.version))
+        .arg(format!("--set=patch_name={}", patch.entry.name))
+        .arg(format!("--set=patch_checksum={}", patch.entry.checksum))
+        .env("PGPASSWORD", &connection.password)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+
+    if let Some(pgsql_bin) = psql_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+    {
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        command
+            .env(
+                "PATH",
+                format!(
+                    "{}{}{}",
+                    pgsql_bin.to_string_lossy(),
+                    PATH_SEP,
+                    current_path
+                ),
+            )
+            .current_dir(pgsql_bin);
+    }
+
+    #[cfg(windows)]
+    command.creation_flags(super::CREATE_NO_WINDOW);
+
+    let mut child = command.spawn().map_err(|error| {
+        PostgresError::MigrationFailed(format!("{label} failed to start: {error}"))
+    })?;
+    let mut stdin = child.stdin.take().ok_or_else(|| {
+        PostgresError::MigrationFailed(format!("{label} failed: stdin was unavailable"))
+    })?;
+    let write_stdin = async move {
+        stdin
+            .write_all(&patch.source)
+            .await
+            .map_err(|error| ("write", error))?;
+        stdin.shutdown().await.map_err(|error| ("close", error))
+    };
+    let (write_result, output_result) = tokio::join!(write_stdin, child.wait_with_output());
+    let output = output_result.map_err(|error| {
+        PostgresError::MigrationFailed(format!("{label} failed while waiting: {error}"))
+    })?;
+    if !output.status.success() {
+        let details = redact_password(
+            command_output_details(&label, &output),
+            &connection.password,
+        );
+        log::error!("{} failed: {}", label, details);
+        return Err(PostgresError::MigrationFailed(format!(
+            "{label} failed: {details}"
+        )));
+    }
+    if let Err((action, error)) = write_result {
+        return Err(PostgresError::MigrationFailed(format!(
+            "{label} failed to {action} stdin: {error}"
+        )));
+    }
+
+    Ok(())
+}
+
+pub(super) async fn apply_catalog(
+    psql_path: &Path,
+    connection: &PsqlConnection,
+    patch_dir: &Path,
+) -> Result<(), PostgresError> {
+    let patches = load_catalog(patch_dir)?;
+    if psql_path.components().count() > 1 && !psql_path.is_file() {
+        return Err(PostgresError::BinaryNotFound(
+            psql_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    for patch in patches {
+        apply_patch(psql_path, connection, patch).await?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{apply_catalog, parse_manifest, PatchManifestEntry, PsqlConnection};
+    use std::path::{Path, PathBuf};
+    use std::process::Stdio;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    const MANIFEST: &str = "# generation\tversion\tname\tchecksum\tfile\n\
+1\t2\tgoogle-subject\tsha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650\t0002_google_subject.sql\n\
+1\t3\tpayment-idempotency\tsha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36\t0003_payment_idempotency.sql\n\
+1\t4\tbooking-status-vocabulary\tsha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7\t0004_booking_status_vocabulary.sql\n";
+
+    static NEXT_TEMP_DIR: AtomicU64 = AtomicU64::new(0);
+
+    struct TestPatchDir(PathBuf);
+
+    impl TestPatchDir {
+        fn new() -> Self {
+            let suffix = NEXT_TEMP_DIR.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "hotel-desktop-patches-{}-{suffix}",
+                std::process::id()
+            ));
+            std::fs::create_dir(&path).expect("temporary patch directory must be created");
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+
+        fn write(&self, file: &str, bytes: &[u8]) {
+            std::fs::write(self.0.join(file), bytes).expect("test patch file must be written");
+        }
+    }
+
+    impl Drop for TestPatchDir {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).expect("temporary patch directory must be removed");
+        }
+    }
+
+    fn test_connection() -> PsqlConnection {
+        PsqlConnection::new("localhost", 5432, "hotel", "hotel", "test-password")
+    }
+
+    fn manifest_with(overrides: &[(&str, &str)]) -> String {
+        let mut manifest = MANIFEST.to_string();
+        for (from, to) in overrides {
+            manifest = manifest.replacen(from, to, 1);
+        }
+        manifest
+    }
+
+    fn committed_patch_dir() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../hotel-app-be/database/postgres/patches")
+    }
+
+    fn copy_committed_catalog(destination: &TestPatchDir) {
+        for file in [
+            "manifest.tsv",
+            "_begin.sql",
+            "_end.sql",
+            "0002_google_subject.sql",
+            "0003_payment_idempotency.sql",
+            "0004_booking_status_vocabulary.sql",
+        ] {
+            let bytes = std::fs::read(committed_patch_dir().join(file))
+                .expect("committed patch catalog must be readable");
+            destination.write(file, &bytes);
+        }
+    }
+
+    fn live_connection(database_env: &str) -> Option<(PathBuf, PsqlConnection)> {
+        let database = std::env::var(database_env).ok()?;
+        let psql_path = std::env::var_os("DESKTOP_TEST_PSQL")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("psql"));
+        let connection = PsqlConnection {
+            host: std::env::var("DESKTOP_TEST_PGHOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
+            port: std::env::var("DESKTOP_TEST_PGPORT")
+                .ok()
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(5432),
+            user: std::env::var("DESKTOP_TEST_PGUSER").unwrap_or_else(|_| "postgres".to_string()),
+            database,
+            password: std::env::var("DESKTOP_TEST_PGPASSWORD").unwrap_or_default(),
+        };
+        Some((psql_path, connection))
+    }
+
+    fn live_patch_dir() -> PathBuf {
+        std::env::var_os("DESKTOP_TEST_PATCH_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(committed_patch_dir)
+    }
+
+    async fn scalar(psql_path: &Path, connection: &PsqlConnection, sql: &str) -> String {
+        let output = tokio::process::Command::new(psql_path)
+            .args([
+                "-h",
+                &connection.host,
+                "-p",
+                &connection.port.to_string(),
+                "-U",
+                &connection.user,
+                "-d",
+                &connection.database,
+                "-tAc",
+                sql,
+            ])
+            .env("PGPASSWORD", &connection.password)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .expect("psql catalog query must run");
+        assert!(
+            output.status.success(),
+            "psql catalog query failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_string()
+    }
+
+    #[cfg(unix)]
+    fn fake_psql(directory: &TestPatchDir, script: &str) -> PathBuf {
+        let path = directory.path().join("psql");
+        directory.write("psql", script.as_bytes());
+        let mut permissions = std::fs::metadata(&path)
+            .expect("fake psql metadata must be readable")
+            .permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&path, permissions).expect("fake psql must be made executable");
+        path
+    }
+
+    #[test]
+    fn parses_the_exact_committed_catalog_prefix() {
+        let entries = parse_manifest(MANIFEST).expect("committed manifest must parse");
+
+        assert_eq!(
+            entries,
+            vec![
+                PatchManifestEntry {
+                    generation: 1,
+                    version: 2,
+                    name: "google-subject".to_string(),
+                    checksum:
+                        "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650"
+                            .to_string(),
+                    file: "0002_google_subject.sql".to_string(),
+                },
+                PatchManifestEntry {
+                    generation: 1,
+                    version: 3,
+                    name: "payment-idempotency".to_string(),
+                    checksum:
+                        "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36"
+                            .to_string(),
+                    file: "0003_payment_idempotency.sql".to_string(),
+                },
+                PatchManifestEntry {
+                    generation: 1,
+                    version: 4,
+                    name: "booking-status-vocabulary".to_string(),
+                    checksum:
+                        "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7"
+                            .to_string(),
+                    file: "0004_booking_status_vocabulary.sql".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn accepts_contiguous_future_v1_patches() {
+        let manifest = format!(
+            "{MANIFEST}1\t5\tfuture-patch\tsha256:{}\t0005_future_patch.sql\n",
+            "0".repeat(64)
+        );
+
+        assert_eq!(
+            parse_manifest(&manifest)
+                .expect("future contiguous V1 patch must parse")
+                .last()
+                .map(|entry| entry.version),
+            Some(5)
+        );
+    }
+
+    #[test]
+    fn rejects_a_changed_committed_catalog_prefix() {
+        for (from, to) in [
+            ("google-subject", "changed-name"),
+            ("0002_google_subject.sql", "0002_changed.sql"),
+            (
+                "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
+                "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            ),
+        ] {
+            let error = parse_manifest(&manifest_with(&[(from, to)]))
+                .expect_err("the committed prefix must remain exact");
+            assert!(error.to_string().contains("committed V1 patch"));
+        }
+    }
+
+    #[test]
+    fn rejects_unsupported_generations_and_wrong_starting_version() {
+        for (from, to, expected) in [
+            ("1\t2\tgoogle-subject", "2\t2\tgoogle-subject", "generation"),
+            (
+                "1\t2\tgoogle-subject",
+                "1\t1\tgoogle-subject",
+                "first patch",
+            ),
+        ] {
+            let error = parse_manifest(&manifest_with(&[(from, to)]))
+                .expect_err("unsupported catalog coordinates must be rejected");
+            assert!(error.to_string().contains(expected));
+        }
+    }
+
+    #[test]
+    fn rejects_malformed_manifest_field_count() {
+        let error = parse_manifest(&manifest_with(&[(
+            "\t0002_google_subject.sql",
+            "\textra\t0002_google_subject.sql",
+        )]))
+        .expect_err("six fields must be rejected");
+
+        assert!(error.to_string().contains("exactly five"));
+    }
+
+    #[test]
+    fn rejects_duplicate_or_non_increasing_versions() {
+        for version in ["2", "1"] {
+            let manifest = manifest_with(&[(
+                "1\t3\tpayment-idempotency",
+                &format!("1\t{version}\tpayment-idempotency"),
+            )]);
+            let error = parse_manifest(&manifest)
+                .expect_err("duplicate or non-increasing version must be rejected");
+            assert!(error.to_string().contains("non-increasing"));
+        }
+    }
+
+    #[test]
+    fn rejects_non_contiguous_versions() {
+        let error = parse_manifest(&manifest_with(&[(
+            "1\t3\tpayment-idempotency",
+            "1\t4\tpayment-idempotency",
+        )]))
+        .expect_err("a version gap must be rejected");
+
+        assert!(error.to_string().contains("contiguous"));
+    }
+
+    #[test]
+    fn rejects_patch_paths_outside_the_catalog_directory() {
+        let error = parse_manifest(&manifest_with(&[("0002_google_subject.sql", "../bad.sql")]))
+            .expect_err("path traversal must be rejected");
+
+        assert!(error.to_string().contains("file"));
+    }
+
+    #[test]
+    fn rejects_uppercase_or_wrong_length_checksums() {
+        for checksum in [
+            format!("sha256:{}", "A".repeat(64)),
+            format!("sha256:{}", "a".repeat(63)),
+        ] {
+            let manifest = manifest_with(&[(
+                "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
+                &checksum,
+            )]);
+            let error = parse_manifest(&manifest).expect_err("invalid checksum must be rejected");
+            assert!(error.to_string().contains("checksum"));
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_missing_catalog_files_before_starting_psql() {
+        for missing_file in [
+            "_begin.sql",
+            "_end.sql",
+            "0004_booking_status_vocabulary.sql",
+        ] {
+            let patch_dir = TestPatchDir::new();
+            copy_committed_catalog(&patch_dir);
+            std::fs::remove_file(patch_dir.path().join(missing_file))
+                .expect("test catalog file must be removable");
+
+            let error = apply_catalog(
+                Path::new("definitely-missing-psql"),
+                &test_connection(),
+                patch_dir.path(),
+            )
+            .await
+            .expect_err("missing catalog file must fail validation");
+
+            assert!(error.to_string().contains(missing_file));
+            assert!(!error.to_string().contains("binary not found"));
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_patch_byte_mismatches_before_starting_psql() {
+        let patch_dir = TestPatchDir::new();
+        patch_dir.write("manifest.tsv", MANIFEST.as_bytes());
+        patch_dir.write("_begin.sql", b"BEGIN;\n");
+        patch_dir.write("_end.sql", b"COMMIT;\n");
+        patch_dir.write("0002_google_subject.sql", b"wrong bytes\n");
+        patch_dir.write("0003_payment_idempotency.sql", b"wrong bytes\n");
+        patch_dir.write("0004_booking_status_vocabulary.sql", b"wrong bytes\n");
+
+        let error = apply_catalog(
+            Path::new("definitely-missing-psql"),
+            &test_connection(),
+            patch_dir.path(),
+        )
+        .await
+        .expect_err("byte mismatch must fail validation");
+
+        assert!(error.to_string().contains("checksum mismatch"));
+        assert!(!error.to_string().contains("binary not found"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn validates_the_complete_catalog_before_starting_psql() {
+        let patch_dir = TestPatchDir::new();
+        copy_committed_catalog(&patch_dir);
+        patch_dir.write(
+            "0004_booking_status_vocabulary.sql",
+            b"corrupted final patch\n",
+        );
+        let capture_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &capture_dir,
+            "#!/bin/sh\nprintf started > \"$CAPTURE_DIR/started\"\ncat >/dev/null\n",
+        );
+        let mut connection = test_connection();
+        connection.password = "catalog-test-password".to_string();
+
+        let error = apply_catalog(&psql_path, &connection, patch_dir.path())
+            .await
+            .expect_err("a corrupt final patch must fail before psql starts");
+
+        assert!(error
+            .to_string()
+            .contains("checksum mismatch for 0004_booking_status_vocabulary.sql"));
+        assert!(!capture_dir.path().join("started").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn streams_each_verified_patch_once_with_metadata_and_password_env() {
+        let patch_dir = TestPatchDir::new();
+        copy_committed_catalog(&patch_dir);
+        let capture_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &capture_dir,
+            "#!/bin/sh\nset -eu\ncount_file=\"$CAPTURE_DIR/count\"\ncount=0\nif [ -f \"$count_file\" ]; then count=$(cat \"$count_file\"); fi\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$count_file\"\nprintf '%s\\n' \"$@\" > \"$CAPTURE_DIR/args-$count\"\nprintf '%s' \"$PGPASSWORD\" > \"$CAPTURE_DIR/password-$count\"\ncat > \"$CAPTURE_DIR/stdin-$count\"\nif [ \"$count\" -eq 1 ]; then printf 'changed after validation\\n' > \"$MUTATE_PATCH\"; fi\n",
+        );
+        let password = "only-in-pgpassword";
+        let connection = PsqlConnection::new("db-host", 5444, "db-user", "db-name", password);
+        let begin = std::fs::read(patch_dir.path().join("_begin.sql"))
+            .expect("begin control must be readable");
+        let end =
+            std::fs::read(patch_dir.path().join("_end.sql")).expect("end control must be readable");
+        let original_patch_bytes = [
+            "0002_google_subject.sql",
+            "0003_payment_idempotency.sql",
+            "0004_booking_status_vocabulary.sql",
+        ]
+        .map(|file| {
+            std::fs::read(patch_dir.path().join(file)).expect("patch source must be readable")
+        });
+        std::env::set_var("CAPTURE_DIR", capture_dir.path());
+        std::env::set_var(
+            "MUTATE_PATCH",
+            patch_dir.path().join("0003_payment_idempotency.sql"),
+        );
+
+        apply_catalog(&psql_path, &connection, patch_dir.path())
+            .await
+            .expect("valid catalog must be streamed");
+
+        assert_eq!(
+            std::fs::read_to_string(capture_dir.path().join("count"))
+                .expect("process count must be captured"),
+            "3"
+        );
+        for (index, (version, name, checksum)) in [
+            (
+                2,
+                "google-subject",
+                "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
+            ),
+            (
+                3,
+                "payment-idempotency",
+                "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36",
+            ),
+            (
+                4,
+                "booking-status-vocabulary",
+                "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let invocation = index + 1;
+            let arguments =
+                std::fs::read_to_string(capture_dir.path().join(format!("args-{invocation}")))
+                    .expect("arguments must be captured");
+            assert!(arguments.lines().any(|argument| argument == "-X"));
+            assert!(arguments
+                .lines()
+                .any(|argument| argument == "ON_ERROR_STOP=1"));
+            assert!(arguments.contains("--set=patch_generation=1"));
+            assert!(arguments.contains(&format!("--set=patch_version={version}")));
+            assert!(arguments.contains(&format!("--set=patch_name={name}")));
+            assert!(arguments.contains(&format!("--set=patch_checksum={checksum}")));
+            assert!(!arguments.contains(password));
+            assert_eq!(
+                std::fs::read_to_string(capture_dir.path().join(format!("password-{invocation}")))
+                    .expect("password environment must be captured"),
+                password
+            );
+
+            let mut expected_source = Vec::new();
+            super::append_segment(&mut expected_source, &begin);
+            super::append_segment(&mut expected_source, &original_patch_bytes[index]);
+            super::append_segment(&mut expected_source, &end);
+            assert_eq!(
+                std::fs::read(capture_dir.path().join(format!("stdin-{invocation}")))
+                    .expect("stdin must be captured"),
+                expected_source
+            );
+        }
+        std::env::remove_var("CAPTURE_DIR");
+        std::env::remove_var("MUTATE_PATCH");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failed_psql_names_the_patch_and_redacts_the_password() {
+        let patch_dir = TestPatchDir::new();
+        copy_committed_catalog(&patch_dir);
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\ncat >/dev/null\nprintf 'fake failure password=%s\\n' \"$PGPASSWORD\" >&2\nexit 7\n",
+        );
+        let password = "must-not-leak";
+        let connection = PsqlConnection::new("localhost", 5432, "hotel", "hotel", password);
+
+        let error = apply_catalog(&psql_path, &connection, patch_dir.path())
+            .await
+            .expect_err("nonzero psql exit must be fatal");
+        let message = error.to_string();
+
+        assert!(message.contains("patch 1.2 google-subject"));
+        assert!(message.contains("[redacted]"));
+        assert!(!message.contains(password));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn streams_stdin_while_draining_large_psql_output() {
+        let patch_dir = TestPatchDir::new();
+        copy_committed_catalog(&patch_dir);
+        let large_patch = vec![b'-'; 4 * 1024 * 1024];
+        let checksum = format!(
+            "sha256:{}",
+            hex::encode(<sha2::Sha256 as sha2::Digest>::digest(&large_patch))
+        );
+        patch_dir.write("0005_large_patch.sql", &large_patch);
+        let mut manifest = std::fs::read_to_string(patch_dir.path().join("manifest.tsv"))
+            .expect("manifest must be readable");
+        manifest.push_str(&format!(
+            "1\t5\tlarge-patch\t{checksum}\t0005_large_patch.sql\n"
+        ));
+        patch_dir.write("manifest.tsv", manifest.as_bytes());
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\nhead -c 4194304 /dev/zero\ncat >/dev/null\n",
+        );
+
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            apply_catalog(&psql_path, &test_connection(), patch_dir.path()),
+        )
+        .await
+        .expect("psql stdin and output pipes must not deadlock")
+        .expect("large valid patch must be streamed successfully");
+    }
+
+    #[tokio::test]
+    async fn existing_v1_catalog_application_is_idempotent_on_live_postgres() {
+        let Some((psql_path, connection)) = live_connection("DESKTOP_TEST_V1_DATABASE") else {
+            eprintln!("skipping desktop V1 catalog test; set DESKTOP_TEST_V1_DATABASE to run it");
+            return;
+        };
+        let patch_dir = live_patch_dir();
+
+        apply_catalog(&psql_path, &connection, &patch_dir)
+            .await
+            .expect("first V1 catalog application must succeed");
+
+        let receipt_index_oid = scalar(
+            &psql_path,
+            &connection,
+            "SELECT indexrelid::text FROM pg_index JOIN pg_class ON pg_class.oid = indexrelid JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace WHERE pg_namespace.nspname = 'public' AND pg_class.relname = 'idx_customer_ledger_payments_receipt_unique';",
+        )
+        .await;
+
+        apply_catalog(&psql_path, &connection, &patch_dir)
+            .await
+            .expect("second V1 catalog application must succeed");
+
+        assert_eq!(
+            scalar(
+                &psql_path,
+                &connection,
+                "SELECT string_agg(version::text || ':' || name || ':' || checksum, E'\\n' ORDER BY version) FROM public.hotel_schema_revisions WHERE generation = 1 AND version BETWEEN 2 AND 4;",
+            )
+            .await,
+            "2:google-subject:sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650\n3:payment-idempotency:sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36\n4:booking-status-vocabulary:sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7"
+        );
+        assert_eq!(
+            scalar(
+                &psql_path,
+                &connection,
+                "SELECT string_agg(table_name || '.' || column_name || '=' || data_type || '(' || character_maximum_length || '),nullable=' || is_nullable, E'\\n' ORDER BY table_name, column_name) FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('payments', 'customer_ledger_payments') AND column_name IN ('idempotency_key', 'idempotency_fingerprint');",
+            )
+            .await,
+            "customer_ledger_payments.idempotency_fingerprint=character varying(64),nullable=YES\ncustomer_ledger_payments.idempotency_key=character varying(160),nullable=YES\npayments.idempotency_fingerprint=character varying(64),nullable=YES\npayments.idempotency_key=character varying(160),nullable=YES"
+        );
+        assert_eq!(
+            scalar(
+                &psql_path,
+                &connection,
+                "SELECT indexrelid::text FROM pg_index JOIN pg_class ON pg_class.oid = indexrelid JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace WHERE pg_namespace.nspname = 'public' AND pg_class.relname = 'idx_customer_ledger_payments_receipt_unique';",
+            )
+            .await,
+            receipt_index_oid,
+            "the second catalog run must not rebuild the receipt index"
+        );
+    }
+
+    #[tokio::test]
+    async fn catalog_application_propagates_empty_database_failures() {
+        let Some((psql_path, connection)) = live_connection("DESKTOP_TEST_EMPTY_DATABASE") else {
+            eprintln!(
+                "skipping desktop empty-database catalog test; set DESKTOP_TEST_EMPTY_DATABASE to run it"
+            );
+            return;
+        };
+
+        let error = apply_catalog(&psql_path, &connection, &live_patch_dir())
+            .await
+            .expect_err("an empty database must not hide failed V1 patch SQL");
+        let message = error.to_string();
+        assert!(message.contains("patch 1.2 google-subject"));
+        assert!(message.contains("hotel_schema_revisions"));
+    }
+}
