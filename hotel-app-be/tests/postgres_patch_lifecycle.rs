@@ -910,6 +910,210 @@ async fn schema_drift_report_normalizes_session_settings_and_tracks_view_options
 }
 
 #[tokio::test]
+async fn schema_drift_report_tracks_table_and_partition_reloptions() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let baseline = databases.create("drift_reloptions_baseline").await;
+    let target = databases.create("drift_reloptions_target").await;
+    let baseline_pool = install_v1(&baseline).await;
+    let target_pool = install_v1(&target).await;
+    let fixture = r#"
+        CREATE TABLE public.inventory_reloptions_probe(id bigint);
+        CREATE TABLE public.inventory_partition_probe(id bigint, bucket integer)
+            PARTITION BY RANGE (bucket);
+        CREATE TABLE public.inventory_partition_probe_0
+            PARTITION OF public.inventory_partition_probe
+            FOR VALUES FROM (0) TO (10);
+    "#;
+    sqlx::raw_sql(fixture)
+        .execute(&baseline_pool)
+        .await
+        .expect("create baseline reloptions fixture");
+    sqlx::raw_sql(fixture)
+        .execute(&target_pool)
+        .await
+        .expect("create target reloptions fixture");
+    baseline_pool
+        .execute(
+            "ALTER TABLE public.inventory_reloptions_probe SET (fillfactor = 100, autovacuum_enabled = true)",
+        )
+        .await
+        .expect("set baseline reloptions in canonical test order");
+    target_pool
+        .execute(
+            "ALTER TABLE public.inventory_reloptions_probe SET (autovacuum_enabled = true, fillfactor = 100)",
+        )
+        .await
+        .expect("set target reloptions in reverse order");
+    assert_eq!(
+        schema_inventory(&baseline).await,
+        schema_inventory(&target).await
+    );
+    let no_drift = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("compare equivalent table reloptions in different catalog order");
+    assert_eq!(no_drift.status.code(), Some(0));
+
+    sqlx::raw_sql(
+        r#"
+        ALTER TABLE public.inventory_reloptions_probe SET (fillfactor = 70);
+        ALTER TABLE public.inventory_partition_probe_0 SET (fillfactor = 80);
+        "#,
+    )
+    .execute(&target_pool)
+    .await
+    .expect("set target-only table and partition reloptions");
+    let baseline_revisions = revision_snapshot(&baseline_pool).await;
+    let target_revisions = revision_snapshot(&target_pool).await;
+    let baseline_inventory = schema_inventory(&baseline).await;
+    let target_inventory = schema_inventory(&target).await;
+    let target_reloptions: Vec<(String, String)> = sqlx::query_as(
+        r#"
+        SELECT relname, COALESCE(array_to_string(reloptions, ','), '')
+        FROM pg_class
+        WHERE relnamespace = 'public'::regnamespace
+          AND relname IN ('inventory_reloptions_probe', 'inventory_partition_probe_0')
+        ORDER BY relname
+        "#,
+    )
+    .fetch_all(&target_pool)
+    .await
+    .expect("snapshot target table reloptions");
+
+    let output = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("compare schemas after table reloption drift");
+    assert_eq!(output.status.code(), Some(2));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("public.inventory_reloptions_probe"));
+    assert!(stdout.contains("public.inventory_partition_probe_0"));
+
+    assert_eq!(revision_snapshot(&baseline_pool).await, baseline_revisions);
+    assert_eq!(revision_snapshot(&target_pool).await, target_revisions);
+    assert_eq!(schema_inventory(&baseline).await, baseline_inventory);
+    assert_eq!(schema_inventory(&target).await, target_inventory);
+    assert_eq!(
+        sqlx::query_as::<_, (String, String)>(
+            r#"
+            SELECT relname, COALESCE(array_to_string(reloptions, ','), '')
+            FROM pg_class
+            WHERE relnamespace = 'public'::regnamespace
+              AND relname IN ('inventory_reloptions_probe', 'inventory_partition_probe_0')
+            ORDER BY relname
+            "#,
+        )
+        .fetch_all(&target_pool)
+        .await
+        .expect("read target table reloptions after reporting"),
+        target_reloptions
+    );
+
+    baseline_pool.close().await;
+    target_pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
+async fn schema_drift_report_tracks_public_window_functions_only() {
+    let Some(database_url) = database_url_or_skip() else {
+        return;
+    };
+    let mut databases = DisposableDatabases::connect(&database_url).await;
+    let baseline = databases.create("drift_window_baseline").await;
+    let target = databases.create("drift_window_target").await;
+    let baseline_pool = install_v1(&baseline).await;
+    let target_pool = install_v1(&target).await;
+    let baseline_revisions = revision_snapshot(&baseline_pool).await;
+    let target_revisions = revision_snapshot(&target_pool).await;
+    let baseline_inventory = schema_inventory(&baseline).await;
+
+    sqlx::raw_sql(
+        r#"
+        CREATE FUNCTION public.inventory_window_probe()
+        RETURNS bigint
+        AS 'window_row_number'
+        LANGUAGE internal
+        WINDOW
+        IMMUTABLE
+        PARALLEL SAFE;
+
+        CREATE PROCEDURE public.inventory_ignored_procedure()
+        LANGUAGE sql
+        AS 'SELECT 1';
+
+        CREATE AGGREGATE public.inventory_ignored_aggregate(bigint) (
+            SFUNC = int8pl,
+            STYPE = bigint,
+            INITCOND = '0'
+        );
+        "#,
+    )
+    .execute(&target_pool)
+    .await
+    .expect("create target-only window function and excluded routine kinds");
+    let target_inventory = schema_inventory(&target).await;
+    let target_routines: Vec<(String, String)> = sqlx::query_as(
+        r#"
+        SELECT proname, prokind::text
+        FROM pg_proc
+        WHERE pronamespace = 'public'::regnamespace
+          AND proname LIKE 'inventory_%'
+        ORDER BY proname
+        "#,
+    )
+    .fetch_all(&target_pool)
+    .await
+    .expect("snapshot target routine kinds");
+
+    let output = Command::new(postgres_dir().join("report-schema-drift.sh"))
+        .env("BASELINE_DATABASE_URL", &baseline.url)
+        .env("TARGET_DATABASE_URL", &target.url)
+        .output()
+        .await
+        .expect("compare schemas after window function drift");
+    assert_eq!(output.status.code(), Some(2));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("public.inventory_window_probe()"));
+    assert!(!stdout.contains("inventory_ignored_procedure"));
+    assert!(!stdout.contains("inventory_ignored_aggregate"));
+    assert!(
+        baseline_inventory.contains("function\tpublic.auto_check_in_reservations(p_date date)")
+    );
+
+    assert_eq!(revision_snapshot(&baseline_pool).await, baseline_revisions);
+    assert_eq!(revision_snapshot(&target_pool).await, target_revisions);
+    assert_eq!(schema_inventory(&baseline).await, baseline_inventory);
+    assert_eq!(schema_inventory(&target).await, target_inventory);
+    assert_eq!(
+        sqlx::query_as::<_, (String, String)>(
+            r#"
+            SELECT proname, prokind::text
+            FROM pg_proc
+            WHERE pronamespace = 'public'::regnamespace
+              AND proname LIKE 'inventory_%'
+            ORDER BY proname
+            "#,
+        )
+        .fetch_all(&target_pool)
+        .await
+        .expect("read target routine kinds after reporting"),
+        target_routines
+    );
+
+    baseline_pool.close().await;
+    target_pool.close().await;
+    databases.cleanup().await;
+}
+
+#[tokio::test]
 async fn schema_drift_report_rejects_missing_whitespace_and_equal_urls() {
     let reporter = postgres_dir().join("report-schema-drift.sh");
     for (label, baseline_url, target_url, expected_diagnostic) in [
