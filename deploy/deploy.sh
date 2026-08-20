@@ -279,10 +279,9 @@ wait_for_database_baseline() {
   while (( SECONDS < deadline )); do
     if docker exec saliminn-db pg_isready -h 127.0.0.1 -U hotel_admin -d hotel_management \
       >/dev/null 2>&1; then
-      baseline_revision=$(docker exec saliminn-db \
-        psql -X -h 127.0.0.1 -U hotel_admin -d hotel_management -v ON_ERROR_STOP=1 \
-          --tuples-only --no-align \
-          --command "SELECT 1 FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 1;" \
+      baseline_revision=$(docker exec saliminn-db sh -c \
+        'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h 127.0.0.1 -U hotel_admin -d hotel_management -X -Atqc "$1"' \
+        sh 'SELECT 1 FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 1;' \
         2>/dev/null || true)
       if [[ "$baseline_revision" == 1 ]]; then
         log "saliminn-db final TCP server has the V1 baseline"

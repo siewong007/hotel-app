@@ -12,7 +12,7 @@ export DATABASE_URL
         lint-be lint-fe lint-desktop lint-all \
         test-be test-fe \
         docker-up docker-up-pg19-tuned docker-down docker-build \
-        db-setup db-patch db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
+        db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
         db-repack db-repack-full \
         prepare-desktop docs \
         fmt fmt-all \
@@ -127,12 +127,15 @@ docker-logs: ## View Docker logs
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 
-db-setup: ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
+require-database-url:
+	@test -n "$$DATABASE_URL" || { printf '%s\n' 'DATABASE_URL is required' >&2; exit 1; }
+
+db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
 	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/seed.sql
 	$(MAKE) db-patch
 
-db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)
+db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)
 	hotel-app-be/database/postgres/apply-patches.sh
 
 db-reset: ## Reset and re-create PostgreSQL database
