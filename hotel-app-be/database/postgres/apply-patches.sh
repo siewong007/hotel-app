@@ -27,6 +27,7 @@ catalog_dir=$(cd -- "$catalog_dir_input" 2>/dev/null && pwd -P) \
     || fail "patch catalog directory is unavailable: $catalog_dir_input"
 
 check_mode=false
+saw_deployment_option=false
 container=''
 database_user=''
 database_name=''
@@ -40,6 +41,7 @@ while (($#)); do
         --container|--user|--database)
             (($# >= 2)) || usage
             [[ -n $2 && $2 != --* ]] || usage
+            saw_deployment_option=true
             case $1 in
                 --container)
                     [[ -z $container ]] || usage
@@ -60,6 +62,10 @@ while (($#)); do
     esac
 done
 
+if "$check_mode" && "$saw_deployment_option"; then
+    fail '--check cannot be combined with deployment transport options'
+fi
+
 [[ -f "$catalog_dir/manifest.tsv" && ! -L "$catalog_dir/manifest.tsv" ]] \
     || fail 'patch manifest is unavailable'
 [[ -f "$catalog_dir/_begin.sql" && ! -L "$catalog_dir/_begin.sql" ]] \
@@ -67,11 +73,16 @@ done
 [[ -f "$catalog_dir/_end.sql" && ! -L "$catalog_dir/_end.sql" ]] \
     || fail 'patch end control is unavailable'
 
+umask 077
+snapshot_dir=$(mktemp -d "${TMPDIR:-/tmp}/hotel-app-patch.XXXXXX") \
+    || fail 'private patch snapshot directory cannot be created'
+trap 'rm -rf -- "$snapshot_dir"' EXIT
+
 generations=()
 versions=()
 names=()
 checksums=()
-patch_paths=()
+input_snapshots=()
 previous_version=0
 line_number=0
 while IFS= read -r line || [[ -n $line ]]; do
@@ -99,14 +110,23 @@ while IFS= read -r line || [[ -n $line ]]; do
     [[ $candidate_dir == "$catalog_dir" ]] || fail "patch file escapes catalog directory: $file"
     patch_path="$candidate_dir/$file"
     [[ -f $patch_path && ! -L $patch_path ]] || fail "patch file is unavailable: $file"
-    actual_checksum="sha256:$(sha256_file "$patch_path")"
+    snapshot_index=${#versions[@]}
+    patch_snapshot="$snapshot_dir/patch-$snapshot_index.sql"
+    cp "$patch_path" "$patch_snapshot" || fail "patch snapshot cannot be created: $file"
+    [[ -f $patch_snapshot && ! -L $patch_snapshot ]] || fail "patch snapshot is unavailable: $file"
+    actual_checksum="sha256:$(sha256_file "$patch_snapshot")"
     [[ $actual_checksum == "$checksum" ]] || fail "checksum mismatch for $file"
+    input_snapshot="$snapshot_dir/input-$snapshot_index.sql"
+    if ! cat -- "$catalog_dir/_begin.sql" "$patch_snapshot" "$catalog_dir/_end.sql" > "$input_snapshot"; then
+        fail "patch input snapshot cannot be constructed: $file"
+    fi
+    [[ -f $input_snapshot && ! -L $input_snapshot ]] || fail "patch input snapshot is unavailable: $file"
 
     generations+=("$generation")
     versions+=("$version")
     names+=("$name")
     checksums+=("$checksum")
-    patch_paths+=("$patch_path")
+    input_snapshots+=("$input_snapshot")
     previous_version=$version
 done < "$catalog_dir/manifest.tsv"
 
@@ -131,12 +151,12 @@ run_psql() {
 }
 
 for ((index = 0; index < ${#versions[@]}; index += 1)); do
-    cat -- "$catalog_dir/_begin.sql" "${patch_paths[index]}" "$catalog_dir/_end.sql" |
-        run_psql \
-            --set="patch_generation=${generations[index]}" \
-            --set="patch_version=${versions[index]}" \
-            --set="patch_name=${names[index]}" \
-            --set="patch_checksum=${checksums[index]}"
+    run_psql \
+        --set="patch_generation=${generations[index]}" \
+        --set="patch_version=${versions[index]}" \
+        --set="patch_name=${names[index]}" \
+        --set="patch_checksum=${checksums[index]}" \
+        < "${input_snapshots[index]}"
 done
 
 printf '%s\n' \
