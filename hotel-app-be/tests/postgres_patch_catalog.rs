@@ -149,6 +149,28 @@ fn shared_patch_controls_preserve_lock_guard_skip_and_atomic_recording_semantics
 }
 
 #[test]
+fn shared_patch_control_files_match_reviewed_bytes() {
+    for (file, expected) in [
+        (
+            "_begin.sql",
+            "sha256:fc045984f9241bbf0814538e9a8546be53de6fce839995874e7c22db6d9cd592",
+        ),
+        (
+            "_end.sql",
+            "sha256:0380b8661a8e87cb0cf9dbe56f896545acc09fa16058600bb757d81df687c421",
+        ),
+    ] {
+        let bytes = std::fs::read(postgres_dir().join("patches").join(file))
+            .expect("shared patch control file must exist");
+        let actual = format!("sha256:{}", hex::encode(Sha256::digest(bytes)));
+        assert_eq!(
+            actual, expected,
+            "reviewed control bytes changed for {file}"
+        );
+    }
+}
+
+#[test]
 fn google_subject_patch_rejects_unbounded_varchar_and_non_index_name_collisions() {
     let patch = patch_source("0002_google_subject.sql");
     assert!(patch.contains("found_length IS DISTINCT FROM 255"));
