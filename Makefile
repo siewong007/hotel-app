@@ -10,7 +10,7 @@ BUN ?= $(shell command -v bun 2>/dev/null || printf '%s' "$$HOME/.bun/bin/bun")
         lint-be lint-fe lint-desktop lint-all \
         test-be test-fe \
         docker-up docker-up-pg19-tuned docker-down docker-build \
-        db-setup db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
+        db-setup db-patch db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
         db-repack db-repack-full \
         prepare-desktop docs \
         fmt fmt-all \
@@ -128,6 +128,10 @@ docker-logs: ## View Docker logs
 db-setup: ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
 	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/seed.sql
+	$(MAKE) db-patch DATABASE_URL="$(DATABASE_URL)"
+
+db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)
+	DATABASE_URL="$(DATABASE_URL)" hotel-app-be/database/postgres/apply-patches.sh
 
 db-reset: ## Reset and re-create PostgreSQL database
 	psql "$(DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"

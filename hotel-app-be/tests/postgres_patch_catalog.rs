@@ -17,6 +17,16 @@ fn postgres_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres")
 }
 
+fn repository_file(path: &str) -> String {
+    std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("backend directory must have a repository parent")
+            .join(path),
+    )
+    .unwrap_or_else(|error| panic!("repository file {path} must be readable: {error}"))
+}
+
 fn patch_source(file: &str) -> String {
     std::fs::read_to_string(postgres_dir().join("patches").join(file))
         .expect("patch catalog file must exist")
@@ -106,6 +116,171 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
     }
     assert!(postgres_dir().join("patches/_begin.sql").is_file());
     assert!(postgres_dir().join("patches/_end.sql").is_file());
+}
+
+#[test]
+fn deployment_release_bundle_contains_the_complete_verified_patch_catalog() {
+    let workflow = repository_file(".github/workflows/deploy.yml");
+    let checksum_block = workflow
+        .split("sha256sum \\\n")
+        .nth(1)
+        .expect("release workflow must build SHA256SUMS");
+    let mut resources = vec![
+        "apply-patches.sh".to_owned(),
+        "patches/manifest.tsv".to_owned(),
+        "patches/_begin.sql".to_owned(),
+        "patches/_end.sql".to_owned(),
+    ];
+    resources.extend(
+        manifest_entries()
+            .into_iter()
+            .map(|entry| format!("patches/{}", entry.file)),
+    );
+
+    for resource in resources {
+        let source = format!("hotel-app-be/database/postgres/{resource}");
+        let bundled = format!("database/{resource}");
+        assert!(
+            workflow.contains(&source),
+            "release workflow must copy authoritative resource {source}"
+        );
+        assert!(
+            workflow.contains(&format!("\"$bundle_dir/{bundled}\"")),
+            "release workflow must install {bundled} into the bundle"
+        );
+        assert!(
+            checksum_block.contains(&bundled),
+            "SHA256SUMS must cover bundled resource {bundled}"
+        );
+    }
+
+    assert!(
+        !workflow.contains("postgres/patches/*")
+            && !workflow.contains("postgres/patches/.")
+            && !workflow.contains("cp -r hotel-app-be/database/postgres/patches"),
+        "release bundling must not admit files outside the manifest and control catalog"
+    );
+}
+
+#[test]
+fn deployment_installs_the_verified_catalog_with_exact_modes() {
+    let deploy = repository_file("deploy/deploy.sh");
+    let install_function = deploy
+        .split("install_release_files() {")
+        .nth(1)
+        .and_then(|source| source.split("\n}\n").next())
+        .expect("deploy script must define install_release_files");
+    let mut patch_files = vec![
+        "manifest.tsv".to_owned(),
+        "_begin.sql".to_owned(),
+        "_end.sql".to_owned(),
+    ];
+    patch_files.extend(manifest_entries().into_iter().map(|entry| entry.file));
+
+    for payload in std::iter::once("database/apply-patches.sh".to_owned()).chain(
+        patch_files
+            .iter()
+            .map(|file| format!("database/patches/{file}")),
+    ) {
+        assert!(
+            deploy.contains(&format!("  {payload}\n")),
+            "deploy script must require release payload {payload}"
+        );
+    }
+    assert!(
+        install_function
+            .contains("install -d -m 0755 \"$APP_DIR/database\" \"$APP_DIR/database/patches\"")
+    );
+    assert!(install_function.contains(
+        "install -m 0750 \"$RELEASE_DIR/database/apply-patches.sh\" \"$APP_DIR/database/apply-patches.sh\""
+    ));
+    for file in patch_files {
+        assert!(
+            install_function.contains(&format!(
+                "install -m 0644 \"$RELEASE_DIR/database/patches/{file}\" \"$APP_DIR/database/patches/{file}\""
+            )),
+            "deploy script must install {file} with mode 0644"
+        );
+    }
+    assert!(
+        !install_function.contains("patches/*") && !install_function.contains("patches/."),
+        "deploy installation must not admit files outside the checked catalog"
+    );
+}
+
+#[test]
+fn deployment_backs_up_and_patches_before_application_activation() {
+    let deploy = repository_file("deploy/deploy.sh");
+    let expected_preparation = r#"prepare_database_for_release() {
+  local compose_tag=${1:-$TAG}
+  export IMAGE_TAG=$compose_tag
+  compose config >/dev/null
+  compose up --detach postgres
+  wait_for_healthy saliminn-db
+  "$APP_DIR/database/apply-patches.sh" \
+    --container saliminn-db \
+    --user hotel_admin \
+    --database hotel_management
+}"#;
+    assert!(
+        deploy.contains(expected_preparation),
+        "database preparation must start only PostgreSQL and apply the installed catalog"
+    );
+
+    let executable_tail = deploy
+        .split("\nensure_host_runtime\n")
+        .nth(1)
+        .expect("deploy script must have an executable tail");
+    let previous_tag = executable_tail
+        .find("read -r previous_tag < \"$CURRENT_TAG_FILE\"")
+        .expect("previous release tag must be read before deployment");
+    let backup = executable_tail
+        .find("backup_existing_database\n")
+        .expect("database backup must be called before deployment");
+    let prepare = executable_tail
+        .find("prepare_database_for_release \"$TAG\"\n")
+        .expect("database preparation must be called before deployment");
+    let activate = executable_tail
+        .find("deploy_tag \"$TAG\"")
+        .expect("application release must be activated");
+
+    assert!(
+        previous_tag < backup,
+        "previous tag must be read before backup and preparation"
+    );
+    assert!(
+        backup < prepare,
+        "database backup must precede patch application"
+    );
+    assert!(
+        prepare < activate,
+        "patch application must precede app activation"
+    );
+}
+
+#[test]
+fn deployment_local_database_setup_records_the_patch_catalog() {
+    let makefile = repository_file("Makefile");
+    assert!(makefile.contains("db-setup db-patch db-reset"));
+    assert!(makefile.contains(
+        "db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)\n\tDATABASE_URL=\"$(DATABASE_URL)\" hotel-app-be/database/postgres/apply-patches.sh"
+    ));
+
+    let setup = makefile
+        .split("db-setup: ##")
+        .nth(1)
+        .and_then(|source| source.split("\n\n").next())
+        .expect("Makefile must define db-setup");
+    let baseline = setup
+        .find("0001_v1_baseline.sql")
+        .expect("db-setup must apply the V1 baseline");
+    let seed = setup
+        .find("database/postgres/seed.sql")
+        .expect("db-setup must apply the seed");
+    let patches = setup
+        .find("$(MAKE) db-patch DATABASE_URL=\"$(DATABASE_URL)\"")
+        .expect("db-setup must record compatibility patches after seed");
+    assert!(baseline < seed && seed < patches);
 }
 
 #[test]

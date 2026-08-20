@@ -116,7 +116,7 @@ jobs:
           set -euo pipefail
           bundle_dir="$RUNNER_TEMP/saliminn-release"
           bundle_path="$RUNNER_TEMP/saliminn-$DEPLOY_SHA.tar.gz"
-          mkdir -p "$bundle_dir/images" "$bundle_dir/initdb"
+          mkdir -p "$bundle_dir/images" "$bundle_dir/initdb" "$bundle_dir/database/patches"
 
           docker save "saliminn-backend:$DEPLOY_SHA" | gzip -1 > "$bundle_dir/images/backend.tar.gz"
           docker save "saliminn-frontend:$DEPLOY_SHA" | gzip -1 > "$bundle_dir/images/frontend.tar.gz"
@@ -126,6 +126,20 @@ jobs:
           cp hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql \
             "$bundle_dir/initdb/01-v1-baseline.sql"
           cp hotel-app-be/database/postgres/seed.sql "$bundle_dir/initdb/02-seed.sql"
+          cp hotel-app-be/database/postgres/apply-patches.sh \
+            "$bundle_dir/database/apply-patches.sh"
+          cp hotel-app-be/database/postgres/patches/manifest.tsv \
+            "$bundle_dir/database/patches/manifest.tsv"
+          cp hotel-app-be/database/postgres/patches/_begin.sql \
+            "$bundle_dir/database/patches/_begin.sql"
+          cp hotel-app-be/database/postgres/patches/_end.sql \
+            "$bundle_dir/database/patches/_end.sql"
+          cp hotel-app-be/database/postgres/patches/0002_google_subject.sql \
+            "$bundle_dir/database/patches/0002_google_subject.sql"
+          cp hotel-app-be/database/postgres/patches/0003_payment_idempotency.sql \
+            "$bundle_dir/database/patches/0003_payment_idempotency.sql"
+          cp hotel-app-be/database/postgres/patches/0004_booking_status_vocabulary.sql \
+            "$bundle_dir/database/patches/0004_booking_status_vocabulary.sql"
 
           (
             cd "$bundle_dir"
@@ -136,6 +150,13 @@ jobs:
               images/frontend.tar.gz \
               initdb/01-v1-baseline.sql \
               initdb/02-seed.sql \
+              database/apply-patches.sh \
+              database/patches/manifest.tsv \
+              database/patches/_begin.sql \
+              database/patches/_end.sql \
+              database/patches/0002_google_subject.sql \
+              database/patches/0003_payment_idempotency.sql \
+              database/patches/0004_booking_status_vocabulary.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
