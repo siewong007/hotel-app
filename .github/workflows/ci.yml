@@ -179,6 +179,9 @@ jobs:
           psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
           psql "$DATABASE_URL" -f database/postgres/seed.sql
 
+      - name: Verify PostgreSQL patch lifecycle
+        run: cargo test --test postgres_patch_lifecycle -- --nocapture
+
       # The V1 baseline/seed set is intentionally one-shot. Reapplying it
       # is an invalid lifecycle operation, so assert the completed installation
       # and its core schema instead of expecting those files to be idempotent.
