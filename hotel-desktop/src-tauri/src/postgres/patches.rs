@@ -17,6 +17,8 @@ const DIAGNOSTIC_TRUNCATION_MARKER: &[u8] = b"\n[diagnostic output truncated aft
 const CHILD_EXIT_DIAGNOSTIC_GRACE: Duration = Duration::from_millis(50);
 // Killing a local child should be immediate; never let abnormal OS cleanup hang startup.
 const CHILD_REAP_TIMEOUT: Duration = Duration::from_secs(2);
+// A reaped direct child closes its pipes; this only expires for inherited descendant handles.
+const DRAIN_COMPLETION_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PatchManifestEntry {
@@ -421,7 +423,7 @@ async fn drain_output(
 async fn collected_output(
     label: &str,
     stream: &str,
-    task: tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
+    task: &mut tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
 ) -> Result<Vec<u8>, PostgresError> {
     task.await
         .map_err(|error| {
@@ -436,9 +438,38 @@ async fn collected_output(
         })
 }
 
+async fn collected_outputs(
+    label: &str,
+    mut stdout_task: tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
+    mut stderr_task: tokio::task::JoinHandle<std::io::Result<Vec<u8>>>,
+) -> Result<(Vec<u8>, Vec<u8>), PostgresError> {
+    let completion = tokio::time::timeout(DRAIN_COMPLETION_TIMEOUT, async {
+        let (stdout, stderr) = tokio::join!(
+            collected_output(label, "stdout", &mut stdout_task),
+            collected_output(label, "stderr", &mut stderr_task),
+        );
+        Ok::<_, PostgresError>((stdout?, stderr?))
+    })
+    .await;
+    match completion {
+        Ok(output) => output,
+        Err(_) => {
+            stdout_task.abort();
+            stderr_task.abort();
+            let _ = tokio::time::timeout(DRAIN_COMPLETION_TIMEOUT, async {
+                let _ = tokio::join!(&mut stdout_task, &mut stderr_task);
+            })
+            .await;
+            Err(PostgresError::MigrationFailed(format!(
+                "{label} timed out after {}s while collecting stdout/stderr after child exit",
+                DRAIN_COMPLETION_TIMEOUT.as_secs()
+            )))
+        }
+    }
+}
+
 struct ReapOutcome {
     status: std::process::ExitStatus,
-    was_killed: bool,
     kill_error: Option<std::io::Error>,
 }
 
@@ -446,17 +477,19 @@ async fn kill_and_reap(
     child: &mut tokio::process::Child,
     label: &str,
 ) -> Result<ReapOutcome, PostgresError> {
-    let (was_killed, kill_error) = match child.start_kill() {
-        Ok(()) => (true, None),
-        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput => (false, None),
-        Err(error) => (false, Some(error)),
+    if let Ok(Some(status)) = child.try_wait() {
+        return Ok(ReapOutcome {
+            status,
+            kill_error: None,
+        });
+    }
+    let kill_error = match child.start_kill() {
+        Ok(()) => None,
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput => None,
+        Err(error) => Some(error),
     };
     match tokio::time::timeout(CHILD_REAP_TIMEOUT, child.wait()).await {
-        Ok(Ok(status)) => Ok(ReapOutcome {
-            status,
-            was_killed,
-            kill_error,
-        }),
+        Ok(Ok(status)) => Ok(ReapOutcome { status, kill_error }),
         Ok(Err(error)) => {
             let _ = child.start_kill();
             Err(PostgresError::MigrationFailed(format!(
@@ -476,8 +509,18 @@ async fn kill_and_reap(
     }
 }
 
-fn process_failure(label: &str, output: &Output, password: &str) -> PostgresError {
-    let details = redact_password(command_output_details(label, output), password);
+fn process_failure(
+    label: &str,
+    output: &Output,
+    password: &str,
+    context: Option<String>,
+) -> PostgresError {
+    let mut details = command_output_details(label, output);
+    if let Some(context) = context {
+        details.push_str("\ncontext: ");
+        details.push_str(&context);
+    }
+    let details = redact_password(details, password);
     log::error!("{} failed: {}", label, details);
     PostgresError::MigrationFailed(format!("{label} failed: {details}"))
 }
@@ -689,8 +732,7 @@ async fn apply_patch(
             }
         }
     };
-    let stdout = collected_output(&label, "stdout", stdout_task).await?;
-    let stderr = collected_output(&label, "stderr", stderr_task).await?;
+    let (stdout, stderr) = collected_outputs(&label, stdout_task, stderr_task).await?;
     match completion {
         PatchCompletion::Exited {
             status,
@@ -702,7 +744,7 @@ async fn apply_patch(
                 stderr,
             };
             if !output.status.success() {
-                return Err(process_failure(&label, &output, &connection.password));
+                return Err(process_failure(&label, &output, &connection.password, None));
             }
             if let Err((action, error)) = write_result {
                 return Err(PostgresError::MigrationFailed(format!(
@@ -721,16 +763,20 @@ async fn apply_patch(
                 stdout,
                 stderr,
             };
-            if !reap.was_killed && !output.status.success() {
-                return Err(process_failure(&label, &output, &connection.password));
-            }
             let kill_details = reap
                 .kill_error
                 .map(|kill_error| format!("; child termination also failed: {kill_error}"))
                 .unwrap_or_default();
-            Err(PostgresError::MigrationFailed(format!(
-                "{label} failed to {action} stdin: {error}{kill_details}"
-            )))
+            let stdin_failure = format!("{label} failed to {action} stdin: {error}{kill_details}");
+            if !output.status.success() {
+                return Err(process_failure(
+                    &label,
+                    &output,
+                    &connection.password,
+                    Some(stdin_failure),
+                ));
+            }
+            Err(PostgresError::MigrationFailed(stdin_failure))
         }
         PatchCompletion::CleanupFailed(error) => Err(error),
     }
@@ -1323,7 +1369,7 @@ mod tests {
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
             &fake_dir,
-            "#!/bin/sh\nprintf 'SQLSTATE 42P01 child diagnostic\\n' >&2\nexit 7\n",
+            "#!/bin/sh\nexec 0<&-\nprintf 'SQLSTATE 42P01 child diagnostic\\n' >&2\nsleep 0.025\nexit 7\n",
         );
 
         for attempt in 0..32 {
@@ -1438,6 +1484,59 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn bounds_drain_completion_when_a_descendant_inherits_the_pipes() {
+        let patch_dir = TestPatchDir::new();
+        copy_committed_catalog(&patch_dir);
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\n(sleep 30) &\nprintf '%s' \"$!\" > descendant.pid\nexit 0\n",
+        );
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            apply_catalog(&psql_path, &test_connection(), patch_dir.path()),
+        )
+        .await;
+
+        let pid = std::fs::read_to_string(fake_dir.path().join("descendant.pid"))
+            .expect("fake psql descendant PID must be captured");
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", pid.trim()])
+            .status();
+        for _ in 0..100 {
+            let alive = std::process::Command::new("kill")
+                .args(["-0", pid.trim()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .expect("descendant liveness probe must run")
+                .success();
+            if !alive {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        let descendant_alive = std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .expect("final descendant liveness probe must run")
+            .success();
+        assert!(!descendant_alive, "fake psql descendant must be cleaned up");
+
+        let error = result
+            .expect("inherited output pipes must not hang catalog application")
+            .expect_err("inherited output pipes must fail closed");
+        let message = error.to_string();
+        assert!(message.contains("patch 1.2 google-subject"));
+        assert!(message.contains("timed out"));
+        assert!(message.contains("stdout/stderr"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn kills_and_reaps_psql_immediately_when_stdin_fails() {
         let fake_dir = TestPatchDir::new();
         let psql_path = fake_psql(
@@ -1462,7 +1561,10 @@ mod tests {
         .await
         .expect("stdin failure must not wait for a live psql child")
         .expect_err("closed psql stdin must be fatal");
-        assert!(error.to_string().contains("failed to write stdin"));
+        let message = error.to_string();
+        assert!(message.contains("patch 1.5 large-patch"));
+        assert!(message.contains("exited with code None"));
+        assert!(message.contains("failed to write stdin"));
 
         let pid = std::fs::read_to_string(fake_dir.path().join("child.pid"))
             .expect("fake psql PID must be captured");
