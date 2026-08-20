@@ -1,4 +1,5 @@
 use sha2::{Digest, Sha256};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -225,4 +226,90 @@ fn patch_runner_check_mode_rejects_corrupted_patch_bytes() {
 
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("checksum mismatch"));
+}
+
+#[test]
+fn patch_runner_check_mode_rejects_complete_deployment_options() {
+    let output = Command::new(postgres_dir().join("apply-patches.sh"))
+        .args(["--check", "--container", "postgres", "--user", "hotel", "--database", "hotel"])
+        .output()
+        .expect("patch runner must start");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--check cannot be combined"));
+}
+
+#[test]
+fn patch_runner_check_mode_rejects_incomplete_deployment_options() {
+    let output = Command::new(postgres_dir().join("apply-patches.sh"))
+        .args(["--check", "--container", "postgres"])
+        .output()
+        .expect("patch runner must start");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--check cannot be combined"));
+}
+
+#[test]
+fn patch_runner_executes_the_validated_patch_snapshot() {
+    let source_dir = postgres_dir().join("patches");
+    let temporary_dir = std::env::temp_dir().join(format!(
+        "hotel-app-postgres-snapshot-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time must be after Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir(&temporary_dir).expect("temporary catalog directory must be created");
+    for entry in std::fs::read_dir(&source_dir).expect("patch catalog directory must be readable") {
+        let entry = entry.expect("patch catalog entry must be readable");
+        std::fs::copy(entry.path(), temporary_dir.join(entry.file_name()))
+            .expect("patch catalog entry must be copied");
+    }
+
+    let command_dir = temporary_dir.join("bin");
+    std::fs::create_dir(&command_dir).expect("temporary command directory must be created");
+    let fake_sha256sum = command_dir.join("sha256sum");
+    std::fs::write(
+        &fake_sha256sum,
+        "#!/usr/bin/env bash\nshasum -a 256 \"$@\"\nprintf '%s\\n' '-- source changed after validation' > \"$SNAPSHOT_TARGET\"\n",
+    )
+    .expect("fake sha256sum must be written");
+    let fake_psql = command_dir.join("psql");
+    std::fs::write(&fake_psql, "#!/usr/bin/env bash\ncat >> \"$PSQL_CAPTURE\"\n")
+        .expect("fake psql must be written");
+    for command in [&fake_sha256sum, &fake_psql] {
+        let mut permissions = std::fs::metadata(command)
+            .expect("fake command metadata must be readable")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(command, permissions).expect("fake command must be executable");
+    }
+
+    let capture_file = temporary_dir.join("psql-input.sql");
+    let path = format!(
+        "{}:{}",
+        command_dir.display(),
+        std::env::var("PATH").expect("PATH must be set")
+    );
+    let output = Command::new(postgres_dir().join("apply-patches.sh"))
+        .env("PATCH_CATALOG_DIR", &temporary_dir)
+        .env("DATABASE_URL", "postgresql://unused")
+        .env("PATH", path)
+        .env(
+            "SNAPSHOT_TARGET",
+            temporary_dir.join("0002_google_subject.sql"),
+        )
+        .env("PSQL_CAPTURE", &capture_file)
+        .output()
+        .expect("patch runner must start");
+    let captured_input = std::fs::read_to_string(&capture_file).expect("fake psql input must exist");
+    std::fs::remove_dir_all(&temporary_dir).expect("temporary catalog directory must be removed");
+
+    assert!(output.status.success());
+    assert!(
+        !captured_input.contains("-- source changed after validation"),
+        "the runner must execute the validated snapshot rather than reopening a source path"
+    );
 }
