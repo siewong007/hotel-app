@@ -49,6 +49,91 @@ ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (
         ]::text[]
     )
 );
+
+-- The same vocabulary change also widened the room/date exclusion constraint and
+-- the room-sync trigger function. A database created before it has all three in
+-- the old shape, so the downgrade must model all three or convergence is only
+-- proven for the one object the first patch happened to cover.
+ALTER TABLE bookings DROP CONSTRAINT bookings_no_room_date_overlap;
+ALTER TABLE bookings ADD CONSTRAINT bookings_no_room_date_overlap EXCLUDE USING gist (room_id WITH =, daterange(check_in_date, check_out_date, '[)'::text) WITH &&) WHERE (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('checked_in'::character varying)::text, ('auto_checked_in'::character varying)::text])));
+
+CREATE OR REPLACE FUNCTION public.sync_room_status_with_booking()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_current_room_status VARCHAR(20);
+    v_next_status VARCHAR(20);
+    v_has_other_current_stay BOOLEAN;
+BEGIN
+    -- Skip room status changes for back-dated stays that have already ended.
+    IF NEW.check_out_date < CURRENT_DATE
+       AND NEW.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT status INTO v_current_room_status FROM rooms WHERE id = NEW.room_id;
+
+    SELECT EXISTS (
+        SELECT 1 FROM bookings
+        WHERE room_id = NEW.room_id
+          AND id != NEW.id
+          AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+          AND check_in_date <= CURRENT_DATE
+          AND check_out_date >= CURRENT_DATE
+    ) INTO v_has_other_current_stay;
+
+    IF NEW.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+       AND v_current_room_status != 'occupied' THEN
+        PERFORM update_room_status(NEW.room_id, 'occupied',
+            'Guest checked in - Booking #' || NEW.id, NULL,
+            NEW.check_in_date, NEW.check_out_date);
+
+    ELSIF NEW.status IN ('checked_out', 'completed')
+          AND v_current_room_status = 'occupied' THEN
+        PERFORM update_room_status(NEW.room_id, 'dirty',
+            'Guest checked out - Needs cleaning - Booking #' || NEW.id,
+            NULL, CURRENT_TIMESTAMP, NULL);
+
+    ELSIF NEW.status IN ('confirmed', 'pending')
+          AND NOT v_has_other_current_stay
+          AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN
+        PERFORM update_room_status(NEW.room_id, 'reserved',
+            CASE
+                WHEN NEW.check_in_date::date = CURRENT_DATE
+                    THEN 'Same-day reservation - Booking #' || NEW.id
+                ELSE 'Future reservation - Booking #' || NEW.id
+            END,
+            NULL, NEW.check_in_date, NEW.check_out_date);
+
+    ELSIF NEW.status IN ('no_show', 'voided')
+          AND v_current_room_status IN ('occupied', 'reserved') THEN
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = NEW.room_id
+                  AND id != NEW.id
+                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+                  AND check_in_date <= CURRENT_DATE
+                  AND check_out_date >= CURRENT_DATE
+            ) THEN 'occupied'
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = NEW.room_id
+                  AND id != NEW.id
+                  AND status IN ('confirmed', 'pending')
+                  AND check_out_date > CURRENT_DATE
+            ) THEN 'reserved'
+            ELSE 'available'
+        END INTO v_next_status;
+
+        PERFORM update_room_status(NEW.room_id, v_next_status,
+            'Booking no-show/voided - Booking #' || NEW.id, NULL, NULL, NULL);
+    END IF;
+
+    RETURN NEW;
+END;
+$function$;
 "#;
 
 #[derive(Clone)]
@@ -227,8 +312,13 @@ impl TemporaryCatalog {
     fn with_failing_patch() -> Self {
         let catalog = Self::copy_committed();
 
+        let next_version = committed_manifest_versions()
+            .last()
+            .expect("committed manifest must list at least one patch")
+            + 1;
+        let file = format!("{next_version:04}_injected_failure.sql");
         let patch_source = "CREATE TABLE patch_failure_sentinel(id integer); SELECT 1 / 0;\n";
-        std::fs::write(catalog.path.join("0005_injected_failure.sql"), patch_source)
+        std::fs::write(catalog.path.join(&file), patch_source)
             .expect("write injected failing patch");
         let checksum = hex::encode(Sha256::digest(patch_source.as_bytes()));
         writeln!(
@@ -236,7 +326,7 @@ impl TemporaryCatalog {
                 .append(true)
                 .open(catalog.path.join("manifest.tsv"))
                 .expect("open temporary patch manifest"),
-            "1\t5\tinjected-failure\tsha256:{checksum}\t0005_injected_failure.sql"
+            "1\t{next_version}\tinjected-failure\tsha256:{checksum}\t{file}"
         )
         .expect("append injected patch manifest row");
 
@@ -260,6 +350,27 @@ impl Drop for TemporaryCatalog {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.path);
     }
+}
+
+/// The versions the committed manifest lists, in manifest order.
+///
+/// Derived rather than hardcoded so that adding a real patch cannot silently
+/// turn a fixture into a duplicate version, or leave an expectation checking
+/// only a prefix of the catalog.
+fn committed_manifest_versions() -> Vec<i32> {
+    let manifest = std::fs::read_to_string(postgres_dir().join("patches/manifest.tsv"))
+        .expect("committed manifest must be readable");
+    manifest
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
+        .map(|line| {
+            line.split('\t')
+                .nth(1)
+                .expect("manifest row must have a version field")
+                .parse()
+                .expect("manifest version must be an integer")
+        })
+        .collect()
 }
 
 fn postgres_dir() -> PathBuf {
@@ -459,7 +570,7 @@ async fn revision_snapshot(pool: &PgPool) -> RevisionSnapshot {
         r#"
         SELECT version, name, checksum, applied_at::text
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 4
+        WHERE generation = 1 AND version BETWEEN 2 AND 5
         ORDER BY version
         "#,
     )
@@ -512,7 +623,19 @@ async fn object_snapshot(pool: &PgPool) -> ObjectSnapshot {
             JOIN pg_namespace AS schema_row ON schema_row.oid = table_row.relnamespace
             WHERE schema_row.nspname = 'public'
               AND table_row.relname = 'bookings'
-              AND constraint_row.conname = 'bookings_status_check'
+              AND constraint_row.conname IN (
+                  'bookings_status_check',
+                  'bookings_no_room_date_overlap'
+              )
+            UNION ALL
+            SELECT
+                'function', routine_row.proname, routine_row.oid::text,
+                pg_get_functiondef(routine_row.oid)
+            FROM pg_proc AS routine_row
+            JOIN pg_namespace AS schema_row ON schema_row.oid = routine_row.pronamespace
+            WHERE schema_row.nspname = 'public'
+              AND routine_row.proname = 'sync_room_status_with_booking'
+              AND routine_row.pronargs = 0
         ) AS objects
         ORDER BY kind, name
         "#,
@@ -530,7 +653,7 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
 }
 
 fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 3);
+    assert_eq!(revisions.len(), 4);
     assert_eq!(
         revisions
             .iter()
@@ -548,13 +671,18 @@ fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checks
                 "booking-status-vocabulary",
                 "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
             ),
+            (
+                5,
+                "booking-status-enforcement",
+                "sha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3",
+            ),
         ]
     );
 }
 
 fn assert_expected_objects(objects: &ObjectSnapshot) {
     let definitions = object_definitions(objects);
-    assert_eq!(definitions.len(), 10);
+    assert_eq!(definitions.len(), 12);
     for expected in [
         (
             "column",
@@ -602,12 +730,32 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
             "missing final unique index {name}"
         );
     }
-    assert!(definitions.iter().any(|(kind, name, definition)| {
-        *kind == "constraint"
-            && *name == "bookings_status_check"
-            && definition.contains("'pending_payment'::character varying")
-            && definition.contains("'pending_confirmation'::character varying")
-    }));
+    // Every object that encodes the booking-status vocabulary must accept the
+    // two pending statuses, not just the CHECK constraint: the exclusion
+    // constraint is what actually refuses a double booking, and the trigger
+    // function is what reserves and releases the room.
+    for name in ["bookings_status_check", "bookings_no_room_date_overlap"] {
+        assert!(
+            definitions.iter().any(|(kind, object_name, definition)| {
+                *kind == "constraint"
+                    && *object_name == name
+                    && definition.contains("'pending_payment'::character varying")
+                    && definition.contains("'pending_confirmation'::character varying")
+            }),
+            "{name} must cover both pending statuses"
+        );
+    }
+    assert!(
+        definitions.iter().any(|(kind, name, definition)| {
+            *kind == "function"
+                && *name == "sync_room_status_with_booking"
+                && definition
+                    .matches("IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')")
+                    .count()
+                    == 2
+        }),
+        "the room-sync trigger must treat both pending statuses as room-holding"
+    );
 }
 
 async fn schema_dump(database: &TestDatabase) -> String {
@@ -1399,14 +1547,24 @@ async fn postgres_v1_patch_failures_roll_back() {
             .fetch_one(&rollback_pool)
             .await
             .expect("check injected patch DDL rollback");
-    let revision_five_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = 5)",
+    // The injected patch takes the first version after the committed catalog,
+    // so this must follow the catalog rather than name a fixed version.
+    let injected_version = committed_manifest_versions()
+        .last()
+        .expect("committed manifest must list at least one patch")
+        + 1;
+    let injected_revision_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = $1)",
     )
+    .bind(injected_version)
     .fetch_one(&rollback_pool)
     .await
     .expect("check injected patch metadata rollback");
     assert!(!sentinel_exists);
-    assert!(!revision_five_exists);
+    assert!(
+        !injected_revision_exists,
+        "a failed patch must leave no revision row behind"
+    );
 
     checksum_pool.close().await;
     empty_pool.close().await;
@@ -1470,7 +1628,7 @@ async fn postgres_v1_patch_runners_serialize() {
         r#"
         SELECT version, COUNT(*)
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 4
+        WHERE generation = 1 AND version BETWEEN 2 AND 5
         GROUP BY version
         ORDER BY version
         "#,
@@ -1478,7 +1636,14 @@ async fn postgres_v1_patch_runners_serialize() {
     .fetch_all(&pool)
     .await
     .expect("count concurrent patch revisions");
-    assert_eq!(revision_counts, vec![(2, 1), (3, 1), (4, 1)]);
+    assert_eq!(
+        revision_counts,
+        committed_manifest_versions()
+            .into_iter()
+            .map(|version| (version, 1))
+            .collect::<Vec<(i32, i64)>>(),
+        "two concurrent runners must record every catalog version exactly once"
+    );
 
     let patched_objects = object_snapshot(&pool).await;
     assert_expected_objects(&patched_objects);

@@ -143,7 +143,7 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
     assert_eq!(
         entries
             .iter()
-            .take(3)
+            .take(4)
             .map(|entry| {
                 (
                     entry.generation,
@@ -175,6 +175,13 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
                 "booking-status-vocabulary",
                 "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
                 "0004_booking_status_vocabulary.sql",
+            ),
+            (
+                1,
+                5,
+                "booking-status-enforcement",
+                "sha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3",
+                "0005_booking_status_enforcement.sql",
             ),
         ]
     );
@@ -307,13 +314,13 @@ fn deployment_installs_the_verified_catalog_with_exact_modes() {
 }
 
 #[test]
-fn deployment_prepares_database_without_recreating_existing_service() {
+fn deployment_starts_database_without_recreating_or_activating_application_services() {
     let deploy = repository_file("deploy/deploy.sh");
     let preparation = deploy
-        .split("prepare_database_for_release() {")
+        .split("start_database_for_release() {")
         .nth(1)
         .and_then(|source| source.split("\n}\n").next())
-        .expect("deploy script must define prepare_database_for_release");
+        .expect("deploy script must define start_database_for_release");
     let preparation_lines = active_lines(preparation);
     assert!(preparation_lines.contains(&"local compose_tag=${1:-$TAG}"));
     assert!(preparation_lines.contains(&"export IMAGE_TAG=$compose_tag"));
@@ -321,10 +328,52 @@ fn deployment_prepares_database_without_recreating_existing_service() {
     assert!(preparation_lines.contains(&"compose up --detach --no-recreate postgres"));
     assert!(preparation_lines.contains(&"wait_for_healthy saliminn-db"));
     assert!(preparation_lines.contains(&"wait_for_database_baseline"));
-    assert!(preparation_lines.contains(&"\"$APP_DIR/database/apply-patches.sh\" \\"));
-    assert!(preparation_lines.contains(&"--container saliminn-db \\"));
-    assert!(preparation_lines.contains(&"--user hotel_admin \\"));
-    assert!(preparation_lines.contains(&"--database hotel_management"));
+    assert!(!preparation_lines
+        .iter()
+        .any(|line| line.contains("backend") || line.contains("frontend")));
+}
+
+#[test]
+fn deployment_applies_patches_only_after_database_start_and_backup() {
+    let deploy = repository_file("deploy/deploy.sh");
+    let patching = deploy
+        .split("apply_database_patches_for_release() {")
+        .nth(1)
+        .and_then(|source| source.split("\n}\n").next())
+        .expect("deploy script must define apply_database_patches_for_release");
+    let lines = active_lines(patching);
+    assert!(lines.contains(&"\"$APP_DIR/database/apply-patches.sh\" \\"));
+    assert!(lines.contains(&"--container saliminn-db \\"));
+    assert!(lines.contains(&"--user hotel_admin \\"));
+    assert!(lines.contains(&"--database hotel_management"));
+}
+
+#[test]
+fn deployment_backup_is_verified_after_final_v1_readiness_before_patching() {
+    let deploy = repository_file("deploy/deploy.sh");
+    let backup = deploy
+        .split("backup_existing_database() {")
+        .nth(1)
+        .and_then(|source| source.split("\n}\n").next())
+        .expect("deploy script must define backup_existing_database");
+    let lines = active_lines(backup);
+
+    let verification = lines
+        .iter()
+        .position(|line| {
+            line.contains(
+                "docker exec -i saliminn-db pg_restore --list < \"$backup_tmp\" >/dev/null",
+            )
+        })
+        .expect("deployment must verify the backup archive with pg_restore");
+    assert!(
+        !lines.iter().any(|line| line.contains("return 0")),
+        "deployment must not skip the pre-patch backup"
+    );
+    assert!(
+        verification < active_line_position(&lines, "mv \"$backup_tmp\" \"$backup_path\""),
+        "only a verified backup may be published"
+    );
 }
 
 #[test]
@@ -382,8 +431,11 @@ fn deployment_backs_up_and_patches_before_application_activation() {
         &tail_lines,
         "read -r previous_tag < \"$CURRENT_TAG_FILE\"",
     );
+    let install = active_line_position(&tail_lines, "install_release_files");
+    let load_images = active_line_position(&tail_lines, "load_release_images");
+    let start = active_line_position(&tail_lines, "start_database_for_release \"$TAG\"");
     let backup = active_line_position(&tail_lines, "backup_existing_database");
-    let prepare = active_line_position(&tail_lines, "prepare_database_for_release \"$TAG\"");
+    let patch = active_line_position(&tail_lines, "apply_database_patches_for_release");
     let activate = tail_lines
         .iter()
         .position(|line| {
@@ -393,18 +445,8 @@ fn deployment_backs_up_and_patches_before_application_activation() {
         })
         .expect("deploy_tag must be the first active release condition");
 
-    assert!(
-        previous_tag < backup,
-        "previous tag must be read before backup and preparation"
-    );
-    assert!(
-        backup < prepare,
-        "database backup must precede patch application"
-    );
-    assert!(
-        prepare < activate,
-        "patch application must precede app activation"
-    );
+    assert!(previous_tag < install && install < load_images && load_images < start);
+    assert!(start < backup && backup < patch && patch < activate);
 }
 
 #[test]
@@ -774,22 +816,33 @@ fn documentation_fenced_code_extraction_ignores_prose_and_joins_wrapped_statemen
 #[test]
 fn documentation_database_readme_describes_baseline_seed_and_patches() {
     let readme = repository_file("hotel-app-be/database/README.md");
-
-    let baseline = readme
+    let lifecycle = readme
+        .split("## V1 lifecycle\n")
+        .nth(1)
+        .and_then(|source| source.split("\n## Same-generation additive changes").next())
+        .expect("the README must contain a bounded V1 lifecycle section");
+    let baseline = lifecycle
         .find("migrations/0001_v1_baseline.sql")
         .expect("the README must name the baseline");
-    let seed = readme[baseline..]
+    let seed = lifecycle[baseline..]
         .find("seed.sql")
         .map(|offset| baseline + offset)
         .expect("the README must name the seed after the baseline");
-    readme[seed..]
+    let patches = lifecycle[seed..]
         .find("patches/")
+        .map(|offset| seed + offset)
         .expect("the README must describe the patch catalog after baseline and seed");
+    assert!(baseline < seed && seed < patches);
+    assert!(lifecycle.contains("fresh install reports `applied patch 1.2"));
+    assert!(lifecycle.contains("rerun a no-op"));
 
     for required in [
         "patches/manifest.tsv",
         "make db-patch",
         "make db-schema-drift",
+        "Server / local",
+        "Desktop",
+        "Rust patch executor",
     ] {
         assert!(
             readme.contains(required),
@@ -802,6 +855,9 @@ fn documentation_database_readme_describes_baseline_seed_and_patches() {
         "Those two SQL files are the whole install set",
         "postgres_initialization_has_only_baseline_and_seed",
         "There is no `patches/`",
+        "indistinguishable from one patched forward",
+        "the only executor of the catalog",
+        "one receipt index it immediately recreates",
     ] {
         assert!(
             !readme.contains(obsolete),
@@ -834,5 +890,15 @@ fn documentation_deployment_guide_replaces_one_off_operator_sql_with_the_runner(
     assert!(
         code.contains("make db-schema-drift"),
         "the deployment guide must document read-only drift reporting"
+    );
+    let verified_backup = concat!(
+        "pg_dump --format=custom --no-owner --no-acl --file \"$patch_backup_path\" ",
+        "\"$DATABASE_URL\" && pg_restore --list \"$patch_backup_path\" >/dev/null ",
+        "&& printf 'verified pre-patch backup: %s\\n' \"$patch_backup_path\"",
+    );
+    assert!(
+        code.contains("set -e umask 077 patch_backup_path=$(mktemp")
+            && code.contains(verified_backup),
+        "the deployment guide must make backup creation and verification fail closed before reporting success"
     );
 }

@@ -333,23 +333,24 @@ What it guarantees:
   revision.
 - **No historical rewrite.** The catalog adds columns, indexes and constraint
   vocabulary only. It does not rewrite historical financial, currency or booking
-  rows, and it does not drop existing objects other than the one receipt index it
-  immediately recreates with ledger-scoped uniqueness, inside the same
-  transaction.
+  rows. When a patch must replace a schema object, it drops and recreates that
+  object inside the same transaction as its revision row.
 
-The catalog currently converges three changes that previously shipped as
+The catalog currently converges four changes that previously shipped as
 copy-paste SQL in this guide: `1.2 google-subject` (2026-07-28),
-`1.3 payment-idempotency` (2026-08-06), and `1.4 booking-status-vocabulary`.
+`1.3 payment-idempotency` (2026-08-06), `1.4 booking-status-vocabulary`, and
+`1.5 booking-status-enforcement`.
 
 #### Take a verified backup first
 
 Required before any production run. Do not proceed if either command fails:
 
 ```bash
+set -e
 umask 077
 patch_backup_path=$(mktemp "${TMPDIR:-/tmp}/hotel-v1-prepatch.XXXXXX.dump")
-pg_dump --format=custom --no-owner --no-acl --file "$patch_backup_path" "$DATABASE_URL"
-pg_restore --list "$patch_backup_path" >/dev/null
+pg_dump --format=custom --no-owner --no-acl --file "$patch_backup_path" "$DATABASE_URL" &&
+pg_restore --list "$patch_backup_path" >/dev/null &&
 printf 'verified pre-patch backup: %s\n' "$patch_backup_path"
 ```
 
@@ -369,11 +370,11 @@ Expect `1.1` (the baseline) through the highest version in the manifest.
 
 #### In production deployment
 
-`deploy/deploy.sh` runs the catalog for you, in a deliberate order: verified
-backup, then PostgreSQL alone brought up and confirmed to carry the V1 baseline,
-then patching, and only then activation of the application containers. A patch
-failure therefore aborts the release **before** any new application code serves
-traffic against an unconverged schema.
+`deploy/deploy.sh` runs the catalog for you, in a deliberate order: PostgreSQL
+alone is brought up and confirmed to carry the final TCP V1 baseline, then a
+verified backup is taken, then patches run, and only then are the application
+containers activated. A patch failure therefore aborts the release **before**
+any new application code serves traffic against an unconverged schema.
 
 ### Read-only schema drift reporting
 
