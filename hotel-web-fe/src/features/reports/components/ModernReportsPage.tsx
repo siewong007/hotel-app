@@ -677,6 +677,8 @@ const ModernReportsPage: React.FC = () => {
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
                 <TableCell>Date</TableCell>
+                <TableCell>Check-in</TableCell>
+                <TableCell>Check-out</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Invoice</TableCell>
                 <TableCell align="right">Amount</TableCell>
@@ -688,6 +690,8 @@ const ModernReportsPage: React.FC = () => {
               {transactions?.map((txn: CompanyLedgerTransaction, idx: number) => (
                 <TableRow key={idx}>
                   <TableCell>{txn.invoice_date || '-'}</TableCell>
+                  <TableCell>{txn.check_in_date || '-'}</TableCell>
+                  <TableCell>{txn.check_out_date || '-'}</TableCell>
                   <TableCell>{txn.voucher}</TableCell>
                   <TableCell>{txn.invoice || '-'}</TableCell>
                   <TableCell align="right">{currencySymbol}{Number(txn.original_amount || 0).toFixed(2)}</TableCell>
@@ -696,7 +700,7 @@ const ModernReportsPage: React.FC = () => {
                 </TableRow>
               ))}
               <TableRow sx={{ bgcolor: 'grey.200' }}>
-                <TableCell colSpan={3}><strong>Total</strong></TableCell>
+                <TableCell colSpan={5}><strong>Total</strong></TableCell>
                 <TableCell align="right"><strong>{currencySymbol}{Number(totals?.original_amount || 0).toFixed(2)}</strong></TableCell>
                 <TableCell align="right"><strong>{currencySymbol}{Number(totals?.payments_received || 0).toFixed(2)}</strong></TableCell>
                 <TableCell align="right"><strong>{currencySymbol}{Number(totals?.open_amount || 0).toFixed(2)}</strong></TableCell>

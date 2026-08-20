@@ -378,6 +378,8 @@ pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
         payment_reference: row.try_get("payment_reference").ok(),
         payment_date: row.try_get("payment_date").ok(),
         booking_id: row.try_get("booking_id").ok(),
+        check_in_date: row.try_get("check_in_date").ok(),
+        check_out_date: row.try_get("check_out_date").ok(),
         guest_id: row.try_get("guest_id").ok(),
         invoice_number: row.try_get("invoice_number").ok(),
         invoice_date: row.try_get("invoice_date").ok(),
