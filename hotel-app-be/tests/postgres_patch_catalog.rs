@@ -1,5 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, PartialEq, Eq)]
 struct PatchEntry {
@@ -180,4 +182,47 @@ fn google_subject_patch_rejects_unbounded_varchar_and_non_index_name_collisions(
     assert!(patch.contains(
         "found_relation IS NOT NULL AND\n       (found_index IS NULL OR found_index <> expected_index)"
     ));
+}
+
+#[test]
+fn patch_runner_check_mode_validates_the_committed_catalog() {
+    let status = Command::new(postgres_dir().join("apply-patches.sh"))
+        .arg("--check")
+        .status()
+        .expect("patch runner must start");
+    assert!(status.success());
+}
+
+#[test]
+fn patch_runner_check_mode_rejects_corrupted_patch_bytes() {
+    let source_dir = postgres_dir().join("patches");
+    let temporary_dir = std::env::temp_dir().join(format!(
+        "hotel-app-postgres-patches-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time must be after Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir(&temporary_dir).expect("temporary catalog directory must be created");
+
+    for entry in std::fs::read_dir(&source_dir).expect("patch catalog directory must be readable") {
+        let entry = entry.expect("patch catalog entry must be readable");
+        std::fs::copy(entry.path(), temporary_dir.join(entry.file_name()))
+            .expect("patch catalog entry must be copied");
+    }
+    let corrupt_file = temporary_dir.join("0004_booking_status_vocabulary.sql");
+    let mut bytes = std::fs::read(&corrupt_file).expect("patch bytes must be readable");
+    bytes[0] ^= 1;
+    std::fs::write(&corrupt_file, bytes).expect("corrupt patch bytes must be written");
+
+    let output = Command::new(postgres_dir().join("apply-patches.sh"))
+        .arg("--check")
+        .env("PATCH_CATALOG_DIR", &temporary_dir)
+        .output()
+        .expect("patch runner must start");
+    std::fs::remove_dir_all(&temporary_dir).expect("temporary catalog directory must be removed");
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("checksum mismatch"));
 }
