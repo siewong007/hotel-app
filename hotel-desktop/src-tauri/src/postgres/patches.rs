@@ -4,6 +4,8 @@ use std::fs::{File, Metadata, OpenOptions};
 use std::io::Read;
 use std::path::{Component, Path};
 use std::process::{Output, Stdio};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 #[cfg(not(any(target_os = "linux", target_vendor = "apple", windows)))]
@@ -11,6 +13,10 @@ compile_error!("desktop patch file identity checks require Linux, Apple, or Wind
 
 const DIAGNOSTIC_OUTPUT_LIMIT: usize = 32 * 1024;
 const DIAGNOSTIC_TRUNCATION_MARKER: &[u8] = b"\n[diagnostic output truncated after 32768 bytes]\n";
+// Let an already-exiting child publish its real failure before treating EPIPE as primary.
+const CHILD_EXIT_DIAGNOSTIC_GRACE: Duration = Duration::from_millis(50);
+// Killing a local child should be immediate; never let abnormal OS cleanup hang startup.
+const CHILD_REAP_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PatchManifestEntry {
@@ -367,9 +373,33 @@ fn redact_password(details: String, password: &str) -> String {
     }
 }
 
-async fn drain_output(mut output: impl AsyncRead + Unpin) -> std::io::Result<Vec<u8>> {
-    let mut bytes =
-        Vec::with_capacity(DIAGNOSTIC_OUTPUT_LIMIT + DIAGNOSTIC_TRUNCATION_MARKER.len());
+fn redact_diagnostic_prefix(bytes: &[u8], password: &[u8]) -> (Vec<u8>, bool) {
+    let visible_end = bytes.len().min(DIAGNOSTIC_OUTPUT_LIMIT);
+    let mut sanitized = Vec::with_capacity(visible_end);
+    let mut offset = 0;
+    let mut truncated = false;
+    while offset < visible_end && sanitized.len() < DIAGNOSTIC_OUTPUT_LIMIT {
+        if !password.is_empty() && bytes[offset..].starts_with(password) {
+            let replacement = b"[redacted]";
+            let remaining = DIAGNOSTIC_OUTPUT_LIMIT - sanitized.len();
+            sanitized.extend_from_slice(&replacement[..replacement.len().min(remaining)]);
+            truncated |= replacement.len() > remaining;
+            offset += password.len();
+        } else {
+            sanitized.push(bytes[offset]);
+            offset += 1;
+        }
+    }
+    truncated |= offset < visible_end;
+    (sanitized, truncated)
+}
+
+async fn drain_output(
+    mut output: impl AsyncRead + Unpin,
+    password: Arc<[u8]>,
+) -> std::io::Result<Vec<u8>> {
+    let retention_limit = DIAGNOSTIC_OUTPUT_LIMIT.saturating_add(password.len().saturating_sub(1));
+    let mut bytes = Vec::new();
     let mut chunk = [0_u8; 8192];
     let mut truncated = false;
     loop {
@@ -377,14 +407,15 @@ async fn drain_output(mut output: impl AsyncRead + Unpin) -> std::io::Result<Vec
         if read == 0 {
             break;
         }
-        let remaining = DIAGNOSTIC_OUTPUT_LIMIT.saturating_sub(bytes.len());
+        truncated |= bytes.len().saturating_add(read) > DIAGNOSTIC_OUTPUT_LIMIT;
+        let remaining = retention_limit.saturating_sub(bytes.len());
         bytes.extend_from_slice(&chunk[..read.min(remaining)]);
-        truncated |= read > remaining;
     }
-    if truncated {
-        bytes.extend_from_slice(DIAGNOSTIC_TRUNCATION_MARKER);
+    let (mut sanitized, sanitization_truncated) = redact_diagnostic_prefix(&bytes, &password);
+    if truncated || sanitization_truncated {
+        sanitized.extend_from_slice(DIAGNOSTIC_TRUNCATION_MARKER);
     }
-    Ok(bytes)
+    Ok(sanitized)
 }
 
 async fn collected_output(
@@ -405,25 +436,63 @@ async fn collected_output(
         })
 }
 
+struct ReapOutcome {
+    status: std::process::ExitStatus,
+    was_killed: bool,
+    kill_error: Option<std::io::Error>,
+}
+
 async fn kill_and_reap(
     child: &mut tokio::process::Child,
     label: &str,
-) -> Result<std::process::ExitStatus, PostgresError> {
-    let kill_error = child
-        .start_kill()
-        .err()
-        .filter(|error| error.kind() != std::io::ErrorKind::InvalidInput);
-    let status = child.wait().await.map_err(|error| {
-        PostgresError::MigrationFailed(format!(
-            "{label} failed to reap after a stdin error: {error}"
-        ))
-    })?;
-    if let Some(error) = kill_error {
-        return Err(PostgresError::MigrationFailed(format!(
-            "{label} failed to terminate after a stdin error: {error}"
-        )));
+) -> Result<ReapOutcome, PostgresError> {
+    let (was_killed, kill_error) = match child.start_kill() {
+        Ok(()) => (true, None),
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput => (false, None),
+        Err(error) => (false, Some(error)),
+    };
+    match tokio::time::timeout(CHILD_REAP_TIMEOUT, child.wait()).await {
+        Ok(Ok(status)) => Ok(ReapOutcome {
+            status,
+            was_killed,
+            kill_error,
+        }),
+        Ok(Err(error)) => {
+            let _ = child.start_kill();
+            Err(PostgresError::MigrationFailed(format!(
+                "{label} failed to reap after a stdin error: {error}"
+            )))
+        }
+        Err(_) => {
+            let _ = child.start_kill();
+            let kill_details = kill_error
+                .map(|error| format!("; initial termination failed: {error}"))
+                .unwrap_or_default();
+            Err(PostgresError::MigrationFailed(format!(
+                "{label} timed out after {}s while reaping after a stdin error{kill_details}",
+                CHILD_REAP_TIMEOUT.as_secs()
+            )))
+        }
     }
-    Ok(status)
+}
+
+fn process_failure(label: &str, output: &Output, password: &str) -> PostgresError {
+    let details = redact_password(command_output_details(label, output), password);
+    log::error!("{} failed: {}", label, details);
+    PostgresError::MigrationFailed(format!("{label} failed: {details}"))
+}
+
+enum PatchCompletion {
+    Exited {
+        status: std::process::ExitStatus,
+        write_result: Result<(), (&'static str, std::io::Error)>,
+    },
+    StdinFailed {
+        reap: ReapOutcome,
+        action: &'static str,
+        error: std::io::Error,
+    },
+    CleanupFailed(PostgresError),
 }
 
 async fn apply_patch(
@@ -494,8 +563,9 @@ async fn apply_patch(
     let stderr = child.stderr.take().ok_or_else(|| {
         PostgresError::MigrationFailed(format!("{label} failed: stderr was unavailable"))
     })?;
-    let stdout_task = tokio::spawn(drain_output(stdout));
-    let stderr_task = tokio::spawn(drain_output(stderr));
+    let password = Arc::<[u8]>::from(connection.password.as_bytes());
+    let stdout_task = tokio::spawn(drain_output(stdout, Arc::clone(&password)));
+    let stderr_task = tokio::spawn(drain_output(stderr, password));
     let write_stdin = async move {
         stdin
             .write_all(&patch.source)
@@ -504,55 +574,166 @@ async fn apply_patch(
         stdin.shutdown().await.map_err(|error| ("close", error))
     };
     tokio::pin!(write_stdin);
-    let (status, write_result) = tokio::select! {
-        write_result = &mut write_stdin => {
-            if let Err((action, error)) = write_result {
-                let termination = kill_and_reap(&mut child, &label).await;
-                let stdout = collected_output(&label, "stdout", stdout_task).await;
-                let stderr = collected_output(&label, "stderr", stderr_task).await;
-                termination?;
-                let _stdout = stdout?;
-                let _stderr = stderr?;
-                return Err(PostgresError::MigrationFailed(format!(
-                    "{label} failed to {action} stdin: {error}"
-                )));
-            }
-            let status = child.wait().await.map_err(|error| {
-                PostgresError::MigrationFailed(format!("{label} failed while waiting: {error}"))
-            })?;
-            (status, Ok(()))
-        }
+    let completion = tokio::select! {
+        biased;
         status = child.wait() => {
-            let status = status.map_err(|error| {
-                PostgresError::MigrationFailed(format!("{label} failed while waiting: {error}"))
-            })?;
-            (status, write_stdin.await)
+            match status {
+                Ok(status) => PatchCompletion::Exited {
+                    status,
+                    write_result: write_stdin.await,
+                },
+                Err(wait_error) => {
+                    let reap = match kill_and_reap(&mut child, &label).await {
+                        Ok(reap) => reap,
+                        Err(error) => {
+                            stdout_task.abort();
+                            stderr_task.abort();
+                            return Err(error);
+                        }
+                    };
+                    let kill_details = reap
+                        .kill_error
+                        .map(|error| format!("; termination also failed: {error}"))
+                        .unwrap_or_default();
+                    PatchCompletion::CleanupFailed(
+                        PostgresError::MigrationFailed(format!(
+                            "{label} failed while waiting: {wait_error}{kill_details}"
+                        )),
+                    )
+                }
+            }
+        }
+        write_result = &mut write_stdin => {
+            match write_result {
+                Ok(()) => {
+                    match child.wait().await {
+                        Ok(status) => PatchCompletion::Exited {
+                            status,
+                            write_result: Ok(()),
+                        },
+                        Err(wait_error) => {
+                            let reap = match kill_and_reap(&mut child, &label).await {
+                                Ok(reap) => reap,
+                                Err(error) => {
+                                    stdout_task.abort();
+                                    stderr_task.abort();
+                                    return Err(error);
+                                }
+                            };
+                            let kill_details = reap
+                                .kill_error
+                                .map(|error| format!("; termination also failed: {error}"))
+                                .unwrap_or_default();
+                            PatchCompletion::CleanupFailed(
+                                PostgresError::MigrationFailed(format!(
+                                    "{label} failed while waiting: {wait_error}{kill_details}"
+                                )),
+                            )
+                        }
+                    }
+                }
+                Err((action, error)) => {
+                    let child_status = match child.try_wait() {
+                        Ok(None) => {
+                            match tokio::time::timeout(
+                                CHILD_EXIT_DIAGNOSTIC_GRACE,
+                                child.wait(),
+                            )
+                            .await
+                            {
+                                Ok(status) => status.map(Some),
+                                Err(_) => Ok(None),
+                            }
+                        }
+                        status => status,
+                    };
+                    match child_status {
+                        Ok(Some(status)) => PatchCompletion::Exited {
+                            status,
+                            write_result: Err((action, error)),
+                        },
+                        Ok(None) => {
+                            let reap = match kill_and_reap(&mut child, &label).await {
+                                Ok(reap) => reap,
+                                Err(error) => {
+                                    stdout_task.abort();
+                                    stderr_task.abort();
+                                    return Err(error);
+                                }
+                            };
+                            PatchCompletion::StdinFailed {
+                                reap,
+                                action,
+                                error,
+                            }
+                        }
+                        Err(wait_error) => {
+                            let reap = match kill_and_reap(&mut child, &label).await {
+                                Ok(reap) => reap,
+                                Err(error) => {
+                                    stdout_task.abort();
+                                    stderr_task.abort();
+                                    return Err(error);
+                                }
+                            };
+                            let kill_details = reap
+                                .kill_error
+                                .map(|error| format!("; termination also failed: {error}"))
+                                .unwrap_or_default();
+                            PatchCompletion::CleanupFailed(PostgresError::MigrationFailed(format!(
+                                "{label} failed while checking child status after a stdin error: {wait_error}{kill_details}"
+                            )))
+                        }
+                    }
+                }
+            }
         }
     };
     let stdout = collected_output(&label, "stdout", stdout_task).await?;
     let stderr = collected_output(&label, "stderr", stderr_task).await?;
-    let output = Output {
-        status,
-        stdout,
-        stderr,
-    };
-    if !output.status.success() {
-        let details = redact_password(
-            command_output_details(&label, &output),
-            &connection.password,
-        );
-        log::error!("{} failed: {}", label, details);
-        return Err(PostgresError::MigrationFailed(format!(
-            "{label} failed: {details}"
-        )));
+    match completion {
+        PatchCompletion::Exited {
+            status,
+            write_result,
+        } => {
+            let output = Output {
+                status,
+                stdout,
+                stderr,
+            };
+            if !output.status.success() {
+                return Err(process_failure(&label, &output, &connection.password));
+            }
+            if let Err((action, error)) = write_result {
+                return Err(PostgresError::MigrationFailed(format!(
+                    "{label} failed to {action} stdin: {error}"
+                )));
+            }
+            Ok(())
+        }
+        PatchCompletion::StdinFailed {
+            reap,
+            action,
+            error,
+        } => {
+            let output = Output {
+                status: reap.status,
+                stdout,
+                stderr,
+            };
+            if !reap.was_killed && !output.status.success() {
+                return Err(process_failure(&label, &output, &connection.password));
+            }
+            let kill_details = reap
+                .kill_error
+                .map(|kill_error| format!("; child termination also failed: {kill_error}"))
+                .unwrap_or_default();
+            Err(PostgresError::MigrationFailed(format!(
+                "{label} failed to {action} stdin: {error}{kill_details}"
+            )))
+        }
+        PatchCompletion::CleanupFailed(error) => Err(error),
     }
-    if let Err((action, error)) = write_result {
-        return Err(PostgresError::MigrationFailed(format!(
-            "{label} failed to {action} stdin: {error}"
-        )));
-    }
-
-    Ok(())
 }
 
 pub(super) async fn apply_catalog(
@@ -663,6 +844,19 @@ mod tests {
             .expect("manifest must be readable");
         manifest.push_str(&format!("1\t5\t{name}\t{checksum}\t{file}\n"));
         directory.write("manifest.tsv", manifest.as_bytes());
+    }
+
+    fn test_patch(source: Vec<u8>) -> super::VerifiedPatch {
+        super::VerifiedPatch {
+            entry: PatchManifestEntry {
+                generation: 1,
+                version: 5,
+                name: "test-patch".to_string(),
+                checksum: "sha256:test-only".to_string(),
+                file: "0005_test_patch.sql".to_string(),
+            },
+            source,
+        }
     }
 
     fn live_connection(database_env: &str) -> Option<(PathBuf, PsqlConnection)> {
@@ -1125,6 +1319,34 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    async fn nonzero_child_diagnostics_win_the_stdin_close_race() {
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\nprintf 'SQLSTATE 42P01 child diagnostic\\n' >&2\nexit 7\n",
+        );
+
+        for attempt in 0..32 {
+            let error = super::apply_patch(
+                &psql_path,
+                &test_connection(),
+                test_patch(vec![b'-'; 4 * 1024 * 1024]),
+            )
+            .await
+            .expect_err("nonzero psql exit must be fatal");
+            let message = error.to_string();
+
+            assert!(
+                message.contains("SQLSTATE 42P01 child diagnostic"),
+                "attempt {attempt} returned the competing stdin error: {message}"
+            );
+            assert!(message.contains("exited with code Some(7)"));
+            assert!(!message.contains("failed to write stdin"));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
     async fn bounds_and_marks_large_psql_failure_output() {
         let patch_dir = TestPatchDir::new();
         copy_committed_catalog(&patch_dir);
@@ -1148,6 +1370,41 @@ mod tests {
         assert!(
             message.len() <= 34 * 1024,
             "failure diagnostics must stay bounded, got {} bytes",
+            message.len()
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn redacts_a_password_straddling_both_diagnostic_cutoffs() {
+        let fake_dir = TestPatchDir::new();
+        let psql_path = fake_psql(
+            &fake_dir,
+            "#!/bin/sh\ncat >/dev/null\nemit_large_secret() { head -c 32763 /dev/zero | tr '\\000' x; printf '%s' \"$PGPASSWORD\"; head -c 1048576 /dev/zero | tr '\\000' y; }\nemit_large_secret\nemit_large_secret >&2\nexit 7\n",
+        );
+        let password = "ZXQPV-secret-crosses-cutoff";
+        let connection = PsqlConnection::new("localhost", 5432, "hotel", "hotel", password);
+
+        let error =
+            super::apply_patch(&psql_path, &connection, test_patch(b"SELECT 1;\n".to_vec()))
+                .await
+                .expect_err("large nonzero psql output must be fatal");
+        let message = error.to_string();
+
+        assert!(!message.contains(password));
+        assert!(
+            !message.contains("ZXQPV"),
+            "a visible password prefix crossed the diagnostic cutoff"
+        );
+        assert_eq!(
+            message
+                .matches("[diagnostic output truncated after 32768 bytes]")
+                .count(),
+            2
+        );
+        assert!(
+            message.len() <= 68 * 1024,
+            "two-stream failure diagnostics must stay bounded, got {} bytes",
             message.len()
         );
     }
