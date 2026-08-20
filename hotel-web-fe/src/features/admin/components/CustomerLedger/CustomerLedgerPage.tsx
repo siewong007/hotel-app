@@ -1005,7 +1005,6 @@ const CustomerLedgerPage: React.FC = () => {
         ?? getIdempotencyAttempt(companyPaymentAttemptRef.current, fingerprint);
       companyPaymentAttemptRef.current = attempt;
       await LedgerService.createCompanyLedgerPayment({ ...request, idempotency_key: attempt.key });
-      companyPaymentAttemptRef.current = null;
 
       // Re-fetch the entries we just paid against to see what's still owed.
       const refreshed = await Promise.all(
@@ -1040,6 +1039,13 @@ const CustomerLedgerPage: React.FC = () => {
           payment_date: formatLocalDate(),
         }));
       }
+      // Review finding I2: the attempt is released only after every step that
+      // can throw. Clearing it right after the POST meant a failing refetch
+      // fell into the catch below, showed "Failed to record payment" for a
+      // payment that had in fact committed, and left the retry to mint a NEW
+      // key -- charging the guest twice. While it is retained, an identical
+      // retry replays server-side instead.
+      companyPaymentAttemptRef.current = null;
     } catch (error) {
       console.error('Failed to record payment:', error);
       showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to record payment', 'error');
@@ -1422,7 +1428,6 @@ const CustomerLedgerPage: React.FC = () => {
         ...paymentRequest,
         idempotency_key: attempt.key,
       });
-      ledgerPaymentAttemptRef.current = null;
 
       // Re-fetch the ledger + history so the dialog reflects the new balance.
       const [updatedLedger, payments] = await Promise.all([
@@ -1450,6 +1455,14 @@ const CustomerLedgerPage: React.FC = () => {
           idempotency_key: '',
         });
       }
+
+      // Review finding I2: released only after every step that can throw. The
+      // clear used to sit immediately after the POST, so a failing re-fetch
+      // landed in the catch below, showed "Failed to record payment" for a
+      // payment that had in fact committed, and left the retry to mint a NEW
+      // key -- charging the company twice. Retained, an identical retry
+      // replays server-side instead.
+      ledgerPaymentAttemptRef.current = null;
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Failed to record payment');
     } finally {

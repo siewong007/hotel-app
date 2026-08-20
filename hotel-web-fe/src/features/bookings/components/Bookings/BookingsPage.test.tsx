@@ -636,6 +636,19 @@ describe('BookingsPage', () => {
         .not.toBe(changedRequest.idempotency_key);
     });
 
+    // Review finding I5 (fix applied in BookingsPage.tsx: the synthetic checkout
+    // reference is now derived from the idempotency attempt rather than the
+    // AMOUNT, so two separate same-value payments no longer collide).
+    //
+    // NOT COVERED BY A TEST. Reaching the reference requires the
+    // `checkout_required` dialog, which only opens via handleCheckOut on a
+    // checked-in booking with a balance; six attempts to drive it through this
+    // page harness failed on the detail panel unmounting between query and
+    // click. The manual "Payment" path never sets a reference, so it cannot
+    // exercise this. Needs either a harness fix or extraction of the reference
+    // derivation into a pure helper that can be unit-tested directly.
+
+
     // The date must resolve in the HOTEL timezone: the server stamps the row
     // there, and formatHotelDate passes date-only strings straight through, so
     // handing it a machine-local 'YYYY-MM-DD' would name the viewer's day.
