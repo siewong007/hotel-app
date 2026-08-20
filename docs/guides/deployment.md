@@ -292,106 +292,106 @@ createdb hotel_management
 psql -d hotel_management -c "\dt"  # Verify: should show all tables after init
 ```
 
-For the full V1 init order (baseline → data → seed, once only on a new empty
+For the full V1 init order (baseline → seed → patches, once only on a new empty
 database), see
 [`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md) —
-it is the canonical database lifecycle reference.
-
-### One-time step for Google guest sign-in (2026-07-28)
-
-Fresh installs need nothing here: `users.google_subject` and its partial unique
-index are part of the V1 baseline. A database initialized from a baseline
-predating 2026-07-28 is missing them, and Google sign-in will fail against it
-until this runs. It is additive and idempotent — no existing column, index or
-row is touched, so it is safe on a live database without downtime.
+it is the canonical database lifecycle reference. From the repository root:
 
 ```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-ALTER TABLE public.users ADD COLUMN IF NOT EXISTS google_subject character varying(255);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_users_google_subject
-    ON public.users USING btree (google_subject)
-    WHERE (google_subject IS NOT NULL);
-SQL
+make db-setup DATABASE_URL="$DATABASE_URL"
 ```
 
-Verify:
+### Patching an installed V1 database
+
+Fresh installs need nothing here — `make db-setup` finishes by running the same
+catalog, so a new database is created already at the current patch level.
+
+A database that is **already** on V1 cannot re-run the baseline, so compatible
+schema changes reach it through the verified patch catalog. One command applies
+every outstanding patch, in order:
 
 ```bash
-psql "$DATABASE_URL" -tAc "SELECT count(*) FROM information_schema.columns WHERE table_name='users' AND column_name='google_subject'"
+make db-patch DATABASE_URL="$DATABASE_URL"
 ```
 
-### One-time payment idempotency step (2026-08-06; PostgreSQL only)
+That command is the whole procedure. There is no per-change SQL block to copy
+any more; `hotel-app-be/database/postgres/patches/manifest.tsv` is the catalog,
+and [`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md)
+is the canonical reference for how it works.
 
-Fresh PostgreSQL installs already receive these objects from the V1 baseline.
-Run this block once against an existing PostgreSQL V1 database that predates
-2026-08-06. The application does not apply it automatically, and this is not a
-second migration file. The receipt index is deliberately rebuilt with
-ledger-scoped uniqueness so one company receipt can span several ledgers but
-cannot be reused on the same ledger.
+What it guarantees:
 
-The block runs inside one transaction, matching the desktop launcher's V1
-compatibility step. That is load-bearing rather than tidiness: the receipt
-index is DROPped before its ledger-scoped replacement is created, so without a
-surrounding transaction any failure in between commits the drop and leaves the
-database with no receipt-uniqueness protection at all — silently, while the
-operator sees only the error from the statement that failed.
+- **Safe to rerun.** Each patch records its revision; an already-applied patch
+  reports `skipped` and changes nothing. Rerunning a fully patched database is a
+  no-op that reprints the revision table.
+- **Aborts unsupported schemas.** It verifies the recorded V1 baseline checksum
+  first and refuses legacy or unversioned databases with
+  `unsupported V1 baseline checksum` rather than mutating them.
+- **All-or-nothing per patch.** Each patch runs inside one transaction under an
+  advisory lock, and its DDL commits together with its revision row. A failure
+  rolls the whole patch back and leaves the database at the last recorded
+  revision.
+- **No historical rewrite.** The catalog adds columns, indexes and constraint
+  vocabulary only. It does not rewrite historical financial, currency or booking
+  rows, and it does not drop existing objects other than the one receipt index it
+  immediately recreates with ledger-scoped uniqueness, inside the same
+  transaction.
+
+The catalog currently converges three changes that previously shipped as
+copy-paste SQL in this guide: `1.2 google-subject` (2026-07-28),
+`1.3 payment-idempotency` (2026-08-06), and `1.4 booking-status-vocabulary`.
+
+#### Take a verified backup first
+
+Required before any production run. Do not proceed if either command fails:
 
 ```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-BEGIN;
-
-ALTER TABLE public.payments
-    ADD COLUMN IF NOT EXISTS idempotency_key character varying(160),
-    ADD COLUMN IF NOT EXISTS idempotency_fingerprint character varying(64);
-
-ALTER TABLE public.customer_ledger_payments
-    ADD COLUMN IF NOT EXISTS idempotency_key character varying(160),
-    ADD COLUMN IF NOT EXISTS idempotency_fingerprint character varying(64);
-
-DROP INDEX IF EXISTS public.idx_customer_ledger_payments_receipt_unique;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_ledger_payments_receipt_unique
-    ON public.customer_ledger_payments
-    USING btree (ledger_id, lower(TRIM(BOTH FROM receipt_number)))
-    WHERE receipt_number IS NOT NULL AND TRIM(BOTH FROM receipt_number) <> '';
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_booking_idempotency
-    ON public.payments
-    USING btree (booking_id, idempotency_key)
-    WHERE idempotency_key IS NOT NULL AND TRIM(BOTH FROM idempotency_key) <> '';
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_ledger_payments_ledger_idempotency
-    ON public.customer_ledger_payments
-    USING btree (ledger_id, idempotency_key)
-    WHERE idempotency_key IS NOT NULL AND TRIM(BOTH FROM idempotency_key) <> '';
-
-COMMIT;
-SQL
+umask 077
+patch_backup_path=$(mktemp "${TMPDIR:-/tmp}/hotel-v1-prepatch.XXXXXX.dump")
+pg_dump --format=custom --no-owner --no-acl --file "$patch_backup_path" "$DATABASE_URL"
+pg_restore --list "$patch_backup_path" >/dev/null
+printf 'verified pre-patch backup: %s\n' "$patch_backup_path"
 ```
 
-Verify with read-only catalog queries:
+`pg_restore --list` is the verification step: a dump that cannot be listed
+cannot be restored either, and finding that out during an incident is too late.
+
+#### Verify the result
+
+The runner prints the revision table itself. To re-read it later:
 
 ```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
-SELECT table_name, column_name, data_type, character_maximum_length, is_nullable
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name IN ('payments', 'customer_ledger_payments')
-  AND column_name IN ('idempotency_key', 'idempotency_fingerprint')
-ORDER BY table_name, column_name;
-
-SELECT indexname, indexdef
-FROM pg_indexes
-WHERE schemaname = 'public'
-  AND indexname IN (
-      'idx_customer_ledger_payments_receipt_unique',
-      'uq_payments_booking_idempotency',
-      'uq_ledger_payments_ledger_idempotency'
-  )
-ORDER BY indexname;
-SQL
+psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
+  "SELECT generation || '.' || version || ' ' || name FROM public.hotel_schema_revisions WHERE generation = 1 ORDER BY version;"
 ```
+
+Expect `1.1` (the baseline) through the highest version in the manifest.
+
+#### In production deployment
+
+`deploy/deploy.sh` runs the catalog for you, in a deliberate order: verified
+backup, then PostgreSQL alone brought up and confirmed to carry the V1 baseline,
+then patching, and only then activation of the application containers. A patch
+failure therefore aborts the release **before** any new application code serves
+traffic against an unconverged schema.
+
+### Read-only schema drift reporting
+
+To check whether a database still matches a current baseline — after a manual
+intervention, or before a release — compare it against a scratch database built
+fresh by `make db-setup`:
+
+```bash
+make db-schema-drift \
+  TARGET_DATABASE_URL="$TARGET_DATABASE_URL" \
+  BASELINE_DATABASE_URL="$BASELINE_DATABASE_URL"
+```
+
+Both databases are read inside `READ ONLY` transactions; neither is modified.
+The two URLs must be distinct. Exit `0` is no drift, `2` reports drift as a
+unified diff labelled `baseline`/`target`, and any other nonzero code is a
+connection or query failure. Neither URL is ever printed. The report describes
+differences; it never resolves them.
 
 ### Administrator password
 
