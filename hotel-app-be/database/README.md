@@ -10,7 +10,7 @@ database/postgres/
 ├── patches/_begin.sql                  # shared control: lock, guard, skip
 ├── patches/_end.sql                    # shared control: record, commit
 ├── patches/000N_<name>.sql             # one compatible convergence step each
-├── apply-patches.sh                    # the only executor of the catalog
+├── apply-patches.sh                    # server/local catalog executor
 ├── report-schema-drift.sh              # read-only schema comparison
 └── optimization/pg19_beta2*.sql        # opt-in, benchmark-gated profiles
 ```
@@ -18,13 +18,15 @@ database/postgres/
 The baseline and seed install a **new** database. The patch catalog converges a
 database that is **already** on V1. Nothing here discovers loose SQL: only files
 listed in `patches/manifest.tsv` are ever executed, only in manifest order, and
-only through `apply-patches.sh`. Dropping a `000N_*.sql` into `patches/` without
-a manifest row leaves it dead.
+only through a catalog executor. `apply-patches.sh` is the server/local executor;
+the desktop Rust patch executor applies the same bundled catalog. Dropping a
+`000N_*.sql` into `patches/` without a manifest row leaves it dead.
 
 ## V1 lifecycle
 
-Baseline → seed → patches. From the repository root, one command runs all
-three against a new PostgreSQL database:
+Baseline → seed → patches. The ordered patch catalog is
+`patches/manifest.tsv`. From the repository root, one command runs all three
+against a new PostgreSQL database:
 
 ```bash
 make db-setup DATABASE_URL="$DATABASE_URL"
@@ -33,10 +35,13 @@ make db-setup DATABASE_URL="$DATABASE_URL"
 The equivalent by hand, once and in this order:
 
 ```bash
-psql "$DATABASE_URL" -f database/postgres/migrations/0001_v1_baseline.sql
-psql "$DATABASE_URL" -f database/postgres/seed.sql
+psql "$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
+psql "$DATABASE_URL" -f hotel-app-be/database/postgres/seed.sql
 make db-patch DATABASE_URL="$DATABASE_URL"
 ```
+
+The final `make db-patch` step reads `patches/manifest.tsv` and applies its
+catalog in order.
 
 `seed.sql` creates all required system/reference records and fresh-install
 bootstrap records, then records the completed V1 revision. It is not a startup
@@ -44,8 +49,9 @@ task and is not safe to rerun against an existing V1 database.
 
 The patch step is what makes the two paths converge. A fresh install already has
 every patched object from the baseline, so each patch's DDL is a no-op — but the
-patch still runs and still records its revision row, and that recorded patch
-level is what makes a fresh database indistinguishable from one patched forward.
+patch still runs and records its revision row. That recorded patch level gives
+fresh and patched-forward databases the same supported revision and compatible
+schema.
 So a fresh install reports `applied patch 1.2 …` and so on; `skipped` appears
 only when the revision is already recorded, which is what makes a rerun a no-op.
 Ordinary backend startup never applies patches — it validates the schema and

@@ -63,6 +63,7 @@ required_payload=(
   database/patches/0002_google_subject.sql
   database/patches/0003_payment_idempotency.sql
   database/patches/0004_booking_status_vocabulary.sql
+  database/patches/0005_booking_status_enforcement.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -195,6 +196,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0002_google_subject.sql" "$APP_DIR/database/patches/0002_google_subject.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0003_payment_idempotency.sql" "$APP_DIR/database/patches/0003_payment_idempotency.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0004_booking_status_vocabulary.sql" "$APP_DIR/database/patches/0004_booking_status_vocabulary.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0005_booking_status_enforcement.sql" "$APP_DIR/database/patches/0005_booking_status_enforcement.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
@@ -294,15 +296,18 @@ wait_for_database_baseline() {
   return 1
 }
 
-prepare_database_for_release() {
+start_database_for_release() {
   local compose_tag=${1:-$TAG}
   export IMAGE_TAG=$compose_tag
   compose config >/dev/null
-  # Preserve the live database container until backup and patching have succeeded.
+  # Preserve the live database container until its verified backup and patching succeed.
   # On first install --no-recreate still creates the missing PostgreSQL service.
   compose up --detach --no-recreate postgres
   wait_for_healthy saliminn-db
   wait_for_database_baseline
+}
+
+apply_database_patches_for_release() {
   "$APP_DIR/database/apply-patches.sh" \
     --container saliminn-db \
     --user hotel_admin \
@@ -327,8 +332,6 @@ show_diagnostics() {
 }
 
 backup_existing_database() {
-  [[ $(docker inspect --format '{{.State.Running}}' saliminn-db 2>/dev/null || true) == true ]] || return 0
-
   install -d -m 0700 "$BACKUP_DIR"
   local timestamp backup_tmp backup_path
   timestamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -337,7 +340,8 @@ backup_existing_database() {
   log "Creating local pre-deploy database backup"
   if docker exec saliminn-db \
     pg_dump --format=custom --no-owner --no-acl -U hotel_admin hotel_management \
-    > "$backup_tmp"; then
+    > "$backup_tmp" \
+    && docker exec -i saliminn-db pg_restore --list < "$backup_tmp" >/dev/null; then
     chmod 0600 "$backup_tmp"
     mv "$backup_tmp" "$backup_path"
   else
@@ -532,10 +536,11 @@ if [[ -s "$CURRENT_TAG_FILE" ]]; then
   fi
 fi
 
-backup_existing_database
 install_release_files
 load_release_images
-prepare_database_for_release "$TAG"
+start_database_for_release "$TAG"
+backup_existing_database
+apply_database_patches_for_release
 
 log "Starting release $TAG"
 if deploy_tag "$TAG" && ensure_initial_admin_password && configure_caddy; then

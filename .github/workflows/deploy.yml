@@ -140,6 +140,8 @@ jobs:
             "$bundle_dir/database/patches/0003_payment_idempotency.sql"
           cp hotel-app-be/database/postgres/patches/0004_booking_status_vocabulary.sql \
             "$bundle_dir/database/patches/0004_booking_status_vocabulary.sql"
+          cp hotel-app-be/database/postgres/patches/0005_booking_status_enforcement.sql \
+            "$bundle_dir/database/patches/0005_booking_status_enforcement.sql"
 
           (
             cd "$bundle_dir"
@@ -157,6 +159,7 @@ jobs:
               database/patches/0002_google_subject.sql \
               database/patches/0003_payment_idempotency.sql \
               database/patches/0004_booking_status_vocabulary.sql \
+              database/patches/0005_booking_status_enforcement.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
