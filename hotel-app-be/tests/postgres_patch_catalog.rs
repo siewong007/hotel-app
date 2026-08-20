@@ -14,6 +14,11 @@ fn postgres_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres")
 }
 
+fn patch_source(file: &str) -> String {
+    std::fs::read_to_string(postgres_dir().join("patches").join(file))
+        .expect("patch catalog file must exist")
+}
+
 fn manifest_entries() -> Vec<PatchEntry> {
     let manifest = std::fs::read_to_string(postgres_dir().join("patches/manifest.tsv"))
         .expect("patch manifest must exist");
@@ -45,12 +50,38 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
         entries
             .iter()
             .take(3)
-            .map(|entry| (entry.generation, entry.version, entry.name.as_str()))
+            .map(|entry| {
+                (
+                    entry.generation,
+                    entry.version,
+                    entry.name.as_str(),
+                    entry.checksum.as_str(),
+                    entry.file.as_str(),
+                )
+            })
             .collect::<Vec<_>>(),
         vec![
-            (1, 2, "google-subject"),
-            (1, 3, "payment-idempotency"),
-            (1, 4, "booking-status-vocabulary")
+            (
+                1,
+                2,
+                "google-subject",
+                "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
+                "0002_google_subject.sql",
+            ),
+            (
+                1,
+                3,
+                "payment-idempotency",
+                "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36",
+                "0003_payment_idempotency.sql",
+            ),
+            (
+                1,
+                4,
+                "booking-status-vocabulary",
+                "sha256:005c7d7c99ff501823e6d88639191c744f17b90d57a271609ac19a79dbd36745",
+                "0004_booking_status_vocabulary.sql",
+            ),
         ]
     );
     assert!(entries.iter().all(|entry| entry.generation == 1));
@@ -72,4 +103,59 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
     }
     assert!(postgres_dir().join("patches/_begin.sql").is_file());
     assert!(postgres_dir().join("patches/_end.sql").is_file());
+}
+
+#[test]
+fn shared_patch_controls_preserve_lock_guard_skip_and_atomic_recording_semantics() {
+    let begin = patch_source("_begin.sql");
+    assert!(begin.starts_with("\\set ON_ERROR_STOP on\nBEGIN;\n"));
+    assert!(begin.contains("CREATE TEMP TABLE hotel_patch_context"));
+    assert!(begin.contains(") ON COMMIT DROP;"));
+    assert!(
+        begin.contains(
+            "VALUES (:patch_generation, :patch_version, :'patch_name', :'patch_checksum');"
+        )
+    );
+    assert!(begin.contains("SELECT pg_advisory_xact_lock(8246773601043201);"));
+    assert!(
+        begin.contains("sha256:1149266ee7cc6ae8a0733098a15e1ee0377568eea3aed65254709afe992d1e1d")
+    );
+    assert!(begin.contains("WHERE generation = 1 AND version = 1;"));
+    assert!(begin.contains("IF baseline_checksum IS DISTINCT FROM expected_v1_checksum THEN"));
+    assert!(begin.contains(
+        "IF recorded_checksum IS NOT NULL AND recorded_checksum <> context_row.checksum THEN"
+    ));
+    assert!(begin.contains("RAISE EXCEPTION 'patch %.% checksum mismatch: database %, catalog %'"));
+    assert!(begin.contains(
+        "SELECT NOT EXISTS (\n    SELECT 1\n    FROM public.hotel_schema_revisions AS revision\n    JOIN hotel_patch_context AS context"
+    ));
+    assert!(begin.contains(
+        "ON revision.generation = context.generation\n     AND revision.version = context.version\n     AND revision.checksum = context.checksum"
+    ));
+    assert!(begin.contains(") AS hotel_patch_needed\n\\gset\n\n\\if :hotel_patch_needed"));
+
+    let end = patch_source("_end.sql");
+    assert!(end.contains(
+        "INSERT INTO public.hotel_schema_revisions (generation, version, name, checksum, app_build)"
+    ));
+    assert!(
+        end.contains("SELECT generation, version, name, checksum, NULL\nFROM hotel_patch_context;")
+    );
+    assert!(end.contains("\\echo applied patch :patch_generation.:patch_version :patch_name"));
+    assert!(end.contains(
+        "\\else\n\\echo skipped patch :patch_generation.:patch_version :patch_name\n\\endif"
+    ));
+    assert!(end.ends_with("COMMIT;\n"));
+}
+
+#[test]
+fn google_subject_patch_rejects_unbounded_varchar_and_non_index_name_collisions() {
+    let patch = patch_source("0002_google_subject.sql");
+    assert!(patch.contains("found_length IS DISTINCT FROM 255"));
+    assert!(patch.contains("found_relation regclass;"));
+    assert!(patch.contains("found_relation := to_regclass('public.uq_users_google_subject');"));
+    assert!(patch.contains("found_index := pg_get_indexdef(found_relation);"));
+    assert!(patch.contains(
+        "found_relation IS NOT NULL AND\n       (found_index IS NULL OR found_index <> expected_index)"
+    ));
 }
