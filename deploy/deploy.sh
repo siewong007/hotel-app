@@ -56,6 +56,13 @@ required_payload=(
   images/frontend.tar.gz
   initdb/01-v1-baseline.sql
   initdb/02-seed.sql
+  database/apply-patches.sh
+  database/patches/manifest.tsv
+  database/patches/_begin.sql
+  database/patches/_end.sql
+  database/patches/0002_google_subject.sql
+  database/patches/0003_payment_idempotency.sql
+  database/patches/0004_booking_status_vocabulary.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -180,6 +187,14 @@ install_release_files() {
   install -d -m 0755 "$APP_DIR/initdb"
   install -m 0644 "$RELEASE_DIR/initdb/01-v1-baseline.sql" "$APP_DIR/initdb/01-v1-baseline.sql"
   install -m 0644 "$RELEASE_DIR/initdb/02-seed.sql" "$APP_DIR/initdb/02-seed.sql"
+  install -d -m 0755 "$APP_DIR/database" "$APP_DIR/database/patches"
+  install -m 0750 "$RELEASE_DIR/database/apply-patches.sh" "$APP_DIR/database/apply-patches.sh"
+  install -m 0644 "$RELEASE_DIR/database/patches/manifest.tsv" "$APP_DIR/database/patches/manifest.tsv"
+  install -m 0644 "$RELEASE_DIR/database/patches/_begin.sql" "$APP_DIR/database/patches/_begin.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/_end.sql" "$APP_DIR/database/patches/_end.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0002_google_subject.sql" "$APP_DIR/database/patches/0002_google_subject.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0003_payment_idempotency.sql" "$APP_DIR/database/patches/0003_payment_idempotency.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0004_booking_status_vocabulary.sql" "$APP_DIR/database/patches/0004_booking_status_vocabulary.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
@@ -256,6 +271,18 @@ wait_for_healthy() {
   done
   log "$container did not become healthy before the timeout (last state: ${status:-missing})"
   return 1
+}
+
+prepare_database_for_release() {
+  local compose_tag=${1:-$TAG}
+  export IMAGE_TAG=$compose_tag
+  compose config >/dev/null
+  compose up --detach postgres
+  wait_for_healthy saliminn-db
+  "$APP_DIR/database/apply-patches.sh" \
+    --container saliminn-db \
+    --user hotel_admin \
+    --database hotel_management
 }
 
 deploy_tag() {
@@ -471,9 +498,6 @@ cleanup_old_images() {
 ensure_host_runtime
 ensure_capacity
 ensure_secrets
-backup_existing_database
-install_release_files
-load_release_images
 
 previous_tag=""
 if [[ -s "$CURRENT_TAG_FILE" ]]; then
@@ -483,6 +507,11 @@ if [[ -s "$CURRENT_TAG_FILE" ]]; then
     previous_tag=""
   fi
 fi
+
+backup_existing_database
+install_release_files
+load_release_images
+prepare_database_for_release "$TAG"
 
 log "Starting release $TAG"
 if deploy_tag "$TAG" && ensure_initial_admin_password && configure_caddy; then
