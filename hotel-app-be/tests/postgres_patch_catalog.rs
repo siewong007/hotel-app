@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -40,6 +40,72 @@ fn active_line_position(lines: &[&str], expected: &str) -> usize {
         .iter()
         .position(|line| *line == expected)
         .unwrap_or_else(|| panic!("active line must exist: {expected}"))
+}
+
+fn run_make_database_harness(
+    case: &str,
+    target: &str,
+    database_url: Option<&str>,
+    command_line: bool,
+) -> (Output, String) {
+    let temporary_dir = std::env::temp_dir().join(format!(
+        "hotel-app-make-database-{case}-{target}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time must be after Unix epoch")
+            .as_nanos()
+    ));
+    let command_dir = temporary_dir.join("bin");
+    let runner_dir = temporary_dir.join("hotel-app-be/database/postgres");
+    std::fs::create_dir_all(&command_dir).expect("fake command directory must be created");
+    std::fs::create_dir_all(&runner_dir).expect("fake runner directory must be created");
+    std::fs::write(temporary_dir.join("Makefile"), repository_file("Makefile"))
+        .expect("Makefile test copy must be written");
+
+    let fake_psql = command_dir.join("psql");
+    std::fs::write(
+        &fake_psql,
+        "#!/usr/bin/env bash\nprintf 'psql-arg=<%s> env=<%s>\\n' \"$1\" \"$DATABASE_URL\" >> \"$CAPTURE_FILE\"\n",
+    )
+    .expect("fake psql must be written");
+    let fake_runner = runner_dir.join("apply-patches.sh");
+    std::fs::write(
+        &fake_runner,
+        "#!/usr/bin/env bash\nprintf 'runner-env=<%s>\\n' \"$DATABASE_URL\" >> \"$CAPTURE_FILE\"\n",
+    )
+    .expect("fake patch runner must be written");
+    for command in [&fake_psql, &fake_runner] {
+        let mut permissions = std::fs::metadata(command)
+            .expect("fake command metadata must be readable")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(command, permissions).expect("fake command must be executable");
+    }
+
+    let capture_file = temporary_dir.join("capture.txt");
+    let path = format!(
+        "{}:{}",
+        command_dir.display(),
+        std::env::var("PATH").expect("PATH must be set")
+    );
+    let mut make = Command::new("make");
+    make.args(["--no-print-directory", target])
+        .current_dir(&temporary_dir)
+        .env("PATH", path)
+        .env("CAPTURE_FILE", &capture_file)
+        .env_remove("DATABASE_URL");
+    if let Some(database_url) = database_url {
+        if command_line {
+            make.arg(format!("DATABASE_URL={database_url}"));
+        } else {
+            make.env("DATABASE_URL", database_url);
+        }
+    }
+    let output = make.output().expect("Make database harness must start");
+    let capture = std::fs::read_to_string(&capture_file).unwrap_or_default();
+    std::fs::remove_dir_all(&temporary_dir).expect("Make harness must be removed");
+    (output, capture)
 }
 
 fn patch_source(file: &str) -> String {
@@ -282,6 +348,25 @@ fn deployment_waits_for_final_tcp_v1_database_before_patching() {
             && line.contains("generation = 1")
             && line.contains("version = 1")
     }));
+    assert!(readiness_lines.contains(
+        &"'PGPASSWORD=\"$POSTGRES_PASSWORD\" exec psql -h 127.0.0.1 -U hotel_admin -d hotel_management -X -Atqc \"$1\"' \\"
+    ));
+    assert_eq!(
+        readiness_lines
+            .iter()
+            .filter(|line| line.contains("POSTGRES_PASSWORD"))
+            .count(),
+        1,
+        "the password reference must appear only inside the fixed container shell command"
+    );
+    assert!(readiness_lines.contains(
+        &"sh 'SELECT 1 FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 1;' \\"
+    ));
+    assert!(readiness_lines.iter().all(|line| {
+        !line.contains("${POSTGRES_PASSWORD}")
+            && !line.contains("--env PGPASSWORD")
+            && !line.contains("-e PGPASSWORD")
+    }));
     assert!(readiness_lines.contains(&"return 1"));
 }
 
@@ -332,11 +417,16 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
         !makefile.contains("$(DATABASE_URL)"),
         "Make recipes must leave DATABASE_URL expansion to the shell environment"
     );
-    assert!(make_lines.contains(&"db-setup db-patch db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
-    assert!(make_lines.contains(&"db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)"));
+    assert!(make_lines.contains(&"db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
+    assert!(make_lines.contains(&"require-database-url:"));
+    assert!(make_lines.contains(
+        &"@test -n \"$$DATABASE_URL\" || { printf '%s\\n' 'DATABASE_URL is required' >&2; exit 1; }"
+    ));
+    assert!(make_lines.contains(&"db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)"));
+    assert!(make_lines.contains(&"db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)"));
 
     let setup = makefile
-        .split("db-setup: ##")
+        .split("db-setup: require-database-url ##")
         .nth(1)
         .and_then(|source| source.split("\n\n").next())
         .expect("Makefile must define db-setup");
@@ -353,7 +443,7 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
     assert!(baseline < seed && seed < patches);
 
     let patch_target = makefile
-        .split("db-patch: ##")
+        .split("db-patch: require-database-url ##")
         .nth(1)
         .and_then(|source| source.split("\n\n").next())
         .expect("Makefile must define db-patch");
@@ -365,64 +455,9 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
 fn deployment_local_database_url_preserves_literal_dollars() {
     let database_url = "postgresql://hotel:pa$word@localhost/hotel?token=$cash";
 
-    for invocation in ["environment", "command-line"] {
-        let temporary_dir = std::env::temp_dir().join(format!(
-            "hotel-app-make-database-url-{invocation}-{}-{}",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("system time must be after Unix epoch")
-                .as_nanos()
-        ));
-        let command_dir = temporary_dir.join("bin");
-        let runner_dir = temporary_dir.join("hotel-app-be/database/postgres");
-        std::fs::create_dir_all(&command_dir).expect("fake command directory must be created");
-        std::fs::create_dir_all(&runner_dir).expect("fake runner directory must be created");
-        std::fs::write(temporary_dir.join("Makefile"), repository_file("Makefile"))
-            .expect("Makefile test copy must be written");
-
-        let fake_psql = command_dir.join("psql");
-        std::fs::write(
-            &fake_psql,
-            "#!/usr/bin/env bash\nprintf 'psql-arg=<%s> env=<%s>\\n' \"$1\" \"$DATABASE_URL\" >> \"$CAPTURE_FILE\"\n",
-        )
-        .expect("fake psql must be written");
-        let fake_runner = runner_dir.join("apply-patches.sh");
-        std::fs::write(
-            &fake_runner,
-            "#!/usr/bin/env bash\nprintf 'runner-env=<%s>\\n' \"$DATABASE_URL\" >> \"$CAPTURE_FILE\"\n",
-        )
-        .expect("fake patch runner must be written");
-        for command in [&fake_psql, &fake_runner] {
-            let mut permissions = std::fs::metadata(command)
-                .expect("fake command metadata must be readable")
-                .permissions();
-            permissions.set_mode(0o755);
-            std::fs::set_permissions(command, permissions)
-                .expect("fake command must be executable");
-        }
-
-        let capture_file = temporary_dir.join("capture.txt");
-        let path = format!(
-            "{}:{}",
-            command_dir.display(),
-            std::env::var("PATH").expect("PATH must be set")
-        );
-        let mut make = Command::new("make");
-        make.args(["--no-print-directory", "db-setup"])
-            .current_dir(&temporary_dir)
-            .env("PATH", path)
-            .env("CAPTURE_FILE", &capture_file);
-        if invocation == "environment" {
-            make.env("DATABASE_URL", database_url);
-        } else {
-            make.env_remove("DATABASE_URL")
-                .arg(format!("DATABASE_URL={database_url}"));
-        }
-        let output = make.output().expect("Make database harness must start");
-        let capture = std::fs::read_to_string(&capture_file).unwrap_or_default();
-        std::fs::remove_dir_all(&temporary_dir).expect("Make harness must be removed");
-
+    for (invocation, command_line) in [("environment", false), ("command-line", true)] {
+        let (output, capture) =
+            run_make_database_harness(invocation, "db-setup", Some(database_url), command_line);
         assert!(
             output.status.success(),
             "{invocation} Make invocation failed: {}",
@@ -435,6 +470,29 @@ fn deployment_local_database_url_preserves_literal_dollars() {
             ),
             "{invocation} Make invocation must preserve literal dollar-prefixed URL text"
         );
+    }
+}
+
+#[test]
+fn deployment_local_database_targets_reject_empty_or_unset_url() {
+    for (invocation, database_url, command_line) in [
+        ("unset", None, false),
+        ("empty-environment", Some(""), false),
+        ("empty-command-line", Some(""), true),
+    ] {
+        for target in ["db-setup", "db-patch"] {
+            let (output, capture) =
+                run_make_database_harness(invocation, target, database_url, command_line);
+            assert!(!output.status.success(), "{invocation} {target} must fail");
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("DATABASE_URL is required"),
+                "{invocation} {target} must report the missing required value"
+            );
+            assert_eq!(
+                capture, "",
+                "{invocation} {target} must not invoke psql or the patch runner"
+            );
+        }
     }
 }
 
