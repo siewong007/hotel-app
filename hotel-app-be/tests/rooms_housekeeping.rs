@@ -277,6 +277,16 @@ mod postgres_tests {
     /// `room_history`, and `housekeeping_tasks` do cascade, and
     /// `maintenance_tickets.room_id` is `ON DELETE SET NULL`, but all four
     /// are deleted explicitly anyway so reruns don't accumulate orphan rows.
+    ///
+    /// The task audit rows are deleted by task resource id, and each delete
+    /// MUST precede the delete of the task rows it selects from. Keying on the
+    /// resource id rather than on `user_id` (which `cleanup_actor` already
+    /// does) is what makes this cleanup total: `audit_logs_user_id_fkey1` is
+    /// `ON DELETE SET NULL`, so any audit row whose actor is deleted before it
+    /// is orphaned to `user_id IS NULL` and becomes permanently unreachable to
+    /// every user_id-keyed delete. That is how the pre-2026-07-26 runs left
+    /// residue behind, and a recycled low-valued IDENTITY task id later made
+    /// that residue read as a duplicate audit write.
     async fn cleanup_room(pool: &PgPool, room_id: i64) {
         sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
             .bind(room_id)
@@ -293,11 +303,29 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
+        sqlx::query(
+            "DELETE FROM audit_logs \
+             WHERE resource_type = 'housekeeping' \
+               AND resource_id IN (SELECT id FROM housekeeping_tasks WHERE room_id = $1)",
+        )
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
         sqlx::query("DELETE FROM housekeeping_tasks WHERE room_id = $1")
             .bind(room_id)
             .execute(pool)
             .await
             .unwrap();
+        sqlx::query(
+            "DELETE FROM audit_logs \
+             WHERE resource_type = 'maintenance' \
+               AND resource_id IN (SELECT id FROM maintenance_tickets WHERE room_id = $1)",
+        )
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
         sqlx::query("DELETE FROM maintenance_tickets WHERE room_id = $1")
             .bind(room_id)
             .execute(pool)
@@ -1054,5 +1082,115 @@ mod postgres_tests {
         cleanup_room(&pool, room_id).await;
         cleanup_room_type(&pool, room_type_id).await;
         cleanup_actor(&pool, actor_id).await;
+    }
+
+    // ===================================================================
+    // Scenario 7: fixture hygiene -- cleanup_room must reclaim task audit
+    // rows that no user_id-keyed delete can reach.
+    //
+    // `audit_logs_user_id_fkey1` is ON DELETE SET NULL, so an audit row whose
+    // actor is deleted before it is orphaned to `user_id IS NULL` forever.
+    // Runs predating the 2026-07-26 cleanup fix left exactly that residue in
+    // the shared dev database, and because `maintenance_tickets.id` is a
+    // low-valued IDENTITY, a later run recycling onto one of those ids summed
+    // stale rows into its own audit count and read as a duplicate audit write.
+    // This test orphans its own rows on purpose and requires cleanup_room to
+    // reclaim them anyway; it fails (4 rows surviving) without the
+    // resource-id-keyed deletes in cleanup_room.
+    // ===================================================================
+
+    #[tokio::test]
+    async fn postgres_room_cleanup_reclaims_orphaned_task_audit_rows() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 980_007;
+        let room_id = 980_310;
+        let room_type_id = 980_407;
+
+        cleanup_room(&pool, room_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        seed_actor(&pool, actor_id).await;
+        seed_room_type(&pool, room_type_id).await;
+        seed_room(&pool, room_id, room_type_id, "dirty").await;
+
+        let hk_input: CreateHousekeepingTaskRequest = serde_json::from_value(serde_json::json!({
+            "room_id": room_id,
+            "notes": "probe clean"
+        }))
+        .unwrap();
+        let task = housekeeping::create_task(&pool, actor_id, hk_input)
+            .await
+            .expect("housekeeping task creation must succeed");
+        let hk_start: UpdateHousekeepingTaskRequest =
+            serde_json::from_value(serde_json::json!({"status": "in_progress"})).unwrap();
+        housekeeping::update_task(&pool, actor_id, task.id, hk_start)
+            .await
+            .expect("pending -> in_progress must be a valid transition");
+
+        let mt_input: CreateMaintenanceTicketRequest = serde_json::from_value(serde_json::json!({
+            "room_id": room_id,
+            "title": "probe faucet",
+            "description": "probe description",
+            "category": "plumbing"
+        }))
+        .unwrap();
+        let ticket = maintenance::create_ticket(&pool, actor_id, mt_input)
+            .await
+            .expect("maintenance ticket creation must succeed");
+        let mt_start: UpdateMaintenanceTicketRequest =
+            serde_json::from_value(serde_json::json!({"status": "in_progress"})).unwrap();
+        maintenance::update_ticket(&pool, actor_id, ticket.id, mt_start)
+            .await
+            .expect("open -> in_progress must be a valid transition");
+
+        // Reproduce the historical orphaning exactly: the FK sets user_id NULL.
+        let orphaned = sqlx::query(
+            "UPDATE audit_logs SET user_id = NULL \
+             WHERE resource_type IN ('housekeeping', 'maintenance') AND user_id = $1",
+        )
+        .bind(actor_id)
+        .execute(&pool)
+        .await
+        .unwrap()
+        .rows_affected();
+        assert!(
+            orphaned >= 4,
+            "probe must orphan the rows it is about to test, got {orphaned}"
+        );
+
+        cleanup_room(&pool, room_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        let leftover: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs \
+             WHERE (resource_type = 'housekeeping' AND resource_id = $1) \
+                OR (resource_type = 'maintenance' AND resource_id = $2)",
+        )
+        .bind(task.id)
+        .bind(ticket.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        // Unconditional residue cleanup so a failing run cannot poison the dev DB.
+        sqlx::query(
+            "DELETE FROM audit_logs \
+             WHERE (resource_type = 'housekeeping' AND resource_id = $1) \
+                OR (resource_type = 'maintenance' AND resource_id = $2)",
+        )
+        .bind(task.id)
+        .bind(ticket.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(
+            leftover, 0,
+            "orphaned housekeeping/maintenance audit rows must not survive cleanup_room"
+        );
     }
 }
