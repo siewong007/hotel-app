@@ -235,7 +235,7 @@ Run and report the real exit code and exact pass/fail/ignored counts for:
 ```text
 cargo check --all-features
 cargo clippy --all-features -- -D warnings
-cargo test --all-features -- --no-fail-fast
+cargo test --all-features --no-fail-fast
 desktop Rust tests
 desktop resource synchronization verification
 live PostgreSQL patch/convergence tests
