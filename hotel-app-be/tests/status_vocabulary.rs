@@ -184,7 +184,7 @@ fn postgres_permission_constraint_accepts_seeded_refund_action() {
 }
 
 #[test]
-fn postgres_initialization_has_only_baseline_and_seed() {
+fn postgres_initialization_has_baseline_seed_and_ordered_patches() {
     let postgres_dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres");
     assert!(
@@ -193,8 +193,8 @@ fn postgres_initialization_has_only_baseline_and_seed() {
             .is_file()
     );
     assert!(postgres_dir.join("seed.sql").is_file());
+    assert!(postgres_dir.join("patches").is_dir());
     assert!(!postgres_dir.join("data.sql").exists());
-    assert!(!postgres_dir.join("patches").exists());
     assert!(!postgres_dir.join("upgrade").exists());
 }
 
