@@ -21,22 +21,17 @@ WITH inventory AS (
             WHEN 'v' THEN format(
                 'query=%s;options=%s',
                 pg_get_viewdef(relation.oid, false),
-                COALESCE(
-                    (
-                        SELECT string_agg(option, ',' ORDER BY option COLLATE "C")
-                        FROM unnest(relation.reloptions) AS option_row(option)
-                    ),
-                    '<none>'
-                )
+                COALESCE(relation_option_row.options, '<none>')
             )
             ELSE format(
-                'relkind=%s;persistence=%s;is_partition=%s;partition_key=%s;parents=%s;partition_bound=%s',
+                'relkind=%s;persistence=%s;is_partition=%s;partition_key=%s;parents=%s;partition_bound=%s;options=%s',
                 relation.relkind,
                 relation.relpersistence,
                 relation.relispartition,
                 COALESCE(pg_get_partkeydef(relation.oid), '<none>'),
                 COALESCE(parent_row.parents, '<none>'),
-                COALESCE(pg_get_expr(relation.relpartbound, relation.oid, true), '<none>')
+                COALESCE(pg_get_expr(relation.relpartbound, relation.oid, true), '<none>'),
+                COALESCE(relation_option_row.options, '<none>')
             )
         END AS definition
     FROM pg_class AS relation
@@ -51,6 +46,10 @@ WITH inventory AS (
         JOIN pg_namespace AS parent_schema ON parent_schema.oid = parent_relation.relnamespace
         WHERE inheritance.inhrelid = relation.oid
     ) AS parent_row ON true
+    LEFT JOIN LATERAL (
+        SELECT string_agg(option, ',' ORDER BY option COLLATE "C") AS options
+        FROM unnest(relation.reloptions) AS option_row(option)
+    ) AS relation_option_row ON true
     WHERE schema_row.nspname = 'public'
       AND relation.relkind IN ('r', 'p', 'v')
 
@@ -129,7 +128,7 @@ WITH inventory AS (
     FROM pg_proc AS function_row
     JOIN pg_namespace AS schema_row ON schema_row.oid = function_row.pronamespace
     WHERE schema_row.nspname = 'public'
-      AND function_row.prokind = 'f'
+      AND function_row.prokind IN ('f', 'w')
 )
 SELECT
     kind || chr(9) ||
