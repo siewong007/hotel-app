@@ -43,9 +43,11 @@ bootstrap records, then records the completed V1 revision. It is not a startup
 task and is not safe to rerun against an existing V1 database.
 
 The patch step is what makes the two paths converge. A fresh install already has
-every patched object from the baseline, so each patch detects its recorded
-revision and reports `skipped`; the run exists to record the patch level, so
-that database is afterwards indistinguishable from one that was patched forward.
+every patched object from the baseline, so each patch's DDL is a no-op — but the
+patch still runs and still records its revision row, and that recorded patch
+level is what makes a fresh database indistinguishable from one patched forward.
+So a fresh install reports `applied patch 1.2 …` and so on; `skipped` appears
+only when the revision is already recorded, which is what makes a rerun a no-op.
 Ordinary backend startup never applies patches — it validates the schema and
 refuses layouts it does not recognize.
 
