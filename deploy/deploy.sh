@@ -273,12 +273,37 @@ wait_for_healthy() {
   return 1
 }
 
+wait_for_database_baseline() {
+  local deadline=$((SECONDS + 240))
+  local baseline_revision
+  while (( SECONDS < deadline )); do
+    if docker exec saliminn-db pg_isready -h 127.0.0.1 -U hotel_admin -d hotel_management \
+      >/dev/null 2>&1; then
+      baseline_revision=$(docker exec saliminn-db \
+        psql -X -h 127.0.0.1 -U hotel_admin -d hotel_management -v ON_ERROR_STOP=1 \
+          --tuples-only --no-align \
+          --command "SELECT 1 FROM public.hotel_schema_revisions WHERE generation = 1 AND version = 1;" \
+        2>/dev/null || true)
+      if [[ "$baseline_revision" == 1 ]]; then
+        log "saliminn-db final TCP server has the V1 baseline"
+        return 0
+      fi
+    fi
+    sleep 3
+  done
+  log "saliminn-db final TCP server with V1 baseline did not become ready before the timeout"
+  return 1
+}
+
 prepare_database_for_release() {
   local compose_tag=${1:-$TAG}
   export IMAGE_TAG=$compose_tag
   compose config >/dev/null
-  compose up --detach postgres
+  # Preserve the live database container until backup and patching have succeeded.
+  # On first install --no-recreate still creates the missing PostgreSQL service.
+  compose up --detach --no-recreate postgres
   wait_for_healthy saliminn-db
+  wait_for_database_baseline
   "$APP_DIR/database/apply-patches.sh" \
     --container saliminn-db \
     --user hotel_admin \

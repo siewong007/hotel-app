@@ -27,6 +27,21 @@ fn repository_file(path: &str) -> String {
     .unwrap_or_else(|error| panic!("repository file {path} must be readable: {error}"))
 }
 
+fn active_lines(source: &str) -> Vec<&str> {
+    source
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect()
+}
+
+fn active_line_position(lines: &[&str], expected: &str) -> usize {
+    lines
+        .iter()
+        .position(|line| *line == expected)
+        .unwrap_or_else(|| panic!("active line must exist: {expected}"))
+}
+
 fn patch_source(file: &str) -> String {
     std::fs::read_to_string(postgres_dir().join("patches").join(file))
         .expect("patch catalog file must exist")
@@ -119,12 +134,20 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
 }
 
 #[test]
+fn deployment_static_contracts_reject_commented_commands() {
+    let commented_commands = "# backup_existing_database\n  # prepare_database_for_release \"$TAG\"\n# cp catalog-file destination\n";
+    assert!(active_lines(commented_commands).is_empty());
+}
+
+#[test]
 fn deployment_release_bundle_contains_the_complete_verified_patch_catalog() {
     let workflow = repository_file(".github/workflows/deploy.yml");
-    let checksum_block = workflow
-        .split("sha256sum \\\n")
+    let bundle_step = workflow
+        .split("      - name: Create checksummed release bundle\n")
         .nth(1)
-        .expect("release workflow must build SHA256SUMS");
+        .and_then(|source| source.split("      - name: Configure pinned SSH access\n").next())
+        .expect("release workflow must define the checksummed bundle step");
+    let bundle_lines = active_lines(bundle_step);
     let mut resources = vec![
         "apply-patches.sh".to_owned(),
         "patches/manifest.tsv".to_owned(),
@@ -141,23 +164,25 @@ fn deployment_release_bundle_contains_the_complete_verified_patch_catalog() {
         let source = format!("hotel-app-be/database/postgres/{resource}");
         let bundled = format!("database/{resource}");
         assert!(
-            workflow.contains(&source),
-            "release workflow must copy authoritative resource {source}"
+            bundle_lines.contains(&format!("cp {source} \\").as_str()),
+            "release workflow must actively copy authoritative resource {source}"
         );
         assert!(
-            workflow.contains(&format!("\"$bundle_dir/{bundled}\"")),
-            "release workflow must install {bundled} into the bundle"
+            bundle_lines.contains(&format!("\"$bundle_dir/{bundled}\"").as_str()),
+            "release workflow must actively install {bundled} into the bundle"
         );
         assert!(
-            checksum_block.contains(&bundled),
-            "SHA256SUMS must cover bundled resource {bundled}"
+            bundle_lines.contains(&format!("{bundled} \\").as_str()),
+            "SHA256SUMS must actively cover bundled resource {bundled}"
         );
     }
 
     assert!(
-        !workflow.contains("postgres/patches/*")
-            && !workflow.contains("postgres/patches/.")
-            && !workflow.contains("cp -r hotel-app-be/database/postgres/patches"),
+        !bundle_lines.iter().any(|line| {
+            line.contains("postgres/patches/*")
+                || line.contains("postgres/patches/.")
+                || line.contains("cp -r hotel-app-be/database/postgres/patches")
+        }),
         "release bundling must not admit files outside the manifest and control catalog"
     );
 }
@@ -170,6 +195,8 @@ fn deployment_installs_the_verified_catalog_with_exact_modes() {
         .nth(1)
         .and_then(|source| source.split("\n}\n").next())
         .expect("deploy script must define install_release_files");
+    let deploy_lines = active_lines(&deploy);
+    let install_lines = active_lines(install_function);
     let mut patch_files = vec![
         "manifest.tsv".to_owned(),
         "_begin.sql".to_owned(),
@@ -183,66 +210,103 @@ fn deployment_installs_the_verified_catalog_with_exact_modes() {
             .map(|file| format!("database/patches/{file}")),
     ) {
         assert!(
-            deploy.contains(&format!("  {payload}\n")),
-            "deploy script must require release payload {payload}"
+            deploy_lines.contains(&payload.as_str()),
+            "deploy script must actively require release payload {payload}"
         );
     }
     assert!(
-        install_function
-            .contains("install -d -m 0755 \"$APP_DIR/database\" \"$APP_DIR/database/patches\"")
+        install_lines
+            .contains(&"install -d -m 0755 \"$APP_DIR/database\" \"$APP_DIR/database/patches\"")
     );
-    assert!(install_function.contains(
-        "install -m 0750 \"$RELEASE_DIR/database/apply-patches.sh\" \"$APP_DIR/database/apply-patches.sh\""
+    assert!(install_lines.contains(
+        &"install -m 0750 \"$RELEASE_DIR/database/apply-patches.sh\" \"$APP_DIR/database/apply-patches.sh\""
     ));
     for file in patch_files {
         assert!(
-            install_function.contains(&format!(
-                "install -m 0644 \"$RELEASE_DIR/database/patches/{file}\" \"$APP_DIR/database/patches/{file}\""
-            )),
+            install_lines.contains(
+                &format!(
+                    "install -m 0644 \"$RELEASE_DIR/database/patches/{file}\" \"$APP_DIR/database/patches/{file}\""
+                )
+                .as_str()
+            ),
             "deploy script must install {file} with mode 0644"
         );
     }
     assert!(
-        !install_function.contains("patches/*") && !install_function.contains("patches/."),
+        !install_lines
+            .iter()
+            .any(|line| line.contains("patches/*") || line.contains("patches/.")),
         "deploy installation must not admit files outside the checked catalog"
     );
 }
 
 #[test]
+fn deployment_prepares_database_without_recreating_existing_service() {
+    let deploy = repository_file("deploy/deploy.sh");
+    let preparation = deploy
+        .split("prepare_database_for_release() {")
+        .nth(1)
+        .and_then(|source| source.split("\n}\n").next())
+        .expect("deploy script must define prepare_database_for_release");
+    let preparation_lines = active_lines(preparation);
+    assert!(preparation_lines.contains(&"local compose_tag=${1:-$TAG}"));
+    assert!(preparation_lines.contains(&"export IMAGE_TAG=$compose_tag"));
+    assert!(preparation_lines.contains(&"compose config >/dev/null"));
+    assert!(preparation_lines.contains(&"compose up --detach --no-recreate postgres"));
+    assert!(preparation_lines.contains(&"wait_for_healthy saliminn-db"));
+    assert!(preparation_lines.contains(&"wait_for_database_baseline"));
+    assert!(preparation_lines.contains(&"\"$APP_DIR/database/apply-patches.sh\" \\"));
+    assert!(preparation_lines.contains(&"--container saliminn-db \\"));
+    assert!(preparation_lines.contains(&"--user hotel_admin \\"));
+    assert!(preparation_lines.contains(&"--database hotel_management"));
+}
+
+#[test]
+fn deployment_waits_for_final_tcp_v1_database_before_patching() {
+    let deploy = repository_file("deploy/deploy.sh");
+    let readiness = deploy
+        .split("wait_for_database_baseline() {")
+        .nth(1)
+        .and_then(|source| source.split("\n}\n").next())
+        .expect("deploy script must define bounded final-database readiness");
+    let readiness_lines = active_lines(readiness);
+    assert!(readiness_lines.contains(&"local deadline=$((SECONDS + 240))"));
+    assert!(readiness_lines.iter().any(|line| {
+        line.contains("docker exec saliminn-db pg_isready")
+            && line.contains("-h 127.0.0.1")
+            && line.contains("-U hotel_admin")
+            && line.contains("-d hotel_management")
+    }));
+    assert!(readiness_lines.iter().any(|line| {
+        line.contains("FROM public.hotel_schema_revisions")
+            && line.contains("generation = 1")
+            && line.contains("version = 1")
+    }));
+    assert!(readiness_lines.contains(&"return 1"));
+}
+
+#[test]
 fn deployment_backs_up_and_patches_before_application_activation() {
     let deploy = repository_file("deploy/deploy.sh");
-    let expected_preparation = r#"prepare_database_for_release() {
-  local compose_tag=${1:-$TAG}
-  export IMAGE_TAG=$compose_tag
-  compose config >/dev/null
-  compose up --detach postgres
-  wait_for_healthy saliminn-db
-  "$APP_DIR/database/apply-patches.sh" \
-    --container saliminn-db \
-    --user hotel_admin \
-    --database hotel_management
-}"#;
-    assert!(
-        deploy.contains(expected_preparation),
-        "database preparation must start only PostgreSQL and apply the installed catalog"
-    );
-
     let executable_tail = deploy
         .split("\nensure_host_runtime\n")
         .nth(1)
         .expect("deploy script must have an executable tail");
-    let previous_tag = executable_tail
-        .find("read -r previous_tag < \"$CURRENT_TAG_FILE\"")
-        .expect("previous release tag must be read before deployment");
-    let backup = executable_tail
-        .find("backup_existing_database\n")
-        .expect("database backup must be called before deployment");
-    let prepare = executable_tail
-        .find("prepare_database_for_release \"$TAG\"\n")
-        .expect("database preparation must be called before deployment");
-    let activate = executable_tail
-        .find("deploy_tag \"$TAG\"")
-        .expect("application release must be activated");
+    let tail_lines = active_lines(executable_tail);
+    let previous_tag = active_line_position(
+        &tail_lines,
+        "read -r previous_tag < \"$CURRENT_TAG_FILE\"",
+    );
+    let backup = active_line_position(&tail_lines, "backup_existing_database");
+    let prepare = active_line_position(&tail_lines, "prepare_database_for_release \"$TAG\"");
+    let activate = tail_lines
+        .iter()
+        .position(|line| {
+            line.strip_prefix("if ")
+                .and_then(|condition| condition.split(" && ").next())
+                == Some("deploy_tag \"$TAG\"")
+        })
+        .expect("deploy_tag must be the first active release condition");
 
     assert!(
         previous_tag < backup,
@@ -261,26 +325,117 @@ fn deployment_backs_up_and_patches_before_application_activation() {
 #[test]
 fn deployment_local_database_setup_records_the_patch_catalog() {
     let makefile = repository_file("Makefile");
-    assert!(makefile.contains("db-setup db-patch db-reset"));
-    assert!(makefile.contains(
-        "db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)\n\tDATABASE_URL=\"$(DATABASE_URL)\" hotel-app-be/database/postgres/apply-patches.sh"
-    ));
+    let make_lines = active_lines(&makefile);
+    assert!(make_lines.contains(&"override DATABASE_URL := $(value DATABASE_URL)"));
+    assert!(make_lines.contains(&"export DATABASE_URL"));
+    assert!(
+        !makefile.contains("$(DATABASE_URL)"),
+        "Make recipes must leave DATABASE_URL expansion to the shell environment"
+    );
+    assert!(make_lines.contains(&"db-setup db-patch db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
+    assert!(make_lines.contains(&"db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)"));
 
     let setup = makefile
         .split("db-setup: ##")
         .nth(1)
         .and_then(|source| source.split("\n\n").next())
         .expect("Makefile must define db-setup");
-    let baseline = setup
-        .find("0001_v1_baseline.sql")
-        .expect("db-setup must apply the V1 baseline");
-    let seed = setup
-        .find("database/postgres/seed.sql")
-        .expect("db-setup must apply the seed");
-    let patches = setup
-        .find("$(MAKE) db-patch DATABASE_URL=\"$(DATABASE_URL)\"")
-        .expect("db-setup must record compatibility patches after seed");
+    let setup_lines = active_lines(setup);
+    let baseline = active_line_position(
+        &setup_lines,
+        "psql \"$$DATABASE_URL\" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql",
+    );
+    let seed = active_line_position(
+        &setup_lines,
+        "psql \"$$DATABASE_URL\" -f hotel-app-be/database/postgres/seed.sql",
+    );
+    let patches = active_line_position(&setup_lines, "$(MAKE) db-patch");
     assert!(baseline < seed && seed < patches);
+
+    let patch_target = makefile
+        .split("db-patch: ##")
+        .nth(1)
+        .and_then(|source| source.split("\n\n").next())
+        .expect("Makefile must define db-patch");
+    assert!(active_lines(patch_target)
+        .contains(&"hotel-app-be/database/postgres/apply-patches.sh"));
+}
+
+#[test]
+fn deployment_local_database_url_preserves_literal_dollars() {
+    let database_url = "postgresql://hotel:pa$word@localhost/hotel?token=$cash";
+
+    for invocation in ["environment", "command-line"] {
+        let temporary_dir = std::env::temp_dir().join(format!(
+            "hotel-app-make-database-url-{invocation}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system time must be after Unix epoch")
+                .as_nanos()
+        ));
+        let command_dir = temporary_dir.join("bin");
+        let runner_dir = temporary_dir.join("hotel-app-be/database/postgres");
+        std::fs::create_dir_all(&command_dir).expect("fake command directory must be created");
+        std::fs::create_dir_all(&runner_dir).expect("fake runner directory must be created");
+        std::fs::write(temporary_dir.join("Makefile"), repository_file("Makefile"))
+            .expect("Makefile test copy must be written");
+
+        let fake_psql = command_dir.join("psql");
+        std::fs::write(
+            &fake_psql,
+            "#!/usr/bin/env bash\nprintf 'psql-arg=<%s> env=<%s>\\n' \"$1\" \"$DATABASE_URL\" >> \"$CAPTURE_FILE\"\n",
+        )
+        .expect("fake psql must be written");
+        let fake_runner = runner_dir.join("apply-patches.sh");
+        std::fs::write(
+            &fake_runner,
+            "#!/usr/bin/env bash\nprintf 'runner-env=<%s>\\n' \"$DATABASE_URL\" >> \"$CAPTURE_FILE\"\n",
+        )
+        .expect("fake patch runner must be written");
+        for command in [&fake_psql, &fake_runner] {
+            let mut permissions = std::fs::metadata(command)
+                .expect("fake command metadata must be readable")
+                .permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(command, permissions)
+                .expect("fake command must be executable");
+        }
+
+        let capture_file = temporary_dir.join("capture.txt");
+        let path = format!(
+            "{}:{}",
+            command_dir.display(),
+            std::env::var("PATH").expect("PATH must be set")
+        );
+        let mut make = Command::new("make");
+        make.args(["--no-print-directory", "db-setup"])
+            .current_dir(&temporary_dir)
+            .env("PATH", path)
+            .env("CAPTURE_FILE", &capture_file);
+        if invocation == "environment" {
+            make.env("DATABASE_URL", database_url);
+        } else {
+            make.env_remove("DATABASE_URL")
+                .arg(format!("DATABASE_URL={database_url}"));
+        }
+        let output = make.output().expect("Make database harness must start");
+        let capture = std::fs::read_to_string(&capture_file).unwrap_or_default();
+        std::fs::remove_dir_all(&temporary_dir).expect("Make harness must be removed");
+
+        assert!(
+            output.status.success(),
+            "{invocation} Make invocation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            capture,
+            format!(
+                "psql-arg=<{database_url}> env=<{database_url}>\npsql-arg=<{database_url}> env=<{database_url}>\nrunner-env=<{database_url}>\n"
+            ),
+            "{invocation} Make invocation must preserve literal dollar-prefixed URL text"
+        );
+    }
 }
 
 #[test]

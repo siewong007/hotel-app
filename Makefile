@@ -2,6 +2,8 @@
 # Provides common development commands across all three projects.
 
 BUN ?= $(shell command -v bun 2>/dev/null || printf '%s' "$$HOME/.bun/bin/bun")
+override DATABASE_URL := $(value DATABASE_URL)
+export DATABASE_URL
 
 .PHONY: help setup-all setup-be setup-fe setup-desktop \
         dev-be dev-fe dev-desktop \
@@ -126,36 +128,36 @@ docker-logs: ## View Docker logs
 # ─── Database ─────────────────────────────────────────────────────────────────
 
 db-setup: ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/seed.sql
-	$(MAKE) db-patch DATABASE_URL="$(DATABASE_URL)"
+	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
+	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/seed.sql
+	$(MAKE) db-patch
 
 db-patch: ## Apply verified V1 compatibility patches (requires DATABASE_URL)
-	DATABASE_URL="$(DATABASE_URL)" hotel-app-be/database/postgres/apply-patches.sh
+	hotel-app-be/database/postgres/apply-patches.sh
 
 db-reset: ## Reset and re-create PostgreSQL database
-	psql "$(DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	psql "$$DATABASE_URL" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	$(MAKE) db-setup
 
 db-pg19-tune: ## Apply opt-in PostgreSQL 19 Beta 2 physical/planner tuning
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2.sql
-	psql "$(DATABASE_URL)" -c "ALTER SYSTEM SET autovacuum_max_parallel_workers = 4;"
-	psql "$(DATABASE_URL)" -c "SELECT pg_reload_conf();"
+	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/optimization/pg19_beta2.sql
+	psql "$$DATABASE_URL" -c "ALTER SYSTEM SET autovacuum_max_parallel_workers = 4;"
+	psql "$$DATABASE_URL" -c "SELECT pg_reload_conf();"
 
 db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 Beta 2 schema tuning
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2_rollback.sql
-	psql "$(DATABASE_URL)" -c "ALTER SYSTEM RESET autovacuum_max_parallel_workers;"
-	psql "$(DATABASE_URL)" -c "SELECT pg_reload_conf();"
+	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/optimization/pg19_beta2_rollback.sql
+	psql "$$DATABASE_URL" -c "ALTER SYSTEM RESET autovacuum_max_parallel_workers;"
+	psql "$$DATABASE_URL" -c "SELECT pg_reload_conf();"
 
 db-pg19-benchmark: ## Collect PostgreSQL 19 Beta 2 settings and representative query plans
-	psql "$(DATABASE_URL)" -f hotel-app-be/database/postgres/optimization/pg19_beta2_benchmark.sql
+	psql "$$DATABASE_URL" -f hotel-app-be/database/postgres/optimization/pg19_beta2_benchmark.sql
 
 db-repack: ## Online-rebuild one table (PostgreSQL 19 REPACK CONCURRENTLY); usage: make db-repack TABLE=public.bookings
 	@test -n "$(TABLE)" || { echo "Usage: make db-repack TABLE=public.bookings"; exit 1; }
-	psql "$(DATABASE_URL)" -c "REPACK (CONCURRENTLY, ANALYZE, VERBOSE) $(TABLE);"
+	psql "$$DATABASE_URL" -c "REPACK (CONCURRENTLY, ANALYZE, VERBOSE) $(TABLE);"
 
 db-repack-full: ## Rebuild and analyze every table (locking REPACK; maintenance window only)
-	psql "$(DATABASE_URL)" -c "REPACK (ANALYZE, VERBOSE);"
+	psql "$$DATABASE_URL" -c "REPACK (ANALYZE, VERBOSE);"
 
 # ─── Desktop Preparation ──────────────────────────────────────────────────────
 
