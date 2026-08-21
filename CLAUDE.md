@@ -85,10 +85,14 @@ promotions, settings, support, teams) — put new domains there.
 
 PostgreSQL is the only engine. A new empty database is initialized exactly once by the
 V1 baseline then `seed.sql`; Docker, server and desktop share that sequence, and legacy
-schemas are exported and rebuilt rather than migrated. **Nothing in the repo applies a
-second migration file** — CI, deploy, the desktop sync script and `postgres.rs` all
-hardcode `0001_v1_baseline.sql`, so schema changes go into the baseline plus an
-idempotent patch for live databases. `seed.sql` is one self-validating transaction that
+schemas are exported and rebuilt rather than migrated. **There is no second migration
+file** — the only forward path is `database/postgres/patches/`, an ordered
+checksum-verified catalog driven by `manifest.tsv`, so an additive schema change goes
+into the baseline (fresh installs) AND a new catalog patch (installed V1 databases).
+Nothing discovers loose SQL: a `000N_*.sql` without a manifest row is dead. Executors:
+`apply-patches.sh` (`make db-patch`, deploy) and `src-tauri/src/postgres/patches.rs`
+(desktop). Published versions/checksums are immutable — never edit a shipped patch, add
+a version. `seed.sql` is one self-validating transaction that
 `RAISE`s on re-apply; adding a permission/route/action touches several checklists inside it.
 
 Frontend:
