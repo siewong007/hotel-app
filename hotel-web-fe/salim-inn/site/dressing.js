@@ -2,6 +2,7 @@ import * as THREE from '../vendor/three.module.min.js';
 import { ROWS, PARKING } from './plan.js';
 import {
   mat, box, instanced, canvasPlane, rand, polyline, alongLine,
+  gableRoof, roofMaterial,
   PALETTE, GROUND_STOREY, SHOPHOUSE_H, PARAPET_H,
 } from './core.js';
 
@@ -74,6 +75,18 @@ export function buildDressing(scene) {
       canopies.push({ x: f.x + f.nx * 1.3, y: GROUND_STOREY - 0.5, z: f.z + f.nz * 1.3, ry: f.ry, sx: w });
       if (i % 2 === 0) columns.push({ x: f.x + f.nx * 2.4, y: (GROUND_STOREY - 0.6) / 2, z: f.z + f.nz * 2.4, ry: f.ry });
     }
+
+    // Pitched metal roof behind the parapet, in the colour traced for this
+    // block. Row heights vary by ±3.4 m lot to lot, so the roof is based off
+    // the tallest so it never sinks into a neighbour's parapet.
+    const roofMesh = new THREE.Mesh(
+      gableRoof(pl, row.depth, 2.2, SHOPHOUSE_H + 0.05, 0.4),
+      roofMaterial(PALETTE[row.roof] ?? PALETTE.roofPale)
+    );
+    roofMesh.castShadow = true;
+    roofMesh.receiveShadow = true;
+    group.add(roofMesh);
+    shells.push(roofMesh);
 
     // Fascia signs for the Farley-family tenants, spaced along the row.
     row.tenants.forEach((name, k) => {
@@ -186,6 +199,46 @@ export function buildDressing(scene) {
   instanced(props, new THREE.CylinderGeometry(0.18, 0.28, 1, 6), mat(0x5c5140, 0.95), trunks, { cast: true });
   instanced(props, new THREE.BoxGeometry(3.6, 0.1, 0.7),
     mat(0x2c5330, 0.94, 0, { side: THREE.DoubleSide }), fronds, { cast: true });
+
+  // Broadleaf street trees on the verges of the two through roads and along
+  // the north side of the ring. In the aerial these are the strongest green
+  // in frame after the padang — the site read as bare tarmac without them.
+  const treeTrunks = [];
+  const canopyBalls = [];
+  // `off` is measured from the road centreline, so it must clear that road's
+  // own half-width — at the 4-6 m an earlier pass used, the Jalan Salim line
+  // stood in the carriageway and put a canopy in front of the camera as it
+  // came down onto Farley's apron.
+  const treeLines = [
+    { pts: [[44, -40], [58, 16], [56, 52], [41, 92], [21, 130]], side: 1, gap: 13, off: 15 },
+    { pts: [[-160, -32], [-168, 30], [-177, 128]], side: -1, gap: 14, off: 11 },
+    { pts: [[-190, 152], [-146, 172], [-86, 184]], side: -1, gap: 15, off: 10 },
+    // North of the ring only — an earlier pass ran this line along the Salim
+    // Inn kerb, which put a canopy through the camera during the walk.
+    { pts: [[-124, -34], [-78, -56], [-26, -50]], side: -1, gap: 17, off: 9 },
+  ];
+  let tseed = 100;
+  for (const line of treeLines) {
+    const pl = polyline(line.pts);
+    const n = Math.max(1, Math.round(pl.total / line.gap));
+    for (let i = 0; i <= n; i++) {
+      tseed++;
+      const f = alongLine(pl, (i / n) * pl.total);
+      const off = line.off + rand(tseed) * 3;
+      const x = f.x + f.nx * off * line.side;
+      const z = f.z + f.nz * off * line.side;
+      const hgt = 4.6 + rand(tseed * 2.3) * 2.8;
+      treeTrunks.push({ x, y: hgt / 2, z, sy: hgt });
+      const spread = 2.3 + rand(tseed * 3.7) * 1.3;
+      canopyBalls.push({ x, y: hgt + spread * 0.35, z, sx: spread, sy: spread * 0.78, sz: spread, color: rand(tseed * 5.1) > 0.5 ? PALETTE.foliage : PALETTE.foliageLight });
+      canopyBalls.push({
+        x: x + (rand(tseed * 7.9) - 0.5) * spread, y: hgt + spread * 0.1, z: z + (rand(tseed * 9.3) - 0.5) * spread,
+        sx: spread * 0.72, sy: spread * 0.6, sz: spread * 0.72, color: PALETTE.foliage,
+      });
+    }
+  }
+  instanced(props, new THREE.CylinderGeometry(0.16, 0.24, 1, 6), mat(0x4f4436, 0.95), treeTrunks, { cast: true });
+  instanced(props, new THREE.SphereGeometry(1, 9, 7), mat(0xffffff, 0.94), canopyBalls, { cast: true });
 
   return { group, props, shells };
 }

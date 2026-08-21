@@ -64,35 +64,47 @@ export const FARLEY_H = 14.5;
 // Neighbouring rows, each a frontage line with its tenants. Positions are the
 // map pins; the rows are built as continuous terraces through them the way the
 // aerial shows, not as free-standing blocks.
+//
+// `roof` is the metal colour of the pitched roof behind the parapet, read off
+// the top-down capture block by block — the aerial's strongest read after the
+// street grid itself, and what makes the establishing stage look like the
+// footage rather than a set of blank slabs.
+//
+// There is no 'west' row. One was traced here running [-149, 60] to [-96, 40]
+// at depth 30, but every metre of that depth runs 0.88 m into Farley's own
+// footprint: its far end sits 18 m inside the anchor store, and its near end
+// is 8 m outside the frontage but angled straight at it, so no depth keeps it
+// clear. It also listed "Farley Sibu" among its own tenants — it was a second,
+// misplaced copy of the building farley.js already models. What is actually on
+// that ground in the walkthrough is open apron, marquees and parked cars,
+// which is what the scene shows now.
 export const ROWS = [
-  {
-    id: 'west',
-    front: [[-149.0, 60.0], [-96.0, 40.0]],
-    depth: 30,
-    tenants: ['Lingerie shop', 'Farley Sibu', 'Bata Salim', 'ALPRO Pharmacy'],
-  },
   {
     id: 'inner',
     front: [[-70.0, 38.0], [-28.0, 74.0]],
     depth: 24,
+    roof: 'roofBrown',
     tenants: ['Borneo Fresh Pork', 'Hong Lee Cafe', 'Gakken Classroom', 'Jamu Sinasuria'],
   },
   {
     id: 'southeast',
     front: [[-20.0, 82.0], [-8.0, 108.0]],
     depth: 26,
+    roof: 'roofPale',
     tenants: ['Tichop Auto', 'Farley Food Court'],
   },
   {
     id: 'south',
     front: [[-112.0, 138.0], [-34.0, 124.0]],
     depth: 28,
+    roof: 'roofBlue',
     tenants: ['Farley Shoe Centre', 'Farley Bakery', 'Watsons Salim'],
   },
   {
     id: 'northwest',
     front: [[-96.0, 4.0], [-60.0, -14.0]],
     depth: 24,
+    roof: 'roofBrown',
     tenants: ['CCK Fresh Mart', 'Hairdresser'],
   },
 ];
@@ -108,7 +120,7 @@ export const PARKING = [
   { centre: [-60, -32], along: 44, across: 12, rot: Math.atan2(9.0, 46.3), rows: 1 },
   // Farley's main car park, squarely on the outward normal of its frontage.
   { centre: [-168, 45], along: 54, across: 40, rot: Math.atan2(-35.2, 31.0), rows: 4 },
-  // Overflow between the west row and the ring road.
+  // Overflow between the inner blocks and the ring road.
   { centre: [-150, 116], along: 46, across: 26, rot: Math.atan2(-14, 78), rows: 2 },
 ];
 

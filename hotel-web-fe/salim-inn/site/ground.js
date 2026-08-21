@@ -145,6 +145,19 @@ export function buildGround(scene, renderer) {
   const group = new THREE.Group();
   scene.add(group);
 
+  // Hinterland. The surfaced plate is only 320 x 290 m, so from the
+  // establishing camera its edge used to cut a hard rectangle out of the
+  // horizon with empty sky beyond. This runs the vegetated ground out well
+  // past the fog's reach; nothing is modelled on it, it exists to close the
+  // horizon the way the capture's does.
+  const hinterland = new THREE.Mesh(
+    new THREE.PlaneGeometry(1600, 1600),
+    mat(0x4e6046, 0.97, 0)
+  );
+  hinterland.rotation.x = -Math.PI / 2;
+  hinterland.position.set(SITE_CENTRE[0], -0.06, SITE_CENTRE[1]);
+  group.add(hinterland);
+
   const pad = new THREE.Mesh(new THREE.PlaneGeometry(SITE_W, SITE_D), mat(PALETTE.asphalt, 0.95, 0.02));
   pad.rotation.x = -Math.PI / 2;
   pad.position.set(SITE_CENTRE[0], 0, SITE_CENTRE[1]);
@@ -168,6 +181,26 @@ export function buildGround(scene, renderer) {
     road.receiveShadow = true;
     group.add(road);
   }
+
+  // Lane markings. Without them the carriageways read as bare grey ribbons
+  // from above, where the capture shows a clearly striped road grid — the
+  // detail that tells the eye it is looking at a town rather than a diagram.
+  const dashes = [];
+  const edges = [];
+  for (const r of ROADS) {
+    const pl = polyline(r.pts);
+    const n = Math.floor(pl.total / 9);
+    for (let i = 0; i < n; i++) {
+      const f = alongLine(pl, (i + 0.5) * 9);
+      dashes.push({ x: f.x, y: 0.045, z: f.z, ry: f.ry });
+      for (const s of [-1, 1]) {
+        edges.push({ x: f.x + f.nx * s * (r.w / 2 - 0.6), y: 0.045, z: f.z + f.nz * s * (r.w / 2 - 0.6), ry: f.ry });
+      }
+    }
+  }
+  const lineMat = new THREE.MeshBasicMaterial({ color: PALETTE.roadLine, transparent: true, opacity: 0.68 });
+  instanced(group, new THREE.BoxGeometry(4.2, 0.02, 0.22), lineMat, dashes);
+  instanced(group, new THREE.BoxGeometry(8.4, 0.02, 0.16), lineMat, edges);
 
   // Red-and-white striped kerbs edging the Salim Inn frontage bays.
   const kerbs = [];

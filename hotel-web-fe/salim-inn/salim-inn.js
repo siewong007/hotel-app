@@ -8,16 +8,22 @@ import { buildCarPark } from './site/carpark.js';
 import { buildDressing } from './site/dressing.js';
 import { buildInterior } from './site/interior.js';
 import { buildPaths } from './site/camera.js';
+import { buildSky, HAZE } from './site/sky.js';
 
 // Scroll-driven flythrough from the Farley Commercial Centre apron to a room
 // at Salim Inn, Lorong Salim 17, Sibu. The world is built in site/*; this file
 // owns the renderer, the lighting, the stage choreography and the UI wiring.
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x07110e);
+// Sky and fog share one colour so the distance falloff resolves into the
+// horizon haze instead of fighting it. The scene used to clear to near-black,
+// which read as dusk against reference footage shot at tropical midday.
+const HAZE_C = new THREE.Color(HAZE);
+const INDOOR_C = new THREE.Color(0x1b1610);
+scene.background = new THREE.Color(HAZE);
 // Tuned against the opening framing: the establishing camera sits ~220 m from
 // the apron, so anything denser than this washes the whole block to background.
-scene.fog = new THREE.FogExp2(0x07110e, 0.0016);
+scene.fog = new THREE.FogExp2(HAZE, 0.0016);
 
 const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 1400);
 const renderer = new THREE.WebGLRenderer({
@@ -28,16 +34,35 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+// Pulled back from 1.08 now that a lit sky fills the frame; the cream facades
+// were clipping to flat white against it at the old exposure.
+renderer.toneMappingExposure = 1.02;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
-const hemi = new THREE.HemisphereLight(0xdcecff, 0x355144, 2.2);
+const sky = buildSky(scene);
+// The sky doubles as the environment map. Without it the glazing, the metal
+// roofs and the parked cars have nothing to reflect and read as flat paint;
+// with it the windows pick up the sky the way they do in the footage. The
+// PMREM is generated once and the working render target released.
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromEquirectangular(sky.map).texture;
+pmrem.dispose();
+// Sky and bounce colours sampled from the same footage as the dome: a strong
+// blue ambient from above, warm dry concrete bouncing back up. Lower than it
+// would otherwise be, because the environment map now carries the skylight.
+const hemi = new THREE.HemisphereLight(0xbcd9f2, 0x7c7767, 0.85);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffe8c0, 3.6);
+const sun = new THREE.DirectionalLight(0xfff2d8, 3.1);
 // Aimed at the middle of the complex rather than the world origin, which sits
 // on the Salim Inn pin at the north-east corner.
-sun.position.set(SITE_CENTRE[0] - 120, 220, SITE_CENTRE[1] + 170);
+//
+// High and to the north. The old WSW position front-lit Farley's WNW frontage
+// and left the Salim Inn frontage — which faces ENE, and which the whole
+// second half of the sequence looks straight at — in its own shadow for the
+// entire walk. From the north both read, Salim Inn strongly and Farley at a
+// raking angle, and at 2°N a near-overhead northerly sun is the real thing.
+sun.position.set(SITE_CENTRE[0] + 60, 250, SITE_CENTRE[1] - 230);
 sun.target.position.set(SITE_CENTRE[0], 0, SITE_CENTRE[1]);
 scene.add(sun.target);
 sun.castShadow = true;
@@ -47,7 +72,7 @@ for (const [k, v] of [['left', -140], ['right', 140], ['top', 140], ['bottom', -
 sun.shadow.camera.far = 620;
 sun.shadow.bias = -0.0006;
 scene.add(sun);
-const fill = new THREE.DirectionalLight(0x7ca9c7, 1.0);
+const fill = new THREE.DirectionalLight(0x9dc4dc, 0.7);
 fill.position.set(150, 90, -90);
 scene.add(fill);
 
@@ -60,7 +85,7 @@ const interior = buildInterior(salim);
 const { samplePath } = buildPaths(salim, farley, interior);
 
 const parkingWorld = new THREE.Vector3(SALIM_APPROACH[0], 0.8, SALIM_APPROACH[1]);
-const parkingLabel = spriteLabel('GUEST PARKING', true, 5);
+const parkingLabel = spriteLabel('GUEST PARKING', true, 3.2);
 parkingLabel.position.copy(parkingWorld).setY(2.6);
 scene.add(parkingLabel);
 
@@ -177,7 +202,7 @@ function updateScene(p) {
   setOpacity(carpark.meshes, worldFade);
   salim.roofSignMesh.material.opacity = 1 - range(p, 0.66, 0.79);
   salim.cafeMesh.material.opacity = 1 - range(p, 0.66, 0.79);
-  parkingLabel.material.opacity = range(p, 0.3, 0.44) * (1 - range(p, 0.62, 0.76));
+  parkingLabel.material.opacity = range(p, 0.3, 0.44) * (1 - range(p, 0.5, 0.6));
 
   for (const m of interior.interiorMeshes) m.material.opacity = enter * recFade;
   interior.recSign.material.opacity = enter * recFade;
@@ -192,6 +217,17 @@ function updateScene(p) {
   ground.group.visible = p < 0.86;
   carpark.group.visible = p < 0.86;
   scene.fog.density = THREE.MathUtils.lerp(0.0016, 0.02, range(p, 0.82, 1));
+
+  // Once the shell has dissolved and the camera is inside the room, the
+  // daylight dome is no longer a horizon — it is a lit backdrop directly
+  // behind a small interior, and holding it there blows the room out. It is
+  // dropped and the fog carried to a warm interior tone instead.
+  const indoors = range(p, 0.78, 0.9);
+  sky.dome.visible = indoors < 0.98;
+  sky.dome.material.opacity = 1 - indoors;
+  sky.dome.material.transparent = indoors > 0;
+  scene.fog.color.copy(HAZE_C).lerp(INDOOR_C, indoors);
+  scene.background.copy(HAZE_C).lerp(INDOOR_C, indoors);
 }
 
 const hotelHotspot = document.querySelector('#hotelHotspot');
@@ -252,6 +288,7 @@ function animate() {
   });
   beam.material.opacity = 0.05 + Math.sin(time * 1.2) * 0.02;
   updateScene(state.progress);
+  sky.follow(camera);
   project(hotelHotspot, salim.doorWorld.clone().add(new THREE.Vector3(0, 1.6, 0)), state.progress > 0.34 && state.progress < 0.66);
   project(parkingHotspot, parkingWorld.clone().setY(2.2), state.progress > 0.35 && state.progress < 0.66);
   renderer.render(scene, camera);

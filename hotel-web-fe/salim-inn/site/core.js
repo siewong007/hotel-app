@@ -153,17 +153,23 @@ export function rand(seed) {
 }
 
 // Shared palette. Colours are read off the Google Earth footage: cream and
-// charcoal shophouse bands, the multi-green Farley fin screen, wet asphalt.
+// charcoal shophouse bands, the multi-green Farley fin screen, dry asphalt.
+//
+// Resampled 2026-08-22 against the walkthrough: the previous surface values
+// were mixed for a near-black clear colour, so under the daylight sky
+// (site/sky.js) the aprons read as wet night asphalt where the footage shows
+// dry mid-grey, and the verges as black where it shows bright turf.
 export const PALETTE = {
-  asphalt: 0x2b2f31,
-  asphaltLight: 0x3a3f41,
+  asphalt: 0x4c5153,
+  asphaltLight: 0x5b6062,
   concrete: 0x8d9090,
   kerbWhite: 0xd8d4c8,
   kerbRed: 0x9c3f38,
   bayLine: 0xe4e0d0,
-  grass: 0x2f4a30,
-  cream: 0xe0dcc6,
-  creamDeep: 0xc9c2a6,
+  roadLine: 0xdedac8,
+  grass: 0x4a6b3c,
+  cream: 0xeae4cd,
+  creamDeep: 0xdbd4b9,
   charcoal: 0x2f3639,
   pier: 0x6f7375,
   windowDark: 0x222b30,
@@ -176,4 +182,105 @@ export const PALETTE = {
   tentWhite: 0xeef0ec,
   roofRed: 0x7c3b2c,
   trolley: 0x2f7a44,
+  // Roof metals, read off the top-down capture: the commercial terraces are
+  // mostly pale blue-grey and off-white standing seam, with two runs of the
+  // red-brown that dominates the housing behind them.
+  roofBlue: 0x76838b,
+  roofPale: 0x9aa09a,
+  roofBrown: 0x77463a,
+  foliage: 0x3d6236,
+  foliageLight: 0x517c42,
 };
+
+// ---------------------------------------------------------------------------
+// Roofs.
+//
+// Every terrace in the Google Earth capture is a long pitched metal roof —
+// blue-grey, off-white or red-brown — running the full depth of the block
+// behind its street parapet. The rows here used to stop at a flat slab, which
+// is why the establishing aerial read as a set of blank white boxes on a dark
+// plate rather than as the block in the footage.
+//
+// The roof is swept along the same frontage polyline the terrace is, so it
+// follows the bends instead of needing one prism per straight run. `u` runs
+// along the ridge in metres and `v` across the slope, so the standing-seam
+// texture below tiles at a real-world pitch.
+export function gableRoof(pl, depth, rise, baseY, overhang = 0.5, step = 2) {
+  const pos = [];
+  const uv = [];
+  const half = depth / 2;
+
+  const sample = (t) => {
+    const f = alongLine(pl, t);
+    // -n is into the building, so the eave is `overhang` proud of the frontage
+    // and the far eave hangs the same distance past the rear wall.
+    return {
+      o: [f.x + f.nx * overhang, baseY, f.z + f.nz * overhang],
+      i: [f.x - f.nx * (depth + overhang), baseY, f.z - f.nz * (depth + overhang)],
+      r: [f.x - f.nx * half, baseY + rise, f.z - f.nz * half],
+    };
+  };
+
+  // a/c are the eave corners of one strip, b/d the ridge corners above them.
+  const quad = (a, b, c, d, t0, t1) => {
+    pos.push(...a, ...b, ...c, ...b, ...d, ...c);
+    uv.push(t0, 0, t0, 1, t1, 0, t0, 1, t1, 1, t1, 0);
+  };
+
+  let prev = sample(0);
+  for (let t = step; t <= pl.total + step * 0.5; t += step) {
+    const tt = Math.min(t, pl.total);
+    if (tt <= t - step) break;
+    const cur = sample(tt);
+    quad(prev.o, prev.r, cur.o, cur.r, t - step, tt); // street slope
+    quad(prev.i, prev.r, cur.i, cur.r, t - step, tt); // rear slope
+    prev = cur;
+  }
+
+  // Gable ends, so the roof is not see-through when the camera is level with it.
+  for (const t of [0, pl.total]) {
+    const s = sample(t);
+    pos.push(...s.o, ...s.r, ...s.i);
+    uv.push(0, 0, 0.5, 1, 1, 0);
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Standing-seam ribs, as a stripe running down the slope. Tiled by setting
+// `repeat.x = 1 / pitch` against UVs measured in metres along the ridge.
+let _seam = null;
+export function seamTexture(pitch = 0.62) {
+  if (!_seam) {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 4;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 64, 4);
+    ctx.fillStyle = 'rgba(0,0,0,.20)';
+    ctx.fillRect(0, 0, 4, 4);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.fillRect(4, 0, 3, 4);
+    _seam = new THREE.CanvasTexture(c);
+    _seam.colorSpace = THREE.SRGBColorSpace;
+    _seam.wrapS = THREE.RepeatWrapping;
+    _seam.wrapT = THREE.ClampToEdgeWrapping;
+    _seam.anisotropy = 8;
+  }
+  const t = _seam.clone();
+  t.needsUpdate = true;
+  t.repeat.set(1 / pitch, 1);
+  return t;
+}
+
+export function roofMaterial(color, pitch = 0.62) {
+  return new THREE.MeshStandardMaterial({
+    color, map: seamTexture(pitch), roughness: 0.74, metalness: 0.08,
+    transparent: true, side: THREE.DoubleSide,
+  });
+}
