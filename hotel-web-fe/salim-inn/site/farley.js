@@ -1,6 +1,6 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { FARLEY_CENTRE, FARLEY_FRONT, FARLEY_DOOR, FARLEY_W, FARLEY_D, FARLEY_H } from './plan.js';
-import { mat, box, instanced, canvasPlane, rand, PALETTE } from './core.js';
+import { mat, box, instanced, canvasPlane, rand, roofMaterial, PALETTE } from './core.js';
 
 // Farley Sibu, the anchor supermarket. Its glazed fin frontage faces WNW
 // across its own car park — away from Salim Inn, which is why the walk between
@@ -53,6 +53,31 @@ export function buildFarley(scene) {
   track(box(group, 0, FARLEY_H / 2, 0, FARLEY_W, FARLEY_H, FARLEY_D, panelMat));
   track(box(group, 0, FARLEY_H + 0.45, 0, FARLEY_W + 0.6, 0.9, FARLEY_D + 0.6, darkMat));
 
+  // Pale standing-seam roof, low-pitched with the ridge running along the
+  // frontage. In the top-down capture the store reads as one large light metal
+  // roof, easily the biggest single surface in the block; it was a flat dark
+  // slab here, which made the anchor tenant disappear from the aerial.
+  const ridge = 2.0;
+  const roofGeo = new THREE.BufferGeometry();
+  const hw = FARLEY_W / 2 + 0.35;
+  const hd = FARLEY_D / 2 + 0.35;
+  const y0 = FARLEY_H + 0.9;
+  const rv = [
+    [-hw, y0, -hd], [-hw, y0 + ridge, 0], [hw, y0, -hd], [-hw, y0 + ridge, 0], [hw, y0 + ridge, 0], [hw, y0, -hd],
+    [-hw, y0, hd], [-hw, y0 + ridge, 0], [hw, y0, hd], [-hw, y0 + ridge, 0], [hw, y0 + ridge, 0], [hw, y0, hd],
+  ];
+  roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(rv.flat(), 3));
+  roofGeo.setAttribute('uv', new THREE.Float32BufferAttribute(
+    [0, 0, 0, 1, FARLEY_W, 0, 0, 1, FARLEY_W, 1, FARLEY_W, 0,
+      0, 0, 0, 1, FARLEY_W, 0, 0, 1, FARLEY_W, 1, FARLEY_W, 0], 2
+  ));
+  roofGeo.computeVertexNormals();
+  const roof = new THREE.Mesh(roofGeo, roofMaterial(PALETTE.roofPale, 0.9));
+  roof.castShadow = true;
+  roof.receiveShadow = true;
+  group.add(roof);
+  shell.push(roof);
+
   // The fin screen: widths, depths and greens vary fin to fin, with runs of
   // grey breaking them into vertical bands.
   const fins = [];
@@ -97,11 +122,20 @@ export function buildFarley(scene) {
   const door = V(FARLEY_DOOR[0], 0, FARLEY_DOOR[1]);
 
   return {
-    group, shell, front, normal: [nx, nz],
+    group, shell, front, normal: [nx, nz], dir: [dx, dz],
     door,
-    // Standing just outside the doors under the canopy, looking back at the fins.
-    doorStand: V(FARLEY_DOOR[0] + nx * 9, 2.0, FARLEY_DOOR[1] + nz * 9),
-    facadeWorld: V(FARLEY_DOOR[0] + nx * 0.5, 8.5, FARLEY_DOOR[1] + nz * 0.5),
+    // Out in the car park and offset along the frontage, for the three-quarter
+    // view of the fin screen the reference walkthrough frames it in.
+    //
+    // The old point — 9 m out on the normal — put the camera inside the front
+    // corner of the west terrace, whose traced frontage starts barely a metre
+    // off Farley's entrance axis, so the approach flew straight through it and
+    // the anchor's facade arrived behind a blank wall.
+    doorStand: V(
+      FARLEY_DOOR[0] + nx * 35 + dx * -19, 3.4,
+      FARLEY_DOOR[1] + nz * 35 + dz * -19
+    ),
+    facadeWorld: V(FARLEY_DOOR[0] + nx * 0.5, 9.6, FARLEY_DOOR[1] + nz * 0.5),
     viewWorld: V(FARLEY_DOOR[0] + nx * 62, 22, FARLEY_DOOR[1] + nz * 62),
   };
 }

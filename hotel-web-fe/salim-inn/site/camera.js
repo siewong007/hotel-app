@@ -14,6 +14,7 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 export function buildPaths(salim, farley, interior) {
   const [nx, nz] = farley.normal;
+  const [fdx, fdz] = farley.dir;
   const door = farley.door;
 
   // Stage 01 establishes the whole complex before the walk begins: high on the
@@ -25,16 +26,20 @@ export function buildPaths(salim, farley, interior) {
   // Stage 03: the walk. Position follows the traced route; the target runs a
   // couple of points ahead so the camera looks where it is going, then settles
   // on the hotel frontage.
+  // 3.4 m, not the 7.5 m this used to fly at. The reference walkthrough is
+  // shot from a car roof, so the horizon sits across the middle of frame and
+  // the shophouse fascias read at their real height. From 7.5 m the same
+  // route pitched down into the tarmac and never showed the sky at all.
   const walkPos = [farley.doorStand.clone()];
   for (let i = 1; i < ROUTE.length; i++) {
-    walkPos.push(V(ROUTE[i][0], 7.5, ROUTE[i][1]));
+    walkPos.push(V(ROUTE[i][0], 3.4, ROUTE[i][1]));
   }
   walkPos.push(salim.standWorld.clone());
 
   const walkTar = [];
   for (let i = 0; i < ROUTE.length; i++) {
     const j = Math.min(i + 2, ROUTE.length - 1);
-    walkTar.push(V(ROUTE[j][0], 3.2, ROUTE[j][1]));
+    walkTar.push(V(ROUTE[j][0], 3.5, ROUTE[j][1]));
   }
   walkTar.push(salim.facadeTarget.clone());
   walkTar.push(salim.facadeTarget.clone());
@@ -58,8 +63,8 @@ export function buildPaths(salim, farley, interior) {
       b: 0.42,
       pos: curve([
         farley.viewWorld.clone(),
-        V(door.x + nx * 34, 9, door.z + nz * 34),
-        V(door.x + nx * 16, 3.4, door.z + nz * 16),
+        V(door.x + nx * 46 + fdx * -6, 12, door.z + nz * 46 + fdz * -6),
+        V(door.x + nx * 34 + fdx * -11, 5.4, door.z + nz * 34 + fdz * -11),
         farley.doorStand.clone(),
       ]),
       tar: curve([
