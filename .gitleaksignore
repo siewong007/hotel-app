@@ -1,0 +1,19 @@
+# gitleaks finding fingerprints suppressed as verified false positives.
+#
+# Format: <commit>:<path>:<rule-id>:<line>
+#
+# This file suppresses ONE finding each, pinned to the exact commit, file, rule
+# and line. It is deliberately not a path or rule allowlist: every rule still
+# runs everywhere, and a real secret on an adjacent line is still caught.
+#
+# Prefer an inline `gitleaks:allow` comment for new code. A fingerprint is only
+# needed when the finding lives in a commit diff that already exists in history,
+# because a comment added later cannot change what an old commit's diff says.
+
+# `--restrict-key=0123456789abcdef0123456789abcdef` in the schema-dump test
+# helper. It is a pg_dump 18+ flag, not a credential, and the value is a fixed
+# dummy on purpose: without it pg_dump emits a RANDOM \restrict key per run, so
+# two dumps of identical schemas would differ and the convergence assertion
+# (`assert_eq!(upgrade_dump, fresh_dump)`) could never hold. Matched by the
+# low-confidence `generic-api-key` rule on the `key=<hex>` shape.
+e5ab086e9179ece807845992e6f9cb8900f41c2f:hotel-app-be/tests/postgres_patch_lifecycle.rs:generic-api-key:423
