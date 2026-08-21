@@ -203,7 +203,14 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
     expect(mocks.createLedgerPayment.mock.calls[3][1].idempotency_key).not.toBe(changedRequest.idempotency_key);
   });
 
-  it('clears a confirmed ledger-payment key before a refresh failure', async () => {
+  // Review finding I2. This test used to assert the OPPOSITE -- that the key was
+  // cleared as soon as the POST resolved. That is the double-charge path: the
+  // payment COMMITS, the refresh then throws, the catch reports "Failed to record
+  // payment" for money that is already recorded, and because the key was already
+  // released the staff retry mints a NEW one and charges the guest a second time.
+  // The attempt is now released only after every step that can throw, so an
+  // identical retry replays server-side under the same key.
+  it('retains a committed ledger-payment key when the refresh afterwards fails', async () => {
     const refreshFailure = new Error('refresh failed');
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.createLedgerPayment
@@ -221,7 +228,7 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
     await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(2));
 
     expect(mocks.createLedgerPayment.mock.calls[1][1].idempotency_key)
-      .not.toBe(mocks.createLedgerPayment.mock.calls[0][1].idempotency_key);
+      .toBe(mocks.createLedgerPayment.mock.calls[0][1].idempotency_key);
     consoleError.mockRestore();
   });
 });

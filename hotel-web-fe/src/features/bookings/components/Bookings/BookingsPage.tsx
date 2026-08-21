@@ -682,20 +682,31 @@ const BookingsPage: React.FC = () => {
       return;
     }
 
-    const transactionReference = paymentDialogContext === 'checkout_required'
-      ? `checkout-${paymentBooking.id}-${paymentAmount.toFixed(2)}`
-      : undefined;
     const notes = paymentNote.trim() || `Payment accepted (${paymentMethod})`;
+    // Review finding I5. The synthetic checkout reference used to be derived from
+    // the AMOUNT, which made it identical for two genuinely separate payments of
+    // the same value. The backend checks the transaction reference BEFORE the
+    // idempotency key, so a guest paying 50 twice had the second attempt replay
+    // the first: one row recorded, two notes in the drawer.
+    //
+    // Derive it from the attempt instead. The attempt is retained across retries
+    // of one submission and replaced once a payment succeeds, so the reference is
+    // now stable exactly when the payment is the same and different exactly when
+    // it is new. The reference is therefore a pure function of the attempt and is
+    // deliberately excluded from the fingerprint below, which would otherwise be
+    // circular.
     const attempt = getIdempotencyAttempt(paymentAttemptRef.current, JSON.stringify({
       booking_id: Number(paymentBooking.id),
       amount: toMoneyNumber(paymentAmount).toFixed(2),
       payment_method: paymentMethod,
       payment_type: 'booking',
-      transaction_reference: transactionReference,
       notes,
       payment_date: undefined,
     }));
     paymentAttemptRef.current = attempt;
+    const transactionReference = paymentDialogContext === 'checkout_required'
+      ? `checkout-${paymentBooking.id}-${attempt.key.slice(0, 8)}`
+      : undefined;
 
     try {
       setUpdatingPayment(true);
@@ -710,7 +721,6 @@ const BookingsPage: React.FC = () => {
         notes,
         idempotency_key: attempt.key,
       });
-      paymentAttemptRef.current = null;
 
       // Work out what's still owed after this payment.
       const prevBalance = getBookingBalance(paymentBooking);
@@ -720,6 +730,14 @@ const BookingsPage: React.FC = () => {
       const fullySettled = !isPositiveMoney(remainingBalance);
 
       await reloadBookingData();
+
+      // Review finding I2: the attempt is released only after every step that
+      // can throw. Clearing it right after the POST meant a failing reload fell
+      // into the catch below, reported "Failed to record payment" for a payment
+      // that had in fact committed, and left the retry to mint a NEW key --
+      // charging the guest twice. While it is retained, an identical retry
+      // replays server-side instead. Everything below here is local state.
+      paymentAttemptRef.current = null;
 
       // Checkout-required payments always cover the full balance, so they close.
       if (paymentDialogContext === 'checkout_required' || fullySettled) {

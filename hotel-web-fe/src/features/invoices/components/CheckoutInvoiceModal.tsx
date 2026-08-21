@@ -257,7 +257,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           payment_date: paymentDateValue,
           idempotency_key: attempt.key,
         });
-        paymentAttemptRef.current = null;
         await reloadPayments();
         onLedgerPaymentsChanged?.();
       } else {
@@ -270,10 +269,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           payment_date: paymentDateValue,
           idempotency_key: attempt.key,
         });
-        paymentAttemptRef.current = null;
         setPayments(prev => [...prev, newPayment]);
         invalidateInvoiceState();
       }
+      // Review finding I2: the attempt is released only after every step that
+      // can throw. Clearing it right after the POST meant a failing refetch
+      // fell into the catch below, showed "Failed to record payment" for a
+      // payment that had in fact committed, and left the retry to mint a NEW
+      // key -- charging the guest twice. While it is retained, an identical
+      // retry replays server-side instead.
+      paymentAttemptRef.current = null;
       setShowPaymentForm(false);
       setPaymentAmount(0);
       setPaymentReference('');

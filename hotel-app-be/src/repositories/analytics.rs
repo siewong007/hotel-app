@@ -2276,7 +2276,7 @@ async fn generate_company_ledger_statement(
             billing_address_line1, billing_city, billing_state, billing_postal_code, billing_country
         FROM customer_ledgers
         WHERE company_name = $1
-        ORDER BY created_at DESC
+        ORDER BY customer_ledgers.created_at DESC
         LIMIT 1
         "#,
     )
@@ -2304,12 +2304,23 @@ async fn generate_company_ledger_statement(
     let ledger_entries = sqlx::query(
         r#"
         SELECT
-            id, description, expense_type, amount, paid_amount, balance_due, status,
-            invoice_number, invoice_date, due_date,
-            (created_at AT TIME ZONE current_setting('TimeZone'))::date AS created_date
+            customer_ledgers.id,
+            customer_ledgers.description,
+            customer_ledgers.expense_type,
+            customer_ledgers.amount,
+            customer_ledgers.paid_amount,
+            customer_ledgers.balance_due,
+            customer_ledgers.status,
+            customer_ledgers.invoice_number,
+            customer_ledgers.invoice_date,
+            customer_ledgers.due_date,
+            (customer_ledgers.created_at AT TIME ZONE current_setting('TimeZone'))::date AS created_date,
+            b.check_in_date,
+            b.check_out_date
         FROM customer_ledgers
-        WHERE company_name = $1 AND status NOT IN ('void')
-        ORDER BY created_at DESC
+        LEFT JOIN bookings b ON b.id = customer_ledgers.booking_id
+        WHERE customer_ledgers.company_name = $1 AND customer_ledgers.status NOT IN ('void')
+        ORDER BY customer_ledgers.created_at DESC
         "#,
     )
     .bind(company)
@@ -2342,6 +2353,8 @@ async fn generate_company_ledger_statement(
         let invoice_number: Option<String> = entry.try_get("invoice_number").ok();
         let invoice_date: Option<NaiveDate> = entry.try_get("invoice_date").ok();
         let due_date: Option<NaiveDate> = entry.try_get("due_date").ok();
+        let check_in_date: Option<NaiveDate> = entry.try_get("check_in_date").ok();
+        let check_out_date: Option<NaiveDate> = entry.try_get("check_out_date").ok();
         let created_date: NaiveDate = entry.get("created_date");
 
         // Calculate days old
@@ -2379,6 +2392,8 @@ async fn generate_company_ledger_statement(
             "open_amount": balance_due,
             "status": status,
             "due_date": due_date.map(|d| d.format("%d/%m/%y").to_string()),
+            "check_in_date": check_in_date.map(|d| d.format("%d/%m/%y").to_string()),
+            "check_out_date": check_out_date.map(|d| d.format("%d/%m/%y").to_string()),
             "days_old": days_old
         }));
     }

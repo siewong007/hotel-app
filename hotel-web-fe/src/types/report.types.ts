@@ -54,6 +54,8 @@ export interface CompanyLedgerTransaction {
   open_amount: number | string;
   status: string;
   due_date?: string | null;
+  check_in_date?: string | null;
+  check_out_date?: string | null;
   days_old?: number;
 }
 
