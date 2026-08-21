@@ -763,6 +763,9 @@ async fn schema_dump(database: &TestDatabase) -> String {
         "--schema-only",
         "--no-owner",
         "--no-privileges",
+        // A fixed dummy value, not a credential: pg_dump 18+ otherwise emits a
+        // RANDOM \restrict key per run, and two dumps of identical schemas would
+        // never compare equal. gitleaks:allow
         "--restrict-key=0123456789abcdef0123456789abcdef",
     ];
     let local_output = Command::new("pg_dump")
