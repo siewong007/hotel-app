@@ -50,7 +50,7 @@ mod postgres_tests {
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{
         BookingUpdateInput, CompanyCreateRequest, CompanyUpdateRequest,
-        CustomerLedgerCreateRequest, CustomerLedgerPaymentRequest,
+        CustomerLedgerCreateRequest, CustomerLedgerPaymentRequest, LedgerListQuery,
     };
     use hotel_app_be::services::{bookings, companies, ledgers};
     use rust_decimal::Decimal;
@@ -574,6 +574,150 @@ mod postgres_tests {
             .execute(&pool)
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn postgres_ledger_reads_linked_booking_stay_dates() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 910_001;
+        let room_type_id = 910_403;
+        let room_id = 910_303;
+        let guest_id = 910_203;
+        let booking_id = 910_103;
+        let company_name = "Lgr910 Stay Dates Co";
+        let check_in = NaiveDate::from_ymd_opt(2031, 4, 10).unwrap();
+        let check_out = NaiveDate::from_ymd_opt(2031, 4, 13).unwrap();
+
+        ensure_test_actor(&pool, actor_id).await;
+        cleanup_booking_fixture(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+        )
+        .await;
+        seed_company_billed_booking(
+            &pool,
+            CompanyBilledBookingFixture {
+                actor_id,
+                booking_id,
+                guest_id,
+                room_id,
+                room_type_id,
+                company_name,
+                room_rate: Decimal::new(10_000, 2),
+                nights: 3,
+                check_in,
+                check_out,
+            },
+        )
+        .await;
+
+        let ledger_request = |description: &str, booking_id| CustomerLedgerCreateRequest {
+            company_name: company_name.to_string(),
+            company_registration_number: None,
+            contact_person: None,
+            contact_email: None,
+            contact_phone: None,
+            billing_address_line1: None,
+            billing_city: None,
+            billing_state: None,
+            billing_postal_code: None,
+            billing_country: None,
+            description: description.to_string(),
+            expense_type: "accommodation".to_string(),
+            amount: 300.0,
+            currency: None,
+            booking_id,
+            guest_id: None,
+            invoice_date: None,
+            due_date: Some("2031-05-01".to_string()),
+            notes: None,
+            internal_notes: None,
+            folio_type: None,
+            transaction_type: None,
+            post_type: None,
+            department_code: None,
+            transaction_code: None,
+            room_number: None,
+            posting_date: None,
+            transaction_date: None,
+            reference_number: None,
+            tax_amount: None,
+            service_charge: None,
+        };
+
+        let linked = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            ledger_request("Lgr910 linked stay charge", Some(booking_id)),
+        )
+        .await
+        .expect("linked customer ledger should be created");
+        assert_eq!(linked.check_in_date, Some(check_in));
+        assert_eq!(linked.check_out_date, Some(check_out));
+
+        let fetched = ledgers::get_customer_ledger(&pool, linked.id)
+            .await
+            .expect("linked customer ledger should be fetched");
+        assert_eq!(fetched.check_in_date, Some(check_in));
+        assert_eq!(fetched.check_out_date, Some(check_out));
+
+        let standalone = ledgers::create_customer_ledger(
+            &pool,
+            actor_id,
+            ledger_request("Lgr910 standalone charge", None),
+        )
+        .await
+        .expect("standalone customer ledger should be created");
+        assert!(standalone.check_in_date.is_none());
+        assert!(standalone.check_out_date.is_none());
+
+        let listed = ledgers::list_customer_ledgers(
+            &pool,
+            LedgerListQuery {
+                status: None,
+                company_name: Some(company_name.to_string()),
+                expense_type: None,
+                folio_type: None,
+                post_type: None,
+                department_code: None,
+                room_number: None,
+                invoice_state: None,
+                balance_state: None,
+                ui_status: None,
+                limit: None,
+                offset: None,
+                page: None,
+                page_size: None,
+                search: None,
+                sort_by: None,
+                sort_order: None,
+            },
+        )
+        .await
+        .expect("ledger list should include booking stay dates");
+        let listed_linked = listed
+            .data
+            .iter()
+            .find(|entry| entry.id == linked.id)
+            .expect("linked ledger should be present in the list");
+        assert_eq!(listed_linked.check_in_date, Some(check_in));
+        assert_eq!(listed_linked.check_out_date, Some(check_out));
+
+        cleanup_booking_fixture(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+        )
+        .await;
     }
 
     // -----------------------------------------------------------------

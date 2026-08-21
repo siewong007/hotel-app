@@ -14,4 +14,17 @@ ignore = [
     # sidechannel is not reachable in any artifact we ship. Re-evaluate if a
     # MySQL backend is ever added or a fixed rsa release lands.
     "RUSTSEC-2023-0071",
+
+    # RUSTSEC-2026-0235 — rkyv insufficient archive validation (out-of-bounds
+    # reads in archives containing Rc/Arc). The fix is rkyv >=0.8.17, which no
+    # dependency here can take: rkyv is pulled into Cargo.lock only by
+    # rust_decimal's OPTIONAL `rkyv` feature, which this project never enables,
+    # and rust_decimal (1.42.1, latest) still pins the 0.7 line for it.
+    # `cargo tree -i rkyv --all-features --target all` prints "nothing to
+    # print", confirming rkyv is absent from the compiled dependency graph, so
+    # no artifact we ship contains the affected code or deserializes an rkyv
+    # archive. cargo audit reads Cargo.lock rather than the build graph, which
+    # is why it fires anyway. Re-evaluate if rust_decimal's `rkyv` feature is
+    # ever enabled or a rust_decimal release moves to rkyv >=0.8.17.
+    "RUSTSEC-2026-0235",
 ]

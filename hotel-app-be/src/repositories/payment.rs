@@ -1144,6 +1144,40 @@ impl PaymentRepository {
     ) -> Result<PaymentEntryRow, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
+        // Serialize deposit refunds for this booking and read the legacy
+        // deposit fields that hold the authoritative value in existing data.
+        let booking_deposit: Option<(bool, Option<Decimal>)> = sqlx::query_as(
+            "SELECT COALESCE(deposit_paid, false), deposit_amount FROM bookings WHERE id = $1 FOR UPDATE",
+        )
+        .bind(booking_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        let refundable_deposit = match booking_deposit {
+            Some((true, Some(amount))) if amount > Decimal::ZERO => amount,
+            Some(_) => sqlx::query_scalar::<_, Option<Decimal>>(
+                "SELECT SUM(amount) FROM payments WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
+            )
+            .bind(booking_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(ApiError::from)?
+            .unwrap_or(Decimal::ZERO),
+            None => return Err(ApiError::NotFound("Booking not found".to_string())),
+        };
+
+        if refundable_deposit <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "No refundable deposit was collected for this booking".to_string(),
+            ));
+        }
+        if deposit_amount > refundable_deposit {
+            return Err(ApiError::BadRequest(format!(
+                "Deposit refund amount cannot exceed the refundable deposit of {refundable_deposit}"
+            )));
+        }
+
         let existing_refund: Option<i64> = sqlx::query_scalar(
             "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' LIMIT 1"
         )

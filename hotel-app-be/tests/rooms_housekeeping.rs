@@ -1068,12 +1068,23 @@ mod postgres_tests {
             .expect("resolved -> closed must be a valid transition");
         assert_eq!(ticket.status, "closed");
 
+        // Scope the count to THIS actor as well as this ticket. `maintenance_tickets.id`
+        // is a low-valued IDENTITY, and the persistent dev DB carries orphaned
+        // `resource_type = 'maintenance'` audit rows at ids 1..n from runs that predate
+        // the 2026-07-26 cleanup fix: `audit_logs_user_id_fkey1` is ON DELETE SET NULL,
+        // so deleting the fixture user NULLed their `user_id` and the user_id-keyed
+        // cleanup in `cleanup_actor` can never reach them again. Whenever a fresh ticket
+        // id recycles onto one of those ids (a reseeded DB, a reset identity sequence),
+        // an unscoped count picks up the stale rows and reports 6 instead of 3 --
+        // a test-fixture collision, not a duplicate audit write.
         let updated_audit_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM audit_logs \
              WHERE resource_type = 'maintenance' AND resource_id = $1 \
+               AND user_id = $2 \
                AND action = 'maintenance_ticket_updated'",
         )
         .bind(ticket.id)
+        .bind(actor_id)
         .fetch_one(&pool)
         .await
         .unwrap();

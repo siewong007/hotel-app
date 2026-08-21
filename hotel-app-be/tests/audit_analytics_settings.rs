@@ -363,15 +363,86 @@ mod postgres_tests {
         // corrupts every aggregate asserted below.
         let void_ledger_id: i64 = 990_503;
         let void_invoice_number = "aud990-inv-503-void";
+        let standalone_ledger_id: i64 = 990_504;
+        let standalone_invoice_number = "aud990-inv-504-standalone";
+        let booking_id: i64 = 990_104;
+        let guest_id: i64 = 990_204;
+        let room_id: i64 = 990_304;
+        let room_type_id: i64 = 990_404;
+        let check_in = NaiveDate::from_ymd_opt(2031, 5, 10).unwrap();
+        let check_out = NaiveDate::from_ymd_opt(2031, 5, 12).unwrap();
 
         cleanup_ledger_fixture(&pool, ledger_id).await;
         cleanup_ledger_fixture(&pool, void_ledger_id).await;
+        cleanup_ledger_fixture(&pool, standalone_ledger_id).await;
+        cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id).await;
+
+        sqlx::query(
+            "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 2) \
+             ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name, base_price = EXCLUDED.base_price",
+        )
+        .bind(room_type_id)
+        .bind("AUD990LEDGERRT")
+        .bind("AUD990 Ledger Room Type")
+        .bind(Decimal::new(10_000, 2))
+        .execute(&pool)
+        .await
+        .expect("seeding the ledger report room type must succeed");
+
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 'available') \
+             ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, room_type_id = EXCLUDED.room_type_id, status = 'available'",
+        )
+        .bind(room_id)
+        .bind("AUD990L")
+        .bind(room_type_id)
+        .execute(&pool)
+        .await
+        .expect("seeding the ledger report room must succeed");
+
+        sqlx::query(
+            "INSERT INTO guests (id, full_name, first_name, last_name) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Aud990', 'Ledger Guest') \
+             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+        )
+        .bind(guest_id)
+        .bind("Aud990 Ledger Guest")
+        .execute(&pool)
+        .await
+        .expect("seeding the ledger report guest must succeed");
+
+        sqlx::query(
+            "INSERT INTO bookings ( \
+                id, booking_number, guest_id, guest_name, room_id, \
+                check_in_date, check_out_date, adults, children, \
+                room_rate, subtotal, total_amount, status, payment_status \
+             ) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 0, $8, $8, $8, 'confirmed', 'unpaid') \
+             ON CONFLICT (id) DO UPDATE SET \
+                check_in_date = EXCLUDED.check_in_date, \
+                check_out_date = EXCLUDED.check_out_date, \
+                status = EXCLUDED.status, \
+                payment_status = EXCLUDED.payment_status",
+        )
+        .bind(booking_id)
+        .bind(format!("BK-AUD990-LEDGER-{booking_id}"))
+        .bind(guest_id)
+        .bind("Aud990 Ledger Guest")
+        .bind(room_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(Decimal::new(20_000, 2))
+        .execute(&pool)
+        .await
+        .expect("seeding the ledger report booking must succeed");
 
         sqlx::query(
             "INSERT INTO customer_ledgers \
-                (id, company_name, description, expense_type, amount, status, paid_amount, invoice_number) \
+                (id, company_name, description, expense_type, amount, status, paid_amount, invoice_number, booking_id) \
              OVERRIDING SYSTEM VALUE \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
              ON CONFLICT (id) DO UPDATE SET \
                 company_name = EXCLUDED.company_name, \
                 description = EXCLUDED.description, \
@@ -379,7 +450,8 @@ mod postgres_tests {
                 amount = EXCLUDED.amount, \
                 status = EXCLUDED.status, \
                 paid_amount = EXCLUDED.paid_amount, \
-                invoice_number = EXCLUDED.invoice_number",
+                invoice_number = EXCLUDED.invoice_number, \
+                booking_id = EXCLUDED.booking_id",
         )
         .bind(ledger_id)
         .bind(company_name)
@@ -389,6 +461,7 @@ mod postgres_tests {
         .bind("partial")
         .bind(Decimal::new(20_000, 2)) // 200.00
         .bind(invoice_number)
+        .bind(booking_id)
         .execute(&pool)
         .await
         .expect("seeding customer_ledgers must succeed");
@@ -409,6 +482,33 @@ mod postgres_tests {
         .execute(&pool)
         .await
         .expect("seeding customer_ledger_payments must succeed");
+
+        sqlx::query(
+            "INSERT INTO customer_ledgers \
+                (id, company_name, description, expense_type, amount, status, paid_amount, invoice_number) \
+             OVERRIDING SYSTEM VALUE \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             ON CONFLICT (id) DO UPDATE SET \
+                company_name = EXCLUDED.company_name, \
+                description = EXCLUDED.description, \
+                expense_type = EXCLUDED.expense_type, \
+                amount = EXCLUDED.amount, \
+                status = EXCLUDED.status, \
+                paid_amount = EXCLUDED.paid_amount, \
+                invoice_number = EXCLUDED.invoice_number, \
+                booking_id = NULL",
+        )
+        .bind(standalone_ledger_id)
+        .bind(company_name)
+        .bind("aud990 standalone ledger row")
+        .bind("aud990_expense")
+        .bind(Decimal::new(100, 2))
+        .bind("paid")
+        .bind(Decimal::new(100, 2))
+        .bind(standalone_invoice_number)
+        .execute(&pool)
+        .await
+        .expect("seeding the standalone customer_ledgers row must succeed");
 
         sqlx::query(
             "INSERT INTO customer_ledgers \
@@ -480,7 +580,7 @@ mod postgres_tests {
             .expect("the seeded company must appear in the company list");
         assert_eq!(
             my_company["entry_count"].as_i64(),
-            Some(1),
+            Some(2),
             "the status='void' row must be excluded from the company list \
              (filter must use 'void' -- 'voided' is not in valid_status and never matches)"
         );
@@ -514,11 +614,11 @@ mod postgres_tests {
         assert_eq!(json_decimal(&statement_report["balance_due"]), Decimal::new(30_000, 2));
         assert_eq!(
             json_decimal(&statement_report["totals"]["original_amount"]),
-            Decimal::new(50_000, 2)
+            Decimal::new(50_100, 2)
         );
         assert_eq!(
             json_decimal(&statement_report["totals"]["payments_received"]),
-            Decimal::new(20_000, 2)
+            Decimal::new(20_100, 2)
         );
         assert_eq!(
             json_decimal(&statement_report["totals"]["open_amount"]),
@@ -530,10 +630,21 @@ mod postgres_tests {
             .expect("transactions must be a JSON array");
         assert_eq!(
             transactions.len(),
-            1,
+            2,
             "the status='void' ledger row must be excluded from the statement transactions"
         );
-        assert_eq!(transactions[0]["invoice"].as_str(), Some(invoice_number));
+        let linked_transaction = transactions
+            .iter()
+            .find(|transaction| transaction["invoice"].as_str() == Some(invoice_number))
+            .expect("the linked ledger transaction must appear in the statement");
+        assert_eq!(linked_transaction["check_in_date"].as_str(), Some("10/05/31"));
+        assert_eq!(linked_transaction["check_out_date"].as_str(), Some("12/05/31"));
+        let standalone_transaction = transactions
+            .iter()
+            .find(|transaction| transaction["invoice"].as_str() == Some(standalone_invoice_number))
+            .expect("the standalone ledger transaction must appear in the statement");
+        assert!(standalone_transaction["check_in_date"].is_null());
+        assert!(standalone_transaction["check_out_date"].is_null());
         assert!(
             transactions
                 .iter()
@@ -541,7 +652,7 @@ mod postgres_tests {
             "the void row's invoice must not appear in the company statement"
         );
         assert_eq!(
-            json_decimal(&transactions[0]["original_amount"]),
+            json_decimal(&linked_transaction["original_amount"]),
             Decimal::new(50_000, 2)
         );
 
@@ -558,6 +669,8 @@ mod postgres_tests {
 
         cleanup_ledger_fixture(&pool, ledger_id).await;
         cleanup_ledger_fixture(&pool, void_ledger_id).await;
+        cleanup_ledger_fixture(&pool, standalone_ledger_id).await;
+        cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id).await;
     }
 
     // -----------------------------------------------------------------

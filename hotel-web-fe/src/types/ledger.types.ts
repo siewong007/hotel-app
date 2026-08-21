@@ -33,6 +33,8 @@ export interface CustomerLedger {
   payment_reference?: string;
   payment_date?: string;
   booking_id?: number;
+  check_in_date?: string;
+  check_out_date?: string;
   guest_id?: number;
   invoice_number?: string;
   invoice_date?: string;
