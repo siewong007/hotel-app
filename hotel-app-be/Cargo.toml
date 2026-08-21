@@ -38,7 +38,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.16", features = ["v4", "v7", "serde"] }
 rust_decimal = "1.37"
 # webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }  # Requires OpenSSL - disabled for Windows build
-base64 = "0.22"
+base64 = "0.23"
 hex = "0.4"
 thiserror = "2.0"
 anyhow = "1.0"
