@@ -55,7 +55,9 @@ import {
   MarketCodesResponse,
   CustomerLedgerCreateRequest,
   RoomType,
+  BookingWithDetails,
 } from '../../../types';
+import { errorMessage } from '../../../utils';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useCheckInFormData } from '../hooks/useCheckInFormData';
@@ -160,7 +162,7 @@ function TabPanel(props: TabPanelProps) {
 interface EnhancedCheckInModalProps {
   open: boolean;
   onClose: () => void;
-  booking: Booking | null;
+  booking: Booking | BookingWithDetails | null;
   guest: Guest | null;
   onCheckInSuccess: () => void;
 }
@@ -365,7 +367,7 @@ export default function EnhancedCheckInModal({
         loadCompanies();
         initializeFormData();
         // Load room type config for extra bed settings
-        loadRoomTypeConfig(booking as any);
+        loadRoomTypeConfig(booking);
         // Fetch the pre-check-in advisory (non-blocking; failures are silent).
         setAdvisory(null);
         BookingsService.getCheckInAdvisory(String(booking.id))
@@ -418,10 +420,10 @@ export default function EnhancedCheckInModal({
         contact_phone: '',
         billing_address: '',
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to register company:', err);
       emitApiNotification({
-        message: err?.message || 'Failed to register company',
+        message: errorMessage(err, 'Failed to register company'),
         severity: 'error',
       });
     }
@@ -566,7 +568,7 @@ export default function EnhancedCheckInModal({
         await recordCheckInPayment();
         setCheckedInBookingPendingPayment(null);
         finishCheckIn();
-      } catch (payErr: any) {
+      } catch (payErr) {
         console.error('Failed to record check-in payment:', payErr);
         setError('Guest is checked in, but payment could not be recorded. Please retry.');
         setActiveTab(2);
@@ -672,7 +674,7 @@ export default function EnhancedCheckInModal({
       if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid) && !collectingOnlineAtDesk) {
         try {
           await recordCheckInPayment();
-        } catch (payErr: any) {
+        } catch (payErr) {
           console.error('Failed to record check-in payment:', payErr);
           setCheckedInBookingPendingPayment(booking.id);
           setError('Guest is checked in, but payment could not be recorded. Please retry.');
@@ -687,8 +689,8 @@ export default function EnhancedCheckInModal({
       // dedicated ledger UI.
 
       finishCheckIn();
-    } catch (err: any) {
-      setError(err.message || 'Failed to check in guest');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to check in guest'));
     } finally {
       setLoading(false);
     }
@@ -729,7 +731,7 @@ export default function EnhancedCheckInModal({
               Walk-in Guest - Folio: {booking.folio_number || booking.id}
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.9 }}>
-              Room Number: {(booking as any).room_number || booking.room_id} | Room Type: {booking.room_type || 'STDQ - Standard Queen'}
+              Room Number: {('room_number' in booking && booking.room_number) || booking.room_id} | Room Type: {booking.room_type || 'STDQ - Standard Queen'}
             </Typography>
           </Box>
         </DialogTitle>
@@ -794,7 +796,7 @@ export default function EnhancedCheckInModal({
                 <Typography variant="body2" sx={{
                   fontWeight: 600
                 }}>
-                  {(booking as any).room_number || booking.room_id} ({booking.room_type || 'N/A'})
+                  {('room_number' in booking && booking.room_number) || booking.room_id} ({booking.room_type || 'N/A'})
                 </Typography>
               </Grid>
               <Grid size={4}>

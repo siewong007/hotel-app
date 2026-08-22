@@ -59,7 +59,9 @@ export function useCheckInFormData() {
     }
   }, [queryClient]);
 
-  const loadRoomTypeConfig = useCallback(async (booking: BookingWithDetails) => {
+  // Only the room-type name is read; accepting the narrow shape lets both
+  // list-shaped `Booking`s and detail-shaped `BookingWithDetails` through.
+  const loadRoomTypeConfig = useCallback(async (booking: { room_type?: string }) => {
     if (!booking.room_type) return;
     try {
       const roomTypes = await queryClient.ensureQueryData({

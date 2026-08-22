@@ -46,6 +46,7 @@ import {
   SmokingRooms as SmokingIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
+import { errorMessage } from '../../../utils';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
@@ -202,8 +203,8 @@ const RoomConfigurationPage: React.FC = () => {
     try {
       await Promise.all([roomsQuery.refetch(), roomTypesQuery.refetch()]);
       setError(null);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load data');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load data'));
     }
   };
 
@@ -356,8 +357,8 @@ const RoomConfigurationPage: React.FC = () => {
       setDrawerOpen(false);
       setEditingType(null);
       await loadData();
-    } catch (err: any) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } catch (err) {
+      const msg = errorMessage(err, '');
       if (msg.includes('duplicate key') || msg.includes('unique constraint')) {
         if (msg.includes('room_types_name_key')) {
           emitApiNotification({ message: `A room type named "${typeForm.name}" already exists.`, severity: 'error' });
@@ -382,8 +383,8 @@ const RoomConfigurationPage: React.FC = () => {
         severity: 'success',
       });
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to update room type', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to update room type'), severity: 'error' });
     }
   };
 
@@ -407,8 +408,8 @@ const RoomConfigurationPage: React.FC = () => {
       await createRoomTypeMutation.mutateAsync(input);
       emitApiNotification({ message: 'Room type duplicated', severity: 'success' });
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to duplicate', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to duplicate'), severity: 'error' });
     }
   };
 
@@ -420,8 +421,8 @@ const RoomConfigurationPage: React.FC = () => {
       emitApiNotification({ message: 'Room type deleted', severity: 'success' });
       setTypeDeleteTarget(null);
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to delete room type', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to delete room type'), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -468,8 +469,8 @@ const RoomConfigurationPage: React.FC = () => {
       emitApiNotification({ message: 'Room created successfully', severity: 'success' });
       setAddingRoomFor(null);
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to create room', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to create room'), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -482,15 +483,15 @@ const RoomConfigurationPage: React.FC = () => {
       await updateRoomMutation.mutateAsync({ roomId: editingRoom.id, data: {
         room_number: roomForm.room_number,
         price_per_night:
-          roomForm.custom_price !== '' ? (toMoneyNumber(roomForm.custom_price) as any) : undefined,
+          roomForm.custom_price !== '' ? toMoneyNumber(roomForm.custom_price) : undefined,
         available: editingRoom.available,
         is_smoking: roomForm.is_smoking,
       } });
       emitApiNotification({ message: 'Room updated successfully', severity: 'success' });
       setEditingRoom(null);
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to update room', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to update room'), severity: 'error' });
     } finally {
       setFormLoading(false);
     }
@@ -500,8 +501,8 @@ const RoomConfigurationPage: React.FC = () => {
     try {
       await updateRoomMutation.mutateAsync({ roomId: r.id, data: { available: !r.available } });
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to update room', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to update room'), severity: 'error' });
     }
   };
 
@@ -513,8 +514,8 @@ const RoomConfigurationPage: React.FC = () => {
       emitApiNotification({ message: 'Room deleted successfully', severity: 'success' });
       setDeletingRoom(null);
       await loadData();
-    } catch (err: any) {
-      emitApiNotification({ message: err?.message || 'Failed to delete room', severity: 'error' });
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to delete room'), severity: 'error' });
     } finally {
       setFormLoading(false);
     }

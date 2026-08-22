@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken, APIError } from '../api/client';
+import { HTTPError } from 'ky';
+import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
 import { storage } from '../utils/storage';
@@ -61,6 +63,33 @@ export const useAuth = () => {
 
 interface AuthProviderProps {
   children: ReactNode;
+}
+
+/**
+ * Extract a user-facing message from a failed `api` call. ky's HTTPError
+ * carries the failed Response; the backend wraps details as
+ * `{ error }` or `{ message }`. Mirrors the historical inline blocks exactly,
+ * including the connect-failure suffix when the response body cannot be read.
+ */
+async function extractHttpErrorMessage(error: unknown, fallback: string): Promise<string> {
+  let message = fallback;
+  try {
+    if (error instanceof HTTPError) {
+      const data = await error.response.json().catch(() => ({}) as { error?: string; message?: string });
+      message = data.error || data.message || fallback;
+    } else if (error instanceof Error && error.message) {
+      message = error.message;
+    }
+  } catch (parseError) {
+    console.error('Error parsing error response:', parseError);
+    message = `${fallback} - unable to connect to server`;
+  }
+  return message;
+}
+
+/** DOMException-style name (NotAllowedError, InvalidStateError, ...) for WebAuthn failures. */
+function webAuthnErrorName(error: unknown): string | undefined {
+  return error instanceof Error ? error.name : undefined;
 }
 
 type AuthLoginResponse = {
@@ -202,25 +231,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = useCallback(async (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => {
     try {
       await AuthService.register(data);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Registration error:', error);
-
-      // Safely extract error message
-      let errorMessage = 'Registration failed';
-
-      try {
-        if (error.response) {
-          const errorData = await error.response.json().catch(() => ({}));
-          errorMessage = errorData.error || errorData.message || 'Registration failed';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        errorMessage = 'Registration failed - unable to connect to server';
-      }
-
-      throw new Error(errorMessage);
+      throw new Error(await extractHttpErrorMessage(error, 'Registration failed'));
     }
   }, []);
 
@@ -313,25 +326,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }).json<AuthLoginResponse>();
 
       return applyAuthSession(data);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error);
-
-      // Safely extract error message from ky HTTPError
-      let errorMessage = 'Login failed';
-
-      try {
-        if (error.response) {
-          const errorData = await error.response.json().catch(() => ({}));
-          errorMessage = errorData.error || errorData.message || 'Login failed';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        errorMessage = 'Login failed - unable to connect to server';
-      }
-
-      throw new Error(errorMessage);
+      throw new Error(await extractHttpErrorMessage(error, 'Login failed'));
     }
   }, [applyAuthSession]);
 
@@ -344,7 +341,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const data = await AuthService.loginWithGoogle(credential);
 
       return applyAuthSession(data);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Google login error:', error);
 
       // Rethrow APIError as-is so callers can branch on `error.statusCode`
@@ -355,7 +352,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw error;
       }
 
-      throw new Error(error?.message || 'Google sign-in failed');
+      throw new Error(errorMessage(error, 'Google sign-in failed'));
     }
   }, [applyAuthSession]);
 
@@ -442,7 +439,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Start passkey registration
       const startResponse = await api.post('auth/passkey/register/start', {
         json: { username },
-      }).json<{ challenge: string; rp: any; user: any }>();
+      }).json<{
+        challenge: string;
+        rp: { name: string; id: string };
+        user: { id: string; name: string; displayName: string };
+      }>();
 
       const { challenge, rp, user } = startResponse;
 
@@ -505,36 +506,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // After successful registration, login the user
       // Note: In a real implementation, you'd need to handle this differently
-    } catch (error: any) {
+    } catch (error) {
       console.error('Passkey registration error:', error);
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
+      const name = webAuthnErrorName(error);
+      console.error('Error name:', name);
+      console.error('Error message:', error instanceof Error ? error.message : undefined);
 
       // Handle different error types
-      if (error.name === 'NotAllowedError') {
+      if (name === 'NotAllowedError') {
         throw new Error('Passkey registration was cancelled or timed out');
-      } else if (error.name === 'InvalidStateError') {
+      } else if (name === 'InvalidStateError') {
         throw new Error('A passkey is already registered for this account on this device');
-      } else if (error.name === 'NotSupportedError') {
+      } else if (name === 'NotSupportedError') {
         throw new Error('Passkeys are not supported in this browser');
       }
 
-      // Safely extract error message
-      let errorMessage = 'Passkey registration failed';
-
-      try {
-        if (error.response) {
-          const errorData = await error.response.json().catch(() => ({}));
-          errorMessage = errorData.error || errorData.message || 'Passkey registration failed';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        errorMessage = 'Passkey registration failed - unable to connect to server';
-      }
-
-      throw new Error(errorMessage);
+      throw new Error(await extractHttpErrorMessage(error, 'Passkey registration failed'));
     }
   }, []);
 
@@ -545,7 +532,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Start passkey authentication
       const startResponse = await api.post('auth/passkey/login/start', {
         json: { username },
-      }).json<{ challenge: string; allowCredentials: any[] }>();
+      }).json<{ challenge: string; allowCredentials: { id: string; type?: string }[] }>();
 
       const { challenge, allowCredentials } = startResponse;
 
@@ -573,7 +560,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
         challenge: challengeBytes.buffer,
-        allowCredentials: allowCredentials.map((cred: any) => ({
+        allowCredentials: allowCredentials.map((cred) => ({
           id: base64urlDecode(cred.id),
           type: 'public-key' as const,
         })),
@@ -655,44 +642,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       return is_first_login;
-    } catch (error: any) {
+    } catch (error) {
+      const name = webAuthnErrorName(error);
       // Handle different error types
-      if (error.name === 'NotAllowedError') {
+      if (name === 'NotAllowedError') {
         throw new Error('Passkey authentication was cancelled or timed out');
-      } else if (error.name === 'InvalidStateError') {
+      } else if (name === 'InvalidStateError') {
         throw new Error('This passkey is not registered on this device');
-      } else if (error.name === 'NotSupportedError') {
+      } else if (name === 'NotSupportedError') {
         throw new Error('Passkeys are not supported in this browser');
       }
 
-      // Safely extract error message from ky HTTPError
-      let errorMessage = 'Passkey authentication failed';
-
-      try {
-        if (error.response) {
-          const errorData = await error.response.json().catch(() => ({}));
-          errorMessage = errorData.error || errorData.message || 'Passkey authentication failed';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        errorMessage = 'Passkey authentication failed - unable to connect to server';
-      }
+      const message = await extractHttpErrorMessage(error, 'Passkey authentication failed');
 
       // Only log as error if it's not a normal "no passkeys" scenario
       const isNormalFailure =
-        errorMessage.toLowerCase().includes('no passkeys') ||
-        errorMessage.toLowerCase().includes('not found') ||
-        error.response?.status === 404;
+        message.toLowerCase().includes('no passkeys') ||
+        message.toLowerCase().includes('not found') ||
+        (error instanceof HTTPError && error.response.status === 404);
 
       if (!isNormalFailure) {
         console.error('Passkey login error:', error);
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
+        console.error('Error name:', webAuthnErrorName(error));
+        console.error('Error message:', error instanceof Error ? error.message : undefined);
       }
 
-      throw new Error(errorMessage);
+      throw new Error(message);
     }
   }, [queryClient]);
 
