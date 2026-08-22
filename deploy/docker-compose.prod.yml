@@ -93,6 +93,9 @@ services:
       # 0600) which deploy.sh sources before invoking compose — credentials
       # never enter the repository, the image, or GitHub Actions secrets.
       #
+      # Optional: encrypt TOTP secrets at rest (AES-256-GCM). Generate with:
+      #   openssl rand -base64 32
+      TOTP_ENCRYPTION_KEY: "${TOTP_ENCRYPTION_KEY:-}"
       # All optional: Transport::from_env() returns None unless BOTH SMTP_HOST
       # and SMTP_FROM_EMAIL are set, and the delivery worker then stays inert
       # rather than failing startup. Setting them is what enables guest email
