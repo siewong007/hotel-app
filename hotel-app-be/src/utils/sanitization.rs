@@ -133,7 +133,7 @@ pub fn csv_cell(value: &str) -> String {
     // CR) is prefixed with a single quote so spreadsheet apps treat the cell
     // as text instead of evaluating it.
     let guarded = match escaped.chars().next() {
-        Some(first) if matches!(first, '=' | '+' | '-' | '@' | '\t' | '\r') => {
+        Some('=' | '+' | '-' | '@' | '\t' | '\r') => {
             format!("'{escaped}")
         }
         _ => escaped,

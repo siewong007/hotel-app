@@ -234,7 +234,7 @@ pub async fn login(
         let stored = two_factor_secret
             .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
         let secret = AuthService::decrypt_stored_totp_secret(&stored)
-            .map_err(|e| ApiError::Internal(e))?;
+            .map_err(ApiError::Internal)?;
         // TOTP first, then recovery-code fallback — the same order the
         // 2FA-disable flow uses. Recovery codes must work here: this is the
         // only unauthenticated surface, so without it a user who lost their

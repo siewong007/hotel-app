@@ -150,12 +150,12 @@ impl AuthService {
         if raw.is_empty() {
             return None;
         }
-        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(raw) {
-            if bytes.len() == 32 {
-                let mut key = [0u8; 32];
-                key.copy_from_slice(&bytes);
-                return Some(key);
-            }
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(raw)
+            && bytes.len() == 32
+        {
+            let mut key = [0u8; 32];
+            key.copy_from_slice(&bytes);
+            return Some(key);
         }
         if raw.len() == 64
             && let Ok(bytes) = hex::decode(raw)
