@@ -20,10 +20,19 @@
 # Do not quote the literal value in this file. Doing so once put the same string
 # on an added line of a NEW commit, which the scanner then flagged in turn --
 # this file is scanned like any other.
-e5ab086e9179ece807845992e6f9cb8900f41c2f:hotel-app-be/tests/postgres_patch_lifecycle.rs:generic-api-key:423
+# refreshed after the 2026-08-22 history rewrite invalidated the old commit SHA
+4212e15f156251374715d356bcf698b4238ef345:hotel-app-be/tests/postgres_patch_lifecycle.rs:generic-api-key:423
 
 # The same non-secret, quoted verbatim in this file's own comment by commit
 # c4afdd1ca and flagged there in turn. That commit is already in history, so the
 # reworded comment cannot unmake its diff; only a fingerprint can. See the note
 # above about never quoting a flagged value here.
-c4afdd1ca528d83c7ee37024c9081eba9230548d:.gitleaksignore:generic-api-key:13
+# refreshed after the 2026-08-22 history rewrite invalidated the old commit SHA
+e4c5b0af2ee69bb9808dadf2b0eb84b0968118fe:.gitleaksignore:generic-api-key:13
+
+# Post-rewrite refresh + known false positives (CI service creds, test
+# fixtures, and placeholder ocids) re-surfaced when history SHAs changed.
+1e91ef93fc8c836ebe1c498ce6cfb8339208e2fd:hotel-app-be/tests/communications_scheduler.rs:generic-api-key:24
+df6f815e5b3bf9d41072dc71b7ed9d3172726ac0:infra/terraform/oci/environments/dev/terraform.tfvars.example:generic-api-key:11
+df6f815e5b3bf9d41072dc71b7ed9d3172726ac0:infra/terraform/oci/environments/dev/terraform.tfvars.example:generic-api-key:12
+0dedfef0e46a37a58a0d1e19acad6ce8d74e487f:.github/workflows/ci.yml:generic-api-key:123
