@@ -782,22 +782,43 @@ async fn schema_dump(database: &TestDatabase) -> String {
     let output = if local_output.status.success() {
         local_output
     } else {
+        // The disposable test database runs in a Docker container; locate it
+        // by image. Accept the prior beta too so a mixed local environment
+        // still works during upgrades.
         let containers = Command::new("docker")
             .args([
                 "ps",
                 "--filter",
-                "ancestor=postgres:19beta2",
+                "ancestor=postgres:19beta3",
                 "--format",
                 "{{.ID}}",
             ])
             .output()
             .await
             .expect("locate PostgreSQL 19 container for pg_dump");
-        let container_id = String::from_utf8_lossy(&containers.stdout)
+        let mut container_id = String::from_utf8_lossy(&containers.stdout)
             .lines()
             .next()
-            .expect("a PostgreSQL 19 pg_dump is required")
+            .unwrap_or_default()
             .to_owned();
+        if container_id.is_empty() {
+            let legacy = Command::new("docker")
+                .args([
+                    "ps",
+                    "--filter",
+                    "ancestor=postgres:19beta2",
+                    "--format",
+                    "{{.ID}}",
+                ])
+                .output()
+                .await
+                .expect("locate legacy PostgreSQL 19 container for pg_dump");
+            container_id = String::from_utf8_lossy(&legacy.stdout)
+                .lines()
+                .next()
+                .expect("a PostgreSQL 19 pg_dump is required")
+                .to_owned();
+        }
         let mut command = Command::new("docker");
         command
             .args([

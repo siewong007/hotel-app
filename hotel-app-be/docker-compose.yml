@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:19beta2-alpine
+    image: postgres:19beta3-alpine
     container_name: hotel-app-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-hotel_admin}

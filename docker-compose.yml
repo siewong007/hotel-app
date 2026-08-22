@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:19beta2
+    image: postgres:19beta3
     container_name: hotel-db
     restart: unless-stopped
     ports:
