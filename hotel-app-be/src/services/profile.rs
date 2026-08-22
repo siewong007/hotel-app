@@ -4,6 +4,7 @@ use crate::constants::UserType;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{PasswordUpdateInput, UserProfile, UserProfileUpdate, UserSessionInfo};
 use crate::repositories::guest::GuestRepository;
 use crate::repositories::user::UserRepository;
@@ -12,7 +13,6 @@ use crate::services::google_identity::{self, ProfileCompletion};
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
 use validator::Validate;
-use crate::models::AuditEvent;
 
 const UNCONFIGURED_EMAIL_SUFFIX: &str = "@no-email.invalid";
 
@@ -141,8 +141,31 @@ pub async fn update_password(
                 "Failed to revoke password-change sessions: {error}"
             ))
         })?;
+    // Passkeys satisfy 2FA on their own and would otherwise survive the
+    // change, so a passkey enrolled by a session hijacker outlives every
+    // password rotation. Re-enrollment requires step-up re-auth.
+    let revoked_passkeys =
+        crate::repositories::passkey::PasskeyRepository::revoke_all_for_user(pool, user_id)
+            .await
+            .map_err(|error| {
+                ApiError::Database(format!("Failed to revoke passkeys after change: {error}"))
+            })?;
 
     let _ = AuditLog::log_password_changed(pool, user_id).await;
+    if revoked_passkeys > 0 {
+        let _ = AuditLog::log_event(
+            pool,
+            crate::models::AuditEvent {
+                user_id: Some(user_id),
+                action: "passkeys_revoked_by_password_change",
+                resource_type: "user",
+                resource_id: Some(user_id),
+                details: Some(serde_json::json!({ "revoked": revoked_passkeys })),
+                ..Default::default()
+            },
+        )
+        .await;
+    }
 
     Ok(())
 }
@@ -211,8 +234,7 @@ pub(crate) async fn completion_for_guest(
     pool: &DbPool,
     guest_id: i64,
 ) -> Result<ProfileCompletion, ApiError> {
-    let (first_name, last_name, phone) =
-        GuestRepository::completion_fields(pool, guest_id).await?;
+    let (first_name, last_name, phone) = GuestRepository::completion_fields(pool, guest_id).await?;
 
     Ok(google_identity::profile_completion(
         first_name.as_deref(),

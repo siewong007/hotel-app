@@ -1,7 +1,7 @@
 //! Payment repository for database operations
 
 use crate::constants::PaymentStatus;
-use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
+use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, hotel_today};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -1418,6 +1418,10 @@ impl PaymentRepository {
             .await
             .map_err(ApiError::from)?;
 
+        // The displayed invoice date must be the hotel-local business date,
+        // not the server's UTC date (they differ 16:00–24:00 UTC+8).
+        let issue_date = hotel_today(&mut *tx).await.map_err(ApiError::from)?;
+
         tx.commit().await.map_err(ApiError::from)?;
 
         // `balance_due` is a generated column in postgres (can't be inserted);
@@ -1432,7 +1436,7 @@ impl PaymentRepository {
             billing_address: None,
             billing_email: customer_email,
             invoice_date: None,
-            issue_date: chrono::Utc::now().date_naive(),
+            issue_date,
             due_date: None,
             check_in_date: Some(check_in),
             check_out_date: Some(check_out),

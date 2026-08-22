@@ -18,9 +18,10 @@ pub async fn get_roles_handler(State(pool): State<DbPool>) -> Result<Json<Vec<Ro
 
 pub async fn create_role_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Json(input): Json<RoleInput>,
 ) -> Result<Json<Role>, ApiError> {
-    Ok(Json(svc::create_role(&pool, input).await?))
+    Ok(Json(svc::create_role(&pool, actor_user_id, input).await?))
 }
 
 pub async fn get_permissions_handler(
@@ -54,9 +55,12 @@ pub async fn update_route_policy_handler(
 
 pub async fn create_permission_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Json(input): Json<PermissionInput>,
 ) -> Result<Json<Permission>, ApiError> {
-    Ok(Json(svc::create_permission(&pool, input).await?))
+    Ok(Json(
+        svc::create_permission(&pool, actor_user_id, input).await?,
+    ))
 }
 
 pub async fn assign_role_to_user_handler(
@@ -168,19 +172,21 @@ pub async fn delete_role_handler(
 
 pub async fn update_permission_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path(permission_id): Path<i64>,
     Json(input): Json<PermissionInput>,
 ) -> Result<Json<Permission>, ApiError> {
     Ok(Json(
-        svc::update_permission(&pool, permission_id, input).await?,
+        svc::update_permission(&pool, actor_user_id, permission_id, input).await?,
     ))
 }
 
 pub async fn delete_permission_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path(permission_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    svc::delete_permission(&pool, permission_id).await?;
+    svc::delete_permission(&pool, actor_user_id, permission_id).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Permission deleted successfully"}),

@@ -143,14 +143,14 @@ impl GuestPortalRepository {
         push_update(
             &mut query_parts,
             &mut values,
-            "address_line1",
+            "address_line_1",
             &guest_update.address_line1,
         );
         push_update(&mut query_parts, &mut values, "city", &guest_update.city);
         push_update(
             &mut query_parts,
             &mut values,
-            "state_province",
+            "state",
             &guest_update.state_province,
         );
         push_update(

@@ -591,10 +591,11 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'staff' A
     'support:read', 'support:write', 'navigation_support:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- Guest permissions
+-- Guest permissions. Deliberately no bookings:create/bookings:read: guests use
+-- the scoped /api/guest-portal/* surface (see tests/guest_booking_isolation.rs).
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'guest' AND p.name IN (
-    'rooms:read', 'bookings:create', 'bookings:read', 'reviews:create', 'reviews:read', 'reviews:update'
+    'rooms:read', 'reviews:create', 'reviews:read', 'reviews:update'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- eKYC compliance roles
@@ -1072,7 +1073,7 @@ INSERT INTO route_access_policies (
     excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation, is_system_policy
 )
 VALUES
-    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["bookings:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('guest-config', '/guest-config', 'Guests', 'main', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),

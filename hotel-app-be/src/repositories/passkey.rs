@@ -218,4 +218,17 @@ impl PasskeyRepository {
         .map(|_| ())
         .map_err(ApiError::from)
     }
+    /// Deactivate every passkey for a user. Password resets call this: a
+    /// passkey satisfies 2FA on its own and survives every password change,
+    /// so a reset that left passkeys valid would let an attacker who enrolled
+    /// during a session compromise keep logging in forever. Rows are
+    /// deactivated, not deleted, so the credential inventory stays auditable.
+    pub async fn revoke_all_for_user(pool: &DbPool, user_id: i64) -> Result<u64, ApiError> {
+        sqlx::query("UPDATE passkeys SET is_active = false WHERE user_id = $1 AND is_active = true")
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .map(|result| result.rows_affected())
+            .map_err(ApiError::from)
+    }
 }

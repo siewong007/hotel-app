@@ -175,14 +175,39 @@ async fn register(
 
 async fn verify_email(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(req): Json<models::EmailVerificationConfirm>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
     handlers::auth::verify_email_handler(State(pool), Json(req)).await
 }
 
 async fn resend_verification(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(req): Json<models::ResendVerificationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // Unmetered until now: each call is an unconditional users-table UPDATE
+    // against a small pool. The sensitive-operations budget fits — rare in
+    // normal use, tight on abuse.
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
     handlers::auth::resend_verification_handler(State(pool), Json(req)).await
 }

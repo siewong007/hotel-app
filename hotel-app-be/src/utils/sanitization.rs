@@ -122,6 +122,25 @@ impl Sanitizer {
     }
 }
 
+/// Escape a single value for CSV output and neutralise spreadsheet formula
+/// injection. Quote-wrapping alone still executes `=HYPERLINK(...)` in Excel;
+/// prefixing a leading `= + - @ \t \r` with a single quote forces the cell to
+/// be treated as text. Every CSV writer in the codebase should funnel values
+/// through this helper so callers inherit the guard.
+pub fn csv_cell(value: &str) -> String {
+    let escaped = value.replace('"', "\"\"");
+    // OWASP CSV-injection mitigation: a leading formula trigger (= + - @ TAB
+    // CR) is prefixed with a single quote so spreadsheet apps treat the cell
+    // as text instead of evaluating it.
+    let guarded = match escaped.chars().next() {
+        Some(first) if matches!(first, '=' | '+' | '-' | '@' | '\t' | '\r') => {
+            format!("'{escaped}")
+        }
+        _ => escaped,
+    };
+    format!("\"{guarded}\"")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,5 +216,4 @@ mod tests {
             Some("https://example.com".to_string())
         );
     }
-
 }

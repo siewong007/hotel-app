@@ -45,6 +45,13 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
                     conn.execute(format!("SET timezone = '{}'", tz).as_str())
                         .await?;
                 }
+                // Bound every statement on this connection. Without it one
+                // slow query holds a pooled connection indefinitely (the pool
+                // is small), cascading into healthcheck failures. 120s leaves
+                // headroom for whole-database data-transfer exports and
+                // startup DDL while still un-sticking the pool after a
+                // runaway sequential scan.
+                conn.execute("SET statement_timeout = '120s'").await?;
                 Ok(())
             })
         })

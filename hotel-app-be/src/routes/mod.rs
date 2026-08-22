@@ -25,9 +25,9 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
-pub mod users;
 pub mod search;
 pub mod two_factor;
+pub mod users;
 pub mod webhooks;
 
 use crate::core::config::{self, AllowedOrigins};
@@ -49,15 +49,33 @@ use tower_http::{
 };
 
 /// Extract client IP from trusted proxy headers or the direct peer address.
+///
+/// `X-Forwarded-For` is parsed **right-to-left**: proxies append the peer they
+/// saw, so the last entry is the only one this deployment's proxy added. The
+/// leftmost entry is client-controlled; trusting it (the historical behaviour)
+/// let one host rotate a spoofed IP per request and bypass every per-IP rate
+/// limiter. Callers behind a proxy should also set
+/// `header_up X-Forwarded-For {remote_host}` so the proxy replaces, rather
+/// than appends to, whatever the client sent.
 pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap, peer_addr: SocketAddr) -> IpAddr {
-    if !config::get().trust_proxy_headers {
+    extract_client_ip_with(config::get().trust_proxy_headers, headers, peer_addr)
+}
+
+/// Pure core of [`extract_client_ip`], split out so the proxy-trust decision
+/// has a deterministic unit test despite the process-global config.
+fn extract_client_ip_with(
+    trust_proxy_headers: bool,
+    headers: &axum::http::HeaderMap,
+    peer_addr: SocketAddr,
+) -> IpAddr {
+    if !trust_proxy_headers {
         return peer_addr.ip();
     }
 
     headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.rsplit(',').next())
         .and_then(|s| s.trim().parse().ok())
         .or_else(|| {
             headers
@@ -66,6 +84,50 @@ pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap, peer_addr: Sock
                 .and_then(|s| s.trim().parse().ok())
         })
         .unwrap_or_else(|| peer_addr.ip())
+}
+
+#[cfg(test)]
+mod client_ip_tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 5555);
+
+    fn headers_with_xff(value: &str) -> axum::http::HeaderMap {
+        axum::http::HeaderMap::from_iter([(
+            axum::http::HeaderName::from_static("x-forwarded-for"),
+            axum::http::HeaderValue::from_str(value).expect("valid header value"),
+        )])
+    }
+
+    #[test]
+    fn untrusted_proxy_ignores_forwarded_for_entirely() {
+        let headers = headers_with_xff("203.0.113.9");
+        assert_eq!(
+            extract_client_ip_with(false, &headers, PEER),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
+        );
+    }
+
+    #[test]
+    fn trusted_proxy_takes_last_hop_not_the_client_controlled_first() {
+        // The attacker sends "spoofed" as their X-Forwarded-For; the proxy
+        // appends the real peer address. Only the last entry is trustworthy.
+        let headers = headers_with_xff("203.0.113.9, 198.51.100.7");
+        assert_eq!(
+            extract_client_ip_with(true, &headers, PEER),
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7))
+        );
+    }
+
+    #[test]
+    fn trusted_proxy_falls_back_to_peer_on_garbage_header() {
+        let headers = headers_with_xff("not-an-ip");
+        assert_eq!(
+            extract_client_ip_with(true, &headers, PEER),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
+        );
+    }
 }
 
 /// Session-bound JWTs are checked against their active refresh-session record

@@ -5,7 +5,7 @@
 
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
-use crate::core::middleware::{check_permission, require_auth, require_permission_helper};
+use crate::core::middleware::{check_permission, require_permission_helper};
 use crate::models::*;
 use crate::repositories::rooms_queries as rq;
 use crate::services::audit::AuditLog;
@@ -1268,7 +1268,10 @@ pub async fn get_room_detailed_status_handler(
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<RoomDetailedStatus>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    // `current_booking`/`next_booking` carry guest name, email and the full
+    // financial state — the same data `bookings:read` guards everywhere else.
+    // Login-only here let housekeeping/staff read every room's guests.
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
 
     let room_row = rq::fetch_room_detailed_status(&pool, room_id)
         .await?
@@ -1311,7 +1314,8 @@ pub async fn get_room_history_handler(
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    // Room history is booking history: guest names, emails and stay financials.
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
 
     let history = match rq::fetch_room_history(&pool, room_id).await {
         Ok(rows) => rows,
@@ -1362,7 +1366,7 @@ pub async fn get_all_room_occupancy_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<RoomCurrentOccupancy>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, "rooms:read").await?;
 
     let occupancy = rq::fetch_all_room_occupancy(&pool).await?;
     Ok(Json(occupancy))
@@ -1374,7 +1378,7 @@ pub async fn get_room_occupancy_handler(
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<RoomCurrentOccupancy>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, "rooms:read").await?;
 
     let occupancy = rq::fetch_room_occupancy(&pool, room_id)
         .await?
@@ -1388,7 +1392,7 @@ pub async fn get_hotel_occupancy_summary_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<HotelOccupancySummary>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, "rooms:read").await?;
 
     let summary = rq::fetch_hotel_occupancy_summary(&pool).await?;
     Ok(Json(summary))
@@ -1399,7 +1403,7 @@ pub async fn get_occupancy_by_room_type_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<OccupancyByRoomType>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, "rooms:read").await?;
 
     let occupancy = rq::fetch_occupancy_by_room_type(&pool).await?;
     Ok(Json(occupancy))
@@ -1410,7 +1414,7 @@ pub async fn get_rooms_with_occupancy_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<RoomWithOccupancy>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, "rooms:read").await?;
 
     let rooms_with_occupancy = rq::fetch_rooms_with_occupancy(&pool).await?;
     Ok(Json(rooms_with_occupancy))

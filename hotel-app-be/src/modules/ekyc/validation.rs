@@ -7,10 +7,10 @@ use base64::{Engine as _, engine::general_purpose};
 use chrono::{NaiveDate, Utc};
 
 use crate::core::error::ApiError;
-use crate::utils::sanitization::Sanitizer;
 use crate::modules::ekyc::models::{
     EkycFieldComparison, EkycReasonCode, EkycReviewActionRequest, EkycVerification,
 };
+use crate::utils::sanitization::Sanitizer;
 
 use super::models::EkycSubmissionRequest;
 
@@ -641,9 +641,11 @@ fn json_string(value: Option<&serde_json::Value>, key: &str) -> Option<String> {
 }
 
 pub fn csv_row(values: &[String]) -> String {
+    // csv_cell adds the quote-wrapping AND the formula-injection guard, so a
+    // name like "=HYPERLINK(...)" lands as inert text in Excel.
     let escaped = values
         .iter()
-        .map(|value| format!("\"{}\"", value.replace('"', "\"\"")))
+        .map(|value| crate::utils::sanitization::csv_cell(value))
         .collect::<Vec<_>>()
         .join(",");
     format!("{escaped}\n")

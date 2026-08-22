@@ -137,6 +137,33 @@ pub async fn loyalty_socket_handler(
         &["loyalty:read", "loyalty:manage", "analytics:read"],
     )
     .await?;
+    // WebSocket upgrades carry no Authorization header, so the global
+    // session middleware short-circuits and never runs for this request.
+    // Replay its check explicitly: without it, a deactivated or soft-deleted
+    // account (or a revoked session) keeps this socket for the token's full
+    // lifetime — `check_permission` consults only cached RBAC grants and
+    // never joins users/refresh_tokens.
+    let claims = crate::core::middleware::extract_claims(&auth_headers).await?;
+    let actor_user_id = crate::core::middleware::extract_user_id(&claims)?;
+    let Some(session_id) = claims.sid else {
+        return Err(ApiError::Unauthorized(
+            "Session-bound authentication is required".to_string(),
+        ));
+    };
+    match crate::core::auth::AuthService::is_session_active(&pool, actor_user_id, &session_id).await
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err(ApiError::Unauthorized(
+                "Session has been logged out".to_string(),
+            ));
+        }
+        Err(error) => {
+            return Err(ApiError::Database(format!(
+                "Session validation failed: {error}"
+            )));
+        }
+    }
     Ok(websocket
         .protocols(["hotel-loyalty"])
         .on_upgrade(move |socket| serve_socket(socket, hub)))

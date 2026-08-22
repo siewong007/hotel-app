@@ -232,6 +232,11 @@ async fn verify_booking(
         ));
     }
 
+    // booking_number is varchar(50); anything longer is garbage that could
+    // never match, so bound the limiter key before it allocates an entry.
+    if input.booking_number.len() > 50 {
+        return Err(ApiError::BadRequest("Invalid booking number.".to_string()));
+    }
     let booking_key = input.booking_number.trim().to_ascii_uppercase();
     let booking_key = if booking_key.is_empty() {
         "<empty>".to_string()
@@ -255,11 +260,40 @@ async fn verify_booking(
     handlers::guest_portal::verify_guest_booking(State(pool), Json(input)).await
 }
 
+/// Shape-check an unauthenticated portal path token BEFORE it reaches the
+/// keyed rate limiter. Portal tokens are 64-char hex (`generate_portal_token`),
+/// so anything longer than 128 chars or containing non-hex characters can
+/// never match a real booking — but left unchecked, each distinct value would
+/// allocate a keyed-limiter entry (up to hyper's ~400KB per header) and live
+/// for the full window, making the limiter map itself the DoS target.
+fn ensure_plausible_portal_token(token: &str) -> Result<(), ApiError> {
+    let plausible = !token.is_empty()
+        && token.len() <= 128
+        && token.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+    if plausible {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest(
+            "This booking link is invalid.".to_string(),
+        ))
+    }
+}
+
 async fn get_booking(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     path: Path<String>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    ensure_plausible_portal_token(&path.0)?;
+    let ip = extract_client_ip(&headers, peer_addr);
+    if !limiters.guest_portal_token_ip.check(ip).await {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            "Too many requests. Please try again later.".to_string(),
+            900,
+        ));
+    }
     let (allowed, retry_after) = limiters
         .guest_portal_token_read
         .check_with_retry(path.0.clone())
@@ -280,9 +314,19 @@ async fn get_booking(
 async fn submit_precheckin(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     path: Path<String>,
     Json(input): Json<models::PreCheckInUpdateRequest>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    ensure_plausible_portal_token(&path.0)?;
+    let ip = extract_client_ip(&headers, peer_addr);
+    if !limiters.guest_portal_token_ip.check(ip).await {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            "Too many requests. Please try again later.".to_string(),
+            900,
+        ));
+    }
     let (allowed, retry_after) = limiters
         .guest_portal_token
         .check_with_retry(path.0.clone())
@@ -303,8 +347,18 @@ async fn submit_precheckin(
 async fn auto_checkin(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     path: Path<String>,
 ) -> Result<Json<models::AutoCheckinResponse>, ApiError> {
+    ensure_plausible_portal_token(&path.0)?;
+    let ip = extract_client_ip(&headers, peer_addr);
+    if !limiters.guest_portal_token_ip.check(ip).await {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            "Too many requests. Please try again later.".to_string(),
+            900,
+        ));
+    }
     let (allowed, retry_after) = limiters
         .guest_portal_token
         .check_with_retry(path.0.clone())
@@ -320,4 +374,26 @@ async fn auto_checkin(
     }
 
     handlers::guest_portal::auto_checkin_by_token(State(pool), path).await
+}
+
+#[cfg(test)]
+mod portal_token_shape_tests {
+    use super::ensure_plausible_portal_token;
+
+    #[test]
+    fn accepts_minted_hex_token() {
+        let token = "a".repeat(64);
+        assert!(ensure_plausible_portal_token(&token).is_ok());
+        // uuid-shaped legacy tokens stay plausible too.
+        assert!(ensure_plausible_portal_token("3f2b-4c1d-9e8f-0a1b").is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_oversized_and_non_hex_tokens() {
+        assert!(ensure_plausible_portal_token("").is_err());
+        assert!(ensure_plausible_portal_token(&"a".repeat(129)).is_err());
+        assert!(ensure_plausible_portal_token("../../etc/passwd").is_err());
+        // A ~400KB header of garbage must be rejected, never reach a limiter.
+        assert!(ensure_plausible_portal_token(&"x".repeat(400_000)).is_err());
+    }
 }

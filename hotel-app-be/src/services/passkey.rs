@@ -5,6 +5,7 @@ use crate::core::config;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
+use crate::models::AuditEvent;
 use crate::models::{
     AuthResponse, PasskeyInfo, PasskeyLoginFinish, PasskeyLoginStart, PasskeyRegistrationFinish,
     PasskeyRegistrationStart, PasskeyUpdateInput, UserResponse,
@@ -12,6 +13,7 @@ use crate::models::{
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::passkey::PasskeyRepository;
 use crate::repositories::rbac::RbacRepository;
+use crate::services::audit::AuditLog;
 use base64::Engine;
 use base64::engine::general_purpose;
 use rand::RngExt;
@@ -201,6 +203,22 @@ pub async fn register_finish(
 
     let _ = PasskeyRepository::mark_challenge_used(pool, user.id, &expected_challenge).await;
 
+    // Enrollment is the step that turns a stolen session into permanent
+    // access, so it must be on the record even though nothing else in this
+    // file used to be.
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user.id),
+            action: "passkey_registered",
+            resource_type: "user",
+            resource_id: Some(user.id),
+            details: Some(json!({ "device_name": device_name })),
+            ..Default::default()
+        },
+    )
+    .await;
+
     Ok(())
 }
 
@@ -269,6 +287,14 @@ pub async fn login_finish(
         PasskeyRepository::challenge_exists(pool, user.id, &expected_challenge, "authentication")
             .await?;
     if !challenge_exists {
+        let _ = AuditLog::log_login_failure(
+            pool,
+            &req.username,
+            "Invalid or expired passkey challenge",
+            ip_address.map(str::to_string),
+            user_agent.map(str::to_string),
+        )
+        .await;
         return Err(ApiError::Unauthorized(
             "Invalid or expired challenge".to_string(),
         ));
@@ -277,10 +303,26 @@ pub async fn login_finish(
     let credential_id_bytes = decode_base64url(&req.credential_id)
         .map_err(|e| ApiError::BadRequest(format!("Invalid credential ID format: {}", e)))?;
 
-    let passkey =
-        PasskeyRepository::find_active_passkey_by_credential(pool, user.id, &credential_id_bytes)
-            .await?
-            .ok_or_else(|| ApiError::Unauthorized("Invalid passkey".to_string()))?;
+    let passkey = match PasskeyRepository::find_active_passkey_by_credential(
+        pool,
+        user.id,
+        &credential_id_bytes,
+    )
+    .await?
+    {
+        Some(passkey) => passkey,
+        None => {
+            let _ = AuditLog::log_login_failure(
+                pool,
+                &req.username,
+                "Unknown passkey credential",
+                ip_address.map(str::to_string),
+                user_agent.map(str::to_string),
+            )
+            .await;
+            return Err(ApiError::Unauthorized("Invalid passkey".to_string()));
+        }
+    };
 
     let client_data_json = decode_standard_b64(&req.client_data_json, "clientDataJSON")?;
     let authenticator_data = decode_standard_b64(&req.authenticator_data, "authenticatorData")?;
@@ -310,6 +352,17 @@ pub async fn login_finish(
 
     let _ = PasskeyRepository::update_last_used(pool, passkey.id, i64::from(counter)).await;
     let _ = PasskeyRepository::mark_challenge_used(pool, user.id, &expected_challenge).await;
+
+    // Passkey logins were completely invisible (no audit row on success or
+    // failure), unlike password logins. Mirror the password path.
+    let _ = AuditLog::log_login_success(
+        pool,
+        user.id,
+        "passkey",
+        ip_address.map(str::to_string),
+        user_agent.map(str::to_string),
+    )
+    .await;
 
     let roles = AuthService::get_user_roles(pool, user.id)
         .await

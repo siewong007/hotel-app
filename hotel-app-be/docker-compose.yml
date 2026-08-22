@@ -7,7 +7,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment or .env file}
       POSTGRES_DB: hotel_management
     ports:
-      - "5433:5432"
+      # Loopback only: publishing on all interfaces exposed the dev database
+      # to the local network.
+      - "127.0.0.1:5433:5432"
     volumes:
       # postgres:19 images require the mount at /var/lib/postgresql (data lives
       # in a version subdir) — mounting at .../data makes the container refuse to start

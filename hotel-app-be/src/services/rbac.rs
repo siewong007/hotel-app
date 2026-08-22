@@ -8,12 +8,52 @@ use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
 use std::collections::HashSet;
 
+/// Post-incident reconstruction of "how was privilege gained?" needs every
+/// role/permission DEFINITION change on the record, not just user-role
+/// assignments (which were already audited). One shared emitter so all nine
+/// mutating workflows stay consistent.
+async fn log_rbac_definition_change(
+    pool: &DbPool,
+    actor_user_id: i64,
+    action: &str,
+    resource_type: &'static str,
+    resource_id: Option<i64>,
+    details: serde_json::Value,
+) {
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(actor_user_id),
+            action,
+            resource_type,
+            resource_id,
+            details: Some(details),
+            ..Default::default()
+        },
+    )
+    .await;
+}
+
 pub async fn roles(pool: &DbPool) -> Result<Vec<Role>, ApiError> {
     RbacRepository::find_all_roles(pool).await
 }
 
-pub async fn create_role(pool: &DbPool, input: RoleInput) -> Result<Role, ApiError> {
-    RbacRepository::create_role(pool, &input.name, input.description.as_deref()).await
+pub async fn create_role(
+    pool: &DbPool,
+    actor_user_id: i64,
+    input: RoleInput,
+) -> Result<Role, ApiError> {
+    let role = RbacRepository::create_role(pool, &input.name, input.description.as_deref()).await?;
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "role_created",
+        "role",
+        Some(role.id),
+        serde_json::json!({ "name": role.name }),
+    )
+    .await;
+    Ok(role)
 }
 
 pub async fn permissions(pool: &DbPool) -> Result<Vec<Permission>, ApiError> {
@@ -71,16 +111,27 @@ pub async fn update_route_policy(
 
 pub async fn create_permission(
     pool: &DbPool,
+    actor_user_id: i64,
     input: PermissionInput,
 ) -> Result<Permission, ApiError> {
-    RbacRepository::create_permission(
+    let permission = RbacRepository::create_permission(
         pool,
         &input.name,
         &input.resource,
         &input.action,
         input.description.as_deref(),
     )
-    .await
+    .await?;
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "permission_created",
+        "permission",
+        Some(permission.id),
+        serde_json::json!({ "name": permission.name }),
+    )
+    .await;
+    Ok(permission)
 }
 
 pub async fn assign_role_to_user(
@@ -117,6 +168,15 @@ pub async fn assign_permission_to_role(
     ensure_actor_can_manage_roles(pool, actor_user_id, &[input.role_id]).await?;
     ensure_actor_can_grant_permissions(pool, actor_user_id, &[input.permission_id]).await?;
     RbacRepository::assign_permission_to_role(pool, input.role_id, input.permission_id).await?;
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "permission_assigned_to_role",
+        "role",
+        Some(input.role_id),
+        serde_json::json!({ "permission_id": input.permission_id }),
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
 }
@@ -130,6 +190,15 @@ pub async fn remove_permission_from_role(
     ensure_can_mutate_role_permissions(pool, actor_user_id, role_id).await?;
     ensure_actor_can_manage_roles(pool, actor_user_id, &[role_id]).await?;
     RbacRepository::remove_permission_from_role(pool, role_id, permission_id).await?;
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "permission_removed_from_role",
+        "role",
+        Some(role_id),
+        serde_json::json!({ "permission_id": permission_id }),
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
 }
@@ -148,7 +217,25 @@ pub async fn replace_role_permissions(
 
     let permission_ids = unique_ids(input.permission_ids);
     ensure_actor_can_grant_permissions(pool, actor_user_id, &permission_ids).await?;
+    let previous: HashSet<i64> = RbacRepository::get_role_permissions(pool, role_id)
+        .await?
+        .into_iter()
+        .map(|permission| permission.id)
+        .collect();
     RbacRepository::replace_role_permissions(pool, role_id, &permission_ids).await?;
+    let next: HashSet<i64> = permission_ids.iter().copied().collect();
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "role_permissions_replaced",
+        "role",
+        Some(role_id),
+        serde_json::json!({
+            "granted": next.difference(&previous).collect::<Vec<_>>(),
+            "revoked": previous.difference(&next).collect::<Vec<_>>(),
+        }),
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(permission_ids.len())
 }
@@ -214,6 +301,15 @@ pub async fn update_role(
                 input.description.as_deref(),
             )
             .await?;
+            log_rbac_definition_change(
+                pool,
+                actor_user_id,
+                "role_updated",
+                "role",
+                Some(role_id),
+                serde_json::json!({ "name": role.name }),
+            )
+            .await;
             crate::core::rbac_cache::invalidate_all();
             Ok(role)
         }
@@ -241,12 +337,22 @@ pub async fn delete_role(pool: &DbPool, actor_user_id: i64, role_id: i64) -> Res
     }
 
     RbacRepository::delete_role(pool, role_id).await?;
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "role_deleted",
+        "role",
+        Some(role_id),
+        serde_json::Value::Null,
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
 }
 
 pub async fn update_permission(
     pool: &DbPool,
+    actor_user_id: i64,
     permission_id: i64,
     input: PermissionInput,
 ) -> Result<Permission, ApiError> {
@@ -265,13 +371,26 @@ pub async fn update_permission(
                 input.description.as_deref(),
             )
             .await?;
+            log_rbac_definition_change(
+                pool,
+                actor_user_id,
+                "permission_updated",
+                "permission",
+                Some(permission_id),
+                serde_json::json!({ "name": permission.name }),
+            )
+            .await;
             crate::core::rbac_cache::invalidate_all();
             Ok(permission)
         }
     }
 }
 
-pub async fn delete_permission(pool: &DbPool, permission_id: i64) -> Result<(), ApiError> {
+pub async fn delete_permission(
+    pool: &DbPool,
+    actor_user_id: i64,
+    permission_id: i64,
+) -> Result<(), ApiError> {
     match RbacRepository::permission_system_status(pool, permission_id).await? {
         None => return Err(ApiError::NotFound("Permission not found".to_string())),
         Some(true) => {
@@ -291,6 +410,15 @@ pub async fn delete_permission(pool: &DbPool, permission_id: i64) -> Result<(), 
     }
 
     RbacRepository::delete_permission(pool, permission_id).await?;
+    log_rbac_definition_change(
+        pool,
+        actor_user_id,
+        "permission_deleted",
+        "permission",
+        Some(permission_id),
+        serde_json::Value::Null,
+    )
+    .await;
     crate::core::rbac_cache::invalidate_all();
     Ok(())
 }

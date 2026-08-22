@@ -147,7 +147,6 @@ pub async fn login(
     };
 
     ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent).await?;
-    let (_, _, failed_attempts) = AuthRepository::login_lock_state(pool, user.id).await?;
 
     let skip_email_verification = crate::core::config::get().skip_email_verification;
 
@@ -165,17 +164,17 @@ pub async fn login(
         .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
 
     if !valid {
-        let new_attempts = failed_attempts.unwrap_or(0) + 1;
-        let should_lock = new_attempts >= max_attempts;
+        // One atomic statement increments and decides the lockout, so
+        // concurrent guesses each cost exactly one increment.
+        let (attempts_now, is_locked) = AuthRepository::register_failed_login(
+            pool,
+            user.id,
+            max_attempts,
+            Utc::now() + Duration::minutes(30),
+        )
+        .await?;
 
-        if should_lock {
-            AuthRepository::lock_user_after_failure(
-                pool,
-                user.id,
-                new_attempts,
-                Utc::now() + Duration::minutes(30),
-            )
-            .await?;
+        if is_locked {
             AuthService::revoke_all_user_tokens(pool, user.id)
                 .await
                 .map_err(|error| {
@@ -196,8 +195,7 @@ pub async fn login(
             ));
         }
 
-        let _ = AuthRepository::update_failed_login_attempts(pool, user.id, new_attempts).await;
-        let remaining = max_attempts - new_attempts;
+        let remaining = max_attempts - attempts_now;
         let _ = AuditLog::log_login_failure(
             pool,
             &req.username,
