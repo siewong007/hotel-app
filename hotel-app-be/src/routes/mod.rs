@@ -86,50 +86,6 @@ fn extract_client_ip_with(
         .unwrap_or_else(|| peer_addr.ip())
 }
 
-#[cfg(test)]
-mod client_ip_tests {
-    use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
-
-    const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 5555);
-
-    fn headers_with_xff(value: &str) -> axum::http::HeaderMap {
-        axum::http::HeaderMap::from_iter([(
-            axum::http::HeaderName::from_static("x-forwarded-for"),
-            axum::http::HeaderValue::from_str(value).expect("valid header value"),
-        )])
-    }
-
-    #[test]
-    fn untrusted_proxy_ignores_forwarded_for_entirely() {
-        let headers = headers_with_xff("203.0.113.9");
-        assert_eq!(
-            extract_client_ip_with(false, &headers, PEER),
-            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
-        );
-    }
-
-    #[test]
-    fn trusted_proxy_takes_last_hop_not_the_client_controlled_first() {
-        // The attacker sends "spoofed" as their X-Forwarded-For; the proxy
-        // appends the real peer address. Only the last entry is trustworthy.
-        let headers = headers_with_xff("203.0.113.9, 198.51.100.7");
-        assert_eq!(
-            extract_client_ip_with(true, &headers, PEER),
-            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7))
-        );
-    }
-
-    #[test]
-    fn trusted_proxy_falls_back_to_peer_on_garbage_header() {
-        let headers = headers_with_xff("not-an-ip");
-        assert_eq!(
-            extract_client_ip_with(true, &headers, PEER),
-            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
-        );
-    }
-}
-
 /// Session-bound JWTs are checked against their active refresh-session record
 /// before any authenticated API handler runs. Guest portal bearer tokens use a
 /// separate authentication scheme, so only a non-JWT bearer is allowed through
@@ -390,4 +346,48 @@ pub fn create_router(pool: DbPool) -> Router {
                 axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
             )),
     )
+}
+
+#[cfg(test)]
+mod client_ip_tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    const PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)), 5555);
+
+    fn headers_with_xff(value: &str) -> axum::http::HeaderMap {
+        axum::http::HeaderMap::from_iter([(
+            axum::http::HeaderName::from_static("x-forwarded-for"),
+            axum::http::HeaderValue::from_str(value).expect("valid header value"),
+        )])
+    }
+
+    #[test]
+    fn untrusted_proxy_ignores_forwarded_for_entirely() {
+        let headers = headers_with_xff("203.0.113.9");
+        assert_eq!(
+            extract_client_ip_with(false, &headers, PEER),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
+        );
+    }
+
+    #[test]
+    fn trusted_proxy_takes_last_hop_not_the_client_controlled_first() {
+        // The attacker sends "spoofed" as their X-Forwarded-For; the proxy
+        // appends the real peer address. Only the last entry is trustworthy.
+        let headers = headers_with_xff("203.0.113.9, 198.51.100.7");
+        assert_eq!(
+            extract_client_ip_with(true, &headers, PEER),
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 7))
+        );
+    }
+
+    #[test]
+    fn trusted_proxy_falls_back_to_peer_on_garbage_header() {
+        let headers = headers_with_xff("not-an-ip");
+        assert_eq!(
+            extract_client_ip_with(true, &headers, PEER),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
+        );
+    }
 }

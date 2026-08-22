@@ -1306,14 +1306,12 @@ mod postgres_tests {
         let err =
             rooms::get_room_history_handler(State(pool.clone()), Path(980_301), headers.clone())
                 .await
-                .err()
-                .expect("room history without a room-operations permission must be denied");
+                .expect_err("room history without a room-operations permission must be denied");
         assert!(matches!(err, ApiError::Forbidden(_)), "got {err:?}");
 
         let err = rooms::get_hotel_occupancy_summary_handler(State(pool.clone()), headers.clone())
             .await
-            .err()
-            .expect("occupancy summary without rooms:read must be denied");
+            .expect_err("occupancy summary without rooms:read must be denied");
         assert!(matches!(err, ApiError::Forbidden(_)), "got {err:?}");
 
         // Grant both permissions through the shared admin test role; the RBAC
