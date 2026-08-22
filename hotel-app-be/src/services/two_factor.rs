@@ -36,7 +36,13 @@ pub async fn setup_2fa(
             log::error!("Failed to generate TOTP secret: {}", error);
             ApiError::Internal(format!("Failed to generate TOTP secret: {}", error))
         })?;
-    UserRepository::update_two_factor_secret(pool, user_id, &secret).await?;
+    // Stored sealed under TOTP_ENCRYPTION_KEY when configured (L4).
+    UserRepository::update_two_factor_secret(
+        pool,
+        user_id,
+        &AuthService::encrypt_stored_totp_secret(&secret),
+    )
+    .await?;
 
     // Minted after the secret write, so an incomplete setup never leaves a
     // consumable challenge bound to a stale secret.
@@ -77,9 +83,11 @@ pub async fn enable_2fa(
     req.validate()
         .map_err(|error| ApiError::BadRequest(error.to_string()))?;
     let user = get_user(pool, user_id).await?;
-    let two_factor_secret = user.two_factor_secret.ok_or_else(|| {
+    let stored = user.two_factor_secret.ok_or_else(|| {
         ApiError::BadRequest("2FA setup not initiated. Call /auth/2fa/setup first.".to_string())
     })?;
+    let two_factor_secret =
+        AuthService::decrypt_stored_totp_secret(&stored).map_err(ApiError::Internal)?;
 
     let valid = AuthService::verify_totp_code(&two_factor_secret, &req.code)
         .map_err(|error| ApiError::BadRequest(format!("Invalid TOTP code: {}", error)))?;
@@ -153,9 +161,11 @@ pub async fn disable_2fa(
         ));
     }
 
-    let totp_secret = user
+    let stored = user
         .two_factor_secret
         .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+    let totp_secret =
+        AuthService::decrypt_stored_totp_secret(&stored).map_err(ApiError::Internal)?;
     let recovery_codes = user.two_factor_recovery_codes.unwrap_or_default();
 
     let mut code_valid = false;
@@ -232,9 +242,11 @@ pub async fn verify_2fa_code(
         ));
     }
 
-    let secret = user
+    let stored = user
         .two_factor_secret
         .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+    let secret =
+        AuthService::decrypt_stored_totp_secret(&stored).map_err(ApiError::Internal)?;
     let valid = AuthService::verify_totp_code(&secret, &req.code)
         .map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
 

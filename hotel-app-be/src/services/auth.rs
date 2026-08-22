@@ -40,11 +40,12 @@ pub(crate) async fn ensure_step_up(
         return Ok(());
     }
 
-    let (enabled, secret) = AuthRepository::two_factor_state(pool, user_id).await?;
+    let (enabled, stored) = AuthRepository::two_factor_state(pool, user_id).await?;
     let two_factor_enabled = enabled.unwrap_or(false);
     if two_factor_enabled
-        && let (Some(code), Some(secret)) = (totp_code, secret.as_deref())
-        && AuthService::verify_totp_code(secret, code).unwrap_or(false)
+        && let (Some(code), Some(stored_secret)) = (totp_code, stored.as_deref())
+        && let Ok(secret) = AuthService::decrypt_stored_totp_secret(stored_secret)
+        && AuthService::verify_totp_code(&secret, code).unwrap_or(false)
     {
         return Ok(());
     }
@@ -230,8 +231,10 @@ pub async fn login(
             ));
         };
 
-        let secret = two_factor_secret
+        let stored = two_factor_secret
             .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+        let secret = AuthService::decrypt_stored_totp_secret(&stored)
+            .map_err(|e| ApiError::Internal(e))?;
         // TOTP first, then recovery-code fallback — the same order the
         // 2FA-disable flow uses. Recovery codes must work here: this is the
         // only unauthenticated surface, so without it a user who lost their

@@ -3,9 +3,12 @@
 //! Business logic (branching, permission checks, audit calls) for the room
 //! domain. SQL text and row mapping live in `repositories::rooms_queries`.
 
+use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
-use crate::core::middleware::{check_permission, require_permission_helper};
+use crate::core::middleware::{
+    check_permission, require_any_permission_helper, require_permission_helper,
+};
 use crate::models::*;
 use crate::repositories::rooms_queries as rq;
 use crate::services::audit::AuditLog;
@@ -1263,23 +1266,53 @@ pub async fn create_room_event_handler(
     Ok(Json(event))
 }
 
+/// Permission floor for the room-operations reads (`/rooms/{id}/detailed` and
+/// `/rooms/{id}/history`). Either permission opens the endpoint.
+///
+/// `bookings:read` alone was too narrow: the seeded `housekeeping` role is
+/// granted `navigation_room_management:read` — it is *meant* to work the Room
+/// Management page — but deliberately holds no bookings permission, so the H6
+/// hardening locked the entire role out of room history and the room event
+/// dialog. `rooms:read` would be too wide in the other direction: the `guest`
+/// role holds it, and re-admitting guests here is exactly the boundary H6
+/// closed. `housekeeping:read` is held by admin, manager, receptionist and
+/// housekeeping, and by neither `guest` nor `staff`-without-bookings.
+const ROOM_OPERATIONS_READ: &[&str] = &["bookings:read", "housekeeping:read"];
+
 pub async fn get_room_detailed_status_handler(
     State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<RoomDetailedStatus>, ApiError> {
-    // `current_booking`/`next_booking` carry guest name, email and the full
-    // financial state — the same data `bookings:read` guards everywhere else.
-    // Login-only here let housekeeping/staff read every room's guests.
-    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    let user_id = require_any_permission_helper(&pool, &headers, ROOM_OPERATIONS_READ).await?;
+
+    // `current_booking`/`next_booking` are full `BookingWithDetails`: guest
+    // name, email and the whole financial state — the same data `bookings:read`
+    // guards everywhere else. A caller who only holds `housekeeping:read` gets
+    // the room itself (status, cleaning/maintenance windows, the event log, and
+    // `reserved_start_date`/`reserved_end_date`, which the status trigger
+    // copies from the stay dates) with both booking slots omitted — everything
+    // a turnover needs, no guest identity.
+    //
+    // Omitted rather than blanked on purpose: this stays fail-closed when a
+    // field is added to `BookingWithDetails`, where a per-field scrub list
+    // would silently start leaking it.
+    let may_read_bookings = AuthService::check_permission(&pool, user_id, "bookings:read")
+        .await
+        .map_err(|error| ApiError::Database(error.to_string()))?;
 
     let room_row = rq::fetch_room_detailed_status(&pool, room_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
 
-    let current_booking = rq::fetch_current_booking_for_room(&pool, room_id).await?;
-
-    let next_booking = rq::fetch_next_booking_for_room(&pool, room_id).await?;
+    let (current_booking, next_booking) = if may_read_bookings {
+        (
+            rq::fetch_current_booking_for_room(&pool, room_id).await?,
+            rq::fetch_next_booking_for_room(&pool, room_id).await?,
+        )
+    } else {
+        (None, None)
+    };
 
     // Query room_events if table exists, otherwise return empty list
     let recent_events = rq::fetch_room_events(&pool, room_id).await;
@@ -1314,8 +1347,12 @@ pub async fn get_room_history_handler(
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    // Room history is booking history: guest names, emails and stay financials.
-    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    // Not booking history, despite the name: `room_history` rows are the room's
+    // own status transitions (from_status/to_status, the staff member who made
+    // the change, free-text notes — see `GET_ROOM_HISTORY`). No guest identity
+    // and no financial data reach this response, so `bookings:read` was the
+    // wrong guard and shut housekeeping out of its own audit trail.
+    require_any_permission_helper(&pool, &headers, ROOM_OPERATIONS_READ).await?;
 
     let history = match rq::fetch_room_history(&pool, room_id).await {
         Ok(rows) => rows,

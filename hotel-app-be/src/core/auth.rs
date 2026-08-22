@@ -4,7 +4,10 @@ use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{Duration, Utc};
 use hex;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64URL;
 use rand::RngExt;
+use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -122,6 +125,115 @@ const WEAK_PASSWORDS: &[&str] = &[
 ];
 
 impl AuthService {
+
+    // ---- TOTP secret encryption-at-rest (L4) -------------------------------
+    //
+    // The column previously stored the base32 TOTP seed in plaintext, making a
+    // stolen backup file enough to forge codes for every account. Secrets are
+    // sealed with AES-256-GCM under TOTP_ENCRYPTION_KEY and persisted as
+    // `enc1:<urlsafe-base64(nonce || ciphertext+tag)>`. Rows written before
+    // the key existed have no prefix and are passed through untouched, so
+    // enabling the key never locks anyone out; they re-encrypt on their next
+    // setup/disable cycle.
+
+    /// Decode TOTP_ENCRYPTION_KEY: 32-byte std-base64, 64-char hex, or a raw
+    /// ASCII string of at least 32 bytes (hashed to 32). `None` when unset or
+    /// before configuration is initialised (unit tests).
+    pub fn totp_encryption_key_from_env() -> Option<[u8; 32]> {
+        Self::totp_encryption_key_from_config(
+            config::try_get().and_then(|c| c.totp_encryption_key.clone()),
+        )
+    }
+
+    fn totp_encryption_key_from_config(raw: Option<String>) -> Option<[u8; 32]> {
+        let raw = raw.as_deref()?.trim();
+        if raw.is_empty() {
+            return None;
+        }
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(raw) {
+            if bytes.len() == 32 {
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&bytes);
+                return Some(key);
+            }
+        }
+        if raw.len() == 64
+            && let Ok(bytes) = hex::decode(raw)
+            && bytes.len() == 32
+        {
+            let mut key = [0u8; 32];
+            key.copy_from_slice(&bytes);
+            return Some(key);
+        }
+        if raw.len() >= 32 {
+            return Some(Sha256::digest(raw.as_bytes()).into());
+        }
+        log::error!("TOTP_ENCRYPTION_KEY must be base64/hex of 32 bytes, or an ASCII string of at least 32 characters");
+        None
+    }
+
+    fn seal_with(key: &[u8; 32], plaintext: &str) -> String {
+        let mut rng = rand::rng();
+        let nonce_bytes: [u8; 12] = rng.random();
+        let mut in_out = plaintext.as_bytes().to_vec();
+        let sealing_key = UnboundKey::new(&AES_256_GCM, key).expect("valid AES-256 key");
+        let nonce = Nonce::assume_unique_for_key(nonce_bytes);
+        let sealing_key = LessSafeKey::new(sealing_key);
+        let tag_len = sealing_key.algorithm().tag_len();
+        sealing_key
+            .seal_in_place_append_tag(nonce, Aad::empty(), &mut in_out)
+            .expect("AES-256-GCM seal cannot fail with valid key/nonce");
+        let ciphertext = &in_out[..in_out.len() - tag_len];
+        let tag = &in_out[in_out.len() - tag_len..];
+        let mut payload = Vec::with_capacity(12 + in_out.len());
+        payload.extend_from_slice(&nonce_bytes);
+        payload.extend_from_slice(ciphertext);
+        payload.extend_from_slice(tag);
+        format!("enc1:{}", B64URL.encode(payload))
+    }
+
+    fn open_with(key: &[u8; 32], stored: &str) -> Result<String, String> {
+        let mut payload = B64URL
+            .decode(stored.trim_start_matches("enc1:"))
+            .map_err(|e| format!("corrupt encrypted TOTP secret: {e}"))?;
+        if payload.len() < 12 + 16 {
+            return Err("corrupt encrypted TOTP secret: too short".to_string());
+        }
+        let (nonce_bytes, in_out) = payload.split_at_mut(12);
+        let mut nonce_array = [0u8; 12];
+        nonce_array.copy_from_slice(nonce_bytes);
+        let opening_key = UnboundKey::new(&AES_256_GCM, key).expect("valid AES-256 key");
+        let opening_key = LessSafeKey::new(opening_key);
+        let nonce = Nonce::assume_unique_for_key(nonce_array);
+        let plain = opening_key
+            .open_in_place(nonce, Aad::empty(), in_out)
+            .map_err(|_| "encrypted TOTP secret failed authentication".to_string())?;
+        String::from_utf8(plain.to_vec()).map_err(|_| "decrypted TOTP secret is not UTF-8".to_string())
+    }
+
+    /// Encrypt for storage. Without a configured key this is the identity
+    /// function (plaintext status quo), keeping existing deployments booting.
+    pub fn encrypt_stored_totp_secret(plaintext: &str) -> String {
+        match Self::totp_encryption_key_from_env() {
+            Some(key) => Self::seal_with(&key, plaintext),
+            None => plaintext.to_string(),
+        }
+    }
+
+    /// Recover the plaintext seed from what is stored. Legacy plaintext rows
+    /// pass through unchanged; `enc1:` rows require the key.
+    pub fn decrypt_stored_totp_secret(stored: &str) -> Result<String, String> {
+        if !stored.starts_with("enc1:") {
+            return Ok(stored.to_string());
+        }
+        match Self::totp_encryption_key_from_env() {
+            Some(key) => Self::open_with(&key, stored),
+            None => Err(
+                "TOTP secret is encrypted but TOTP_ENCRYPTION_KEY is not configured".to_string(),
+            ),
+        }
+    }
+
     pub fn init_jwt_secret(secret: &str) -> Result<(), String> {
         config::validate_jwt_secret(secret)?;
 
@@ -1026,4 +1138,62 @@ mod tests {
             Some(0)
         );
     }
+    #[cfg(test)]
+    mod totp_encryption_tests {
+        use super::*;
+
+        const KEY: [u8; 32] = [7u8; 32];
+        const OTHER_KEY: [u8; 32] = [9u8; 32];
+
+        #[test]
+        fn seal_then_open_roundtrips() {
+            let sealed = AuthService::seal_with(&KEY, "JBSWY3DPEHPK3PXP");
+            assert!(sealed.starts_with("enc1:"));
+            assert_ne!(sealed, "JBSWY3DPEHPK3PXP");
+            assert_eq!(
+                AuthService::open_with(&KEY, &sealed).unwrap(),
+                "JBSWY3DPEHPK3PXP"
+            );
+        }
+
+        #[test]
+        fn same_plaintext_seals_to_different_ciphertexts() {
+            let a = AuthService::seal_with(&KEY, "secret");
+            let b = AuthService::seal_with(&KEY, "secret");
+            assert_ne!(a, b, "random nonce required");
+        }
+
+        #[test]
+        fn tampered_ciphertext_fails_authentication() {
+            let mut sealed = AuthService::seal_with(&KEY, "JBSWY3DPEHPK3PXP");
+            // Flip the last payload character (inside the tag region).
+            let last = sealed.pop().unwrap();
+            sealed.push(if last == 'A' { 'B' } else { 'A' });
+            assert!(AuthService::open_with(&KEY, &sealed).is_err());
+        }
+
+        #[test]
+        fn wrong_key_fails_authentication() {
+            let sealed = AuthService::seal_with(&KEY, "JBSWY3DPEHPK3PXP");
+            assert!(AuthService::open_with(&OTHER_KEY, &sealed).is_err());
+        }
+
+        #[test]
+        fn legacy_plaintext_rows_pass_through_decryption() {
+            // No key configured path: decrypt of a non-enc1 value is identity.
+            assert_eq!(
+                AuthService::decrypt_stored_totp_secret("JBSWY3DPEHPK3PXP").unwrap(),
+                "JBSWY3DPEHPK3PXP"
+            );
+            // Encrypted row without any key configured is a hard error, never
+            // silently treated as an invalid code.
+            let sealed = AuthService::seal_with(&KEY, "JBSWY3DPEHPK3PXP");
+            assert!(
+                AuthService::decrypt_stored_totp_secret(&sealed)
+                    .unwrap_err()
+                    .contains("TOTP_ENCRYPTION_KEY")
+            );
+        }
+    }
+
 }

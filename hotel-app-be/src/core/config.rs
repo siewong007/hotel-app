@@ -29,6 +29,9 @@ pub struct AppConfig {
     pub settings_cache_ttl_secs: u64,
     pub skip_email_verification: bool,
     pub trust_proxy_headers: bool,
+    /// Optional AES-256 key material for TOTP secrets at rest (L4). Absent =
+    /// plaintext storage (legacy behaviour).
+    pub totp_encryption_key: Option<String>,
     pub paypal: PaypalConfig,
     pub bank_details: BankDetails,
 }
@@ -162,6 +165,7 @@ impl AppConfig {
             settings_cache_ttl_secs: env_or_parse("SETTINGS_CACHE_TTL_SECS", 30)?,
             skip_email_verification: env_bool("SKIP_EMAIL_VERIFICATION", false)?,
             trust_proxy_headers: env_bool("TRUST_PROXY_HEADERS", false)?,
+            totp_encryption_key: env_opt("TOTP_ENCRYPTION_KEY"),
             paypal: PaypalConfig {
                 enabled: env_bool("PAYPAL_ENABLED", false)?,
                 client_id: env_opt("PAYPAL_CLIENT_ID"),
