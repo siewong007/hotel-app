@@ -47,13 +47,17 @@ import { BookingsService, GuestsService, RoomsService } from '../../../api';
 
 import { useAuth } from '../../../auth/AuthContext';
 import { BookingWithDetails, Guest, Booking } from '../../../types';
+import { errorMessage } from '../../../utils';
+import { Room, BookingUpdateRequest, CheckInRequest } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { getBookingChannelInfo } from '../../bookings/utils/bookingChannel';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
 
 interface RoomStatus {
-  id: number;
+  // Room.id is a UUID string in the API; the old `number` only typechecked
+  // because the source array was any[].
+  id: string;
   room_number: string;
   room_type: string;
   status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved' | 'reserved_dirty' | 'out_of_order' | 'dirty';
@@ -140,7 +144,7 @@ const ReceptionistDashboard: React.FC = () => {
       const [roomsData, bookingsData] = await Promise.all([
         RoomsService.getAllRooms(),
         BookingsService.getAllBookings(),
-      ]) as [any[], BookingWithDetails[]];
+      ]) as [Room[], BookingWithDetails[]];
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -174,7 +178,7 @@ const ReceptionistDashboard: React.FC = () => {
       });
 
       // Process rooms with their current status
-      const processedRooms: RoomStatus[] = roomsData.map((room: any) => {
+      const processedRooms: RoomStatus[] = roomsData.map((room) => {
         const roomBookings = bookingsByRoom.get(String(room.id)) || [];
 
         // Find active booking for this room
@@ -310,9 +314,9 @@ const ReceptionistDashboard: React.FC = () => {
       });
 
       setLoading(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError(err.message || 'Failed to load dashboard data');
+      setError(errorMessage(err, 'Failed to load dashboard data'));
       setLoading(false);
     }
   };
@@ -345,9 +349,9 @@ const ReceptionistDashboard: React.FC = () => {
           })
           .catch(() => { /* leave for manual entry */ });
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load check-in data:', err);
-      setError(err.message || 'Failed to load check-in data');
+      setError(errorMessage(err, 'Failed to load check-in data'));
       setLoading(false);
     }
   };
@@ -364,7 +368,7 @@ const ReceptionistDashboard: React.FC = () => {
     }
     try {
       setProcessingCheckIn(true);
-      const updateData: any = {};
+      const updateData: BookingUpdateRequest = {};
       if (ciPaymentChoice === 'pay_now') {
         updateData.payment_status = 'paid';
         updateData.amount_paid = ciAmountPaid;
@@ -382,7 +386,7 @@ const ReceptionistDashboard: React.FC = () => {
         updateData.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
       await BookingsService.updateBooking(checkinBooking.id, updateData);
-      const checkinPayload: any = {
+      const checkinPayload: CheckInRequest = {
         guest_update: {
           ic_number: ciIcNumber.trim(),
           ...(ciPhone.trim() ? { phone: ciPhone.trim() } : {}),
@@ -400,8 +404,8 @@ const ReceptionistDashboard: React.FC = () => {
       setCheckinModalOpen(false);
       setCheckinBooking(null);
       loadDashboardData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to check in guest');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to check in guest'));
     } finally {
       setProcessingCheckIn(false);
     }

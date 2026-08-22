@@ -4,6 +4,8 @@
 // Currency utilities (primary formatCurrency implementation)
 export * from './currency';
 
+export { errorMessage } from './errorMessage';
+
 // Booking utilities (excluding formatCurrency which is in currency.ts)
 export {
   validateBookingDates,

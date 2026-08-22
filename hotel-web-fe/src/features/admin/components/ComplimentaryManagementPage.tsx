@@ -46,6 +46,7 @@ import {
 import { Autocomplete, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
+import { errorMessage } from '../../../utils';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { DataTable, type ColumnDef } from '../../../components';
@@ -278,8 +279,8 @@ export default function ComplimentaryManagementPage() {
       showSnackbar('Credits added successfully');
       setAddCreditDialogOpen(false);
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to add credits', 'error');
+    } catch (err) {
+      showSnackbar(errorMessage(err, 'Failed to add credits'), 'error');
     } finally {
       setProcessing(false);
     }
@@ -300,8 +301,8 @@ export default function ComplimentaryManagementPage() {
       showSnackbar('Credits updated successfully');
       setEditCreditDialogOpen(false);
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to update credits', 'error');
+    } catch (err) {
+      showSnackbar(errorMessage(err, 'Failed to update credits'), 'error');
     } finally {
       setProcessing(false);
     }
@@ -315,8 +316,8 @@ export default function ComplimentaryManagementPage() {
       showSnackbar('Credits deleted successfully');
       setDeleteCreditDialogOpen(false);
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to delete credits', 'error');
+    } catch (err) {
+      showSnackbar(errorMessage(err, 'Failed to delete credits'), 'error');
     } finally {
       setProcessing(false);
     }
@@ -337,7 +338,8 @@ export default function ComplimentaryManagementPage() {
     }
 
     filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
+      let aVal: string | number;
+      let bVal: string | number;
       switch (sortField) {
         case 'guest_name':
           aVal = a.guest_name || '';
@@ -400,8 +402,8 @@ export default function ComplimentaryManagementPage() {
       showSnackbar('Complimentary booking updated successfully');
       setEditDialogOpen(false);
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to update', 'error');
+    } catch (err) {
+      showSnackbar(errorMessage(err, 'Failed to update'), 'error');
     } finally {
       setProcessing(false);
     }
@@ -415,8 +417,8 @@ export default function ComplimentaryManagementPage() {
       showSnackbar('Complimentary status removed successfully');
       setDeleteDialogOpen(false);
       await loadData();
-    } catch (err: any) {
-      showSnackbar(err.message || 'Failed to remove', 'error');
+    } catch (err) {
+      showSnackbar(errorMessage(err, 'Failed to remove'), 'error');
     } finally {
       setProcessing(false);
     }
@@ -734,7 +736,7 @@ export default function ComplimentaryManagementPage() {
                       <Chip
                         label={getStatusLabel(booking.status as string)}
                         size="small"
-                        color={getStatusColor(booking.status as string) as any}
+                        color={getStatusColor(booking.status as string) as 'success' | 'warning' | 'info' | 'default'}
                       />
                     </TableCell>
                     <TableCell>

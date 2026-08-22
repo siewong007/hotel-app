@@ -33,7 +33,7 @@ import { BookingsService, RoomsService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateBookingDependencies, invalidateRoomDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
-import { RoomDetailedStatus, RoomStatusUpdateInput } from '../../../types';
+import { Room, RoomDetailedStatus, RoomStatusUpdateInput } from '../../../types';
 import RoomHistoryTimeline from './RoomHistoryTimeline';
 
 interface RoomEventDialogProps {
@@ -72,7 +72,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   const [cleaningStartDate, setCleaningStartDate] = useState('');
   const [cleaningEndDate, setCleaningEndDate] = useState('');
   const [targetRoomId, setTargetRoomId] = useState('');
-  const [availableRooms, setAvailableRooms] = useState<any[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [roomChangeMode, setRoomChangeMode] = useState(false);
 
   const loadAvailableRooms = useCallback(async () => {
@@ -83,17 +83,14 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
         staleTime: queryStaleTime.standard,
       });
       // Filter out the current room
-      const otherRooms = rooms.filter((r: any) => r.id !== roomId);
+      const otherRooms = rooms.filter((r) => r.id !== roomId);
 
       // Filter rooms that are truly available for room change
       // Backend requires status === 'available', so we must match that
-      const filtered = otherRooms.filter((r: any) => {
-        const currentStatus = r.status || 'available';
-        return currentStatus === 'available';
-      });
+      const filtered = otherRooms.filter((r) => (r.status || 'available') === 'available');
 
       // Sort rooms by room number ascending
-      const sorted = [...filtered].sort((a: any, b: any) => {
+      const sorted = [...filtered].sort((a, b) => {
         const numA = parseInt(a.room_number, 10);
         const numB = parseInt(b.room_number, 10);
         if (!isNaN(numA) && !isNaN(numB)) {
@@ -103,7 +100,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       });
 
       setAvailableRooms(sorted);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load available rooms:', err);
     }
   }, [queryClient, roomId]);
@@ -129,7 +126,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       if (details.cleaning_end_date) setCleaningEndDate(details.cleaning_end_date);
       if (details.target_room_id) setTargetRoomId(details.target_room_id.toString());
       if (details.status_notes) setStatusNotes(details.status_notes);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load room details:', err);
     } finally {
       setLoadingDetails(false);
@@ -238,7 +235,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       invalidateRoomDependencies(queryClient);
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Failed to update room status');
     } finally {
       setLoading(false);
@@ -286,7 +283,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Failed to end maintenance');
     } finally {
       setLoading(false);
@@ -309,7 +306,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setRoomChangeMode(false);
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Room change error:', err);
       setError(err.message || 'Failed to execute room change');
     } finally {
@@ -335,7 +332,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to check in guest:', err);
       const errorMessage = err.message || err.toString() || 'Failed to check in guest';
       setError(`Failed to check in guest: ${errorMessage}`);
@@ -673,7 +670,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                       <InputLabel>New Status</InputLabel>
                       <Select
                         value={newStatus}
-                        onChange={(e) => setNewStatus(e.target.value as any)}
+                        onChange={(e) => setNewStatus(e.target.value as typeof newStatus)}
                         label="New Status"
                       >
                         <MenuItem value="maintenance">Maintenance</MenuItem>

@@ -55,6 +55,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { LoyaltyReward, RewardUpdateInput } from '../../../types';
 import { LoadingSpinner } from '../../../components';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { errorMessage } from '../../../utils';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -185,9 +186,9 @@ const LoyaltyDashboard: React.FC = () => {
         try {
           const allRewardsData = await LoyaltyService.getRewards();
           setAllRewards(allRewardsData);
-        } catch (err: any) {
+        } catch (err) {
           console.error('Failed to load rewards:', err);
-          setError(err.message || 'Failed to load rewards');
+          setError(errorMessage(err, 'Failed to load rewards'));
         }
       } else {
         // Check eKYC status for guests
@@ -210,7 +211,7 @@ const LoyaltyDashboard: React.FC = () => {
             setLoading(false);
             return;
           }
-        } catch (err: any) {
+        } catch (err) {
           // If eKYC endpoint fails, assume eKYC is required
           console.warn('Failed to check eKYC status:', err);
           setEkycRequired(true);
@@ -224,7 +225,7 @@ const LoyaltyDashboard: React.FC = () => {
 
         try {
           membershipData = await LoyaltyService.getUserLoyaltyMembership();
-        } catch (err: any) {
+        } catch (err) {
           // 404 = no membership yet; leave membershipData null
           if (!(err instanceof HTTPError && err.response.status === 404)) {
             throw err;
@@ -235,16 +236,16 @@ const LoyaltyDashboard: React.FC = () => {
         // This allows users to see what rewards they can earn
         try {
           rewardsData = await LoyaltyService.getLoyaltyRewards();
-        } catch (err: any) {
+        } catch (err) {
           console.warn('Failed to load rewards:', err);
         }
 
         setMembership(membershipData);
         setRewards(rewardsData);
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load loyalty data:', err);
-      setError(err.message || 'Failed to load loyalty information');
+      setError(errorMessage(err, 'Failed to load loyalty information'));
     } finally {
       setLoading(false);
     }
@@ -280,8 +281,8 @@ const LoyaltyDashboard: React.FC = () => {
 
       // Reload data
       await loadLoyaltyData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to redeem reward');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to redeem reward'));
     } finally {
       setLoading(false);
     }
@@ -324,13 +325,23 @@ const LoyaltyDashboard: React.FC = () => {
         await LoyaltyService.updateReward(editingReward.id, updateData);
         setSuccessMessage('Reward updated successfully');
       } else {
-        await LoyaltyService.createReward(editingReward as any);
+        await LoyaltyService.createReward({
+          name: editingReward.name ?? '',
+          description: editingReward.description,
+          category: editingReward.category ?? 'general',
+          points_cost: editingReward.points_cost ?? 0,
+          monetary_value: editingReward.monetary_value,
+          minimum_tier_level: editingReward.minimum_tier_level ?? 1,
+          stock_quantity: editingReward.stock_quantity,
+          image_url: editingReward.image_url,
+          terms_conditions: editingReward.terms_conditions,
+        });
         setSuccessMessage('Reward created successfully');
       }
       setEditDialogOpen(false);
       await loadLoyaltyData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save reward');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save reward'));
     } finally {
       setLoading(false);
     }
@@ -350,8 +361,8 @@ const LoyaltyDashboard: React.FC = () => {
       setDeleteDialogOpen(false);
       setSelectedReward(null);
       await loadLoyaltyData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete reward');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to delete reward'));
     } finally {
       setLoading(false);
     }

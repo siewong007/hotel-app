@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { errorMessage } from '../../../utils';
 import {
   Box,
   Typography,
@@ -371,7 +372,10 @@ const NightAuditPage: React.FC = () => {
       const sections = details.journal_sections || [];
 
       const jspdfModule = await import('jspdf');
-      const jsPDF = jspdfModule.jsPDF || jspdfModule.default;
+      // Keep the interop fallback but preserve the ambient jsPDF type on both branches,
+      // so lastAutoTable stays known.
+      const jsPDF =
+        jspdfModule.jsPDF || (jspdfModule as { default?: typeof jspdfModule.jsPDF }).default;
       const autoTableModule = await import('jspdf-autotable');
       const autoTable = autoTableModule.default;
 
@@ -457,7 +461,7 @@ const NightAuditPage: React.FC = () => {
             },
             theme: 'grid',
           });
-          currentY = (doc as any).lastAutoTable.finalY + 6;
+          currentY = doc.lastAutoTable.finalY + 6;
           return;
         }
 
@@ -518,7 +522,7 @@ const NightAuditPage: React.FC = () => {
             },
             theme: 'grid',
           });
-          currentY = (doc as any).lastAutoTable.finalY + 6;
+          currentY = doc.lastAutoTable.finalY + 6;
           return;
         }
 
@@ -561,7 +565,7 @@ const NightAuditPage: React.FC = () => {
           },
           theme: 'grid',
         });
-        currentY = (doc as any).lastAutoTable.finalY + 6;
+        currentY = doc.lastAutoTable.finalY + 6;
       };
 
       // Render each journal section
@@ -611,7 +615,7 @@ const NightAuditPage: React.FC = () => {
         },
         theme: 'grid',
       });
-      currentY = (doc as any).lastAutoTable.finalY + 16;
+      currentY = doc.lastAutoTable.finalY + 16;
 
       // Room Sold Detail by Date
       doc.setFontSize(13);
@@ -674,9 +678,9 @@ const NightAuditPage: React.FC = () => {
       }
 
       doc.save(`night_audit_${audit.audit_date}.pdf`);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to export audit to PDF:', err);
-      setError(`Failed to export audit: ${err.message || 'Unknown error'}`);
+      setError(`Failed to export audit: ${errorMessage(err, 'Unknown error')}`);
     }
   };
 
@@ -715,8 +719,8 @@ const NightAuditPage: React.FC = () => {
       } catch (detailErr) {
         console.error('Failed to auto-load audit details:', detailErr);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to run night audit');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to run night audit'));
     }
   };
 

@@ -43,6 +43,7 @@ import {
   WarningAmberOutlined as MissingTourismIcon,
 } from '@mui/icons-material';
 import { Guest } from '../../../types';
+import { errorMessage } from '../../../utils';
 import { DataTable, type ColumnDef } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
 import { useSearchParams } from '../../../router';
@@ -327,7 +328,7 @@ const GuestConfigurationPage: React.FC = () => {
       enableSorting: false,
       meta: { align: 'right' },
     },
-    { id: 'booking_number', header: 'Booking #', accessorFn: (b: any) => b.booking_number },
+    { id: 'booking_number', header: 'Booking #', accessorFn: (b: GuestBookingHistoryRow) => b.booking_number },
     {
       id: 'room',
       header: 'Room',
@@ -570,8 +571,8 @@ const GuestConfigurationPage: React.FC = () => {
       setPortalAccountDialogOpen(false);
       setPortalAccountUsername('');
       await loadGuests();
-    } catch (err: any) {
-      setPortalAccountTransferError(err.message || 'Failed to transfer guest portal account');
+    } catch (err) {
+      setPortalAccountTransferError(errorMessage(err, 'Failed to transfer guest portal account'));
     }
   };
 
@@ -630,8 +631,8 @@ const GuestConfigurationPage: React.FC = () => {
       setDialogError(null);
       resetForm();
       await loadGuests();
-    } catch (err: any) {
-      const message = err.message || 'Failed to create guest';
+    } catch (err) {
+      const message = errorMessage(err, 'Failed to create guest');
       setDialogError(message);
       focusDuplicateGuestSearch(message);
     } finally {
@@ -670,8 +671,8 @@ const GuestConfigurationPage: React.FC = () => {
       setDialogError(null);
       resetForm();
       await loadGuests();
-    } catch (err: any) {
-      const message = err.message || 'Failed to update guest';
+    } catch (err) {
+      const message = errorMessage(err, 'Failed to update guest');
       setDialogError(message);
       focusDuplicateGuestSearch(message);
     } finally {
@@ -691,8 +692,8 @@ const GuestConfigurationPage: React.FC = () => {
         severity: 'success',
       });
       await loadGuests();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update guest tourism type');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to update guest tourism type'));
     } finally {
       setTourismConversionGuestId(null);
     }
@@ -708,8 +709,8 @@ const GuestConfigurationPage: React.FC = () => {
       setDeleteDialogOpen(false);
       setDeletingGuest(null);
       await loadGuests();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete guest');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to delete guest'));
     } finally {
       setFormLoading(false);
     }
