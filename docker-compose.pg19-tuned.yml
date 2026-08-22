@@ -34,7 +34,7 @@ services:
       - jit=off
 
   pg19-tuner:
-    image: postgres:19beta2
+    image: postgres:19beta3
     restart: "no"
     environment:
       PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — copy .env.example to .env and set a strong value}"

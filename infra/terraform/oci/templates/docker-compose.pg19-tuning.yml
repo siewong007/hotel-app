@@ -2,7 +2,7 @@
 # beta image and these memory assumptions are not production defaults.
 services:
   postgres:
-    image: postgres:19beta2
+    image: postgres:19beta3
     command:
       - postgres
       - -c

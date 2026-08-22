@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:19beta2
+        image: postgres:19beta3
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -145,7 +145,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:19beta2
+        image: postgres:19beta3
         env:
           POSTGRES_DB: hotel_ci
           POSTGRES_USER: postgres
