@@ -40,7 +40,13 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
 
   // Move focus into the panel when it opens so keyboard users land inside the dialog.
   useEffect(() => {
-    if (open) closeButtonRef.current?.focus();
+    if (!open) return;
+    // Under MUI v9 the IconButton ref does not reliably expose the DOM node
+    // by effect time, so fall back to the mounted dialog's close control.
+    const target =
+      closeButtonRef.current ??
+      document.querySelector<HTMLButtonElement>('button[aria-label="Close support"]');
+    target?.focus();
   }, [open]);
 
   return (
