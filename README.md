@@ -373,6 +373,7 @@ environment is for development and benchmarking only.
 - [Production Security Operations](docs/security/production-operations.md) — Release controls, access reviews, incident response
 - [Backup and Restore Drill](docs/security/backup-restore.md) — Off-host backup and quarterly restore procedure
 - [VPS Access Guide](docs/guides/vps-access.md) — Production host access and database maintenance
+- [PostgreSQL 19beta3 Cutover](docs/guides/postgres-beta3-cutover.md) — Dump-and-restore runbook for the production database engine bump
 - [Desktop Build Guide](hotel-desktop/BUILD_SPEED.md) — Desktop build pipeline and caching
 - [OCI Always Free Terraform](infra/terraform/oci/README.md) — Free-tier-shaped development environment
 - [CLAUDE.md](CLAUDE.md) / [AGENTS.md](AGENTS.md) — Coding-agent routing index and repository conventions
