@@ -59,12 +59,17 @@ impl RateLimitEntry {
             self.timestamps.push(now);
             (true, 0)
         } else {
-            // Calculate how long until the oldest entry expires
-            let oldest = self.timestamps.first().unwrap();
-            let retry_after = config
-                .window
-                .as_secs()
-                .saturating_sub(now.duration_since(*oldest).as_secs());
+            // Calculate how long until the oldest entry expires. Defensive
+            // against a degenerate max_requests = 0 configuration, where this
+            // branch is reached with an empty list and the old
+            // .first().unwrap() panicked on the very first request.
+            let retry_after = match self.timestamps.first() {
+                Some(oldest) => {
+                    let elapsed = now.duration_since(*oldest).as_secs();
+                    config.window.as_secs().saturating_sub(elapsed)
+                }
+                None => 0,
+            };
             (false, retry_after.max(1))
         }
     }
@@ -291,6 +296,16 @@ mod tests {
         assert!(limiter.check(ip(1)).await);
         assert!(!limiter.check(ip(1)).await);
         assert!(limiter.check(ip(2)).await);
+    }
+
+    #[tokio::test]
+    async fn zero_limit_config_denies_without_panicking_on_first_request() {
+        // Degenerate configuration guard: max_requests = 0 used to reach
+        // .first().unwrap() on an empty list and panic the request task.
+        let limiter = RateLimiter::new(RateLimitConfig::new(0, 60));
+        let (allowed, retry_after) = limiter.check_with_retry(ip(1)).await;
+        assert!(!allowed);
+        assert!(retry_after >= 1);
     }
 
     #[tokio::test]
