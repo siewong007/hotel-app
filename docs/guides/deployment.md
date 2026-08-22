@@ -493,7 +493,20 @@ cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)   # PostgreSQL (de
 
 ### Backup via Docker
 
-`docker-compose.yml` has no scheduled backup service — backups are manual, run on demand or scheduled externally (e.g. host cron):
+**Production deploys install a nightly backup automatically.** `deploy.sh`
+writes a `saliminn-backup.timer` (18:10 UTC ≈ 02:10 Malaysia time,
+`Persistent=true`) that runs `/opt/saliminn/database-backup.sh`. Each run
+produces a verified `pg_dump --format=custom` at
+`/opt/saliminn/backups/nightly-<timestamp>.dump` and retains the newest 7
+dumps across both `nightly-*` and predeploy names. Check its status with
+`systemctl list-timers saliminn-backup.timer`; runs log to journald
+(`journalctl -u saliminn-backup.service`).
+
+These dumps live on the same host as Postgres — they are the recovery point
+of last resort, **not** an off-host strategy. Ship copies off-host (e.g.
+encrypted upload to object storage) for real disaster recovery.
+
+Manual/ad-hoc backups, or scheduled backups for non-deploy environments:
 
 ```bash
 docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql   # manual
@@ -502,18 +515,25 @@ docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql   # ma
 
 ### Log Rotation
 
-The backend writes one append-only file per calendar day (`backend-YYYY-MM-DD.log` under `HOTEL_LOG_DIR`) with no built-in size cap or cleanup. Rotate/prune it with `logrotate(8)` on Linux hosts:
+The backend writes to a single append-only file (`backend.log` under
+`HOTEL_LOG_DIR`) with no built-in size cap or cleanup. Rotate/prune it with
+`logrotate(8)` on Linux hosts:
 
 ```
 # /etc/logrotate.d/hotel-app-be
 /path/to/HOTEL_LOG_DIR/*.log {
     daily
+    maxsize 10M
     rotate 14
     compress
     missingok
     notifempty
+    copytruncate
 }
 ```
+
+`copytruncate` is required: the backend keeps the file open in append mode,
+so a plain rename would leave it writing into the rotated file.
 
 ---
 

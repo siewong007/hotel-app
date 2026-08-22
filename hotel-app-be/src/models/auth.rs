@@ -7,6 +7,11 @@ use uuid::Uuid;
 
 use super::rbac::RouteAccessPolicy;
 use super::user::UserResponse;
+
+/// Username vocabulary for self-registration. Deliberately narrow: usernames
+/// are echoed into audit exports and admin UIs.
+pub(crate) static USERNAME_PATTERN: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(r"^[A-Za-z0-9._-]+$").expect("valid regex"));
 use crate::utils::sanitization::Sanitizer;
 use validator::{Validate, ValidationError, ValidationErrors};
 
@@ -248,6 +253,14 @@ pub struct UserSessionInfo {
 /// Registration request
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RegisterRequest {
+    // Character-class rule: usernames land in audit CSV exports (see
+    // export_audit_logs_csv), and an anonymous registrant planting
+    // `=HYPERLINK(...)` as a username is the sharpest injection path. The
+    // csv_cell guard already neutralises formulas; this closes the door too.
+    #[validate(regex(
+        path = *USERNAME_PATTERN,
+        message = "Username may only contain letters, digits, dots, underscores and dashes"
+    ))]
     #[validate(length(
         min = 3,
         max = 50,

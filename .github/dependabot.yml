@@ -11,6 +11,16 @@ updates:
     ignore:
       - dependency-name: "sqlx"
       - dependency-name: "sqlx-*"
+  # The desktop shell ships tauri + an embedded PostgreSQL to end users; it
+  # needs its own advisory coverage, not just the backend's.
+  - package-ecosystem: cargo
+    directory: /hotel-desktop/src-tauri
+    schedule:
+      interval: weekly
+  - package-ecosystem: bun
+    directory: /hotel-desktop
+    schedule:
+      interval: weekly
   - package-ecosystem: bun
     directory: /hotel-web-fe
     schedule:

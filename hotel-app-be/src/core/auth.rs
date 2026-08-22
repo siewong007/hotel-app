@@ -169,12 +169,25 @@ impl AuthService {
         .map(|data| data.claims)
     }
 
-    pub async fn hash_password(password: &str) -> Result<String, bcrypt::BcryptError> {
-        hash(password, DEFAULT_COST)
+    pub async fn hash_password(password: &str) -> Result<String, String> {
+        // bcrypt cost 12 pins a worker thread for hundreds of milliseconds;
+        // run it on the blocking pool so login bursts cannot starve the async
+        // runtime (the cheapest CPU-exhaustion primitive once rate limits
+        // are the only thing in front of this).
+        let password = password.to_owned();
+        tokio::task::spawn_blocking(move || hash(&password, DEFAULT_COST))
+            .await
+            .map_err(|join_error| format!("password hashing worker failed: {join_error}"))?
+            .map_err(|error| format!("password hashing failed: {error}"))
     }
 
-    pub async fn verify_password(password: &str, hash: &str) -> Result<bool, bcrypt::BcryptError> {
-        verify(password, hash)
+    pub async fn verify_password(password: &str, hash: &str) -> Result<bool, String> {
+        let password = password.to_owned();
+        let hash = hash.to_owned();
+        tokio::task::spawn_blocking(move || verify(&password, &hash))
+            .await
+            .map_err(|join_error| format!("password verification worker failed: {join_error}"))?
+            .map_err(|error| format!("password verification failed: {error}"))
     }
 
     /// Validates password complexity and returns an error message if invalid
@@ -477,6 +490,10 @@ impl AuthService {
     }
 
     /// Update user with email verification token
+    ///
+    /// Only the SHA-256 digest is stored, matching refresh tokens, 2FA
+    /// challenges and recovery codes. The plaintext token exists solely in
+    /// the verification link.
     pub async fn create_email_verification_token(
         pool: &DbPool,
         user_id: i64,
@@ -493,13 +510,19 @@ impl AuthService {
             WHERE id = $3
             "#,
         )
-        .bind(&token)
+        .bind(Self::hash_email_verification_token(&token))
         .bind(expires_at)
         .bind(user_id)
         .execute(pool)
         .await?;
 
         Ok(token)
+    }
+
+    fn hash_email_verification_token(token: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        hex::encode(hasher.finalize())
     }
 
     /// Verify email token and mark user as verified
@@ -520,7 +543,7 @@ impl AuthService {
             RETURNING id
             "#,
         )
-        .bind(token)
+        .bind(Self::hash_email_verification_token(token))
         .fetch_optional(pool)
         .await?;
 

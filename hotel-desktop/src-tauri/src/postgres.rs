@@ -94,6 +94,11 @@ pub enum PostgresError {
     #[error("Backup destination is outside the allowed data directory: {0}")]
     InvalidBackupDestination(String),
 
+    #[error(
+        "Port {port} is already used by a PostgreSQL server this app did not start (the app's data directory has no matching postmaster.pid). This build manages its own embedded database on port {port}; free the port by stopping that other PostgreSQL instance (or moving it to another port), then start the app again."
+    )]
+    ForeignServerOnPort { port: u16 },
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -886,6 +891,61 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
     matches!(output, Ok(status) if status.success())
 }
 
+/// True when the app's own data directory owns the server listening on
+/// [`POSTGRES_PORT`].
+///
+/// A running PostgreSQL writes `postmaster.pid` into its data directory with
+/// a fixed layout: line 1 is the PID, lines 2–3 the data directory and start
+/// time, and line 4 the listening port. A live pidfile in OUR pgdata naming
+/// our port proves the listener on 5433 is ours. A pidfile naming another
+/// port, or one whose process is dead (stale file after an unclean
+/// shutdown), means the port — if anything answers there at all — belongs to
+/// someone else.
+fn data_dir_owns_running_server() -> bool {
+    let Some((pid, port)) = read_postmaster_pid(get_pgdata_dir().join("postmaster.pid")) else {
+        return false;
+    };
+    if port != POSTGRES_PORT || !process_is_alive(pid) {
+        return false;
+    }
+    true
+}
+
+/// Parse `(pid, port)` from a postmaster.pid file; `None` when missing or
+/// malformed.
+fn read_postmaster_pid(path: std::path::PathBuf) -> Option<(u32, u16)> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let mut lines = content.lines();
+    let pid = lines.next()?.trim().parse::<u32>().ok()?;
+    // Lines: 1 pid, 2 datadir, 3 start time, 4 port.
+    let port = lines.nth(2)?.trim().parse::<u16>().ok()?;
+    Some((pid, port))
+}
+
+/// Signal-0 liveness probe for the pidfile owner. `kill -0` succeeds for any
+/// process the caller may signal, and fails (ESRCH) once it has exited —
+/// which is exactly the stale-pidfile case. Windows keeps the previous
+/// accept behaviour: its pidfiles are written identically but probing needs
+/// OS-specific APIs, and unclean-shutdown-then-foreign-server is far less
+/// likely there than the plain foreign-server case this check targets.
+fn process_is_alive(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        std::process::Command::new("kill")
+            .arg("-0")
+            .arg(pid.to_string())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        true
+    }
+}
 /// Ensure PostgreSQL is running, starting it if necessary
 pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), PostgresError> {
     let bundled_postgres_version = detect_bundled_postgres_version(app_handle).await?;
@@ -894,9 +954,19 @@ pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), Postg
 
     // Check if already running
     if is_postgres_running(app_handle).await {
-        log::info!("PostgreSQL is already running");
-        ensure_postgres_password_auth(app_handle).await?;
-        return Ok(());
+        // `pg_isready` on POSTGRES_PORT cannot tell our sidecar from any
+        // other PostgreSQL that happens to listen there. Adopting a foreign
+        // server made every later step fail with an opaque "password
+        // authentication failed"; a live postmaster.pid in OUR pgdata is the
+        // ownership proof.
+        if data_dir_owns_running_server() {
+            log::info!("PostgreSQL is already running");
+            ensure_postgres_password_auth(app_handle).await?;
+            return Ok(());
+        }
+        return Err(PostgresError::ForeignServerOnPort {
+            port: POSTGRES_PORT,
+        });
     }
 
     // Initialize if needed
@@ -1697,7 +1767,34 @@ async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), Postgres
         password,
         username_lines
     );
-    std::fs::write(&password_file, contents)?;
+    // 0600 like the postgres password file: this contains the cleartext
+    // initial admin password, and shared front-desk machines have multiple
+    // local OS accounts. Default umask would land it world-readable.
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    match options.open(&password_file) {
+        Ok(mut file) => {
+            use std::io::Write;
+            file.write_all(contents.as_bytes())?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Retry flow: tighten the existing file instead of recreating it.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut permissions = std::fs::metadata(&password_file)?.permissions();
+                permissions.set_mode(0o600);
+                std::fs::set_permissions(&password_file, permissions)?;
+            }
+            std::fs::write(&password_file, contents)?;
+        }
+        Err(error) => return Err(error.into()),
+    }
     log::info!(
         "Seed account passwords randomized. Initial login password written to {:?}",
         password_file
@@ -1960,6 +2057,48 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn postmaster_pid_parse_reads_pid_and_port_lines() {
+        let dir = std::env::temp_dir().join(format!("hotel-pmpid-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("postmaster.pid");
+        std::fs::write(
+            &path,
+            "12345\n/some/pgdata\n2026-08-22 10:00:00\n5433\n/tmp\n*\n\nready   ",
+        )
+        .unwrap();
+
+        assert_eq!(read_postmaster_pid(path.clone()), Some((12345, 5433)));
+
+        // A pidfile naming a different port must not claim ownership.
+        std::fs::write(&path, "999\n/some/pgdata\n2026-08-22 10:00:00\n5432\n/tmp\n*\n").unwrap();
+        assert_eq!(read_postmaster_pid(path), Some((999, 5432)));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn postmaster_pid_parse_rejects_missing_and_malformed_files() {
+        assert_eq!(
+            read_postmaster_pid(std::env::temp_dir().join("hotel-no-such-postmaster.pid")),
+            None
+        );
+
+        let dir = std::env::temp_dir().join(format!("hotel-pmpid-bad-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("postmaster.pid");
+
+        // Truncated file: no port line.
+        std::fs::write(&path, "12345\n/some/pgdata\n").unwrap();
+        assert_eq!(read_postmaster_pid(path.clone()), None);
+
+        // Non-numeric PID.
+        std::fs::write(&path, "not-a-pid\n/d\n2026\n5433\n").unwrap();
+        assert_eq!(read_postmaster_pid(path), None);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     fn build(major: &str, identity: &str) -> PostgresBuildVersion {
         PostgresBuildVersion {

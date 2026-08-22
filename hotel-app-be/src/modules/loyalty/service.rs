@@ -1,7 +1,7 @@
 use super::models::*;
 use super::repository::{LoyaltyRepository, NewTransaction};
 use super::validation;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::modules::promotions::repository::PromotionRepository;
 use crate::services::audit::AuditLog;
@@ -155,7 +155,10 @@ pub async fn redeem_reward_for_guest(
     let reward = LoyaltyRepository::find_reward(pool, reward_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Reward not found.".to_string()))?;
-    validate_reward_redeemable(&reward)?;
+    // Reward validity windows are hotel-local business dates, so compare
+    // against the database's CURRENT_DATE rather than the server UTC date.
+    let today = hotel_today(pool).await.map_err(ApiError::from)?;
+    validate_reward_redeemable(&reward, today)?;
     if reward
         .minimum_tier_id
         .is_some_and(|tier_id| tier_id > member.tier_id)
@@ -633,14 +636,16 @@ fn ensure_member_can_redeem(member: &LoyaltyMemberSummary) -> Result<(), ApiErro
     Ok(())
 }
 
-fn validate_reward_redeemable(reward: &LoyaltyReward) -> Result<(), ApiError> {
+fn validate_reward_redeemable(
+    reward: &LoyaltyReward,
+    today: chrono::NaiveDate,
+) -> Result<(), ApiError> {
     if !reward.is_active {
         return Err(ApiError::BadRequest("Reward is inactive.".to_string()));
     }
     if reward.inventory_count.is_some_and(|count| count <= 0) {
         return Err(ApiError::BadRequest("Reward is out of stock.".to_string()));
     }
-    let today = chrono::Utc::now().date_naive();
     if reward.valid_from.is_some_and(|start| start > today) {
         return Err(ApiError::BadRequest(
             "Reward is not available yet.".to_string(),

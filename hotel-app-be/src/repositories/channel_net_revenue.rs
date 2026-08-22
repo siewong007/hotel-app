@@ -2,11 +2,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-use crate::core::db::{DbPool, DbRow};
+use crate::core::db::{DbPool, DbRow, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::{BookingChannel, ReportQuery};
@@ -950,6 +950,10 @@ pub async fn generate_monthly_statement(
         .map(|statement| statement["totals"]["amount_paid"].as_f64().unwrap_or(0.0))
         .sum();
 
+    // The statement date is a document date: use the hotel-local business
+    // date so statements issued 16:00–24:00 UTC+8 are not dated tomorrow.
+    let statement_date = hotel_today(pool).await.map_err(ApiError::from)?;
+
     Ok(serde_json::json!({
         "type": "ota_monthly_statement",
         "period": {
@@ -957,7 +961,7 @@ pub async fn generate_monthly_statement(
             "end": end_date.to_string(),
             "month_label": month_year_label(start_date)
         },
-        "statement_date": Utc::now().date_naive().format("%d.%m.%Y").to_string(),
+        "statement_date": statement_date.format("%d.%m.%Y").to_string(),
         "statements": statements,
         "summary": {
             "statement_count": statements.len(),

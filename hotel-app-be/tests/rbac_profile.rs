@@ -428,6 +428,7 @@ async fn postgres_role_and_permission_management_reflects_in_permission_checks()
     // update -> delete.
     let created = rbac_service::create_role(
         &pool,
+        actor_id,
         RoleInput {
             name: "rbac920_crud_role".to_string(),
             description: Some("rbac_profile.rs CRUD fixture".to_string()),

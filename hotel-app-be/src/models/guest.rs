@@ -160,7 +160,7 @@ pub struct GuestInput {
 }
 
 /// Input for updating a guest
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct GuestUpdateInput {
     pub first_name: Option<String>,
     pub last_name: Option<String>,

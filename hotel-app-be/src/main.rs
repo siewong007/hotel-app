@@ -70,8 +70,14 @@ fn init_logging(config: &AppConfig) {
             e
         );
     } else {
-        let date = chrono::Local::now().format("%Y-%m-%d");
-        let file_path = log_dir.join(format!("backend-{}.log", date));
+        // Fixed filename: the old code stamped the BOOT date into the name,
+        // so a long-lived container appended to one ever-growing file whose
+        // name lied about its age. Rotation belongs to the host logrotate
+        // unit (/etc/logrotate.d/saliminn uses copytruncate on
+        // /opt/saliminn/logs/*.log), which matches this name and keeps size
+        // bounded regardless of container lifetime. On machines without that
+        // unit (dev laptops), delete old files manually.
+        let file_path = log_dir.join("backend.log");
         match std::fs::OpenOptions::new()
             .create(true)
             .append(true)

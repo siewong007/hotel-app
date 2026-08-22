@@ -50,6 +50,7 @@ flock -n 9 || die "another saliminn deployment is already running"
 
 required_payload=(
   deploy.sh
+  database-backup.sh
   docker-compose.prod.yml
   SHA256SUMS
   images/backend.tar.gz
@@ -64,6 +65,7 @@ required_payload=(
   database/patches/0003_payment_idempotency.sql
   database/patches/0004_booking_status_vocabulary.sql
   database/patches/0005_booking_status_enforcement.sql
+  database/patches/0006_guest_role_isolation.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -183,6 +185,7 @@ ensure_secrets() {
 install_release_files() {
   install -m 0644 "$RELEASE_DIR/docker-compose.prod.yml" "$COMPOSE_FILE"
   install -m 0750 "$RELEASE_DIR/deploy.sh" "$APP_DIR/deploy.sh"
+  install -m 0750 "$RELEASE_DIR/database-backup.sh" "$APP_DIR/database-backup.sh"
   # The official PostgreSQL entrypoint processes these files as its non-root
   # postgres user, so this read-only directory must be traversable by it.
   install -d -m 0755 "$APP_DIR/initdb"
@@ -197,6 +200,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0003_payment_idempotency.sql" "$APP_DIR/database/patches/0003_payment_idempotency.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0004_booking_status_vocabulary.sql" "$APP_DIR/database/patches/0004_booking_status_vocabulary.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0005_booking_status_enforcement.sql" "$APP_DIR/database/patches/0005_booking_status_enforcement.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0006_guest_role_isolation.sql" "$APP_DIR/database/patches/0006_guest_role_isolation.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
@@ -221,6 +225,40 @@ install_release_files() {
 }
 LOGROTATE
   chmod 0644 /etc/logrotate.d/saliminn
+}
+
+# Nightly database backups. Before this timer existed, dumps only ran inside
+# the deploy sequence, so between deploys there was NO recovery point — a
+# disk failure or a bad patch lost everything since the last deploy. The
+# service runs the standalone backup script; journald captures its output.
+install_backup_schedule() {
+  cat > /etc/systemd/system/saliminn-backup.service <<'BACKUP_SERVICE'
+[Unit]
+Description=Saliminn nightly database backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/saliminn/database-backup.sh
+BACKUP_SERVICE
+
+  # 18:10 UTC = 02:10 Malaysia time: the lowest-traffic window for a hotel.
+  # Persistent=true runs a missed slot on boot (e.g. after maintenance).
+  cat > /etc/systemd/system/saliminn-backup.timer <<'BACKUP_TIMER'
+[Unit]
+Description=Nightly Saliminn database backup schedule
+
+[Timer]
+OnCalendar=*-*-* 18:10:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+BACKUP_TIMER
+
+  systemctl daemon-reload
+  systemctl enable --now saliminn-backup.timer
 }
 
 load_release_images() {
@@ -454,7 +492,13 @@ saliminn.my {
 
     @backend path /api /api/* /uploads /uploads/* /health /ws /ws/*
     handle @backend {
-        reverse_proxy 127.0.0.1:3030
+        # Replace — never append to — any client-supplied X-Forwarded-For so
+        # the backend's right-to-left parse sees only this proxy's view of the
+        # peer. Appending would let one host rotate spoofed IPs per request
+        # and bypass every per-IP rate limiter.
+        reverse_proxy 127.0.0.1:3030 {
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 
     handle {
@@ -537,6 +581,7 @@ if [[ -s "$CURRENT_TAG_FILE" ]]; then
 fi
 
 install_release_files
+install_backup_schedule
 load_release_images
 start_database_for_release "$TAG"
 backup_existing_database

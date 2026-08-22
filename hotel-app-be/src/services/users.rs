@@ -7,6 +7,7 @@
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     User, UserCreateInput, UserResponse, UserUpdateInput, UserWithRolesAndPermissions,
 };
@@ -17,7 +18,6 @@ use crate::services::audit::AuditLog;
 use crate::services::rbac::{ensure_actor_can_manage_roles, ensure_actor_can_manage_user};
 use crate::utils::sanitization::Sanitizer;
 use validator::Validate;
-use crate::models::AuditEvent;
 
 pub async fn users(pool: &DbPool) -> Result<Vec<UserResponse>, ApiError> {
     Ok(UserRepository::list_all(pool)
@@ -130,16 +130,39 @@ pub async fn update_user(
     // Password resets must invalidate existing credentials before the new
     // password can take effect. This is intentionally conservative: if the
     // subsequent profile update fails, the target user must sign in again.
+    // Passkeys are revoked too — they satisfy 2FA on their own and would
+    // otherwise survive every password change.
     if password_hash.is_some() {
         AuthService::revoke_all_user_tokens(pool, user_id)
             .await
             .map_err(|error| {
                 ApiError::Database(format!("Failed to revoke password-reset sessions: {error}"))
             })?;
+        let revoked =
+            crate::repositories::passkey::PasskeyRepository::revoke_all_for_user(pool, user_id)
+                .await
+                .map_err(|error| {
+                    ApiError::Database(format!("Failed to revoke passkeys after reset: {error}"))
+                })?;
+        if revoked > 0 {
+            let _ = crate::services::audit::AuditLog::log_event(
+                pool,
+                crate::models::AuditEvent {
+                    user_id: Some(admin_user_id),
+                    action: "passkeys_revoked_by_password_reset",
+                    resource_type: "user",
+                    resource_id: Some(user_id),
+                    details: Some(serde_json::json!({ "revoked": revoked })),
+                    ..Default::default()
+                },
+            )
+            .await;
+        }
     }
 
     let changed_fields = changed_user_fields(&existing, &input, password_hash.is_some());
-    let user = UserRepository::admin_update(pool, user_id, &input, password_hash.as_deref()).await?;
+    let user =
+        UserRepository::admin_update(pool, user_id, &input, password_hash.as_deref()).await?;
 
     if input.is_active == Some(false) {
         AuthService::revoke_all_user_tokens(pool, user_id)

@@ -65,7 +65,7 @@ test('synchronizes exactly the patch catalog resources packaged by Tauri', () =>
     .filter((line) => line.trim() && !line.trimStart().startsWith('#'))
     .map((line) => line.split('\t'));
 
-  expect(patches).toHaveLength(4);
+  expect(patches).toHaveLength(5);
   for (const fields of patches) {
     expect(fields).toHaveLength(5);
     expect(bytes(join(desktopPatches, fields[4]))).toEqual(bytes(join(backendPatches, fields[4])));

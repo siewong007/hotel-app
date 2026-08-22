@@ -1204,4 +1204,58 @@ mod postgres_tests {
             "orphaned housekeeping/maintenance audit rows must not survive cleanup_room"
         );
     }
+
+    /// Regression for security-eval H6: the seven room READ endpoints were
+    /// login-only (`let _user_id = require_auth`), so a housekeeping login —
+    /// deliberately seeded with no `bookings:read`/`guests:read` — could read
+    /// guest names, emails and full financial state for every room. The
+    /// detailed/history endpoints now demand `bookings:read`; occupancy
+    /// endpoints demand `rooms:read`.
+    #[tokio::test]
+    async fn postgres_room_read_endpoints_enforce_permission_boundaries() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 980_010;
+        let room_type_id = 980_410;
+
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+        seed_actor(&pool, actor_id).await;
+        seed_room_type(&pool, room_type_id).await;
+
+        // No roles at all: every guarded read must deny.
+        let headers = auth_headers(actor_id);
+        let err =
+            rooms::get_room_history_handler(State(pool.clone()), Path(980_301), headers.clone())
+                .await
+                .err()
+                .expect("room history without bookings:read must be denied");
+        assert!(matches!(err, ApiError::Forbidden(_)), "got {err:?}");
+
+        let err = rooms::get_hotel_occupancy_summary_handler(State(pool.clone()), headers.clone())
+            .await
+            .err()
+            .expect("occupancy summary without rooms:read must be denied");
+        assert!(matches!(err, ApiError::Forbidden(_)), "got {err:?}");
+
+        // Grant both permissions through the shared admin test role; the RBAC
+        // cache must be invalidated or the denial above stays cached.
+        grant_permission(&pool, actor_id, "rooms:read").await;
+        grant_permission(&pool, actor_id, "bookings:read").await;
+        hotel_app_be::core::rbac_cache::invalidate_all();
+
+        rooms::get_hotel_occupancy_summary_handler(State(pool.clone()), headers.clone())
+            .await
+            .map(drop)
+            .expect("occupancy summary with rooms:read must succeed");
+
+        rooms::get_room_history_handler(State(pool.clone()), Path(980_301), headers)
+            .await
+            .map(drop)
+            .expect("room history with bookings:read must succeed");
+
+        cleanup_actor(&pool, actor_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+    }
 }

@@ -2469,7 +2469,7 @@ pub async fn apply_guest_update_tx(
         params.push(v.clone());
     }
     if let Some(ref v) = guest_update.address_line1 {
-        updates.push(format!("address_line1 = ${}", params.len() + 1));
+        updates.push(format!("address_line_1 = ${}", params.len() + 1));
         params.push(v.clone());
     }
     if let Some(ref v) = guest_update.city {
@@ -2477,7 +2477,7 @@ pub async fn apply_guest_update_tx(
         params.push(v.clone());
     }
     if let Some(ref v) = guest_update.state_province {
-        updates.push(format!("state_province = ${}", params.len() + 1));
+        updates.push(format!("state = ${}", params.len() + 1));
         params.push(v.clone());
     }
     if let Some(ref v) = guest_update.postal_code {

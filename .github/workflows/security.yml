@@ -54,12 +54,13 @@ jobs:
   rust-advisories:
     name: Rust advisory database
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: hotel-app-be
+    strategy:
+      matrix:
+        workspace: [hotel-app-be, hotel-desktop/src-tauri]
     steps:
       - uses: actions/checkout@v7
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
-      - name: Check dependency advisories
+      - name: Check dependency advisories (${{ matrix.workspace }})
+        working-directory: ${{ matrix.workspace }}
         run: cargo audit

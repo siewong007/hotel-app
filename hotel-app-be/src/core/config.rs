@@ -266,12 +266,26 @@ pub fn try_get() -> Option<&'static AppConfig> {
     CONFIG.get()
 }
 
+/// Secrets that pass a length check but are publicly known placeholders.
+/// The root compose file used to default JWT_SECRET to the CHANGE_ME literal
+/// below (62 chars — it sailed past the length rule), so anyone who read the
+/// repo could forge tokens for any user in such a deployment. The compose
+/// files now use the `:?` required form; this blocklist is the second lock.
+const FORBIDDEN_SECRET_PREFIXES: [&str; 2] = ["CHANGE_ME", "REPLACE_WITH"];
+
 pub fn validate_jwt_secret(secret: &str) -> Result<(), String> {
     if secret.len() < MIN_JWT_SECRET_LEN {
         return Err(format!(
             "JWT_SECRET must be at least {} characters long",
             MIN_JWT_SECRET_LEN
         ));
+    }
+    for prefix in FORBIDDEN_SECRET_PREFIXES {
+        if secret.starts_with(prefix) {
+            return Err(format!(
+                "JWT_SECRET must not use the publicly-known placeholder prefix '{prefix}'"
+            ));
+        }
     }
 
     Ok(())

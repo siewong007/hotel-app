@@ -354,12 +354,14 @@ pub async fn export_audit_logs_csv(
         let details_str = row
             .details
             .map(|details| serde_json::to_string(&details).unwrap_or_default())
-            .unwrap_or_default()
-            .replace("\"", "\"\"");
+            .unwrap_or_default();
 
-        csv_content.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{},\"{}\"\n",
-            row.id,
+        // Every cell goes through csv_cell: username and user_agent are
+        // attacker-influenced (self-registration + HTTP header), so bare
+        // formatting allowed both column-count breakage and formula
+        // injection in the exported spreadsheet.
+        let cells = [
+            row.id.to_string(),
             row.created_at.to_rfc3339(),
             row.user_id.map(|id| id.to_string()).unwrap_or_default(),
             row.username.unwrap_or_default(),
@@ -369,12 +371,17 @@ pub async fn export_audit_logs_csv(
             row.resource_id.map(|id| id.to_string()).unwrap_or_default(),
             row.change_kind,
             row.ip_address.unwrap_or_default(),
-            row.user_agent
-                .as_deref()
-                .unwrap_or_default()
-                .replace(",", " "),
-            details_str
-        ));
+            row.user_agent.unwrap_or_default(),
+            details_str,
+        ];
+        let escaped = cells
+            .iter()
+            .map(|cell| crate::utils::sanitization::csv_cell(cell))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        csv_content.push_str(&escaped);
+        csv_content.push('\n');
     }
 
     let filename = format!("audit_logs_{}.csv", Utc::now().format("%Y%m%d_%H%M%S"));

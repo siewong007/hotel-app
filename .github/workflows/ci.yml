@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [master]
 
+# Least-privilege token: these jobs only read the repo (gitleaks gets an
+# explicit push-scoped token below).
+permissions:
+  contents: read
+
 jobs:
   security-gate:
     name: Security — Secrets & Rust advisories

@@ -126,36 +126,35 @@ impl AuthRepository {
         settings_cache::get_positive_i32(pool, "max_login_attempts", 5).await
     }
 
-    pub async fn lock_user_after_failure(
+    /// Atomically count one failed login and lock the account when the
+    /// configured maximum is reached. The increment and the lock decision must
+    /// share one statement: as separate read-then-write calls, N concurrent
+    /// guesses each read the same counter and wrote value+1, so a burst of B
+    /// requests cost ONE increment — roughly max_attempts × B guesses before
+    /// lockout instead of max_attempts.
+    ///
+    /// Every `SET`/`CASE` reference sees the pre-update row, so the three
+    /// `failed_login_attempts + 1` terms agree; `RETURNING` exposes new values.
+    pub async fn register_failed_login(
         pool: &DbPool,
         user_id: i64,
-        attempts: i32,
+        max_attempts: i32,
         locked_until: DateTime<Utc>,
-    ) -> Result<(), ApiError> {
-        sqlx::query(
-            "UPDATE users SET failed_login_attempts = $1, is_locked = true, locked_until = $2 WHERE id = $3",
+    ) -> Result<(i32, bool), ApiError> {
+        sqlx::query_as(
+            "UPDATE users SET \
+                 failed_login_attempts = failed_login_attempts + 1, \
+                 is_locked = (failed_login_attempts + 1 >= $1), \
+                 locked_until = CASE WHEN failed_login_attempts + 1 >= $1 THEN $2 ELSE locked_until END \
+             WHERE id = $3 \
+             RETURNING failed_login_attempts, is_locked",
         )
-        .bind(attempts)
+        .bind(max_attempts)
         .bind(locked_until)
         .bind(user_id)
-        .execute(pool)
+        .fetch_one(pool)
         .await
-        .map(|_| ())
         .map_err(ApiError::from)
-    }
-
-    pub async fn update_failed_login_attempts(
-        pool: &DbPool,
-        user_id: i64,
-        attempts: i32,
-    ) -> Result<(), ApiError> {
-        sqlx::query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2")
-            .bind(attempts)
-            .bind(user_id)
-            .execute(pool)
-            .await
-            .map(|_| ())
-            .map_err(ApiError::from)
     }
 
     pub async fn two_factor_state(

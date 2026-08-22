@@ -122,7 +122,6 @@ impl RateLimiter {
         }
         outcome
     }
-
 }
 
 /// Thread-safe rate limiter keyed by caller-provided text identifiers.
@@ -181,6 +180,12 @@ pub struct RateLimiters {
     pub sensitive: RateLimiter,
     /// Guest portal verification: 10 attempts per 5 minutes per IP
     pub guest_portal_verify: RateLimiter,
+    /// Shared ceiling for unauthenticated token-gated requests from one
+    /// origin IP (booking read, pre-check-in submit, auto check-in). The
+    /// per-token keyed budgets below only bound repeats of the SAME key, so
+    /// without this ceiling a flood of distinct garbage keys allocates a map
+    /// entry per request and is never throttled.
+    pub guest_portal_token_ip: RateLimiter,
     /// Guest portal verification: 5 attempts per 15 minutes per booking number
     pub guest_portal_booking: KeyedRateLimiter,
     /// Guest portal token-gated MUTATIONS (pre-checkin submit, auto-checkin):
@@ -241,6 +246,7 @@ impl RateLimiters {
             register: RateLimiter::new(RateLimitConfig::new(10, 600)),
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
+            guest_portal_token_ip: RateLimiter::new(RateLimitConfig::new(240, 900)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token_payment: KeyedRateLimiter::new(RateLimitConfig::new(100, 600)),
@@ -255,7 +261,6 @@ impl RateLimiters {
             webhook: RateLimiter::new(RateLimitConfig::new(60, 60)),
         }
     }
-
 }
 
 #[cfg(test)]

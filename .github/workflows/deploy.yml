@@ -122,6 +122,7 @@ jobs:
           docker save "saliminn-frontend:$DEPLOY_SHA" | gzip -1 > "$bundle_dir/images/frontend.tar.gz"
 
           cp deploy/deploy.sh "$bundle_dir/deploy.sh"
+          cp deploy/database-backup.sh "$bundle_dir/database-backup.sh"
           cp deploy/docker-compose.prod.yml "$bundle_dir/docker-compose.prod.yml"
           cp hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql \
             "$bundle_dir/initdb/01-v1-baseline.sql"
@@ -142,11 +143,14 @@ jobs:
             "$bundle_dir/database/patches/0004_booking_status_vocabulary.sql"
           cp hotel-app-be/database/postgres/patches/0005_booking_status_enforcement.sql \
             "$bundle_dir/database/patches/0005_booking_status_enforcement.sql"
+          cp hotel-app-be/database/postgres/patches/0006_guest_role_isolation.sql \
+            "$bundle_dir/database/patches/0006_guest_role_isolation.sql"
 
           (
             cd "$bundle_dir"
             sha256sum \
               deploy.sh \
+              database-backup.sh \
               docker-compose.prod.yml \
               images/backend.tar.gz \
               images/frontend.tar.gz \
@@ -160,6 +164,7 @@ jobs:
               database/patches/0003_payment_idempotency.sql \
               database/patches/0004_booking_status_vocabulary.sql \
               database/patches/0005_booking_status_enforcement.sql \
+              database/patches/0006_guest_role_isolation.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

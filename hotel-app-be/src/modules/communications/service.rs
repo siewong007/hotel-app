@@ -26,8 +26,8 @@ use super::transport::{OutgoingEmail, SmtpConfig, Transport};
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::services::audit::AuditLog;
 use crate::models::AuditEvent;
+use crate::services::audit::AuditLog;
 
 const CHANNEL_EMAIL: &str = "email";
 
@@ -185,7 +185,14 @@ async fn render_campaign_body(pool: &DbPool, campaign: &EmailCampaign) -> Result
 
 pub async fn preview_campaign(pool: &DbPool, id: i64) -> Result<PreviewResponse, ApiError> {
     let campaign = require_campaign(pool, id).await?;
-    let body_html = render_campaign_body(pool, &campaign).await?;
+    // Stored campaign HTML is authored with communications:compose and is
+    // deliberately not stripped for SMTP delivery. The browser preview,
+    // however, renders it with dangerouslySetInnerHTML to viewers holding
+    // only communications:read — so the preview response gets the whitelist
+    // sanitizer while the outbound email keeps the original markup.
+    let body_html = crate::utils::sanitization::Sanitizer::sanitize_html(
+        &render_campaign_body(pool, &campaign).await?,
+    );
     let audience = Repo::count_audience_for_topic(pool, &campaign.topic).await?;
     Ok(PreviewResponse {
         subject: campaign.subject,
