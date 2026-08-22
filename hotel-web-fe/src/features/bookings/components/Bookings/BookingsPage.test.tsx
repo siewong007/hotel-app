@@ -1,4 +1,13 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configure } from '@testing-library/dom';
+
+// These suites drive retry/backoff flows whose waitFor windows blow past the
+// 1s default only when the whole suite runs in parallel on a loaded machine
+// (observed as intermittent CI-style failures that never reproduce in
+// isolation). Raise the async-util timeout for THIS file instead of globally,
+// so genuine render hangs elsewhere still surface quickly.
+configure({ asyncUtilTimeout: 10_000 });
+vi.setConfig({ testTimeout: 30_000 });
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
