@@ -31,7 +31,9 @@ ENV NODE_ENV=production
 RUN bun run build
 
 # Stage 2: Serve with Nginx
-FROM nginx:alpine
+# Version-pinned (was floating nginx:alpine) so two deploys of the
+# same commit cannot get different web servers.
+FROM nginx:1.28-alpine
 
 # Install curl for health checks
 RUN apk add --no-cache curl
