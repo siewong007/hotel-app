@@ -191,6 +191,78 @@ mod postgres_tests {
         .unwrap();
     }
 
+    /// Grants `permissions` to `actor_id` through a role named `role_name`
+    /// that only this actor joins.
+    ///
+    /// `grant_permission` above routes every actor through one shared `admin`
+    /// role, which is fine while tests only ever ADD permissions — but useless
+    /// for asserting that an actor does NOT hold one: the actor would inherit
+    /// everything any other test in this binary granted to that same role.
+    /// A per-test role is the only way to pin a negative.
+    async fn grant_scoped_permission(
+        pool: &PgPool,
+        actor_id: i64,
+        role_name: &str,
+        permissions: &[&str],
+    ) {
+        sqlx::query(
+            "INSERT INTO roles (name, display_name, description, is_system_role, priority) \
+             VALUES ($1, $1, 'Scoped rooms test role', false, 10) \
+             ON CONFLICT (name) DO NOTHING",
+        )
+        .bind(role_name)
+        .execute(pool)
+        .await
+        .unwrap();
+        for permission in permissions {
+            let (resource, action) = permission
+                .split_once(':')
+                .expect("permission must be \"resource:action\"");
+            sqlx::query(
+                "INSERT INTO permissions (name, resource, action, description, is_system_permission) \
+                 VALUES ($1, $2, $3, $1, true) \
+                 ON CONFLICT (name) DO NOTHING",
+            )
+            .bind(permission)
+            .bind(resource)
+            .bind(action)
+            .execute(pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "INSERT INTO role_permissions (role_id, permission_id) \
+                 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p \
+                 WHERE r.name = $1 AND p.name = $2 \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(role_name)
+            .bind(permission)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) \
+             SELECT $1, id FROM roles WHERE name = $2 \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(actor_id)
+        .bind(role_name)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    /// `role_permissions` and `user_roles` both cascade from `roles`, but the
+    /// role row itself would otherwise accumulate in the persistent dev DB.
+    async fn cleanup_scoped_role(pool: &PgPool, role_name: &str) {
+        sqlx::query("DELETE FROM roles WHERE name = $1 AND is_system_role = false")
+            .bind(role_name)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
     async fn cleanup_actor(pool: &PgPool, actor_id: i64) {
         // The housekeeping/maintenance services audit-log under this actor;
         // their resource ids are IDENTITY-generated (fresh every run), so
@@ -1206,11 +1278,16 @@ mod postgres_tests {
     }
 
     /// Regression for security-eval H6: the seven room READ endpoints were
-    /// login-only (`let _user_id = require_auth`), so a housekeeping login —
-    /// deliberately seeded with no `bookings:read`/`guests:read` — could read
+    /// login-only (`let _user_id = require_auth`), so any login could read
     /// guest names, emails and full financial state for every room. The
-    /// detailed/history endpoints now demand `bookings:read`; occupancy
-    /// endpoints demand `rooms:read`.
+    /// detailed/history endpoints now demand `ROOM_OPERATIONS_READ`
+    /// (`bookings:read` OR `housekeeping:read`); occupancy endpoints demand
+    /// `rooms:read`. A caller holding no role at all must still be denied —
+    /// that is what this test pins.
+    ///
+    /// The `housekeeping:read`-only half of the floor, and the booking
+    /// redaction that goes with it, are pinned separately by
+    /// `postgres_room_reads_admit_housekeeping_without_exposing_bookings`.
     #[tokio::test]
     async fn postgres_room_read_endpoints_enforce_permission_boundaries() {
         let Some((pool, _guard)) = setup_pg_pool().await else {
@@ -1230,7 +1307,7 @@ mod postgres_tests {
             rooms::get_room_history_handler(State(pool.clone()), Path(980_301), headers.clone())
                 .await
                 .err()
-                .expect("room history without bookings:read must be denied");
+                .expect("room history without a room-operations permission must be denied");
         assert!(matches!(err, ApiError::Forbidden(_)), "got {err:?}");
 
         let err = rooms::get_hotel_occupancy_summary_handler(State(pool.clone()), headers.clone())
@@ -1257,5 +1334,144 @@ mod postgres_tests {
 
         cleanup_actor(&pool, actor_id).await;
         cleanup_room_type(&pool, room_type_id).await;
+    }
+
+    /// Regression for the housekeeping 403 introduced alongside H6.
+    ///
+    /// The seeded `housekeeping` role is granted `navigation_room_management:read`
+    /// — it is meant to work the Room Management page — but deliberately holds
+    /// no bookings permission. Gating `/rooms/{id}/detailed` and
+    /// `/rooms/{id}/history` on `bookings:read` alone 403'd the whole role:
+    /// "Show History" and the room event dialog both failed for every
+    /// housekeeper.
+    ///
+    /// Both halves must hold at once, so this test pins both:
+    ///   1. `housekeeping:read` alone gets a 200 from both endpoints;
+    ///   2. it still sees no booking payload — `current_booking`/`next_booking`
+    ///      are omitted — while a `bookings:read` caller sees them, against the
+    ///      SAME live booking.
+    #[tokio::test]
+    async fn postgres_room_reads_admit_housekeeping_without_exposing_bookings() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let housekeeper_id = 980_011;
+        let front_desk_id = 980_012;
+        let room_type_id = 980_411;
+        let room_id = 980_311;
+        let guest_id = 980_205;
+        let booking_id = 980_105;
+        let housekeeper_role = "rm980_housekeeping_only";
+        let front_desk_role = "rm980_front_desk_only";
+
+        // Fixtures are torn down before AND after: a crashed earlier run leaves
+        // this file's fixed ids populated, and the booking below would then
+        // collide on the room/date EXCLUDE constraint.
+        cleanup_booking(&pool, booking_id).await;
+        cleanup_room(&pool, room_id).await;
+        cleanup_guest(&pool, guest_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, housekeeper_id).await;
+        cleanup_actor(&pool, front_desk_id).await;
+        cleanup_scoped_role(&pool, housekeeper_role).await;
+        cleanup_scoped_role(&pool, front_desk_role).await;
+
+        seed_actor(&pool, housekeeper_id).await;
+        seed_actor(&pool, front_desk_id).await;
+        seed_room_type(&pool, room_type_id).await;
+        seed_room(&pool, room_id, room_type_id, "occupied").await;
+        seed_guest(&pool, guest_id).await;
+
+        // Yesterday..tomorrow puts the stay strictly inside
+        // `check_in_date <= CURRENT_DATE AND check_out_date > CURRENT_DATE`
+        // under either the UTC or the hotel-local reading of "today", so the
+        // window cannot flip on a midnight-adjacent run.
+        let today = Utc::now().date_naive();
+        seed_booking(
+            &pool,
+            BookingFixture {
+                actor_id: front_desk_id,
+                booking_id,
+                guest_id,
+                room_id,
+                status: "checked_in",
+                check_in: today - Duration::days(1),
+                check_out: today + Duration::days(1),
+            },
+        )
+        .await;
+
+        grant_scoped_permission(
+            &pool,
+            housekeeper_id,
+            housekeeper_role,
+            &["rooms:read", "rooms:update", "housekeeping:read"],
+        )
+        .await;
+        grant_scoped_permission(&pool, front_desk_id, front_desk_role, &["bookings:read"]).await;
+        hotel_app_be::core::rbac_cache::invalidate_all();
+
+        let housekeeper_headers = auth_headers(housekeeper_id);
+        let front_desk_headers = auth_headers(front_desk_id);
+
+        // 1. Both endpoints must admit a housekeeping-only caller.
+        rooms::get_room_history_handler(
+            State(pool.clone()),
+            Path(room_id),
+            housekeeper_headers.clone(),
+        )
+        .await
+        .map(drop)
+        .expect("room history with housekeeping:read must succeed");
+
+        let housekeeper_view = rooms::get_room_detailed_status_handler(
+            State(pool.clone()),
+            Path(room_id),
+            housekeeper_headers,
+        )
+        .await
+        .expect("room detailed status with housekeeping:read must succeed");
+
+        // 2. And must still withhold the booking payload from it.
+        let front_desk_view = rooms::get_room_detailed_status_handler(
+            State(pool.clone()),
+            Path(room_id),
+            front_desk_headers,
+        )
+        .await
+        .expect("room detailed status with bookings:read must succeed");
+
+        // Clean up before the assertions, which can panic (lesson: theme 7).
+        cleanup_booking(&pool, booking_id).await;
+        cleanup_room(&pool, room_id).await;
+        cleanup_guest(&pool, guest_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, housekeeper_id).await;
+        cleanup_actor(&pool, front_desk_id).await;
+        cleanup_scoped_role(&pool, housekeeper_role).await;
+        cleanup_scoped_role(&pool, front_desk_role).await;
+
+        // Non-vacuous: the booking really is visible to a bookings:read caller,
+        // so `None` below is redaction and not an empty fixture.
+        let seen = front_desk_view
+            .0
+            .current_booking
+            .as_ref()
+            .expect("the seeded stay must be the room's current booking");
+        assert_eq!(seen.id, booking_id);
+        assert_eq!(seen.guest_name, format!("RM980 Guest {guest_id}"));
+
+        assert!(
+            housekeeper_view.0.current_booking.is_none(),
+            "housekeeping:read must not receive current_booking (guest name, email, financials)"
+        );
+        assert!(
+            housekeeper_view.0.next_booking.is_none(),
+            "housekeeping:read must not receive next_booking"
+        );
+        // The room itself still has to arrive, or the endpoint is useless to
+        // the role it was just re-opened for.
+        assert_eq!(housekeeper_view.0.id, room_id);
+        assert_eq!(housekeeper_view.0.status, "occupied");
     }
 }

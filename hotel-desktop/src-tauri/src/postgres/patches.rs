@@ -825,7 +825,8 @@ mod tests {
 1\t3\tpayment-idempotency\tsha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36\t0003_payment_idempotency.sql\n\
 1\t4\tbooking-status-vocabulary\tsha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7\t0004_booking_status_vocabulary.sql\n\
 1\t5\tbooking-status-enforcement\tsha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3\t0005_booking_status_enforcement.sql\n\
-1\t6\tguest-role-isolation\tsha256:b1a5687a8b94c1abdc97c340ab0c6996ddd41d5072867f7476c81099e3b1f4a4\t0006_guest_role_isolation.sql\n";
+1\t6\tguest-role-isolation\tsha256:b1a5687a8b94c1abdc97c340ab0c6996ddd41d5072867f7476c81099e3b1f4a4\t0006_guest_role_isolation.sql\n\
+1\t7\tmanager-audit-read\tsha256:c2f750e187948fc39aa6d6f16c83b84cb7c75ae4f0d289d6df38a655275e9f90\t0007_manager_audit_read.sql\n";
 
     static NEXT_TEMP_DIR: AtomicU64 = AtomicU64::new(0);
 
@@ -1069,6 +1070,15 @@ mod tests {
                         "sha256:b1a5687a8b94c1abdc97c340ab0c6996ddd41d5072867f7476c81099e3b1f4a4"
                             .to_string(),
                     file: "0006_guest_role_isolation.sql".to_string(),
+                },
+                PatchManifestEntry {
+                    generation: 1,
+                    version: 7,
+                    name: "manager-audit-read".to_string(),
+                    checksum:
+                        "sha256:c2f750e187948fc39aa6d6f16c83b84cb7c75ae4f0d289d6df38a655275e9f90"
+                            .to_string(),
+                    file: "0007_manager_audit_read.sql".to_string(),
                 },
             ]
         );

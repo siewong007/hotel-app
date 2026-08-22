@@ -66,6 +66,7 @@ required_payload=(
   database/patches/0004_booking_status_vocabulary.sql
   database/patches/0005_booking_status_enforcement.sql
   database/patches/0006_guest_role_isolation.sql
+  database/patches/0007_manager_audit_read.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -201,6 +202,7 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/0004_booking_status_vocabulary.sql" "$APP_DIR/database/patches/0004_booking_status_vocabulary.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0005_booking_status_enforcement.sql" "$APP_DIR/database/patches/0005_booking_status_enforcement.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/0006_guest_role_isolation.sql" "$APP_DIR/database/patches/0006_guest_role_isolation.sql"
+  install -m 0644 "$RELEASE_DIR/database/patches/0007_manager_audit_read.sql" "$APP_DIR/database/patches/0007_manager_audit_read.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.

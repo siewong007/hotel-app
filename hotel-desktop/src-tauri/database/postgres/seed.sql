@@ -556,6 +556,8 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'support:manage',
     'navigation_support:read',
+    -- audit:read powers the Payment Approvals conflict banner managers own.
+    'audit:read',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',

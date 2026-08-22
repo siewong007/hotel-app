@@ -175,6 +175,9 @@ pub struct GuestUpdateInput {
     pub state_province: Option<String>,
     pub postal_code: Option<String>,
     pub country: Option<String>,
+    // Accepted but deliberately IGNORED: activation is an admin-only action
+    // (services/users.rs), never a side effect of a guest profile update.
+    // Approved 2026-08-22; field removal deferred to the next contract bump.
     pub is_active: Option<bool>,
     pub guest_type: Option<GuestType>,
     pub tourism_type: Option<TourismType>,

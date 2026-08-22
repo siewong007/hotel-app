@@ -570,7 +570,7 @@ async fn revision_snapshot(pool: &PgPool) -> RevisionSnapshot {
         r#"
         SELECT version, name, checksum, applied_at::text
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 6
+        WHERE generation = 1 AND version BETWEEN 2 AND 7
         ORDER BY version
         "#,
     )
@@ -653,7 +653,7 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
 }
 
 fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 5);
+    assert_eq!(revisions.len(), 6);
     assert_eq!(
         revisions
             .iter()
@@ -680,6 +680,11 @@ fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checks
                 6,
                 "guest-role-isolation",
                 "sha256:b1a5687a8b94c1abdc97c340ab0c6996ddd41d5072867f7476c81099e3b1f4a4",
+            ),
+            (
+                7,
+                "manager-audit-read",
+                "sha256:c2f750e187948fc39aa6d6f16c83b84cb7c75ae4f0d289d6df38a655275e9f90",
             ),
         ]
     );
@@ -1657,7 +1662,7 @@ async fn postgres_v1_patch_runners_serialize() {
         r#"
         SELECT version, COUNT(*)
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 6
+        WHERE generation = 1 AND version BETWEEN 2 AND 7
         GROUP BY version
         ORDER BY version
         "#,
