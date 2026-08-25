@@ -986,6 +986,20 @@ impl CommunicationsRepository {
         Ok(count > 0)
     }
 
+    /// Existence + activity check for transactional deliveries, which do not
+    /// require any `notification_subscriptions` row (see
+    /// [`crate::modules::communications::validation::TRANSACTIONAL_KINDS`]).
+    pub async fn is_guest_active(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
+        let count: i64 = query_scalar(
+            "SELECT COUNT(*) FROM guests g WHERE g.id = $1 AND g.is_active IS TRUE",
+        )
+        .bind(guest_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(count > 0)
+    }
+
     pub async fn mark_delivery_sent_tx(
         tx: &mut DbTransaction<'_>,
         id: i64,

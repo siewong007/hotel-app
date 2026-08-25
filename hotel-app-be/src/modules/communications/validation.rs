@@ -11,6 +11,24 @@ pub const TOPICS: [&str; 3] = ["announcement", "promotion", "birthday_voucher"];
 pub const CAMPAIGN_TYPES: [&str; 2] = ["announcement", "promotion"];
 pub const SUPPRESSION_REASONS: [&str; 4] = ["unsubscribe", "bounce", "complaint", "manual"];
 
+/// Delivery kinds that are part of the service (booking lifecycle) rather than
+/// marketing. The worker lets these bypass the per-topic subscription gate —
+/// no `notification_subscriptions` row can even exist for their topics — while
+/// hard suppressions (bounce/complaint/manual) still apply.
+pub const TRANSACTIONAL_KINDS: [&str; 6] = [
+    "booking_confirmation",
+    "online_room_assignment",
+    "payment_receipt_request",
+    "payment_rejected",
+    "checkout_receipt",
+    "pre_arrival_reminder",
+];
+
+/// Whether the worker must hold a live per-topic subscription before sending.
+pub fn requires_topic_subscription(kind: &str) -> bool {
+    !TRANSACTIONAL_KINDS.contains(&kind)
+}
+
 const MAX_BODY_CHARS: usize = 200_000;
 
 #[derive(Debug, Clone)]
@@ -252,6 +270,21 @@ pub fn render_template(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn transactional_kinds_bypass_topic_subscriptions() {
+        for kind in TRANSACTIONAL_KINDS {
+            assert!(
+                !requires_topic_subscription(kind),
+                "{kind} is transactional and must not require a subscription"
+            );
+        }
+        // Marketing kinds keep the full consent gate.
+        assert!(requires_topic_subscription("campaign"));
+        assert!(requires_topic_subscription("birthday_voucher"));
+        // Unknown kinds fail closed: they keep the stricter gate.
+        assert!(requires_topic_subscription("something_new"));
+    }
 
     fn campaign_input(campaign_type: &str, promotion_id: Option<i64>) -> CampaignInput {
         CampaignInput {

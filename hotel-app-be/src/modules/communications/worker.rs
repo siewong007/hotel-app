@@ -14,6 +14,7 @@ use chrono::Utc;
 
 use super::repository::CommunicationsRepository as Repo;
 use super::transport::{OutgoingEmail, Transport};
+use super::validation;
 use crate::core::db::{DbPool, generate_uuid};
 use crate::core::error::ApiError;
 
@@ -119,12 +120,23 @@ async fn process_delivery(
         return Ok(());
     }
 
-    // Last-moment consent + suppression recheck.
+    // Last-moment consent + suppression recheck. Transactional kinds are part
+    // of the service: they need only an active guest (hard suppressions below
+    // still apply), while marketing kinds additionally require a live
+    // per-topic subscription.
     let suppressed = Repo::is_email_suppressed(pool, &delivery.recipient_email).await?;
-    let deliverable = Repo::is_guest_deliverable(pool, delivery.guest_id, &delivery.topic).await?;
+    let transactional =
+        !validation::requires_topic_subscription(&delivery.kind);
+    let deliverable = if transactional {
+        Repo::is_guest_active(pool, delivery.guest_id).await?
+    } else {
+        Repo::is_guest_deliverable(pool, delivery.guest_id, &delivery.topic).await?
+    };
     if suppressed || !deliverable {
         let reason = if suppressed {
             "recipient suppressed"
+        } else if transactional {
+            "guest inactive"
         } else {
             "subscription revoked or guest inactive"
         };
