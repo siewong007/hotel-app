@@ -32,6 +32,7 @@ import {
   useDisableTwoFactor,
   useRegenerateBackupCodes,
 } from '../hooks/useTwoFactorQueries';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface TwoFactorSetupProps {
   onSetupComplete?: () => void;
@@ -68,7 +69,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       const data = await setupMutation.mutateAsync();
       setSetupData(data);
       setShowSetupDialog(true);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to setup 2FA:', error);
     }
   };
@@ -94,9 +95,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setEnableBackupCodes(result.backup_codes);
       showSnackbar('2FA enabled successfully', 'success');
       onSetupComplete?.();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to enable 2FA:', error);
-      showSnackbar(error.message || 'Failed to enable 2FA', 'error');
+      showSnackbar(errorMessage(error, 'Failed to enable 2FA'), 'error');
     }
   };
 
@@ -112,9 +113,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setDisableCode('');
       showSnackbar('2FA disabled successfully', 'success');
       onSetupComplete?.();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to disable 2FA:', error);
-      showSnackbar(error.message || 'Failed to disable 2FA', 'error');
+      showSnackbar(errorMessage(error, 'Failed to disable 2FA'), 'error');
     }
   };
 
@@ -130,9 +131,9 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setShowRegenerateDialog(false);
       setRegenerateCode('');
       showSnackbar('Backup codes regenerated successfully', 'success');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to regenerate backup codes:', error);
-      showSnackbar(error.message || 'Failed to regenerate backup codes', 'error');
+      showSnackbar(errorMessage(error, 'Failed to regenerate backup codes'), 'error');
     }
   };
 

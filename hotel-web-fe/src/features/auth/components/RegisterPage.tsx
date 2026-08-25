@@ -20,6 +20,7 @@ import { validateEmail, validatePhone } from '../../../utils/validation';
 import { LoadingSpinner } from '../../../components';
 import { storage } from '../../../utils/storage';
 import { GoogleSignInButton } from './GoogleSignInButton';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
@@ -148,8 +149,8 @@ const RegisterPage: React.FC = () => {
       if (!requiresEmailVerification) {
         setRedirectCountdown(GUEST_LOGIN_REDIRECT_SECONDS);
       }
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
+    } catch (err) {
+      setError(errorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
     }
@@ -175,12 +176,13 @@ const RegisterPage: React.FC = () => {
       }
 
       navigate(redirectParam === '/portal/book' ? '/portal/book' : '/guest-portal', { replace: true });
-    } catch (err: any) {
-      const message = err?.message || 'Google sign-in failed';
+    } catch (err) {
+      const message = errorMessage(err, 'Google sign-in failed');
       // Same 503-on-status contract as LoginPage.tsx's Google handler — see
       // hotel-app-be/src/services/google_identity.rs.
+      const googleStatus = (err as { statusCode?: number }).statusCode;
       setGoogleError(
-        err?.statusCode === 503
+        googleStatus === 503
           ? 'Google sign-in is unavailable right now. Please create an account below instead.'
           : message
       );

@@ -35,11 +35,11 @@ export function useEnhancedCheckInModalState() {
   const [depositReason, setDepositReason] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  const handleGuestChange = useCallback((field: string, value: any) => {
+  const handleGuestChange = useCallback((field: string, value: unknown) => {
     setGuestData(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  const handleBookingChange = useCallback((field: string, value: any) => {
+  const handleBookingChange = useCallback((field: string, value: unknown) => {
     setBookingData(prev => ({ ...prev, [field]: value }));
   }, []);
 

@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import { GuestPortalService } from '../../../api';
 import { Booking, Guest } from '../../../types';
+import { errorMessage } from '../../../utils/errorMessage';
 
 export const GuestCheckInVerify: React.FC = () => {
   const navigate = useNavigate();
@@ -30,8 +31,8 @@ export const GuestCheckInVerify: React.FC = () => {
       const response = await GuestPortalService.getBooking(token!);
       setBooking(response.booking);
       setGuest(response.guest);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load booking information');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load booking information'));
     } finally {
       setLoading(false);
     }

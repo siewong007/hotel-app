@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { Fingerprint as FingerprintIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface FirstLoginPasskeyPromptProps {
   open: boolean;
@@ -29,8 +30,8 @@ const FirstLoginPasskeyPrompt: React.FC<FirstLoginPasskeyPromptProps> = ({ open,
     try {
       await registerPasskey(username);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to register passkey');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to register passkey'));
     } finally {
       setLoading(false);
     }

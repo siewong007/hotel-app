@@ -20,6 +20,7 @@ import {
 import { GuestPortalService } from '../../../api';
 import { Booking, Guest, GuestUpdateRequest } from '../../../types';
 import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -84,8 +85,8 @@ export const GuestCheckInForm: React.FC = () => {
 
       setMarketCode(response.booking.market_code || 'WKII');
       setSpecialRequests(response.booking.special_requests || '');
-    } catch (err: any) {
-      setError(err.message || 'Failed to load booking');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load booking'));
     } finally {
       setLoading(false);
     }
@@ -123,8 +124,8 @@ export const GuestCheckInForm: React.FC = () => {
       });
 
       navigate('/guest-checkin/confirm');
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit pre-check-in');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to submit pre-check-in'));
       setSubmitting(false);
     }
   };

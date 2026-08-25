@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { CheckCircle as CheckCircleIcon, Error as ErrorIcon, Email as EmailIcon } from '@mui/icons-material';
 import { AuthService } from '../../../api';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const EmailVerificationPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -52,10 +53,10 @@ const EmailVerificationPage: React.FC = () => {
             return prev - 1;
           });
         }, 1000);
-      } catch (error: any) {
+      } catch (error) {
         if (!isMountedRef.current) return;
         setStatus('error');
-        setMessage(error.message || 'Email verification failed. The link may be expired or invalid.');
+        setMessage(errorMessage(error, 'Email verification failed. The link may be expired or invalid.'));
       }
     };
 

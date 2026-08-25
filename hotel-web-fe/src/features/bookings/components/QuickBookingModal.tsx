@@ -34,6 +34,7 @@ import { useAllRoomTypes } from '../../rooms/hooks/useRoomQueries';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
 import { isPositiveMoney, multiplyMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface QuickBookingModalProps {
   open: boolean;
@@ -280,8 +281,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       setSelectedGuest(newGuest);
       setShowNewGuestForm(false);
       return newGuest;
-    } catch (err: any) {
-      setError(err.message || 'Failed to create guest');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to create guest'));
       return null;
     }
   };
@@ -365,8 +366,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 
       onBookingSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to create booking');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to create booking'));
     } finally {
       setLoading(false);
     }

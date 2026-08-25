@@ -14,22 +14,23 @@ import type {
   CheckInRequest,
 } from '../../../types';
 
-type BookingsPageParams = Record<string, unknown>;
+type BookingsPageParams = Parameters<typeof BookingsService.getBookingsPage>[0];
+type BookingsWithDetailsFilters = Parameters<typeof BookingsService.getBookingsWithDetails>[0];
 
 export function useBookingsPage(params?: BookingsPageParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.bookings.page(params),
-    queryFn: () => BookingsService.getBookingsPage(params as any),
+    queryFn: () => BookingsService.getBookingsPage(params),
     enabled,
     placeholderData: keepPreviousData,
     staleTime: queryStaleTime.short,
   });
 }
 
-export function useBookingsWithDetails(filters?: BookingsPageParams, enabled = true) {
+export function useBookingsWithDetails(filters?: BookingsWithDetailsFilters, enabled = true) {
   return useQuery({
     queryKey: queryKeys.bookings.withDetails(filters),
-    queryFn: () => BookingsService.getBookingsWithDetails(filters as any),
+    queryFn: () => BookingsService.getBookingsWithDetails(filters),
     enabled,
     staleTime: queryStaleTime.short,
   });

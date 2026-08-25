@@ -40,6 +40,7 @@ import {
   sanitizeTwoFactorCode,
   TOTP_CODE_LENGTH,
 } from '../utils/twoFactorCode';
+import { errorMessage } from '../../../utils/errorMessage';
 
 type UserType = 'guest' | 'admin' | null;
 
@@ -127,18 +128,18 @@ const LoginPage: React.FC = () => {
       } else {
         completeSignIn();
       }
-    } catch (err: any) {
-      const errorMessage = err.message || 'Login failed';
+    } catch (err) {
+      const loginError = errorMessage(err, 'Login failed');
 
       // Check if 2FA is required
-      if (errorMessage.includes('2FA required') || errorMessage.includes('TOTP code')) {
+      if (loginError.includes('2FA required') || loginError.includes('TOTP code')) {
         setShow2FAPrompt(true);
         setError('');
         setLoading(false);
         return;
       }
 
-      setError(errorMessage);
+      setError(loginError);
       setLoading(false);
     }
   };
@@ -169,8 +170,8 @@ const LoginPage: React.FC = () => {
       } else {
         completeSignIn();
       }
-    } catch (err: any) {
-      setError(err.message || 'Passkey login failed');
+    } catch (err) {
+      setError(errorMessage(err, 'Passkey login failed'));
       setLoading(false);
     }
   };
@@ -198,14 +199,15 @@ const LoginPage: React.FC = () => {
       }
 
       completeSignIn();
-    } catch (err: any) {
-      const message = err?.message || 'Google sign-in failed';
+    } catch (err) {
+      const message = errorMessage(err, 'Google sign-in failed');
       // The backend reports a missing/misconfigured client id or a Google API
       // outage as a 503 (see hotel-app-be/src/services/google_identity.rs) —
       // branch on the status AuthContext's loginWithGoogle preserves, not the
       // message text, which can be reworded without breaking this check.
+      const googleStatus = (err as { statusCode?: number }).statusCode;
       setError(
-        err?.statusCode === 503
+        googleStatus === 503
           ? 'Google sign-in is unavailable right now. Please sign in with your username instead.'
           : message
       );
@@ -226,8 +228,8 @@ const LoginPage: React.FC = () => {
       await registerPasskey(username);
       setError('');
       alert('Passkey registered successfully! You can now use it to log in.');
-    } catch (err: any) {
-      setError(err.message || 'Passkey registration failed');
+    } catch (err) {
+      setError(errorMessage(err, 'Passkey registration failed'));
     } finally {
       setLoading(false);
     }
@@ -298,7 +300,7 @@ const LoginPage: React.FC = () => {
       } else {
         completeSignIn();
       }
-    } catch (err: any) {
+    } catch (err) {
       // Passkey failed or not available - show password field
       setPasskeyAttempted(true);
       setShowPasswordField(true);

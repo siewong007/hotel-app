@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CompaniesService, RatesService, RoomsService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
-import { BookingWithDetails, RoomType } from '../../../types';
+import { BookingWithDetails, Company, RoomType } from '../../../types';
 
 export function useCheckInFormData() {
   const queryClient = useQueryClient();
@@ -43,7 +43,7 @@ export function useCheckInFormData() {
         queryFn: () => CompaniesService.getCompanies(params),
         staleTime: queryStaleTime.long,
       });
-      const options = companies.map((c: any) => ({
+      const options = companies.map((c: Company) => ({
         company_name: c.company_name,
         company_registration_number: c.registration_number,
         contact_person: c.contact_person,
