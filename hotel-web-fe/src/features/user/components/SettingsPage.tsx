@@ -24,15 +24,14 @@ import {
   AttachMoney as MoneyIcon,
   Save as SaveIcon,
   Security as SecurityIcon,
-  Settings as SettingsIcon,
-  Add as AddIcon,
-  Assessment as ReportIcon,
   Palette as PaletteIcon,
   LightMode as LightModeIcon,
   DarkMode as DarkModeIcon,
   NightsStay as NightsStayIcon,
   SupportAgent as SupportIcon,
 } from "@mui/icons-material";
+import ReportSettingsCard from "./settings/ReportSettingsCard";
+import SystemConfigurationCard from "./settings/SystemConfigurationCard";
 import { useAuth } from "../../../auth/AuthContext";
 import { useThemeMode } from "../../../router/ThemeModeContext";
 import type { ThemeMode } from "../../../theme";
@@ -56,12 +55,6 @@ import {
   useHotelSettingsQuery,
   useSaveHotelSettingsMutation,
 } from "../hooks/useSettingsQueries";
-import {
-  REPORT_TYPOGRAPHY_PRESETS,
-  getReportTypographyPreset,
-  type ReportTypographyPresetKey,
-} from "../../reports/utils/reportTypography";
-
 // Common timezones for hotels
 const TIMEZONES = [
   {
@@ -231,32 +224,6 @@ const SettingsPage: React.FC = () => {
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
   const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
-  const [newRateCode, setNewRateCode] = useState("");
-  const [newMarketCode, setNewMarketCode] = useState("");
-  const [newChannelName, setNewChannelName] = useState("");
-  const [newChannelAbbreviation, setNewChannelAbbreviation] = useState("");
-  const [newPaymentMethod, setNewPaymentMethod] = useState("");
-
-  const addCode = (
-    rawCode: string,
-    values: string[],
-    setValues: React.Dispatch<React.SetStateAction<string[]>>,
-    reset: () => void,
-  ) => {
-    const code = rawCode.trim().toUpperCase();
-    if (!code || values.includes(code)) return;
-    setValues([...values, code]);
-    reset();
-  };
-
-  const addBookingChannel = () => {
-    const name = newChannelName.trim();
-    const abbreviation = newChannelAbbreviation.trim();
-    if (!name) return;
-    setBookingChannels([...bookingChannels, { name, abbreviation }]);
-    setNewChannelName("");
-    setNewChannelAbbreviation("");
-  };
 
   const applySettingsToForm = (settings: HotelSettings) => {
     setHotelName(settings.hotel_name);
@@ -416,35 +383,6 @@ const SettingsPage: React.FC = () => {
     } catch (err: any) {
       setError(err.message || "Failed to save settings");
     }
-  };
-
-  const selectedReportPreset = REPORT_TYPOGRAPHY_PRESETS.find(
-    (preset) =>
-      preset.sizes.report_font_size === reportFontSize &&
-      preset.sizes.report_heading_font_size === reportHeadingFontSize &&
-      preset.sizes.report_section_heading_font_size ===
-        reportSectionHeadingFontSize &&
-      preset.sizes.report_table_font_size === reportTableFontSize &&
-      preset.sizes.report_caption_font_size === reportCaptionFontSize &&
-      preset.sizes.report_chip_font_size === reportChipFontSize,
-  );
-  const reportPresetValue = selectedReportPreset?.key ?? "custom";
-  const reportPresetHelperText =
-    selectedReportPreset?.description ?? "Custom report font sizes are active";
-
-  const applyReportTypographyPreset = (value: string) => {
-    if (value === "custom") return;
-    const preset = getReportTypographyPreset(
-      value as ReportTypographyPresetKey,
-    );
-    setReportFontSize(preset.sizes.report_font_size);
-    setReportHeadingFontSize(preset.sizes.report_heading_font_size);
-    setReportSectionHeadingFontSize(
-      preset.sizes.report_section_heading_font_size,
-    );
-    setReportTableFontSize(preset.sizes.report_table_font_size);
-    setReportCaptionFontSize(preset.sizes.report_caption_font_size);
-    setReportChipFontSize(preset.sizes.report_chip_font_size);
   };
 
   if (loading) {
@@ -832,210 +770,23 @@ const SettingsPage: React.FC = () => {
         </CardContent>
       </Card>
       {/* Report Settings */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-            <ReportIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Report Settings</Typography>
-          </Box>
-          <Divider sx={{ mb: 3 }} />
-
-          <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                select
-                fullWidth
-                label="Report Font Preset"
-                value={reportPresetValue}
-                onChange={(e) => applyReportTypographyPreset(e.target.value)}
-                helperText={reportPresetHelperText}
-                disabled={!isAdmin}
-                slotProps={{
-                  select: { native: true }
-                }}
-              >
-                <option value="custom">Custom</option>
-                {REPORT_TYPOGRAPHY_PRESETS.map((preset) => (
-                  <option key={preset.key} value={preset.key}>
-                    {preset.label}
-                  </option>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
-              <TextField
-                select
-                fullWidth
-                label="Report Font Family"
-                value={reportFontFamily}
-                onChange={(e) => setReportFontFamily(e.target.value)}
-                helperText="Font used by generated report previews and print output"
-                disabled={!isAdmin}
-                slotProps={{
-                  select: { native: true }
-                }}
-              >
-                {REPORT_FONT_FAMILY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </TextField>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                fullWidth
-                label="Report Body Font Size"
-                type="number"
-                value={reportFontSize}
-                onChange={(e) =>
-                  setReportFontSize(
-                    parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN,
-                  )
-                }
-                helperText="Main report text size"
-                disabled={!isAdmin}
-                slotProps={{
-                  input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                  },
-
-                  htmlInput: {
-                    min: REPORT_FONT_SIZE_MIN,
-                    max: REPORT_FONT_SIZE_MAX,
-                    step: 1,
-                  }
-                }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                fullWidth
-                label="Heading / KPI Font Size"
-                type="number"
-                value={reportHeadingFontSize}
-                onChange={(e) =>
-                  setReportHeadingFontSize(
-                    parseInt(e.target.value, 10) ||
-                      REPORT_DISPLAY_FONT_SIZE_MIN,
-                  )
-                }
-                helperText="Large report titles and metric values"
-                disabled={!isAdmin}
-                slotProps={{
-                  input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                  },
-
-                  htmlInput: {
-                    min: REPORT_DISPLAY_FONT_SIZE_MIN,
-                    max: REPORT_DISPLAY_FONT_SIZE_MAX,
-                    step: 1,
-                  }
-                }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                fullWidth
-                label="Section Heading Font Size"
-                type="number"
-                value={reportSectionHeadingFontSize}
-                onChange={(e) =>
-                  setReportSectionHeadingFontSize(
-                    parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN,
-                  )
-                }
-                helperText="Report section labels and subheads"
-                disabled={!isAdmin}
-                slotProps={{
-                  input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                  },
-
-                  htmlInput: {
-                    min: REPORT_FONT_SIZE_MIN,
-                    max: REPORT_DISPLAY_FONT_SIZE_MAX,
-                    step: 1,
-                  }
-                }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                fullWidth
-                label="Table Font Size"
-                type="number"
-                value={reportTableFontSize}
-                onChange={(e) =>
-                  setReportTableFontSize(
-                    parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN,
-                  )
-                }
-                helperText="Rows, totals, and table headers"
-                disabled={!isAdmin}
-                slotProps={{
-                  input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                  },
-
-                  htmlInput: {
-                    min: REPORT_FONT_SIZE_MIN,
-                    max: REPORT_FONT_SIZE_MAX,
-                    step: 1,
-                  }
-                }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                fullWidth
-                label="Caption Font Size"
-                type="number"
-                value={reportCaptionFontSize}
-                onChange={(e) =>
-                  setReportCaptionFontSize(
-                    parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN,
-                  )
-                }
-                helperText="Secondary labels and captions"
-                disabled={!isAdmin}
-                slotProps={{
-                  input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                  },
-
-                  htmlInput: {
-                    min: REPORT_FONT_SIZE_MIN,
-                    max: REPORT_FONT_SIZE_MAX,
-                    step: 1,
-                  }
-                }} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <TextField
-                fullWidth
-                label="Status Chip Font Size"
-                type="number"
-                value={reportChipFontSize}
-                onChange={(e) =>
-                  setReportChipFontSize(
-                    parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN,
-                  )
-                }
-                helperText="Payment and posting status chips"
-                disabled={!isAdmin}
-                slotProps={{
-                  input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>,
-                  },
-
-                  htmlInput: {
-                    min: REPORT_FONT_SIZE_MIN,
-                    max: REPORT_FONT_SIZE_MAX,
-                    step: 1,
-                  }
-                }} />
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+      <ReportSettingsCard
+        isAdmin={isAdmin}
+        reportFontSize={reportFontSize}
+        onReportFontSizeChange={setReportFontSize}
+        reportFontFamily={reportFontFamily}
+        onReportFontFamilyChange={setReportFontFamily}
+        reportHeadingFontSize={reportHeadingFontSize}
+        onReportHeadingFontSizeChange={setReportHeadingFontSize}
+        reportSectionHeadingFontSize={reportSectionHeadingFontSize}
+        onReportSectionHeadingFontSizeChange={setReportSectionHeadingFontSize}
+        reportTableFontSize={reportTableFontSize}
+        onReportTableFontSizeChange={setReportTableFontSize}
+        reportCaptionFontSize={reportCaptionFontSize}
+        onReportCaptionFontSizeChange={setReportCaptionFontSize}
+        reportChipFontSize={reportChipFontSize}
+        onReportChipFontSizeChange={setReportChipFontSize}
+      />
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6">Guest Booking Cancellation</Typography>
@@ -1330,302 +1081,17 @@ const SettingsPage: React.FC = () => {
         </CardContent>
       </Card>
       {/* System Configuration */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-            <SettingsIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">System Configuration</Typography>
-          </Box>
-          <Divider sx={{ mb: 3 }} />
-
-          <Grid container spacing={3}>
-            {/* Rate Codes */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle1" gutterBottom sx={{
-                fontWeight: "medium"
-              }}>
-                Rate Codes
-              </Typography>
-
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  flexWrap: "wrap",
-                  mt: 2,
-                  mb: 2
-                }}>
-                {rateCodes.map((code, index) => (
-                  <Chip
-                    key={`${code}-${index}`}
-                    label={code}
-                    onDelete={
-                      isAdmin
-                        ? () =>
-                            setRateCodes(
-                              rateCodes.filter((_, i) => i !== index),
-                            )
-                        : undefined
-                    }
-                    sx={{ mb: 1 }}
-                  />
-                ))}
-              </Stack>
-
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Add rate code"
-                  value={newRateCode}
-                  onChange={(e) => setNewRateCode(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCode(newRateCode, rateCodes, setRateCodes, () =>
-                        setNewRateCode(""),
-                      );
-                    }
-                  }}
-                  disabled={!isAdmin}
-                  sx={{ flex: 1 }}
-                />
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() =>
-                    addCode(newRateCode, rateCodes, setRateCodes, () =>
-                      setNewRateCode(""),
-                    )
-                  }
-                  disabled={!isAdmin || !newRateCode.trim()}
-                >
-                  Add
-                </Button>
-              </Box>
-            </Grid>
-
-            {/* Market Codes */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="subtitle1" gutterBottom sx={{
-                fontWeight: "medium"
-              }}>
-                Market Codes
-              </Typography>
-
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  flexWrap: "wrap",
-                  mt: 2,
-                  mb: 2
-                }}>
-                {marketCodes.map((code, index) => (
-                  <Chip
-                    key={`${code}-${index}`}
-                    label={code}
-                    onDelete={
-                      isAdmin
-                        ? () =>
-                            setMarketCodes(
-                              marketCodes.filter((_, i) => i !== index),
-                            )
-                        : undefined
-                    }
-                    sx={{ mb: 1 }}
-                  />
-                ))}
-              </Stack>
-
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Add market code"
-                  value={newMarketCode}
-                  onChange={(e) => setNewMarketCode(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCode(newMarketCode, marketCodes, setMarketCodes, () =>
-                        setNewMarketCode(""),
-                      );
-                    }
-                  }}
-                  disabled={!isAdmin}
-                  sx={{ flex: 1 }}
-                />
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() =>
-                    addCode(newMarketCode, marketCodes, setMarketCodes, () =>
-                      setNewMarketCode(""),
-                    )
-                  }
-                  disabled={!isAdmin || !newMarketCode.trim()}
-                >
-                  Add
-                </Button>
-              </Box>
-            </Grid>
-
-            {/* Booking Channels */}
-            <Grid size={12}>
-              <Typography variant="subtitle1" gutterBottom sx={{
-                fontWeight: "medium"
-              }}>
-                Online Booking Channels
-              </Typography>
-              <Typography variant="body2" gutterBottom sx={{
-                color: "text.secondary"
-              }}>
-                Configure channel name + abbreviation pairs (e.g., Booking.com /
-                B.C). Abbreviations appear next to guest names in the Room Sold
-                Detail by Date report.
-              </Typography>
-
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  flexWrap: "wrap",
-                  mt: 2,
-                  mb: 2
-                }}>
-                {bookingChannels.map((channel, index) => (
-                  <Chip
-                    key={index}
-                    label={
-                      channel.abbreviation
-                        ? `${channel.name} (${channel.abbreviation})`
-                        : channel.name
-                    }
-                    onDelete={() => {
-                      setBookingChannels(
-                        bookingChannels.filter((_, i) => i !== index),
-                      );
-                    }}
-                    sx={{ mb: 1 }}
-                  />
-                ))}
-              </Stack>
-
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Channel name (e.g., Booking.com)"
-                  value={newChannelName}
-                  onChange={(e) => setNewChannelName(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addBookingChannel();
-                    }
-                  }}
-                  sx={{ flex: 2 }}
-                />
-                <TextField
-                  size="small"
-                  placeholder="Abbr. (e.g., B.C)"
-                  value={newChannelAbbreviation}
-                  onChange={(e) => setNewChannelAbbreviation(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addBookingChannel();
-                    }
-                  }}
-                  sx={{ flex: 1 }}
-                />
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={addBookingChannel}
-                  disabled={!newChannelName.trim()}
-                >
-                  Add
-                </Button>
-              </Box>
-            </Grid>
-
-            {/* Payment Methods */}
-            <Grid size={12}>
-              <Typography variant="subtitle1" gutterBottom sx={{
-                fontWeight: "medium"
-              }}>
-                Payment Methods
-              </Typography>
-              <Typography variant="body2" gutterBottom sx={{
-                color: "text.secondary"
-              }}>
-                Configure available payment methods for walk-in guests
-              </Typography>
-
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{
-                  flexWrap: "wrap",
-                  mt: 2,
-                  mb: 2
-                }}>
-                {paymentMethods.map((method, index) => (
-                  <Chip
-                    key={index}
-                    label={method}
-                    onDelete={() => {
-                      setPaymentMethods(
-                        paymentMethods.filter((_, i) => i !== index),
-                      );
-                    }}
-                    sx={{ mb: 1 }}
-                  />
-                ))}
-              </Stack>
-
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Add new payment method (e.g., E-Wallet)"
-                  value={newPaymentMethod}
-                  onChange={(e) => setNewPaymentMethod(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter" && newPaymentMethod.trim()) {
-                      setPaymentMethods([
-                        ...paymentMethods,
-                        newPaymentMethod.trim(),
-                      ]);
-                      setNewPaymentMethod("");
-                    }
-                  }}
-                  sx={{ flex: 1 }}
-                />
-                <Button
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => {
-                    if (newPaymentMethod.trim()) {
-                      setPaymentMethods([
-                        ...paymentMethods,
-                        newPaymentMethod.trim(),
-                      ]);
-                      setNewPaymentMethod("");
-                    }
-                  }}
-                  disabled={!newPaymentMethod.trim()}
-                >
-                  Add
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-
-          <Alert severity="info" sx={{ mt: 2 }}>
-            These options will appear in the booking channels dropdown (online
-            check-in) and payment methods dropdown (walk-in guests).
-          </Alert>
-        </CardContent>
-      </Card>
+      <SystemConfigurationCard
+        isAdmin={isAdmin}
+        rateCodes={rateCodes}
+        onRateCodesChange={setRateCodes}
+        marketCodes={marketCodes}
+        onMarketCodesChange={setMarketCodes}
+        bookingChannels={bookingChannels}
+        onBookingChannelsChange={setBookingChannels}
+        paymentMethods={paymentMethods}
+        onPaymentMethodsChange={setPaymentMethods}
+      />
       {/* Save Button */}
       <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
         <Button variant="outlined" onClick={loadSettings} disabled={saving}>
