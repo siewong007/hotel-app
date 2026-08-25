@@ -29,7 +29,6 @@ fixed in the tree and removed.
 - Portal component-test coverage is now COMPLETE (2026-08-22): every guest-portal component has a suite (`GuestPaymentPanel`, `GuestPortalShell`, `PortalSupportWidget`, `GuestPortalThemeProvider` were the last gaps). Remaining, if wanted: deeper cross-section integration flows.
 - L8 resolved: every GitHub Action is SHA-pinned (SHAs resolved via GitHub API, version kept as a trailing comment). Exception: `dtolnay/rust-toolchain@1.95.0` stays on its documented version-branch pattern. L13 resolved: `nginx:1.28-alpine` verified via manifest inspect and pinned.
 - Dependabot alert #13 (moderate): glib 0.18.5 in hotel-desktop/src-tauri (unsound VariantStrIter, fixed 0.20.0). Semver-pinned by the tauri/gtk stack — requires a coordinated tauri/gtk major upgrade with desktop regression testing, not a lockfile bump.
-- Documentation: no OpenAPI schema — the endpoint table in `README.md` is hand-maintained and drifts.
 
 ## Decisions needed (user)
 
