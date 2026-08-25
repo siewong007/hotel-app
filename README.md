@@ -276,32 +276,14 @@ See [SECURITY.md](SECURITY.md) and the [Deployment Guide's Security Checklist](d
 
 ## 📡 API Endpoint Documentation
 
-Representative domain paths are listed below. Prefix them with `/api` when calling the backend; for example, the login endpoint is `POST /api/auth/login`. Root infrastructure paths such as `/health` are shown in full. Request/response shapes are documented in the route modules and DTOs under `hotel-app-be/src/models/`, the source of truth when integrating new clients. Health-check request examples are in the [Deployment Guide](docs/guides/deployment.md).
-
-| Domain | Representative endpoints | Purpose |
-| --- | --- | --- |
-| Health | `GET /health`, `GET /ws/status` | Service status checks. |
-| Authentication | `POST /auth/login`, `POST /auth/register`, `POST /auth/refresh`, `POST /auth/logout` | Account access and token lifecycle. |
-| Two-factor auth | `POST /auth/2fa/setup`, `POST /auth/2fa/enable`, `GET /auth/2fa/status` | TOTP setup and verification workflows. |
-| Passkeys | `POST /auth/passkey/register/start`, `POST /auth/passkey/login/start` | Passkey registration and login flow endpoints. |
-| Profile | `GET /profile`, `PATCH /profile`, `POST /profile/password` | User profile and credential management. |
-| RBAC | `GET /rbac/snapshot`, `GET /rbac/roles`, `GET /rbac/permissions` | Roles, permissions, and role-permission assignments. |
-| Users | `GET /users`, `POST /users`, `GET /users/{id}`, `PATCH /users/{id}`, `PUT /users/{id}/roles` | User administration and role membership. |
-| Bookings | `GET /bookings`, `POST /bookings`, `GET /bookings/{id}`, `PATCH /bookings/{id}` | Booking records and updates. |
-| Booking operations | `POST /bookings/{id}/checkin`, `GET /bookings/{id}/timeline`, `POST /bookings/void` | Front-desk workflow actions. |
-| Rooms | `GET /rooms`, `POST /rooms`, `PATCH /rooms/{id}`, `PUT /rooms/{id}/status` | Room inventory and status management. |
-| Room types and rates | `GET /room-types`, `GET /rate-plans`, `GET /room-rates/applicable` | Configuration for room categories and pricing. |
-| Guests | `GET /guests`, `POST /guests`, `PATCH /guests/{id}`, `GET /guests/{id}/bookings` | Guest records and history. |
-| Payments | `GET /payments/calculate/{booking_id}`, `POST /payments/record-payment`, `POST /payments/refund-deposit/{booking_id}` | Payment calculations and recorded transactions. |
-| Invoices | `GET /invoices/preview/{booking_id}`, `POST /invoices/generate/{booking_id}`, `GET /invoices` | Invoice preview and generation. |
-| Ledgers | `GET /ledgers`, `POST /ledgers`, `GET /ledgers/summary`, `POST /ledgers/{id}/reverse` | Customer/company ledger management. |
-| Loyalty | `GET /loyalty/programs`, `GET /loyalty/memberships`, `POST /loyalty/rewards/redeem` | Memberships, points, and rewards. |
-| eKYC | `POST /ekyc/upload-document`, `POST /ekyc/submit`, `GET /ekyc/status`, `POST /ekyc/admin/applications/{id}/actions` | Identity document submission and review. |
-| Guest portal | `POST /guest-portal/verify`, `GET /guest-portal/booking/{token}`, `POST /guest-portal/pre-checkin/{token}` | Public guest pre-check-in workflow. |
-| Analytics and reports | `GET /analytics/occupancy`, `GET /analytics/bookings`, `GET /reports/generate` | Reports, analytics, and generated report data. |
-| Audit and settings | `GET /audit-logs`, `GET /settings`, `PATCH /settings/{key}` | Administrative observability and configuration. |
-| Night audit | `GET /night-audit/preview`, `POST /night-audit/run`, `GET /night-audit/{id}` | End-of-day operational review. |
-| Data transfer | `GET /data-transfer/export`, `POST /data-transfer/import` | Admin-only booking data export/import. |
+The exhaustive endpoint list lives in [`docs/api/openapi.json`](docs/api/openapi.json) and is
+**CI-enforced**: `hotel-app-be/tests/openapi_drift.rs` fails whenever a route is added,
+renamed, or removed without updating the spec (and vice versa). All domain endpoints are
+prefixed with `/api` — for example, the login endpoint is `POST /api/auth/login`; root
+infrastructure paths such as `/health` appear in full. Operation-level detail (summaries,
+request/response shapes) is documented in the route modules and DTOs under
+`hotel-app-be/src/models/`. Health-check request examples are in the
+[Deployment Guide](docs/guides/deployment.md).
 
 Most operational endpoints require a bearer token and, in many cases, a specific RBAC permission.
 
