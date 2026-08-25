@@ -837,139 +837,152 @@ describe('CustomerLedgerPage', () => {
   // landed in the catch, told staff "Failed to record payment" for a payment that
   // had succeeded, and the retry minted a NEW key -- a second real charge.
   it('retains the idempotency key when the payment commits but the refetch fails', async () => {
-    mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
-    mocks.hotelApi.getCustomerLedger.mockRejectedValueOnce(new Error('network down'));
+    // Fake timers with automatic advancement make RTL's waitFor polling
+    // deterministic under parallel-suite load (same pattern as the
+    // BookingsPage timezone test).
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mocks.hotelApi.createLedgerPayment.mockResolvedValue(undefined);
+      mocks.hotelApi.getCustomerLedger.mockRejectedValueOnce(new Error('network down'));
 
-    render(<CustomerLedgerPage />);
-    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.entries?.length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
-    await waitFor(() => expect(mocks.captured.paymentDialog?.open).toBe(true));
+      render(<CustomerLedgerPage />);
+      await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.entries?.length).toBeGreaterThan(0));
+      fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
+      await waitFor(() => expect(mocks.captured.paymentDialog?.open).toBe(true));
 
-    await act(async () => {
-      await mocks.captured.paymentDialog!.onRecordPayment();
-    });
-    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(1));
-    const committed = mocks.hotelApi.createLedgerPayment.mock.calls[0][1];
+      await act(async () => {
+        await mocks.captured.paymentDialog!.onRecordPayment();
+      });
+      await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(1));
+      const committed = mocks.hotelApi.createLedgerPayment.mock.calls[0][1];
 
-    // The refetch rejected, so the dialog reports failure even though the money
-    // is recorded. Staff retry the identical form.
-    mocks.hotelApi.getCustomerLedger.mockResolvedValue({
-      ...mocks.useLedgersReturn.ledgers[0],
-      balance_due: 250,
-    });
-    await act(async () => {
-      await mocks.captured.paymentDialog!.onRecordPayment();
-    });
-    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2));
+      // The refetch rejected, so the dialog reports failure even though the money
+      // is recorded. Staff retry the identical form.
+      mocks.hotelApi.getCustomerLedger.mockResolvedValue({
+        ...mocks.useLedgersReturn.ledgers[0],
+        balance_due: 250,
+      });
+      await act(async () => {
+        await mocks.captured.paymentDialog!.onRecordPayment();
+      });
+      await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2));
 
-    expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].idempotency_key)
-      .toBe(committed.idempotency_key);
+      expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].idempotency_key)
+        .toBe(committed.idempotency_key);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('replays a lost-response single payment before validating an edited receipt with a new key', async () => {
-    const timeout = new Error('timeout');
-    const editedHistory = createDeferred<CustomerLedgerPayment[]>();
-    mocks.hotelApi.createLedgerPayment
-      .mockRejectedValueOnce(timeout)
-      .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined);
-    mocks.hotelApi.getCustomerLedger.mockResolvedValue({
-      ...mocks.useLedgersReturn.ledgers[0],
-      balance_due: 250,
-    });
-
-    render(<CustomerLedgerPage />);
-    await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.entries?.length).toBeGreaterThan(0));
-    fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
-    await waitFor(() => expect(mocks.captured.paymentDialog?.open).toBe(true));
-
-    await act(async () => {
-      mocks.captured.paymentDialog!.setPaymentFormData({
-        ...mocks.captured.paymentDialog!.paymentFormData,
-        receipt_number: 'receipt-77',
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const timeout = new Error('timeout');
+      const editedHistory = createDeferred<CustomerLedgerPayment[]>();
+      mocks.hotelApi.createLedgerPayment
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+      mocks.hotelApi.getCustomerLedger.mockResolvedValue({
+        ...mocks.useLedgersReturn.ledgers[0],
+        balance_due: 250,
       });
-    });
-    mocks.useLedgersReturn.reload.mockClear();
-    mocks.hotelApi.getCustomerLedger.mockClear();
-    await act(async () => {
-      await mocks.captured.paymentDialog!.onRecordPayment();
-    });
-    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(1));
-    const firstRequest = mocks.hotelApi.createLedgerPayment.mock.calls[0][1];
 
-    mocks.hotelApi.getLedgerPayments.mockClear();
-    mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
-      Promise.resolve(ledgerId === 101 ? [buildLedgerPayment(101, ' Receipt-77 ')] : []),
-    );
-    await act(async () => {
-      mocks.captured.paymentDialog!.setPaymentFormData({
-        ...mocks.captured.paymentDialog!.paymentFormData,
-        payment_reference: '   ',
-        receipt_number: ' receipt-77 ',
+      render(<CustomerLedgerPage />);
+      await waitFor(() => expect(mocks.captured.ledgerEntriesTab?.entries?.length).toBeGreaterThan(0));
+      fireEvent.click(screen.getByRole('button', { name: 'Record payment for first entry' }));
+      await waitFor(() => expect(mocks.captured.paymentDialog?.open).toBe(true));
+
+      await act(async () => {
+        mocks.captured.paymentDialog!.setPaymentFormData({
+          ...mocks.captured.paymentDialog!.paymentFormData,
+          receipt_number: 'receipt-77',
+        });
       });
-    });
-    await act(async () => {
-      await mocks.captured.paymentDialog!.onRecordPayment();
-    });
-    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2));
-    expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].idempotency_key)
-      .toBe(firstRequest.idempotency_key);
-    expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].payment_reference).toBeUndefined();
-    expect(mocks.hotelApi.getLedgerPayments).not.toHaveBeenCalled();
-    expect(mocks.hotelApi.getCustomerLedger).not.toHaveBeenCalled();
-    expect(mocks.useLedgersReturn.reload).not.toHaveBeenCalled();
+      mocks.useLedgersReturn.reload.mockClear();
+      mocks.hotelApi.getCustomerLedger.mockClear();
+      await act(async () => {
+        await mocks.captured.paymentDialog!.onRecordPayment();
+      });
+      await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(1));
+      const firstRequest = mocks.hotelApi.createLedgerPayment.mock.calls[0][1];
 
-    await act(async () => {
-      mocks.captured.paymentDialog!.setPaymentFormData({
-        ...mocks.captured.paymentDialog!.paymentFormData,
+      mocks.hotelApi.getLedgerPayments.mockClear();
+      mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
+        Promise.resolve(ledgerId === 101 ? [buildLedgerPayment(101, ' Receipt-77 ')] : []),
+      );
+      await act(async () => {
+        mocks.captured.paymentDialog!.setPaymentFormData({
+          ...mocks.captured.paymentDialog!.paymentFormData,
+          payment_reference: '   ',
+          receipt_number: ' receipt-77 ',
+        });
+      });
+      await act(async () => {
+        await mocks.captured.paymentDialog!.onRecordPayment();
+      });
+      await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2));
+      expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].idempotency_key)
+        .toBe(firstRequest.idempotency_key);
+      expect(mocks.hotelApi.createLedgerPayment.mock.calls[1][1].payment_reference).toBeUndefined();
+      expect(mocks.hotelApi.getLedgerPayments).not.toHaveBeenCalled();
+      expect(mocks.hotelApi.getCustomerLedger).not.toHaveBeenCalled();
+      expect(mocks.useLedgersReturn.reload).not.toHaveBeenCalled();
+
+      await act(async () => {
+        mocks.captured.paymentDialog!.setPaymentFormData({
+          ...mocks.captured.paymentDialog!.paymentFormData,
+          payment_amount: 250,
+          receipt_number: 'receipt-78',
+        });
+      });
+      await waitFor(() => expect(mocks.captured.paymentDialog?.paymentFormData).toMatchObject({
         payment_amount: 250,
         receipt_number: 'receipt-78',
+      }));
+
+      mocks.hotelApi.getLedgerPayments.mockClear();
+      mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
+        ledgerId === 101 ? editedHistory.promise : Promise.resolve([]),
+      );
+      let editedSubmit!: Promise<void>;
+      await act(async () => {
+        editedSubmit = mocks.captured.paymentDialog!.onRecordPayment();
+        await Promise.resolve();
       });
-    });
-    await waitFor(() => expect(mocks.captured.paymentDialog?.paymentFormData).toMatchObject({
-      payment_amount: 250,
-      receipt_number: 'receipt-78',
-    }));
 
-    mocks.hotelApi.getLedgerPayments.mockClear();
-    mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
-      ledgerId === 101 ? editedHistory.promise : Promise.resolve([]),
-    );
-    let editedSubmit!: Promise<void>;
-    await act(async () => {
-      editedSubmit = mocks.captured.paymentDialog!.onRecordPayment();
-      await Promise.resolve();
-    });
+      expect(mocks.hotelApi.getLedgerPayments.mock.calls.map(([ledgerId]) => ledgerId)).toEqual([101]);
+      expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2);
 
-    expect(mocks.hotelApi.getLedgerPayments.mock.calls.map(([ledgerId]) => ledgerId)).toEqual([101]);
-    expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(2);
-
-    await act(async () => {
-      editedHistory.resolve([buildLedgerPayment(101, 'receipt-77')]);
-      await editedSubmit;
-    });
-
-    expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(3);
-    const changedRequest = mocks.hotelApi.createLedgerPayment.mock.calls[2][1];
-    expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
-    expect(changedRequest.receipt_number).toBe('receipt-78');
-    expect(mocks.hotelApi.getCustomerLedger).toHaveBeenCalledTimes(1);
-    expect(mocks.useLedgersReturn.reload).toHaveBeenCalledTimes(1);
-
-    await waitFor(() => expect(mocks.captured.paymentDialog?.paymentFormData.payment_amount).toBe(250));
-    await act(async () => {
-      mocks.captured.paymentDialog!.setPaymentFormData({
-        ...mocks.captured.paymentDialog!.paymentFormData,
-        receipt_number: 'receipt-79',
+      await act(async () => {
+        editedHistory.resolve([buildLedgerPayment(101, 'receipt-77')]);
+        await editedSubmit;
       });
-    });
-    await act(async () => {
-      await mocks.captured.paymentDialog!.onRecordPayment();
-    });
-    await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(4));
-    expect(mocks.hotelApi.createLedgerPayment.mock.calls[3][1].idempotency_key)
-      .not.toBe(changedRequest.idempotency_key);
+
+      expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(3);
+      const changedRequest = mocks.hotelApi.createLedgerPayment.mock.calls[2][1];
+      expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+      expect(changedRequest.receipt_number).toBe('receipt-78');
+      expect(mocks.hotelApi.getCustomerLedger).toHaveBeenCalledTimes(1);
+      expect(mocks.useLedgersReturn.reload).toHaveBeenCalledTimes(1);
+
+      await waitFor(() => expect(mocks.captured.paymentDialog?.paymentFormData.payment_amount).toBe(250));
+      await act(async () => {
+        mocks.captured.paymentDialog!.setPaymentFormData({
+          ...mocks.captured.paymentDialog!.paymentFormData,
+          receipt_number: 'receipt-79',
+        });
+      });
+      await act(async () => {
+        await mocks.captured.paymentDialog!.onRecordPayment();
+      });
+      await waitFor(() => expect(mocks.hotelApi.createLedgerPayment).toHaveBeenCalledTimes(4));
+      expect(mocks.hotelApi.createLedgerPayment.mock.calls[3][1].idempotency_key)
+        .not.toBe(changedRequest.idempotency_key);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('prints a single receipt and the company statement using the shared print helpers', async () => {
@@ -1145,144 +1158,149 @@ describe('CustomerLedgerPage', () => {
   });
 
   it('replays a lost-response company payment before validating an edited receipt with a new key', async () => {
-    const timeout = new Error('timeout');
-    const editedHistory = createDeferred<CustomerLedgerPayment[]>();
-    mocks.hotelApi.createCompanyLedgerPayment
-      .mockRejectedValueOnce(timeout)
-      .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce({ payments: [], payment_amount: 500 })
-      .mockResolvedValueOnce({ payments: [], payment_amount: 500 });
-    mocks.hotelApi.getCustomerLedger.mockImplementation((ledgerId: number) =>
-      Promise.resolve(mocks.useLedgersReturn.ledgers.find((ledger) => ledger.id === ledgerId)),
-    );
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const timeout = new Error('timeout');
+      const editedHistory = createDeferred<CustomerLedgerPayment[]>();
+      mocks.hotelApi.createCompanyLedgerPayment
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce({ payments: [], payment_amount: 500 })
+        .mockResolvedValueOnce({ payments: [], payment_amount: 500 });
+      mocks.hotelApi.getCustomerLedger.mockImplementation((ledgerId: number) =>
+        Promise.resolve(mocks.useLedgersReturn.ledgers.find((ledger) => ledger.id === ledgerId)),
+      );
 
-    render(<CustomerLedgerPage />);
-    await waitFor(() => expect(mocks.captured.companyDetailHeader?.company?.company_name).toBe('Acme Corp'));
+      render(<CustomerLedgerPage />);
+      await waitFor(() => expect(mocks.captured.companyDetailHeader?.company?.company_name).toBe('Acme Corp'));
 
-    await openCreateMenu();
-    fireEvent.click(screen.getByRole('menuitem', { name: /Record Payment/i }));
-    await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.open).toBe(true));
+      await openCreateMenu();
+      fireEvent.click(screen.getByRole('menuitem', { name: /Record Payment/i }));
+      await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.open).toBe(true));
 
-    const initialDialog = mocks.captured.recordCompanyPaymentDialog!;
-    await act(async () => {
-      initialDialog.setSelectedLedgersForPayment([
-        initialDialog.paymentCompanyLedgers[1],
-        initialDialog.paymentCompanyLedgers[0],
-      ]);
-      initialDialog.setCompanyPaymentForm({
-        ...initialDialog.companyPaymentForm,
-        payment_amount: '600',
+      const initialDialog = mocks.captured.recordCompanyPaymentDialog!;
+      await act(async () => {
+        initialDialog.setSelectedLedgersForPayment([
+          initialDialog.paymentCompanyLedgers[1],
+          initialDialog.paymentCompanyLedgers[0],
+        ]);
+        initialDialog.setCompanyPaymentForm({
+          ...initialDialog.companyPaymentForm,
+          payment_amount: '600',
+          payment_method: 'bank_transfer',
+          payment_reference: 'bank-77',
+          receipt_number: 'receipt-77',
+          notes: 'August settlement',
+          payment_date: '2026-08-06',
+        });
+      });
+
+      await waitFor(() =>
+        expect(mocks.captured.recordCompanyPaymentDialog?.selectedLedgersForPayment.map((ledger: CustomerLedger) => ledger.id)).toEqual([102, 101]),
+      );
+
+      mocks.useLedgersReturn.reload.mockClear();
+      mocks.hotelApi.getCustomerLedger.mockClear();
+      await act(async () => {
+        await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+      });
+      await waitFor(() => expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(1));
+      const firstRequest = mocks.hotelApi.createCompanyLedgerPayment.mock.calls[0][0];
+
+      mocks.hotelApi.getLedgerPayments.mockClear();
+      mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
+        Promise.resolve(ledgerId === 102 ? [buildLedgerPayment(102, ' Receipt-77 ')] : []),
+      );
+      await act(async () => {
+        mocks.captured.recordCompanyPaymentDialog!.setCompanyPaymentForm({
+          ...mocks.captured.recordCompanyPaymentDialog!.companyPaymentForm,
+          payment_method: ' bank_transfer ',
+          payment_reference: ' bank-77 ',
+          receipt_number: ' receipt-77 ',
+          notes: ' August settlement ',
+          payment_date: ' 2026-08-06 ',
+        });
+      });
+      await act(async () => {
+        await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+      });
+
+      await waitFor(() => expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(2));
+      const retryRequest = mocks.hotelApi.createCompanyLedgerPayment.mock.calls[1][0];
+      expect(firstRequest).toMatchObject({ ledger_ids: [102, 101], payment_amount: 600 });
+      expect(retryRequest.idempotency_key).toBe(firstRequest.idempotency_key);
+      expect(retryRequest).toMatchObject({
         payment_method: 'bank_transfer',
         payment_reference: 'bank-77',
         receipt_number: 'receipt-77',
         notes: 'August settlement',
         payment_date: '2026-08-06',
       });
-    });
+      expect(mocks.hotelApi.createLedgerPayment).not.toHaveBeenCalled();
+      expect(mocks.hotelApi.getLedgerPayments).not.toHaveBeenCalled();
+      expect(mocks.hotelApi.getCustomerLedger).not.toHaveBeenCalled();
+      expect(mocks.useLedgersReturn.reload).not.toHaveBeenCalled();
 
-    await waitFor(() =>
-      expect(mocks.captured.recordCompanyPaymentDialog?.selectedLedgersForPayment.map((ledger: CustomerLedger) => ledger.id)).toEqual([102, 101]),
-    );
-
-    mocks.useLedgersReturn.reload.mockClear();
-    mocks.hotelApi.getCustomerLedger.mockClear();
-    await act(async () => {
-      await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
-    });
-    await waitFor(() => expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(1));
-    const firstRequest = mocks.hotelApi.createCompanyLedgerPayment.mock.calls[0][0];
-
-    mocks.hotelApi.getLedgerPayments.mockClear();
-    mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
-      Promise.resolve(ledgerId === 102 ? [buildLedgerPayment(102, ' Receipt-77 ')] : []),
-    );
-    await act(async () => {
-      mocks.captured.recordCompanyPaymentDialog!.setCompanyPaymentForm({
-        ...mocks.captured.recordCompanyPaymentDialog!.companyPaymentForm,
-        payment_method: ' bank_transfer ',
-        payment_reference: ' bank-77 ',
-        receipt_number: ' receipt-77 ',
-        notes: ' August settlement ',
-        payment_date: ' 2026-08-06 ',
+      await act(async () => {
+        mocks.captured.recordCompanyPaymentDialog!.setCompanyPaymentForm({
+          ...mocks.captured.recordCompanyPaymentDialog!.companyPaymentForm,
+          receipt_number: 'receipt-78',
+        });
       });
-    });
-    await act(async () => {
-      await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
-    });
+      await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.companyPaymentForm.receipt_number).toBe('receipt-78'));
 
-    await waitFor(() => expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(2));
-    const retryRequest = mocks.hotelApi.createCompanyLedgerPayment.mock.calls[1][0];
-    expect(firstRequest).toMatchObject({ ledger_ids: [102, 101], payment_amount: 600 });
-    expect(retryRequest.idempotency_key).toBe(firstRequest.idempotency_key);
-    expect(retryRequest).toMatchObject({
-      payment_method: 'bank_transfer',
-      payment_reference: 'bank-77',
-      receipt_number: 'receipt-77',
-      notes: 'August settlement',
-      payment_date: '2026-08-06',
-    });
-    expect(mocks.hotelApi.createLedgerPayment).not.toHaveBeenCalled();
-    expect(mocks.hotelApi.getLedgerPayments).not.toHaveBeenCalled();
-    expect(mocks.hotelApi.getCustomerLedger).not.toHaveBeenCalled();
-    expect(mocks.useLedgersReturn.reload).not.toHaveBeenCalled();
-
-    await act(async () => {
-      mocks.captured.recordCompanyPaymentDialog!.setCompanyPaymentForm({
-        ...mocks.captured.recordCompanyPaymentDialog!.companyPaymentForm,
-        receipt_number: 'receipt-78',
+      mocks.hotelApi.getLedgerPayments.mockClear();
+      mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
+        ledgerId === 102 ? editedHistory.promise : Promise.resolve([]),
+      );
+      let editedSubmit!: Promise<void>;
+      await act(async () => {
+        editedSubmit = mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+        await Promise.resolve();
       });
-    });
-    await waitFor(() => expect(mocks.captured.recordCompanyPaymentDialog?.companyPaymentForm.receipt_number).toBe('receipt-78'));
 
-    mocks.hotelApi.getLedgerPayments.mockClear();
-    mocks.hotelApi.getLedgerPayments.mockImplementation((ledgerId: number) =>
-      ledgerId === 102 ? editedHistory.promise : Promise.resolve([]),
-    );
-    let editedSubmit!: Promise<void>;
-    await act(async () => {
-      editedSubmit = mocks.captured.recordCompanyPaymentDialog!.onSubmit();
-      await Promise.resolve();
-    });
+      expect(mocks.hotelApi.getLedgerPayments.mock.calls.map(([ledgerId]) => ledgerId)).toEqual([102, 101]);
+      expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(2);
 
-    expect(mocks.hotelApi.getLedgerPayments.mock.calls.map(([ledgerId]) => ledgerId)).toEqual([102, 101]);
-    expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(2);
-
-    await act(async () => {
-      editedHistory.resolve([buildLedgerPayment(102, 'receipt-77')]);
-      await editedSubmit;
-    });
-
-    expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(3);
-    const editedRequest = mocks.hotelApi.createCompanyLedgerPayment.mock.calls[2][0];
-    expect(editedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
-    expect(editedRequest.receipt_number).toBe('receipt-78');
-    expect(mocks.hotelApi.getCustomerLedger).toHaveBeenCalledTimes(2);
-    expect(mocks.useLedgersReturn.reload).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      const retryDialog = mocks.captured.recordCompanyPaymentDialog!;
-      retryDialog.setSelectedLedgersForPayment([
-        retryDialog.paymentCompanyLedgers.find((ledger: CustomerLedger) => ledger.id === 102)!,
-        retryDialog.paymentCompanyLedgers.find((ledger: CustomerLedger) => ledger.id === 101)!,
-      ]);
-      retryDialog.setCompanyPaymentForm({
-        ...retryDialog.companyPaymentForm,
-        payment_amount: '500',
-        payment_method: 'bank_transfer',
-        payment_reference: 'bank-77',
-        receipt_number: 'receipt-79',
-        notes: 'August settlement',
-        payment_date: '2026-08-06',
+      await act(async () => {
+        editedHistory.resolve([buildLedgerPayment(102, 'receipt-77')]);
+        await editedSubmit;
       });
-    });
 
-    await act(async () => {
-      await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
-    });
+      expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(3);
+      const editedRequest = mocks.hotelApi.createCompanyLedgerPayment.mock.calls[2][0];
+      expect(editedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+      expect(editedRequest.receipt_number).toBe('receipt-78');
+      expect(mocks.hotelApi.getCustomerLedger).toHaveBeenCalledTimes(2);
+      expect(mocks.useLedgersReturn.reload).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(4));
-    expect(mocks.hotelApi.createCompanyLedgerPayment.mock.calls[3][0].idempotency_key)
-      .not.toBe(editedRequest.idempotency_key);
+      await act(async () => {
+        const retryDialog = mocks.captured.recordCompanyPaymentDialog!;
+        retryDialog.setSelectedLedgersForPayment([
+          retryDialog.paymentCompanyLedgers.find((ledger: CustomerLedger) => ledger.id === 102)!,
+          retryDialog.paymentCompanyLedgers.find((ledger: CustomerLedger) => ledger.id === 101)!,
+        ]);
+        retryDialog.setCompanyPaymentForm({
+          ...retryDialog.companyPaymentForm,
+          payment_amount: '500',
+          payment_method: 'bank_transfer',
+          payment_reference: 'bank-77',
+          receipt_number: 'receipt-79',
+          notes: 'August settlement',
+          payment_date: '2026-08-06',
+        });
+      });
+
+      await act(async () => {
+        await mocks.captured.recordCompanyPaymentDialog!.onSubmit();
+      });
+
+      await waitFor(() => expect(mocks.hotelApi.createCompanyLedgerPayment).toHaveBeenCalledTimes(4));
+      expect(mocks.hotelApi.createCompanyLedgerPayment.mock.calls[3][0].idempotency_key)
+        .not.toBe(editedRequest.idempotency_key);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('opens the company invoice dialog pre-selecting only invoice-eligible entries via the Create menu', async () => {
