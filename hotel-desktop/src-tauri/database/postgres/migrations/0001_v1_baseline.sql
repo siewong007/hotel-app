@@ -2458,10 +2458,10 @@ CREATE TABLE public.email_deliveries (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT email_deliveries_attempts_valid CHECK (((attempts >= 0) AND (max_attempts >= 1))),
-    CONSTRAINT email_deliveries_kind_campaign_link CHECK (((((kind)::text = 'campaign'::text) AND (campaign_id IS NOT NULL)) OR (((kind)::text = ANY ((ARRAY['birthday_voucher'::character varying, 'booking_confirmation'::character varying])::text[])) AND (campaign_id IS NULL)))),
-    CONSTRAINT email_deliveries_kind_check CHECK (((kind)::text = ANY ((ARRAY['campaign'::character varying, 'birthday_voucher'::character varying, 'booking_confirmation'::character varying])::text[]))),
+    CONSTRAINT email_deliveries_kind_campaign_link CHECK (((((kind)::text = 'campaign'::text) AND (campaign_id IS NOT NULL)) OR (((kind)::text = ANY ((ARRAY['birthday_voucher'::character varying, 'booking_confirmation'::character varying, 'checkout_receipt'::character varying, 'pre_arrival_reminder'::character varying])::text[])) AND (campaign_id IS NULL)))),
+    CONSTRAINT email_deliveries_kind_check CHECK (((kind)::text = ANY ((ARRAY['campaign'::character varying, 'birthday_voucher'::character varying, 'booking_confirmation'::character varying, 'checkout_receipt'::character varying, 'pre_arrival_reminder'::character varying])::text[]))),
     CONSTRAINT email_deliveries_status_check CHECK (((status)::text = ANY ((ARRAY['queued'::character varying, 'sending'::character varying, 'sent'::character varying, 'failed'::character varying, 'suppressed'::character varying, 'cancelled'::character varying])::text[]))),
-    CONSTRAINT email_deliveries_topic_check CHECK (((topic)::text = ANY ((ARRAY['announcement'::character varying, 'promotion'::character varying, 'birthday_voucher'::character varying, 'booking_confirmation'::character varying])::text[])))
+    CONSTRAINT email_deliveries_topic_check CHECK (((topic)::text = ANY ((ARRAY['announcement'::character varying, 'promotion'::character varying, 'birthday_voucher'::character varying, 'booking_confirmation'::character varying, 'checkout_receipt'::character varying, 'pre_arrival_reminder'::character varying])::text[])))
 );
 
 

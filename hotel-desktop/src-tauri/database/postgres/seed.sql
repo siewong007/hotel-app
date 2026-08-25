@@ -1042,6 +1042,14 @@ VALUES ('guest_booking_cancellation_enabled', 'false', 'boolean', 'booking',
         'Allow guests to cancel eligible bookings in the guest portal', false)
 ON CONFLICT (key) DO NOTHING;
 
+-- Notifications v2: pre-arrival reminder emails (scheduler-driven).
+INSERT INTO system_settings (key, value, value_type, category, description, is_public) VALUES
+('pre_arrival_reminder_enabled', 'false', 'boolean', 'general',
+        'Send guests a pre-arrival reminder email before check-in', false),
+('pre_arrival_reminder_hours_before', '48', 'number', 'general',
+        'Hours before check-in to send the pre-arrival reminder (2-168)', false)
+ON CONFLICT (key) DO NOTHING;
+
 -- This policy is part of the required route-policy set, so it must be present
 -- before the integrity checks below.
 INSERT INTO route_access_policies (
