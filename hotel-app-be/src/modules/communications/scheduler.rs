@@ -81,8 +81,83 @@ pub fn spawn(pool: DbPool) {
                 Ok(_) => {}
                 Err(e) => log::warn!("Birthday scheduler tick failed: {e}"),
             }
+            if let Err(e) = tick_pre_arrival_reminders(&pool).await {
+                log::warn!("Pre-arrival scheduler tick failed: {e}");
+            }
         }
     });
+}
+
+// ----------------------------------------------------------------------
+// Pre-arrival reminders
+// ----------------------------------------------------------------------
+
+/// Settings clamp: at least 2 hours (a reminder must be actionable) and at
+/// most one week out.
+fn clamped_hours_before(hours: i32) -> i32 {
+    hours.clamp(2, 168)
+}
+
+/// Whole days the reminder window spans for a configured hours-before value.
+fn reminder_window_days(hours_before: i32) -> i64 {
+    (clamped_hours_before(hours_before) as f64 / 24.0).ceil() as i64
+}
+
+pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError> {
+    if settings_cache::get_string(pool, "pre_arrival_reminder_enabled", "false").await != "true" {
+        return Ok(0);
+    }
+    let hours =
+        settings_cache::get_i32(pool, "pre_arrival_reminder_hours_before", 48).await;
+    let window_days = reminder_window_days(hours);
+    let today = Repo::hotel_local_date(pool).await?;
+
+    let due = Repo::due_pre_arrival_bookings(pool, today, window_days).await?;
+    let mut queued = 0;
+    for booking in due {
+        let subject = format!("Your stay begins soon {}", booking.booking_number);
+        let body_html = format!(
+            "<p>Dear {},</p>             <p>We look forward to welcoming you. Your stay {} starts on <strong>{}</strong>.</p>             <p><strong>Room:</strong> {} ({})<br>             <strong>Check-out:</strong> {}</p>             <p>You can complete online check-in from your guest portal to skip the front desk.</p>",
+            html_escape(&booking.guest_name),
+            html_escape(&booking.booking_number),
+            booking.check_in_date,
+            html_escape(booking.room_number.as_deref().unwrap_or("-")),
+            html_escape(booking.room_type_name.as_deref().unwrap_or("-")),
+            booking.check_out_date,
+        );
+        let body_text = format!(
+            "Dear {},\nYour stay {} starts on {}. Room: {} ({}). Check-out: {}.\nYou can complete online check-in from your guest portal.",
+            booking.guest_name,
+            booking.booking_number,
+            booking.check_in_date,
+            booking.room_number.as_deref().unwrap_or("-"),
+            booking.room_type_name.as_deref().unwrap_or("-"),
+            booking.check_out_date,
+        );
+        let footer = unsubscribe_footer_html(booking.id);
+        let body_html = format!("{body_html}{footer}");
+
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        Repo::insert_delivery_tx(
+            &mut tx,
+            DeliveryValues {
+                campaign_id: None,
+                kind: "pre_arrival_reminder",
+                guest_id: booking.guest_id,
+                topic: "pre_arrival_reminder",
+                recipient_email: &booking.guest_email,
+                subject: &subject,
+                body_html: &body_html,
+                body_text: Some(&body_text),
+                voucher_id: None,
+                idempotency_key: &format!("pre-arrival:{}", booking.id),
+            },
+        )
+        .await?;
+        tx.commit().await.map_err(ApiError::from)?;
+        queued += 1;
+    }
+    Ok(queued)
 }
 
 // ----------------------------------------------------------------------
@@ -387,5 +462,17 @@ mod tests {
         let code = generate_birthday_voucher_code();
         assert!(code.starts_with("BDY"));
         assert_eq!(code.len(), 23);
+    }
+
+    #[test]
+    fn reminder_window_spans_whole_days_from_clamped_hours() {
+        // Default 48h -> 2 days; a week cap; tiny values still cover today.
+        assert_eq!(reminder_window_days(48), 2);
+        assert_eq!(reminder_window_days(24), 1);
+        assert_eq!(reminder_window_days(168), 7);
+        assert_eq!(reminder_window_days(2), 1);
+        // Clamped: below the floor and above the ceiling.
+        assert_eq!(reminder_window_days(0), 1);
+        assert_eq!(reminder_window_days(1_000), 7);
     }
 }

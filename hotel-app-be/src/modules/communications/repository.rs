@@ -6,7 +6,7 @@ use sqlx::{Row, query, query_scalar};
 
 use super::models::{
     AudienceCount, AudienceGuest, ConsentEvent, EmailCampaign, EmailDelivery, EmailSuppression,
-    EmailTemplate, NotificationSubscription,
+    EmailTemplate, NotificationSubscription, PreArrivalBooking,
 };
 use super::validation::{CampaignDraft, SuppressionDraft, TemplateDraft};
 use crate::core::db::{DbPool, DbRow, DbTransaction};
@@ -762,6 +762,74 @@ impl CommunicationsRepository {
     // ------------------------------------------------------------------
     // Scheduler: campaign fan-out + birthday selection
     // ------------------------------------------------------------------
+
+    /// Bookings arriving inside the pre-arrival window that have not been
+    /// reminded yet. The `NOT EXISTS` against the delivery idempotency key
+    /// makes the selection restart-safe: a queued/sent/failed row all count as
+    /// "already handled".
+    pub async fn due_pre_arrival_bookings(
+        pool: &DbPool,
+        today: chrono::NaiveDate,
+        window_days: i64,
+    ) -> Result<Vec<PreArrivalBooking>, ApiError> {
+        let rows = query(
+            r#"
+            SELECT b.id,
+                   g.id AS guest_id,
+                   b.booking_number,
+                   g.full_name AS guest_name,
+                   g.email AS guest_email,
+                   b.check_in_date,
+                   b.check_out_date,
+                   r.room_number,
+                   rt.name AS room_type_name
+            FROM bookings b
+            JOIN guests g ON g.id = b.guest_id
+            LEFT JOIN rooms r ON r.id = b.room_id
+            LEFT JOIN room_types rt ON rt.id = r.room_type_id
+            WHERE b.status IN ('confirmed', 'pending')
+              AND b.check_in_date >= $1
+              AND b.check_in_date <= $2
+              AND COALESCE(g.email, '') <> ''
+              AND NOT EXISTS (
+                  SELECT 1 FROM email_deliveries ed
+                  WHERE ed.idempotency_key = 'pre-arrival:' || b.id::text
+              )
+            ORDER BY b.check_in_date
+            LIMIT 500
+            "#,
+        )
+        .bind(today)
+        .bind(today + chrono::Duration::days(window_days))
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok(rows
+            .iter()
+            .map(|row| PreArrivalBooking {
+                id: row.get::<i64, _>("id"),
+                guest_id: row.get::<i64, _>("guest_id"),
+                booking_number: row
+                    .try_get::<Option<String>, _>("booking_number")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default(),
+                guest_name: row.try_get("guest_name").unwrap_or_default(),
+                guest_email: row.try_get("guest_email").unwrap_or_default(),
+                check_in_date: row.get("check_in_date"),
+                check_out_date: row.get("check_out_date"),
+                room_number: row
+                    .try_get::<Option<String>, _>("room_number")
+                    .ok()
+                    .flatten(),
+                room_type_name: row
+                    .try_get::<Option<String>, _>("room_type_name")
+                    .ok()
+                    .flatten(),
+            })
+            .collect())
+    }
 
     pub async fn due_scheduled_campaigns(pool: &DbPool) -> Result<Vec<EmailCampaign>, ApiError> {
         let sql = "SELECT {COLS} FROM email_campaigns WHERE status = 'scheduled' AND scheduled_at <= CURRENT_TIMESTAMP ORDER BY scheduled_at"

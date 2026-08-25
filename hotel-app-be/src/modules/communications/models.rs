@@ -54,6 +54,20 @@ pub struct EmailCampaign {
     pub updated_at: DateTime<Utc>,
 }
 
+/// One booking due a pre-arrival reminder email.
+#[derive(Debug, Clone)]
+pub struct PreArrivalBooking {
+    pub id: i64,
+    pub guest_id: i64,
+    pub booking_number: String,
+    pub guest_name: String,
+    pub guest_email: String,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub room_number: Option<String>,
+    pub room_type_name: Option<String>,
+}
+
 /// Full outbox row. Deliberately NOT Serialize: rendered bodies and raw
 /// recipient addresses must never reach an HTTP response or audit payload.
 /// API responses use [`DeliverySummary`].
