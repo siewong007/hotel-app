@@ -5,6 +5,49 @@
 import { useState, useCallback } from 'react';
 import { Room, RoomType } from '../../../types';
 
+/** Drawer form state for creating/editing/duplicating a room type. */
+export interface TypeFormState {
+  name: string;
+  description: string;
+  /**
+   * Form-level name for the nightly rate. Populated from
+   * {@link RoomType.base_price}; some legacy payloads carry it as
+   * `base_rate` instead, which is why neither shape alone tells the story.
+   */
+  base_rate: number;
+  max_occupancy: number;
+  is_active: boolean;
+}
+
+/** Drawer form state for creating/editing a single room. */
+export interface RoomFormState {
+  room_number: string;
+  floor: number;
+  status: string;
+  notes: string;
+}
+
+/**
+ * Map a RoomType onto the drawer form. Accepts the documented `base_price`
+ * plus the legacy `base_rate` alias seen in older saved payloads, coercing
+ * string prices to numbers and falling back to 0 when neither is usable.
+ */
+function toTypeForm(t: RoomType, overrides: Partial<TypeFormState> = {}): TypeFormState {
+  const wirePrice =
+    t.base_price ?? (t as { base_rate?: number | string }).base_rate;
+  const numeric =
+    typeof wirePrice === 'string' ? parseFloat(wirePrice) : wirePrice;
+
+  return {
+    name: t.name,
+    description: t.description || '',
+    base_rate: Number.isFinite(numeric) ? (numeric as number) : 0,
+    max_occupancy: t.max_occupancy || 2,
+    is_active: t.is_active !== false,
+    ...overrides,
+  };
+}
+
 export function useRoomConfigurationPageState() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -13,11 +56,11 @@ export function useRoomConfigurationPageState() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingType, setEditingType] = useState<RoomType | null>(null);
-  const [typeForm, setTypeForm] = useState<any>({ name: '', description: '', base_rate: 0, max_occupancy: 2, is_active: true });
+  const [typeForm, setTypeForm] = useState<TypeFormState>({ name: '', description: '', base_rate: 0, max_occupancy: 2, is_active: true });
   const [typeDeleteTarget, setTypeDeleteTarget] = useState<RoomType | null>(null);
   const [addingRoomFor, setAddingRoomFor] = useState<RoomType | null>(null);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
-  const [roomForm, setRoomForm] = useState<any>({ room_number: '', floor: 1, status: 'available', notes: '' });
+  const [roomForm, setRoomForm] = useState<RoomFormState>({ room_number: '', floor: 1, status: 'available', notes: '' });
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -29,8 +72,7 @@ export function useRoomConfigurationPageState() {
 
   const openEditType = useCallback((t: RoomType) => {
     setEditingType(t);
-    const rt = t as any;
-    setTypeForm({ name: rt.name, description: rt.description || '', base_rate: rt.base_rate || 0, max_occupancy: rt.max_occupancy || 2, is_active: rt.is_active !== false });
+    setTypeForm(toTypeForm(t));
     setDrawerOpen(true);
   }, []);
 
@@ -48,9 +90,8 @@ export function useRoomConfigurationPageState() {
   }, []);
 
   const handleDuplicateType = useCallback(async (t: RoomType) => {
-    const tt = t as any;
     setEditingType(null);
-    setTypeForm({ name: `${tt.name} (Copy)`, description: tt.description || '', base_rate: tt.base_rate || 0, max_occupancy: tt.max_occupancy || 2, is_active: true });
+    setTypeForm(toTypeForm(t, { name: `${t.name} (Copy)`, is_active: true }));
     setDrawerOpen(true);
   }, []);
 

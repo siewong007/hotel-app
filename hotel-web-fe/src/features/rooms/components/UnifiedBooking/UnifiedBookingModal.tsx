@@ -26,6 +26,7 @@ import NotesSection from './components/NotesSection';
 import SectionHeader from './components/SectionHeader';
 
 import type { BookingType, BookingMode, ReservationType } from './bookingTypes';
+import { errorMessage } from '../../../../utils/errorMessage';
 export type { BookingType, BookingMode };
 
 interface UnifiedBookingModalProps {
@@ -38,7 +39,7 @@ interface UnifiedBookingModalProps {
   initialBookingType?: BookingType;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
-  onBookingCreated?: (booking: Booking, guest: Guest) => void; // For direct booking to open enhanced check-in
+  onBookingCreated?: (booking: Booking & { room_number?: string }, guest: Guest) => void; // For direct booking to open enhanced check-in
   onRefreshData: () => Promise<void>;
 }
 
@@ -499,17 +500,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         source: 'walk_in',
       };
 
-      // Add room_number to booking for EnhancedCheckInModal display
-      (bookingForCheckIn as any).room_number = room.room_number;
+      // Add room_number to booking for EnhancedCheckInModal display. Booking
+      // itself has no room column (rooms join by room_id), so the hand-off
+      // type carries it as an explicit optional overlay.
+      const bookingWithRoom: Booking & { room_number?: string } = {
+        ...bookingForCheckIn,
+        room_number: room.room_number,
+      };
 
       // Hand off to EnhancedCheckInModal
       if (onBookingCreated) {
-        onBookingCreated(bookingForCheckIn, guestToUse);
+        onBookingCreated(bookingWithRoom, guestToUse);
       }
       onClose();
       await onRefreshData();
-    } catch (error: any) {
-      reportError(error.message || 'Failed to create booking', 'error');
+    } catch (error) {
+      reportError(errorMessage(error, 'Failed to create booking'), 'error');
     } finally {
       setProcessing(false);
     }
@@ -798,8 +804,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           break;
         }
       }
-    } catch (error: any) {
-      reportError(error.message || 'Failed to create booking', 'error');
+    } catch (error) {
+      reportError(errorMessage(error, 'Failed to create booking'), 'error');
     } finally {
       setProcessing(false);
     }

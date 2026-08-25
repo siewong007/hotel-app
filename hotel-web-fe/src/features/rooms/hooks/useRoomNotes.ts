@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { RoomsService } from '../../../api';
 import type { Room } from '../../../types';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface UseRoomNotesParams {
   reload: () => Promise<void> | void;
@@ -35,8 +36,8 @@ export function useRoomNotes({ reload, showSnackbar }: UseRoomNotesParams) {
       showSnackbar('Room notes updated', 'success');
       await reload();
       setNotesDialogOpen(false);
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update room notes', 'error');
+    } catch (error) {
+      showSnackbar(errorMessage(error, 'Failed to update room notes'), 'error');
     } finally {
       setSavingNotes(false);
     }

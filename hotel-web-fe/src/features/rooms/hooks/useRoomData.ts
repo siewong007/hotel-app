@@ -3,6 +3,7 @@ import { Room, Guest, BookingWithDetails } from '../../../types';
 import { useAllBookings } from '../../bookings/hooks/useBookingQueries';
 import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from './useRoomQueries';
+import { errorMessage } from '../../../utils/errorMessage';
 
 export function useRoomData() {
   const roomsQuery = useRooms();
@@ -22,8 +23,8 @@ export function useRoomData() {
       const result = await refetchRooms();
       if (result.data) setRooms(null);
       setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load rooms');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load rooms'));
     } finally {
       if (showLoader) setManualLoading(false);
     }
@@ -32,7 +33,7 @@ export function useRoomData() {
   const loadBookings = useCallback(async () => {
     try {
       await refetchBookings();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load bookings:', err);
     }
   }, [refetchBookings]);
@@ -41,8 +42,8 @@ export function useRoomData() {
     try {
       const result = await refetchGuests();
       if (result.data) setGuests(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load guests');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load guests'));
     }
   }, [refetchGuests]);
 

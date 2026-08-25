@@ -4,6 +4,7 @@ import type { BookingWithDetails, CheckInRequest } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+import { errorMessage } from '../../../utils/errorMessage';
 
 type PaymentChoice = 'pay_now' | 'pay_later';
 type DepositChoice = 'receive' | 'waive';
@@ -158,8 +159,8 @@ export function useReservedCheckInWorkflow({
       setPhone('');
       resetDepositState();
       await reload();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to check in guest', 'error');
+    } catch (error) {
+      showSnackbar(errorMessage(error, 'Failed to check in guest'), 'error');
     } finally {
       setProcessing(false);
     }

@@ -22,6 +22,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../utils/date';
 import { isGreaterMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface UpdateCheckoutDateDialogProps {
   open: boolean;
@@ -101,8 +102,8 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to extend checkout date');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to extend checkout date'));
     } finally {
       setLoading(false);
     }

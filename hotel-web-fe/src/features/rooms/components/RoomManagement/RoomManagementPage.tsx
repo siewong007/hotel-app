@@ -163,9 +163,9 @@ const validateGuestInformationDraft = (guest: GuestInformationDraft): string | n
 };
 
 // UnifiedBookingModal's onBookingCreated forwards the raw booking/guest objects it built
-// (see UnifiedBookingModal.tsx:41 `onBookingCreated?: (booking: Booking, guest: Guest) => void`),
-// but that booking object has `room_number` bolted onto it beyond the declared `Booking`
-// shape (UnifiedBookingModal.tsx:503 `(bookingForCheckIn as any).room_number = ...`).
+// (see UnifiedBookingModal.tsx `onBookingCreated?: (booking: Booking & { room_number?: string }, guest: Guest) => void`),
+// whose booking object carries an optional `room_number` overlay on the declared `Booking`
+// shape. Keep this local alias in sync with that hand-off type.
 // `first_name`/`last_name` are NOT part of the real `Guest` API type (only `full_name` is) —
 // kept optional here since the fallback that reads them is effectively dead code today.
 type BookingCreatedPayload = Booking & { room_number?: string };

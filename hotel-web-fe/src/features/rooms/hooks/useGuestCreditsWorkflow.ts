@@ -4,8 +4,8 @@ import type { Guest, Room } from '../../../types';
 import type { GuestWithCredits } from '../components/RoomManagement/types';
 import { addLocalDays, formatLocalDate } from '../../../utils/date';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
-import {
-  buildBlockedDateRangesForRoom,
+import { errorMessage } from '../../../utils/errorMessage';
+import {  buildBlockedDateRangesForRoom,
   type BlockedDateRange,
   getCreditBookingDates,
   getTotalCreditsForRoom as getCreditsForRoomType,
@@ -98,7 +98,7 @@ export function useGuestCreditsWorkflow({
       setLoadingCredits(true);
       const credits = await GuestsService.getGuestCredits(guestId);
       setGuestCredits(credits);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading guest credits:', error);
     } finally {
       setLoadingCredits(false);
@@ -200,8 +200,8 @@ export function useGuestCreditsWorkflow({
       showSnackbar(`Booking created successfully! ${result.complimentary_nights} night(s) are complimentary.`, 'success');
       void loadGuestCredits(selectedGuest.id);
       void reloadRooms();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to book with credits', 'error');
+    } catch (error) {
+      showSnackbar(errorMessage(error, 'Failed to book with credits'), 'error');
     } finally {
       setBookingWithCredits(false);
     }
@@ -223,8 +223,8 @@ export function useGuestCreditsWorkflow({
       setDialogOpen(false);
       void reloadRooms();
       void reloadBookings();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to check in guest', 'error');
+    } catch (error) {
+      showSnackbar(errorMessage(error, 'Failed to check in guest'), 'error');
     }
   }, [creditsBookingSuccess, reloadBookings, reloadRooms, showSnackbar]);
 

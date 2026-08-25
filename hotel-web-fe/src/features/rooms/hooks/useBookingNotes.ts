@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { BookingsService } from '../../../api';
 import type { BookingWithDetails } from '../../../types';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface UseBookingNotesParams {
   reload: () => Promise<void> | void;
@@ -51,8 +52,8 @@ export function useBookingNotes({ reload, showSnackbar }: UseBookingNotesParams)
       setEditedBookingNotes('');
       setEditedCleaningPreference(null);
       await reload();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update notes', 'error');
+    } catch (error) {
+      showSnackbar(errorMessage(error, 'Failed to update notes'), 'error');
     } finally {
       setSavingBookingNotes(false);
     }

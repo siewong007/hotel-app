@@ -37,6 +37,7 @@ import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
 import { formatLocalDate } from '../../../utils/date';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+import { errorMessage } from '../../../utils/errorMessage';
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const ROOM_COL = 220;
@@ -207,8 +208,8 @@ const RoomReservationTimeline: React.FC = () => {
     setError(null);
     try {
       await Promise.all([roomsQuery.refetch(), bookingsQuery.refetch()]);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load timeline data');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to load timeline data'));
     }
   }, [bookingsQuery, roomsQuery]);
 

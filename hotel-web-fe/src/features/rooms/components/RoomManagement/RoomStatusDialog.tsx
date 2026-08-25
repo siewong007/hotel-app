@@ -17,6 +17,7 @@ import { Build as BuildIcon } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
 
 import type { Room } from '../../../../types';
+import { errorMessage } from '../../../../utils/errorMessage';
 
 interface RoomStatusDialogProps {
   open: boolean;
@@ -55,8 +56,8 @@ const RoomStatusDialog = ({
     try {
       await onSubmit(status, notes);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update room status');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to update room status'));
     } finally {
       setSaving(false);
     }
