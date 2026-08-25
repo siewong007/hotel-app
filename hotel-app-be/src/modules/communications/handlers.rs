@@ -17,7 +17,9 @@ use super::models::{
 use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use axum::Extension;
 use crate::core::middleware::require_permission_helper;
+use crate::core::rate_limiter::RateLimiters;
 use crate::services::guest_portal;
 
 fn client_ip(headers: &HeaderMap, peer_addr: SocketAddr) -> Option<String> {
@@ -382,18 +384,48 @@ pub async fn update_my_preferences_handler(
 
 pub async fn unsubscribe_view_handler(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Path(token): Path<String>,
 ) -> Result<Json<PreferencesResponse>, ApiError> {
+    // Public token-authed endpoint, but still metered per IP so it cannot be
+    // used as a free oracle or brute-force surface.
+    let (allowed, retry_after) = limiters
+        .sensitive
+        .check_with_retry(crate::routes::extract_client_ip(&headers, peer_addr))
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many requests from this connection. Please try again in {retry_after} seconds."
+            ),
+            retry_after,
+        ));
+    }
     Ok(Json(service::unsubscribe_view(&pool, &token).await?))
 }
 
 pub async fn unsubscribe_apply_handler(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(token): Path<String>,
     Json(input): Json<UnsubscribeApplyInput>,
 ) -> Result<Json<PreferencesResponse>, ApiError> {
+    let (allowed, retry_after) = limiters
+        .sensitive
+        .check_with_retry(crate::routes::extract_client_ip(&headers, peer_addr))
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many requests from this connection. Please try again in {retry_after} seconds."
+            ),
+            retry_after,
+        ));
+    }
     Ok(Json(
         service::unsubscribe_apply(
             &pool,
