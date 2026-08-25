@@ -118,11 +118,11 @@ async fn seed_arrival(pool: &PgPool, check_in_date: &str, status: &str) {
             id, booking_number, guest_id, guest_name, guest_email, room_id,
             check_in_date, check_out_date, adults, children,
             room_rate, subtotal, total_amount, status, payment_status,
-            is_complimentary, created_by
+            is_complimentary
          )
          OVERRIDING SYSTEM VALUE VALUES ($1, 'BK-ARRV-1', $2, 'Arrival Guest', 'arrival-guest@hotel.local', $3,
                  $4::date, $4::date + 2, 1, 0,
-                 150.00, 300.00, 300.00, $5, 'unpaid', false, 1000)",
+                 150.00, 300.00, 300.00, $5, 'unpaid', false)",
     )
     .bind(BOOKING_ID)
     .bind(GUEST_ID)

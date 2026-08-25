@@ -13,6 +13,7 @@ use sqlx::postgres::PgPoolOptions;
 const ROOM_TYPE_ID: i64 = 976_401;
 const ROOM_ID: i64 = 976_301;
 const GUEST_ID: i64 = 976_201;
+const COMPANY_ID: i64 = 976_001;
 const BOOKING_ID: i64 = 976_101;
 
 async fn pg_pool() -> Option<PgPool> {
@@ -79,9 +80,22 @@ async fn cleanup(pool: &PgPool) {
         .execute(pool)
         .await
         .unwrap();
+    sqlx::query("DELETE FROM companies WHERE id = $1")
+        .bind(COMPANY_ID)
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 async fn seed_fixture(pool: &PgPool, company_id: Option<i64>, guest_email: Option<&str>) {
+    sqlx::query(
+        "INSERT INTO companies (id, company_name)          OVERRIDING SYSTEM VALUE VALUES ($1, 'Receipt Test Corp')          ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(COMPANY_ID)
+    .execute(pool)
+    .await
+    .unwrap();
+
     sqlx::query(
         "INSERT INTO guests (id, full_name, first_name, last_name, email) \
          OVERRIDING SYSTEM VALUE VALUES ($1, 'Receipt Guest', 'Receipt', 'Guest', $2)",
@@ -117,17 +131,16 @@ async fn seed_fixture(pool: &PgPool, company_id: Option<i64>, guest_email: Optio
             id, booking_number, guest_id, guest_name, guest_email, room_id,
             check_in_date, check_out_date, adults, children,
             room_rate, subtotal, total_amount, status, payment_status,
-            is_complimentary, created_by, company_id
+            is_complimentary, company_id
          )
          OVERRIDING SYSTEM VALUE VALUES ($1, 'BK-RCPT-1', $2, 'Receipt Guest', $3, $4,
                  '2031-01-10', '2031-01-12', 1, 0,
-                 150.00, 300.00, 300.00, 'checked_out', 'paid', false, $5, $6)",
+                 150.00, 300.00, 300.00, 'checked_out', 'paid', false, $5)",
     )
     .bind(BOOKING_ID)
     .bind(GUEST_ID)
     .bind(guest_email)
     .bind(ROOM_ID)
-    .bind(1000_i64) // created_by FK -> users; the suite seeds users from id 1000
     .bind(company_id)
     .execute(pool)
     .await
@@ -135,11 +148,10 @@ async fn seed_fixture(pool: &PgPool, company_id: Option<i64>, guest_email: Optio
 
     // Fully paid so the receipt shows a zero balance.
     sqlx::query(
-        "INSERT INTO payments (booking_id, amount, payment_method, payment_type, status, created_by, processed_by) \
-         VALUES ($1, 300.00, 'cash', 'booking', 'completed', $2, $2)",
+        "INSERT INTO payments (booking_id, amount, payment_method, payment_type, status) \
+         VALUES ($1, 300.00, 'cash', 'booking', 'completed')",
     )
     .bind(BOOKING_ID)
-    .bind(1000_i64) // created_by FK -> users
     .execute(pool)
     .await
     .unwrap();
@@ -188,7 +200,7 @@ async fn checkout_receipt_queues_once_per_invoice_and_skips_company_or_emailless
     cleanup(&pool).await;
     seed_fixture(
         &pool,
-        Some(5), // seeded company row; non-null company_id flips the skip rule
+        Some(COMPANY_ID), // non-null company_id flips the skip rule
         Some("receipt-guest@hotel.local"),
     ).await;
     hotel_app_be::services::payments::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-2")
