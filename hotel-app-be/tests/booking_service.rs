@@ -76,6 +76,23 @@ mod postgres_tests {
             }
         };
 
+/// Initialize process config exactly once for suites whose flows now touch
+    /// config-dependent side effects (checkout receipt footer).
+    fn core_config_init_in_tests() {
+        if std::env::var("SETTINGS_CACHE_TTL_SECS").is_err() {
+            // SAFETY: single-test binary; no concurrent environment readers.
+            unsafe { std::env::set_var("SETTINGS_CACHE_TTL_SECS", "0") };
+        }
+        if std::env::var("JWT_SECRET").is_err() {
+            // SAFETY: single-test binary; no concurrent environment readers.
+            unsafe { std::env::set_var("JWT_SECRET", "booking-service-test-secret-0123456789ab") };
+        }
+        hotel_app_be::core::config::init_from_env()
+            .expect("test config initialises from env");
+    }
+    
+    
+
         // Serialize against the other PostgreSQL workflow tests (shared DB + DDL).
         let guard = super::pg_serial_lock().lock_owned().await;
         let pool = PgPoolOptions::new()
@@ -83,6 +100,12 @@ mod postgres_tests {
             .connect(&database_url)
             .await
             .expect("failed to connect to PostgreSQL test database");
+
+        // Checkout now queues a transactional receipt email whose footer reads
+        // process config (public base URL + token secret). Production always
+        // initializes config at startup; mirror that here.
+        core_config_init_in_tests();
+
         Some((pool, guard))
     }
 
