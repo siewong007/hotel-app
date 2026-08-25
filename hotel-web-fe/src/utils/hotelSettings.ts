@@ -151,9 +151,10 @@ export const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
       if (!name) continue;
       result.push({ name, abbreviation: lookup.get(name.toLowerCase()) ?? '' });
     } else if (item && typeof item === 'object') {
-      const name = typeof (item as any).name === 'string' ? (item as any).name.trim() : '';
+      const record = item as Record<string, unknown>;
+      const name = typeof record.name === 'string' ? record.name.trim() : '';
       if (!name) continue;
-      const abbreviation = typeof (item as any).abbreviation === 'string' ? (item as any).abbreviation.trim() : '';
+      const abbreviation = typeof record.abbreviation === 'string' ? record.abbreviation.trim() : '';
       result.push({ name, abbreviation });
     }
   }

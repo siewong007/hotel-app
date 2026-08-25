@@ -10,6 +10,8 @@ export const UnauthOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ child
   }
   if (isAuthenticated) {
     const destination = user?.user_type === 'guest' ? '/guest-portal' : '/admin-portal';
+    // Same typed-route shim contract as router/compat.tsx: dynamic role-based
+    // paths are not expressible in TanStack's route literals.
     return <Navigate to={destination as any} replace />;
   }
   return <>{children}</>;

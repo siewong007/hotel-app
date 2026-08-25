@@ -17,7 +17,7 @@ type StorageKey =
   | 'dataTransferHistory';
 
 interface StorageCache {
-  [key: string]: any;
+  [key: string]: unknown;
   _lastUpdate: number;
 }
 
@@ -36,7 +36,7 @@ class StorageManager {
       this.cache[key] !== undefined &&
       now - this.cache._lastUpdate < this.cacheTimeout
     ) {
-      return this.cache[key];
+      return this.cache[key] as T;
     }
 
     // Fetch from localStorage
@@ -64,7 +64,7 @@ class StorageManager {
   /**
    * Set item in localStorage and update cache
    */
-  setItem(key: StorageKey, value: any): void {
+  setItem(key: StorageKey, value: unknown): void {
     try {
       const serialized = typeof value === 'string' ? value : JSON.stringify(value);
       localStorage.setItem(key, serialized);

@@ -15,7 +15,7 @@ export interface Invoice {
   tax_percentage: number | string;
   keycard_deposit: number | string;
   total_amount: number | string;
-  line_items: any;
+  line_items: unknown;
   customer_name: string;
   customer_email: string;
   customer_phone?: string;
@@ -42,8 +42,8 @@ export interface InvoiceLineItem {
 
 export interface InvoicePreview {
   invoice: Invoice;
-  payment?: any;
-  booking_details: any;
+  payment?: unknown;
+  booking_details: unknown;
 }
 
 export interface PaymentWorkflowSummary {

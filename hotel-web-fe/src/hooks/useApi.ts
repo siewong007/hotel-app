@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { errorMessage } from '../utils/errorMessage';
 
 interface UseApiOptions<T, P extends any[]> {
   apiFn: (...params: P) => Promise<T>;
@@ -46,9 +47,8 @@ export function useApi<T, P extends any[]>({
       setData(result);
       onSuccess?.(result);
       return result;
-    } catch (err: any) {
-      const errorMessage = err.message || 'Operation failed';
-      setError(errorMessage);
+    } catch (err) {
+      setError(errorMessage(err, 'Operation failed'));
       onError?.(err);
       return undefined;
     } finally {

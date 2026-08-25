@@ -82,6 +82,7 @@ export const RootLayout: React.FC = () => {
     // guest account. Do not render portal routes while the account state is
     // unknown, signed out, or belongs to an operational user.
     if (!isAuthenticated) {
+      // Typed-route shim contract — see router/compat.tsx.
       return <Navigate to="/login" search={{ account: 'guest' } as any} replace />;
     }
 
@@ -102,8 +103,9 @@ export const RootLayout: React.FC = () => {
 
   if (isAdminPortal) {
     if (isLoading) return <LoadingFallback />;
+    // Typed-route shim contract — see router/compat.tsx.
     if (!isAuthenticated) return <Navigate to="/login" search={{ account: 'admin' } as any} replace />;
-    if (user?.user_type === 'guest') return <Navigate to={'/guest-portal' as any} replace />;
+    if (user?.user_type === 'guest') return <Navigate to={'/guest-portal' as any} replace />; // shim contract — see router/compat.tsx
   }
 
   // Public consumer pages and the signed-in guest's model home remain outside

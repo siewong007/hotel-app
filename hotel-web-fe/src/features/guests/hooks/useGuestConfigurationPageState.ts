@@ -55,7 +55,11 @@ export function useGuestConfigurationPageState() {
   const handleEditClick = useCallback((guest: Guest) => {
     setEditingGuest(guest);
     setFormData({
-      first_name: (guest as any).first_name || '', last_name: (guest as any).last_name || '',
+      // first_name/last_name are not part of the Guest API type (only full_name is);
+      // legacy saved payloads may still carry them — see the BookingCreatedPayload
+      // note in rooms/RoomManagementPage.tsx.
+      first_name: (guest as Guest & { first_name?: string }).first_name || '',
+      last_name: (guest as Guest & { last_name?: string }).last_name || '',
       email: guest.email || '', phone: guest.phone || '', ic_number: guest.ic_number || '',
       nationality: guest.nationality || '', guest_type: guest.guest_type || 'individual',
       tourism_type: guest.tourism_type || '', company_name: guest.company_name || '',

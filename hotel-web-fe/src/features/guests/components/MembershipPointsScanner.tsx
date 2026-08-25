@@ -19,6 +19,7 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 import { LoyaltyService } from '../../../api';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface MembershipPointsScannerProps {
   onSuccess?: () => void;
@@ -89,9 +90,9 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
         handleClose();
       }, 2000);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to add points:', err);
-      setError(err.message || 'Failed to add points. Please check the membership number.');
+      setError(errorMessage(err, 'Failed to add points. Please check the membership number.'));
     } finally {
       setLoading(false);
     }

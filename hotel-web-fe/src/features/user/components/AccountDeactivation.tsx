@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { errorMessage } from '../../../utils/errorMessage';
 import {
   Box,
   Card,
@@ -46,8 +47,8 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
         setSuccess(false);
         setReason('');
       }, 2000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to deactivate account');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to deactivate account'));
     } finally {
       setLoading(false);
     }
@@ -64,8 +65,8 @@ const AccountDeactivation: React.FC<AccountDeactivationProps> = ({
       setTimeout(() => {
         setSuccess(false);
       }, 2000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to reactivate account');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to reactivate account'));
     } finally {
       setLoading(false);
     }

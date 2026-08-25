@@ -52,7 +52,8 @@ export function useEkycReasonCodes() {
 export function useSubmitEkycVerification() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: any) => EkycService.submitEkycVerification(data),
+    mutationFn: (data: Parameters<typeof EkycService.submitEkycVerification>[0]) =>
+      EkycService.submitEkycVerification(data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.ekyc.all });
     },

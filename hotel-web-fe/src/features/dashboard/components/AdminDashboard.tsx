@@ -29,11 +29,12 @@ import {
 } from '@mui/icons-material';
 import { BookingsService, RoomsService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
-import { BookingWithDetails } from '../../../types';
+import { BookingWithDetails, Room } from '../../../types';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface RoomStatus {
-  id: number;
+  id: string;
   room_number: string;
   room_type: string;
   status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved' | 'reserved_dirty' | 'out_of_order' | 'dirty';
@@ -105,7 +106,7 @@ const AdminDashboard: React.FC = () => {
       const [roomsData, bookingsData] = await Promise.all([
         RoomsService.getAllRooms(),
         BookingsService.getAllBookings(),
-      ]) as [any[], BookingWithDetails[]];
+      ]);
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -139,7 +140,7 @@ const AdminDashboard: React.FC = () => {
       });
 
       // Process rooms with their current status
-      const processedRooms: RoomStatus[] = roomsData.map((room: any) => {
+      const processedRooms: RoomStatus[] = roomsData.map((room: Room) => {
         const roomBookings = bookingsByRoom.get(String(room.id)) || [];
 
         // Find active booking for this room
@@ -275,9 +276,9 @@ const AdminDashboard: React.FC = () => {
       });
 
       setLoading(false);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError(err.message || 'Failed to load dashboard data');
+      setError(errorMessage(err, 'Failed to load dashboard data'));
       setLoading(false);
     }
   };

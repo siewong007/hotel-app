@@ -44,7 +44,7 @@ const emptyBookingStats: BookingStatsResponse = {
 };
 
 export class BookingsService {
-  static async getAllBookings(filters?: { room_number?: string; company_billed?: boolean }): Promise<Booking[]> {
+  static async getAllBookings(filters?: { room_number?: string; company_billed?: boolean }): Promise<BookingWithDetails[]> {
     try {
       const pageSize = 500;
       const baseParams: Record<string, any> = { page: 1, page_size: pageSize };
@@ -55,7 +55,7 @@ export class BookingsService {
         () => api.get('bookings', { searchParams: baseParams }).json<any>(),
         { maxAttempts: 3, initialDelay: 1000 }
       );
-      const firstData: Booking[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
+      const firstData: BookingWithDetails[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
       const total = firstPage.total || firstData.length;
 
       if (total <= pageSize) return firstData;
@@ -281,16 +281,18 @@ export class BookingsService {
       if (params.sort_by) searchParams.sort_by = params.sort_by;
       if (params.sort_order) searchParams.sort_order = params.sort_order;
 
+      type BookingsPageResponse = { data?: BookingWithDetails[]; total?: number; page?: number; page_size?: number };
       const resp = await withRetry(
-        () => api.get('bookings', { searchParams }).json<any>(),
+        () => api.get('bookings', { searchParams }).json<BookingsPageResponse | BookingWithDetails[]>(),
         { maxAttempts: 3, initialDelay: 1000 }
       );
-      const raw: any[] = Array.isArray(resp) ? resp : (resp.data || []);
+      const raw = Array.isArray(resp) ? resp : (resp.data || []);
+      const meta = Array.isArray(resp) ? {} : resp;
       return {
-        data: raw.map(b => enhanceBookingDetails(b as any)),
-        total: resp.total ?? raw.length,
-        page: resp.page ?? 1,
-        page_size: resp.page_size ?? 50,
+        data: raw.map((b) => enhanceBookingDetails(b)),
+        total: meta.total ?? raw.length,
+        page: meta.page ?? 1,
+        page_size: meta.page_size ?? 50,
       };
     } catch (error) {
       if (error instanceof HTTPError) {
@@ -315,8 +317,7 @@ export class BookingsService {
   static async getBookingsWithDetails(filters?: { room_number?: string; company_billed?: boolean }): Promise<BookingWithDetails[]> {
     try {
       const bookings = await this.getAllBookings(filters);
-      const bookingsWithDetails = bookings as any as BookingWithDetails[];
-      return bookingsWithDetails.map(booking => enhanceBookingDetails(booking));
+      return bookings.map(booking => enhanceBookingDetails(booking));
     } catch (error) {
       if (error instanceof APIError) {
         throw error;

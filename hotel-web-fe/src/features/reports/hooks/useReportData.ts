@@ -86,7 +86,7 @@ export function useReportData() {
         queryFn: () => getCompanyList(start, end),
         staleTime: queryStaleTime.long,
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load company list:', err);
     }
   }, [queryClient]);

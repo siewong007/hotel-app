@@ -27,8 +27,9 @@ import { StatCard } from '../../../components/common/StatCard';
 import { CircularProgress, Box as MuiBox } from '@mui/material';
 import { useCurrency } from '../../../hooks/useCurrency';
 
+// Booking ids are UUID strings from the API (see types/booking.types.ts).
 interface UpcomingBooking {
-  id: number;
+  id: string;
   room_type: string;
   room_number: string;
   check_in_date: string;
@@ -64,7 +65,7 @@ const Dashboard: React.FC = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const upcoming = (bookings as any[]).filter((booking: any) => {
+      const upcoming = bookings.filter((booking) => {
         const checkInDate = new Date(booking.check_in_date);
         checkInDate.setHours(0, 0, 0, 0);
         return (
@@ -72,7 +73,7 @@ const Dashboard: React.FC = () => {
           booking.status !== 'voided' &&
           booking.status !== 'completed'
         );
-      }).slice(0, 5).map((b: any) => ({
+      }).slice(0, 5).map((b) => ({
         id: b.id,
         room_type: b.room_type,
         room_number: b.room_number,

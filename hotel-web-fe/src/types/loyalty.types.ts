@@ -7,7 +7,7 @@ export interface LoyaltyProgram {
   tier_level: number;
   points_multiplier: number;
   minimum_points_required: number;
-  benefits?: any;
+  benefits?: unknown;
   is_active: boolean;
   created_at: string;
   updated_at: string;

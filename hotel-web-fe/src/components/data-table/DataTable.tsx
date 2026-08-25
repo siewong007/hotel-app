@@ -86,7 +86,7 @@ export function DataTable<TData>({
                 return (
                   <TableCell
                     key={header.id}
-                    align={(header.column.columnDef.meta as any)?.align ?? 'left'}
+                    align={header.column.columnDef.meta?.align ?? 'left'}
                     sx={{ fontWeight: 600 }}
                   >
                     {header.isPlaceholder ? null : canSort ? (
@@ -130,8 +130,8 @@ export function DataTable<TData>({
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
-                    align={(cell.column.columnDef.meta as any)?.align ?? 'left'}
-                    onClick={(cell.column.columnDef.meta as any)?.stopRowClick ? (e) => e.stopPropagation() : undefined}
+                    align={cell.column.columnDef.meta?.align ?? 'left'}
+                    onClick={cell.column.columnDef.meta?.stopRowClick ? (e) => e.stopPropagation() : undefined}
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>

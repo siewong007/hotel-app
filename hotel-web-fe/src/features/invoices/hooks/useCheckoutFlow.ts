@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { BookingWithDetails, CustomerLedger } from '../../../types';
 import { BookingsService, RoomsService } from '../../../api';
+import { errorMessage } from '../../../utils/errorMessage';
 
 export interface LateCheckoutData {
   penalty: number;
@@ -135,8 +136,8 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
         // The modal closes itself on success via onClose; reset our state too.
         closeCheckout();
         await onAfterCheckout?.();
-      } catch (error: any) {
-        throw new Error(error.message || 'Failed to process checkout');
+      } catch (error) {
+        throw new Error(errorMessage(error, 'Failed to process checkout'));
       }
     },
     [checkoutBooking, updateBooking, setRoomDirty, applyLateCheckout, successMessage, notify, onAfterCheckout, closeCheckout],

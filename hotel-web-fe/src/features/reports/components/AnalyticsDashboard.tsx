@@ -224,9 +224,11 @@ const AnalyticsDashboard: React.FC = () => {
       setRevenueChart(revenueChartData);
       setRoomTypeChart(roomTypeChartData);
 
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load analytics data:', err);
-      setError(err.response?.data?.error || 'Failed to load analytics data');
+      // Only the API's structured error body is user-actionable here.
+      const apiError = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      setError(apiError || 'Failed to load analytics data');
     } finally {
       setLoading(false);
     }

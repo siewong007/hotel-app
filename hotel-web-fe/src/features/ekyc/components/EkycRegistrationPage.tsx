@@ -33,6 +33,7 @@ import { EkycService } from '../../../api';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatLocalDate } from '../../../utils/date';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface PersonalInfo {
   fullName: string;
@@ -249,8 +250,8 @@ const EkycRegistrationPage: React.FC = () => {
       setTimeout(() => {
         navigate('/profile?ekycSubmitted=true');
       }, 2000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit eKYC verification');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to submit eKYC verification'));
     } finally {
       setLoading(false);
     }

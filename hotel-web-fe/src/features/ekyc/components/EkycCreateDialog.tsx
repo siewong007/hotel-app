@@ -24,6 +24,7 @@ import { EkycService } from '../../../api/ekyc.service';
 import { useCreateEkycApplication } from '../hooks/useEkycQueries';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { validateEkycCreateForm } from '../utils/ekycCreateValidation';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const ID_TYPES = [
   { value: 'passport', label: 'Passport' },
@@ -243,8 +244,8 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
       );
       reset();
       onClose();
-    } catch (err: any) {
-      setError(err?.message || 'Failed to create eKYC verification.');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to create eKYC verification.'));
     }
   };
 

@@ -1,4 +1,4 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, type Shadows } from '@mui/material/styles';
 
 export type ThemeMode = 'light' | 'dark' | 'night';
 
@@ -175,7 +175,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
       '0px 48px 96px rgba(0,0,0,0.30)',
       '0px 50px 100px rgba(0,0,0,0.31)',
       '0px 52px 104px rgba(0,0,0,0.32)',
-    ] as any,
+    ] satisfies Shadows as Shadows,
     components: {
       MuiCssBaseline: {
         styleOverrides: {

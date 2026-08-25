@@ -1,3 +1,28 @@
+/**
+ * Guest eKYC submission. Admin-created verifications (EkycCreateDialog) send
+ * every field including guest_id; the self-service registration page omits
+ * guest_id and may send null for untouched optionals.
+ */
+export interface EkycSubmitPayload {
+  guest_id?: number | string;
+  full_name?: string;
+  date_of_birth?: string;
+  nationality?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  current_address?: string | null;
+  id_type?: string;
+  id_number?: string;
+  id_issuing_country?: string | null;
+  id_issue_date?: string | null;
+  id_expiry_date?: string;
+  id_front_image?: string | null;
+  id_back_image?: string | null;
+  selfie_image?: string | null;
+  proof_of_address?: string | null;
+  self_checkin_enabled?: boolean;
+}
+
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
 
@@ -181,9 +206,9 @@ function paramsToSearch(params?: EkycListParams): string {
 
 async function mapHttpError(error: unknown, fallback: string): Promise<never> {
   if (error instanceof HTTPError) {
-    const errorData = await error.response.json().catch(() => ({}));
+    const errorData = await error.response.json<{ error?: string }>().catch(() => ({}) as { error?: string });
     throw new APIError(
-      (errorData as any).error || fallback,
+      errorData.error || fallback,
       error.response.status,
       errorData
     );
@@ -196,7 +221,7 @@ export class EkycService {
     return await api.get('ekyc/status').json();
   }
 
-  static async submitEkycVerification(data: any): Promise<void> {
+  static async submitEkycVerification(data: EkycSubmitPayload): Promise<void> {
     try {
       await api.post('ekyc/submit', { json: data });
     } catch (error) {
@@ -300,12 +325,12 @@ export interface EkycAdminCreatePayload {
   selfie_image: string;
   id_front_image: string;
   id_back_image?: string;
-  id_type: string;
-  id_number: string;
-  full_name: string;
-  date_of_birth: string;
+  id_type?: string;
+  id_number?: string;
+  full_name?: string;
+  date_of_birth?: string;
   nationality?: string;
-  id_expiry_date: string;
+  id_expiry_date?: string;
   id_issue_date?: string;
   id_issuing_country?: string;
   proof_of_address?: string;

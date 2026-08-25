@@ -1,3 +1,4 @@
+import { errorMessage } from '../../../utils/errorMessage';
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -380,8 +381,8 @@ const SettingsPage: React.FC = () => {
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(""), 3000);
-    } catch (err: any) {
-      setError(err.message || "Failed to save settings");
+    } catch (err) {
+      setError(errorMessage(err, "Failed to save settings"));
     }
   };
 

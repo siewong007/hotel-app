@@ -20,8 +20,9 @@ export const logWebVitals = () => {
     });
 
     // Send to analytics endpoint if available
-    if (typeof window !== 'undefined' && (window as any).gtag) {
-      (window as any).gtag('event', metric.name, {
+    const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
+    if (typeof window !== 'undefined' && gtag) {
+      gtag('event', metric.name, {
         value: Math.round(metric.name === 'CLS' ? metric.value * 1000 : metric.value),
         event_category: 'Web Vitals',
         event_label: metric.id,

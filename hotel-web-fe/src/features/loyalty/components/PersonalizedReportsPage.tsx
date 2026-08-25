@@ -74,7 +74,9 @@ const PersonalizedReportsPage: React.FC = () => {
 
   const report = reportQuery.data ?? null;
   const loading = reportQuery.isLoading;
-  const queryError = reportQuery.error as any;
+  const queryError = reportQuery.error as (Error & {
+    response?: { data?: { error?: string } };
+  }) | null;
   const error = dismissedError !== queryError?.message && queryError
     ? (queryError.response?.data?.error || queryError.message || 'Failed to load personalized report')
     : null;

@@ -77,6 +77,7 @@ import {
   useReviewEkycAction,
 } from '../hooks/useEkycQueries';
 import EkycCreateDialog from './EkycCreateDialog';
+import { errorMessage } from '../../../utils/errorMessage';
 
 const STATUS_OPTIONS = [
   'submitted',
@@ -416,8 +417,8 @@ const EkycManagementPage: React.FC = () => {
       });
       setSelectedId(updated.summary.id);
       closeAction();
-    } catch (err: any) {
-      setError(err.message || 'Unable to complete eKYC action');
+    } catch (err) {
+      setError(errorMessage(err, 'Unable to complete eKYC action'));
     }
   };
 
@@ -430,8 +431,8 @@ const EkycManagementPage: React.FC = () => {
         reason: revealReason,
       });
       setRevealedValue(result.value ?? '');
-    } catch (err: any) {
-      setError(err.message || 'Unable to reveal field');
+    } catch (err) {
+      setError(errorMessage(err, 'Unable to reveal field'));
     }
   };
 
@@ -446,8 +447,8 @@ const EkycManagementPage: React.FC = () => {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
-      setError(err.message || 'Unable to export eKYC records');
+    } catch (err) {
+      setError(errorMessage(err, 'Unable to export eKYC records'));
     }
   };
 
