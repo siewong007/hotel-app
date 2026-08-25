@@ -85,7 +85,7 @@ mod postgres_tests {
         }
         if std::env::var("JWT_SECRET").is_err() {
             // SAFETY: single-test binary; no concurrent environment readers.
-            unsafe { std::env::set_var("JWT_SECRET", "booking-service-test-secret-0123456789ab") };
+            unsafe { std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret") };
         }
         hotel_app_be::core::config::init_from_env()
             .expect("test config initialises from env");

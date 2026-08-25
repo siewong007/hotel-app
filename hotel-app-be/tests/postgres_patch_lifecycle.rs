@@ -570,7 +570,7 @@ async fn revision_snapshot(pool: &PgPool) -> RevisionSnapshot {
         r#"
         SELECT version, name, checksum, applied_at::text
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 7
+        WHERE generation = 1 AND version BETWEEN 2 AND 8 -- keep upper bound in sync with newest catalog patch
         ORDER BY version
         "#,
     )
@@ -653,7 +653,7 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
 }
 
 fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 6);
+    assert_eq!(revisions.len(), 7);
     assert_eq!(
         revisions
             .iter()
@@ -685,6 +685,11 @@ fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checks
                 7,
                 "manager-audit-read",
                 "sha256:c2f750e187948fc39aa6d6f16c83b84cb7c75ae4f0d289d6df38a655275e9f90",
+            ),
+            (
+                8,
+                "notifications-email-triggers",
+                "sha256:595e3e3ddb52d1160478e74ede955b9f7e834f4755c22e4288b10ab375087fcb",
             ),
         ]
     );
@@ -1662,7 +1667,7 @@ async fn postgres_v1_patch_runners_serialize() {
         r#"
         SELECT version, COUNT(*)
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 7
+        WHERE generation = 1 AND version BETWEEN 2 AND 8 -- keep upper bound in sync with newest catalog patch
         GROUP BY version
         ORDER BY version
         "#,

@@ -36,3 +36,7 @@ e4c5b0af2ee69bb9808dadf2b0eb84b0968118fe:.gitleaksignore:generic-api-key:13
 df6f815e5b3bf9d41072dc71b7ed9d3172726ac0:infra/terraform/oci/environments/dev/terraform.tfvars.example:generic-api-key:11
 df6f815e5b3bf9d41072dc71b7ed9d3172726ac0:infra/terraform/oci/environments/dev/terraform.tfvars.example:generic-api-key:12
 0dedfef0e46a37a58a0d1e19acad6ce8d74e487f:.github/workflows/ci.yml:generic-api-key:123
+# 0f1ce5a2 test fixture: dummy JWT_SECRET for the pre-arrival reminder suite.
+# Value is a placeholder replaced by a low-entropy constant in a later commit;
+# the pushed commit cannot be rewritten, so pin its fingerprint.
+0f1ce5a2adf06e25a06824f01735b04467694125:hotel-app-be/tests/pre_arrival_reminder.rs:generic-api-key:33

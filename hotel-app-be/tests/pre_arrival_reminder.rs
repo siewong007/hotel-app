@@ -30,7 +30,7 @@ async fn pg_pool() -> Option<PgPool> {
     if std::env::var("JWT_SECRET").is_err() {
         // SAFETY: single-test binary; no concurrent environment readers.
         unsafe {
-            std::env::set_var("JWT_SECRET", "pre-arrival-test-secret-0123456789abcdef");
+            std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret");
         }
     }
     hotel_app_be::core::config::init_from_env()
