@@ -38,17 +38,6 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onOpenChange]);
 
-  // Move focus into the panel when it opens so keyboard users land inside the dialog.
-  useEffect(() => {
-    if (!open) return;
-    // Under MUI v9 the IconButton ref does not reliably expose the DOM node
-    // by effect time, so fall back to the mounted dialog's close control.
-    const target =
-      closeButtonRef.current ??
-      document.querySelector<HTMLButtonElement>('button[aria-label="Close support"]');
-    target?.focus();
-  }, [open]);
-
   return (
     // Portal to <body> so position:fixed is relative to the viewport, not the
     // shell's #guest-portal-main, which retains a transform (animation fill-mode)
@@ -78,7 +67,15 @@ export function PortalSupportWidget({ token, open, onOpenChange }: PortalSupport
         <SupportAgentOutlinedIcon sx={{ mr: isPhone ? 0 : 1 }} />
         {isPhone ? null : 'Support'}
       </Fab>
-      <Slide in={open} direction="up" mountOnEnter unmountOnExit>
+      <Slide
+        in={open}
+        direction="up"
+        mountOnEnter
+        unmountOnExit
+        // Focus once the enter transition has mounted the panel; at plain
+        // effect time the close button does not exist yet under mountOnEnter.
+        onEntered={() => closeButtonRef.current?.focus()}
+      >
         <Paper
           elevation={12}
           role="dialog"

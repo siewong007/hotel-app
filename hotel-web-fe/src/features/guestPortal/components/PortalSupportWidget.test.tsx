@@ -11,17 +11,25 @@ const mocks = vi.hoisted(() => ({
 // Slide is replaced by an `in`-respecting pass-through: jsdom never fires the
 // transitionend/rAF sequence react-transition-group waits for, so the real
 // Slide's mountOnEnter never mounts the panel here. The pass-through keeps the
-// exact mount/unmount contract (content only while open) minus the animation.
+// exact mount/unmount contract (content only while open) minus the animation,
+// and fires onEntered after children mount so the component's focus handoff
+// (the real Slide calls it once the enter transition completes) is exercised.
 vi.mock('@mui/material', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@mui/material')>();
+  const React = await import('react');
   return {
     ...actual,
     useMediaQuery: () => mocks.isPhone,
-    Slide: ({
+    Slide: function FakeSlide({
       in: isIn,
+      onEntered,
       children,
-    }: { in?: boolean } & { children?: React.ReactNode }) =>
-      isIn ? <>{children}</> : null,
+    }: { in?: boolean; onEntered?: () => void } & { children?: React.ReactNode }) {
+      React.useEffect(() => {
+        if (isIn) onEntered?.();
+      }, [isIn, onEntered]);
+      return isIn ? <>{children}</> : null;
+    },
   };
 });
 
@@ -67,8 +75,11 @@ describe('PortalSupportWidget', () => {
     );
     const tabs = screen.getAllByTestId('support-tab');
     expect(tabs[tabs.length - 1].getAttribute('data-token')).toBe('portal-token');
-    // NOTE: the component also attempts auto-focus on open; jsdom/MUI v9
-    // timing makes that untestable here — tracked in docs/ongoing-dev.md.
+    // Focus must land on the close control once the panel is up, so keyboard
+    // users start inside the dialog instead of behind it.
+    const closeButtons = document.querySelectorAll<HTMLButtonElement>('[aria-label="Close support"]');
+    expect(closeButtons.length).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(closeButtons[closeButtons.length - 1]);
   });
 
   it('closes on Escape', () => {
