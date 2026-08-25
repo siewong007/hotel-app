@@ -1,11 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { configure } from '@testing-library/dom';
 
-// These suites drive retry/backoff flows whose waitFor windows blow past the
-// 1s default only when the whole suite runs in parallel on a loaded machine
-// (observed as intermittent CI-style failures that never reproduce in
-// isolation). Raise the async-util timeout for THIS file instead of globally,
-// so genuine render hangs elsewhere still surface quickly.
+// The payment idempotency suite below runs under fake timers with automatic
+// advancement, so its waitFor windows no longer race wall-clock time. The
+// raised async-util timeout stays as a cheap safety net for the remaining
+// render-heavy waits in this file.
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -107,47 +106,56 @@ describe('EnhancedCheckInModal payment idempotency', () => {
   });
 
   it('retries only the payment after check-in, reuses its key, and rotates it after an amount edit', async () => {
-    const timeout = new Error('timeout');
-    mocks.checkInGuest
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('already checked in'));
-    mocks.recordPayment
-      .mockRejectedValueOnce(timeout)
-      .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce({ id: 1 });
+    // Fake timers with automatic advancement make RTL's waitFor polling
+    // deterministic under parallel-suite load; the code under test has no
+    // timers of its own.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const timeout = new Error('timeout');
+      mocks.checkInGuest
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('already checked in'));
+      mocks.recordPayment
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce({ id: 1 });
 
-    render(
-      <EnhancedCheckInModal
-        open
-        booking={booking}
-        guest={guest}
-        onClose={mocks.onClose}
-        onCheckInSuccess={mocks.onCheckInSuccess}
-      />,
-    );
+      render(
+        <EnhancedCheckInModal
+          open
+          booking={booking}
+          guest={guest}
+          onClose={mocks.onClose}
+          onCheckInSuccess={mocks.onCheckInSuccess}
+        />,
+      );
 
-    const dialog = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Check In' })).toBeDefined());
+      const dialog = await screen.findByRole('dialog');
+      await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Check In' })).toBeDefined());
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
-    expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
-    const firstRequest = mocks.recordPayment.mock.calls[0][0];
-    const retryRequest = mocks.recordPayment.mock.calls[1][0];
-    expect(firstRequest.payment_type).toBe('booking');
-    expect(retryRequest.payment_type).toBe('booking');
-    expect(retryRequest.idempotency_key).toBe(firstRequest.idempotency_key);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
+      expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
+      const firstRequest = mocks.recordPayment.mock.calls[0][0];
+      const retryRequest = mocks.recordPayment.mock.calls[1][0];
+      expect(firstRequest.payment_type).toBe('booking');
+      expect(retryRequest.payment_type).toBe('booking');
+      expect(retryRequest.idempotency_key).toBe(firstRequest.idempotency_key);
 
-    fireEvent.click(within(dialog).getByRole('tab', { name: 'Payment' }));
-    fireEvent.change(within(dialog).getByLabelText('Amount Paid'), { target: { value: '125' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(3));
-    const changedRequest = mocks.recordPayment.mock.calls[2][0];
-    expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
-    expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
-    expect(mocks.onCheckInSuccess).toHaveBeenCalledTimes(1);
-    expect(mocks.onClose).toHaveBeenCalledTimes(1);
+      fireEvent.click(within(dialog).getByRole('tab', { name: 'Payment' }));
+      fireEvent.change(within(dialog).getByLabelText('Amount Paid'), { target: { value: '125' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(3));
+      const changedRequest = mocks.recordPayment.mock.calls[2][0];
+      expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+      expect(mocks.checkInGuest).toHaveBeenCalledTimes(1);
+      expect(mocks.onCheckInSuccess).toHaveBeenCalledTimes(1);
+      expect(mocks.onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      // restoreAllMocks in afterEach does not restore timers.
+      vi.useRealTimers();
+    }
   });
 });
