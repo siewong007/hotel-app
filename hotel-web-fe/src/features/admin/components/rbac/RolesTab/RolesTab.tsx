@@ -20,6 +20,7 @@ import type { RoleWithStats } from '../types';
 import RoleCard from './RoleCard';
 import RoleEditDrawer from './RoleEditDrawer';
 import { useCreateRole, useDeleteRole } from '../hooks/useRBACQueries';
+import { errorMessage } from '../../../../../utils/errorMessage';
 
 interface RolesTabProps {
   roles: RoleWithStats[];
@@ -83,7 +84,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       onRoleCreated(created);
       setCreateDialogOpen(false);
       setNewRole({ name: '', description: '' });
-    } catch (err: any) {
+    } catch (err) {
       setCreateError(err.message || 'Failed to create role');
     }
   };
@@ -105,7 +106,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       onRoleDeleted(deletingRole.id);
       setDeleteDialogOpen(false);
       setDeletingRole(null);
-    } catch (err: any) {
+    } catch (err) {
       setDeleteError(err.message || 'Failed to delete role');
     }
   };

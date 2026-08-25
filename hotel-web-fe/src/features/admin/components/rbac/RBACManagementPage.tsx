@@ -40,6 +40,7 @@ import {
 } from './hooks/useRBACQueries';
 import { UsersTab } from './UsersTab';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
+import { errorMessage } from '../../../../utils/errorMessage';
 
 /* ---------- Salim Inn design tokens ---------- */
 const T = {
@@ -274,7 +275,7 @@ const RBACManagementPage: React.FC = () => {
       showSnackbar(
         `Saved ${selectedRole.name} — ${added.length} added, ${removed.length} removed`
       );
-    } catch (e: any) {
+    } catch (e) {
       showSnackbar(e?.message || 'Failed to save permissions', 'error');
       reload();
     } finally {
@@ -316,7 +317,7 @@ const RBACManagementPage: React.FC = () => {
         showSnackbar(`Role "${updated.name}" updated`);
       }
       setRoleDialog(null);
-    } catch (e: any) {
+    } catch (e) {
       showSnackbar(e?.message || 'Failed to save role', 'error');
     }
   };
@@ -339,7 +340,7 @@ const RBACManagementPage: React.FC = () => {
       );
       setSelectedId(created.id);
       showSnackbar(`Duplicated as "${created.name}"`);
-    } catch (e: any) {
+    } catch (e) {
       showSnackbar(e?.message || 'Failed to duplicate role', 'error');
     }
   };
@@ -354,7 +355,7 @@ const RBACManagementPage: React.FC = () => {
       }
       showSnackbar(`Role "${deleteTarget.name}" deleted`);
       setDeleteTarget(null);
-    } catch (e: any) {
+    } catch (e) {
       showSnackbar(e?.message || 'Failed to delete role', 'error');
     }
   };
@@ -465,7 +466,7 @@ const RBACManagementPage: React.FC = () => {
             <Box sx={{ p: '8px 12px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 1 }}>
               <SearchIcon sx={{ fontSize: 16, color: T.ink3 }} />
               <Box component="input" placeholder="Search roles…" value={roleSearch}
-                onChange={(e: any) => setRoleSearch(e.target.value)}
+                onChange={(e) => setRoleSearch((e.target as HTMLInputElement).value)}
                 sx={{ flex: 1, border: 'none', outline: 'none', bgcolor: 'transparent', fontSize: 13, fontFamily: 'inherit' }} />
             </Box>
             <Box sx={{ p: '6px' }}>

@@ -44,6 +44,7 @@ import {
   useReplaceUserRoles,
   useUpdateUser,
 } from '../hooks/useRBACQueries';
+import { errorMessage } from '../../../../../utils/errorMessage';
 
 interface UserWithRoles extends User {
   roles?: Role[];
@@ -143,7 +144,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     setError(null);
   };
 
-  const handleChange = (field: keyof UserFormData, value: any) => {
+  const handleChange = <K extends keyof UserFormData>(field: K, value: UserFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setError(null);
   };
@@ -219,8 +220,8 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       }
 
       handleClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save user');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to save user'));
     }
   };
 
@@ -232,8 +233,8 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       onUserDeleted(userToDelete.id);
       setDeleteDialogOpen(false);
       setUserToDelete(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete user');
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to delete user'));
     }
   };
 
@@ -475,7 +476,14 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               <Select
                 multiple
                 value={formData.role_ids}
-                onChange={(e) => handleChange('role_ids', e.target.value)}
+                onChange={(e) => {
+                  // MUI types multi-Select values as string | number[] even
+                  // when every MenuItem value is numeric.
+                  const ids = Array.isArray(e.target.value)
+                    ? e.target.value
+                    : [];
+                  handleChange('role_ids', ids);
+                }}
                 input={<OutlinedInput label="Roles" />}
                 renderValue={(selected) =>
                   roles

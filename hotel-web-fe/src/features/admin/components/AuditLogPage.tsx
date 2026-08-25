@@ -44,6 +44,7 @@ import {
   useExportAuditCsv,
   useExportAuditPdf,
 } from '../hooks/useAuditQueries';
+import { errorMessage } from '../../../utils/errorMessage';
 
 /* ---------- Salim Inn design tokens ---------- */
 const T = {
@@ -392,17 +393,17 @@ const AuditLogPage: React.FC = () => {
   const handleExportCSV = async () => {
     try {
       await exportCsvMutation.mutateAsync({ ...query, category: activeCat });
-    } catch (e: any) {
+    } catch (e) {
       console.error('CSV export failed:', e);
-      emitApiNotification({ message: e?.message || 'Failed to export CSV', severity: 'error' });
+      emitApiNotification({ message: errorMessage(e, 'Failed to export CSV'), severity: 'error' });
     }
   };
   const handleExportPDF = async () => {
     try {
       await exportPdfMutation.mutateAsync({ ...query, category: activeCat });
-    } catch (e: any) {
+    } catch (e) {
       console.error('PDF export failed:', e);
-      emitApiNotification({ message: e?.message || 'Failed to export PDF', severity: 'error' });
+      emitApiNotification({ message: errorMessage(e, 'Failed to export PDF'), severity: 'error' });
     }
   };
 
@@ -440,7 +441,7 @@ const AuditLogPage: React.FC = () => {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2,1fr)', md: 'repeat(5,1fr)' }, gap: 1.25, mb: 2 }}>
         {CATEGORIES.map((cat, i) => {
           const on = cat.id === activeCat;
-          const n = counts ? (counts as any)[cat.id] ?? 0 : 0;
+          const n = counts ? counts[cat.id] ?? 0 : 0;
           return (
             <Box
               key={cat.id}

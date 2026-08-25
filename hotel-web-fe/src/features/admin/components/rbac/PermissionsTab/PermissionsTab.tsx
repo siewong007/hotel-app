@@ -26,6 +26,7 @@ import type { PermissionCategory, RolePermissionMap } from '../types';
 import { getRoleColor, PERMISSION_CATEGORIES } from '../constants';
 import PermissionCategoryAccordion from './PermissionCategoryAccordion';
 import { useCreatePermission } from '../hooks/useRBACQueries';
+import { errorMessage } from '../../../../../utils/errorMessage';
 
 interface PermissionsTabProps {
   permissions: Permission[];
@@ -98,8 +99,8 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
       onPermissionCreated(created);
       setCreateDialogOpen(false);
       setNewPermission({ name: '', resource: '', action: '', description: '' });
-    } catch (err: any) {
-      setCreateError(err.message || 'Failed to create permission');
+    } catch (err) {
+      setCreateError(errorMessage(err, 'Failed to create permission'));
     }
   };
 

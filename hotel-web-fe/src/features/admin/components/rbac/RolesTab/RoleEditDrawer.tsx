@@ -18,6 +18,7 @@ import { getRoleColor } from '../constants';
 import NavigationAccessSection from './NavigationAccessSection';
 import PermissionSummarySection from './PermissionSummarySection';
 import { useUpdateRole, useReplaceRolePermissions } from '../hooks/useRBACQueries';
+import { errorMessage } from '../../../../../utils/errorMessage';
 
 interface RoleEditDrawerProps {
   open: boolean;
@@ -128,7 +129,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
 
       onSave(updatedRole, permissions);
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       setError(err.message || 'Failed to save role');
     }
   };
