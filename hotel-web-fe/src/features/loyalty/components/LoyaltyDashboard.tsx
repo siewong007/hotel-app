@@ -56,6 +56,17 @@ import { LoyaltyReward, RewardUpdateInput } from '../../../types';
 import { LoadingSpinner } from '../../../components';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { errorMessage } from '../../../utils';
+import {
+  canRedeem as rewardIsRedeemable,
+  formatDate,
+  formatCategoryLabel,
+  formatNumber,
+  getTierConfig,
+  getTierProgress,
+  isTierLocked,
+  TIER_CONFIG,
+  type UserLoyaltyMembership,
+} from '../utils';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -78,44 +89,6 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
-// Tier configurations
-const TIER_CONFIG: Record<number, {
-  name: string;
-  color: string;
-  gradient: string;
-  icon: string;
-  bgColor: string;
-}> = {
-  1: {
-    name: 'Bronze',
-    color: '#CD7F32',
-    gradient: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)',
-    icon: '🥉',
-    bgColor: 'rgba(205, 127, 50, 0.1)',
-  },
-  2: {
-    name: 'Silver',
-    color: '#C0C0C0',
-    gradient: 'linear-gradient(135deg, #C0C0C0 0%, #A8A8A8 100%)',
-    icon: '🥈',
-    bgColor: 'rgba(192, 192, 192, 0.1)',
-  },
-  3: {
-    name: 'Gold',
-    color: '#FFD700',
-    gradient: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-    icon: '🥇',
-    bgColor: 'rgba(255, 215, 0, 0.1)',
-  },
-  4: {
-    name: 'Platinum',
-    color: '#E5E4E2',
-    gradient: 'linear-gradient(135deg, #E5E4E2 0%, #B9B9B9 100%)',
-    icon: '💎',
-    bgColor: 'rgba(229, 228, 226, 0.1)',
-  },
-};
-
 const CATEGORY_ICONS: Record<string, React.ReactElement> = {
   room_upgrade: <HotelIcon />,
   service: <GiftIcon />,
@@ -125,33 +98,6 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
   gift: <GiftIcon />,
   experience: <TrophyIcon />,
 };
-
-interface UserLoyaltyMembership {
-  id: number;
-  membership_number: string;
-  points_balance: number;
-  lifetime_points: number;
-  tier_level: number;
-  tier_name: string;
-  status: string;
-  enrolled_date: string;
-  next_tier?: {
-    tier_level: number;
-    tier_name: string;
-    minimum_points: number;
-    points_multiplier: number;
-  };
-  current_tier_benefits: string[];
-  points_to_next_tier?: number;
-  recent_transactions: Array<{
-    id: string;
-    transaction_type: string;
-    points_amount: number;
-    balance_after: number;
-    description?: string;
-    created_at: string;
-  }>;
-}
 
 const LoyaltyDashboard: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -366,35 +312,6 @@ const LoyaltyDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('en-US').format(num);
-  };
-
-  const getTierConfig = (tierLevel: number) => {
-    return TIER_CONFIG[tierLevel] || TIER_CONFIG[1];
-  };
-
-  const getTierProgress = () => {
-    if (!membership || !membership.next_tier) return 100;
-
-    const currentPoints = membership.lifetime_points;
-    const nextTierPoints = membership.next_tier.minimum_points;
-    const currentTierMin = membership.tier_level === 1 ? 0 :
-      (membership.tier_level === 2 ? 1000 :
-       membership.tier_level === 3 ? 5000 : 10000);
-
-    const progress = ((currentPoints - currentTierMin) / (nextTierPoints - currentTierMin)) * 100;
-    return Math.min(Math.max(progress, 0), 100);
   };
 
   const filteredRewards = filterCategory === 'all'
@@ -910,7 +827,7 @@ const LoyaltyDashboard: React.FC = () => {
   if (!membership) return null;
 
   const tierConfig = getTierConfig(membership.tier_level);
-  const tierProgress = getTierProgress();
+  const tierProgress = getTierProgress(membership);
 
   return (
     <Box>
@@ -1072,7 +989,7 @@ const LoyaltyDashboard: React.FC = () => {
             <Chip
               key={category}
               icon={CATEGORY_ICONS[category]}
-              label={category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              label={formatCategoryLabel(category)}
               onClick={() => setFilterCategory(category)}
               color={filterCategory === category ? 'primary' : 'default'}
               sx={{ fontWeight: filterCategory === category ? 600 : 400 }}
@@ -1083,9 +1000,8 @@ const LoyaltyDashboard: React.FC = () => {
         {/* Rewards Grid */}
         <Grid container spacing={3}>
           {filteredRewards.map((reward) => {
-            const canRedeem = membership.points_balance >= reward.points_cost &&
-                            membership.tier_level >= reward.minimum_tier_level;
-            const isLocked = membership.tier_level < reward.minimum_tier_level;
+            const canRedeem = rewardIsRedeemable(reward, membership);
+            const isLocked = isTierLocked(reward, membership);
 
             return (
               <Grid key={reward.id} size={{ xs: 12, sm: 6, md: 4 }}>
