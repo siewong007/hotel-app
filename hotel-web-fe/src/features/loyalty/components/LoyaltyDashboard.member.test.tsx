@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LoyaltyReward, UserLoyaltyMembership } from '../../../types';
+import type { LoyaltyReward } from '../../../types';
+
+import type { UserLoyaltyMembership } from '../utils';
 
 const mocks = vi.hoisted(() => ({
   permissions: new Set<string>(),
@@ -34,17 +36,25 @@ vi.mock('../../../api', () => ({
 
 import LoyaltyDashboard from './LoyaltyDashboard';
 
-const membership = (points: number): UserLoyaltyMembership =>
-  ({
-    id: 1,
-    membership_number: 'M-0001',
-    points_balance: points,
-    lifetime_points: points,
-    tier_level: 2,
-    tier_name: 'Silver',
-    status: 'active',
-    enrolled_date: '2026-01-01',
-  }) as UserLoyaltyMembership;
+const membership = (points: number): UserLoyaltyMembership => ({
+  id: 1,
+  membership_number: 'M-0001',
+  points_balance: points,
+  lifetime_points: points,
+  tier_level: 2,
+  tier_name: 'Silver',
+  status: 'active',
+  enrolled_date: '2026-01-01',
+  next_tier: {
+    tier_level: 3,
+    tier_name: 'Gold',
+    minimum_points: 5000,
+    points_multiplier: 1,
+  },
+  current_tier_benefits: ['5% bonus points'],
+  points_to_next_tier: 5000 - points,
+  recent_transactions: [],
+});
 
 const reward = (overrides: Partial<LoyaltyReward> = {}): LoyaltyReward =>
   ({
@@ -54,20 +64,19 @@ const reward = (overrides: Partial<LoyaltyReward> = {}): LoyaltyReward =>
     category: 'accommodation',
     points_cost: 500,
     minimum_tier_id: 1,
+    minimum_tier_level: 1,
     is_active: true,
     ...overrides,
   }) as LoyaltyReward;
 
-// WIP: member-view suites need the api-barrel mock to fully bite; the
-// component still renders empty under jsdom. Skipped so the file can land
-// without breaking CI while the remaining wiring is debugged.
-describe.skip('LoyaltyDashboard member view', () => {
+describe('LoyaltyDashboard member view', () => {
   beforeEach(() => {
     mocks.permissions = new Set();
     mocks.ekycStatus = 'approved';
     mocks.membership = membership(1_000);
     mocks.rewards = [reward()];
     mocks.redeemReward.mockReset().mockResolvedValue({ id: 9001 });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   afterEach(cleanup);
@@ -90,6 +99,25 @@ describe.skip('LoyaltyDashboard member view', () => {
     expect((button as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('locks rewards above the member tier instead of offering redemption', async () => {
+    mocks.rewards = [reward({ minimum_tier_level: 3 })];
+
+    render(<LoyaltyDashboard />);
+
+    expect(await screen.findByText('Tier Locked')).toBeTruthy();
+    const button = screen.getByText('Tier Locked').closest('button')!;
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('requires completed eKYC before showing any loyalty data', async () => {
+    mocks.ekycStatus = 'pending';
+
+    render(<LoyaltyDashboard />);
+
+    expect(await screen.findByText('eKYC Verification Required')).toBeTruthy();
+    expect(screen.queryByText('Redeem Now')).toBeNull();
+  });
+
   it('redeems through the confirmation dialog and reports success', async () => {
     render(<LoyaltyDashboard />);
 
@@ -108,7 +136,7 @@ describe.skip('LoyaltyDashboard member view', () => {
       }),
     );
     expect(await screen.findByText(/Successfully redeemed: Free Night Voucher/)).toBeTruthy();
-  }, 20000);
+  });
 
   it('surfaces a failed redemption instead of the success banner', async () => {
     mocks.redeemReward.mockRejectedValueOnce(new Error('reward out of stock'));
@@ -120,5 +148,5 @@ describe.skip('LoyaltyDashboard member view', () => {
 
     expect(await screen.findByText('reward out of stock')).toBeTruthy();
     expect(screen.queryByText(/Successfully redeemed/)).toBeNull();
-  }, 20000);
+  });
 });
