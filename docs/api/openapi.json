@@ -1,0 +1,1024 @@
+{
+  "info": {
+    "description": "Skeleton maintained by tests/openapi_drift.rs. Paths and methods are CI-verified against the registered routes; operation details (summaries, parameters, responses) are filled in by hand over time and never gate CI.",
+    "title": "Hotel App BE API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/admin/communications/audience": {
+      "GET": {}
+    },
+    "/api/admin/communications/campaigns": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/communications/campaigns/{id}": {
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/admin/communications/campaigns/{id}/cancel": {
+      "POST": {}
+    },
+    "/api/admin/communications/campaigns/{id}/deliveries": {
+      "GET": {}
+    },
+    "/api/admin/communications/campaigns/{id}/preview": {
+      "POST": {}
+    },
+    "/api/admin/communications/campaigns/{id}/schedule": {
+      "POST": {}
+    },
+    "/api/admin/communications/campaigns/{id}/test-send": {
+      "POST": {}
+    },
+    "/api/admin/communications/guests/{guest_id}/consent": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/communications/suppressions": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/communications/suppressions/{email}": {
+      "DELETE": {}
+    },
+    "/api/admin/communications/templates": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/communications/templates/{id}": {
+      "PUT": {}
+    },
+    "/api/admin/communications/templates/{id}/deactivate": {
+      "POST": {}
+    },
+    "/api/admin/loyalty/members": {
+      "GET": {}
+    },
+    "/api/admin/loyalty/members/{id}": {
+      "GET": {}
+    },
+    "/api/admin/loyalty/members/{id}/adjustments": {
+      "POST": {}
+    },
+    "/api/admin/loyalty/members/{id}/gifts": {
+      "POST": {}
+    },
+    "/api/admin/loyalty/redemptions": {
+      "GET": {}
+    },
+    "/api/admin/loyalty/redemptions/{id}/approve": {
+      "PUT": {}
+    },
+    "/api/admin/loyalty/redemptions/{id}/reject": {
+      "PUT": {}
+    },
+    "/api/admin/loyalty/rewards": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/loyalty/rewards/{id}": {
+      "PUT": {}
+    },
+    "/api/admin/loyalty/rules": {
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/admin/loyalty/socket": {
+      "GET": {}
+    },
+    "/api/admin/online-inventory": {
+      "GET": {}
+    },
+    "/api/admin/online-inventory/{room_type_id}/{stay_date}": {
+      "PUT": {}
+    },
+    "/api/admin/payments/history": {
+      "GET": {}
+    },
+    "/api/admin/payments/pending": {
+      "GET": {}
+    },
+    "/api/admin/payments/{payment_id}/approve": {
+      "PUT": {}
+    },
+    "/api/admin/payments/{payment_id}/receipt": {
+      "GET": {}
+    },
+    "/api/admin/payments/{payment_id}/reject": {
+      "PUT": {}
+    },
+    "/api/admin/payments/{payment_id}/request-receipt": {
+      "POST": {}
+    },
+    "/api/admin/promotions": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/promotions/{id}": {
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/admin/promotions/{id}/archive": {
+      "POST": {}
+    },
+    "/api/admin/promotions/{id}/pause": {
+      "POST": {}
+    },
+    "/api/admin/promotions/{id}/publish": {
+      "POST": {}
+    },
+    "/api/admin/vouchers": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/vouchers/{id}/revoke": {
+      "POST": {}
+    },
+    "/api/analytics/benchmark": {
+      "GET": {}
+    },
+    "/api/analytics/bookings": {
+      "GET": {}
+    },
+    "/api/analytics/occupancy": {
+      "GET": {}
+    },
+    "/api/analytics/personalized": {
+      "GET": {}
+    },
+    "/api/audit-logs": {
+      "GET": {}
+    },
+    "/api/audit-logs/actions": {
+      "GET": {}
+    },
+    "/api/audit-logs/category-counts": {
+      "GET": {}
+    },
+    "/api/audit-logs/db-statements": {
+      "GET": {}
+    },
+    "/api/audit-logs/export/csv": {
+      "GET": {}
+    },
+    "/api/audit-logs/resource-types": {
+      "GET": {}
+    },
+    "/api/audit-logs/users": {
+      "GET": {}
+    },
+    "/api/auth/2fa/disable": {
+      "POST": {}
+    },
+    "/api/auth/2fa/enable": {
+      "POST": {}
+    },
+    "/api/auth/2fa/regenerate-backup-codes": {
+      "POST": {}
+    },
+    "/api/auth/2fa/setup": {
+      "POST": {}
+    },
+    "/api/auth/2fa/status": {
+      "GET": {}
+    },
+    "/api/auth/2fa/verify": {
+      "POST": {}
+    },
+    "/api/auth/access": {
+      "GET": {}
+    },
+    "/api/auth/google": {
+      "POST": {}
+    },
+    "/api/auth/login": {
+      "POST": {}
+    },
+    "/api/auth/logout": {
+      "POST": {}
+    },
+    "/api/auth/passkey/login/finish": {
+      "POST": {}
+    },
+    "/api/auth/passkey/login/start": {
+      "POST": {}
+    },
+    "/api/auth/passkey/register/finish": {
+      "POST": {}
+    },
+    "/api/auth/passkey/register/start": {
+      "POST": {}
+    },
+    "/api/auth/refresh": {
+      "POST": {}
+    },
+    "/api/auth/register": {
+      "POST": {}
+    },
+    "/api/auth/resend-verification": {
+      "POST": {}
+    },
+    "/api/auth/verify-email": {
+      "POST": {}
+    },
+    "/api/booking-channels": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/booking-channels/{id}": {
+      "DELETE": {},
+      "PUT": {}
+    },
+    "/api/bookings": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/bookings/book-with-credits": {
+      "POST": {}
+    },
+    "/api/bookings/checkin-advisory": {
+      "GET": {}
+    },
+    "/api/bookings/complimentary": {
+      "GET": {}
+    },
+    "/api/bookings/stats": {
+      "GET": {}
+    },
+    "/api/bookings/void": {
+      "POST": {}
+    },
+    "/api/bookings/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {},
+      "PUT": {}
+    },
+    "/api/bookings/{id}/auto-checkin": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/auto-checkin-eligibility": {
+      "GET": {}
+    },
+    "/api/bookings/{id}/checkin": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/checkin-advisory": {
+      "GET": {}
+    },
+    "/api/bookings/{id}/complimentary": {
+      "DELETE": {},
+      "PATCH": {},
+      "POST": {}
+    },
+    "/api/bookings/{id}/convert-credits": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/posted": {
+      "GET": {}
+    },
+    "/api/bookings/{id}/reactivate": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/timeline": {
+      "GET": {}
+    },
+    "/api/communications/unsubscribe/{token}": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/companies": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/companies/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/complimentary/summary": {
+      "GET": {}
+    },
+    "/api/data-transfer/export": {
+      "GET": {}
+    },
+    "/api/data-transfer/export/preview": {
+      "GET": {}
+    },
+    "/api/data-transfer/import": {
+      "POST": {}
+    },
+    "/api/ekyc/admin/applications": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/ekyc/admin/applications/export": {
+      "GET": {}
+    },
+    "/api/ekyc/admin/applications/{id}": {
+      "GET": {}
+    },
+    "/api/ekyc/admin/applications/{id}/actions": {
+      "POST": {}
+    },
+    "/api/ekyc/admin/applications/{id}/documents/{kind}": {
+      "GET": {}
+    },
+    "/api/ekyc/admin/applications/{id}/reveal": {
+      "POST": {}
+    },
+    "/api/ekyc/admin/dashboard": {
+      "GET": {}
+    },
+    "/api/ekyc/admin/reason-codes": {
+      "GET": {}
+    },
+    "/api/ekyc/self-checkin": {
+      "POST": {}
+    },
+    "/api/ekyc/status": {
+      "GET": {}
+    },
+    "/api/ekyc/submit": {
+      "POST": {}
+    },
+    "/api/ekyc/upload-document": {
+      "POST": {}
+    },
+    "/api/ekyc/verifications": {
+      "GET": {}
+    },
+    "/api/ekyc/verifications/{id}": {
+      "GET": {}
+    },
+    "/api/ekyc/verifications/{id}/documents/{kind}": {
+      "GET": {}
+    },
+    "/api/guest-portal/auto-checkin/{token}": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/{token}": {
+      "GET": {}
+    },
+    "/api/guest-portal/booking/{token}/payments/bank-transfer": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/{token}/payments/paypal/capture": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/{token}/payments/paypal/create-order": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/{token}/payments/{payment_id}/receipt": {
+      "POST": {}
+    },
+    "/api/guest-portal/logout": {
+      "POST": {}
+    },
+    "/api/guest-portal/me": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/availability": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/benefits": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/booking-options": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/booking-quote": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/booking-voucher-options": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/bookings": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/guest-portal/me/bookings/{id}/cancel": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/credits": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/ekyc": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/ekyc/documents": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/ekyc/submit": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/loyalty/socket": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/membership": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/notification-preferences": {
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/guest-portal/me/payments/bank-transfer": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/payments/paypal/capture": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/payments/paypal/create-order": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/payments/{payment_id}/receipt": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/promotions": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/promotions/{id}/claim": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/support/conversations": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/guest-portal/me/support/conversations/{id}": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/support/conversations/{id}/messages": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/support/conversations/{id}/reopen": {
+      "POST": {}
+    },
+    "/api/guest-portal/me/support/socket": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/transactions": {
+      "GET": {}
+    },
+    "/api/guest-portal/me/vouchers": {
+      "GET": {}
+    },
+    "/api/guest-portal/payment-config": {
+      "GET": {}
+    },
+    "/api/guest-portal/pre-checkin/{token}": {
+      "POST": {}
+    },
+    "/api/guest-portal/session": {
+      "POST": {}
+    },
+    "/api/guest-portal/verify": {
+      "POST": {}
+    },
+    "/api/guests": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/guests/credits": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/guests/link": {
+      "POST": {}
+    },
+    "/api/guests/my-guests": {
+      "GET": {}
+    },
+    "/api/guests/my-guests-with-credits": {
+      "GET": {}
+    },
+    "/api/guests/unlink/{guest_id}": {
+      "DELETE": {}
+    },
+    "/api/guests/upgrade": {
+      "POST": {}
+    },
+    "/api/guests/{guest_id}/credits/{room_type_id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/guests/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/guests/{id}/bookings": {
+      "GET": {}
+    },
+    "/api/guests/{id}/credits": {
+      "GET": {}
+    },
+    "/api/guests/{id}/portal-account": {
+      "POST": {}
+    },
+    "/api/guests/{id}/profile": {
+      "GET": {}
+    },
+    "/api/guests/{id}/tourism-from-last-check-in": {
+      "POST": {}
+    },
+    "/api/housekeeping/board": {
+      "GET": {}
+    },
+    "/api/housekeeping/tasks": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/housekeeping/tasks/{id}": {
+      "PATCH": {}
+    },
+    "/api/invoices": {
+      "GET": {}
+    },
+    "/api/invoices/generate/{booking_id}": {
+      "POST": {}
+    },
+    "/api/invoices/preview/{booking_id}": {
+      "GET": {}
+    },
+    "/api/ledgers": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/ledgers/company-payments": {
+      "POST": {}
+    },
+    "/api/ledgers/summary": {
+      "GET": {}
+    },
+    "/api/ledgers/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/ledgers/{id}/payments": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/ledgers/{id}/payments/{payment_id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/ledgers/{id}/reverse": {
+      "POST": {}
+    },
+    "/api/ledgers/{id}/void": {
+      "POST": {}
+    },
+    "/api/ledgers/{id}/with-payments": {
+      "GET": {}
+    },
+    "/api/loyalty/enroll": {
+      "POST": {}
+    },
+    "/api/loyalty/me": {
+      "GET": {}
+    },
+    "/api/loyalty/me/activity": {
+      "GET": {}
+    },
+    "/api/loyalty/rewards": {
+      "GET": {}
+    },
+    "/api/loyalty/rewards/{id}/redeem": {
+      "POST": {}
+    },
+    "/api/maintenance": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/maintenance/{id}": {
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/market-codes": {
+      "GET": {}
+    },
+    "/api/night-audit": {
+      "GET": {}
+    },
+    "/api/night-audit/preview": {
+      "GET": {}
+    },
+    "/api/night-audit/run": {
+      "POST": {}
+    },
+    "/api/night-audit/{id}": {
+      "GET": {}
+    },
+    "/api/night-audit/{id}/details": {
+      "GET": {}
+    },
+    "/api/payments": {
+      "POST": {}
+    },
+    "/api/payments/all-payments/{booking_id}": {
+      "GET": {}
+    },
+    "/api/payments/booking/{booking_id}": {
+      "GET": {}
+    },
+    "/api/payments/calculate/{booking_id}": {
+      "GET": {}
+    },
+    "/api/payments/record-payment": {
+      "POST": {}
+    },
+    "/api/payments/refund-deposit/{booking_id}": {
+      "POST": {}
+    },
+    "/api/payments/revert-deposit-refund/{booking_id}": {
+      "POST": {}
+    },
+    "/api/payments/workflow-summary/{booking_id}": {
+      "GET": {}
+    },
+    "/api/payments/{payment_id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/profile": {
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/profile/2fa/disable": {
+      "POST": {}
+    },
+    "/api/profile/2fa/enable": {
+      "POST": {}
+    },
+    "/api/profile/2fa/setup": {
+      "POST": {}
+    },
+    "/api/profile/2fa/status": {
+      "GET": {}
+    },
+    "/api/profile/2fa/verify": {
+      "POST": {}
+    },
+    "/api/profile/complete": {
+      "POST": {}
+    },
+    "/api/profile/passkeys": {
+      "GET": {}
+    },
+    "/api/profile/passkeys/{id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/profile/password": {
+      "POST": {}
+    },
+    "/api/profile/sessions": {
+      "GET": {}
+    },
+    "/api/profile/sessions/{id}": {
+      "DELETE": {}
+    },
+    "/api/promotions": {
+      "GET": {}
+    },
+    "/api/promotions/{slug}": {
+      "GET": {}
+    },
+    "/api/rate-codes": {
+      "GET": {}
+    },
+    "/api/rate-management/room-types": {
+      "GET": {}
+    },
+    "/api/rate-plans": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/rate-plans/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/rate-plans/{id}/with-rates": {
+      "GET": {}
+    },
+    "/api/rbac/permissions": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/rbac/permissions/{permission_id}": {
+      "DELETE": {},
+      "PUT": {}
+    },
+    "/api/rbac/roles": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/rbac/roles/permissions": {
+      "POST": {}
+    },
+    "/api/rbac/roles/{role_id}": {
+      "DELETE": {},
+      "PUT": {}
+    },
+    "/api/rbac/roles/{role_id}/permissions": {
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/rbac/roles/{role_id}/permissions/{permission_id}": {
+      "DELETE": {}
+    },
+    "/api/rbac/route-policies": {
+      "GET": {}
+    },
+    "/api/rbac/route-policies/{route_id}": {
+      "PUT": {}
+    },
+    "/api/rbac/snapshot": {
+      "GET": {}
+    },
+    "/api/reports/generate": {
+      "GET": {}
+    },
+    "/api/room-rates": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/room-rates/applicable": {
+      "GET": {}
+    },
+    "/api/room-rates/by-plan/{rate_plan_id}": {
+      "GET": {}
+    },
+    "/api/room-rates/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/room-types": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/room-types/all": {
+      "GET": {}
+    },
+    "/api/room-types/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/rooms": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/rooms/available": {
+      "GET": {}
+    },
+    "/api/rooms/change-history": {
+      "GET": {}
+    },
+    "/api/rooms/occupancy": {
+      "GET": {}
+    },
+    "/api/rooms/occupancy/by-type": {
+      "GET": {}
+    },
+    "/api/rooms/occupancy/summary": {
+      "GET": {}
+    },
+    "/api/rooms/sync-statuses": {
+      "POST": {}
+    },
+    "/api/rooms/with-occupancy": {
+      "GET": {}
+    },
+    "/api/rooms/{id}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/rooms/{id}/detailed": {
+      "GET": {}
+    },
+    "/api/rooms/{id}/end-cleaning": {
+      "POST": {}
+    },
+    "/api/rooms/{id}/end-maintenance": {
+      "POST": {}
+    },
+    "/api/rooms/{id}/events": {
+      "POST": {}
+    },
+    "/api/rooms/{id}/execute-change": {
+      "POST": {}
+    },
+    "/api/rooms/{id}/history": {
+      "GET": {}
+    },
+    "/api/rooms/{id}/occupancy": {
+      "GET": {}
+    },
+    "/api/rooms/{id}/status": {
+      "PUT": {}
+    },
+    "/api/rooms/{room_type}/reviews": {
+      "GET": {}
+    },
+    "/api/search": {
+      "GET": {}
+    },
+    "/api/settings": {
+      "GET": {}
+    },
+    "/api/settings/public": {
+      "GET": {}
+    },
+    "/api/settings/{key}": {
+      "PATCH": {}
+    },
+    "/api/support/agents": {
+      "GET": {}
+    },
+    "/api/support/conversations": {
+      "GET": {}
+    },
+    "/api/support/conversations/{id}": {
+      "GET": {}
+    },
+    "/api/support/conversations/{id}/actions": {
+      "POST": {}
+    },
+    "/api/support/conversations/{id}/messages": {
+      "POST": {}
+    },
+    "/api/system/process-checkins": {
+      "POST": {}
+    },
+    "/api/teams": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/teams/{team_id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/teams/{team_id}/members": {
+      "POST": {}
+    },
+    "/api/teams/{team_id}/members/{member_user_id}": {
+      "DELETE": {}
+    },
+    "/api/teams/{team_id}/roles": {
+      "PUT": {}
+    },
+    "/api/users": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/users/roles": {
+      "POST": {}
+    },
+    "/api/users/{user_id}": {
+      "DELETE": {},
+      "GET": {},
+      "PATCH": {}
+    },
+    "/api/users/{user_id}/roles": {
+      "PUT": {}
+    },
+    "/api/users/{user_id}/roles/{role_id}": {
+      "DELETE": {}
+    },
+    "/api/webhooks/paypal": {
+      "POST": {}
+    },
+    "/health": {
+      "GET": {}
+    },
+    "/ws/status": {
+      "GET": {}
+    }
+  },
+  "tags": [
+    {
+      "name": "admin"
+    },
+    {
+      "name": "analytics"
+    },
+    {
+      "name": "audit-logs"
+    },
+    {
+      "name": "auth"
+    },
+    {
+      "name": "booking-channels"
+    },
+    {
+      "name": "bookings"
+    },
+    {
+      "name": "communications"
+    },
+    {
+      "name": "companies"
+    },
+    {
+      "name": "complimentary"
+    },
+    {
+      "name": "data-transfer"
+    },
+    {
+      "name": "ekyc"
+    },
+    {
+      "name": "guest-portal"
+    },
+    {
+      "name": "guests"
+    },
+    {
+      "name": "housekeeping"
+    },
+    {
+      "name": "infra"
+    },
+    {
+      "name": "invoices"
+    },
+    {
+      "name": "ledgers"
+    },
+    {
+      "name": "loyalty"
+    },
+    {
+      "name": "maintenance"
+    },
+    {
+      "name": "market-codes"
+    },
+    {
+      "name": "night-audit"
+    },
+    {
+      "name": "payments"
+    },
+    {
+      "name": "profile"
+    },
+    {
+      "name": "promotions"
+    },
+    {
+      "name": "rate-codes"
+    },
+    {
+      "name": "rate-management"
+    },
+    {
+      "name": "rate-plans"
+    },
+    {
+      "name": "rbac"
+    },
+    {
+      "name": "reports"
+    },
+    {
+      "name": "room-rates"
+    },
+    {
+      "name": "room-types"
+    },
+    {
+      "name": "rooms"
+    },
+    {
+      "name": "search"
+    },
+    {
+      "name": "settings"
+    },
+    {
+      "name": "support"
+    },
+    {
+      "name": "system"
+    },
+    {
+      "name": "teams"
+    },
+    {
+      "name": "users"
+    },
+    {
+      "name": "webhooks"
+    }
+  ]
+}
