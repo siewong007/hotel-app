@@ -48,16 +48,21 @@ Patch follows the manifest/apply rules: published versions immutable, desktop
 
 ### 2. Checkout receipt
 
-- Enqueued inside the checkout transaction, immediately after invoice
-  generation succeeds, via new
-  `CommunicationsRepository::insert_transactional_delivery_tx` (same idempotent
-  insert used today; subject + HTML passed by caller).
+- Enqueued in the checkout transition's post-commit best-effort block,
+  immediately after `ensure_invoice_for_booking` succeeds (that helper opens
+  its own transaction after the booking tx commits — relocating it would
+  change working payment-adjacent behavior). Capture the returned invoice
+  number (currently discarded) for the idempotency key. Enqueue failure is
+  logged, matching every sibling side effect.
 - Idempotency key: `checkout-receipt:{invoice_number}` — staff re-saves,
   retries, and night-audit auto-checkouts cannot double-send.
 - Recipient: guest email. Skipped when the folio is company-billed (no personal
   receipt for corporate stays) or the guest has no email on file.
-- Content: greeting, booking number, invoice number, stay dates, itemized
-  charges from the invoice lines, totals paid/due, unsubscribe footer link
+- Content: greeting, booking number, invoice number, stay dates, room/night
+  summary, total charged, payments received, remaining balance, unsubscribe
+  footer link. (`invoices.line_items` is stored as an empty JSON array today,
+  so the receipt summarizes from booking + payment totals rather than pretend
+  to itemize.)
   (kept deliberately), and a link to the guest portal's bookings page
   (`/portal` front-end route; session required). Portal-less walk-in guests
   need no link — the inline itemization IS the receipt. There is no public
