@@ -1,11 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { configure } from '@testing-library/dom';
 
-// These suites drive retry/backoff flows whose waitFor windows blow past the
-// 1s default only when the whole suite runs in parallel on a loaded machine
-// (observed as intermittent CI-style failures that never reproduce in
-// isolation). Raise the async-util timeout for THIS file instead of globally,
-// so genuine render hangs elsewhere still surface quickly.
+// All three idempotency suites below now run under fake timers with automatic
+// advancement, so their waitFor windows no longer race wall-clock time. The
+// raised async-util timeout stays as a cheap safety net for the remaining
+// render-heavy waits in this file.
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -144,72 +143,85 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
   });
 
   it('reuses a failed booking-payment key, rotates it after an edit, and clears it after success', async () => {
-    const timeout = new Error('timeout');
-    mocks.recordPayment
-      .mockRejectedValueOnce(timeout)
-      .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce({ id: 1 })
-      .mockResolvedValueOnce({ id: 2 });
-    renderModal();
-    const dialog = await paymentDialog();
+    // Fake timers with automatic advancement make RTL's waitFor polling
+    // deterministic under parallel-suite load; the code under test has no
+    // timers of its own (same pattern as the BookingsPage timezone test).
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const timeout = new Error('timeout');
+      mocks.recordPayment
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2 });
+      renderModal();
+      const dialog = await paymentDialog();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
-    const firstRequest = mocks.recordPayment.mock.calls[0][0];
-    expect(mocks.recordPayment.mock.calls[1][0].idempotency_key).toBe(firstRequest.idempotency_key);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(1));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(2));
+      const firstRequest = mocks.recordPayment.mock.calls[0][0];
+      expect(mocks.recordPayment.mock.calls[1][0].idempotency_key).toBe(firstRequest.idempotency_key);
 
-    fireEvent.mouseDown(within(dialog).getByRole('combobox'));
-    fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(3));
-    const changedRequest = mocks.recordPayment.mock.calls[2][0];
-    expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+      fireEvent.mouseDown(within(dialog).getByRole('combobox'));
+      fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(3));
+      const changedRequest = mocks.recordPayment.mock.calls[2][0];
+      expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
 
-    await waitFor(() => expect(within(dialog).getAllByRole('button', { name: 'Record Payment' })).toHaveLength(1));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(within(dialog).getByRole('spinbutton')).toBeDefined());
-    fireEvent.change(within(dialog).getByRole('spinbutton'), { target: { value: '100' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(4));
-    expect(mocks.recordPayment.mock.calls[3][0].idempotency_key).not.toBe(changedRequest.idempotency_key);
+      await waitFor(() => expect(within(dialog).getAllByRole('button', { name: 'Record Payment' })).toHaveLength(1));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(within(dialog).getByRole('spinbutton')).toBeDefined());
+      fireEvent.change(within(dialog).getByRole('spinbutton'), { target: { value: '100' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.recordPayment).toHaveBeenCalledTimes(4));
+      expect(mocks.recordPayment.mock.calls[3][0].idempotency_key).not.toBe(changedRequest.idempotency_key);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('reuses a failed ledger-payment key, rotates it after an edit, and clears it after success', async () => {
-    const timeout = new Error('timeout');
-    mocks.createLedgerPayment
-      .mockRejectedValueOnce(timeout)
-      .mockRejectedValueOnce(timeout)
-      .mockResolvedValueOnce({ id: 1 })
-      .mockResolvedValueOnce({ id: 2 });
-    renderModal(true);
-    const dialog = await paymentDialog();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const timeout = new Error('timeout');
+      mocks.createLedgerPayment
+        .mockRejectedValueOnce(timeout)
+        .mockRejectedValueOnce(timeout)
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2 });
+      renderModal(true);
+      const dialog = await paymentDialog();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(1));
-    const firstRequest = mocks.createLedgerPayment.mock.calls[0][1];
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(1));
+      const firstRequest = mocks.createLedgerPayment.mock.calls[0][1];
 
-    fireEvent.change(within(dialog).getByLabelText('Reference (Optional)'), { target: { value: '   ' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(2));
-    expect(mocks.createLedgerPayment.mock.calls[1][1].idempotency_key).toBe(firstRequest.idempotency_key);
-    expect(mocks.createLedgerPayment.mock.calls[1][1].payment_reference).toBeUndefined();
+      fireEvent.change(within(dialog).getByLabelText('Reference (Optional)'), { target: { value: '   ' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(2));
+      expect(mocks.createLedgerPayment.mock.calls[1][1].idempotency_key).toBe(firstRequest.idempotency_key);
+      expect(mocks.createLedgerPayment.mock.calls[1][1].payment_reference).toBeUndefined();
 
-    fireEvent.mouseDown(within(dialog).getByRole('combobox'));
-    fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(3));
-    const changedRequest = mocks.createLedgerPayment.mock.calls[2][1];
-    expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+      fireEvent.mouseDown(within(dialog).getByRole('combobox'));
+      fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(3));
+      const changedRequest = mocks.createLedgerPayment.mock.calls[2][1];
+      expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
 
-    await waitFor(() => expect(within(dialog).getAllByRole('button', { name: 'Record Payment' })).toHaveLength(1));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(within(dialog).getByRole('spinbutton')).toBeDefined());
-    fireEvent.change(within(dialog).getByRole('spinbutton'), { target: { value: '100' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(4));
-    expect(mocks.createLedgerPayment.mock.calls[3][1].idempotency_key).not.toBe(changedRequest.idempotency_key);
+      await waitFor(() => expect(within(dialog).getAllByRole('button', { name: 'Record Payment' })).toHaveLength(1));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(within(dialog).getByRole('spinbutton')).toBeDefined());
+      fireEvent.change(within(dialog).getByRole('spinbutton'), { target: { value: '100' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(4));
+      expect(mocks.createLedgerPayment.mock.calls[3][1].idempotency_key).not.toBe(changedRequest.idempotency_key);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Review finding I2. This test used to assert the OPPOSITE -- that the key was
@@ -220,24 +232,29 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
   // The attempt is now released only after every step that can throw, so an
   // identical retry replays server-side under the same key.
   it('retains a committed ledger-payment key when the refresh afterwards fails', async () => {
-    const refreshFailure = new Error('refresh failed');
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    mocks.createLedgerPayment
-      .mockResolvedValueOnce({ id: 1 })
-      .mockResolvedValueOnce({ id: 2 });
-    mocks.reloadPayments
-      .mockRejectedValueOnce(refreshFailure)
-      .mockResolvedValueOnce(undefined);
-    renderModal(true);
-    const dialog = await paymentDialog();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const refreshFailure = new Error('refresh failed');
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      mocks.createLedgerPayment
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2 });
+      mocks.reloadPayments
+        .mockRejectedValueOnce(refreshFailure)
+        .mockResolvedValueOnce(undefined);
+      renderModal(true);
+      const dialog = await paymentDialog();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(1));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
-    await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(2));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(1));
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Record Payment' }));
+      await waitFor(() => expect(mocks.createLedgerPayment).toHaveBeenCalledTimes(2));
 
-    expect(mocks.createLedgerPayment.mock.calls[1][1].idempotency_key)
-      .toBe(mocks.createLedgerPayment.mock.calls[0][1].idempotency_key);
-    consoleError.mockRestore();
+      expect(mocks.createLedgerPayment.mock.calls[1][1].idempotency_key)
+        .toBe(mocks.createLedgerPayment.mock.calls[0][1].idempotency_key);
+      consoleError.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
