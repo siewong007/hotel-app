@@ -1,11 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { configure } from '@testing-library/dom';
 
-// These suites drive retry/backoff flows whose waitFor windows blow past the
-// 1s default only when the whole suite runs in parallel on a loaded machine
-// (observed as intermittent CI-style failures that never reproduce in
-// isolation). Raise the async-util timeout for THIS file instead of globally,
-// so genuine render hangs elsewhere still surface quickly.
+// The payment idempotency suite below runs under fake timers with automatic
+// advancement, so its waitFor windows no longer race wall-clock time. The
+// raised async-util timeout stays as a cheap safety net for the remaining
+// render-heavy waits in this file.
 configure({ asyncUtilTimeout: 10_000 });
 vi.setConfig({ testTimeout: 30_000 });
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -609,40 +608,48 @@ describe('BookingsPage', () => {
     });
 
     it('reuses a failed booking payment key, rotates it after a material edit, and clears it after success', async () => {
-      const timeout = new Error('timeout');
-      mocks.recordPaymentMutation.mutateAsync
-        .mockRejectedValueOnce(timeout)
-        .mockRejectedValueOnce(timeout)
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce(undefined);
+      // Fake timers with automatic advancement make RTL's waitFor polling
+      // deterministic under parallel-suite load; the code under test has no
+      // timers of its own (same pattern as the timezone test below).
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const timeout = new Error('timeout');
+        mocks.recordPaymentMutation.mutateAsync
+          .mockRejectedValueOnce(timeout)
+          .mockRejectedValueOnce(timeout)
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce(undefined);
 
-      renderPage();
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
-      fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
-      const dialog = await screen.findByRole('dialog');
+        renderPage();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Payment' })).toBeDefined());
+        fireEvent.click(screen.getByRole('button', { name: 'Payment' }));
+        const dialog = await screen.findByRole('dialog');
 
-      const [amountInput] = within(dialog).getAllByRole('spinbutton');
-      fireEvent.change(amountInput, { target: { value: '150' } });
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-      await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(1));
+        const [amountInput] = within(dialog).getAllByRole('spinbutton');
+        fireEvent.change(amountInput, { target: { value: '150' } });
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(1));
 
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-      await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(2));
-      const firstRequest = mocks.recordPaymentMutation.mutateAsync.mock.calls[0][0];
-      expect(mocks.recordPaymentMutation.mutateAsync.mock.calls[1][0].idempotency_key)
-        .toBe(firstRequest.idempotency_key);
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(2));
+        const firstRequest = mocks.recordPaymentMutation.mutateAsync.mock.calls[0][0];
+        expect(mocks.recordPaymentMutation.mutateAsync.mock.calls[1][0].idempotency_key)
+          .toBe(firstRequest.idempotency_key);
 
-      fireEvent.mouseDown(within(dialog).getByRole('combobox'));
-      fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-      await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(3));
-      const changedRequest = mocks.recordPaymentMutation.mutateAsync.mock.calls[2][0];
-      expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
+        fireEvent.mouseDown(within(dialog).getByRole('combobox'));
+        fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(3));
+        const changedRequest = mocks.recordPaymentMutation.mutateAsync.mock.calls[2][0];
+        expect(changedRequest.idempotency_key).not.toBe(firstRequest.idempotency_key);
 
-      fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
-      await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(4));
-      expect(mocks.recordPaymentMutation.mutateAsync.mock.calls[3][0].idempotency_key)
-        .not.toBe(changedRequest.idempotency_key);
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Accept Payment' }));
+        await waitFor(() => expect(mocks.recordPaymentMutation.mutateAsync).toHaveBeenCalledTimes(4));
+        expect(mocks.recordPaymentMutation.mutateAsync.mock.calls[3][0].idempotency_key)
+          .not.toBe(changedRequest.idempotency_key);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     // Review finding I5 (fix applied in BookingsPage.tsx: the synthetic checkout
