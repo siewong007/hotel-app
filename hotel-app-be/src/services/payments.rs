@@ -749,6 +749,154 @@ pub async fn ensure_invoice_for_booking_tx(
     Ok(invoice_number)
 }
 
+/// Queue the transactional checkout-receipt email for a just-invoiced booking.
+///
+/// Called from the checkout transition's post-commit best-effort block
+/// (`repositories/bookings/lifecycle.rs`), immediately after
+/// [`ensure_invoice_for_booking`] succeeds — the invoice number is the
+/// idempotency key, so retries and night-audit auto-checkouts cannot
+/// double-send. Company-billed folios and guests without an email are skipped:
+/// the receipt is a personal document.
+pub async fn queue_checkout_receipt_email(
+    pool: &DbPool,
+    booking_id: i64,
+    invoice_number: &str,
+) -> Result<(), ApiError> {
+    #[derive(sqlx::FromRow)]
+    struct ReceiptSource {
+        guest_id: i64,
+        guest_name: String,
+        guest_email: Option<String>,
+        company_id: Option<i64>,
+        booking_number: Option<String>,
+        check_in_date: chrono::NaiveDate,
+        check_out_date: chrono::NaiveDate,
+        total_amount: rust_decimal::Decimal,
+        room_number: Option<String>,
+        room_type: Option<String>,
+    }
+
+    let source = sqlx::query_as::<_, ReceiptSource>(
+        r#"
+        SELECT g.id AS guest_id,
+               g.full_name AS guest_name,
+               g.email AS guest_email,
+               b.company_id,
+               b.booking_number,
+               b.check_in_date,
+               b.check_out_date,
+               b.total_amount,
+               r.room_number,
+               rt.name AS room_type
+        FROM bookings b
+        JOIN guests g ON g.id = b.guest_id
+        LEFT JOIN rooms r ON r.id = b.room_id
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        WHERE b.id = $1
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(ApiError::from)?
+    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let Some(recipient) = source
+        .guest_email
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+    else {
+        return Ok(());
+    };
+    // Corporate stays are billed to the company; no personal receipt.
+    if source.company_id.is_some() {
+        return Ok(());
+    }
+
+    let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
+        r#"
+        SELECT COALESCE(SUM(amount) FILTER (
+            WHERE status = 'completed'
+              AND COALESCE(payment_type, 'booking') != 'refund'
+        ), 0)
+        FROM payments
+        WHERE booking_id = $1
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let nights = (source.check_out_date - source.check_in_date).num_days().max(0);
+    let balance = (source.total_amount - paid).max(rust_decimal::Decimal::ZERO);
+
+    let subject = format!(
+        "Your receipt for booking {}",
+        source.booking_number.as_deref().unwrap_or("")
+    );
+    let body_html = format!(
+        "<p>Dear {},</p>\
+         <p>Thank you for staying with us. Here is your receipt.</p>\
+         <p><strong>Booking:</strong> {}<br>\
+         <strong>Invoice:</strong> {}<br>\
+         <strong>Room:</strong> {} ({})<br>\
+         <strong>Stay:</strong> {} to {} · {} night(s)</p>\
+         <p><strong>Total charged:</strong> {}<br>\
+         <strong>Payments received:</strong> {}<br>\
+         <strong>Balance:</strong> {}</p>\
+         <p>You can review your bookings any time in your guest portal.</p>",
+        html_escape(&source.guest_name),
+        html_escape(source.booking_number.as_deref().unwrap_or("")),
+        html_escape(invoice_number),
+        html_escape(source.room_number.as_deref().unwrap_or("-")),
+        html_escape(source.room_type.as_deref().unwrap_or("-")),
+        source.check_in_date,
+        source.check_out_date,
+        nights,
+        source.total_amount.round_dp(2),
+        paid.round_dp(2),
+        balance.round_dp(2),
+    );
+    let body_text = format!(
+        "Booking: {}\nInvoice: {}\nStay: {} to {} ({} night(s))\nTotal charged: {}\nPayments received: {}\nBalance: {}",
+        source.booking_number.as_deref().unwrap_or(""),
+        invoice_number,
+        source.check_in_date,
+        source.check_out_date,
+        nights,
+        source.total_amount.round_dp(2),
+        paid.round_dp(2),
+        balance.round_dp(2),
+    );
+
+    let footer =
+        crate::modules::communications::scheduler::unsubscribe_footer_html(source.guest_id);
+    let body_html_with_footer = format!("{body_html}{footer}");
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    CommunicationsRepository::insert_delivery_tx(
+        &mut tx,
+        DeliveryValues {
+            campaign_id: None,
+            kind: "checkout_receipt",
+            guest_id: source.guest_id,
+            topic: "checkout_receipt",
+            recipient_email: &recipient,
+            subject: &subject,
+            body_html: &body_html_with_footer,
+            body_text: Some(&body_text),
+            voucher_id: None,
+            idempotency_key: &format!("checkout-receipt:{invoice_number}"),
+        },
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+    Ok(())
+}
+
 // ===========================================================================
 // Guest-portal payments: manual bank-transfer claims + PayPal + staff review
 // ===========================================================================

@@ -51,7 +51,7 @@ fn guest_vars(guest: &AudienceGuest) -> HashMap<String, String> {
     ])
 }
 
-fn unsubscribe_footer_html(guest_id: i64) -> String {
+pub(crate) fn unsubscribe_footer_html(guest_id: i64) -> String {
     match tokens::sign_unsubscribe_token(guest_id) {
         Ok(token) => format!(
             "<p style=\"font-size:12px;color:#888\"><a href=\"{}/unsubscribe/{}\">Unsubscribe</a></p>",

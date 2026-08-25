@@ -1940,16 +1940,27 @@ pub async fn update_booking_handler(
 
                 // Generate an invoice number for this checked-out booking. Best-effort:
                 // failure here must not block the checkout itself.
-                if let Err(e) = crate::services::payments::ensure_invoice_for_booking(
+                match crate::services::payments::ensure_invoice_for_booking(
                     &pool, booking_id, user_id,
                 )
                 .await
                 {
-                    log::warn!(
+                    Ok(invoice_number) => {
+                        if let Err(e) = crate::services::payments::queue_checkout_receipt_email(
+                            &pool, booking_id, &invoice_number,
+                        )
+                        .await
+                        {
+                            log::warn!(
+                                "Failed to queue checkout receipt for booking {booking_id}: {e}"
+                            );
+                        }
+                    }
+                    Err(e) => log::warn!(
                         "Failed to create invoice for checked-out booking {}: {}",
                         booking_id,
                         e
-                    );
+                    ),
                 }
 
                 if let Err(e) = crate::modules::loyalty::service::award_eligible_booking_points(
