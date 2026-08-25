@@ -25,8 +25,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../hooks/useLoyaltyAdmin', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  useLoyaltyMembers: (_params?: any) => ({
+  useLoyaltyMembers: () => ({
     data: mocks.members,
     isLoading: mocks.membersLoading,
     error: null,
