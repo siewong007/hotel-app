@@ -59,7 +59,7 @@ validator = { version = "0.20", features = ["derive"] }
 ammonia = "4.1.4"
 dotenvy = "0.15"
 # 2FA dependencies
-totp-rs = { version = "5.7", features = ["qr"] }
+totp-rs = { version = "6.0", features = ["qr"] }
 data-encoding = "2.8"
 image = "0.25"
 qrcode = "0.14"
