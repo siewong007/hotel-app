@@ -156,6 +156,36 @@ pub struct CampaignListResponse {
     pub page_size: i64,
 }
 
+/// Query params for the admin notification-center delivery feed.
+#[derive(Debug, Deserialize)]
+pub struct DeliveryFeedQuery {
+    /// `all` (default) | `transactional` | `marketing`
+    pub tier: Option<String>,
+    /// Optional exact delivery-status filter.
+    pub status: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+/// One feed row: masked summary plus its derived priority tier.
+#[derive(Debug, Clone, Serialize)]
+pub struct DeliveryFeedItem {
+    #[serde(flatten)]
+    pub summary: DeliverySummary,
+    pub tier: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DeliveryFeedResponse {
+    pub items: Vec<DeliveryFeedItem>,
+    pub total: i64,
+    /// Deliveries still queued or sending, across all filters — drives the
+    /// global bell badge.
+    pub unread: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DeliveryListResponse {
     pub items: Vec<DeliverySummary>,

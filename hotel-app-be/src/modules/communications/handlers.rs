@@ -8,8 +8,7 @@ use axum::{
 use serde::Deserialize;
 use std::net::SocketAddr;
 
-use super::models::{
-    AudienceCount, CampaignInput, CampaignListQuery, CampaignListResponse, ConsentStatusResponse,
+use super::models::{DeliveryFeedQuery, DeliveryFeedResponse, AudienceCount, CampaignInput, CampaignListQuery, CampaignListResponse, ConsentStatusResponse,
     DeliveryListResponse, EmailCampaign, EmailTemplate, PreferenceUpdateInput, PreferencesResponse,
     PreviewResponse, ScheduleCampaignInput, SuppressionInput, SuppressionListResponse,
     TemplateInput, TestSendInput, UnsubscribeApplyInput,
@@ -172,6 +171,18 @@ pub async fn cancel_campaign_handler(
             user_agent(&headers),
         )
         .await?,
+    ))
+}
+
+pub async fn list_admin_deliveries_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(query): Query<DeliveryFeedQuery>,
+) -> Result<Json<DeliveryFeedResponse>, ApiError> {
+    require_permission_helper(&pool, &headers, "communications:read").await?;
+    Ok(Json(
+        service::list_delivery_feed(&pool, query.tier, query.status, query.page, query.page_size)
+            .await?,
     ))
 }
 

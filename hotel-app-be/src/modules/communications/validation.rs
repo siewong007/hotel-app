@@ -29,6 +29,20 @@ pub fn requires_topic_subscription(kind: &str) -> bool {
     !TRANSACTIONAL_KINDS.contains(&kind)
 }
 
+/// Marketing kinds are the complement of the transactional set within the
+/// kinds the schema allows (see `email_deliveries_kind_check`).
+pub const MARKETING_KINDS: [&str; 2] = ["campaign", "birthday_voucher"];
+
+/// Priority tier label for a delivery kind: transactional service mail vs
+/// marketing. Unknown kinds default to marketing (non-urgent).
+pub fn delivery_tier(kind: &str) -> &'static str {
+    if TRANSACTIONAL_KINDS.contains(&kind) {
+        "transactional"
+    } else {
+        "marketing"
+    }
+}
+
 const MAX_BODY_CHARS: usize = 200_000;
 
 #[derive(Debug, Clone)]
@@ -120,6 +134,21 @@ fn is_identifier(value: &str) -> bool {
         _ => return false,
     }
     chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+/// Delivery statuses allowed by `email_deliveries_status_check`.
+pub const DELIVERY_STATUSES: [&str; 6] = [
+    "queued", "sending", "sent", "failed", "suppressed", "cancelled",
+];
+
+pub fn validate_delivery_status(status: &str) -> Result<String, ApiError> {
+    if DELIVERY_STATUSES.contains(&status) {
+        Ok(status.to_string())
+    } else {
+        Err(ApiError::BadRequest(format!(
+            "Unknown delivery status '{status}'."
+        )))
+    }
 }
 
 pub fn validate_topic(topic: &str) -> Result<String, ApiError> {

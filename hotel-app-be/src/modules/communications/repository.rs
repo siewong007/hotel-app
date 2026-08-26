@@ -831,6 +831,53 @@ impl CommunicationsRepository {
             .collect())
     }
 
+    /// Paged, campaign-independent delivery feed for the admin notification
+    /// center. An empty `kinds` slice means "no kind filter"; `status` pins an
+    /// exact delivery status when present. Returns the page, the filtered
+    /// total, and a global queued+sending count for the bell badge.
+    pub async fn list_deliveries_page(
+        pool: &DbPool,
+        kinds: &[&str],
+        status: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<EmailDelivery>, i64, i64), ApiError> {
+        // Both filter clauses are ALWAYS present so placeholder numbering stays
+        // contiguous regardless of which filters are active.
+        let count_sql = r#"
+            SELECT COUNT(*) FROM email_deliveries
+            WHERE (cardinality($1::text[]) = 0 OR kind = ANY($1))
+              AND ($2::text IS NULL OR status = $2)
+        "#;
+        let total: i64 = query_scalar(count_sql)
+            .bind(kinds)
+            .bind(status)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
+
+        let unread: i64 = query_scalar(
+            "SELECT COUNT(*) FROM email_deliveries WHERE status IN ('queued', 'sending')",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        let page_sql = format!(
+            "SELECT {DELIVERY_COLUMNS} FROM email_deliveries              WHERE (cardinality($1::text[]) = 0 OR kind = ANY($1))                AND ($2::text IS NULL OR status = $2)              ORDER BY id DESC LIMIT $3 OFFSET $4"
+        );
+        let rows = query(&page_sql)
+            .bind(kinds)
+            .bind(status)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
+
+        Ok((rows.iter().map(delivery_from_row).collect(), total, unread))
+    }
+
     pub async fn due_scheduled_campaigns(pool: &DbPool) -> Result<Vec<EmailCampaign>, ApiError> {
         let sql = "SELECT {COLS} FROM email_campaigns WHERE status = 'scheduled' AND scheduled_at <= CURRENT_TIMESTAMP ORDER BY scheduled_at"
         .replace("{COLS}", CAMPAIGN_COLUMNS);

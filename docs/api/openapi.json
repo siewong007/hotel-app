@@ -32,6 +32,9 @@
     "/api/admin/communications/campaigns/{id}/test-send": {
       "POST": {}
     },
+    "/api/admin/communications/deliveries": {
+      "GET": {}
+    },
     "/api/admin/communications/guests/{guest_id}/consent": {
       "GET": {},
       "POST": {}

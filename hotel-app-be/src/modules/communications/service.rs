@@ -16,9 +16,10 @@ use serde_json::json;
 
 use super::models::{
     AudienceCount, CampaignInput, CampaignListQuery, CampaignListResponse, ConsentStatusResponse,
-    DeliveryListResponse, DeliverySummary, EmailCampaign, EmailTemplate, PreferenceUpdateInput,
-    PreferencesResponse, PreviewResponse, ScheduleCampaignInput, SuppressionInput,
-    SuppressionListResponse, TestSendInput, TopicPreference, UnsubscribeApplyInput, mask_email,
+    DeliveryFeedItem, DeliveryFeedResponse, DeliveryListResponse, DeliverySummary, EmailCampaign,
+    EmailTemplate, PreferenceUpdateInput, PreferencesResponse, PreviewResponse,
+    ScheduleCampaignInput, SuppressionInput, SuppressionListResponse, TestSendInput,
+    TopicPreference, UnsubscribeApplyInput, mask_email,
 };
 use super::repository::{CommunicationsRepository as Repo, ConsentEventValues};
 use super::tokens;
@@ -371,6 +372,76 @@ pub async fn list_campaign_deliveries(
     Ok(DeliveryListResponse {
         items,
         total,
+        page,
+        page_size,
+    })
+}
+
+/// Admin notification-center feed: recent deliveries across all campaigns,
+/// filterable by derived priority tier and exact status.
+pub async fn list_delivery_feed(
+    pool: &DbPool,
+    tier: Option<String>,
+    status: Option<String>,
+    page: Option<i64>,
+    page_size: Option<i64>,
+) -> Result<DeliveryFeedResponse, ApiError> {
+    const TIERS: [&str; 3] = ["all", "transactional", "marketing"];
+    let tier = tier.unwrap_or_else(|| "all".to_string());
+    if !TIERS.contains(&tier.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "Unknown tier '{tier}'. Expected one of: {}",
+            TIERS.join(", ")
+        )));
+    }
+    if let Some(status) = &status {
+        crate::modules::communications::validation::validate_delivery_status(status)?;
+    }
+
+    let (page, page_size) = normalize_page(page, page_size);
+    let kinds: Vec<&'static str> = match tier.as_str() {
+        "transactional" => validation::TRANSACTIONAL_KINDS.to_vec(),
+        "marketing" => validation::MARKETING_KINDS.to_vec(),
+        _ => Vec::new(), // no kind filter
+    };
+
+    let (rows, total, unread) = Repo::list_deliveries_page(
+        pool,
+        &kinds,
+        status.as_deref(),
+        page_size,
+        (page - 1) * page_size,
+    )
+    .await?;
+
+    let items = rows
+        .into_iter()
+        .map(|d| {
+            let tier_label =
+                crate::modules::communications::validation::delivery_tier(&d.kind);
+            DeliveryFeedItem {
+                summary: DeliverySummary {
+                    id: d.id,
+                    campaign_id: d.campaign_id,
+                    kind: d.kind.clone(),
+                    guest_id: d.guest_id,
+                    topic: d.topic,
+                    recipient_masked: mask_email(&d.recipient_email),
+                    status: d.status,
+                    attempts: d.attempts,
+                    last_error: d.last_error,
+                    sent_at: d.sent_at,
+                    created_at: d.created_at,
+                },
+                tier: tier_label,
+            }
+        })
+        .collect();
+
+    Ok(DeliveryFeedResponse {
+        items,
+        total,
+        unread,
         page,
         page_size,
     })

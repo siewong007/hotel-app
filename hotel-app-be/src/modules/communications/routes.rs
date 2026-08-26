@@ -37,6 +37,10 @@ pub fn routes() -> Router<DbPool> {
             get(handlers::list_campaign_deliveries_handler),
         )
         .route(
+            "/admin/communications/deliveries",
+            get(handlers::list_admin_deliveries_handler),
+        )
+        .route(
             "/admin/communications/templates",
             get(handlers::list_templates_handler).post(handlers::create_template_handler),
         )
