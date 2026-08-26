@@ -1,0 +1,8 @@
+# The PostgreSQL patch catalog is checksum-verified byte-for-byte by
+# apply-patches.sh and hotel-desktop/src-tauri/src/postgres/patches.rs, which
+# hash the raw file bytes with no newline normalization. A CRLF checkout on
+# Windows (core.autocrlf=true) therefore fails every manifest checksum and the
+# runner aborts the whole catalog, leaving databases stuck on the baseline.
+# Pin every SQL file and the manifest to LF so the hashes match everywhere.
+*.sql text eol=lf
+*.tsv text eol=lf
