@@ -9,6 +9,7 @@ import { createAppTheme, ThemeMode } from './theme';
 import { DesktopServiceGate } from './desktop/DesktopServiceGate';
 import { storage } from './utils/storage';
 import { ApiNotificationHost } from './components/common/ApiNotificationHost';
+import { ConfirmProvider } from './components/common/ConfirmProvider';
 import { router } from './router/router';
 import { ThemeModeContext } from './router/ThemeModeContext';
 
@@ -39,7 +40,9 @@ function App() {
           <AuthProvider>
             <ApiNotificationHost />
             <ThemeModeContext.Provider value={themeModeContextValue}>
-              <RouterProvider router={router} />
+              <ConfirmProvider>
+                <RouterProvider router={router} />
+              </ConfirmProvider>
             </ThemeModeContext.Provider>
           </AuthProvider>
         </DesktopServiceGate>

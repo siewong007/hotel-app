@@ -49,6 +49,7 @@ import { PromotionAdminTable } from "../components/PromotionAdminTable";
 import { PromotionEditorDialog } from "../components/PromotionEditorDialog";
 import { VoucherAdminTable } from "../components/VoucherAdminTable";
 import { VoucherIssueDialog } from "../components/VoucherIssueDialog";
+import { useConfirm } from "../../../components/common/ConfirmProvider";
 
 type WorkspaceTab = "promotions" | "vouchers";
 
@@ -74,6 +75,7 @@ const VOUCHER_FILTERS: Array<{ value: VoucherStatus | "all"; label: string }> =
 
 export default function PromotionManagementPage() {
   const { hasPermission } = useAuth();
+  const confirm = useConfirm();
   const canReadPromotions =
     hasPermission("promotions:read") || hasPermission("promotions:manage");
   const canManagePromotions = hasPermission("promotions:manage");
@@ -179,16 +181,19 @@ export default function PromotionManagementPage() {
     });
   };
 
-  const transitionPromotion = (
+  const transitionPromotion = async (
     promotion: Promotion,
     action: PromotionLifecycleAction,
   ) => {
     if (!canManagePromotions) return;
     if (
       action === "archive" &&
-      !window.confirm(
-        `Archive “${promotion.name}”? It will no longer be available to guests.`,
-      )
+      !(await confirm({
+        title: "Archive promotion",
+        message: `Archive “${promotion.name}”? It will no longer be available to guests.`,
+        confirmText: "Archive",
+        severity: "warning",
+      }))
     ) {
       return;
     }
@@ -219,12 +224,15 @@ export default function PromotionManagementPage() {
     });
   };
 
-  const revokeVoucher = (voucherId: number, label: string) => {
+  const revokeVoucher = async (voucherId: number, label: string) => {
     if (!canManageVouchers) return;
     if (
-      !window.confirm(
-        `Revoke voucher ${label}? The guest will no longer be able to use it.`,
-      )
+      !(await confirm({
+        title: "Revoke voucher",
+        message: `Revoke voucher ${label}? The guest will no longer be able to use it.`,
+        confirmText: "Revoke voucher",
+        severity: "error",
+      }))
     ) {
       return;
     }

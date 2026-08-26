@@ -28,6 +28,7 @@ import ProfileTab from './profile/ProfileTab';
 import SecurityTab from './profile/SecurityTab';
 import PasskeysTab, { MAX_PASSKEYS } from './profile/PasskeysTab';
 import DevicesTab from './profile/DevicesTab';
+import { useConfirm } from '../../../components/common/ConfirmProvider';
 
 const TABS = [
   { label: 'Profile', icon: <PersonIcon /> },
@@ -42,6 +43,7 @@ const errorMessage = (error: unknown, fallback: string) =>
 
 const UserProfilePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState(0);
   const [editing, setEditing] = useState(false);
   const { registerPasskey } = useAuth();
@@ -125,7 +127,13 @@ const UserProfilePage: React.FC = () => {
   };
 
   const handleDeletePasskey = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this passkey?')) return;
+    const accepted = await confirm({
+      title: 'Delete passkey',
+      message: 'This passkey will stop working on the device it was created on. You can register a new one at any time.',
+      confirmText: 'Delete passkey',
+      severity: 'error',
+    });
+    if (!accepted) return;
     try {
       await deletePasskey.mutateAsync(id);
       notify('Passkey deleted successfully', 'success');
@@ -144,7 +152,13 @@ const UserProfilePage: React.FC = () => {
   };
 
   const handleRevokeSession = async (session: UserSessionInfo) => {
-    if (!window.confirm('Log out this device? It will need to sign in again.')) return;
+    const accepted = await confirm({
+      title: 'Log out this device',
+      message: 'The device will be signed out immediately and will need to sign in again.',
+      confirmText: 'Log out device',
+      severity: 'warning',
+    });
+    if (!accepted) return;
     try {
       await revokeSession.mutateAsync(session.id);
       notify('Device logged out successfully', 'success');

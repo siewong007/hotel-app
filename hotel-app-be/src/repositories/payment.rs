@@ -226,21 +226,82 @@ impl PaymentRepository {
             .map_err(ApiError::from)
     }
 
-    pub async fn transaction_reference_used_by_other_payment_tx(
+    /// The booking that already owns `transaction_reference`, if another KEYED
+    /// payment holds it.
+    ///
+    /// Keyed rows only, mirroring `list_keyed_reference_payments_tx`. Without
+    /// the fingerprint filter this rejected every reference any pre-idempotency
+    /// row had ever used — reception's free-text labels ("Tourism Tax",
+    /// "003589") repeat across hundreds of historical rows, so editing a payment
+    /// into one of them was permanently impossible. Those rows carry no key to
+    /// replay against, so scanning them protected nothing.
+    ///
+    /// Scope stays GLOBAL: a reference is provenance, and crediting one inbound
+    /// payment to two bookings would book the same money twice.
+    pub async fn transaction_reference_owner_booking_tx(
         tx: &mut DbTransaction<'_>,
         transaction_reference: &str,
         payment_id: i64,
-    ) -> Result<bool, ApiError> {
+    ) -> Result<Option<i64>, ApiError> {
         sqlx::query_scalar(&format!(
-            "SELECT EXISTS(SELECT 1 FROM payments WHERE transaction_id = {} AND id <> {})",
+            "SELECT booking_id FROM payments \
+             WHERE transaction_id = {} AND id <> {} \
+               AND idempotency_fingerprint IS NOT NULL \
+             ORDER BY id LIMIT 1",
             crate::param!(1),
             crate::param!(2)
         ))
         .bind(transaction_reference)
         .bind(payment_id)
-        .fetch_one(&mut **tx)
+        .fetch_optional(&mut **tx)
         .await
         .map_err(ApiError::from)
+    }
+
+    /// Human-readable identity for a booking, for error messages reception has
+    /// to act on. Falls back to the id when the booking or room is missing.
+    pub async fn booking_label_tx(tx: &mut DbTransaction<'_>, booking_id: i64) -> String {
+        let row = sqlx::query_as::<_, (Option<String>, Option<String>)>(&format!(
+            "SELECT b.booking_number, r.room_number \
+             FROM bookings b LEFT JOIN rooms r ON r.id = b.room_id \
+             WHERE b.id = {}",
+            crate::param!(1)
+        ))
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .ok()
+        .flatten();
+
+        match row {
+            Some((Some(booking_number), Some(room_number))) => {
+                format!("{booking_number} (room {room_number})")
+            }
+            Some((Some(booking_number), None)) => booking_number,
+            _ => format!("#{booking_id}"),
+        }
+    }
+
+    /// The 409 body for a reference that another booking already owns. Names the
+    /// owner and the way out, so reception is not left guessing.
+    pub async fn transaction_reference_conflict_tx(
+        tx: &mut DbTransaction<'_>,
+        owner_booking_id: i64,
+        conflicting_booking_id: i64,
+    ) -> ApiError {
+        if owner_booking_id == conflicting_booking_id {
+            return ApiError::Conflict(
+                "This reference is already on another payment for this booking, recorded with \
+                 different details. Use a different reference, or leave it blank."
+                    .to_string(),
+            );
+        }
+        let label = Self::booking_label_tx(tx, owner_booking_id).await;
+        ApiError::Conflict(format!(
+            "This reference is already recorded on booking {label}. A reference identifies one \
+             incoming payment, so it cannot be credited to two bookings. Use a different \
+             reference, or leave it blank."
+        ))
     }
 
     pub async fn payment_booking_id(pool: &DbPool, payment_id: i64) -> Result<i64, ApiError> {
@@ -445,10 +506,12 @@ impl PaymentRepository {
             }
             if let Some(existing) = matches.pop() {
                 if existing.idempotency_fingerprint.as_deref() != Some(fingerprint.as_str()) {
-                    return Err(ApiError::Conflict(
-                        "Transaction reference was already used with different payment data"
-                            .to_string(),
-                    ));
+                    return Err(Self::transaction_reference_conflict_tx(
+                        tx,
+                        existing.booking_id,
+                        request.booking_id,
+                    )
+                    .await);
                 }
 
                 let row = sqlx::query(&format!(
@@ -1647,16 +1710,13 @@ impl PaymentRepository {
 
         if let Some(transaction_reference) =
             final_transaction_reference.filter(|value| !value.is_empty())
-            && Self::transaction_reference_used_by_other_payment_tx(
-                tx,
-                transaction_reference,
-                payment_id,
-            )
-            .await?
+            && let Some(owner_booking_id) =
+                Self::transaction_reference_owner_booking_tx(tx, transaction_reference, payment_id)
+                    .await?
         {
-            return Err(ApiError::Conflict(
-                "Transaction reference was already used with different payment data".to_string(),
-            ));
+            return Err(
+                Self::transaction_reference_conflict_tx(tx, owner_booking_id, booking_id).await,
+            );
         }
 
         if request.amount.is_some()

@@ -137,6 +137,7 @@ import ActiveGuestsRow from './components/ActiveGuestsRow';
 import LedgerEntriesTab from './components/LedgerEntriesTab';
 import CompanyInfoTab from './components/CompanyInfoTab';
 import { useCustomerLedgerWorkspace } from './hooks/useCustomerLedgerWorkspace';
+import { useConfirm } from '../../../../components/common/ConfirmProvider';
 
 const normalizeOptionalPaymentText = (value?: string): string | undefined => {
   const normalized = value?.trim();
@@ -148,6 +149,7 @@ const normalizeReceiptNumber = (value?: string): string | undefined =>
 
 const CustomerLedgerPage: React.FC = () => {
   const [pageSearchParams] = useSearchParams();
+  const confirm = useConfirm();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const {
@@ -1503,7 +1505,13 @@ const CustomerLedgerPage: React.FC = () => {
   // API call stays page-side). Refreshes history + ledger totals on success.
   const handleDeletePayment = async (payment: CustomerLedgerPayment) => {
     if (!paymentLedger) return;
-    if (!window.confirm('Are you sure you want to delete this payment?')) return;
+    const accepted = await confirm({
+      title: 'Delete payment',
+      message: 'This removes the payment from the ledger and restores the outstanding balance. This cannot be undone.',
+      confirmText: 'Delete payment',
+      severity: 'error',
+    });
+    if (!accepted) return;
     try {
       await LedgerService.deleteLedgerPayment(paymentLedger.id, payment.id);
       showSnackbar('Payment deleted successfully');

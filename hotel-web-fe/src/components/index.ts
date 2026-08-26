@@ -5,6 +5,9 @@
 export { AnimatedRoute } from './common/AnimatedRoute';
 export { ErrorBoundary, PageErrorBoundary, ComponentErrorBoundary } from './common/ErrorBoundary';
 export { StatusPage } from './common/StatusPage';
+export { ConfirmDialog } from './common/ConfirmDialog';
+export type { ConfirmDialogProps, ConfirmOptions, ConfirmSeverity } from './common/ConfirmDialog';
+export { ConfirmProvider, useConfirm } from './common/ConfirmProvider';
 export { default as HotelSpinner } from './common/HotelSpinner';
 export { default as LoadingSpinner } from './common/LoadingSpinner';
 export { default as ModernDatePicker } from './common/ModernDatePicker';

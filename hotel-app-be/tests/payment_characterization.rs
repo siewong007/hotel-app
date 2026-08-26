@@ -3469,3 +3469,93 @@ async fn record_payment_still_conflicts_on_same_booking_reference_reuse_with_cha
         ),
     }
 }
+
+/// Editing a payment onto a reference that only pre-idempotency rows carry must
+/// be allowed. The edit-path guard used to scan every row regardless of
+/// fingerprint, so the 707 free-text labels reception has typed over the years
+/// ("Tourism Tax", "003589") made those references permanently unusable on an
+/// edit — while the create path had already carved legacy rows out.
+///
+/// The second half proves the guard still bites: a reference owned by a KEYED
+/// payment on another booking is still refused, because one inbound payment
+/// must not be credited to two bookings.
+#[tokio::test]
+async fn update_payment_reference_ignores_legacy_rows_but_still_guards_keyed_owners() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_930;
+    let subject = (940_931, 940_932, 940_933, 940_934);
+    let owner = (940_935, 940_936, 940_937, 940_938);
+    seed_pending_booking_pair(&pool, actor_id, subject, owner).await;
+
+    // A pre-idempotency row holding the reference: NULL fingerprint, so it can
+    // never be replayed against and must not block anything.
+    seed_legacy_referenced_payment(&pool, owner.3, actor_id, d("10.00"), "003590").await;
+
+    // The payment being edited, and a keyed payment on the other booking that
+    // legitimately owns "PAY-KEYED-940930".
+    let subject_payment = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(subject.3, 100.0, "payment-char-940934-subject"),
+    )
+    .await
+    .expect("the payment under edit must record");
+    let subject_payment_id = subject_payment["id"].as_i64().unwrap();
+
+    let mut keyed_owner = payment_request(owner.3, 100.0, "payment-char-940938-keyed-owner");
+    keyed_owner.transaction_reference = Some("PAY-KEYED-940930".to_string());
+    payments::record_payment(&pool, actor_id, keyed_owner)
+        .await
+        .expect("the keyed reference owner must record");
+
+    let onto_legacy = payments::update_payment(
+        &pool,
+        actor_id,
+        subject_payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: None,
+            transaction_reference: Some("003590".to_string()),
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+
+    let onto_keyed = payments::update_payment(
+        &pool,
+        actor_id,
+        subject_payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: None,
+            transaction_reference: Some("PAY-KEYED-940930".to_string()),
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+
+    cleanup_booking_pair(&pool, actor_id, subject, owner).await;
+
+    assert!(
+        onto_legacy.is_ok(),
+        "a reference carried only by keyless legacy rows must be editable onto a payment: \
+         {onto_legacy:?}"
+    );
+    assert!(
+        matches!(onto_keyed, Err(ApiError::Conflict(_))),
+        "a reference already owned by a keyed payment on another booking must still conflict: \
+         {onto_keyed:?}"
+    );
+    if let Err(ApiError::Conflict(message)) = onto_keyed {
+        assert!(
+            message.contains("already recorded on booking"),
+            "the conflict must name the booking that owns the reference so reception can act \
+             on it, got: {message}"
+        );
+    }
+}
