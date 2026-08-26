@@ -246,9 +246,12 @@ pub async fn record_payment(
             if existing.idempotency_fingerprint.as_deref() == Some(fingerprint.as_str()) {
                 return Ok(existing.into_response());
             }
-            return Err(ApiError::Conflict(
-                "Transaction reference was already used with different payment data".to_string(),
-            ));
+            return Err(PaymentRepository::transaction_reference_conflict_tx(
+                &mut tx,
+                existing.booking_id,
+                request.booking_id,
+            )
+            .await);
         }
     }
 
