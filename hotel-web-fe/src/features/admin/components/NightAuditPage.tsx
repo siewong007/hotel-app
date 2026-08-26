@@ -52,6 +52,7 @@ import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import { formatLocalDate } from '../../../utils/date';
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { useConfirm } from '../../../components/common/ConfirmProvider';
 import {
   useNightAuditDetailsFetcher,
   useNightAuditPreview,
@@ -198,6 +199,7 @@ function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
 }
 
 const NightAuditPage: React.FC = () => {
+  const confirm = useConfirm();
   // State
   const [tabValue, setTabValue] = useState(0);
   const [auditDate, setAuditDate] = useState(() => formatLocalDate());
@@ -726,9 +728,13 @@ const NightAuditPage: React.FC = () => {
 
   // Rerun night audit (for already completed audits)
   const handleRerunAudit = async () => {
-    if (!window.confirm('Are you sure you want to rerun the night audit? This will reset the previous audit data for this date.')) {
-      return;
-    }
+    const accepted = await confirm({
+      title: 'Rerun night audit',
+      message: 'This resets the previous audit data for this date and runs the audit again.',
+      confirmText: 'Rerun audit',
+      severity: 'warning',
+    });
+    if (!accepted) return;
     await handleRunAudit(true);
   };
 

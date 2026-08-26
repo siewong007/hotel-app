@@ -6,7 +6,7 @@
 // the ~18 extracted child components are mocked, following the convention in
 // src/features/support/components/SupportManagementPage.test.tsx.
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Company, CustomerLedger, CustomerLedgerPayment } from '../../../../types';
@@ -281,6 +281,15 @@ vi.mock('./components/CreditNoteDialog', () => ({
 }));
 
 import CustomerLedgerPage from './CustomerLedgerPage';
+import type { ReactElement } from 'react';
+import type { RenderOptions } from '@testing-library/react';
+import { ConfirmProvider } from '../../../../components/common/ConfirmProvider';
+
+// The page calls useConfirm(), which requires the provider App.tsx mounts.
+// `wrapper` is omitted deliberately: a caller passing its own would silently
+// drop ConfirmProvider, so make that a compile error instead.
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
+  rtlRender(ui, { ...options, wrapper: ConfirmProvider });
 
 function createLocalStorageStub() {
   const store = new Map<string, string>();

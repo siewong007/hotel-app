@@ -47,6 +47,7 @@ import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
+import { useConfirm } from '../../../components/common/ConfirmProvider';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -98,6 +99,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 }) => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'preview' | 'confirm'>('preview');
@@ -343,7 +345,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   };
 
   const handleDeletePayment = async (paymentId: number) => {
-    if (!window.confirm('Are you sure you want to delete this payment record?')) return;
+    const accepted = await confirm({
+      title: 'Delete payment record',
+      message: 'This removes the payment from the folio and restores the outstanding balance. This cannot be undone.',
+      confirmText: 'Delete payment',
+      severity: 'error',
+    });
+    if (!accepted) return;
     try {
       setDeletingPaymentId(paymentId);
       if (isLedgerView && ledger) {
@@ -385,7 +393,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   const handleRevertDepositRefund = async () => {
     if (!booking) return;
-    if (!window.confirm('Revert the deposit refund? This removes the refund record so the deposit can be refunded again.')) return;
+    const accepted = await confirm({
+      title: 'Revert deposit refund',
+      message: 'This removes the refund record so the deposit can be refunded again.',
+      confirmText: 'Revert refund',
+      severity: 'warning',
+    });
+    if (!accepted) return;
     try {
       setRevertingRefund(true);
       await InvoicesService.revertDepositRefund(booking.id);

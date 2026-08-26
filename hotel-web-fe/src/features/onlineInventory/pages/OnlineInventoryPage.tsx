@@ -25,6 +25,7 @@ import { formatLocalDate } from '../../../utils/date';
 import { InventoryRoomCard } from '../components/InventoryRoomCard';
 import { InventorySummary } from '../components/InventorySummary';
 import { useOnlineInventory } from '../hooks/useOnlineInventory';
+import { useConfirm } from '../../../components/common/ConfirmProvider';
 
 const shiftDate = (date: string, days: number) => {
   const [year, month, day] = date.split('-').map(Number);
@@ -43,6 +44,7 @@ const formatStayDate = (date: string) =>
 
 const OnlineInventoryPage = () => {
   const today = formatLocalDate();
+  const confirm = useConfirm();
   const [stayDate, setStayDate] = useState(today);
   const {
     items,
@@ -64,14 +66,22 @@ const OnlineInventoryPage = () => {
     [items],
   );
 
-  const changeDate = (nextDate: string) => {
+  const confirmDiscard = (message: string) =>
+    confirm({
+      title: 'Discard unsaved changes',
+      message,
+      confirmText: 'Discard changes',
+      severity: 'warning',
+    });
+
+  const changeDate = async (nextDate: string) => {
     if (!nextDate) return;
-    if (changedCount > 0 && !window.confirm('Discard your unsaved inventory changes?')) return;
+    if (changedCount > 0 && !(await confirmDiscard('Change the stay date and discard your unsaved inventory changes?'))) return;
     setStayDate(nextDate);
   };
 
-  const refreshInventory = () => {
-    if (changedCount > 0 && !window.confirm('Discard your unsaved inventory changes and refresh availability?')) return;
+  const refreshInventory = async () => {
+    if (changedCount > 0 && !(await confirmDiscard('Refresh availability and discard your unsaved inventory changes?'))) return;
     void reload();
   };
 
@@ -126,14 +136,14 @@ const OnlineInventoryPage = () => {
               alignItems: "center"
             }}>
               <Tooltip title="Previous day">
-                <IconButton aria-label="Previous stay date" onClick={() => changeDate(shiftDate(stayDate, -1))}>
+                <IconButton aria-label="Previous stay date" onClick={() => void changeDate(shiftDate(stayDate, -1))}>
                   <ArrowBackIosNewIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <TextField
                 type="date"
                 value={stayDate}
-                onChange={(event) => changeDate(event.target.value)}
+                onChange={(event) => void changeDate(event.target.value)}
                 size="small"
                 sx={{ flex: 1, minWidth: 150, '& fieldset': { border: 0 } }}
                 slotProps={{
@@ -141,12 +151,12 @@ const OnlineInventoryPage = () => {
                 }}
               />
               <Tooltip title="Next day">
-                <IconButton aria-label="Next stay date" onClick={() => changeDate(shiftDate(stayDate, 1))}>
+                <IconButton aria-label="Next stay date" onClick={() => void changeDate(shiftDate(stayDate, 1))}>
                   <ArrowForwardIosIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               {stayDate !== today && (
-                <Button size="small" onClick={() => changeDate(today)} sx={{ whiteSpace: 'nowrap' }}>Today</Button>
+                <Button size="small" onClick={() => void changeDate(today)} sx={{ whiteSpace: 'nowrap' }}>Today</Button>
               )}
             </Stack>
           </Paper>
@@ -182,7 +192,7 @@ const OnlineInventoryPage = () => {
             </Stack>
             <Tooltip title="Reload physical availability">
               <span>
-                <Button startIcon={<RefreshIcon />} onClick={refreshInventory} disabled={isLoading || isSaving}>
+                <Button startIcon={<RefreshIcon />} onClick={() => void refreshInventory()} disabled={isLoading || isSaving}>
                   Refresh
                 </Button>
               </span>

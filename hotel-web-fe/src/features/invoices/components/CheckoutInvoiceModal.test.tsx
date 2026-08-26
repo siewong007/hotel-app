@@ -71,6 +71,7 @@ vi.mock('../hooks/useCheckoutInvoiceData', () => ({
 vi.mock('./CheckoutInvoicePrintView', () => ({ default: () => null }));
 
 import CheckoutInvoiceModal from './CheckoutInvoiceModal';
+import { ConfirmProvider } from '../../../components/common/ConfirmProvider';
 
 const booking: BookingWithDetails = {
   id: '42',
@@ -110,8 +111,11 @@ function renderModal(ledgerView = false) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // ConfirmProvider: the modal calls useConfirm() for its delete/revert prompts.
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <ConfirmProvider>{children}</ConfirmProvider>
+    </QueryClientProvider>
   );
   render(
     <CheckoutInvoiceModal
