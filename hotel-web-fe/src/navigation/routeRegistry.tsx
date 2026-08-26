@@ -88,6 +88,7 @@ const SupportManagementPage = lazyRoute(() => import('../features/support'));
 const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPage'));
 const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
+const NotificationsPage = lazyRoute(() => import('../features/notifications/pages/NotificationsPage'));
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
@@ -363,6 +364,19 @@ const routeDefinitions: AppRouteDefinition[] = [
     navLabel: 'Communications',
     navGroup: 'admin',
     accessControlled: true,
+  },
+  {
+    id: 'notifications',
+    path: '/notifications',
+    component: NotificationsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    breadcrumbLabel: 'Notifications',
+    navLabel: 'Notifications',
+    navGroup: 'admin',
+    // Page-level RBAC is enforced by the feed endpoint (communications:read);
+    // staff without it see a friendly empty state instead of nav silence.
+    accessControlled: false,
   },
   {
     id: 'data-transfer',
