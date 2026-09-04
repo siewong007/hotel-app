@@ -8,6 +8,7 @@ pub mod auth;
 pub mod auto_checkin;
 pub mod booking;
 pub mod booking_channels;
+pub mod booking_emails;
 pub mod bookings;
 pub mod companies;
 pub mod data_transfer;
