@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the configured ky instance so no real HTTP happens.
 const get = vi.fn();
+const post = vi.fn();
 vi.mock('./client', async () => {
   const actual = await vi.importActual<typeof import('./client')>('./client');
   return {
     ...actual,
-    api: { get: (...args: any[]) => get(...args) },
+    api: {
+      get: (...args: any[]) => get(...args),
+      post: (...args: any[]) => post(...args),
+    },
   };
 });
 
@@ -114,5 +118,40 @@ describe('BookingsService.getBookingsPage month_search filter', () => {
     await BookingsService.getBookingsPage({ month_search: '' });
 
     expect(lastSearchParams()).not.toHaveProperty('month_search');
+  });
+});
+
+describe('BookingsService.releaseBooking', () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  it('posts the reason to the booking-scoped release endpoint', async () => {
+    post.mockReturnValue({
+      json: () => Promise.resolve({ message: 'Room released.', booking_id: 42 }),
+    });
+
+    const result = await BookingsService.releaseBooking(42, 'No payment after 7 days');
+
+    expect(post).toHaveBeenCalledWith('bookings/42/release', {
+      json: { reason: 'No payment after 7 days' },
+    });
+    expect(result).toMatchObject({ booking_id: 42 });
+  });
+
+  it('surfaces the server message from a rejected release', async () => {
+    const { HTTPError } = await import('ky');
+    const response = new Response('{}', { status: 409 });
+    const error = new HTTPError(response, new Request('http://x/'), {} as any);
+    // ky 2 has already consumed the body into `data`; reading `response.json()`
+    // again here would throw and lose the message (see lessons, theme 13).
+    (error as unknown as { data: unknown }).data = {
+      error: 'Payments have been recorded against this booking.',
+    };
+    post.mockReturnValue({ json: () => Promise.reject(error) });
+
+    await expect(BookingsService.releaseBooking(42, 'stale hold')).rejects.toThrow(
+      'Payments have been recorded against this booking.',
+    );
   });
 });

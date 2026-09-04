@@ -9,9 +9,9 @@ use axum::{
 
 use super::availability::{AvailabilityHub, serve_socket};
 use super::models::{
-    BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest, GuestBookingConfirmation,
-    GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions, OnlineInventoryAllocation,
-    OnlineInventoryQuery, UpdateOnlineInventoryRequest,
+    AnonymousBookingRequest, BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest,
+    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions,
+    OnlineInventoryAllocation, OnlineInventoryQuery, UpdateOnlineInventoryRequest,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -41,6 +41,27 @@ async fn require_read_capacity(limiters: &RateLimiters, guest_id: i64) -> Result
     }
 }
 
+/// Bound an unauthenticated booking request by origin IP.
+///
+/// The authenticated endpoints key their budget on the guest id. Anonymous
+/// callers have no account and no token, so the IP is the only identity there
+/// is to throttle.
+async fn require_public_capacity(
+    limiter: &crate::core::rate_limiter::RateLimiter,
+    ip: std::net::IpAddr,
+    what: &str,
+) -> Result<(), ApiError> {
+    let (allowed, retry_after) = limiter.check_with_retry(ip).await;
+    if allowed {
+        Ok(())
+    } else {
+        Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many {what} from this connection. Please try again in {retry_after} seconds."),
+            retry_after,
+        ))
+    }
+}
+
 pub async fn search_handler(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
@@ -49,7 +70,73 @@ pub async fn search_handler(
 ) -> Result<Json<Vec<GuestBookingOffer>>, ApiError> {
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
     require_read_capacity(&limiters, guest_id).await?;
-    Ok(Json(service::search(&pool, guest_id, query).await?))
+    Ok(Json(service::search(&pool, Some(guest_id), query).await?))
+}
+
+/// `GET /booking/offers` — room types and prices for a stay, no account needed.
+///
+/// Quoted with no guest, so list prices only: no vouchers and no
+/// complimentary-night credits, which belong to an account.
+pub async fn public_search_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Query(query): Query<BookingSearchQuery>,
+) -> Result<Json<Vec<GuestBookingOffer>>, ApiError> {
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    require_public_capacity(&limiters.public_booking_read_ip, ip, "booking searches").await?;
+    Ok(Json(service::search(&pool, None, query).await?))
+}
+
+/// `POST /booking/quote` — price one room type, no account needed.
+pub async fn public_quote_handler(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<BookingQuoteRequest>,
+) -> Result<Json<GuestBookingQuote>, ApiError> {
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    require_public_capacity(&limiters.public_booking_read_ip, ip, "booking quotes").await?;
+    // Discounts belong to an account. Drop anything the caller asked for rather
+    // than letting `quote` reject the request: the public page has no way to
+    // offer these, so a value here is a crafted body, not a user mistake.
+    Ok(Json(
+        service::quote(
+            &pool,
+            None,
+            BookingQuoteRequest {
+                voucher_id: None,
+                complimentary_dates: None,
+                ..request
+            },
+        )
+        .await?,
+    ))
+}
+
+/// `POST /booking/reservations` — create a booking without an account.
+pub async fn public_create_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<AvailabilityHub>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<AnonymousBookingRequest>,
+) -> Result<Json<GuestBookingConfirmation>, ApiError> {
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr);
+    require_public_capacity(&limiters.public_booking_create_ip, ip, "booking attempts").await?;
+    Ok(Json(
+        service::create_anonymous(
+            &pool,
+            &hub,
+            request,
+            Some(ip.to_string()),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 pub async fn quote_handler(
@@ -60,7 +147,7 @@ pub async fn quote_handler(
 ) -> Result<Json<GuestBookingQuote>, ApiError> {
     let guest_id = guest_portal::require_guest_session(&headers, &pool).await?;
     require_read_capacity(&limiters, guest_id).await?;
-    Ok(Json(service::quote(&pool, guest_id, request).await?))
+    Ok(Json(service::quote(&pool, Some(guest_id), request).await?))
 }
 
 pub async fn quote_with_eligible_vouchers_handler(

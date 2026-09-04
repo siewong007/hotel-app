@@ -128,6 +128,41 @@ pub struct GuestBookingVoucherOptions {
     pub eligible_voucher_ids: Vec<i64>,
 }
 
+/// Contact details an anonymous booker supplies inline, standing in for the
+/// account a signed-in booking would read them from.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnonymousGuestDetails {
+    pub first_name: String,
+    pub last_name: Option<String>,
+    /// Required, unlike a front-desk booking: it is the only way to send the
+    /// confirmation and the only factor (with the booking number) that lets the
+    /// guest retrieve the booking again.
+    pub email: String,
+    pub phone: Option<String>,
+    /// `local` or `foreign`. Never defaulted anywhere in the booking path —
+    /// it decides whether tourism tax applies, so a silent default is a money
+    /// error rather than a convenience.
+    pub tourism_type: String,
+}
+
+/// A booking created without an account.
+///
+/// Deliberately has no `voucher_id` and no `complimentary_dates`: discounts and
+/// rewards belong to an account, and an anonymous booking pays list price.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnonymousBookingRequest {
+    pub client_request_id: String,
+    pub room_type_id: i64,
+    pub check_in_date: String,
+    pub check_out_date: String,
+    pub adults: Option<i32>,
+    pub children: Option<i32>,
+    pub expected_total: Decimal,
+    pub special_requests: Option<String>,
+    pub cleaning_preference: Option<bool>,
+    pub guest: AnonymousGuestDetails,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct GuestBookingConfirmation {
     pub booking_id: i64,
@@ -143,6 +178,13 @@ pub struct GuestBookingConfirmation {
     pub tax_amount: Decimal,
     pub total_amount: Decimal,
     pub created_at: DateTime<Utc>,
+    /// Booking-scoped access token, returned only for an anonymous booking so
+    /// the guest can pay and track this one booking with no account. A
+    /// session-authenticated booking authenticates by session and gets `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_token_expires_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone)]

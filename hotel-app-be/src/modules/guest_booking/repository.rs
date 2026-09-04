@@ -8,6 +8,7 @@ use super::models::{
     BookingInsert, GuestBookingConfirmation, GuestContact, OnlineInventoryAllocation,
     RoomTypeInventory, VoucherPricing,
 };
+use super::validation::ValidatedAnonymousGuest;
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers::{get_decimal, get_opt_decimal};
@@ -64,6 +65,8 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
         tax_amount: get_decimal(row, "tax_amount"),
         total_amount: get_decimal(row, "total_amount"),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+        access_token: None,
+        access_token_expires_at: None,
     }
 }
 
@@ -764,5 +767,131 @@ impl GuestBookingRepository {
             .find(|room_type| room_type.id == room_type_id)
             .map(|room_type| room_type.available_rooms)
             .unwrap_or(0))
+    }
+
+    /// Replay lookup for an anonymous booking.
+    ///
+    /// The authenticated path keys idempotency on `(guest_id, portal_request_id)`,
+    /// but an anonymous booking mints a fresh profile every time, so there is no
+    /// stable guest id to key on. Matching the client request id together with
+    /// the email that created the booking keeps a retry idempotent without
+    /// letting a guessed request id read somebody else's confirmation.
+    pub async fn find_anonymous_by_request_id(
+        pool: &DbPool,
+        request_id: &str,
+        email: &str,
+    ) -> Result<Option<GuestBookingConfirmation>, ApiError> {
+        let row = sqlx::query(
+            r#"
+                SELECT b.id, b.booking_number, rt.name AS room_type_name,
+                       b.check_in_date, b.check_out_date, b.status, b.payment_status,
+                       b.currency, b.subtotal::text AS subtotal,
+                       b.discount_amount::text AS discount_amount,
+                       b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
+                       b.created_at
+                FROM bookings b
+                JOIN rooms r ON r.id = b.room_id
+                JOIN room_types rt ON rt.id = r.room_type_id
+                JOIN guests g ON g.id = b.guest_id
+                WHERE b.portal_request_id = $1
+                  AND LOWER(TRIM(g.email)) = LOWER(TRIM($2))
+                  AND g.deleted_at IS NULL
+            "#,
+        )
+        .bind(request_id)
+        .bind(email)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(row.as_ref().map(confirmation_from_row))
+    }
+
+    /// The first free `full_name` at or after `base`, disambiguated as
+    /// `"Name (2)"`, `"Name (3)"` and so on.
+    ///
+    /// `idx_guests_full_name_unique` is UNIQUE on `lower(trim(full_name))` where
+    /// `deleted_at IS NULL`. An anonymous booking always inserts a new profile
+    /// rather than reusing one it cannot prove belongs to the booker, so common
+    /// names collide routinely and need a suffix staff can still read.
+    pub async fn available_full_name(pool: &DbPool, base: &str) -> Result<String, ApiError> {
+        for attempt in 1..=50 {
+            let candidate = if attempt == 1 {
+                base.to_string()
+            } else {
+                format!("{base} ({attempt})")
+            };
+            let existing: Option<i64> = sqlx::query_scalar(
+                r#"
+                    SELECT id FROM guests
+                    WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL
+                    LIMIT 1
+                "#,
+            )
+            .bind(&candidate)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+            if existing.is_none() {
+                return Ok(candidate);
+            }
+        }
+        Err(ApiError::Conflict(
+            "Too many guest profiles share this name. Please contact the hotel to book."
+                .to_string(),
+        ))
+    }
+
+    /// Create a profile for a booker who has no account.
+    ///
+    /// `created_by` is left NULL: nobody on staff created this row. `guest_type`
+    /// keeps its `non_member` default, which is what withholds member pricing
+    /// from an anonymous booking.
+    pub async fn insert_anonymous_guest_tx(
+        tx: &mut DbTransaction<'_>,
+        full_name: &str,
+        details: &ValidatedAnonymousGuest,
+    ) -> Result<i64, ApiError> {
+        sqlx::query_scalar(
+            r#"
+                INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type)
+                VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type)
+                RETURNING id
+            "#,
+        )
+        .bind(full_name)
+        .bind(details.first_name.as_str())
+        .bind(details.last_name.as_deref())
+        .bind(details.email.as_str())
+        .bind(details.phone.as_deref())
+        .bind(details.tourism_type.as_str())
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// Attach a booking-scoped access token so an anonymous booker can pay and
+    /// track this one booking. Writes the same `pre_checkin_token` columns the
+    /// `/guest-portal/booking/{token}/*` routes already read, so no new
+    /// token surface is introduced.
+    pub async fn issue_access_token_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+        token: &str,
+        expires_at: chrono::DateTime<Utc>,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            r#"
+                UPDATE bookings
+                SET pre_checkin_token = $1, pre_checkin_token_expires_at = $2
+                WHERE id = $3
+            "#,
+        )
+        .bind(token)
+        .bind(expires_at)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(())
     }
 }

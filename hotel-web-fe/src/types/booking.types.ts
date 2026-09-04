@@ -240,6 +240,13 @@ export interface BookingVoidResponse {
   night_audit_rerun_required?: boolean;
 }
 
+/** Result of releasing the room held by an unpaid booking. */
+export interface BookingReleaseResponse extends BookingVoidResponse {
+  /** The reason recorded in booking history and the audit log. Required. */
+  reason?: string;
+  complimentary_nights_restored?: number;
+}
+
 export interface CheckInPaymentRecord {
   amount: number;
   payment_method: string;

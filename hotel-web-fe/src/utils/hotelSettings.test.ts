@@ -138,6 +138,36 @@ describe('getHotelSettings / saveHotelSettings', () => {
     expect(settings.deposit_amount).toBe(50); // untouched default
   });
 
+  it('coerces a stored unpaid-hold window and rejects nonsense', () => {
+    localStorage.setItem(
+      'hotelSettings',
+      JSON.stringify({ unpaid_hold_release_hours: '48' })
+    );
+    expect(getHotelSettings().unpaid_hold_release_hours).toBe(48);
+
+    // Unusable values fall back to the shipped default (24h), never to the
+    // stored nonsense.
+    localStorage.setItem(
+      'hotelSettings',
+      JSON.stringify({ unpaid_hold_release_hours: 'soon' })
+    );
+    expect(getHotelSettings().unpaid_hold_release_hours).toBe(24);
+
+    // A negative window must never become a live one.
+    localStorage.setItem(
+      'hotelSettings',
+      JSON.stringify({ unpaid_hold_release_hours: -12 })
+    );
+    expect(getHotelSettings().unpaid_hold_release_hours).toBe(0);
+
+    // 0 is a real value — the hotel switching the sweep off — and must survive.
+    localStorage.setItem(
+      'hotelSettings',
+      JSON.stringify({ unpaid_hold_release_hours: 0 })
+    );
+    expect(getHotelSettings().unpaid_hold_release_hours).toBe(0);
+  });
+
   it('coerces numeric fields that localStorage may have stored as strings', () => {
     localStorage.setItem(
       'hotelSettings',

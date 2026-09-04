@@ -51,6 +51,7 @@ export type {
   BookingEditFormData,
   BookingCancellationRequest,
   BookingVoidResponse,
+  BookingReleaseResponse,
   BookingTimelineEntry,
   CheckInRequest,
   CheckInAdvisory,

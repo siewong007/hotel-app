@@ -10,6 +10,16 @@ use crate::core::db::DbPool;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
+        // Public booking: no account, no token. Priced at list rates — an
+        // anonymous booking never carries a voucher, complimentary-night
+        // credits or loyalty, all of which belong to an account. Each is rate
+        // limited by origin IP inside the handler, the only identity available.
+        .route("/booking/offers", get(handlers::public_search_handler))
+        .route("/booking/quote", post(handlers::public_quote_handler))
+        .route(
+            "/booking/reservations",
+            post(handlers::public_create_booking_handler),
+        )
         .route(
             "/guest-portal/me/booking-options",
             get(handlers::search_handler),

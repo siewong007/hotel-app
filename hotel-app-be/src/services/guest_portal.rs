@@ -22,7 +22,7 @@ use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
 
 /// Generate a 256-bit random token as a hex string.
-fn generate_session_token() -> String {
+pub(crate) fn generate_session_token() -> String {
     let mut rng = rand::rng();
     let token_bytes: [u8; 32] = rng.random();
     hex::encode(token_bytes)
