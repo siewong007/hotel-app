@@ -1207,6 +1207,14 @@ pub async fn create_booking_handler(
     )
     .await;
 
+    // Staff-created bookings are inserted as `confirmed`, so this is the
+    // booking-confirmed trigger for the front-desk path. Best-effort and
+    // post-commit: a mail failure must not fail the booking creation.
+    if booking.status == "confirmed" {
+        crate::services::booking_emails::try_queue_booking_confirmation_email(&pool, booking.id)
+            .await;
+    }
+
     Ok(Json(booking))
 }
 
@@ -1983,6 +1991,18 @@ pub async fn update_booking_handler(
                     .bind(new_room_id)
                     .execute(&pool)
                     .await;
+            }
+            "confirmed" => {
+                // The booking-confirmed trigger for staff edits (e.g. a
+                // pending_confirmation reservation being accepted). The payment
+                // paths confirm the booking too, but they send their own
+                // payment-confirmation mail instead, so this arm is not reached
+                // from there. Keyed on the booking id, so a booking that leaves
+                // and re-enters `confirmed` still mails the guest only once.
+                crate::services::booking_emails::try_queue_booking_confirmation_email(
+                    &pool, booking_id,
+                )
+                .await;
             }
             _ => {}
         }

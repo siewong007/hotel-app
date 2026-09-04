@@ -31,14 +31,20 @@ pub(crate) fn normalized_idempotency_key(value: &str) -> Result<&str, ApiError> 
     Ok(key)
 }
 
+/// Returns whether this booking is covered by the room-assignment
+/// notification — i.e. whether the guest is being told, by this mail, that
+/// their payment is confirmed. Callers that would otherwise send their own
+/// payment-confirmation mail use it to suppress the duplicate. `false` means
+/// the booking was not eligible (not a portal booking, not fully paid, no
+/// guest email, or not an online payment method), so nothing was queued.
 pub async fn queue_paid_online_booking_room_assignment(
     pool: &DbPool,
     booking_id: i64,
-) -> Result<(), ApiError> {
+) -> Result<bool, ApiError> {
     let Some(assignment) =
         PaymentRepository::paid_online_booking_room_assignment(pool, booking_id).await?
     else {
-        return Ok(());
+        return Ok(false);
     };
 
     let subject = format!(
@@ -87,16 +93,23 @@ pub async fn queue_paid_online_booking_room_assignment(
     )
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
-    Ok(())
+    Ok(true)
 }
 
-async fn try_queue_paid_online_booking_room_assignment(pool: &DbPool, booking_id: i64) {
-    if let Err(error) = queue_paid_online_booking_room_assignment(pool, booking_id).await {
-        log::error!(
-            "Failed to queue room assignment notification for booking {}: {}",
-            booking_id,
-            error
-        );
+/// Best-effort wrapper. `false` on failure as well as on ineligibility: no
+/// mail reached the guest either way, so a caller suppressing its own mail on
+/// this signal still sends one.
+async fn try_queue_paid_online_booking_room_assignment(pool: &DbPool, booking_id: i64) -> bool {
+    match queue_paid_online_booking_room_assignment(pool, booking_id).await {
+        Ok(queued) => queued,
+        Err(error) => {
+            log::error!(
+                "Failed to queue room assignment notification for booking {}: {}",
+                booking_id,
+                error
+            );
+            false
+        }
     }
 }
 
@@ -334,10 +347,12 @@ pub async fn record_payment(
 
     recompute_payment_status_tx(&mut tx, request.booking_id).await?;
 
+    let mut confirmed_by_this_payment = false;
     if payment_type == "booking" && settles_balance_in_full {
         let confirmed =
             crate::repositories::bookings::confirm_booking_tx(&mut tx, request.booking_id).await?;
         if confirmed {
+            confirmed_by_this_payment = true;
             crate::repositories::bookings::record_booking_history_tx(
                 &mut tx,
                 request.booking_id,
@@ -354,7 +369,24 @@ pub async fn record_payment(
     let booking_id = row.booking_id;
     let payment_id = row.id;
     tx.commit().await.map_err(ApiError::from)?;
-    try_queue_paid_online_booking_room_assignment(pool, booking_id).await;
+    let room_assignment_notified =
+        try_queue_paid_online_booking_room_assignment(pool, booking_id).await;
+
+    // Front-desk counterpart of the staff approval path: a recorded payment
+    // that settles the balance confirms the booking, so tell the guest.
+    //
+    // Two gates. `confirmed_by_this_payment` keeps an instalment from mailing a
+    // "payment confirmed" notice for a booking that is still pending — only the
+    // payment that actually flips the booking to `confirmed` mails.
+    // `room_assignment_notified` suppresses the duplicate for a portal booking
+    // paid by card/DuitNow/online banking, where the room-assignment mail
+    // queued just above already opens with "Your online payment is confirmed".
+    if confirmed_by_this_payment && !room_assignment_notified {
+        crate::services::booking_emails::try_queue_payment_confirmation_email(
+            pool, booking_id, payment_id,
+        )
+        .await;
+    }
 
     if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
         pool,
@@ -1659,14 +1691,29 @@ pub async fn approve_payment(
         ));
     }
 
-    complete_and_confirm(
+    let response = complete_and_confirm(
         pool,
         payment_id,
         review.booking_id,
         Some(actor_user_id),
         "payment_approved",
     )
-    .await
+    .await?;
+
+    // Guest-facing confirmation that staff accepted the payment and the
+    // booking is confirmed. Best-effort and post-commit: a mail failure must
+    // not undo an approval that has already been committed. The online
+    // card/DuitNow paths keep their own room-assignment mail
+    // (`queue_paid_online_booking_room_assignment`), which this staff-review
+    // path never reaches.
+    crate::services::booking_emails::try_queue_payment_confirmation_email(
+        pool,
+        review.booking_id,
+        payment_id,
+    )
+    .await;
+
+    Ok(response)
 }
 
 /// Staff action: request proof for an unresolved bank-transfer claim without

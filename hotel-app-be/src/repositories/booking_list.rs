@@ -85,6 +85,7 @@ pub fn build_booking_list_query(
               OR ('room ' || r.room_number) {like_op} {p} \
               OR ('rm ' || r.room_number) {like_op} {p} \
               OR EXISTS (SELECT 1 FROM invoices inv WHERE inv.booking_id = b.id AND inv.invoice_number {like_op} {p}) \
+              OR EXISTS (SELECT 1 FROM booking_channels bc WHERE bc.id = b.booking_channel_id AND bc.name {like_op} {p}) \
               OR EXISTS ( \
                   SELECT 1 FROM customer_ledgers cl \
                   WHERE cl.booking_id = b.id \
@@ -175,14 +176,26 @@ pub fn build_booking_list_query(
         }
     }
 
-    // Online booking channel: the channel name is stored as a prefix in the
-    // booking's free-text remarks (e.g. "Booking.com - Ref: ABC123") and/or the
-    // `source` column, mirroring how the frontend derives the "booked via" label.
+    // Online booking channel. Three places carry the channel, and a booking may
+    // only have one of them:
+    //
+    // * `bookings.booking_channel_id` — the structured link, set by the guest
+    //   web-booking module and by the staff edit form's Channel select;
+    // * `bookings.remarks` — the channel name as a free-text prefix
+    //   (e.g. "Booking.com - Ref: ABC123");
+    // * `bookings.source` — a coarse token ('website', 'walk_in', 'online').
+    //
+    // Matching `source`/`remarks` alone made every web booking unfindable:
+    // guest_booking writes `source = 'website'` plus the "Direct Website"
+    // channel id, and no ILIKE of the channel's own name ("Direct Website")
+    // matches the token 'website'. The EXISTS resolves the id to its name so
+    // the filter agrees with the channel label the list actually displays.
     if let Some(oc) = online_channel {
         param_idx += 1;
         let p = param_placeholder(param_idx);
         conditions.push(format!(
-            "(b.source {like_op} {p} OR b.remarks {like_op} {p})"
+            "(b.source {like_op} {p} OR b.remarks {like_op} {p} \
+              OR EXISTS (SELECT 1 FROM booking_channels bc WHERE bc.id = b.booking_channel_id AND bc.name {like_op} {p}))"
         ));
         binds.online_channel = Some(format!("%{}%", oc.trim()));
     }
@@ -548,18 +561,41 @@ mod tests {
     }
 
     #[test]
-    fn online_channel_filter_matches_source_or_remarks() {
+    fn online_channel_filter_matches_source_remarks_or_linked_channel() {
         let mut params = params();
         params.online_channel = Some("  Booking.com  ".to_string());
 
         let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
         let p = param_placeholder(1);
 
+        let like = like_operator();
+        assert!(
+            query
+                .count_sql
+                .contains(&format!("(b.source {like} {p} OR b.remarks {like} {p}"))
+        );
+        // A booking whose channel is only recorded as `booking_channel_id`
+        // (every guest web booking) must still match by channel name.
         assert!(query.count_sql.contains(&format!(
-            "(b.source {like} {p} OR b.remarks {like} {p})",
-            like = like_operator()
+            "EXISTS (SELECT 1 FROM booking_channels bc WHERE bc.id = b.booking_channel_id AND bc.name {like} {p})"
         )));
         assert_eq!(query.binds.online_channel.as_deref(), Some("%Booking.com%"));
+    }
+
+    #[test]
+    fn text_search_matches_booking_channel_name() {
+        let mut params = params();
+        params.search = Some("Direct Website".to_string());
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+        let p = param_placeholder(1);
+
+        assert!(query.count_sql.contains(&format!(
+            "EXISTS (SELECT 1 FROM booking_channels bc WHERE bc.id = b.booking_channel_id AND bc.name {} {})",
+            like_operator(),
+            p
+        )));
+        assert_eq!(query.binds.search.as_deref(), Some("%Direct Website%"));
     }
 
     #[test]
