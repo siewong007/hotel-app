@@ -65,6 +65,15 @@ vi.mock('../../features/notifications/hooks/useDeliveryFeed', () => ({
   },
 }));
 
+// The compat Link needs router context; stub it as a plain anchor.
+vi.mock('../../router/compat', () => ({
+  Link: ({ to, children, ...rest }: { to: string; children?: React.ReactNode }) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock('../../utils/notificationStore', () => ({
   useNotifications: () => ({ items: [], unreadCount: 0 }),
   markAllRead: vi.fn(),
@@ -87,6 +96,10 @@ describe('NotificationCenter', () => {
 
     const bell = screen.getByLabelText('Notifications (3 unread)');
     expect(bell).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Notifications/ }));
+    const viewAll = screen.getByLabelText('View all notifications');
+    expect(viewAll.getAttribute('href')).toBe('/notifications');
   });
 
   it('falls back to in-app alerts count without communications:read', () => {

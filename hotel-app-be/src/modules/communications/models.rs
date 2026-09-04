@@ -107,6 +107,7 @@ pub struct DeliverySummary {
     pub kind: String,
     pub guest_id: i64,
     pub topic: String,
+    pub subject: String,
     pub recipient_masked: String,
     pub status: String,
     pub attempts: i32,

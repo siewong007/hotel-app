@@ -77,6 +77,12 @@ validation of params).
 - FE (Vitest, Style-A mocks): badge shows unread, tab switch changes query
   key/filters, empty state renders, page pagination wiring.
 
+## Implementation deviations (recorded)
+
+- Nav entry uses `accessControlled: false` + `visibility: 'auth'`: avoids
+  seed.sql route-policy surgery while the feed endpoint still enforces
+  `communications:read` (unauthorized staff see a friendly empty page).
+
 ## Out of scope
 
 Staff-operational alerts, push/real-time updates, per-user read-state, SMS,

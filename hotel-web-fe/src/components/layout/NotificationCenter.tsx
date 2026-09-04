@@ -24,6 +24,7 @@ import {
   useNotifications,
 } from '../../utils/notificationStore';
 import { useAuth } from '../../auth/AuthContext';
+import { Link } from '../../router/compat';
 import { useDeliveryFeed } from '../../features/notifications/hooks/useDeliveryFeed';
 import { DeliveryTabs, TIER_TAB_LABELS } from '../../features/notifications/components/DeliveryTabs';
 import type { TierFilter } from '../../features/notifications/types';
@@ -131,11 +132,25 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg =
           }}
         >
           <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>Notifications</Typography>
-          {items.length > 0 && (
-            <Button size="small" onClick={() => clearAll(userId)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
-              Clear all
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {items.length > 0 && (
+              <Button size="small" onClick={() => clearAll(userId)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
+                Clear all
+              </Button>
+            )}
+            {canReadFeed && (
+              <Button
+                size="small"
+                component={Link}
+                to="/notifications"
+                onClick={handleClose}
+                sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+                aria-label="View all notifications"
+              >
+                View all
+              </Button>
+            )}
+          </Box>
         </Box>
 
         {canReadFeed && (
