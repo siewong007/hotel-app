@@ -40,3 +40,8 @@ df6f815e5b3bf9d41072dc71b7ed9d3172726ac0:infra/terraform/oci/environments/dev/te
 # Value is a placeholder replaced by a low-entropy constant in a later commit;
 # the pushed commit cannot be rewritten, so pin its fingerprint.
 0f1ce5a2adf06e25a06824f01735b04467694125:hotel-app-be/tests/pre_arrival_reminder.rs:generic-api-key:33
+# d5e707cc planning-doc code sample: dummy JWT_SECRET placeholder
+# ('drift-test-secret-0123456789abcdef0123'), shown beside an equally fake
+# postgres://drift:nopass@127.0.0.1:1/drift DSN. Not a credential; it exists
+# only in that doc. The commit is pushed and cannot be rewritten, so pin it.
+d5e707cc5d4b03bdbef5735cac01e393095faeb1:docs/superpowers/plans/2026-08-25-quality-enhancement-phase2.md:generic-api-key:72
