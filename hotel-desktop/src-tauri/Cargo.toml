@@ -34,7 +34,7 @@ thiserror = "1.0"
 lazy_static = "1.4"
 hex = "0.4"
 rand = "0.8"
-bcrypt = "0.17"
+bcrypt = "0.19"
 sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
