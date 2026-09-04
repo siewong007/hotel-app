@@ -53,6 +53,25 @@ directory aside so the new cluster comes up empty. **Do not skip it.**
 | Mount point | `/var/lib/postgresql` | PG19 versioned layout |
 | App directory | `/opt/saliminn` | `deploy.sh:15` |
 | Backups | `/opt/saliminn/backups` | `deploy.sh:22` |
+| Secrets | `/opt/saliminn/secrets.env` | `deploy.sh:18` |
+
+### Every compose command below needs the secrets sourced
+
+`deploy/docker-compose.prod.yml` declares `${POSTGRES_PASSWORD:?...}`, and `deploy.sh`
+supplies it with `set -a; source "$SECRETS_FILE"` (`deploy.sh:161-164`) before invoking
+compose. The file is named `secrets.env`, **not** `.env`, so compose does not pick it up on
+its own. A bare `sudo docker compose ...` therefore aborts with
+`POSTGRES_PASSWORD is required` — including at step 10, *after* the volume is gone.
+
+Use this wrapper for every compose invocation in this runbook:
+
+```bash
+dc() {
+  sudo bash -c 'set -a; source /opt/saliminn/secrets.env; set +a
+    docker compose --project-name saliminn \
+      -f /opt/saliminn/docker-compose.prod.yml "$@"' _ "$@"
+}
+```
 
 The failed deploy already wrote a verified custom-format dump before it touched anything
 (`/opt/saliminn/backups/predeploy-*.dump`, checked with `pg_restore --list`). Step 3 takes
@@ -93,12 +112,15 @@ Same flags the nightly job uses, so the artifact is interchangeable with existin
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 DUMP=/opt/saliminn/backups/cutover-$TS.dump
 
-sudo docker exec saliminn-db \
+# /opt/saliminn/backups is root-owned mode 0700 (deploy.sh:377). A shell redirection
+# runs as *you*, not under sudo, so `sudo docker exec ... > "$DUMP"` fails with
+# permission denied. Redirect inside the elevated shell instead.
+sudo bash -c "docker exec saliminn-db \
   pg_dump --format=custom --no-owner --no-acl \
-          -U hotel_admin hotel_management > "$DUMP"
+          -U hotel_admin hotel_management > '$DUMP'"
 
-sudo docker exec -i saliminn-db pg_restore --list < "$DUMP" > /dev/null && echo "DUMP OK"
-ls -lh "$DUMP"
+sudo bash -c "docker exec -i saliminn-db pg_restore --list < '$DUMP'" > /dev/null && echo "DUMP OK"
+sudo ls -lh "$DUMP"
 ```
 
 Expect `DUMP OK` and a non-trivial file size. If `pg_restore --list` fails, stop — a dump
@@ -110,9 +132,10 @@ This is what proves the restore was complete, rather than merely successful.
 
 ```bash
 sudo docker exec saliminn-db psql -U hotel_admin -d hotel_management -Atc "
-  SELECT relname, n_live_tup
+  SELECT relname || '=' || (xpath('/row/c/text()',
+           query_to_xml(format('select count(*) as c from %I.%I', schemaname, relname),
+                        false, true, '')))[1]::text
   FROM pg_stat_user_tables
-  WHERE n_live_tup > 0
   ORDER BY relname;" | tee /tmp/rowcounts-before.txt
 ```
 
@@ -137,7 +160,7 @@ Downtime begins here. The site returns 502 through Caddy until phase 4 completes
 
 ```bash
 cd /opt/saliminn
-sudo docker compose --project-name saliminn -f docker-compose.prod.yml down
+dc down
 ```
 
 Plain `down` with **no `-v`**. The volume must survive this step — it is your physical
@@ -192,7 +215,7 @@ Database only — the backend must not connect to an empty schema.
 
 ```bash
 cd /opt/saliminn
-sudo docker compose --project-name saliminn -f docker-compose.prod.yml up -d postgres
+dc up -d postgres
 
 sleep 15
 sudo docker logs saliminn-db --tail 30
@@ -209,9 +232,10 @@ did not take effect — stop, tear down, and redo it.
 ### 11. Restore the dump
 
 ```bash
-sudo docker exec -i saliminn-db \
+# $DUMP is set in step 3; re-export it if you reconnected since.
+sudo bash -c "docker exec -i saliminn-db \
   pg_restore --no-owner --no-acl --exit-on-error \
-             -U hotel_admin -d hotel_management < "$DUMP"
+             -U hotel_admin -d hotel_management < '$DUMP'"
 
 echo "RESTORE EXIT=$?"
 ```
@@ -226,16 +250,18 @@ This is the step that actually proves the migration. Do not shorten it.
 
 ```bash
 sudo docker exec saliminn-db psql -U hotel_admin -d hotel_management -Atc "
-  SELECT relname, n_live_tup
+  SELECT relname || '=' || (xpath('/row/c/text()',
+           query_to_xml(format('select count(*) as c from %I.%I', schemaname, relname),
+                        false, true, '')))[1]::text
   FROM pg_stat_user_tables
-  WHERE n_live_tup > 0
   ORDER BY relname;" > /tmp/rowcounts-after.txt
 
 diff /tmp/rowcounts-before.txt /tmp/rowcounts-after.txt && echo "ROW COUNTS MATCH"
 ```
 
-Statistics can lag — if a table looks short, run `ANALYZE;` and re-check before concluding
-anything. A real shortfall means roll back rather than debug in place.
+These are exact `count(*)` values per table, not `n_live_tup` estimates, so no `ANALYZE`
+step is needed and a diff is meaningful on its own. A real shortfall means roll back rather
+than debug in place.
 
 ### 13. Spot-check money and sequences
 
@@ -272,8 +298,8 @@ They stay inert — the volume is no longer empty.
 
 ```bash
 cd /opt/saliminn
-sudo docker compose --project-name saliminn -f docker-compose.prod.yml up -d
-sudo docker compose --project-name saliminn -f docker-compose.prod.yml ps
+dc up -d
+dc ps
 ```
 
 Expect `saliminn-db`, `saliminn-backend` and `saliminn-frontend` all healthy.
@@ -293,9 +319,17 @@ data integrity was steps 12–13. Then log in through the browser and open a boo
 
 Confirms the pipeline is unblocked, not merely that the database is up.
 
+Run `32585519355` is the Aug-22 attempt for `a1fd38e1`; re-running it now is refused by the
+staleness gate (`deploy.yml:48` and the pre-flight in the deploy step both require the CI
+run's sha to still be the tip of master). Re-run the deploy for the **current** master tip
+instead:
+
 ```bash
-gh run rerun 32585519355 --failed
-gh run watch 32585519355
+SHA=$(git ls-remote origin refs/heads/master | awk '{print $1}')
+RUN=$(gh run list --workflow="Deploy production" --limit 20 \
+        --json databaseId,headSha --jq \
+        ".[] | select(.headSha==\"$SHA\") | .databaseId" | head -1)
+gh run rerun "$RUN" --failed && gh run watch "$RUN"
 ```
 
 ### 18. Retire the tarball once confident
@@ -319,7 +353,7 @@ Two independent paths. Both assume the stack is stopped.
 
 ```bash
 cd /opt/saliminn
-sudo docker compose --project-name saliminn -f docker-compose.prod.yml down
+dc down
 sudo docker volume rm saliminn_postgres_data
 sudo docker volume create saliminn_postgres_data
 
@@ -330,7 +364,7 @@ sudo docker run --rm \
 
 # pin the image back to beta2 before starting
 sudo sed -i 's/postgres:19beta3/postgres:19beta2/' /opt/saliminn/docker-compose.prod.yml
-sudo docker compose --project-name saliminn -f docker-compose.prod.yml up -d
+dc up -d
 ```
 
 **Path B — logical, from the dump.** Use if the tarball is unusable: rebuild a beta2
@@ -353,8 +387,21 @@ Two follow-ups this cutover does not cover.
 - **19 GA.** This exact drill repeats when 19 leaves beta. Beta on-disk formats have no
   supported upgrade path to GA, so the dump-and-restore is mandatory then regardless.
 
-## Unverified
+## Rehearsal result (2026-09-04)
 
-This runbook has not been rehearsed against a scratch copy of production. For certainty
-before the real cutover, restore `cutover-*.dump` into a throwaway beta3 container and run
-steps 11–13 against it — that exercises the risky part with no production exposure.
+The mechanism was rehearsed end to end in local Docker against a synthetic cluster built
+from `0001_v1_baseline.sql` + `seed.sql` + patches 0002–0008 — the same initialisation
+production had. It is **not** a rehearsal against production data; row counts here are seed
+volumes, and the local host is arm64 while production is amd64 (catalog versions are
+architecture-independent, and both matched production exactly).
+
+- Reproduced the production failure precisely: beta3 on a beta2 volume gives the identical
+  `CATALOG_VERSION_NO 202607071` -> `202607272` FATAL, container `exited`.
+- Empty `docker-entrypoint-initdb.d` (step 7) left the fresh beta3 cluster at 0 tables, so
+  the restore did not collide.
+- `pg_restore --no-owner --no-acl --exit-on-error` returned 0 with no output.
+- 108/108 tables matched on exact row counts; 71/71 sequences matched `last_value`.
+- Post-restore objects present: 268 functions, 457 indexes, 40 triggers, 13 views.
+
+What this does not cover: production data volume and dump duration, real disk headroom,
+Caddy/502 behaviour during downtime, and the amd64 image.
