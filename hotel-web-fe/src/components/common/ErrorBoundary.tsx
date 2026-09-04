@@ -11,6 +11,11 @@ interface ErrorFallbackProps extends FallbackProps {
 
 function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wrong' }: ErrorFallbackProps) {
   const isDevelopment = import.meta.env.DEV;
+  // react-error-boundary 6 types the thrown value as `unknown` (anything can
+  // be thrown), so narrow it before reading Error fields.
+  const thrownError = error instanceof Error ? error : undefined;
+  const errorMessage = thrownError?.message ?? (typeof error === 'string' ? error : '');
+  const errorStack = thrownError?.stack;
 
   return (
     <Box
@@ -39,10 +44,10 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
 
         <Alert severity="error" sx={{ mt: 2, mb: 3, textAlign: 'left' }}>
           <AlertTitle>Error Details</AlertTitle>
-          {error.message || 'An unexpected error occurred'}
+          {errorMessage || 'An unexpected error occurred'}
         </Alert>
 
-        {isDevelopment && error.stack && (
+        {isDevelopment && errorStack && (
           <Box
             sx={{
               mt: 2,
@@ -55,7 +60,7 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
             }}
           >
             <Typography variant="caption" component="pre" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-              {error.stack}
+              {errorStack}
             </Typography>
           </Box>
         )}

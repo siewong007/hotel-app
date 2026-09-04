@@ -1,5 +1,5 @@
 // Base API client configuration
-import ky from 'ky';
+import ky, { isHTTPError } from 'ky';
 import { storage } from '../utils/storage';
 import { getAccessToken, setAccessToken, clearAccessToken } from '../auth/tokenStore';
 import { apiUrl, getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
@@ -161,7 +161,7 @@ export const api = ky.create({
   // path requested from `/portal/book` becomes `/portal/<service-path>` before
   // the API hook can add `/api`, producing routes such as
   // `/api/portal/guest-portal/...`.
-  prefixUrl: requestOriginPrefix(),
+  prefix: requestOriginPrefix(),
   timeout: 30000, // 30 second timeout
   // Send the HttpOnly refresh cookie on auth requests (same-origin in prod and
   // through the Vite dev proxy). Regular API calls still authenticate via the
@@ -180,7 +180,7 @@ export const api = ky.create({
   },
   hooks: {
     beforeRequest: [
-      async request => {
+      async ({ request }) => {
         const nextUrl = resolveApiRequestUrl(request.url);
         const apiRequest = nextUrl === request.url ? request : await createRequestWithUrl(request, nextUrl);
         // Requests that set their own Authorization header (e.g. the guest
@@ -199,7 +199,7 @@ export const api = ky.create({
       }
     ],
     afterResponse: [
-      async (request, options, response) => {
+      async ({ request, options, response }) => {
         if (response.status === 401) {
           console.error('401 Unauthorized response for:', request.method, request.url);
 
@@ -225,15 +225,17 @@ export const api = ky.create({
       }
     ],
     beforeError: [
-      async error => {
-        const response = error.response;
-        if (!response) return error;
+      async ({ error }) => {
+        if (!isHTTPError(error)) return error;
+        const { response } = error;
 
         if (response.status === 423 && typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('api:resource-locked'));
         }
 
-        const payload = await response.clone().json().catch(() => undefined);
+        // ky 2 pre-consumes the response body into `error.data`, so the
+        // stream is already used and `response.json()` would throw here.
+        const payload = error.data;
         const explicitMessage = getExplicitApiNotificationMessage(payload);
         if (!explicitMessage) return error;
 
