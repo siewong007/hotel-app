@@ -324,6 +324,10 @@ const BookingsPage: React.FC = () => {
 
 
   // Void booking dialog
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [releasingBooking, setReleasingBooking] = useState<BookingWithDetails | null>(null);
+  const [releaseReason, setReleaseReason] = useState('');
+  const [releasing, setReleasing] = useState(false);
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
   const [voidingBooking, setVoidingBooking] = useState<BookingWithDetails | null>(null);
   const [voidReason, setVoidReason] = useState('');
@@ -526,6 +530,37 @@ const BookingsPage: React.FC = () => {
   };
 
 
+
+  const handleReleaseBooking = (booking: BookingWithDetails) => {
+    setReleasingBooking(booking);
+    setReleaseReason('');
+    setReleaseDialogOpen(true);
+  };
+
+  const handleConfirmRelease = async () => {
+    if (!releasingBooking) return;
+    try {
+      setReleasing(true);
+      const result = await BookingsService.releaseBooking(
+        releasingBooking.id,
+        releaseReason.trim(),
+      );
+      const affectedDates = result.affected_night_audit_dates || [];
+      showSnackbar(
+        affectedDates.length > 0
+          ? `Room released. Rerun night audit for ${affectedDates.join(', ')} to refresh reports.`
+          : 'Room released and the booking voided.'
+      );
+      setReleaseDialogOpen(false);
+      setReleasingBooking(null);
+      setReleaseReason('');
+      await reloadBookingData();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'Failed to release booking');
+    } finally {
+      setReleasing(false);
+    }
+  };
 
   const handleVoidBooking = (booking: BookingWithDetails) => {
     setVoidingBooking(booking);
@@ -1010,6 +1045,14 @@ const BookingsPage: React.FC = () => {
 
   const canVoid = (booking: BookingWithDetails) => {
     return booking.status !== 'voided';
+  };
+
+  // Releasing is for a hold that was never paid for. The backend enforces both
+  // halves of this (status and zero collected payments) and is authoritative;
+  // matching it here keeps the button off bookings it would only reject.
+  const canRelease = (booking: BookingWithDetails) => {
+    return booking.status === 'pending_payment' && booking.payment_status !== 'partial'
+      && booking.payment_status !== 'paid';
   };
 
   // Can mark as complimentary only if confirmed/pending (not checked in yet)
@@ -1946,6 +1989,9 @@ const BookingsPage: React.FC = () => {
                     {['checked_out', 'completed'].includes(selectedBooking.status) && (
                       <Button variant="outlined" startIcon={<ReceiptIcon />} onClick={() => handleViewInvoice(selectedBooking)}>Invoice</Button>
                     )}
+                    {canRelease(selectedBooking) && (
+                      <Button variant="outlined" color="warning" startIcon={<VoidIcon />} onClick={() => handleReleaseBooking(selectedBooking)}>Release room</Button>
+                    )}
                     {canVoid(selectedBooking) && (
                       <Button variant="outlined" color="error" startIcon={<VoidIcon />} onClick={() => handleVoidBooking(selectedBooking)}>Void</Button>
                     )}
@@ -2534,6 +2580,44 @@ const BookingsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
       {/* Void Booking Dialog */}
+      {/* Release an unpaid hold. Reason is required — see releaseBooking. */}
+      <Dialog open={releaseDialogOpen} onClose={() => setReleaseDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Release Room</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This booking is still awaiting payment. Releasing puts the room back on sale and voids the booking. Bookings with payments recorded against them must be voided through the refund flow instead.
+          </Alert>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2"><strong>Guest:</strong> {releasingBooking?.guest_name}</Typography>
+            <Typography variant="body2"><strong>Room:</strong> {releasingBooking?.room_type} - Room {releasingBooking?.room_number}</Typography>
+            <Typography variant="body2"><strong>Check-in:</strong> {releasingBooking?.formatted_check_in || releasingBooking?.check_in_date}</Typography>
+            <Typography variant="body2"><strong>Check-out:</strong> {releasingBooking?.formatted_check_out || releasingBooking?.check_out_date}</Typography>
+          </Box>
+          <TextField
+            fullWidth
+            required
+            multiline
+            rows={3}
+            label="Reason for releasing"
+            value={releaseReason}
+            onChange={(e) => setReleaseReason(e.target.value)}
+            placeholder="e.g. No payment received after 7 days"
+            helperText="Recorded in the booking history and the audit log."
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReleaseDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleConfirmRelease}
+            variant="contained"
+            color="warning"
+            disabled={releasing || releaseReason.trim().length < 4}
+          >
+            {releasing ? 'Releasing...' : 'Release Room'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={voidDialogOpen} onClose={() => setVoidDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Void Booking</DialogTitle>
         <DialogContent>

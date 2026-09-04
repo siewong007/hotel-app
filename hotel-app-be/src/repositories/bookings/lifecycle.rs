@@ -750,7 +750,50 @@ fn booking_has_company_billing(
             .unwrap_or(false)
 }
 
-async fn completed_booking_payment_total(
+/// Online bookings still awaiting payment whose hold has outlived `hold_hours`.
+///
+/// Front-desk holds are excluded here as well as in the caller's per-booking
+/// guard, so a walk-in never even becomes a candidate. `source` is the coarse
+/// origin token: the guest web module writes 'website', OTA imports 'online',
+/// while the staff form defaults to 'walk_in' and the column to 'direct'.
+/// Compared case-insensitively and trimmed, because imported rows carry
+/// inconsistent casing and padding.
+///
+/// Zero collected money is likewise filtered in SQL rather than left to each
+/// release attempt, so a partly-paid stay never becomes a candidate either.
+///
+/// `limit` caps one sweep. Without it, first enabling this on a hotel that has
+/// accumulated stale holds for months would void them all in a single tick.
+pub async fn stale_unpaid_hold_ids(
+    pool: &DbPool,
+    hold_hours: i32,
+    limit: i64,
+) -> Result<Vec<i64>, ApiError> {
+    sqlx::query_scalar(
+        r#"
+        SELECT b.id
+        FROM bookings b
+        WHERE b.status = 'pending_payment'
+          AND LOWER(BTRIM(COALESCE(b.source, ''))) IN ('website', 'online')
+          AND b.created_at < CURRENT_TIMESTAMP - make_interval(hours => $1)
+          AND COALESCE((
+              SELECT SUM(p.amount) FROM payments p
+              WHERE p.booking_id = b.id
+                AND p.status = 'completed'
+                AND COALESCE(p.payment_type, 'booking') != 'refund'
+          ), 0) = 0
+        ORDER BY b.created_at
+        LIMIT $2
+        "#,
+    )
+    .bind(hold_hours)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))
+}
+
+pub(crate) async fn completed_booking_payment_total(
     pool: &DbPool,
     booking_id: i64,
 ) -> Result<Decimal, ApiError> {
@@ -2207,10 +2250,16 @@ pub async fn user_owns_booking(
     Ok(owns_booking)
 }
 
+/// Void a booking, recording who cancelled it.
+///
+/// `user_id` is `None` for an automated action with no human actor — the
+/// scheduled release of stale unpaid holds. `bookings.cancelled_by` is nullable
+/// and carries an FK to `users`, so NULL is the only honest value there; using a
+/// stand-in staff id would attribute the void to somebody who did not do it.
 pub async fn void_booking_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
-    user_id: i64,
+    user_id: Option<i64>,
 ) -> Result<(), ApiError> {
     let update_booking_query = r#"
         UPDATE bookings

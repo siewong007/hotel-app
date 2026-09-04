@@ -149,6 +149,8 @@ jobs:
             "$bundle_dir/database/patches/0007_manager_audit_read.sql"
           cp hotel-app-be/database/postgres/patches/0008_notifications_email_triggers.sql \
             "$bundle_dir/database/patches/0008_notifications_email_triggers.sql"
+          cp hotel-app-be/database/postgres/patches/0009_unpaid_hold_release.sql \
+            "$bundle_dir/database/patches/0009_unpaid_hold_release.sql"
 
           (
             cd "$bundle_dir"
@@ -171,6 +173,7 @@ jobs:
               database/patches/0006_guest_role_isolation.sql \
               database/patches/0007_manager_audit_read.sql \
               database/patches/0008_notifications_email_triggers.sql \
+              database/patches/0009_unpaid_hold_release.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

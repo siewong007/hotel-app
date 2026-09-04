@@ -21,6 +21,11 @@ export const RootLayout: React.FC = () => {
   const location = useLocation();
   const pathname = location.pathname;
   const isGuestPortal = pathname === '/guest-portal';
+  // Booking is the one portal view open to visitors with no account: they book
+  // anonymously and pay through a booking-scoped link. Every other section
+  // reads account-owned data and stays gated below.
+  const isPublicBooking =
+    isGuestPortal && (location.search as { view?: string }).view === 'booking';
   const isAdminPortal = pathname === '/admin-portal';
   const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
   const account = (location.search as { account?: string }).account;
@@ -80,18 +85,20 @@ export const RootLayout: React.FC = () => {
 
     // A portal bearer token is only a short-lived companion to a signed-in
     // guest account. Do not render portal routes while the account state is
-    // unknown, signed out, or belongs to an operational user.
-    if (!isAuthenticated) {
+    // unknown, signed out, or belongs to an operational user — except the
+    // booking view, which is reachable with no account at all.
+    if (!isAuthenticated && !isPublicBooking) {
       // Typed-route shim contract — see router/compat.tsx.
       return <Navigate to="/login" search={{ account: 'guest' } as any} replace />;
     }
 
-    if (user?.user_type !== 'guest') {
+    // Only meaningful once signed in; an anonymous booker has no `user`.
+    if (isAuthenticated && user?.user_type !== 'guest') {
       return <Navigate to="/" replace />;
     }
 
     return (
-      <GuestPortalShell>
+      <GuestPortalShell showAccountNav={isAuthenticated}>
         <ErrorBoundary title="Guest Experience Error">
           <Suspense fallback={<LoadingFallback />}>
             <Outlet />

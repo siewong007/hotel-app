@@ -75,6 +75,31 @@ export interface CreateGuestBookingRequest extends GuestBookingQuoteRequest {
   cleaning_preference?: boolean;
 }
 
+/** Contact details an anonymous booker supplies inline, standing in for the
+ *  account a signed-in booking reads them from. */
+export interface AnonymousGuestDetails {
+  first_name: string;
+  last_name?: string;
+  /** Required: the only way to send the confirmation, and (with the booking
+   *  number) the only way back to the booking once its token lapses. */
+  email: string;
+  phone?: string;
+  /** Never defaulted — it decides whether tourism tax applies. */
+  tourism_type: 'local' | 'foreign' | '';
+}
+
+/** A booking made without an account. Carries no `voucher_id` and no
+ *  `complimentary_dates`: those belong to an account and the server rejects
+ *  them here. */
+export interface CreateAnonymousBookingRequest extends GuestBookingSearch {
+  client_request_id: string;
+  room_type_id: number;
+  expected_total: string | number;
+  special_requests?: string;
+  cleaning_preference?: boolean;
+  guest: AnonymousGuestDetails;
+}
+
 export interface GuestBookingConfirmation {
   booking_id: number;
   booking_number: string;
@@ -89,6 +114,10 @@ export interface GuestBookingConfirmation {
   tax_amount: string | number;
   total_amount: string | number;
   created_at: string;
+  /** Present only for an anonymous booking: a booking-scoped token that lets
+   *  the guest pay and track this one booking with no account. */
+  access_token?: string;
+  access_token_expires_at?: string;
 }
 
 export interface AvailabilityEvent {

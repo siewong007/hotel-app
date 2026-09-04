@@ -103,6 +103,24 @@ pub async fn void_booking_handler(
     ))
 }
 
+/// POST /bookings/:id/release
+pub async fn release_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+    Json(input): Json<ReleaseBookingRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        booking_service::release_pending_payment_booking(
+            &pool,
+            user_id,
+            booking_id,
+            &input.reason,
+        )
+        .await?,
+    ))
+}
+
 pub async fn manual_checkin_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

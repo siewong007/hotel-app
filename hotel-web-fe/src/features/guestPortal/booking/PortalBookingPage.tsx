@@ -18,13 +18,25 @@ import { usePortalSessionBootstrap } from '../hooks/usePortalSessionBootstrap';
 import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import { HTTPError } from 'ky';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
-import { GuestBookingApi } from './api';
-import type { AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch } from './types';
+import { GuestBookingApi, PublicBookingApi } from './api';
+import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch } from './types';
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
 
 const STEPS = ['Search', 'Choose', 'Review', 'Payment'];
+const EMPTY_GUEST_DETAILS: AnonymousGuestDetails = {
+  first_name: '', last_name: '', email: '', phone: '', tourism_type: '',
+};
+
+/** Client-side check only; the server validates these again and is authoritative. */
+function guestDetailsError(details: AnonymousGuestDetails): string | null {
+  if (!details.first_name.trim()) return 'Please enter the guest first name.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email.trim())) return 'Please enter a valid email address. Your confirmation is sent there.';
+  // Tourism type decides whether tourism tax applies, so it is never defaulted.
+  if (details.tourism_type !== 'local' && details.tourism_type !== 'foreign') return 'Please select whether the guest is a local or foreign tourist.';
+  return null;
+}
 const FALLBACK_ROOM_IMAGE = 'linear-gradient(135deg, #173B31 0%, #315E50 55%, #C7A45B 160%)';
 
 function money(amount: string | number, currency: string): string {
@@ -94,6 +106,15 @@ const PortalBookingPage: React.FC = () => {
   // The backend booking guard (`ApiError::ProfileIncomplete`) remains
   // authoritative regardless of this client-side value.
   const [profileComplete, setProfileComplete] = useState(true);
+  const [guestDetails, setGuestDetails] = useState<AnonymousGuestDetails>(EMPTY_GUEST_DETAILS);
+
+  // A visitor with no account books anonymously instead of being bounced to a
+  // sign-up form — that detour is what made booking unreachable from the public
+  // site. `needsLogin` is specifically "the session exchange finished and found
+  // no account", as opposed to still checking or having failed part-way, which
+  // still belong on the session gate below.
+  const isAnonymous = !token && needsLogin;
+  const canQuery = Boolean(token) || isAnonymous;
 
   useEffect(() => {
     if (!token) return;
@@ -112,34 +133,41 @@ const PortalBookingPage: React.FC = () => {
   }, [token]);
 
   const runSearch = useCallback(async () => {
-    if (!token) return;
+    if (!canQuery) return;
     const validationError = validateGuestBookingSearch(search);
     if (validationError) { setError(validationError); return; }
     setIsSearching(true); setError(null); setOffers([]);
     try {
-      const nextOffers = await GuestBookingApi.search(search, token);
+      const nextOffers = token
+        ? await GuestBookingApi.search(search, token)
+        : await PublicBookingApi.search(search);
       setOffers(nextOffers);
       if (nextOffers.length === 0) setError('No room types are available for those dates and guests.');
     } catch (searchError) {
       setError(errorMessage(searchError, 'Unable to search room availability.'));
       setOffers([]);
     } finally { setIsSearching(false); }
-  }, [search, token]);
+  }, [canQuery, search, token]);
 
   const selectOffer = useCallback(async (offer: GuestBookingOffer) => {
-    if (!token) return;
+    if (!canQuery) return;
     setSelectedOffer(offer); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setRequestId(newRequestId()); setIsQuoting(true); setError(null);
     try {
-      const voucherOptions = await GuestBookingApi.voucherOptions(
-        { ...search, room_type_id: offer.room_type_id },
-        token,
-      );
-      setQuote(voucherOptions.quote);
-      setEligibleVoucherIds(new Set(voucherOptions.eligible_voucher_ids));
+      if (token) {
+        const voucherOptions = await GuestBookingApi.voucherOptions(
+          { ...search, room_type_id: offer.room_type_id },
+          token,
+        );
+        setQuote(voucherOptions.quote);
+        setEligibleVoucherIds(new Set(voucherOptions.eligible_voucher_ids));
+      } else {
+        // No account, so no voucher eligibility to resolve — just the price.
+        setQuote(await PublicBookingApi.quote({ ...search, room_type_id: offer.room_type_id }));
+      }
     }
     catch (quoteError) { setSelectedOffer(null); setError(errorMessage(quoteError, 'Unable to quote this room type.')); }
     finally { setIsQuoting(false); }
-  }, [search, token]);
+  }, [canQuery, search, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
     if (nextVoucherId !== '' && !eligibleVoucherIds.has(nextVoucherId)) return;
@@ -182,8 +210,41 @@ const PortalBookingPage: React.FC = () => {
     } finally { setIsQuoting(false); }
   }, [complimentaryDates, search, selectedOffer, token, voucherId]);
 
+  const submitAnonymousBooking = useCallback(async () => {
+    if (!quote) return;
+    const detailsError = guestDetailsError(guestDetails);
+    if (detailsError) { setError(detailsError); return; }
+    setIsSubmitting(true); setError(null);
+    try {
+      const result = await PublicBookingApi.create({
+        ...search,
+        room_type_id: quote.room_type_id,
+        client_request_id: requestId,
+        expected_total: quote.total_amount,
+        special_requests: specialRequests.trim() || undefined,
+        cleaning_preference: cleaningPreference,
+        guest: {
+          first_name: guestDetails.first_name.trim(),
+          last_name: guestDetails.last_name?.trim() || undefined,
+          email: guestDetails.email.trim(),
+          phone: guestDetails.phone?.trim() || undefined,
+          tourism_type: guestDetails.tourism_type,
+        },
+      });
+      setConfirmation(result);
+    } catch (createError) {
+      setError(errorMessage(createError, 'Unable to create the booking.'));
+      // Re-price so the guest is never left looking at a total the server has
+      // moved on from; if the room itself is gone, fall back to a fresh search.
+      try { setQuote(await PublicBookingApi.quote({ ...search, room_type_id: quote.room_type_id })); }
+      catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
+    } finally { setIsSubmitting(false); }
+  }, [cleaningPreference, guestDetails, quote, requestId, runSearch, search, specialRequests]);
+
   const submitBooking = useCallback(async () => {
-    if (!token || !quote) return;
+    if (!quote) return;
+    if (isAnonymous) { await submitAnonymousBooking(); return; }
+    if (!token) return;
     // Usability guard only — the backend re-checks and is authoritative (see
     // the 422 profile_incomplete handling below for the race where completion
     // changed after this page loaded).
@@ -208,7 +269,7 @@ const PortalBookingPage: React.FC = () => {
       try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, navigate, profileComplete, quote, requestId, runSearch, search, specialRequests, token]);
+  }, [cleaningPreference, isAnonymous, navigate, profileComplete, quote, requestId, runSearch, search, specialRequests, submitAnonymousBooking, token]);
 
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;
@@ -224,13 +285,16 @@ const PortalBookingPage: React.FC = () => {
   const animationTimeout = reducedMotion ? 0 : 200;
 
   if (isStaffAccount) return <Navigate to="/admin-portal" replace />;
-  if (needsLogin) return <Navigate to="/login?account=guest" replace />;
-  if (!token) return <SessionGate error={sessionError} status={sessionStatus} canRetry={canRetry} onRetry={retry} onRestart={restartSignIn} />;
-  if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token} onStays={() => navigate('/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setRequestId(newRequestId()); }} />;
+  // Only gate when an account session is genuinely mid-flight or broken. A
+  // visitor with no account at all falls through to the anonymous flow.
+  if (!token && !isAnonymous) return <SessionGate error={sessionError} status={sessionStatus} canRetry={canRetry} onRetry={retry} onRestart={restartSignIn} />;
+  if (confirmation) return <ConfirmationStage confirmation={confirmation} token={token ?? confirmation.access_token ?? null} paymentMode={token ? 'session' : 'token'} isAnonymous={isAnonymous} onStays={() => navigate(isAnonymous ? '/salim-inn/index.html' : '/guest-portal?section=stays')} onAnother={() => { setConfirmation(null); setSelectedOffer(null); setQuote(null); setOffers([]); setVoucherId(''); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); setSpecialRequests(''); setCleaningPreference(false); setRequestId(newRequestId()); }} />;
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
-      <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>Back to my account</Button>
+      {isAnonymous
+        ? <Button startIcon={<ArrowBackIcon />} href="/salim-inn/index.html" sx={{ mb: 2 }}>Back to the hotel</Button>
+        : <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/guest-portal')} sx={{ mb: 2 }}>Back to my account</Button>}
       <Typography variant="h3" component="h1">Reserve your stay</Typography>
       <Typography
         sx={{
@@ -247,7 +311,7 @@ const PortalBookingPage: React.FC = () => {
         <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>Choose your room</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{isQuoting || !quote ? <LoadingQuote /> : <ReviewStage quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{isQuoting || !quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} guestDetails={guestDetails} onGuestDetails={setGuestDetails} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>Room availability changed</DialogTitle><DialogContent><Typography>This room or its online availability changed while you were reviewing. We refreshed the options and cleared the previous quote so you can choose from the latest availability.</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>View available rooms</Button></DialogActions></Dialog>
     </Container>
@@ -321,14 +385,60 @@ function LoadingQuote() { return (
     }}><CircularProgress size={24} /><Typography>Confirming the latest price…</Typography></Stack></Paper>
 ); }
 
-function ReviewStage(props: { quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
-  const { quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
+function ReviewStage(props: { isAnonymous: boolean; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
+  const { isAnonymous, guestDetails, onGuestDetails, quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
   return (
     <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">Review your stay</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
         color: "text.secondary"
-      }}>{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
+      }}>{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}</>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
       }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label="I would like daily room cleaning" /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
+  );
+}
+
+/**
+ * Contact details for a booking made without an account.
+ *
+ * Deliberately short: a name, an email and the tourism type. Everything else a
+ * stay eventually needs (IC, address, full party details) is collected at
+ * check-in, so the booking itself stays fast.
+ */
+function GuestDetailsForm({ details, onChange }: { details: AnonymousGuestDetails; onChange: (value: AnonymousGuestDetails) => void }) {
+  const set = (patch: Partial<AnonymousGuestDetails>) => onChange({ ...details, ...patch });
+  return (
+    <Box component="section" aria-labelledby="guest-details-heading" sx={{ mt: 3 }}>
+      <Typography id="guest-details-heading" variant="h6">Your details</Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, mb: 2 }}>
+        We only need enough to hold the room and send your confirmation. The rest is collected at check-in.
+      </Typography>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField label="First name" required fullWidth value={details.first_name} onChange={(event) => set({ first_name: event.target.value })} slotProps={{ htmlInput: { maxLength: 100, autoComplete: 'given-name' } }} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField label="Last name" fullWidth value={details.last_name ?? ''} onChange={(event) => set({ last_name: event.target.value })} slotProps={{ htmlInput: { maxLength: 100, autoComplete: 'family-name' } }} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField label="Email" type="email" required fullWidth value={details.email} onChange={(event) => set({ email: event.target.value })} helperText="Your confirmation and booking number are sent here." slotProps={{ htmlInput: { maxLength: 255, autoComplete: 'email' } }} />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField label="Phone" fullWidth value={details.phone ?? ''} onChange={(event) => set({ phone: event.target.value })} slotProps={{ htmlInput: { maxLength: 20, autoComplete: 'tel' } }} />
+        </Grid>
+        <Grid size={{ xs: 12 }}>
+          {/* Never defaulted: this decides whether tourism tax is charged. */}
+          <FormControl fullWidth required>
+            <InputLabel id="tourism-type-label">Guest type</InputLabel>
+            <Select labelId="tourism-type-label" label="Guest type" value={details.tourism_type} onChange={(event) => set({ tourism_type: event.target.value as AnonymousGuestDetails['tourism_type'] })}>
+              <MenuItem value="local">Local tourist (Malaysian)</MenuItem>
+              <MenuItem value="foreign">Foreign tourist</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+      </Grid>
+      <Alert severity="info" sx={{ mt: 2 }}>
+        Booking as a guest. <Box component="a" href="/login?account=guest&redirect=%2Fguest-portal%3Fview%3Dbooking" sx={{ color: 'inherit', fontWeight: 700 }}>Sign in</Box> to use vouchers and free nights, and to earn points on this stay.
+      </Alert>
+    </Box>
   );
 }
 
@@ -432,7 +542,7 @@ function SummaryLine({ label, value, strong = false, color }: { label: string; v
   }}>{value}</Typography></Stack>
 ); }
 
-function ConfirmationStage({ confirmation, token, onStays, onAnother }: { confirmation: GuestBookingConfirmation; token: string; onStays: () => void; onAnother: () => void }) {
+function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onStays, onAnother }: { confirmation: GuestBookingConfirmation; token: string | null; paymentMode: 'session' | 'token'; isAnonymous: boolean; onStays: () => void; onAnother: () => void }) {
   const [paymentComplete, setPaymentComplete] = useState(confirmation.status === 'confirmed');
   const [completedPayment, setCompletedPayment] = useState<PaymentActionResponse | null>(null);
   const title = paymentComplete ? 'Booking confirmed' : 'Complete your payment';
@@ -457,7 +567,7 @@ function ConfirmationStage({ confirmation, token, onStays, onAnother }: { confir
         fontVariantNumeric: 'tabular-nums'
       }}>{confirmation.booking_number}</Typography><Typography sx={{ mt: 3, fontWeight: 700 }}>{confirmation.room_type_name}</Typography><Typography sx={{
       color: "text.secondary"
-    }}>{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode="session" bookingId={confirmation.booking_id} token={token} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack
+    }}>{confirmation.check_in_date} to {confirmation.check_out_date}</Typography><Typography variant="h5" sx={{ mt: 2 }}>{money(confirmation.total_amount, confirmation.currency)}</Typography><Box sx={{ mt: 3, textAlign: 'left' }}><GuestPaymentPanel mode={paymentMode} bookingId={confirmation.booking_id} token={token ?? ''} amount={confirmation.total_amount} currency={confirmation.currency} onPaid={handlePaymentResult} /></Box>{completedPayment ? <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 3, p: 2.5, textAlign: 'left', bgcolor: 'success.50' }}><Stack
       direction="row"
       spacing={2}
       sx={{
@@ -471,7 +581,7 @@ function ConfirmationStage({ confirmation, token, onStays, onAnother }: { confir
       sx={{
         justifyContent: "center",
         mt: 3
-      }}><Button variant="outlined" onClick={onStays}>View my stays</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack></Paper></Container>
+      }}><Button variant="outlined" onClick={onStays}>{isAnonymous ? 'Back to the hotel' : 'View my stays'}</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack>{isAnonymous ? <Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>Keep booking number <strong>{confirmation.booking_number}</strong>. With the email you gave us, it is how you reopen this booking later — this page's link expires.</Alert> : null}</Paper></Container>
   );
 }
 

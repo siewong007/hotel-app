@@ -171,6 +171,17 @@ pub struct BookingCancellationRequest {
     pub reason: Option<String>,
 }
 
+/// Input for releasing the room held by an unpaid booking.
+///
+/// `reason` is required, unlike [`BookingCancellationRequest`]. Releasing frees
+/// inventory somebody else was refused, so the audit trail has to say why —
+/// a blank reason silently defaulted to "Voided by admin" is exactly the gap
+/// this action exists to close.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReleaseBookingRequest {
+    pub reason: String,
+}
+
 /// Input for updating a booking
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BookingUpdateInput {

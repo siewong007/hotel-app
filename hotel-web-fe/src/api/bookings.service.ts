@@ -6,6 +6,7 @@ import {
   BookingUpdateRequest,
   BookingCancellationRequest,
   BookingVoidResponse,
+  BookingReleaseResponse,
   BookingTimelineEntry,
   BookingWithDetails,
   CheckInRequest,
@@ -214,6 +215,36 @@ export class BookingsService {
         );
       }
       throw new APIError('Failed to void booking');
+    }
+  }
+
+  /**
+   * Release the room held by a booking that was never paid for.
+   *
+   * Narrower than `voidBooking`: the backend accepts only a `pending_payment`
+   * booking with no payments recorded, and the reason is mandatory — releasing
+   * frees inventory somebody else was refused, so the audit trail must say why.
+   */
+  static async releaseBooking(
+    bookingId: string | number,
+    reason: string,
+  ): Promise<BookingReleaseResponse> {
+    try {
+      return await api
+        .post(`bookings/${bookingId}/release`, { json: { reason } })
+        .json<BookingReleaseResponse>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        // ky 2 has already read the body into `error.data`; reading the
+        // response again here would throw and drop the server's message.
+        const errorData = (error as { data?: { error?: string } }).data ?? {};
+        throw new APIError(
+          errorData.error || 'Failed to release booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to release booking');
     }
   }
 

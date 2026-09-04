@@ -191,6 +191,16 @@ pub struct RateLimiters {
     /// without this ceiling a flood of distinct garbage keys allocates a map
     /// entry per request and is never throttled.
     pub guest_portal_token_ip: RateLimiter,
+    /// Anonymous booking search and quote from one origin IP. These are the
+    /// only unauthenticated endpoints that price live inventory, so they carry
+    /// their own ceiling instead of sharing a token-gated budget: there is no
+    /// account or token to key on, and the IP is the only identity available.
+    /// Sized for real browsing (a search plus a quote per room type considered)
+    /// while still bounding a scraper.
+    pub public_booking_read_ip: RateLimiter,
+    /// Anonymous booking creation from one origin IP. Deliberately tighter than
+    /// the read budget: each success allocates a real room and a guest profile.
+    pub public_booking_create_ip: RateLimiter,
     /// Guest portal verification: 5 attempts per 15 minutes per booking number
     pub guest_portal_booking: KeyedRateLimiter,
     /// Guest portal token-gated MUTATIONS (pre-checkin submit, auto-checkin):
@@ -252,6 +262,8 @@ impl RateLimiters {
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_token_ip: RateLimiter::new(RateLimitConfig::new(240, 900)),
+            public_booking_read_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
+            public_booking_create_ip: RateLimiter::new(RateLimitConfig::new(10, 900)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token_payment: KeyedRateLimiter::new(RateLimitConfig::new(100, 600)),

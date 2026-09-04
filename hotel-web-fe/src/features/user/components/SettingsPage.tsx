@@ -169,6 +169,7 @@ const SettingsPage: React.FC = () => {
   const [serviceTaxRate, setServiceTaxRate] = useState(8);
   const [tourismTaxRate, setTourismTaxRate] = useState(10);
   const [defaultPaymentTermsDays, setDefaultPaymentTermsDays] = useState(30);
+  const [unpaidHoldReleaseHours, setUnpaidHoldReleaseHours] = useState(24);
 
   // Report Settings
   const [reportFontSize, setReportFontSize] = useState(14);
@@ -241,6 +242,7 @@ const SettingsPage: React.FC = () => {
     setServiceTaxRate(settings.service_tax_rate);
     setTourismTaxRate(settings.tourism_tax_rate);
     setDefaultPaymentTermsDays(settings.default_payment_terms_days);
+    setUnpaidHoldReleaseHours(settings.unpaid_hold_release_hours);
     setReportFontSize(settings.report_font_size);
     setReportFontFamily(settings.report_font_family);
     setReportHeadingFontSize(settings.report_heading_font_size);
@@ -313,6 +315,7 @@ const SettingsPage: React.FC = () => {
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
         default_payment_terms_days: defaultPaymentTermsDays,
+        unpaid_hold_release_hours: unpaidHoldReleaseHours,
         report_font_size: normalizedReportBodyFontSize,
         report_font_family: normalizeReportFontFamily(reportFontFamily),
         report_heading_font_size: normalizeReportFontSize(
@@ -733,6 +736,34 @@ const SettingsPage: React.FC = () => {
                     startAdornment: (
                       <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
                     ),
+                  },
+
+                  htmlInput: {
+                    min: 0,
+                    step: 1,
+                  }
+                }} />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <TextField
+                fullWidth
+                label="Unpaid Hold Release"
+                type="number"
+                value={unpaidHoldReleaseHours}
+                onChange={(e) => {
+                  // 0 is meaningful here (off), so this must not fall back to a
+                  // truthy default the way the fields around it do.
+                  const parsed = parseInt(e.target.value, 10);
+                  setUnpaidHoldReleaseHours(Number.isFinite(parsed) && parsed > 0 ? parsed : 0);
+                }}
+                helperText={
+                  unpaidHoldReleaseHours > 0
+                    ? 'Unpaid online bookings are voided and their rooms released after this long. Front-desk bookings are never released automatically.'
+                    : 'Off. Set a number of hours to release unpaid online bookings automatically. Front-desk bookings are never affected.'
+                }
+                slotProps={{
+                  input: {
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>hours</Typography>,
                   },
 
                   htmlInput: {

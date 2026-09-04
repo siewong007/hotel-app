@@ -1864,7 +1864,7 @@ mod postgres_guest_portal_race_tests {
         // recomputes internally from static room-type pricing).
         let quote = service::quote(
             &pool,
-            guest_a,
+            Some(guest_a),
             BookingQuoteRequest {
                 room_type_id,
                 check_in_date: check_in_date.clone(),

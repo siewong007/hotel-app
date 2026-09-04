@@ -5,7 +5,8 @@ use uuid::Uuid;
 
 use super::availability::{AvailabilityEvent, AvailabilityHub};
 use super::models::{
-    BookingInsert, BookingQuoteRequest, BookingSearchQuery, CreateGuestBookingRequest,
+    AnonymousBookingRequest, BookingInsert, BookingQuoteRequest, BookingSearchQuery,
+    CreateGuestBookingRequest,
     GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions,
     NightlyRate, OnlineInventoryAllocation, OnlineInventoryQuery, RoomTypeInventory,
     UpdateOnlineInventoryRequest, VoucherPricing,
@@ -14,7 +15,8 @@ use super::repository::{
     GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionValues,
 };
 use super::validation::{
-    ValidatedStay, validate_client_request_id, validate_complimentary_dates, validate_stay,
+    ValidatedStay, validate_anonymous_guest, validate_client_request_id,
+    validate_complimentary_dates, validate_stay,
 };
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -27,6 +29,37 @@ use crate::services::profile::completion_for_guest;
 use crate::utils::sanitization::Sanitizer;
 
 const PORTAL_SOURCE: &str = "website";
+
+/// Minimum life of an anonymous booking's access token.
+const ANONYMOUS_ACCESS_TOKEN_DAYS: i64 = 14;
+
+/// How far before arrival `POST /guest-portal/verify` starts reissuing a token
+/// (`verify_guest_booking` rejects anything earlier). Mirrored here so the two
+/// windows can be made to meet.
+const VERIFY_REISSUE_WINDOW_DAYS: i64 = 7;
+
+/// When an anonymous booking's access token should lapse.
+///
+/// The booking is created unpaid, and an anonymous guest has no account to sign
+/// in to — so their only routes to paying it are this token and, closer to
+/// arrival, re-verifying with their booking number and email. Expiring the
+/// token at a flat 14 days would strand a booking made further ahead than that:
+/// the token would be gone and `verify` would not yet answer, leaving the guest
+/// unable to pay their own reservation. Holding it until the verify window
+/// opens makes the two periods meet with no gap.
+fn anonymous_token_expiry(
+    now: chrono::DateTime<chrono::Utc>,
+    check_in: NaiveDate,
+) -> chrono::DateTime<chrono::Utc> {
+    let minimum = now + Duration::days(ANONYMOUS_ACCESS_TOKEN_DAYS);
+    let verify_opens = check_in
+        .and_hms_opt(0, 0, 0)
+        .map(|naive| naive.and_utc() - Duration::days(VERIFY_REISSUE_WINDOW_DAYS));
+    match verify_opens {
+        Some(verify_opens) if verify_opens > minimum => verify_opens,
+        _ => minimum,
+    }
+}
 
 async fn currency(pool: &DbPool) -> String {
     crate::modules::settings::service::get_setting_value(pool, "currency")
@@ -103,11 +136,22 @@ fn complimentary_discount(nightly_rates: &[NightlyRate], dates: &[NaiveDate]) ->
 /// Resolve and bounds-check the guest's complimentary-night selection.
 async fn complimentary_context(
     pool: &DbPool,
-    guest_id: i64,
+    guest_id: Option<i64>,
     room_type_id: i64,
     stay: ValidatedStay,
     requested_dates: Option<&[String]>,
 ) -> Result<ComplimentaryContext, ApiError> {
+    // An anonymous booker holds no account, so there are no credits to spend.
+    // Reject an explicit selection rather than silently pricing it at zero
+    // discount: the caller asked for money off it is not entitled to.
+    let Some(guest_id) = guest_id else {
+        if requested_dates.is_some_and(|dates| !dates.is_empty()) {
+            return Err(ApiError::BadRequest(
+                "Complimentary nights require a signed-in account.".to_string(),
+            ));
+        }
+        return Ok(ComplimentaryContext::default());
+    };
     let credits_available =
         Repository::complimentary_credits_available(pool, guest_id, room_type_id).await?;
     let dates = validate_complimentary_dates(requested_dates, stay)?;
@@ -159,7 +203,7 @@ fn voucher_discount(subtotal: Decimal, voucher: &VoucherPricing) -> Decimal {
 
 async fn voucher_for_quote(
     pool: &DbPool,
-    guest_id: i64,
+    guest_id: Option<i64>,
     room_type_id: i64,
     stay: ValidatedStay,
     subtotal: Decimal,
@@ -168,6 +212,14 @@ async fn voucher_for_quote(
 ) -> Result<Option<VoucherPricing>, ApiError> {
     let Some(voucher_id) = voucher_id else {
         return Ok(None);
+    };
+    // Vouchers are issued to an account, so an anonymous booking can never hold
+    // one. Fail loudly instead of quoting the undiscounted total under a
+    // voucher the caller believes was applied.
+    let Some(guest_id) = guest_id else {
+        return Err(ApiError::BadRequest(
+            "Vouchers require a signed-in account.".to_string(),
+        ));
     };
     Repository::eligible_voucher(
         pool,
@@ -188,7 +240,7 @@ async fn voucher_for_quote(
 
 async fn quote_for_inventory(
     pool: &DbPool,
-    guest_id: i64,
+    guest_id: Option<i64>,
     room_type: RoomTypeInventory,
     stay: ValidatedStay,
     voucher_id: Option<i64>,
@@ -266,9 +318,13 @@ async fn apply_online_allocation(
     Ok(room_type)
 }
 
+/// Price every bookable room type for a stay.
+///
+/// `guest_id` is `None` for an anonymous (not signed-in) booker, who is quoted
+/// undiscounted list prices — no vouchers, no complimentary credits.
 pub async fn search(
     pool: &DbPool,
-    guest_id: i64,
+    guest_id: Option<i64>,
     query: BookingSearchQuery,
 ) -> Result<Vec<GuestBookingOffer>, ApiError> {
     let stay = validate_stay(
@@ -332,9 +388,10 @@ pub async fn search(
     Ok(offers)
 }
 
+/// Price one selected room type. `guest_id` is `None` for an anonymous booker.
 pub async fn quote(
     pool: &DbPool,
-    guest_id: i64,
+    guest_id: Option<i64>,
     request: BookingQuoteRequest,
 ) -> Result<GuestBookingQuote, ApiError> {
     let stay = validate_stay(
@@ -385,7 +442,7 @@ pub async fn quote_with_eligible_vouchers(
 ) -> Result<GuestBookingVoucherOptions, ApiError> {
     let quote = quote(
         pool,
-        guest_id,
+        Some(guest_id),
         BookingQuoteRequest {
             voucher_id: None,
             ..request
@@ -495,7 +552,7 @@ pub async fn create(
 
     let quote = quote(
         pool,
-        guest_id,
+        Some(guest_id),
         BookingQuoteRequest {
             room_type_id: request.room_type_id,
             check_in_date: request.check_in_date.clone(),
@@ -772,6 +829,276 @@ pub async fn create(
         remaining_rooms: Some(remaining_rooms),
     });
     Ok(confirmation)
+}
+
+/// Create a booking for someone with no account.
+///
+/// Anonymous bookings are quoted at list price. Vouchers, complimentary-night
+/// credits and loyalty all belong to an account, so `quote` is called with no
+/// guest and the request body carries no way to ask for them.
+///
+/// A fresh guest profile is always created rather than matched to an existing
+/// one by email. Matching would let anyone book using somebody else's address
+/// and then read — and through pre-check-in, rewrite — that person's stored
+/// profile with the access token this returns.
+pub async fn create_anonymous(
+    pool: &DbPool,
+    hub: &AvailabilityHub,
+    request: AnonymousBookingRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<GuestBookingConfirmation, ApiError> {
+    let request_id = validate_client_request_id(&request.client_request_id)?;
+    let guest = validate_anonymous_guest(&request.guest)?;
+
+    // Idempotent retry: same client request id, same email.
+    if let Some(existing) =
+        Repository::find_anonymous_by_request_id(pool, &request_id, &guest.email).await?
+    {
+        return Ok(existing);
+    }
+
+    let quote = quote(
+        pool,
+        None,
+        BookingQuoteRequest {
+            room_type_id: request.room_type_id,
+            check_in_date: request.check_in_date.clone(),
+            check_out_date: request.check_out_date.clone(),
+            adults: request.adults,
+            children: request.children,
+            voucher_id: None,
+            complimentary_dates: None,
+        },
+    )
+    .await?;
+    if quote.total_amount != request.expected_total.round_dp(2) {
+        return Err(ApiError::Conflict(
+            "The booking price changed. Please review the refreshed total.".to_string(),
+        ));
+    }
+
+    let full_name = Repository::available_full_name(pool, &guest.full_name).await?;
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
+    let special_requests = request
+        .special_requests
+        .as_deref()
+        .map(Sanitizer::sanitize_notes)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let first_rate = quote
+        .nightly_rates
+        .first()
+        .map(|rate| rate.amount)
+        .ok_or_else(|| ApiError::BadRequest("A booking requires at least one night".to_string()))?;
+    let daily_rates = json!(
+        quote
+            .nightly_rates
+            .iter()
+            .map(|rate| (rate.date.to_string(), rate.amount))
+            .collect::<std::collections::BTreeMap<_, _>>()
+    );
+    let booking_number =
+        crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
+    let access_token = crate::services::guest_portal::generate_session_token();
+    let access_token_expires_at = anonymous_token_expiry(chrono::Utc::now(), quote.check_in_date);
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    Repository::ensure_online_room_available_tx(
+        &mut tx,
+        request.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+    )
+    .await?;
+    let room_id = Repository::allocate_room_tx(
+        &mut tx,
+        request.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+    )
+    .await?;
+    let guest_id = Repository::insert_anonymous_guest_tx(&mut tx, &full_name, &guest).await?;
+    let insert = BookingInsert {
+        portal_request_id: request_id.clone(),
+        guest_id,
+        // Nobody on staff created this row, and the booker holds no user
+        // account, so every actor column stays NULL.
+        actor_user_id: None,
+        room_id,
+        booking_number: booking_number.clone(),
+        check_in_date: quote.check_in_date,
+        check_out_date: quote.check_out_date,
+        adults: quote.adults,
+        children: quote.children,
+        room_rate: first_rate,
+        subtotal: quote.subtotal,
+        discount_amount: quote.discount_amount,
+        total_amount: quote.total_amount,
+        currency: quote.currency.clone(),
+        special_requests,
+        cleaning_preference: request.cleaning_preference,
+        booking_channel_id,
+        nightly_rates: daily_rates,
+        // No credits, so never a complimentary reason and never settled by them.
+        complimentary_reason: None,
+        settled_by_credits: false,
+    };
+    let booking_id = Repository::insert_booking_tx(&mut tx, &insert).await?;
+    Repository::issue_access_token_tx(
+        &mut tx,
+        booking_id,
+        &access_token,
+        access_token_expires_at,
+    )
+    .await?;
+    Repository::mark_room_reserved_tx(&mut tx, room_id, &booking_number).await?;
+    crate::repositories::bookings::record_booking_history_tx(
+        &mut tx,
+        booking_id,
+        None,
+        "pending_payment",
+        None,
+        Some("Booking created on the website without an account (pending payment)"),
+        json!({
+            "source": PORTAL_SOURCE,
+            "guest_id": guest_id,
+            "room_type_id": request.room_type_id,
+            "portal_request_id": request_id,
+            "anonymous": true,
+        }),
+    )
+    .await?;
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.anonymous_booking_created",
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(json!({
+                "booking_number": booking_number,
+                "room_type_id": request.room_type_id,
+                "check_in_date": quote.check_in_date,
+                "check_out_date": quote.check_out_date,
+                "total_amount": quote.total_amount.to_string(),
+                "currency": quote.currency,
+                "guest_id": guest_id,
+            })),
+            ip_address,
+            user_agent,
+        },
+    )
+    .await?;
+
+    // The booking number and email are the only way back to this booking once
+    // the access token lapses, so the confirmation must always carry both.
+    let subject = format!("Booking received {booking_number}");
+    let body_html = format!(
+        "<p>Dear {},</p>\
+         <p>Your reservation <strong>{}</strong> has been received and is pending payment.</p>\
+         <p>{} · {} to {} · {} {}</p>\
+         <p>Please complete payment to confirm your booking. To view it again, use booking \
+         number <strong>{}</strong> with this email address.</p>",
+        html_escape(&guest.full_name),
+        html_escape(&booking_number),
+        html_escape(&quote.room_type_name),
+        quote.check_in_date,
+        quote.check_out_date,
+        html_escape(&quote.currency),
+        quote.total_amount,
+        html_escape(&booking_number),
+    );
+    CommunicationsRepository::insert_delivery_tx(
+        &mut tx,
+        DeliveryValues {
+            campaign_id: None,
+            kind: "booking_confirmation",
+            guest_id,
+            topic: "booking_confirmation",
+            recipient_email: &guest.email,
+            subject: &subject,
+            body_html: &body_html,
+            body_text: None,
+            voucher_id: None,
+            idempotency_key: &format!("booking-confirmation:{booking_id}"),
+        },
+    )
+    .await?;
+
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let mut confirmation = Repository::confirmation_by_id(pool, booking_id).await?;
+    confirmation.access_token = Some(access_token);
+    confirmation.access_token_expires_at = Some(access_token_expires_at);
+
+    let remaining_rooms = Repository::available_count(
+        pool,
+        request.room_type_id,
+        quote.check_in_date,
+        quote.check_out_date,
+    )
+    .await?;
+    hub.publish(AvailabilityEvent {
+        event_id: Uuid::new_v4().to_string(),
+        event_type: "availability_changed",
+        reason: "booking_created",
+        room_type_id: Some(request.room_type_id),
+        check_in_date: Some(quote.check_in_date),
+        check_out_date: Some(quote.check_out_date),
+        remaining_rooms: Some(remaining_rooms),
+    });
+    Ok(confirmation)
+}
+
+#[cfg(test)]
+mod anonymous_token_expiry_tests {
+    use super::*;
+
+    fn at(date: &str) -> chrono::DateTime<chrono::Utc> {
+        NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .unwrap()
+            .and_hms_opt(9, 0, 0)
+            .unwrap()
+            .and_utc()
+    }
+
+    fn day(date: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap()
+    }
+
+    #[test]
+    fn near_stay_keeps_the_flat_minimum() {
+        // Arrival is soon, so 14 days already outlasts the verify window.
+        let expiry = anonymous_token_expiry(at("2026-09-05"), day("2026-09-10"));
+        assert_eq!(expiry, at("2026-09-05") + Duration::days(14));
+    }
+
+    #[test]
+    fn distant_stay_holds_until_verify_can_reissue() {
+        // Booked three months out: the token must survive until verify opens,
+        // or the guest has no way to pay in between.
+        let expiry = anonymous_token_expiry(at("2026-09-05"), day("2026-12-01"));
+        assert_eq!(expiry, day("2026-11-24").and_hms_opt(0, 0, 0).unwrap().and_utc());
+    }
+
+    #[test]
+    fn the_two_windows_never_leave_a_gap() {
+        let now = at("2026-09-05");
+        for offset in [0_i64, 1, 7, 13, 14, 15, 30, 90] {
+            let check_in = day("2026-09-05") + Duration::days(offset);
+            let expiry = anonymous_token_expiry(now, check_in);
+            let verify_opens = check_in
+                .and_hms_opt(0, 0, 0)
+                .unwrap()
+                .and_utc()
+                - Duration::days(VERIFY_REISSUE_WINDOW_DAYS);
+            assert!(
+                expiry >= verify_opens || expiry >= check_in.and_hms_opt(0, 0, 0).unwrap().and_utc(),
+                "gap for check-in in {offset} days: token dies {expiry}, verify opens {verify_opens}"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
