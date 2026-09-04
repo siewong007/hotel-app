@@ -387,14 +387,24 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
       // Create new guest if needed
       if (isCreatingNewGuest) {
-        if (!newGuestForm.first_name || !newGuestForm.last_name) {
-          reportError('Please fill in required guest fields');
+        // Fast booking: a name is all that is strictly needed. Last name, email,
+        // phone and IC are optional and collected at check-in.
+        if (!newGuestForm.first_name.trim()) {
+          reportError('Please enter the guest\'s name');
+          setProcessing(false);
+          return;
+        }
+
+        // Tourism type is never defaulted — it decides whether tourism tax is
+        // charged, so it must be an explicit staff choice.
+        if (!newGuestForm.tourism_type) {
+          reportError('Please select the tourism type — it determines whether tourism tax applies');
           setProcessing(false);
           return;
         }
 
         notifyIfGuestContactIncomplete(newGuestForm);
-        const tourismType = newGuestForm.tourism_type || 'local';
+        const tourismType = newGuestForm.tourism_type;
 
         if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
           reportError('Please enter a valid email address');
@@ -402,11 +412,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           return;
         }
 
-        // Check for duplicate guest name
-        const modalFullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
+        // Check for duplicate guest name. Built the same way the backend builds
+        // `full_name` (join then trim), so a single-name guest matches correctly.
+        const modalDisplayName = [newGuestForm.first_name.trim(), newGuestForm.last_name.trim()]
+          .filter(Boolean)
+          .join(' ');
+        const modalFullName = modalDisplayName.toLowerCase();
         const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === modalFullName);
         if (existingGuestByName) {
-          reportError(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select the existing guest instead.`);
+          reportError(`A guest with the name '${modalDisplayName}' already exists. Please select the existing guest instead.`);
           setProcessing(false);
           return;
         }
@@ -630,14 +644,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       // Create new guest if needed (for walk-in and online)
       if (effectiveType !== 'complimentary') {
         if (isCreatingNewGuest) {
-          if (!newGuestForm.first_name || !newGuestForm.last_name) {
-            reportError('Please fill in required guest fields');
+          // Fast booking: see the reservation path above — only a name is required.
+          if (!newGuestForm.first_name.trim()) {
+            reportError('Please enter the guest\'s name');
+            setProcessing(false);
+            return;
+          }
+
+          if (!newGuestForm.tourism_type) {
+            reportError('Please select the tourism type — it determines whether tourism tax applies');
             setProcessing(false);
             return;
           }
 
           notifyIfGuestContactIncomplete(newGuestForm);
-          const tourismType = newGuestForm.tourism_type || 'local';
+          const tourismType = newGuestForm.tourism_type;
 
           if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
             reportError('Please enter a valid email address');

@@ -12,6 +12,7 @@ import {
   createFilterOptions,
   CircularProgress,
   FormControl,
+  FormHelperText,
   InputLabel,
   Select,
   MenuItem,
@@ -83,7 +84,9 @@ export const emptyNewGuestForm: NewGuestForm = {
   phone: '',
   nationality: '',
   ic_number: '',
-  tourism_type: 'local',
+  // Deliberately unset: tourism type drives tourism tax, so staff pick it
+  // explicitly rather than inheriting a silent 'local' default.
+  tourism_type: undefined,
   guest_type: 'non_member',
   company_name: '',
   address_line1: '',
@@ -312,8 +315,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              required
               label="Last Name"
+              helperText="Optional — a single name is enough for a fast booking"
               value={newGuestForm.last_name}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, last_name: e.target.value })}
             />
@@ -363,10 +366,10 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <FormControl fullWidth>
+            <FormControl fullWidth required error={!newGuestForm.tourism_type}>
               <InputLabel>Tourism Type</InputLabel>
               <Select
-                value={newGuestForm.tourism_type || 'local'}
+                value={newGuestForm.tourism_type ?? ''}
                 label="Tourism Type"
                 onChange={(e) => onNewGuestFormChange({ ...newGuestForm, tourism_type: e.target.value as TourismType || undefined })}
               >
@@ -387,6 +390,11 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                   </Box>
                 </MenuItem>
               </Select>
+              <FormHelperText>
+                {newGuestForm.tourism_type
+                  ? 'Determines whether tourism tax applies'
+                  : 'Required — determines whether tourism tax applies'}
+              </FormHelperText>
             </FormControl>
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
