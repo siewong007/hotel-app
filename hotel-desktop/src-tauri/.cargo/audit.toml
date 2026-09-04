@@ -1,0 +1,66 @@
+# cargo-audit configuration (desktop / Tauri crate)
+#
+# Advisories listed here are reviewed and intentionally ignored, each with a
+# documented rationale. Keep this list minimal and revisit on every dependency
+# bump — an entry is only justified while the reasoning below still holds.
+#
+# NOTE: every entry below is currently an *informational* advisory
+# (unmaintained/unsound), which cargo audit reports as a warning rather than a
+# failure. They are listed to keep `cargo audit` output meaningful, not to
+# suppress a red build. Never add a `vulnerability`-kind advisory here without
+# first proving it is unreachable in a shipped artifact.
+
+[advisories]
+ignore = [
+    # ---------------------------------------------------------------------
+    # Tauri's GTK3 (Linux) backend — the entire cluster below shares one
+    # rationale.
+    #
+    # These crates enter Cargo.lock only through tauri -> gtk/webkit2gtk/tao/
+    # muda, which is the LINUX window backend. The desktop app is built and
+    # shipped for macOS aarch64 (.github/workflows/desktop-build.yml,
+    # runs-on: macos-14) and Windows; neither compiles GTK.
+    # `cargo tree --target aarch64-apple-darwin -i <crate>` prints "nothing to
+    # print" for every crate listed here, so none of this code is present in
+    # any artifact we ship.
+    #
+    # There is also no upgrade path: gtk 0.18.2 is the latest published `gtk`
+    # (gtk3) crate and hard-requires `glib ^0.18`, and every Tauri 2.x release
+    # (2.11.5 at time of writing) is still on that stack. `cargo update -p glib
+    # --precise 0.20.0` fails outright. Revisit when Tauri moves off gtk-rs
+    # 0.18, or if a Linux desktop target is ever actually shipped — note
+    # tauri.conf.json sets bundle.targets = "all", so a `tauri build` run on a
+    # Linux host WOULD compile these in.
+    "RUSTSEC-2024-0411", # gdkwayland-sys — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0412", # gdk           — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0413", # atk           — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0414", # gdkx11-sys    — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0415", # gtk           — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0416", # atk-sys       — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0417", # gdkx11        — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0418", # gdk-sys       — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0419", # gtk3-macros   — gtk-rs GTK3 bindings unmaintained
+    "RUSTSEC-2024-0420", # gtk-sys       — gtk-rs GTK3 bindings unmaintained
+
+    # glib unsoundness in the Iterator impls for `VariantStrIter`. Same
+    # Linux-only reasoning as the cluster above; additionally dismissed as
+    # "not used" on GitHub Dependabot alert #13 (2026-09-04).
+    "RUSTSEC-2024-0429",
+
+    # proc-macro-error is unmaintained. Reached only via gtk3-macros, so it is
+    # part of the same Linux-only GTK cluster and is likewise absent from the
+    # macOS graph. It is also a proc-macro (build-time) dependency, never
+    # linked into the shipped binary.
+    "RUSTSEC-2024-0370",
+]
+
+# Deliberately NOT ignored — these are present in the shipped macOS graph and
+# should keep showing up until they are fixed or consciously accepted:
+#   RUSTSEC-2026-0190  anyhow 1.0.100 unsound Error::downcast_mut().
+#                      FIXABLE: patched in >= 1.0.103 (1.0.104 is current).
+#   RUSTSEC-2026-0097  rand 0.7.3 unsound. Build-dependency only
+#                      (phf_generator <- phf_codegen <- [build-deps] selectors
+#                      <- kuchikiki <- tauri-utils); no fix while phf 0.8 pins
+#                      rand 0.7.
+#   RUSTSEC-2025-0057  fxhash unmaintained.
+#   RUSTSEC-2025-0075/0080/0081/0098/0100  unic-* unmaintained.
