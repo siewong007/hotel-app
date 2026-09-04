@@ -458,6 +458,93 @@ mod postgres_tests {
         delete_users(&pool, &[actor_id]).await;
     }
 
+    /// Fast booking: front desk can take a reservation under a single name with
+    /// no contact details at all. Only `first_name` is mandatory — the last
+    /// name, email, phone and IC are collected at check-in. `tourism_type` is
+    /// passed explicitly because it decides whether tourism tax is charged.
+    #[tokio::test]
+    async fn guest_create_accepts_single_name_and_no_contact_details_for_fast_booking() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 985_002;
+        let full_name = "Gst985fast";
+
+        sqlx::query("DELETE FROM guests WHERE full_name = $1")
+            .bind(full_name)
+            .execute(&pool)
+            .await
+            .unwrap();
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_fast_booking_actor",
+            "gst985.fastbookingactor@hotel.local",
+            None,
+        )
+        .await;
+
+        fn fast_booking_input(first_name: &str, last_name: &str) -> GuestInput {
+            GuestInput {
+                first_name: first_name.to_string(),
+                last_name: last_name.to_string(),
+                email: None,
+                phone: None,
+                ic_number: None,
+                nationality: None,
+                address_line1: None,
+                city: None,
+                state_province: None,
+                postal_code: None,
+                country: None,
+                guest_type: None,
+                tourism_type: Some(TourismType::Foreign),
+                discount_percentage: None,
+                company_name: None,
+            }
+        }
+
+        // Relaxing the last name must not relax the first name too.
+        let nameless = guest_service::create_guest(&pool, actor_id, fast_booking_input("   ", "")).await;
+        assert!(
+            matches!(nameless, Err(ApiError::BadRequest(_))),
+            "a guest with no first name must still be rejected: {nameless:?}"
+        );
+
+        let guest = guest_service::create_guest(&pool, actor_id, fast_booking_input(full_name, ""))
+            .await
+            .expect("a single-name guest with no contact details must be accepted");
+
+        assert_eq!(
+            guest.full_name, full_name,
+            "full_name must not carry the trailing space left by the empty last name"
+        );
+        assert_eq!(guest.email, None, "email stays unset");
+        assert_eq!(guest.phone, None, "phone stays unset");
+        assert_eq!(guest.ic_number, None, "IC is collected at check-in");
+        assert_eq!(
+            guest.tourism_type,
+            Some(TourismType::Foreign),
+            "an explicitly chosen tourism type must be stored, not defaulted to local"
+        );
+
+        // `Guest` exposes only `full_name`, so read the stored column directly.
+        let stored_last_name: Option<String> =
+            sqlx::query_scalar("SELECT last_name FROM guests WHERE id = $1")
+                .bind(guest.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            stored_last_name.as_deref(),
+            Some(""),
+            "the empty last name is persisted as-is"
+        );
+
+        delete_guests(&pool, &[guest.id]).await;
+        delete_users(&pool, &[actor_id]).await;
+    }
+
     // -----------------------------------------------------------------
     // Guests: update + delete (hard delete, blocked while checked in)
     // -----------------------------------------------------------------

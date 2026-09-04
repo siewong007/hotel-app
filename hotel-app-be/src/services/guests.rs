@@ -80,11 +80,10 @@ pub async fn create_guest(
             "First name cannot be empty".to_string(),
         ));
     }
-    if input.last_name.trim().is_empty() {
-        return Err(ApiError::BadRequest(
-            "Last name cannot be empty".to_string(),
-        ));
-    }
+    // Last name is optional: a fast/walk-in booking is often taken under a single
+    // name (mononyms are also common in this market), and the full name stays
+    // non-empty because `first_name` above is required. `update_guest` already
+    // tolerates an empty last name, so the two paths now agree.
 
     let email = normalize_guest_email(input.email)?;
     let phone = normalize_guest_phone(input.phone);
