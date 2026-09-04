@@ -8,8 +8,11 @@ Derived from `deploy/deploy.sh`, `deploy/docker-compose.prod.yml` and
 `deploy/database-backup.sh` at commit `a1fd38e1`, plus the failure log of deploy run
 `32585519355`. Commands assume the Lightsail host as `ubuntu` with `sudo`.
 
-**Status at time of writing:** production healthy on beta2, deploys blocked, no data lost.
-Expected downtime for the cutover is 10–20 minutes.
+**Status:** completed 2026-09-04. Production now runs 19beta3; the restore matched the
+baseline on all 108 tables and every sequence, and deploys are unblocked. Actual downtime
+was ~10 minutes, matching the 10–20 minute estimate. The notes below were corrected
+against that run — the `IMAGE_TAG` gap and the step‑10 beta2 trap were both hit for real.
+Retain this runbook: the same procedure applies to the next beta bump.
 
 ## Why this is necessary
 
@@ -35,8 +38,9 @@ existing data directory.
 ## The trap that shapes this plan
 
 The prod compose bind-mounts `/opt/saliminn/initdb` into `docker-entrypoint-initdb.d`.
-Those scripts — `01-v1-baseline.sql` and `02-seed.sql` — run automatically **whenever the
-volume is empty**.
+Those scripts — `01-v1-baseline.sql`, `02-data.sql`, `02-seed.sql` and `03-seed.sql`
+(four files, not two: the `*-data.sql`/`03-*` pair are older leftovers) — run
+automatically **whenever the volume is empty**.
 
 A fresh beta3 volume therefore self-initialises into a fully seeded schema, and restoring
 the production dump on top collides on every table and seeded row. Step 7 moves the
@@ -67,11 +71,20 @@ Use this wrapper for every compose invocation in this runbook:
 
 ```bash
 dc() {
-  sudo bash -c 'set -a; source /opt/saliminn/secrets.env; set +a
+  sudo bash -c 'set -a; source /opt/saliminn/secrets.env
+    IMAGE_TAG=$(cat /opt/saliminn/current-tag); export IMAGE_TAG; set +a
     docker compose --project-name saliminn \
       -f /opt/saliminn/docker-compose.prod.yml "$@"' _ "$@"
 }
 ```
+
+`secrets.env` supplies `POSTGRES_PASSWORD` but **not** `IMAGE_TAG`, which the compose file
+also declares required (`image: "saliminn-backend:${IMAGE_TAG:?...}"`); `deploy.sh` exports
+it separately (`deploy.sh:607`). Without the `current-tag` line above, every `dc` call dies
+with `IMAGE_TAG is missing a value` — including at step 10, after the volume is gone.
+
+Do **not** prefix these with `cd /opt/saliminn`: the directory is `root:root drwxr-x---`, so
+`cd` fails as `ubuntu`. `dc` passes an absolute `-f` path and needs no working directory.
 
 The failed deploy already wrote a verified custom-format dump before it touched anything
 (`/opt/saliminn/backups/predeploy-*.dump`, checked with `pg_restore --list`). Step 3 takes
@@ -159,7 +172,6 @@ Downtime begins here. The site returns 502 through Caddy until phase 4 completes
 ### 6. Stop the stack, leaving the volume intact
 
 ```bash
-cd /opt/saliminn
 dc down
 ```
 
@@ -214,7 +226,6 @@ Recovery from here is via the tarball (step 8) or the dump (step 3).
 Database only — the backend must not connect to an empty schema.
 
 ```bash
-cd /opt/saliminn
 dc up -d postgres
 
 sleep 15
@@ -224,6 +235,24 @@ sudo docker exec saliminn-db psql -U hotel_admin -d hotel_management -c 'SELECT 
 
 Expect a normal init and version 19beta3. If you see baseline or seed SQL executing, step 7
 did not take effect — stop, tear down, and redo it.
+
+**Verify the reported version; do not assume it.** `deploy.sh` pins beta3 (`deploy.sh:26`)
+but the *compose file* carries its own `image:` line, and a rolled-back host runs the
+**previous release's** compose — which can still pin `postgres:19beta2`. The two files
+disagree after any rollback. If the container reports beta2 here, the new volume has just
+been initialised by beta2 and restoring into it rebuilds the original problem. Recover with:
+
+```bash
+dc down
+sudo docker volume rm saliminn_postgres_data          # it is empty; nothing to lose
+sudo cp -a /opt/saliminn/docker-compose.prod.yml /opt/saliminn/docker-compose.prod.yml.beta2.bak
+sudo sed -i 's|^\( *image: \)postgres:19beta2 *$|\1postgres:19beta3|' \
+  /opt/saliminn/docker-compose.prod.yml
+dc up -d postgres
+```
+
+then re-check `SELECT version();` before continuing. The next successful deploy replaces
+this compose file with the release's own beta3 copy, so the edit is temporary.
 
 ---
 
@@ -297,7 +326,6 @@ They stay inert — the volume is no longer empty.
 ### 15. Start the full stack
 
 ```bash
-cd /opt/saliminn
 dc up -d
 dc ps
 ```
@@ -352,7 +380,6 @@ Two independent paths. Both assume the stack is stopped.
 **Path A — physical, from the tarball.** Fastest and exact.
 
 ```bash
-cd /opt/saliminn
 dc down
 sudo docker volume rm saliminn_postgres_data
 sudo docker volume create saliminn_postgres_data

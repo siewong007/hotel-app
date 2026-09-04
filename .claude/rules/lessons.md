@@ -192,6 +192,23 @@ instead of failing. Mid-diagnosis "the known-good config also hangs" looked like
 pre-existing defect — but the unit was still in `reload-notify` from the previous hung
 attempt, and every later reload queued behind it.
 
+- **A dependabot bump can pin a version that does not exist, and local gates never see it.**
+  `dtolnay/rust-toolchain` tags are Rust versions; dependabot sorted them numerically and
+  proposed `1.100.0`, which was never released (latest stable was 1.98.1). `cargo check`,
+  clippy and the full suite all passed locally — the pin is CI-only, so nothing local could
+  catch it, and three CI jobs died on `could not download nonexistent rust version`. This
+  repo pins 1.95.0 in `rust-toolchain.toml` *and* both `Cargo.toml` `rust-version` fields, so
+  an action pin that disagrees with those is wrong by construction. Before merging any action
+  version bump, confirm the tag resolves to a real release.
+- **A rolled-back host is a MIXED state — verify the running artefact, never the intent.**
+  After `deploy.sh` rolled back, `/opt/saliminn/deploy.sh` was the NEW file (pins
+  `postgres:19beta3`) while `/opt/saliminn/docker-compose.prod.yml` was the PREVIOUS
+  release's (pins beta2). Compose wins for what actually runs, so a cutover step that said
+  "expect beta3" silently brought a fresh volume up on beta2 and would have rebuilt the very
+  incompatibility it was fixing. Read `SELECT version();` (or the equivalent) and branch on
+  it. Related: `secrets.env` does not carry `IMAGE_TAG`, so a bare `docker compose` on that
+  host aborts — `deploy.sh` exports it from `current-tag`.
+
 **Rules:** before A/B testing a reload, assert the unit is `active/running` and settled,
 or the control is contaminated — read `journalctl -u <unit>` for `Reloading → Reloaded`
 pairs rather than trusting one timed invocation. Bound every production probe to a SINGLE
