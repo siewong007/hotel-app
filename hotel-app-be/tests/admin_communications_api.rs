@@ -6,7 +6,7 @@
 //! PostgreSQL. Skipped without `DATABASE_URL`.
 
 use axum::{
-    Extension, Json,
+    Json,
     extract::{Query, State},
     http::HeaderMap,
 };
@@ -14,7 +14,6 @@ use chrono::Utc;
 use jsonwebtoken::{EncodingKey, Header, encode};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
-use std::net::SocketAddr;
 
 const TEST_JWT_SECRET: &str = "hotel-app-be-comms-center-test-secret-32chars";
 const ACTOR_ID: i64 = 979_001;
