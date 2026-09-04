@@ -134,7 +134,7 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
             booking.room_type_name.as_deref().unwrap_or("-"),
             booking.check_out_date,
         );
-        let footer = unsubscribe_footer_html(booking.id);
+        let footer = unsubscribe_footer_html(booking.guest_id);
         let body_html = format!("{body_html}{footer}");
 
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
