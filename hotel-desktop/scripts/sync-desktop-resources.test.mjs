@@ -65,11 +65,20 @@ test('synchronizes exactly the patch catalog resources packaged by Tauri', () =>
     .filter((line) => line.trim() && !line.trimStart().startsWith('#'))
     .map((line) => line.split('\t'));
 
-  expect(patches).toHaveLength(6);
+  // The catalog grows with every schema change, so assert its shape rather than a
+  // row count that needs editing per patch. Manifest ordering, completeness and
+  // checksums are owned by hotel-app-be/tests/postgres_patch_catalog.rs; what is
+  // unique here is that the packaged desktop copy matches the backend byte for
+  // byte and holds nothing else.
+  expect(patches.length).toBeGreaterThan(0);
   for (const fields of patches) {
     expect(fields).toHaveLength(5);
     expect(bytes(join(desktopPatches, fields[4]))).toEqual(bytes(join(backendPatches, fields[4])));
   }
+
+  expect(readdirSync(desktopPatches).sort()).toEqual(
+    ['manifest.tsv', '_begin.sql', '_end.sql', ...patches.map((fields) => fields[4])].sort(),
+  );
 
   const tauriConfig = JSON.parse(readFileSync(join(desktopRoot, 'src-tauri', 'tauri.conf.json'), 'utf8'));
   expect(tauriConfig.bundle.resources).toContain('database/postgres/patches/**/*');
