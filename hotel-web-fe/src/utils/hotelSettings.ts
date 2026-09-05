@@ -38,6 +38,7 @@ export interface HotelSettings {
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
   default_payment_terms_days: number; // Default ledger due-date offset
+  unpaid_hold_release_hours: number; // Hours an unpaid booking holds its room; 0 disables auto-release
   report_font_size: number; // Base report preview/print font size in pixels
   report_font_family: string; // Font family for generated report previews and print output
   report_heading_font_size: number; // Large report headings and KPI values in pixels
@@ -81,6 +82,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
   default_payment_terms_days: 30,
+  unpaid_hold_release_hours: 24, // Online holds expire after a day; 0 is off
   report_font_size: 14,
   report_font_family: DEFAULT_REPORT_FONT_FAMILY,
   report_heading_font_size: 24,
@@ -208,6 +210,11 @@ export const getHotelSettings = (): HotelSettings => {
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: toMoneyNumber(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
         default_payment_terms_days: Number(merged.default_payment_terms_days) || DEFAULT_SETTINGS.default_payment_terms_days,
+        // `|| DEFAULT` cannot be used here: 0 is the meaningful "disabled"
+        // value, and it is falsy, so it would be replaced by the default.
+        unpaid_hold_release_hours: Number.isFinite(Number(merged.unpaid_hold_release_hours))
+          ? Math.max(0, Math.trunc(Number(merged.unpaid_hold_release_hours)))
+          : DEFAULT_SETTINGS.unpaid_hold_release_hours,
         report_font_size: reportBaseFontSize,
         report_font_family: normalizeReportFontFamily(merged.report_font_family),
         report_heading_font_size: normalizeReportFontSize(

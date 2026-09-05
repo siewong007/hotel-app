@@ -13,6 +13,8 @@ use crate::services::audit::AuditLog;
 use crate::services::booking as booking_service;
 use crate::services::payments;
 use crate::models::AuditEvent;
+use crate::utils::sanitization::Sanitizer;
+use rust_decimal::Decimal;
 
 #[derive(Debug, Clone)]
 pub struct SelfCheckinEventInsert {
@@ -104,7 +106,7 @@ pub async fn cancel_pending_booking_by_guest(
     let affected_night_audit_dates =
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    booking_repo::void_booking_tx(&mut tx, booking_id, user_id).await?;
+    booking_repo::void_booking_tx(&mut tx, booking_id, Some(user_id)).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
     payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
@@ -135,6 +137,285 @@ pub async fn cancel_pending_booking_by_guest(
         "affected_night_audit_dates": affected_night_audit_dates,
         "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
     }))
+}
+
+/// Shortest reason accepted when releasing a held room.
+///
+/// Not an arbitrary minimum: it is what stops "x" or "." from satisfying a
+/// required field, which would leave the audit trail no better off than the
+/// optional reason this action exists to replace.
+const MIN_RELEASE_REASON_LEN: usize = 4;
+const MAX_RELEASE_REASON_LEN: usize = 500;
+
+/// Validate and normalise the reason a room was released.
+fn validate_release_reason(reason: &str) -> Result<String, ApiError> {
+    let reason = Sanitizer::sanitize_notes(reason);
+    let reason = reason.trim();
+    if reason.chars().count() < MIN_RELEASE_REASON_LEN {
+        return Err(ApiError::BadRequest(
+            "Please give a reason for releasing this booking.".to_string(),
+        ));
+    }
+    if reason.chars().count() > MAX_RELEASE_REASON_LEN {
+        return Err(ApiError::BadRequest(format!(
+            "The reason must be {MAX_RELEASE_REASON_LEN} characters or fewer."
+        )));
+    }
+    Ok(reason.to_string())
+}
+
+/// Release the room held by a booking that was never paid for, recording why.
+///
+/// Deliberately narrower than [`void_booking`], which is the general staff
+/// override: that takes any booking and an optional reason. This one is the
+/// safe, routine action for clearing a stale unpaid hold, so:
+///
+/// * only a `pending_payment` booking qualifies — anything else is refused and
+///   pointed at void, so a paid or in-house stay cannot be cleared by reflex;
+/// * money already collected is refused outright, because deciding a refund is
+///   not this action's job and releasing the room would strand the payment;
+/// * the reason is required and ends up in booking history and the audit log.
+///
+/// Complimentary-night credits are returned to the guest, matching `void_booking`
+/// — a partly credit-funded stay still sits in `pending_payment`, and the guest
+/// must not lose free nights because staff cleared the hold.
+pub async fn release_pending_payment_booking(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+    reason: &str,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = validate_release_reason(reason)?;
+    let booking = booking_service::fetch_booking_by_id(pool, booking_id).await?;
+
+    if booking.status != "pending_payment" {
+        return Err(ApiError::BadRequest(format!(
+            "Only bookings awaiting payment can be released; this one is '{}'. Void it instead if it has to be cancelled.",
+            booking.status
+        )));
+    }
+
+    let collected = booking_repo::completed_booking_payment_total(pool, booking_id).await?;
+    if collected > Decimal::ZERO {
+        return Err(ApiError::Conflict(
+            "Payments have been recorded against this booking. Void it through the refund flow instead of releasing it.".to_string(),
+        ));
+    }
+
+    let outcome = perform_release(pool, &booking, Some(user_id), &reason, false).await?;
+
+    Ok(serde_json::json!({
+        "message": "Room released. The booking is now voided.",
+        "booking_id": booking_id,
+        "reason": reason,
+        "complimentary_nights_restored": outcome.nights_credited,
+        "affected_night_audit_dates": outcome.affected_night_audit_dates,
+        "night_audit_rerun_required": !outcome.affected_night_audit_dates.is_empty()
+    }))
+}
+
+struct ReleaseOutcome {
+    nights_credited: i32,
+    affected_night_audit_dates: Vec<chrono::NaiveDate>,
+}
+
+/// The release itself, shared by the staff action and the scheduled sweep so
+/// the two can never drift in what they write.
+///
+/// `actor` is `None` for the automated sweep. Callers are responsible for the
+/// eligibility guards first; this performs the release.
+async fn perform_release(
+    pool: &DbPool,
+    booking: &Booking,
+    actor: Option<i64>,
+    reason: &str,
+    automated: bool,
+) -> Result<ReleaseOutcome, ApiError> {
+    let booking_id = booking.id;
+    let affected_night_audit_dates =
+        booking_repo::booking_night_audit_dates(pool, booking_id).await?;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    booking_repo::void_booking_tx(&mut tx, booking_id, actor).await?;
+    booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
+    booking_repo::void_uncompleted_booking_payments_tx(&mut tx, booking_id).await?;
+    let nights_credited = booking_repo::restore_complimentary_credits_tx(&mut tx, booking).await?;
+    payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+
+    booking_repo::record_booking_history_tx(
+        &mut tx,
+        booking_id,
+        Some(&booking.status),
+        "voided",
+        actor,
+        Some(reason),
+        serde_json::json!({
+            "action": if automated { "auto_released_unpaid" } else { "released_unpaid" },
+            "room_id": booking.room_id,
+            "guest_id": booking.guest_id,
+            "check_in_date": booking.check_in_date.to_string(),
+            "check_out_date": booking.check_out_date.to_string(),
+            "complimentary_nights_restored": nights_credited,
+        }),
+    )
+    .await?;
+    // `booking_modifications.modified_by` is NOT NULL, so an automated release
+    // cannot have a row here — there is no user to attribute it to. The booking
+    // history entry and the audit event above both record it instead.
+    if let Some(actor) = actor {
+        booking_repo::record_booking_void_modification_tx(&mut tx, booking, actor).await?;
+    }
+    AuditLog::log_event_tx(
+        &mut tx,
+        AuditEvent {
+            user_id: actor,
+            // Distinct from `booking.voided` so unpaid-hold releases stay
+            // separable from general voids when the audit log is reviewed, and
+            // the automated sweep stays separable from a staff decision.
+            action: if automated {
+                "booking.auto_released_unpaid"
+            } else {
+                "booking.released_unpaid"
+            },
+            resource_type: "booking",
+            resource_id: Some(booking_id),
+            details: Some(serde_json::json!({
+                "booking_number": booking.booking_number,
+                "reason": reason,
+                "room_id": booking.room_id,
+                "total_amount": booking.total_amount.to_string(),
+                "complimentary_nights_restored": nights_credited,
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(ReleaseOutcome {
+        nights_credited,
+        affected_night_audit_dates,
+    })
+}
+
+/// Booking origins the automatic sweep is allowed to release.
+///
+/// `bookings.source` is the coarse origin token (see the channel notes in
+/// `repositories::booking_list`): the guest web module writes `'website'`, OTA
+/// imports write `'online'`, the staff booking form defaults to `'walk_in'`,
+/// and the column itself defaults to `'direct'`. Only the first two are online
+/// bookings.
+///
+/// Anything else — an unrecognised token, or no source at all — counts as a
+/// front-desk hold and is left alone. Staff manage those by hand, and the
+/// automatic sweep must never be the reason one disappears; the direction of
+/// this default is the whole point.
+///
+/// Deliberately separate from `is_online_source`, which matches `'online'`
+/// alone and gates unrelated payment-capture behaviour: widening that helper
+/// would silently change check-in.
+fn is_auto_releasable_source(source: Option<&str>) -> bool {
+    source.is_some_and(|value| {
+        let value = value.trim();
+        value.eq_ignore_ascii_case("website") || value.eq_ignore_ascii_case("online")
+    })
+}
+
+/// Setting holding how long an unpaid booking keeps its room, in hours.
+///
+/// Absent, unparseable or `<= 0` all mean the sweep is off. It ships at `24`
+/// hours: an unpaid online booking keeps its room for a day. Front-desk holds
+/// are exempt regardless — see [`is_auto_releasable_source`].
+const UNPAID_HOLD_SETTING: &str = "unpaid_hold_release_hours";
+
+/// Most holds one sweep will release.
+///
+/// Bounds the first sweep after the setting is switched on, when a hotel may
+/// have months of stale holds: they clear over several ticks, each logged, and
+/// a mistaken window is noticed before it has voided everything.
+const MAX_RELEASES_PER_SWEEP: i64 = 200;
+
+/// Interpret the configured hold window.
+///
+/// Anything that is not a positive whole number of hours disables the sweep.
+/// That direction matters: a blank, malformed or negative value must never be
+/// read as "zero hours, release everything now".
+fn parse_hold_window_hours(raw: &str) -> Option<i32> {
+    match raw.trim().parse::<i32>() {
+        Ok(hours) if hours > 0 => Some(hours),
+        _ => None,
+    }
+}
+
+/// The configured hold window, or `None` when auto-release is off.
+async fn unpaid_hold_window_hours(pool: &DbPool) -> Option<i32> {
+    let raw = crate::modules::settings::service::get_setting_value(pool, UNPAID_HOLD_SETTING)
+        .await
+        .ok()?;
+    parse_hold_window_hours(&raw)
+}
+
+/// Release stale unpaid holds, returning how many were released.
+///
+/// Off unless [`UNPAID_HOLD_SETTING`] is set to a positive number of hours.
+/// A booking qualifies only if it is `pending_payment`, came from an online
+/// channel (see [`is_auto_releasable_source`] — front-desk holds are exempt),
+/// and has no money collected against it; each one is then re-checked
+/// individually before it is touched, because a guest can pay between the
+/// sweep's query and its write.
+///
+/// One failure does not abandon the sweep — a booking that cannot be released
+/// (a concurrent payment, a room state change) is logged and skipped so the
+/// rest still clear.
+pub async fn release_stale_unpaid_holds(pool: &DbPool) -> Result<u64, ApiError> {
+    let Some(hold_hours) = unpaid_hold_window_hours(pool).await else {
+        return Ok(0);
+    };
+
+    let candidates =
+        booking_repo::stale_unpaid_hold_ids(pool, hold_hours, MAX_RELEASES_PER_SWEEP).await?;
+    let reason =
+        format!("Automatically released: unpaid for more than {hold_hours} hour(s)");
+
+    let mut released = 0_u64;
+    for booking_id in candidates {
+        let booking = match booking_service::fetch_booking_by_id(pool, booking_id).await {
+            Ok(booking) => booking,
+            Err(error) => {
+                log::warn!("Auto-release skipped booking {booking_id}: {error}");
+                continue;
+            }
+        };
+
+        // Re-check under current state: the candidate query ran earlier, and a
+        // guest paying in between must keep their room.
+        if booking.status != "pending_payment" {
+            continue;
+        }
+        // Front-desk holds are exempt. The SQL already filters on this; the
+        // Rust helper stays authoritative so the rule has one definition and
+        // a hand-run of the query can never widen it.
+        if !is_auto_releasable_source(booking.source.as_deref()) {
+            continue;
+        }
+        match booking_repo::completed_booking_payment_total(pool, booking_id).await {
+            Ok(collected) if collected > Decimal::ZERO => continue,
+            Ok(_) => {}
+            Err(error) => {
+                log::warn!("Auto-release could not verify payments on booking {booking_id}: {error}");
+                continue;
+            }
+        }
+
+        match perform_release(pool, &booking, None, &reason, true).await {
+            Ok(_) => released += 1,
+            Err(error) => {
+                log::warn!("Auto-release failed for booking {booking_id}: {error}");
+            }
+        }
+    }
+
+    Ok(released)
 }
 
 pub async fn void_booking(
@@ -177,7 +458,7 @@ pub async fn void_booking(
         booking_repo::booking_night_audit_dates(pool, booking_id).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    booking_repo::void_booking_tx(&mut tx, booking_id, user_id).await?;
+    booking_repo::void_booking_tx(&mut tx, booking_id, Some(user_id)).await?;
     booking_repo::release_room_tx(&mut tx, booking.room_id).await?;
     booking_repo::void_booking_payments_tx(&mut tx, booking_id).await?;
     let nights_credited = booking_repo::restore_complimentary_credits_tx(&mut tx, &booking).await?;
@@ -592,7 +873,104 @@ pub async fn reactivate_booking(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_guest_cancellable_booking, is_online_source};
+    use super::{
+        MAX_RELEASE_REASON_LEN, is_auto_releasable_source, is_guest_cancellable_booking,
+        is_online_source, parse_hold_window_hours, validate_release_reason,
+    };
+
+    #[test]
+    fn auto_release_covers_web_and_ota_bookings() {
+        assert!(is_auto_releasable_source(Some("website")));
+        assert!(is_auto_releasable_source(Some("online")));
+        // Imported rows carry inconsistent casing and padding.
+        assert!(is_auto_releasable_source(Some("  Website ")));
+        assert!(is_auto_releasable_source(Some("ONLINE")));
+    }
+
+    #[test]
+    fn auto_release_never_touches_a_front_desk_hold() {
+        // 'walk_in' is the staff form's default and 'direct' the column's, so
+        // these two carry most front-desk bookings.
+        assert!(!is_auto_releasable_source(Some("walk_in")));
+        assert!(!is_auto_releasable_source(Some("direct")));
+        assert!(!is_auto_releasable_source(Some("phone")));
+        assert!(!is_auto_releasable_source(Some("agent")));
+        // Unknown or absent origin is treated as front desk, never released.
+        assert!(!is_auto_releasable_source(Some("kiosk")));
+        assert!(!is_auto_releasable_source(Some("")));
+        assert!(!is_auto_releasable_source(None));
+    }
+
+    #[test]
+    fn auto_release_source_rule_is_wider_than_the_payment_capture_rule() {
+        // `is_online_source` gates check-in payment capture and matches
+        // 'online' only. The two must not be collapsed: a guest-portal booking
+        // is releasable but is not an `is_online_source` booking.
+        assert!(is_auto_releasable_source(Some("website")));
+        assert!(!is_online_source(Some("website")));
+    }
+
+    #[test]
+    fn auto_release_is_off_unless_a_positive_window_is_configured() {
+        // The shipped default, and the value a hotel sets to turn it back off.
+        assert_eq!(parse_hold_window_hours("0"), None);
+        assert_eq!(parse_hold_window_hours(""), None);
+        assert_eq!(parse_hold_window_hours("   "), None);
+    }
+
+    #[test]
+    fn a_malformed_window_never_means_release_everything_now() {
+        // The dangerous direction: these must disable the sweep, not run it
+        // with a zero-hour window that would void every unpaid booking.
+        for raw in ["abc", "-24", "12.5", "24h", "1e3", "99999999999999999999"] {
+            assert_eq!(parse_hold_window_hours(raw), None, "raw: {raw}");
+        }
+    }
+
+    #[test]
+    fn a_positive_window_is_accepted_and_trimmed() {
+        assert_eq!(parse_hold_window_hours("24"), Some(24));
+        assert_eq!(parse_hold_window_hours("  48  "), Some(48));
+        assert_eq!(parse_hold_window_hours("1"), Some(1));
+    }
+
+    #[test]
+    fn release_reason_is_required() {
+        // The whole point of the action: no blank reason silently defaulted.
+        assert!(validate_release_reason("").is_err());
+        assert!(validate_release_reason("   ").is_err());
+        assert!(validate_release_reason("\t\n").is_err());
+    }
+
+    #[test]
+    fn release_reason_rejects_token_input() {
+        assert!(validate_release_reason("x").is_err());
+        assert!(validate_release_reason("..").is_err());
+    }
+
+    #[test]
+    fn release_reason_is_trimmed_and_kept() {
+        assert_eq!(
+            validate_release_reason("  No payment after 7 days  ").unwrap(),
+            "No payment after 7 days"
+        );
+    }
+
+    #[test]
+    fn release_reason_is_length_bounded() {
+        let long = "a".repeat(MAX_RELEASE_REASON_LEN);
+        assert!(validate_release_reason(&long).is_ok());
+        let too_long = "a".repeat(MAX_RELEASE_REASON_LEN + 1);
+        assert!(validate_release_reason(&too_long).is_err());
+    }
+
+    #[test]
+    fn release_reason_is_sanitised() {
+        // Free text reaches booking history and the audit log, so it goes
+        // through the same sanitiser as other staff-entered notes.
+        let cleaned = validate_release_reason("<script>alert(1)</script> unpaid hold").unwrap();
+        assert!(!cleaned.contains("<script>"), "got: {cleaned}");
+    }
 
     #[test]
     fn online_source_is_detected_case_and_whitespace_insensitive() {

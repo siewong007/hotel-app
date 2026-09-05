@@ -34,7 +34,8 @@
 .eyebrow{margin:0 0 16px;color:#2b6b56;font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase}.intro-copy{font-size:1rem}
 .trust-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin:64px 0 96px;background:rgba(11,24,20,.14);border:1px solid rgba(11,24,20,.14)}.trust-item{padding:28px;background:#f5efe4}.trust-item strong{display:block;font:400 2rem/1 Georgia,serif;color:#123a2e}.trust-item span{display:block;margin-top:8px;color:rgba(11,24,20,.58);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase}
 .section-head{display:flex;justify-content:space-between;align-items:end;gap:32px;margin-bottom:32px}.section-head h2{font-size:clamp(2.6rem,5vw,5rem)}.section-head p{max-width:440px;margin:0}
-.room-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.room-card{grid-column:span 4;min-height:270px;padding:28px;display:flex;flex-direction:column;justify-content:space-between;background:#fffaf1;border:1px solid rgba(11,24,20,.12);transition:.35s var(--ease)}.room-card:nth-child(4),.room-card:nth-child(5){grid-column:span 6}.room-card:hover{transform:translateY(-6px);box-shadow:0 24px 54px rgba(18,58,46,.1)}.room-card small{color:#2b6b56;font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.room-card h3{font:400 1.8rem/1.1 Georgia,serif;margin:18px 0}.price{display:flex;align-items:baseline;gap:6px}.price strong{font:400 2.4rem/1 Georgia,serif;color:#123a2e}.price span{font-size:.72rem;color:rgba(11,24,20,.55)}.rate-note{margin:16px 0 0;font-size:.7rem;color:rgba(11,24,20,.52)}
+.room-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}.room-card{grid-column:span 4;min-height:270px;padding:28px;display:flex;flex-direction:column;justify-content:space-between;background:#fffaf1;border:1px solid rgba(11,24,20,.12);transition:.35s var(--ease)}.room-card:nth-child(4),.room-card:nth-child(5){grid-column:span 6}.room-card:hover{transform:translateY(-6px);box-shadow:0 24px 54px rgba(18,58,46,.1)}.room-card .room-book{display:inline-flex;align-items:center;align-self:flex-start;margin-top:18px;padding:9px 15px;border:1px solid rgba(11,24,20,.28);border-radius:999px;color:#123a2e;text-decoration:none;font-size:.62rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;transition:.25s var(--ease)}.room-card .room-book:hover{background:#123a2e;border-color:#123a2e;color:#fffaf1}.room-card .room-book:focus-visible{outline:3px solid #c7a45b;outline-offset:2px}
+.room-card small{color:#2b6b56;font-size:.6rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}.room-card h3{font:400 1.8rem/1.1 Georgia,serif;margin:18px 0}.price{display:flex;align-items:baseline;gap:6px}.price strong{font:400 2.4rem/1 Georgia,serif;color:#123a2e}.price span{font-size:.72rem;color:rgba(11,24,20,.55)}.rate-note{margin:16px 0 0;font-size:.7rem;color:rgba(11,24,20,.52)}
 .amenities-section{margin-top:112px}.amenity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.amenity{padding:26px;border-top:1px solid rgba(11,24,20,.16)}.amenity span{display:grid;place-items:center;width:38px;height:38px;margin-bottom:24px;border-radius:50%;background:#dce9e2;color:#174b39;font-size:.72rem;font-weight:800}.amenity h3{font:400 1.35rem/1.1 Georgia,serif;margin:0 0 10px}.amenity p{font-size:.78rem;margin:0}
 .stay-panel{display:grid;grid-template-columns:1.1fr .9fr;margin-top:112px;background:#0b211a;color:#fffdf7}.stay-copy{padding:clamp(32px,5vw,68px)}.stay-copy h2{font-size:clamp(2.8rem,5vw,5rem);margin-bottom:30px}.stay-copy p{color:rgba(255,255,255,.66)}.stay-details{padding:clamp(32px,5vw,68px);background:rgba(255,255,255,.055);display:grid;align-content:center;gap:24px}.detail{padding-bottom:24px;border-bottom:1px solid rgba(255,255,255,.12)}.detail:last-child{padding:0;border:0}.detail small{display:block;margin-bottom:7px;color:#d9b572;font-size:.58rem;letter-spacing:.15em;text-transform:uppercase}.detail strong,.detail a{font:400 1.05rem/1.5 Georgia,serif;color:#fffdf7;text-decoration:none}
 .cta-actions{display:flex;flex-wrap:wrap;gap:10px}.cta a.secondary{background:transparent;color:var(--white);border:1px solid rgba(255,255,255,.24)}
@@ -52,7 +53,7 @@
 </a>
 <nav class="top-actions" aria-label="Primary navigation">
 <a class="pill sign-in" id="accountAction" href="/login?account=guest" target="_top">Sign in</a>
-<a class="pill pill--gold" id="bookingAction" href="/register" target="_top">Book stay</a>
+<a class="pill pill--gold" id="bookingAction" href="/guest-portal?view=booking" target="_top">Book stay</a>
 <button class="pill map-control" id="mapToggle" aria-pressed="true">Map alignment: on</button>
 </nav>
 </header>
@@ -184,6 +185,7 @@
 <strong>RM75</strong>
 <span>/ night</span>
 </div>
+<a class="room-book" href="/guest-portal?view=booking">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -194,6 +196,7 @@
 <strong>RM85</strong>
 <span>/ night</span>
 </div>
+<a class="room-book" href="/guest-portal?view=booking">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -204,6 +207,7 @@
 <strong>RM95</strong>
 <span>/ night</span>
 </div>
+<a class="room-book" href="/guest-portal?view=booking">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -214,6 +218,7 @@
 <strong>RM105</strong>
 <span>/ night</span>
 </div>
+<a class="room-book" href="/guest-portal?view=booking">Check availability</a>
 </article>
 <article class="room-card">
 <div>
@@ -224,6 +229,7 @@
 <strong>RM110</strong>
 <span>/ night</span>
 </div>
+<a class="room-book" href="/guest-portal?view=booking">Check availability</a>
 </article>
 </div>
 <p class="rate-note">Promotional web rates shown by Salim Inn at the time of publication. Availability and final pricing are confirmed during booking.</p>
@@ -285,6 +291,7 @@
 <p class="eyebrow">PLAN YOUR VISIT</p>
 <h2 id="visit-title">Right at Farley.<br>Ready when you are.</h2>
 <p>Check in from 2:00 pm and check out by 12:00 noon. Book online or contact Salim Inn directly if you need help choosing a room.</p>
+<div class="cta-actions" style="margin-top:28px"><a class="pill pill--gold" href="/guest-portal?view=booking" target="_top">Check availability</a></div>
 </div>
 <div class="stay-details">
 <div class="detail">
@@ -315,7 +322,7 @@
 <div class="cta">
 <h3>Make Sibu feel<br>a little more like home.</h3>
 <div class="cta-actions">
-<a href="/register">Book your stay</a>
+<a href="/guest-portal?view=booking">Book your stay</a>
 <a class="secondary" href="tel:+601110507083">Call Salim Inn</a>
 </div>
 </div>

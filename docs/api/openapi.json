@@ -234,6 +234,15 @@
       "DELETE": {},
       "PUT": {}
     },
+    "/api/booking/offers": {
+      "GET": {}
+    },
+    "/api/booking/quote": {
+      "POST": {}
+    },
+    "/api/booking/reservations": {
+      "POST": {}
+    },
     "/api/bookings": {
       "GET": {},
       "POST": {}
@@ -283,6 +292,9 @@
       "GET": {}
     },
     "/api/bookings/{id}/reactivate": {
+      "POST": {}
+    },
+    "/api/bookings/{id}/release": {
       "POST": {}
     },
     "/api/bookings/{id}/timeline": {
@@ -917,6 +929,9 @@
     },
     {
       "name": "auth"
+    },
+    {
+      "name": "booking"
     },
     {
       "name": "booking-channels"

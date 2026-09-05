@@ -219,6 +219,7 @@ VALUES
     ('support_resolution_normal_minutes'),
     ('support_resolution_urgent_minutes'),
     ('timezone'),
+    ('unpaid_hold_release_hours'),
     ('totp_issuer_name'),
     ('tourism_tax_rate');
 
@@ -817,6 +818,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('night_shift_time', '23:00', 'string', 'operations', 'Scheduled night audit posting time', false),
 ('currency', 'USD', 'string', 'general', 'Default currency code', true),
 ('timezone', 'Asia/Kuala_Lumpur', 'string', 'general', 'Hotel timezone', false),
+('unpaid_hold_release_hours', '24', 'number', 'booking', 'Hours an unpaid online booking keeps its room before it is released automatically. 0 disables automatic release. Front-desk bookings are never released automatically.', false),
 ('deposit_amount', '50', 'number', 'payments', 'Default room card or check-in deposit amount', false),
 ('tourism_tax_rate', '10', 'number', 'tax', 'Tourism tax amount charged per night for foreign guests', false),
 -- Declared expected since V1 but never actually seeded, which the newly-armed

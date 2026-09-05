@@ -18,6 +18,13 @@ function getCurrentAccount() {
   }
 }
 
+// One destination for booking, whoever is looking. Booking no longer requires
+// an account: a signed-out visitor books anonymously and pays with the
+// booking-scoped link, so sending them to /register first was a detour that
+// lost the booking intent on the way (neither /register nor /login carried it
+// through to the booking flow).
+const BOOKING_LINK = '/guest-portal?view=booking';
+
 function updateAccountActions() {
   const accountAction = document.getElementById('accountAction');
   const bookingAction = document.getElementById('bookingAction');
@@ -28,7 +35,7 @@ function updateAccountActions() {
     accountAction.textContent = 'My account';
     accountAction.href = '/guest-portal';
     bookingAction.textContent = 'Book another stay';
-    bookingAction.href = '/guest-portal?view=booking';
+    bookingAction.href = BOOKING_LINK;
   } else if (account === 'admin') {
     accountAction.textContent = 'Admin console';
     accountAction.href = '/admin-portal';
@@ -37,7 +44,7 @@ function updateAccountActions() {
     accountAction.textContent = 'Sign in';
     accountAction.href = '/login?account=guest';
     bookingAction.textContent = 'Book stay';
-    bookingAction.href = '/register';
+    bookingAction.href = BOOKING_LINK;
   }
 }
 

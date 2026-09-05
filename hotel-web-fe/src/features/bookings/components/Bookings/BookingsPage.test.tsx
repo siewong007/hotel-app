@@ -107,6 +107,7 @@ const mocks = vi.hoisted(() => ({
   getAvailableRoomsForDates: vi.fn(),
   getGuest: vi.fn(),
   voidBooking: vi.fn(),
+  releaseBooking: vi.fn(),
   updateRoomStatus: vi.fn(),
   updateBookingApi: vi.fn(),
 
@@ -131,6 +132,7 @@ vi.mock('../../../../router', () => ({
 vi.mock('../../../../api', () => ({
   BookingsService: {
     voidBooking: (...args: unknown[]) => mocks.voidBooking(...args),
+    releaseBooking: (...args: unknown[]) => mocks.releaseBooking(...args),
     updateBooking: (...args: unknown[]) => mocks.updateBookingApi(...args),
   },
   GuestsService: {
@@ -393,6 +395,7 @@ describe('BookingsPage', () => {
     mocks.getAvailableRoomsForDates.mockReset().mockResolvedValue([]);
     mocks.getGuest.mockReset().mockResolvedValue({ ic_number: '990101-01-1234', phone: '0123456789' });
     mocks.voidBooking.mockReset().mockResolvedValue({});
+    mocks.releaseBooking.mockReset().mockResolvedValue({});
     mocks.updateRoomStatus.mockReset().mockResolvedValue({});
     mocks.updateBookingApi.mockReset().mockResolvedValue({});
 

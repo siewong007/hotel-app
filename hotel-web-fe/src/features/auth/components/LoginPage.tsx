@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
+import { safeGuestRedirect } from '../guestRedirect';
 import {
   Box,
   ButtonBase,
@@ -100,7 +101,13 @@ const LoginPage: React.FC = () => {
     // Enter the authenticated shell directly. Routing staff through the public
     // model page discards the in-memory access token and can also revive a
     // stale lazy-route module when they return to the app.
-    navigate(account === 'guest' ? '/guest-portal' : '/admin-portal', { replace: true });
+    //
+    // A guest who came here from the booking flow goes back to it. Without
+    // this, signing in mid-booking silently dropped the booking and landed on
+    // the dashboard instead.
+    const guestDestination =
+      safeGuestRedirect(searchParams.get('redirect')) ?? '/guest-portal';
+    navigate(account === 'guest' ? guestDestination : '/admin-portal', { replace: true });
   };
 
   const handleFirstLoginPromptClose = () => {
@@ -188,7 +195,7 @@ const LoginPage: React.FC = () => {
       // missing required fields must finish that step first.
       const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
       if (storedUser?.profile_complete === false) {
-        const redirectParam = searchParams.get('redirect');
+        const redirectParam = safeGuestRedirect(searchParams.get('redirect'));
         navigate(
           redirectParam
             ? `/complete-profile?redirect=${encodeURIComponent(redirectParam)}`

@@ -42,6 +42,7 @@ pub fn routes() -> Router<DbPool> {
         // Specific parameterized routes (MUST come before generic /bookings/:id routes)
         .route("/bookings/{id}/reactivate", post(reactivate_booking))
         .route("/bookings/{id}/checkin", post(manual_checkin))
+        .route("/bookings/{id}/release", post(release_booking))
         .route(
             "/bookings/{id}/auto-checkin-eligibility",
             get(auto_checkin_eligibility),
@@ -134,6 +135,20 @@ async fn void_booking(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
     handlers::bookings::void_booking_handler(State(pool), Extension(user_id), Json(input)).await
+}
+
+/// Release the room held by an unpaid booking. Same permission as voiding —
+/// this is a narrower, reason-required form of the same override, not a wider
+/// one, so it must not be reachable by anyone who could not already void.
+async fn release_booking(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::ReleaseBookingRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::release_booking_handler(State(pool), Extension(user_id), path, Json(input))
+        .await
 }
 
 async fn manual_checkin(

@@ -245,6 +245,10 @@ async fn main() {
     // Automatically expire receipt requests that remain unanswered for 24 hours.
     services::payment_receipt_scheduler::spawn(pool.clone());
 
+    // Releases stale unpaid ONLINE holds after `unpaid_hold_release_hours`
+    // (ships at 24; 0 switches it off). Front-desk holds are never touched.
+    services::unpaid_hold_scheduler::spawn(pool.clone());
+
     // Start the durable email delivery worker. Inert when SMTP_* env vars are
     // absent; otherwise leases due outbox rows and sends with retry/backoff.
     modules::communications::worker::spawn(pool.clone());

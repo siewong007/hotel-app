@@ -21,6 +21,7 @@ import { LoadingSpinner } from '../../../components';
 import { storage } from '../../../utils/storage';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { errorMessage } from '../../../utils/errorMessage';
+import { safeGuestRedirect } from '../guestRedirect';
 
 const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
@@ -52,7 +53,16 @@ const RegisterPage: React.FC = () => {
     }
 
     if (redirectCountdown === 0) {
-      navigate('/login?account=guest', { replace: true });
+      // Carry the booking intent through to sign-in. Dropping it here is what
+      // made "Book stay" -> register -> login end on the dashboard with the
+      // booking abandoned.
+      const redirectParam = safeGuestRedirect(searchParams.get('redirect'));
+      navigate(
+        redirectParam
+          ? `/login?account=guest&redirect=${encodeURIComponent(redirectParam)}`
+          : '/login?account=guest',
+        { replace: true }
+      );
       return;
     }
 
@@ -61,7 +71,7 @@ const RegisterPage: React.FC = () => {
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [navigate, redirectCountdown]);
+  }, [navigate, redirectCountdown, searchParams]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -164,7 +174,7 @@ const RegisterPage: React.FC = () => {
       await loginWithGoogle(credential);
 
       const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
-      const redirectParam = searchParams.get('redirect');
+      const redirectParam = safeGuestRedirect(searchParams.get('redirect'));
       if (storedUser?.profile_complete === false) {
         navigate(
           redirectParam
@@ -175,7 +185,7 @@ const RegisterPage: React.FC = () => {
         return;
       }
 
-      navigate(redirectParam === '/portal/book' ? '/portal/book' : '/guest-portal', { replace: true });
+      navigate(redirectParam ?? '/guest-portal', { replace: true });
     } catch (err) {
       const message = errorMessage(err, 'Google sign-in failed');
       // Same 503-on-status contract as LoginPage.tsx's Google handler — see

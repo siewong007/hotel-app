@@ -3,6 +3,7 @@ use sqlx::query_scalar;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::utils::sanitization::Sanitizer;
 
 pub const MAX_BOOKING_NIGHTS: i64 = 30;
 pub const MAX_ADVANCE_BOOKING_MONTHS: u32 = 3;
@@ -121,6 +122,92 @@ pub fn validate_client_request_id(value: &str) -> Result<String, ApiError> {
         ));
     }
     Ok(value.to_string())
+}
+
+/// A validated anonymous booker, normalised for storage.
+#[derive(Debug, Clone)]
+pub struct ValidatedAnonymousGuest {
+    /// `"First Last"`, or just the first name when no last name was given.
+    /// Still subject to `idx_guests_full_name_unique` at insert time.
+    pub full_name: String,
+    pub first_name: String,
+    pub last_name: Option<String>,
+    pub email: String,
+    pub phone: Option<String>,
+    pub tourism_type: String,
+}
+
+/// Validate the contact details an anonymous booker supplies inline.
+///
+/// A front-desk booking may be created from a first name alone, because staff
+/// collect the rest at check-in. An anonymous booking cannot: the email is the
+/// only way to send the confirmation and, with the booking number, the only way
+/// the guest can reach the booking again.
+///
+/// `tourism_type` is required and never defaulted — it decides whether tourism
+/// tax applies, so guessing it is a money error rather than a convenience.
+pub fn validate_anonymous_guest(
+    details: &crate::modules::guest_booking::models::AnonymousGuestDetails,
+) -> Result<ValidatedAnonymousGuest, ApiError> {
+    let first_name = Sanitizer::sanitize_guest_name(&details.first_name);
+    let first_name = first_name.as_str();
+    if first_name.is_empty() || first_name.chars().count() > 100 {
+        return Err(ApiError::BadRequest(
+            "Please enter the guest's first name".to_string(),
+        ));
+    }
+
+    let last_name = details
+        .last_name
+        .as_deref()
+        .map(Sanitizer::sanitize_guest_name)
+        .filter(|value| !value.is_empty());
+    if last_name
+        .as_deref()
+        .is_some_and(|value| value.chars().count() > 100)
+    {
+        return Err(ApiError::BadRequest("Last name is too long".to_string()));
+    }
+
+    let email = crate::modules::communications::validation::validate_email(&details.email)?;
+
+    let phone = details
+        .phone
+        .as_deref()
+        .map(Sanitizer::sanitize_phone)
+        .filter(|value| !value.is_empty());
+    if phone
+        .as_deref()
+        .is_some_and(|value| value.chars().count() > 20)
+    {
+        return Err(ApiError::BadRequest(
+            "Phone number is too long".to_string(),
+        ));
+    }
+
+    let tourism_type = details.tourism_type.trim().to_ascii_lowercase();
+    if tourism_type != "local" && tourism_type != "foreign" {
+        return Err(ApiError::BadRequest(
+            "Please select whether the guest is a local or foreign tourist".to_string(),
+        ));
+    }
+
+    let full_name = match last_name.as_deref() {
+        Some(last) => format!("{first_name} {last}"),
+        None => first_name.to_string(),
+    };
+    if full_name.chars().count() > 200 {
+        return Err(ApiError::BadRequest("Guest name is too long".to_string()));
+    }
+
+    Ok(ValidatedAnonymousGuest {
+        full_name,
+        first_name: first_name.to_string(),
+        last_name,
+        email,
+        phone,
+        tourism_type,
+    })
 }
 
 #[cfg(test)]
