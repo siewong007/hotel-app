@@ -422,6 +422,30 @@ impl AuthRepository {
                 .await
                 .map_err(ApiError::from)?;
         if email_is_already_reserved {
+            // A concurrent first-time sign-in for the same identity can commit
+            // between the two lookups above and this one. Those ran on earlier
+            // statement snapshots and saw nothing; READ COMMITTED gives this
+            // statement a fresh snapshot that does see the winner's row, so
+            // the loser rejected an address the winning request had just
+            // claimed for this very identity. Resolve it the way every other
+            // lost race in this function is resolved -- hand back the winner.
+            if let Some(winner) = sqlx::query_as::<_, User>(
+                "SELECT id, username, email, google_subject, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE google_subject = $1 AND deleted_at IS NULL FOR UPDATE",
+            )
+            .bind(&identity.subject)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::from)?
+            {
+                ensure_active_google_guest(&winner)?;
+                tx.commit().await.map_err(ApiError::from)?;
+                return Ok(winner);
+            }
+
+            // Nothing holds this Google subject, so the address genuinely
+            // belongs to an account this identity may not take over. A
+            // soft-deleted row still occupies users_email_key, which is why
+            // this check looks wider than the `deleted_at IS NULL` ones above.
             return Err(ApiError::Conflict(
                 "This guest account cannot be linked to Google sign-in.".to_string(),
             ));
