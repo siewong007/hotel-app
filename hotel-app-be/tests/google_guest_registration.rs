@@ -4,6 +4,7 @@
 //! the actual unique indexes, savepoints, and row locks that unit tests cannot
 //! represent. A configured database must include migration 0002.
 
+use hotel_app_be::core::error::ApiError;
 use hotel_app_be::repositories::auth::AuthRepository;
 use hotel_app_be::services::google_identity::{GoogleIdentity, google_username};
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -213,4 +214,47 @@ async fn postgres_google_guest_creation_allows_an_unrelated_duplicate_display_na
 
     cleanup_email(&pool, &identity.email).await;
     cleanup_email(&pool, &collision_email).await;
+}
+#[tokio::test]
+async fn postgres_google_guest_rejects_an_email_held_by_a_soft_deleted_account() {
+    let Some(pool) = postgres_pool().await else {
+        return;
+    };
+    let identity = test_identity("reserved-email");
+    cleanup_email(&pool, &identity.email).await;
+
+    // `users_email_key` is a plain unique index, so a soft-deleted row still
+    // occupies the address. It is invisible to the `deleted_at IS NULL` lookups
+    // in resolve_google_guest, which is exactly the case the reserved-email
+    // guard exists for -- and the case the lost-race recovery must not swallow.
+    let guest_id: i64 = sqlx::query_scalar(
+        "INSERT INTO guests (full_name, email, is_active, guest_type) VALUES ($1, $2, true, 'non_member') RETURNING id",
+    )
+    .bind(format!("Soft Deleted {}", &identity.subject))
+    .bind(&identity.email)
+    .fetch_one(&pool)
+    .await
+    .expect("test setup must create a guest");
+    sqlx::query(
+        "INSERT INTO users (username, email, full_name, user_type, guest_id, is_active, is_verified, deleted_at) VALUES ($1, $2, $3, 'guest', $4, true, false, CURRENT_TIMESTAMP)",
+    )
+    .bind(format!("deleted_{}", uuid::Uuid::now_v7().simple()))
+    .bind(&identity.email)
+    .bind("Soft Deleted")
+    .bind(guest_id)
+    .execute(&pool)
+    .await
+    .expect("test setup must create a soft-deleted user");
+
+    let result = AuthRepository::resolve_google_guest(&pool, &identity).await;
+
+    cleanup_email(&pool, &identity.email).await;
+
+    match result {
+        Err(ApiError::Conflict(message)) => assert_eq!(
+            message, "This guest account cannot be linked to Google sign-in.",
+            "a reserved address must still be refused, not resolved to a winner"
+        ),
+        other => panic!("expected a Conflict for a reserved email, got {other:?}"),
+    }
 }
