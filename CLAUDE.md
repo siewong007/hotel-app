@@ -5,8 +5,10 @@ belongs in `.claude/refs/` (facts about the code, loaded on demand) or `.claude/
 (how agents work; the harness auto-loads `.claude/rules/*.md` every session, so keep
 those lean). Do not add content here without removing something.
 
-Facts below verified against the tree 2026-08-02. Line anchors in refs rot as code moves —
-verify with Grep first. This volume path has a trailing space ("…EXTERNAL SSD ") — always
+Facts below verified 2026-09-05 against `origin/master`, which is what deploys — the local
+tree is routinely behind, mid-merge, or dirty with another session's work, so check a claim
+against `git show origin/master:<path>` before trusting it. Line anchors in refs rot as code
+moves — verify with Grep first. This volume path has a trailing space ("…EXTERNAL SSD ") — always
 quote paths in shell.
 
 ## Read-this-first routing
@@ -82,6 +84,8 @@ promotions, settings, support, teams) — put new domains there.
 - `core/db.rs` — pool creation, `hotel_today(executor)` for business-day math, decimal helpers. Each connection gets the timezone from `system_settings.timezone`, so SQL `CURRENT_DATE` is the hotel business day. Never use `chrono::Local`/`Utc` date math for business dates.
 - `core/sql_compat.rs` — `param!(N)` placeholders, `current_timestamp()`, `current_date()`.
 - `services/audit.rs` — call from every mutating handler; `utils/sanitization.rs::Sanitizer` for free text; `validator` derives on request models.
+- Adding or removing ANY route drifts `docs/api/openapi.json`, and `tests/openapi_drift.rs` is a CI gate. Regenerate: `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`.
+- Background loops spawned in `main.rs`: night audit, payment receipts, unpaid online-hold release (`services/unpaid_hold_scheduler.rs`; window is the `unpaid_hold_release_hours` setting, ships at 24, 0 disables), plus the communications worker and scheduler.
 
 PostgreSQL is the only engine. A new empty database is initialized exactly once by the
 V1 baseline then `seed.sql`; Docker, server and desktop share that sequence, and legacy
@@ -89,18 +93,23 @@ schemas are exported and rebuilt rather than migrated. **There is no second migr
 file** — the only forward path is `database/postgres/patches/`, an ordered
 checksum-verified catalog driven by `manifest.tsv`, so an additive schema change goes
 into the baseline (fresh installs) AND a new catalog patch (installed V1 databases).
-Nothing discovers loose SQL: a `000N_*.sql` without a manifest row is dead. Executors:
-`apply-patches.sh` (`make db-patch`, deploy) and `src-tauri/src/postgres/patches.rs`
+Nothing discovers loose SQL. A new `000N_*.sql` is dead until it is registered in FOUR
+places: `patches/manifest.tsv`, and by name in BOTH `.github/workflows/deploy.yml` and
+`deploy/deploy.sh` (`tests/postgres_patch_catalog.rs` enforces those three), plus the three
+hardcoded spots in `tests/postgres_patch_lifecycle.rs` — two `version BETWEEN 2 AND <N>`
+bounds and the expected-revision list. A stale bound does not fail loudly; it silently drops
+the newest patch from coverage while the suite stays green. Catalog head is `0009`.
+Executors: `apply-patches.sh` (`make db-patch`, deploy) and `src-tauri/src/postgres/patches.rs`
 (desktop). Published versions/checksums are immutable — never edit a shipped patch, add
-a version. `seed.sql` is one self-validating transaction that
-`RAISE`s on re-apply; adding a permission/route/action touches several checklists inside it.
+a version. `seed.sql` is one self-validating transaction that `RAISE`s on re-apply; adding a
+permission/route/action or a `system_settings` row touches several checklists inside it.
 
 Frontend:
 - `src/features/<domain>/` feature modules; `src/api/*.service.ts` one per backend domain.
 - ALL HTTP via `src/api/client.ts` (ky; in-memory access token, HttpOnly refresh cookie, idempotent-GET retries, one refresh-and-retry on 401). Never call `fetch` directly.
 - Server state is TanStack Query; there is no separate client-state store library.
 - Routing: TanStack Router file routes in `src/routes/*.tsx` **and** the lazy registry `src/navigation/routeRegistry.tsx` — add new pages to BOTH (not App.tsx). The sidebar reads the registry; `route_access_policies` rows only drive the RBAC admin panel.
-- Vite dev proxy list in `vite.config.ts` is hand-maintained — add new top-level API prefixes or dev 404s.
+- Vite dev proxy forwards only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`) in `vite.config.ts`; every other path falls through to the SPA. A new `/api/...` endpoint needs NO proxy edit — only a new TOP-LEVEL prefix does, and that one also belongs in the desktop CORS allow-list in `src-tauri/src/commands.rs`.
 - Dates: `toISOString().split/.slice` is lint-banned (CI fails); use `src/utils/date.ts`.
 - `tsconfig.json` has `strict: false` (`strictNullChecks` on) and `lib: ES2020` — `.at()`, `Object.groupBy`, `findLast` fail typecheck even though vitest accepts them.
 
