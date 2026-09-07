@@ -1,0 +1,173 @@
+# STAGING stack for staging.saliminn.my on the same AIC VPS as prod.
+# Isolated Compose project — own DB/secrets/ports. Never touches /opt/saliminn.
+#
+# The host-level Caddy process owns ports 80/443. Every hotel port is bound to
+# loopback, so only Caddy (or an administrator on the VPS) can reach it.
+# Payroll keeps 127.0.0.1:8080 and the host PostgreSQL server keeps :5432;
+# this stack uses :3031 and :8083 so it never collides with prod :3030/:8081. Its PostgreSQL
+# port is not published at all; maintenance uses `docker exec saliminn-db`.
+#
+# deploy/deploy.sh supplies IMAGE_TAG, POSTGRES_PASSWORD, and JWT_SECRET. The
+# application images are loaded directly from the GitHub Actions release bundle;
+# no registry or additional AWS service is involved.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: saliminn-staging-db
+    restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - max_connections=20
+      - -c
+      - shared_buffers=32MB
+      - -c
+      - work_mem=1MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - max_parallel_workers=1
+    environment:
+      POSTGRES_USER: hotel_admin
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: hotel_management
+    volumes:
+      # PostgreSQL 19 stores versioned data below /var/lib/postgresql.
+      - postgres_data:/var/lib/postgresql
+      # Applied by the official image only while postgres_data is empty.
+      - /opt/saliminn-staging/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotel_admin -d hotel_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    shm_size: 64mb
+    mem_limit: 96m
+    cpus: 0.20
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 60s
+    logging: *default-logging
+    networks:
+      - database
+
+  backend:
+    image: "saliminn-backend:${IMAGE_TAG:?IMAGE_TAG is required}"
+    container_name: saliminn-staging-backend
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:3031:3030"
+    environment:
+      DATABASE_URL: "postgres://hotel_admin:${POSTGRES_PASSWORD}@postgres:5432/hotel_management"
+      DATABASE_MAX_CONNECTIONS: "5"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_ISSUER: hotel-app-be
+      JWT_AUDIENCE: hotel-web
+      BACKEND_PORT: "3030"
+      ALLOWED_ORIGINS: "https://staging.saliminn.my"
+      PASSKEY_RP_ID: staging.saliminn.my
+      PUBLIC_BASE_URL: https://staging.saliminn.my
+      # Safe because the published port is loopback-only and Caddy is the sole
+      # public path to it.
+      TRUST_PROXY_HEADERS: "true"
+      HOTEL_LOG_DIR: /app/logs
+      RUST_LOG: warn
+      ENVIRONMENT: production
+      PAYPAL_ENABLED: "${PAYPAL_ENABLED:-false}"
+      PAYPAL_CLIENT_ID: "${PAYPAL_CLIENT_ID:-}"
+      PAYPAL_CLIENT_SECRET: "${PAYPAL_CLIENT_SECRET:-}"
+      PAYPAL_API_BASE: "${PAYPAL_API_BASE:-https://api-m.sandbox.paypal.com}"
+      HOTEL_BANK_NAME: "${HOTEL_BANK_NAME:-}"
+      HOTEL_BANK_ACCOUNT_NAME: "${HOTEL_BANK_ACCOUNT_NAME:-}"
+      HOTEL_BANK_ACCOUNT_NUMBER: "${HOTEL_BANK_ACCOUNT_NUMBER:-}"
+      # Outbound email. Supplied from /opt/saliminn/secrets.env (root-owned,
+      # 0600) which deploy.sh sources before invoking compose — credentials
+      # never enter the repository, the image, or GitHub Actions secrets.
+      #
+      # Optional: encrypt TOTP secrets at rest (AES-256-GCM). Generate with:
+      #   openssl rand -base64 32
+      TOTP_ENCRYPTION_KEY: "${TOTP_ENCRYPTION_KEY:-}"
+      # All optional: Transport::from_env() returns None unless BOTH SMTP_HOST
+      # and SMTP_FROM_EMAIL are set, and the delivery worker then stays inert
+      # rather than failing startup. Setting them is what enables guest email
+      # and, later, operational alerting.
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM_EMAIL: "${SMTP_FROM_EMAIL:-}"
+      SMTP_FROM_NAME: "${SMTP_FROM_NAME:-Salim Inn Staging}"
+      SMTP_SECURITY: "${SMTP_SECURITY:-starttls}"
+    volumes:
+      # These bind mounts survive image/container replacement. eKYC documents
+      # are private and remain accessible only through authenticated handlers.
+      - /opt/saliminn-staging/data/uploads:/app/uploads
+      - /opt/saliminn-staging/data/private_uploads:/app/private_uploads
+      - /opt/saliminn-staging/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3030/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 128m
+    cpus: 0.30
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging: *default-logging
+    networks:
+      - app
+      - database
+
+  frontend:
+    image: "saliminn-frontend:${IMAGE_TAG:?IMAGE_TAG is required}"
+    container_name: saliminn-staging-frontend
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:8083:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    mem_limit: 48m
+    cpus: 0.10
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 15s
+    logging: *default-logging
+    networks:
+      - app
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  app:
+    driver: bridge
+  database:
+    # Only the backend is dual-homed. PostgreSQL has no Internet-facing Docker
+    # network and no published host port.
+    internal: true

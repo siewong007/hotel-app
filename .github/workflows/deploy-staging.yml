@@ -1,0 +1,344 @@
+name: Deploy staging
+
+# Staging deploy to the same AIC VPS as production, isolated under
+# /opt/saliminn-staging. Mirrors the zero-incremental-cost SSH bundle path.
+#
+# Required secret (repo or "staging" environment):
+#   VPS_SSH_PRIVATE_KEY - private key accepted for root@162.19.81.122:20049
+#
+# Host key pin (same as production):
+#   SHA256:HV6OszvuYmwmWRLEY7z7jm8GojWZJppJlDBHIhJVUxw
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full 40-char commit SHA to deploy (leave empty for current master HEAD)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saliminn-staging
+  cancel-in-progress: false
+
+env:
+  VPS_HOST: 162.19.81.122
+  VPS_PORT: "20049"
+  VPS_USER: root
+  VPS_HOST_KEY: "[162.19.81.122]:20049 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIxenH95jfg3hxfkumJpZJyV7phwCNDrXrAL0wUXnta9"
+  # Flip to true after staging.saliminn.my DNS/Cloudflare points at this origin.
+  PUBLIC_DNS_CUTOVER: "false"
+
+jobs:
+  gate:
+    name: Select staging revision
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.select.outputs.deploy }}
+      sha: ${{ steps.select.outputs.sha }}
+
+    steps:
+      - name: Choose SHA
+        id: select
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CANDIDATE_SHA: ${{ github.event.workflow_run.head_sha }}
+          DISPATCH_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          latest_sha=$(git ls-remote --exit-code \
+            "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/master | awk '{print $1}')
+          [[ "$latest_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ -n "${DISPATCH_SHA:-}" ]]; then
+              [[ "$DISPATCH_SHA" =~ ^[0-9a-f]{40}$ ]]
+              printf 'sha=%s\n' "$DISPATCH_SHA" >> "$GITHUB_OUTPUT"
+            else
+              printf 'sha=%s\n' "$latest_sha" >> "$GITHUB_OUTPUT"
+            fi
+            printf 'deploy=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          printf 'sha=%s\n' "$CANDIDATE_SHA" >> "$GITHUB_OUTPUT"
+          if [[ "$CANDIDATE_SHA" == "$latest_sha" ]]; then
+            printf 'deploy=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'deploy=false\n' >> "$GITHUB_OUTPUT"
+            echo "Skipping superseded commit $CANDIDATE_SHA; master is $latest_sha."
+          fi
+
+  deploy:
+    name: Build and deploy staging to the AIC VPS
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: staging
+    env:
+      DEPLOY_SHA: ${{ needs.gate.outputs.sha }}
+
+    steps:
+      - name: Check out the selected commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+          persist-credentials: false
+
+      - name: Verify deployment revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
+
+      - name: Build linux/amd64 application images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --platform linux/amd64 \
+            --pull \
+            --label "org.opencontainers.image.revision=$DEPLOY_SHA" \
+            --tag "saliminn-backend:$DEPLOY_SHA" \
+            hotel-app-be
+          docker build \
+            --platform linux/amd64 \
+            --pull \
+            --build-arg VITE_API_URL= \
+            --label "org.opencontainers.image.revision=$DEPLOY_SHA" \
+            --tag "saliminn-frontend:$DEPLOY_SHA" \
+            hotel-web-fe
+
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' \
+            "saliminn-backend:$DEPLOY_SHA")" = "linux/amd64"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' \
+            "saliminn-frontend:$DEPLOY_SHA")" = "linux/amd64"
+
+      - name: Create checksummed staging release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_dir="$RUNNER_TEMP/saliminn-staging-release"
+          bundle_path="$RUNNER_TEMP/saliminn-staging-$DEPLOY_SHA.tar.gz"
+          mkdir -p "$bundle_dir/images" "$bundle_dir/initdb" "$bundle_dir/database/patches"
+
+          docker save "saliminn-backend:$DEPLOY_SHA" | gzip -1 > "$bundle_dir/images/backend.tar.gz"
+          docker save "saliminn-frontend:$DEPLOY_SHA" | gzip -1 > "$bundle_dir/images/frontend.tar.gz"
+
+          # Staging deploy script + compose (installed on host as docker-compose.prod.yml)
+          cp deploy/deploy-staging.sh "$bundle_dir/deploy.sh"
+          cp deploy/database-backup-staging.sh "$bundle_dir/database-backup.sh"
+          cp deploy/docker-compose.staging.yml "$bundle_dir/docker-compose.prod.yml"
+
+          cp hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql \
+            "$bundle_dir/initdb/01-v1-baseline.sql"
+          cp hotel-app-be/database/postgres/seed.sql "$bundle_dir/initdb/02-seed.sql"
+          cp hotel-app-be/database/postgres/apply-patches.sh \
+            "$bundle_dir/database/apply-patches.sh"
+          cp hotel-app-be/database/postgres/patches/manifest.tsv \
+            "$bundle_dir/database/patches/manifest.tsv"
+          cp hotel-app-be/database/postgres/patches/_begin.sql \
+            "$bundle_dir/database/patches/_begin.sql"
+          cp hotel-app-be/database/postgres/patches/_end.sql \
+            "$bundle_dir/database/patches/_end.sql"
+          cp hotel-app-be/database/postgres/patches/0002_google_subject.sql \
+            "$bundle_dir/database/patches/0002_google_subject.sql"
+          cp hotel-app-be/database/postgres/patches/0003_payment_idempotency.sql \
+            "$bundle_dir/database/patches/0003_payment_idempotency.sql"
+          cp hotel-app-be/database/postgres/patches/0004_booking_status_vocabulary.sql \
+            "$bundle_dir/database/patches/0004_booking_status_vocabulary.sql"
+          cp hotel-app-be/database/postgres/patches/0005_booking_status_enforcement.sql \
+            "$bundle_dir/database/patches/0005_booking_status_enforcement.sql"
+          cp hotel-app-be/database/postgres/patches/0006_guest_role_isolation.sql \
+            "$bundle_dir/database/patches/0006_guest_role_isolation.sql"
+          cp hotel-app-be/database/postgres/patches/0007_manager_audit_read.sql \
+            "$bundle_dir/database/patches/0007_manager_audit_read.sql"
+          cp hotel-app-be/database/postgres/patches/0008_notifications_email_triggers.sql \
+            "$bundle_dir/database/patches/0008_notifications_email_triggers.sql"
+          cp hotel-app-be/database/postgres/patches/0009_unpaid_hold_release.sql \
+            "$bundle_dir/database/patches/0009_unpaid_hold_release.sql"
+
+          (
+            cd "$bundle_dir"
+            sha256sum \
+              deploy.sh \
+              database-backup.sh \
+              docker-compose.prod.yml \
+              images/backend.tar.gz \
+              images/frontend.tar.gz \
+              initdb/01-v1-baseline.sql \
+              initdb/02-seed.sql \
+              database/apply-patches.sh \
+              database/patches/manifest.tsv \
+              database/patches/_begin.sql \
+              database/patches/_end.sql \
+              database/patches/0002_google_subject.sql \
+              database/patches/0003_payment_idempotency.sql \
+              database/patches/0004_booking_status_vocabulary.sql \
+              database/patches/0005_booking_status_enforcement.sql \
+              database/patches/0006_guest_role_isolation.sql \
+              database/patches/0007_manager_audit_read.sql \
+              database/patches/0008_notifications_email_triggers.sql \
+              database/patches/0009_unpaid_hold_release.sql \
+              > SHA256SUMS
+          )
+          tar -C "$bundle_dir" -czf "$bundle_path" .
+          ls -lh "$bundle_path"
+
+      - name: Configure pinned SSH access
+        shell: bash
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_SSH_PRIVATE_KEY"
+          install -m 0600 /dev/null "$RUNNER_TEMP/vps-key"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/vps-key"
+          install -m 0600 /dev/null "$RUNNER_TEMP/vps-known-hosts"
+          printf '%s\n' "$VPS_HOST_KEY" > "$RUNNER_TEMP/vps-known-hosts"
+          ssh-keygen -lf "$RUNNER_TEMP/vps-known-hosts" \
+            | grep -Fq 'SHA256:HV6OszvuYmwmWRLEY7z7jm8GojWZJppJlDBHIhJVUxw'
+
+      - name: Verify protected VPS disk capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/saliminn-staging-$DEPLOY_SHA.tar.gz"
+          archive_bytes=$(wc -c < "$archive" | tr -d ' ')
+          [[ "$archive_bytes" =~ ^[0-9]+$ ]]
+          required_bytes=$((6442450944 + (archive_bytes * 2)))
+          ssh \
+            -i "$RUNNER_TEMP/vps-key" \
+            -p "$VPS_PORT" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
+            "$VPS_USER@$VPS_HOST" \
+            "set -eu
+             for target in /tmp /opt; do
+               available=\$(df --output=avail -B1 \"\$target\" | tail -n 1 | tr -d ' ')
+               if [ \"\$available\" -lt $required_bytes ]; then
+                 echo \"Insufficient free space on \$target for a protected deployment\" >&2
+                 exit 1
+               fi
+             done"
+
+      - name: Upload staging release to the VPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp \
+            -i "$RUNNER_TEMP/vps-key" \
+            -P "$VPS_PORT" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
+            "$RUNNER_TEMP/saliminn-staging-$DEPLOY_SHA.tar.gz" \
+            "$VPS_USER@$VPS_HOST:/tmp/saliminn-staging-$DEPLOY_SHA.tar.gz.part"
+
+      - name: Deploy staging and wait for health checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          # For push-triggered runs, refuse stale master. workflow_dispatch may
+          # intentionally deploy a non-HEAD SHA for bug hunting.
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            latest_sha=$(git ls-remote --exit-code \
+              "https://github.com/$GITHUB_REPOSITORY.git" refs/heads/master | awk '{print $1}')
+            [[ "$latest_sha" =~ ^[0-9a-f]{40}$ ]]
+            if [[ "$DEPLOY_SHA" != "$latest_sha" ]]; then
+              echo "Refusing stale staging deployment $DEPLOY_SHA; master is now $latest_sha." >&2
+              exit 1
+            fi
+          fi
+
+          ssh \
+            -i "$RUNNER_TEMP/vps-key" \
+            -p "$VPS_PORT" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o IdentitiesOnly=yes \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=4 \
+            -o StrictHostKeyChecking=yes \
+            -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
+            "$VPS_USER@$VPS_HOST" \
+            "set -euo pipefail
+             trap 'rm -f /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz.part /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz' EXIT
+             mv /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz.part /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz
+             sudo rm -rf -- /opt/saliminn-staging/releases/$DEPLOY_SHA.incoming
+             sudo install -d -m 0750 /opt/saliminn-staging/releases/$DEPLOY_SHA.incoming
+             sudo tar -xzf /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz -C /opt/saliminn-staging/releases/$DEPLOY_SHA.incoming
+             sudo rm -rf -- /opt/saliminn-staging/releases/$DEPLOY_SHA
+             sudo mv /opt/saliminn-staging/releases/$DEPLOY_SHA.incoming /opt/saliminn-staging/releases/$DEPLOY_SHA
+             sudo /bin/bash /opt/saliminn-staging/releases/$DEPLOY_SHA/deploy.sh \
+               $DEPLOY_SHA /opt/saliminn-staging/releases/$DEPLOY_SHA"
+
+      - name: Verify public HTTPS once staging DNS is cut over
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$PUBLIC_DNS_CUTOVER" != "true" ]]; then
+            echo "PUBLIC_DNS_CUTOVER is not true; localhost health checks passed and public HTTPS was skipped."
+            exit 0
+          fi
+          # Basic auth: supply STAGING_BASIC_AUTH as user:pass repo secret when enabling cutover.
+          auth_args=()
+          if [[ -n "${STAGING_BASIC_AUTH:-}" ]]; then
+            auth_args=(-u "$STAGING_BASIC_AUTH")
+          fi
+          curl --fail --silent --show-error \
+            "${auth_args[@]}" \
+            --retry 20 --retry-delay 5 --retry-all-errors \
+            --max-time 20 \
+            https://staging.saliminn.my/health >/dev/null
+          echo "Public HTTPS staging health check passed."
+        env:
+          STAGING_BASIC_AUTH: ${{ secrets.STAGING_BASIC_AUTH }}
+
+      - name: Remove remote transfer files
+        if: always()
+        shell: bash
+        run: |
+          if [[ -s "$RUNNER_TEMP/vps-key" && -s "$RUNNER_TEMP/vps-known-hosts" ]]; then
+            ssh \
+              -i "$RUNNER_TEMP/vps-key" \
+              -p "$VPS_PORT" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=15 \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
+              "$VPS_USER@$VPS_HOST" \
+              "rm -f -- /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz.part /tmp/saliminn-staging-$DEPLOY_SHA.tar.gz" \
+              || true
+          fi
+
+      - name: Remove ephemeral SSH key
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/vps-key" "$RUNNER_TEMP/vps-known-hosts"
