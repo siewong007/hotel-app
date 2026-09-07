@@ -74,14 +74,17 @@ function kyHookResponse(input: unknown, positionalResponse?: Response): Response
   return undefined;
 }
 
-function kyHookError(input: unknown): unknown {
+function kyHookError(input: unknown): Error {
   if (input instanceof Error) {
     return input;
   }
   if (typeof input === 'object' && input !== null && 'error' in input) {
-    return (input as { error: unknown }).error;
+    const nested = (input as { error: unknown }).error;
+    if (nested instanceof Error) {
+      return nested;
+    }
   }
-  return input;
+  return new Error(typeof input === 'string' ? input : 'API request failed');
 }
 
 function kyHookOptions(input: unknown, positionalOptions?: unknown): Parameters<typeof ky>[1] {

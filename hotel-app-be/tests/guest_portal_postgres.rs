@@ -133,7 +133,25 @@ mod postgres_tests {
             .expect("clean up precheckin fixture");
     }
 
+    /// `room_types.code` and `rooms.room_number` are varchar(20). A decimal
+    /// nanosecond timestamp is 19 digits (`TK` + 19 = 21), which CI rejects.
+    fn fixture_tag(suffix: u64) -> String {
+        format!("{suffix:x}")
+    }
+
+    #[test]
+    fn fixture_codes_fit_varchar_20_even_for_u64_max() {
+        let tag = fixture_tag(u64::MAX);
+        assert!(format!("T{tag}").len() <= 20);
+        assert!(format!("R{tag}").len() <= 20);
+        assert!(
+            format!("TK{suffix}", suffix = u64::MAX).len() > 20,
+            "the old decimal tag must stay over the column limit or this test is stale"
+        );
+    }
+
     async fn seed_booking(pool: &PgPool, suffix: u64) -> (i64, i64, i64, i64) {
+        let tag = fixture_tag(suffix);
         let guest_id: i64 = sqlx::query_scalar(
             "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
         )
@@ -146,7 +164,7 @@ mod postgres_tests {
             "INSERT INTO room_types (code, name, base_price, max_occupancy) \
              VALUES ($1, $2, 100.00, 2) RETURNING id",
         )
-        .bind(format!("TK{suffix}"))
+        .bind(format!("T{tag}"))
         .bind(format!("Token Room Type {suffix}"))
         .fetch_one(pool)
         .await
@@ -155,7 +173,7 @@ mod postgres_tests {
             "INSERT INTO rooms (room_number, room_type_id, status, is_active) \
              VALUES ($1, $2, 'available', true) RETURNING id",
         )
-        .bind(format!("TK{suffix}"))
+        .bind(format!("R{tag}"))
         .bind(room_type_id)
         .fetch_one(pool)
         .await
@@ -168,7 +186,7 @@ mod postgres_tests {
                        100.00, 200.00, 200.00, 'pending_payment', 'unpaid')
              RETURNING id",
         )
-        .bind(format!("TKN-{suffix}"))
+        .bind(format!("TKN-{tag}"))
         .bind(guest_id)
         .bind(room_id)
         .fetch_one(pool)
