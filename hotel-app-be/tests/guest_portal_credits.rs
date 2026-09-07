@@ -153,7 +153,11 @@ mod postgres_tests {
             .await
             .expect("read complimentary credits");
 
-        assert_eq!(credits.len(), 1, "only the positive-balance row is returned");
+        assert_eq!(
+            credits.len(),
+            1,
+            "only the positive-balance row is returned"
+        );
         let credit = &credits[0];
         assert_eq!(credit.room_type_id, f.room_type_id);
         assert_eq!(credit.nights_available, 3);
@@ -283,6 +287,8 @@ mod postgres_tests {
             nightly_rates: serde_json::json!({ "2031-03-10": "150.00", "2031-03-11": "150.00" }),
             complimentary_reason: Some("Guest portal: credits".to_string()),
             settled_by_credits,
+            is_tourist: false,
+            tourism_tax_amount: Decimal::ZERO,
         }
     }
 

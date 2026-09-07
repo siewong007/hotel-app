@@ -19,6 +19,7 @@ use super::validation::{
 };
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
@@ -46,6 +47,23 @@ const VERIFY_REISSUE_WINDOW_DAYS: i64 = 7;
 /// the token would be gone and `verify` would not yet answer, leaving the guest
 /// unable to pay their own reservation. Holding it until the verify window
 /// opens makes the two periods meet with no gap.
+/// Tourism tax billed to a foreign guest: `rate × billable nights`.
+///
+/// Matches the staff booking path (`canonical_tourism_tax_for_guest`): local
+/// (and anything that is not `foreign`) is not charged, and a same-day stay
+/// still bills one night. Room rates stay tax-inclusive; this is the extra
+/// per-night levy stored on `bookings.tourism_tax_amount`.
+fn tourism_tax_for_type(tourism_type: &str, nights: i64, rate: Decimal) -> Decimal {
+    if !tourism_type.eq_ignore_ascii_case("foreign") {
+        return Decimal::ZERO;
+    }
+    rate * Decimal::from(nights.max(1))
+}
+
+fn is_foreign_tourist(tourism_type: &str) -> bool {
+    tourism_type.eq_ignore_ascii_case("foreign")
+}
+
 fn anonymous_token_expiry(
     now: chrono::DateTime<chrono::Utc>,
     check_in: NaiveDate,
@@ -260,6 +278,7 @@ async fn quote_for_inventory(
     stay: ValidatedStay,
     voucher_id: Option<i64>,
     complimentary: &ComplimentaryContext,
+    tourism_type: Option<&str>,
 ) -> Result<GuestBookingQuote, ApiError> {
     if stay.adults + stay.children > room_type.max_occupancy {
         return Err(ApiError::BadRequest(
@@ -285,11 +304,22 @@ async fn quote_for_inventory(
         voucher_id,
     )
     .await?;
-    let (discount_amount, total_amount) =
+    let (discount_amount, room_total) =
         settlement(subtotal, complimentary_discount, voucher.as_ref());
-    // Room prices are configured tax-inclusive throughout the existing booking
-    // workflow. Keep the tax component explicit without charging it twice.
-    let tax_amount = Decimal::ZERO;
+    // Room prices are tax-inclusive. `tax_amount` here is tourism tax for a
+    // foreign guest, billed on top of the room total (same levy the front
+    // desk stores on `bookings.tourism_tax_amount`).
+    let nights = (stay.check_out_date - stay.check_in_date).num_days();
+    let tax_amount = match tourism_type {
+        Some(tourism_type) if is_foreign_tourist(tourism_type) => {
+            let rate =
+                settings_cache::get_positive_decimal(pool, "tourism_tax_rate", Decimal::from(10))
+                    .await;
+            tourism_tax_for_type(tourism_type, nights, rate)
+        }
+        _ => Decimal::ZERO,
+    };
+    let total_amount = room_total + tax_amount;
     Ok(GuestBookingQuote {
         room_type_id: room_type.id,
         room_type_code: room_type.code,
@@ -379,6 +409,7 @@ pub async fn search(
             stay,
             None,
             &ComplimentaryContext::default(),
+            None,
         )
         .await?;
         offers.push(GuestBookingOffer {
@@ -439,6 +470,8 @@ pub async fn quote(
         request.complimentary_dates.as_deref(),
     )
     .await?;
+    let tourism_type =
+        resolve_quote_tourism_type(pool, guest_id, request.tourism_type.as_deref()).await?;
     quote_for_inventory(
         pool,
         guest_id,
@@ -446,8 +479,23 @@ pub async fn quote(
         stay,
         request.voucher_id,
         &complimentary,
+        tourism_type.as_deref(),
     )
     .await
+}
+
+async fn resolve_quote_tourism_type(
+    pool: &DbPool,
+    guest_id: Option<i64>,
+    requested: Option<&str>,
+) -> Result<Option<String>, ApiError> {
+    if let Some(requested) = requested.map(str::trim).filter(|value| !value.is_empty()) {
+        return Ok(Some(requested.to_string()));
+    }
+    let Some(guest_id) = guest_id else {
+        return Ok(None);
+    };
+    Repository::guest_tourism_type(pool, guest_id).await
 }
 
 pub async fn quote_with_eligible_vouchers(
@@ -576,6 +624,7 @@ pub async fn create(
             children: request.children,
             voucher_id: request.voucher_id,
             complimentary_dates: request.complimentary_dates.clone(),
+            tourism_type: None,
         },
     )
     .await?;
@@ -675,7 +724,7 @@ pub async fn create(
         room_rate: first_rate,
         subtotal: quote.subtotal,
         discount_amount: quote.discount_amount,
-        total_amount: quote.total_amount,
+        total_amount: quote.total_amount - quote.tax_amount,
         currency: quote.currency.clone(),
         special_requests,
         cleaning_preference: request.cleaning_preference,
@@ -683,6 +732,8 @@ pub async fn create(
         nightly_rates: daily_rates,
         complimentary_reason,
         settled_by_credits,
+        is_tourist: quote.tax_amount > Decimal::ZERO,
+        tourism_tax_amount: quote.tax_amount,
     };
     let booking_id = match Repository::insert_booking_tx(&mut tx, &insert).await {
         Ok(booking_id) => booking_id,
@@ -900,6 +951,7 @@ pub async fn create_anonymous(
             children: request.children,
             voucher_id: None,
             complimentary_dates: None,
+            tourism_type: Some(guest.tourism_type.clone()),
         },
     )
     .await?;
@@ -964,7 +1016,7 @@ pub async fn create_anonymous(
         room_rate: first_rate,
         subtotal: quote.subtotal,
         discount_amount: quote.discount_amount,
-        total_amount: quote.total_amount,
+        total_amount: quote.total_amount - quote.tax_amount,
         currency: quote.currency.clone(),
         special_requests,
         cleaning_preference: request.cleaning_preference,
@@ -973,6 +1025,8 @@ pub async fn create_anonymous(
         // No credits, so never a complimentary reason and never settled by them.
         complimentary_reason: None,
         settled_by_credits: false,
+        is_tourist: is_foreign_tourist(&guest.tourism_type),
+        tourism_tax_amount: quote.tax_amount,
     };
     let booking_id = Repository::insert_booking_tx(&mut tx, &insert).await?;
     Repository::issue_access_token_tx(&mut tx, booking_id, &access_token, access_token_expires_at)
@@ -1074,6 +1128,58 @@ pub async fn create_anonymous(
         remaining_rooms: Some(remaining_rooms),
     });
     Ok(confirmation)
+}
+
+#[cfg(test)]
+mod tourism_tax_tests {
+    use super::*;
+
+    #[test]
+    fn local_and_blank_tourism_types_are_not_charged() {
+        assert_eq!(
+            tourism_tax_for_type("local", 3, Decimal::from(10)),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            tourism_tax_for_type("", 3, Decimal::from(10)),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            tourism_tax_for_type("LOCAL", 1, Decimal::from(10)),
+            Decimal::ZERO
+        );
+    }
+
+    #[test]
+    fn foreign_guests_pay_the_nightly_rate_times_nights() {
+        assert_eq!(
+            tourism_tax_for_type("foreign", 2, Decimal::from(10)),
+            Decimal::from(20)
+        );
+        assert_eq!(
+            tourism_tax_for_type("Foreign", 1, Decimal::from(10)),
+            Decimal::from(10)
+        );
+    }
+
+    #[test]
+    fn a_zero_night_stay_still_bills_one_night_of_tourism_tax() {
+        assert_eq!(
+            tourism_tax_for_type("foreign", 0, Decimal::from(10)),
+            Decimal::from(10)
+        );
+    }
+
+    #[test]
+    fn guest_facing_total_adds_tourism_tax_on_top_of_the_room_total() {
+        let room = Decimal::from(250);
+        let tax = tourism_tax_for_type("foreign", 2, Decimal::from(10));
+        assert_eq!(room + tax, Decimal::from(270));
+        assert_eq!(
+            room + tourism_tax_for_type("local", 2, Decimal::from(10)),
+            room
+        );
+    }
 }
 
 #[cfg(test)]

@@ -117,6 +117,32 @@ const PortalBookingPage: React.FC = () => {
   const canQuery = Boolean(token) || isAnonymous;
 
   useEffect(() => {
+    if (!isAnonymous || !selectedOffer) return;
+    if (guestDetails.tourism_type !== 'local' && guestDetails.tourism_type !== 'foreign') return;
+    let cancelled = false;
+    setIsQuoting(true);
+    void PublicBookingApi.quote({
+      ...search,
+      room_type_id: selectedOffer.room_type_id,
+      tourism_type: guestDetails.tourism_type,
+    })
+      .then((next) => {
+        if (cancelled) return;
+        setQuote(next);
+        setRequestId(newRequestId());
+      })
+      .catch((quoteError) => {
+        if (!cancelled) setError(errorMessage(quoteError, 'Unable to refresh the price for this guest type.'));
+      })
+      .finally(() => {
+        if (!cancelled) setIsQuoting(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [guestDetails.tourism_type, isAnonymous, search, selectedOffer]);
+
+  useEffect(() => {
     if (!token) return;
     void PortalPromotionsApi.listVouchers({ page_size: 100 }, token)
       .then((response) => setVouchers(response.items.filter((voucher) => voucher.status === 'available')))
@@ -162,12 +188,18 @@ const PortalBookingPage: React.FC = () => {
         setEligibleVoucherIds(new Set(voucherOptions.eligible_voucher_ids));
       } else {
         // No account, so no voucher eligibility to resolve — just the price.
-        setQuote(await PublicBookingApi.quote({ ...search, room_type_id: offer.room_type_id }));
+        setQuote(await PublicBookingApi.quote({
+          ...search,
+          room_type_id: offer.room_type_id,
+          ...(guestDetails.tourism_type === 'local' || guestDetails.tourism_type === 'foreign'
+            ? { tourism_type: guestDetails.tourism_type }
+            : {}),
+        }));
       }
     }
     catch (quoteError) { setSelectedOffer(null); setError(errorMessage(quoteError, 'Unable to quote this room type.')); }
     finally { setIsQuoting(false); }
-  }, [canQuery, search, token]);
+  }, [canQuery, guestDetails.tourism_type, search, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
     if (nextVoucherId !== '' && !eligibleVoucherIds.has(nextVoucherId)) return;
@@ -236,7 +268,15 @@ const PortalBookingPage: React.FC = () => {
       setError(errorMessage(createError, 'Unable to create the booking.'));
       // Re-price so the guest is never left looking at a total the server has
       // moved on from; if the room itself is gone, fall back to a fresh search.
-      try { setQuote(await PublicBookingApi.quote({ ...search, room_type_id: quote.room_type_id })); }
+      try {
+        setQuote(await PublicBookingApi.quote({
+          ...search,
+          room_type_id: quote.room_type_id,
+          ...(guestDetails.tourism_type === 'local' || guestDetails.tourism_type === 'foreign'
+            ? { tourism_type: guestDetails.tourism_type }
+            : {}),
+        }));
+      }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
     } finally { setIsSubmitting(false); }
   }, [cleaningPreference, guestDetails, quote, requestId, runSearch, search, specialRequests]);
@@ -311,7 +351,7 @@ const PortalBookingPage: React.FC = () => {
         <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>Choose your room</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{isQuoting || !quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} guestDetails={guestDetails} onGuestDetails={setGuestDetails} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} guestDetails={guestDetails} onGuestDetails={setGuestDetails} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>Room availability changed</DialogTitle><DialogContent><Typography>This room or its online availability changed while you were reviewing. We refreshed the options and cleared the previous quote so you can choose from the latest availability.</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>View available rooms</Button></DialogActions></Dialog>
     </Container>

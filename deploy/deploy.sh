@@ -492,8 +492,17 @@ saliminn.my {
     # so the reload failed with "Job for caddy.service failed". stderr needs no
     # directory, no ownership, and no systemd ReadWritePaths entry, and journald
     # already handles rotation and retention.
+    # Booking tokens used to travel in `?token=` and path segments. New clients
+    # send a header; redact leftovers so journald does not retain them.
     log {
-        format json
+        format filter {
+            wrap json
+            fields {
+                request>uri query {
+                    replace token REDACTED
+                }
+            }
+        }
     }
 
     @backend path /api /api/* /uploads /uploads/* /health /ws /ws/*

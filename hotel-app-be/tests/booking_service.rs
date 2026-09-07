@@ -1873,6 +1873,7 @@ mod postgres_guest_portal_race_tests {
                 children: Some(0),
                 voucher_id: None,
                 complimentary_dates: None,
+                tourism_type: None,
             },
         )
         .await

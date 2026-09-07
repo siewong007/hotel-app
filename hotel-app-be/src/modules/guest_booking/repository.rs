@@ -62,8 +62,8 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
             .unwrap_or_else(|_| "MYR".to_string()),
         subtotal: get_decimal(row, "subtotal"),
         discount_amount: get_decimal(row, "discount_amount"),
-        tax_amount: get_decimal(row, "tax_amount"),
-        total_amount: get_decimal(row, "total_amount"),
+        tax_amount: get_decimal(row, "tourism_tax_amount"),
+        total_amount: get_decimal(row, "total_amount") + get_decimal(row, "tourism_tax_amount"),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         access_token: None,
         access_token_expires_at: row
@@ -506,6 +506,7 @@ impl GuestBookingRepository {
                        b.currency, b.subtotal::text AS subtotal,
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
+                       COALESCE(b.tourism_tax_amount, 0)::text AS tourism_tax_amount,
                        b.created_at
                 FROM bookings b
                 JOIN rooms r ON r.id = b.room_id
@@ -586,12 +587,12 @@ impl GuestBookingRepository {
                     room_rate, subtotal, tax_amount, discount_amount, total_amount,
                     currency, status, payment_status, source, booking_channel_id,
                     special_requests, cleaning_preference, daily_rates, created_by,
-                    is_complimentary, complimentary_reason
+                    is_complimentary, complimentary_reason, is_tourist, tourism_tax_amount
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8,
                     $9, $10, 0, $11, $12, $13, $14, $15,
                     'website', $16, $17, $18, $19, $20,
-                    $21, $22
+                    $21, $22, $23, $24
                 ) RETURNING id
             "#,
         )
@@ -617,6 +618,8 @@ impl GuestBookingRepository {
         .bind(input.actor_user_id)
         .bind(input.complimentary_reason.is_some())
         .bind(input.complimentary_reason.as_deref())
+        .bind(input.is_tourist)
+        .bind(decimal_to_db(input.tourism_tax_amount))
         .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)
@@ -756,6 +759,7 @@ impl GuestBookingRepository {
                        b.currency, b.subtotal::text AS subtotal,
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
+                       COALESCE(b.tourism_tax_amount, 0)::text AS tourism_tax_amount,
                        b.created_at
                 FROM bookings b JOIN rooms r ON r.id = b.room_id
                 JOIN room_types rt ON rt.id = r.room_type_id WHERE b.id = $1
@@ -801,6 +805,7 @@ impl GuestBookingRepository {
                        b.currency, b.subtotal::text AS subtotal,
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
+                       COALESCE(b.tourism_tax_amount, 0)::text AS tourism_tax_amount,
                        b.created_at, b.pre_checkin_token_expires_at
                 FROM bookings b
                 JOIN rooms r ON r.id = b.room_id
@@ -817,6 +822,20 @@ impl GuestBookingRepository {
         .await
         .map_err(ApiError::from)?;
         Ok(row.as_ref().map(confirmation_from_row))
+    }
+
+    pub async fn guest_tourism_type(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        let tourism_type: Option<String> =
+            sqlx::query_scalar("SELECT tourism_type::text FROM guests WHERE id = $1")
+                .bind(guest_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(ApiError::from)?
+                .flatten();
+        Ok(tourism_type)
     }
 
     /// Create a profile for a booker who has no account.

@@ -225,6 +225,13 @@ describe('PortalBookingPage anonymous checkout', () => {
     fireEvent.mouseDown(screen.getByRole('combobox', { name: /Guest type/ }));
     fireEvent.click(screen.getByRole('option', { name: /Foreign tourist/ }));
 
+    await waitFor(() =>
+      expect(mocks.publicQuote.mock.calls.some((call) => {
+        const body = call[0] as { tourism_type?: string };
+        return body.tourism_type === 'foreign';
+      })).toBe(true),
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
 
     await waitFor(() => expect(mocks.publicCreate).toHaveBeenCalledTimes(1));
@@ -235,6 +242,10 @@ describe('PortalBookingPage anonymous checkout', () => {
       tourism_type: 'foreign',
     });
     expect(payload.expected_total).toBe('250.00');
+    expect(mocks.publicQuote.mock.calls.some((call) => {
+      const body = call[0] as { tourism_type?: string };
+      return body.tourism_type === 'foreign';
+    })).toBe(true);
     expect(payload).not.toHaveProperty('voucher_id');
     expect(payload).not.toHaveProperty('complimentary_dates');
     expect(mocks.memberCreate).not.toHaveBeenCalled();

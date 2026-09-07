@@ -36,6 +36,8 @@ export interface GuestBookingQuoteRequest extends GuestBookingSearch {
   /** Nights (YYYY-MM-DD) the guest wants to fund with complimentary credits.
    *  Rates vary per night, so the guest picks which nights are comped. */
   complimentary_dates?: string[];
+  /** Anonymous quotes send this so tourism tax can be priced before submit. */
+  tourism_type?: 'local' | 'foreign';
 }
 
 export interface GuestBookingQuote {

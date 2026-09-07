@@ -35,6 +35,7 @@ vi.mock('../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
     createSession: (...args: unknown[]) => mocks.createSession(...args),
     me: (...args: unknown[]) => mocks.me(...args),
+    paymentConfig: (...args: unknown[]) => mocks.paymentConfig(...args),
   },
 }));
 

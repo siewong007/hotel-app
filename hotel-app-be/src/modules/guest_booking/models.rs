@@ -49,6 +49,11 @@ pub struct BookingQuoteRequest {
     /// night is comped changes what is owed.
     #[serde(default)]
     pub complimentary_dates: Option<Vec<String>>,
+    /// `local` or `foreign`. Anonymous quotes send this so tourism tax can be
+    /// priced before a guest row exists. Authenticated quotes fall back to the
+    /// guest profile when it is omitted.
+    #[serde(default)]
+    pub tourism_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -247,4 +252,7 @@ pub struct BookingInsert {
     /// A stay fully covered by credits has nothing to pay, so it is booked
     /// straight to confirmed/paid instead of the normal pending-payment flow.
     pub settled_by_credits: bool,
+    /// Foreign guests are billed tourism tax on top of `total_amount`.
+    pub is_tourist: bool,
+    pub tourism_tax_amount: Decimal,
 }
