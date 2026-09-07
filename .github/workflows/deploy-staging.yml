@@ -34,7 +34,7 @@ env:
   VPS_USER: root
   VPS_HOST_KEY: "[162.19.81.122]:20049 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIxenH95jfg3hxfkumJpZJyV7phwCNDrXrAL0wUXnta9"
   # Flip to true after staging.saliminn.my DNS/Cloudflare points at this origin.
-  PUBLIC_DNS_CUTOVER: "false"
+  PUBLIC_DNS_CUTOVER: "true"
 
 jobs:
   gate:
