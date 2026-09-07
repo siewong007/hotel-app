@@ -6,10 +6,9 @@ use uuid::Uuid;
 use super::availability::{AvailabilityEvent, AvailabilityHub};
 use super::models::{
     AnonymousBookingRequest, BookingInsert, BookingQuoteRequest, BookingSearchQuery,
-    CreateGuestBookingRequest,
-    GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingVoucherOptions,
-    NightlyRate, OnlineInventoryAllocation, OnlineInventoryQuery, RoomTypeInventory,
-    UpdateOnlineInventoryRequest, VoucherPricing,
+    CreateGuestBookingRequest, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote,
+    GuestBookingVoucherOptions, NightlyRate, OnlineInventoryAllocation, OnlineInventoryQuery,
+    RoomTypeInventory, UpdateOnlineInventoryRequest, VoucherPricing,
 };
 use super::repository::{
     GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionValues,
@@ -58,6 +57,22 @@ fn anonymous_token_expiry(
     match verify_opens {
         Some(verify_opens) if verify_opens > minimum => verify_opens,
         _ => minimum,
+    }
+}
+
+/// Expiry used when an anonymous create is retried with the same client
+/// request id. Keep the original deadline while it is still in the future so
+/// a retry cannot extend the unpaid hold; recompute only when the stored
+/// value is missing or already past (the token is hashed at rest, so retry
+/// always mints a new plaintext token).
+fn replay_anonymous_token_expiry(
+    now: chrono::DateTime<chrono::Utc>,
+    check_in: NaiveDate,
+    stored_expiry: Option<chrono::DateTime<chrono::Utc>>,
+) -> chrono::DateTime<chrono::Utc> {
+    match stored_expiry {
+        Some(expiry) if expiry > now => expiry,
+        _ => anonymous_token_expiry(now, check_in),
     }
 }
 
@@ -625,8 +640,7 @@ pub async fn create(
             quote.complimentary_nights, stay_nights, quote.room_type_name, dates
         )
     });
-    let settled_by_credits =
-        quote.complimentary_nights > 0 && quote.total_amount <= Decimal::ZERO;
+    let settled_by_credits = quote.complimentary_nights > 0 && quote.total_amount <= Decimal::ZERO;
     let booking_status = if settled_by_credits {
         "confirmed"
     } else {
@@ -851,10 +865,27 @@ pub async fn create_anonymous(
     let request_id = validate_client_request_id(&request.client_request_id)?;
     let guest = validate_anonymous_guest(&request.guest)?;
 
-    // Idempotent retry: same client request id, same email.
-    if let Some(existing) =
+    // Idempotent retry: same client request id, same email. The stored
+    // access token is hashed, so the original plaintext cannot be recovered
+    // — mint a replacement so a lost first response can still pay.
+    if let Some(mut existing) =
         Repository::find_anonymous_by_request_id(pool, &request_id, &guest.email).await?
     {
+        let access_token = crate::services::guest_portal::generate_session_token();
+        let access_token_expires_at = replay_anonymous_token_expiry(
+            chrono::Utc::now(),
+            existing.check_in_date,
+            existing.access_token_expires_at,
+        );
+        crate::repositories::guest_portal::GuestPortalRepository::update_precheckin_token(
+            pool,
+            existing.booking_id,
+            &access_token,
+            access_token_expires_at,
+        )
+        .await?;
+        existing.access_token = Some(access_token);
+        existing.access_token_expires_at = Some(access_token_expires_at);
         return Ok(existing);
     }
 
@@ -878,7 +909,6 @@ pub async fn create_anonymous(
         ));
     }
 
-    let full_name = Repository::available_full_name(pool, &guest.full_name).await?;
     let booking_channel_id = Repository::direct_booking_channel(pool).await?;
     let special_requests = request
         .special_requests
@@ -918,7 +948,7 @@ pub async fn create_anonymous(
         quote.check_out_date,
     )
     .await?;
-    let guest_id = Repository::insert_anonymous_guest_tx(&mut tx, &full_name, &guest).await?;
+    let guest_id = Repository::insert_anonymous_guest_tx(&mut tx, &guest).await?;
     let insert = BookingInsert {
         portal_request_id: request_id.clone(),
         guest_id,
@@ -945,13 +975,8 @@ pub async fn create_anonymous(
         settled_by_credits: false,
     };
     let booking_id = Repository::insert_booking_tx(&mut tx, &insert).await?;
-    Repository::issue_access_token_tx(
-        &mut tx,
-        booking_id,
-        &access_token,
-        access_token_expires_at,
-    )
-    .await?;
+    Repository::issue_access_token_tx(&mut tx, booking_id, &access_token, access_token_expires_at)
+        .await?;
     Repository::mark_room_reserved_tx(&mut tx, room_id, &booking_number).await?;
     crate::repositories::bookings::record_booking_history_tx(
         &mut tx,
@@ -1079,7 +1104,10 @@ mod anonymous_token_expiry_tests {
         // Booked three months out: the token must survive until verify opens,
         // or the guest has no way to pay in between.
         let expiry = anonymous_token_expiry(at("2026-09-05"), day("2026-12-01"));
-        assert_eq!(expiry, day("2026-11-24").and_hms_opt(0, 0, 0).unwrap().and_utc());
+        assert_eq!(
+            expiry,
+            day("2026-11-24").and_hms_opt(0, 0, 0).unwrap().and_utc()
+        );
     }
 
     #[test]
@@ -1088,16 +1116,36 @@ mod anonymous_token_expiry_tests {
         for offset in [0_i64, 1, 7, 13, 14, 15, 30, 90] {
             let check_in = day("2026-09-05") + Duration::days(offset);
             let expiry = anonymous_token_expiry(now, check_in);
-            let verify_opens = check_in
-                .and_hms_opt(0, 0, 0)
-                .unwrap()
-                .and_utc()
+            let verify_opens = check_in.and_hms_opt(0, 0, 0).unwrap().and_utc()
                 - Duration::days(VERIFY_REISSUE_WINDOW_DAYS);
             assert!(
-                expiry >= verify_opens || expiry >= check_in.and_hms_opt(0, 0, 0).unwrap().and_utc(),
+                expiry >= verify_opens
+                    || expiry >= check_in.and_hms_opt(0, 0, 0).unwrap().and_utc(),
                 "gap for check-in in {offset} days: token dies {expiry}, verify opens {verify_opens}"
             );
         }
+    }
+
+    #[test]
+    fn idempotent_retry_keeps_an_unexpired_deadline() {
+        let now = at("2026-09-05");
+        let stored = now + Duration::days(20);
+        assert_eq!(
+            replay_anonymous_token_expiry(now, day("2026-12-01"), Some(stored)),
+            stored
+        );
+    }
+
+    #[test]
+    fn idempotent_retry_recomputes_when_the_stored_deadline_is_gone_or_past() {
+        let now = at("2026-09-05");
+        let check_in = day("2026-12-01");
+        let expected = anonymous_token_expiry(now, check_in);
+        assert_eq!(replay_anonymous_token_expiry(now, check_in, None), expected);
+        assert_eq!(
+            replay_anonymous_token_expiry(now, check_in, Some(now - Duration::seconds(1))),
+            expected
+        );
     }
 }
 
@@ -1241,6 +1289,9 @@ mod tests {
         }
 
         let response = error.into_response();
-        assert_eq!(response.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 }

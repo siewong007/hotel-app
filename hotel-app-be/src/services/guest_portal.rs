@@ -35,6 +35,31 @@ fn hash_session_token(token: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
+const BOOKING_ACCESS_TOKEN_HASH_PREFIX: &str = "sha256:";
+
+/// Value stored in `bookings.pre_checkin_token` for a newly issued token.
+///
+/// Prefixed so a database dump of the column cannot be replayed as the URL
+/// token: the HTTP shape-check rejects `:`, and lookup never treats a prefixed
+/// row as legacy plaintext.
+pub(crate) fn persist_booking_access_token(token: &str) -> String {
+    format!(
+        "{BOOKING_ACCESS_TOKEN_HASH_PREFIX}{}",
+        hash_session_token(token)
+    )
+}
+
+/// Whether `presented` (the URL/header token) authenticates against `stored`
+/// (`bookings.pre_checkin_token`). Hashed rows match the prefixed SHA-256;
+/// pre-cutover plaintext rows still match the raw token.
+pub(crate) fn booking_access_token_matches(presented: &str, stored: &str) -> bool {
+    if stored.starts_with(BOOKING_ACCESS_TOKEN_HASH_PREFIX) {
+        stored == persist_booking_access_token(presented)
+    } else {
+        stored == presented
+    }
+}
+
 const VERIFY_BOOKING_FAILURE: &str =
     "Unable to verify booking details. Please check the booking number and email.";
 
@@ -171,6 +196,10 @@ async fn require_valid_token(pool: &DbPool, token: &str) -> Result<Booking, ApiE
     let booking = GuestPortalRepository::find_booking_by_token(pool, token)
         .await?
         .ok_or_else(|| ApiError::NotFound("Invalid or expired token".to_string()))?;
+    let stored = booking.pre_checkin_token.as_deref().unwrap_or("");
+    if !booking_access_token_matches(token, stored) {
+        return Err(ApiError::NotFound("Invalid or expired token".to_string()));
+    }
 
     match booking.pre_checkin_token_expires_at {
         Some(expires_at) if expires_at >= Utc::now() => Ok(booking),
@@ -637,6 +666,50 @@ mod tests {
         // ...and the hash never contains the raw token.
         assert_eq!(hash_a.len(), 64);
         assert_ne!(hash_a, token);
+    }
+
+    #[test]
+    fn booking_access_token_is_persisted_as_prefixed_hash() {
+        let token = generate_session_token();
+        let stored = persist_booking_access_token(&token);
+        assert!(
+            stored.starts_with("sha256:"),
+            "stored value must be distinguishable from a 64-hex token, got {stored}"
+        );
+        assert_eq!(stored.len(), "sha256:".len() + 64);
+        assert_ne!(stored, token);
+        assert!(
+            !stored.contains(&token),
+            "raw token must not appear in the stored hash"
+        );
+    }
+
+    #[test]
+    fn presented_booking_token_matches_its_persisted_hash() {
+        let token = generate_session_token();
+        let stored = persist_booking_access_token(&token);
+        assert!(booking_access_token_matches(&token, &stored));
+        assert!(!booking_access_token_matches(
+            &generate_session_token(),
+            &stored
+        ));
+    }
+
+    #[test]
+    fn presented_booking_token_still_matches_legacy_plaintext_rows() {
+        let token = generate_session_token();
+        assert!(booking_access_token_matches(&token, &token));
+    }
+
+    #[test]
+    fn dumped_persisted_hash_cannot_be_replayed_as_the_token() {
+        let token = generate_session_token();
+        let stored = persist_booking_access_token(&token);
+        // An attacker who copies pre_checkin_token out of the database and
+        // submits that value as the URL token must not authenticate. Dual-read
+        // of hash-then-plaintext would otherwise treat the stored hash as a
+        // legacy plaintext row.
+        assert!(!booking_access_token_matches(&stored, &stored));
     }
 
     #[test]

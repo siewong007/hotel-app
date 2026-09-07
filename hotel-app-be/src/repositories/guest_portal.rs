@@ -33,11 +33,15 @@ impl GuestPortalRepository {
         pool: &DbPool,
         token: &str,
     ) -> Result<Option<Booking>, ApiError> {
+        let hashed = crate::services::guest_portal::persist_booking_access_token(token);
         let row = sqlx::query(&format!(
-            "{} WHERE pre_checkin_token = {}",
+            "{} WHERE pre_checkin_token = {} \
+             OR (pre_checkin_token = {} AND pre_checkin_token NOT LIKE 'sha256:%')",
             BOOKING_SELECT,
-            param!(1)
+            param!(1),
+            param!(2)
         ))
+        .bind(&hashed)
         .bind(token)
         .fetch_optional(pool)
         .await
@@ -90,7 +94,9 @@ impl GuestPortalRepository {
             param!(3)
         );
         sqlx::query(&sql)
-            .bind(token)
+            .bind(crate::services::guest_portal::persist_booking_access_token(
+                token,
+            ))
             .bind(expires_at)
             .bind(booking_id)
             .execute(pool)

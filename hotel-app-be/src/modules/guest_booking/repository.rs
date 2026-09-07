@@ -66,7 +66,20 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
         total_amount: get_decimal(row, "total_amount"),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         access_token: None,
-        access_token_expires_at: None,
+        access_token_expires_at: row
+            .try_get::<Option<chrono::DateTime<Utc>>, _>("pre_checkin_token_expires_at")
+            .ok()
+            .flatten(),
+    }
+}
+
+/// `"Name"`, then `"Name (2)"`, `"Name (3)"`, … so staff can still read the
+/// intended name after `idx_guests_full_name_unique` forces a suffix.
+pub(crate) fn disambiguated_full_name(base: &str, attempt: u32) -> String {
+    if attempt <= 1 {
+        base.to_string()
+    } else {
+        format!("{base} ({attempt})")
     }
 }
 
@@ -788,7 +801,7 @@ impl GuestBookingRepository {
                        b.currency, b.subtotal::text AS subtotal,
                        b.discount_amount::text AS discount_amount,
                        b.tax_amount::text AS tax_amount, b.total_amount::text AS total_amount,
-                       b.created_at
+                       b.created_at, b.pre_checkin_token_expires_at
                 FROM bookings b
                 JOIN rooms r ON r.id = b.room_id
                 JOIN room_types rt ON rt.id = r.room_type_id
@@ -806,33 +819,64 @@ impl GuestBookingRepository {
         Ok(row.as_ref().map(confirmation_from_row))
     }
 
-    /// The first free `full_name` at or after `base`, disambiguated as
-    /// `"Name (2)"`, `"Name (3)"` and so on.
+    /// Create a profile for a booker who has no account.
     ///
-    /// `idx_guests_full_name_unique` is UNIQUE on `lower(trim(full_name))` where
-    /// `deleted_at IS NULL`. An anonymous booking always inserts a new profile
-    /// rather than reusing one it cannot prove belongs to the booker, so common
-    /// names collide routinely and need a suffix staff can still read.
-    pub async fn available_full_name(pool: &DbPool, base: &str) -> Result<String, ApiError> {
-        for attempt in 1..=50 {
-            let candidate = if attempt == 1 {
-                base.to_string()
-            } else {
-                format!("{base} ({attempt})")
-            };
-            let existing: Option<i64> = sqlx::query_scalar(
+    /// `created_by` is left NULL: nobody on staff created this row. `guest_type`
+    /// keeps its `non_member` default, which is what withholds member pricing
+    /// from an anonymous booking.
+    ///
+    /// Name uniqueness is resolved inside this transaction: a concurrent
+    /// anonymous booker can take the same `full_name` between a pre-check and
+    /// this insert, so a unique-violation retries with `"Name (2)"` under a
+    /// SAVEPOINT (a failed statement would otherwise abort the whole booking
+    /// transaction).
+    pub async fn insert_anonymous_guest_tx(
+        tx: &mut DbTransaction<'_>,
+        details: &ValidatedAnonymousGuest,
+    ) -> Result<i64, ApiError> {
+        for attempt in 1u32..=50 {
+            let full_name = disambiguated_full_name(&details.full_name, attempt);
+            sqlx::query("SAVEPOINT anon_guest_name")
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+            match sqlx::query_scalar(
                 r#"
-                    SELECT id FROM guests
-                    WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL
-                    LIMIT 1
+                    INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type)
+                    VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type)
+                    RETURNING id
                 "#,
             )
-            .bind(&candidate)
-            .fetch_optional(pool)
+            .bind(&full_name)
+            .bind(details.first_name.as_str())
+            .bind(details.last_name.as_deref())
+            .bind(details.email.as_str())
+            .bind(details.phone.as_deref())
+            .bind(details.tourism_type.as_str())
+            .fetch_one(&mut **tx)
             .await
-            .map_err(ApiError::from)?;
-            if existing.is_none() {
-                return Ok(candidate);
+            {
+                Ok(guest_id) => {
+                    sqlx::query("RELEASE SAVEPOINT anon_guest_name")
+                        .execute(&mut **tx)
+                        .await
+                        .map_err(ApiError::from)?;
+                    return Ok(guest_id);
+                }
+                Err(error)
+                    if crate::repositories::auth::is_guest_name_unique_violation(&error) =>
+                {
+                    sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
+                        .execute(&mut **tx)
+                        .await
+                        .map_err(ApiError::from)?;
+                }
+                Err(error) => {
+                    let _ = sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
+                        .execute(&mut **tx)
+                        .await;
+                    return Err(ApiError::from(error));
+                }
             }
         }
         Err(ApiError::Conflict(
@@ -841,38 +885,10 @@ impl GuestBookingRepository {
         ))
     }
 
-    /// Create a profile for a booker who has no account.
-    ///
-    /// `created_by` is left NULL: nobody on staff created this row. `guest_type`
-    /// keeps its `non_member` default, which is what withholds member pricing
-    /// from an anonymous booking.
-    pub async fn insert_anonymous_guest_tx(
-        tx: &mut DbTransaction<'_>,
-        full_name: &str,
-        details: &ValidatedAnonymousGuest,
-    ) -> Result<i64, ApiError> {
-        sqlx::query_scalar(
-            r#"
-                INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type)
-                VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type)
-                RETURNING id
-            "#,
-        )
-        .bind(full_name)
-        .bind(details.first_name.as_str())
-        .bind(details.last_name.as_deref())
-        .bind(details.email.as_str())
-        .bind(details.phone.as_deref())
-        .bind(details.tourism_type.as_str())
-        .fetch_one(&mut **tx)
-        .await
-        .map_err(ApiError::from)
-    }
-
     /// Attach a booking-scoped access token so an anonymous booker can pay and
-    /// track this one booking. Writes the same `pre_checkin_token` columns the
-    /// `/guest-portal/booking/{token}/*` routes already read, so no new
-    /// token surface is introduced.
+    /// track this one booking. Stores a prefixed SHA-256 in the same
+    /// `pre_checkin_token` columns `/guest-portal/booking/{token}/*` already
+    /// read, so no new token surface is introduced.
     pub async fn issue_access_token_tx(
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
@@ -886,12 +902,30 @@ impl GuestBookingRepository {
                 WHERE id = $3
             "#,
         )
-        .bind(token)
+        .bind(crate::services::guest_portal::persist_booking_access_token(
+            token,
+        ))
         .bind(expires_at)
         .bind(booking_id)
         .execute(&mut **tx)
         .await
         .map_err(ApiError::from)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod anonymous_guest_name_tests {
+    use super::disambiguated_full_name;
+
+    #[test]
+    fn first_candidate_is_the_supplied_name() {
+        assert_eq!(disambiguated_full_name("Jane Tan", 1), "Jane Tan");
+    }
+
+    #[test]
+    fn later_candidates_append_a_staff_readable_suffix() {
+        assert_eq!(disambiguated_full_name("Jane Tan", 2), "Jane Tan (2)");
+        assert_eq!(disambiguated_full_name("Jane Tan", 50), "Jane Tan (50)");
     }
 }

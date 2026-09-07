@@ -395,5 +395,8 @@ mod portal_token_shape_tests {
         assert!(ensure_plausible_portal_token("../../etc/passwd").is_err());
         // A ~400KB header of garbage must be rejected, never reach a limiter.
         assert!(ensure_plausible_portal_token(&"x".repeat(400_000)).is_err());
+        // Stored hashes are `sha256:<hex>`. The colon must never be treated as
+        // a plausible URL token, or a database dump could be replayed.
+        assert!(ensure_plausible_portal_token(&format!("sha256:{}", "a".repeat(64))).is_err());
     }
 }

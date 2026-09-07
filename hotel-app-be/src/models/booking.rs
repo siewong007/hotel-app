@@ -101,12 +101,10 @@ pub struct Booking {
     pub pre_checkin_completed: Option<bool>,
     pub pre_checkin_completed_at: Option<DateTime<Utc>>,
     /// Capability token for the unauthenticated guest portal. Never serialized
-    /// into API responses; guests obtain it only via POST /guest-portal/verify.
-    /// Kept on the struct (row-mapped but unread) so query mappings stay uniform.
+    /// into API responses; guests obtain it only via POST /guest-portal/verify
+    /// or an anonymous booking confirmation. Stored as `sha256:<hex>` (legacy
+    /// plaintext rows still authenticate until they are overwritten).
     #[serde(skip_serializing)]
-    /// Matched in SQL by the guest-portal token lookup and never read in Rust;
-    /// skipped during serialization so the token cannot leak to a client.
-    #[allow(dead_code)]
     pub pre_checkin_token: Option<String>,
     #[serde(skip_serializing)]
     pub pre_checkin_token_expires_at: Option<DateTime<Utc>>,
