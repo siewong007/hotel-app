@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { api } from './client';
+import { api, requestFromKyHook } from './client';
 
 describe('api client URL resolution', () => {
   afterEach(() => {
@@ -35,5 +35,21 @@ describe('api client URL resolution', () => {
     expect(url.pathname).toBe('/api/guest-portal/me/booking-options');
     expect(url.searchParams.get('check_in_date')).toBe('2026-07-17');
     expect(url.searchParams.get('check_out_date')).toBe('2026-07-18');
+  });
+
+  it('reads the request from a ky 2 hook state object', () => {
+    const request = new Request('https://hotel.test/api/auth/login');
+    expect(requestFromKyHook({ request }).url).toContain('/api/auth/login');
+  });
+
+  it('reads the request when ky 1 passes the Request as the first argument', () => {
+    const request = new Request('https://hotel.test/api/auth/login');
+    // Destructing `{ request }` from a Request is the production crash:
+    // Request has no `.request`, so `inner` is undefined and `inner.url` throws.
+    expect(() => {
+      const { request: inner } = request as unknown as { request: Request };
+      return inner.url;
+    }).toThrow(/url/);
+    expect(requestFromKyHook(request).url).toContain('/api/auth/login');
   });
 });

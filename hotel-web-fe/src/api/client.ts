@@ -38,6 +38,64 @@ let refreshPromise: Promise<RefreshTokenResponse | null> | null = null;
 // leave the page on its loading screen for the normal request timeout.
 const REFRESH_TIMEOUT_MS = 10_000;
 
+/**
+ * ky 1 called `beforeRequest(request, options)`. ky 2 calls
+ * `beforeRequest({ request, options, retryCount })`. Destructuring
+ * `{ request }` from a Request yields `undefined`, then `request.url`
+ * throws "Cannot read properties of undefined (reading 'url')" on login.
+ */
+export function requestFromKyHook(input: unknown): Request {
+  if (input instanceof Request) {
+    return input;
+  }
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'request' in input &&
+    (input as { request: unknown }).request instanceof Request
+  ) {
+    return (input as { request: Request }).request;
+  }
+  throw new TypeError('API client hook received no request');
+}
+
+function kyHookResponse(input: unknown, positionalResponse?: Response): Response | undefined {
+  if (positionalResponse instanceof Response) {
+    return positionalResponse;
+  }
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'response' in input &&
+    (input as { response: unknown }).response instanceof Response
+  ) {
+    return (input as { response: Response }).response;
+  }
+  return undefined;
+}
+
+function kyHookError(input: unknown): unknown {
+  if (input instanceof Error) {
+    return input;
+  }
+  if (typeof input === 'object' && input !== null && 'error' in input) {
+    return (input as { error: unknown }).error;
+  }
+  return input;
+}
+
+function kyHookOptions(input: unknown, positionalOptions?: unknown): Parameters<typeof ky>[1] {
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    'options' in input &&
+    (input as { options?: unknown }).options
+  ) {
+    return (input as { options: Parameters<typeof ky>[1] }).options;
+  }
+  return positionalOptions as Parameters<typeof ky>[1];
+}
+
 function requestOriginPrefix(): string {
   if (typeof window === 'undefined') {
     return 'http://localhost/';
@@ -180,7 +238,8 @@ export const api = ky.create({
   },
   hooks: {
     beforeRequest: [
-      async ({ request }) => {
+      async (input: unknown) => {
+        const request = requestFromKyHook(input);
         const nextUrl = resolveApiRequestUrl(request.url);
         const apiRequest = nextUrl === request.url ? request : await createRequestWithUrl(request, nextUrl);
         // Requests that set their own Authorization header (e.g. the guest
@@ -199,7 +258,13 @@ export const api = ky.create({
       }
     ],
     afterResponse: [
-      async ({ request, options, response }) => {
+      async (input: unknown, positionalOptions?: unknown, positionalResponse?: Response) => {
+        const request = requestFromKyHook(input);
+        const options = kyHookOptions(input, positionalOptions);
+        const response = kyHookResponse(input, positionalResponse);
+        if (!response) {
+          return response;
+        }
         if (response.status === 401) {
           console.error('401 Unauthorized response for:', request.method, request.url);
 
@@ -225,7 +290,8 @@ export const api = ky.create({
       }
     ],
     beforeError: [
-      async ({ error }) => {
+      async (input: unknown) => {
+        const error = kyHookError(input);
         if (!isHTTPError(error)) return error;
         const { response } = error;
 
