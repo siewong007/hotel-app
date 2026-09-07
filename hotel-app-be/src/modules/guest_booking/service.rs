@@ -824,17 +824,17 @@ pub async fn create(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        let (subject, body_html, body_text) = portal_booking_mail(
-            &contact.full_name,
-            &booking_number,
-            &quote.room_type_name,
-            quote.check_in_date,
-            quote.check_out_date,
-            &quote.currency,
-            quote.total_amount,
+        let (subject, body_html, body_text) = portal_booking_mail(PortalBookingMail {
+            guest_name: &contact.full_name,
+            booking_number: &booking_number,
+            room_type_name: &quote.room_type_name,
+            check_in: quote.check_in_date,
+            check_out: quote.check_out_date,
+            currency: &quote.currency,
+            total: quote.total_amount,
             settled_by_credits,
-            false,
-        );
+            anonymous: false,
+        });
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
             DeliveryValues {
@@ -1050,17 +1050,17 @@ pub async fn create_anonymous(
 
     // The booking number and email are the only way back to this booking once
     // the access token lapses, so the confirmation must always carry both.
-    let (subject, body_html, body_text) = portal_booking_mail(
-        &guest.full_name,
-        &booking_number,
-        &quote.room_type_name,
-        quote.check_in_date,
-        quote.check_out_date,
-        &quote.currency,
-        quote.total_amount,
-        false,
-        true,
-    );
+    let (subject, body_html, body_text) = portal_booking_mail(PortalBookingMail {
+        guest_name: &guest.full_name,
+        booking_number: &booking_number,
+        room_type_name: &quote.room_type_name,
+        check_in: quote.check_in_date,
+        check_out: quote.check_out_date,
+        currency: &quote.currency,
+        total: quote.total_amount,
+        settled_by_credits: false,
+        anonymous: true,
+    });
     CommunicationsRepository::insert_delivery_tx(
         &mut tx,
         DeliveryValues {
@@ -1112,17 +1112,30 @@ fn money_label(currency: &str, amount: Decimal) -> String {
     }
 }
 
-fn portal_booking_mail(
-    guest_name: &str,
-    booking_number: &str,
-    room_type_name: &str,
+struct PortalBookingMail<'a> {
+    guest_name: &'a str,
+    booking_number: &'a str,
+    room_type_name: &'a str,
     check_in: NaiveDate,
     check_out: NaiveDate,
-    currency: &str,
+    currency: &'a str,
     total: Decimal,
     settled_by_credits: bool,
     anonymous: bool,
-) -> (String, String, String) {
+}
+
+fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) {
+    let PortalBookingMail {
+        guest_name,
+        booking_number,
+        room_type_name,
+        check_in,
+        check_out,
+        currency,
+        total,
+        settled_by_credits,
+        anonymous,
+    } = mail;
     let hotel = email_layout::hotel_display_name();
     let stay_in = check_in.format("%d %b %Y").to_string();
     let stay_out = check_out.format("%d %b %Y").to_string();
@@ -1499,17 +1512,17 @@ mod tests {
             std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my");
             std::env::set_var("SMTP_FROM_NAME", "Salim Inn");
         }
-        let (subject, html, text) = portal_booking_mail(
-            "Paul <Wong>",
-            "BK-20260908-6eed1312",
-            "Deluxe King",
-            NaiveDate::from_ymd_opt(2026, 9, 8).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 9, 9).unwrap(),
-            "MYR",
-            Decimal::ZERO,
-            false,
-            true,
-        );
+        let (subject, html, text) = portal_booking_mail(PortalBookingMail {
+            guest_name: "Paul <Wong>",
+            booking_number: "BK-20260908-6eed1312",
+            room_type_name: "Deluxe King",
+            check_in: NaiveDate::from_ymd_opt(2026, 9, 8).unwrap(),
+            check_out: NaiveDate::from_ymd_opt(2026, 9, 9).unwrap(),
+            currency: "MYR",
+            total: Decimal::ZERO,
+            settled_by_credits: false,
+            anonymous: true,
+        });
         assert!(subject.contains("Salim Inn"));
         assert!(subject.contains("BK-20260908-6eed1312"));
         assert!(html.contains("Salim Inn"));
@@ -1524,8 +1537,16 @@ mod tests {
         assert!(text.contains("Salim Inn"));
         assert!(text.contains("Complete payment"));
         assert!(!text.contains("<table"));
-        assert!(html.contains("If this message is not in your Primary inbox, check Spam and Promotions"));
-        assert!(text.contains("If this message is not in your Primary inbox, check Spam and Promotions"));
+        assert!(
+            html.contains(
+                "If this message is not in your Primary inbox, check Spam and Promotions"
+            )
+        );
+        assert!(
+            text.contains(
+                "If this message is not in your Primary inbox, check Spam and Promotions"
+            )
+        );
     }
 
     #[test]
@@ -1533,17 +1554,17 @@ mod tests {
         unsafe {
             std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my");
         }
-        let (subject, html, _) = portal_booking_mail(
-            "Guest",
-            "BK-1",
-            "Deluxe King",
-            NaiveDate::from_ymd_opt(2026, 9, 8).unwrap(),
-            NaiveDate::from_ymd_opt(2026, 9, 9).unwrap(),
-            "MYR",
-            Decimal::ZERO,
-            true,
-            false,
-        );
+        let (subject, html, _) = portal_booking_mail(PortalBookingMail {
+            guest_name: "Guest",
+            booking_number: "BK-1",
+            room_type_name: "Deluxe King",
+            check_in: NaiveDate::from_ymd_opt(2026, 9, 8).unwrap(),
+            check_out: NaiveDate::from_ymd_opt(2026, 9, 9).unwrap(),
+            currency: "MYR",
+            total: Decimal::ZERO,
+            settled_by_credits: true,
+            anonymous: false,
+        });
         assert!(subject.contains("confirmed"));
         assert!(html.contains("View your booking"));
         assert!(html.contains("https://saliminn.my/portal"));
