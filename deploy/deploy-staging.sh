@@ -303,7 +303,7 @@ load_release_images() {
 
 compose() {
   "${COMPOSE_COMMAND[@]}" \
-    --project-name saliminn \
+    --project-name saliminn-staging \
     --file "$COMPOSE_FILE" \
     "$@"
 }
