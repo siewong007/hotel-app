@@ -288,11 +288,11 @@ load_release_images() {
   log "Loading application images for $TAG"
   gzip -dc "$RELEASE_DIR/images/backend.tar.gz" | docker load >/dev/null
   gzip -dc "$RELEASE_DIR/images/frontend.tar.gz" | docker load >/dev/null
-  docker image inspect "saliminn-staging-backend:$TAG" >/dev/null
-  docker image inspect "saliminn-staging-frontend:$TAG" >/dev/null
-  [[ $(docker image inspect --format '{{.Architecture}}' "saliminn-staging-backend:$TAG") == amd64 ]] \
+  docker image inspect "saliminn-backend:$TAG" >/dev/null
+  docker image inspect "saliminn-frontend:$TAG" >/dev/null
+  [[ $(docker image inspect --format '{{.Architecture}}' "saliminn-backend:$TAG") == amd64 ]] \
     || die "backend image architecture is not amd64"
-  [[ $(docker image inspect --format '{{.Architecture}}' "saliminn-staging-frontend:$TAG") == amd64 ]] \
+  [[ $(docker image inspect --format '{{.Architecture}}' "saliminn-frontend:$TAG") == amd64 ]] \
     || die "frontend image architecture is not amd64"
 
   if ! docker image inspect "$POSTGRES_IMAGE" >/dev/null 2>&1; then
@@ -637,8 +637,8 @@ log "Starting release $TAG"
 if deploy_tag "$TAG" && ensure_initial_admin_password && configure_caddy; then
   printf '%s\n' "$TAG" > "$CURRENT_TAG_FILE"
   chmod 0600 "$CURRENT_TAG_FILE"
-  cleanup_old_images saliminn-staging-backend "$TAG" "$previous_tag"
-  cleanup_old_images saliminn-staging-frontend "$TAG" "$previous_tag"
+  cleanup_old_images saliminn-backend "$TAG" "$previous_tag"
+  cleanup_old_images saliminn-frontend "$TAG" "$previous_tag"
   cleanup_old_releases "$TAG" "$previous_tag"
   log "Release $TAG is healthy on localhost:3031 and localhost:8083"
   log "Caddy is configured for https://staging.saliminn.my"
@@ -650,8 +650,8 @@ export IMAGE_TAG=$TAG
 show_diagnostics
 
 if [[ -n "$previous_tag" ]] \
-  && docker image inspect "saliminn-staging-backend:$previous_tag" >/dev/null 2>&1 \
-  && docker image inspect "saliminn-staging-frontend:$previous_tag" >/dev/null 2>&1; then
+  && docker image inspect "saliminn-backend:$previous_tag" >/dev/null 2>&1 \
+  && docker image inspect "saliminn-frontend:$previous_tag" >/dev/null 2>&1; then
   log "Rolling application containers back to $previous_tag"
   if [[ -f "$RELEASES_DIR/$previous_tag/docker-compose.prod.yml" ]]; then
     install -m 0644 "$RELEASES_DIR/$previous_tag/docker-compose.prod.yml" "$COMPOSE_FILE"
