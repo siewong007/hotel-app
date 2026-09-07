@@ -42,12 +42,14 @@ export class GuestPortalService {
   }
 
   /**
-   * Public payment configuration (bank details + PayPal client id, when
-   * enabled). No auth of any kind — safe to call before a guest session or a
-   * pre-arrival token is available.
+   * Payment configuration (bank details + PayPal client id, when enabled).
+   * Requires the booking-scoped access token — bank account numbers are not
+   * a public scrape target.
    */
-  static async paymentConfig(): Promise<GuestPaymentConfig> {
-    return await api.get('guest-portal/payment-config').json();
+  static async paymentConfig(token: string): Promise<GuestPaymentConfig> {
+    return await api
+      .get('guest-portal/payment-config', { headers: bookingTokenHeaders(token) })
+      .json();
   }
 
   /**

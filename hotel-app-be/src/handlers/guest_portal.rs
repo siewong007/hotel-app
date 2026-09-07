@@ -168,7 +168,10 @@ pub async fn get_my_credits(
 // Guest payments (public config + session/token bank-transfer & PayPal)
 // ---------------------------------------------------------------------------
 
-/// GET /guest-portal/payment-config (public)
+/// GET /guest-portal/payment-config
+///
+/// Bank details and the PayPal client id. The route wrapper requires a booking
+/// access token or a guest portal session before this runs.
 pub async fn get_payment_config() -> Result<Json<crate::models::GuestPaymentConfig>, ApiError> {
     Ok(Json(crate::services::payments::guest_payment_config()))
 }

@@ -93,16 +93,25 @@ export function GuestPaymentPanel({
   const paymentAttemptInFlight = useRef(false);
 
   const loadConfig = useCallback(async () => {
+    if (!token) {
+      setConfigError('Unable to load payment options right now.');
+      setConfigLoading(false);
+      return;
+    }
     setConfigLoading(true);
     setConfigError(null);
     try {
-      setConfig(await GuestPortalService.paymentConfig());
+      setConfig(
+        mode === 'session'
+          ? await GuestPortalDashboardService.paymentConfig(token)
+          : await GuestPortalService.paymentConfig(token),
+      );
     } catch (error) {
       setConfigError(errorMessage(error, 'Unable to load payment options right now.'));
     } finally {
       setConfigLoading(false);
     }
-  }, []);
+  }, [mode, token]);
 
   useEffect(() => {
     void loadConfig();

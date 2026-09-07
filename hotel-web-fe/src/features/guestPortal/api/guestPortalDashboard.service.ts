@@ -31,6 +31,7 @@ import type {
   GuestPortalMembershipResponse,
   GuestPortalPagedResponse,
   GuestPortalTransaction,
+  GuestPaymentConfig,
   PaymentActionResponse,
   PaypalCreateOrderResponse,
 } from '../../../types';
@@ -74,6 +75,12 @@ export class GuestPortalDashboardService {
   static async me(token?: string): Promise<GuestPortalMeResponse> {
     return await api
       .get('guest-portal/me', { headers: authHeaders(token) })
+      .json();
+  }
+
+  static async paymentConfig(token?: string): Promise<GuestPaymentConfig> {
+    return await api
+      .get('guest-portal/payment-config', { headers: authHeaders(token) })
       .json();
   }
 

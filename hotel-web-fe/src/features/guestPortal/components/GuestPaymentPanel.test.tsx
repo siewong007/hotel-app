@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   portalUploadReceipt: vi.fn(),
   portalCreatePaypalOrder: vi.fn(),
   portalCapturePaypalOrder: vi.fn(),
+  dashboardPaymentConfig: vi.fn(),
   dashboardSubmitBankTransfer: vi.fn(),
   dashboardUploadReceipt: vi.fn(),
   dashboardCreatePaypalOrder: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('../../../api/guestPortal.service', () => ({
 
 vi.mock('../api/guestPortalDashboard.service', () => ({
   GuestPortalDashboardService: {
+    paymentConfig: (...args: unknown[]) => mocks.dashboardPaymentConfig(...args),
     submitBankTransfer: (...args: unknown[]) => mocks.dashboardSubmitBankTransfer(...args),
     uploadPaymentReceipt: (...args: unknown[]) => mocks.dashboardUploadReceipt(...args),
     createPaypalOrder: (...args: unknown[]) => mocks.dashboardCreatePaypalOrder(...args),
@@ -97,12 +99,13 @@ describe('GuestPaymentPanel', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
     mocks.paymentConfig.mockResolvedValue(configWith());
+    mocks.dashboardPaymentConfig.mockResolvedValue(configWith());
   });
 
   afterEach(cleanup);
 
   it('shows a loading state until the payment config resolves', async () => {
-    mocks.paymentConfig.mockReturnValue(new Promise(() => {}));
+    mocks.dashboardPaymentConfig.mockReturnValue(new Promise(() => {}));
 
     render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
 
@@ -110,14 +113,14 @@ describe('GuestPaymentPanel', () => {
   });
 
   it('offers a retry when the payment config fails to load', async () => {
-    mocks.paymentConfig.mockRejectedValueOnce(new Error('network down'));
+    mocks.dashboardPaymentConfig.mockRejectedValueOnce(new Error('network down'));
 
     render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
 
     expect(await screen.findByText('network down')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('Offline banking (bank transfer)')).toBeTruthy();
-    expect(mocks.paymentConfig).toHaveBeenCalledTimes(2);
+    expect(mocks.dashboardPaymentConfig).toHaveBeenCalledTimes(2);
   }, 15000);
 
   it('submits a bank-transfer claim against the session booking and reports success', async () => {
@@ -197,7 +200,7 @@ describe('GuestPaymentPanel', () => {
   });
 
   it('hides the PayPal option when the hotel has it disabled', async () => {
-    mocks.paymentConfig.mockResolvedValue(configWith({ paypal_enabled: false }));
+    mocks.dashboardPaymentConfig.mockResolvedValue(configWith({ paypal_enabled: false }));
 
     render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
 
@@ -206,7 +209,7 @@ describe('GuestPaymentPanel', () => {
   });
 
   it('runs create-order then capture through the dashboard service and confirms', async () => {
-    mocks.paymentConfig.mockResolvedValue(
+    mocks.dashboardPaymentConfig.mockResolvedValue(
       configWith({ paypal_enabled: true, paypal_client_id: 'test-client-id' }),
     );
     mocks.dashboardCreatePaypalOrder.mockResolvedValue({ order_id: 'ORDER-1', payment_id: 60 });

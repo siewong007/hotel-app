@@ -75,13 +75,15 @@ describe('GuestPortalService', () => {
   });
 
   describe('paymentConfig', () => {
-    it('calls GET guest-portal/payment-config', async () => {
+    it('calls GET guest-portal/payment-config with the booking token header', async () => {
       const config = { paypal_enabled: true, paypal_client_id: 'abc', bank_details: { bank_name: null, account_name: null, account_number: null } };
       get.mockReturnValue(mockJsonResponse(config));
 
-      const result = await GuestPortalService.paymentConfig();
+      const result = await GuestPortalService.paymentConfig('tok_abc');
 
-      expect(get).toHaveBeenCalledWith('guest-portal/payment-config');
+      expect(get).toHaveBeenCalledWith('guest-portal/payment-config', {
+        headers: { 'X-Booking-Access-Token': 'tok_abc' },
+      });
       expect(result).toEqual(config);
     });
   });

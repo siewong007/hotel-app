@@ -72,11 +72,10 @@ pub fn routes() -> Router<DbPool> {
             "/guest-portal/me/credits",
             get(handlers::guest_portal::get_my_credits),
         )
-        // Public payment configuration (PayPal client id + bank details).
-        .route(
-            "/guest-portal/payment-config",
-            get(handlers::guest_portal::get_payment_config),
-        )
+        // Payment configuration (PayPal client id + bank details). Requires a
+        // booking access token or a guest portal session so bank account
+        // numbers are not a fully public scrape target.
+        .route("/guest-portal/payment-config", get(payment_config))
         // Session-authenticated guest payments.
         .route(
             "/guest-portal/me/payments/bank-transfer",
@@ -292,6 +291,27 @@ async fn create_session(
     Ok(Json(response))
 }
 
+async fn payment_config(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Result<Json<models::GuestPaymentConfig>, ApiError> {
+    match payment_config_credential(&headers)? {
+        PaymentConfigCredential::BookingAccessToken(token) => {
+            require_booking_token_for_read(&limiters, &headers, peer_addr, Some(&token)).await?;
+            crate::services::guest_portal::get_booking_by_token(&pool, &token).await?;
+        }
+        PaymentConfigCredential::GuestSession => {
+            crate::services::guest_portal::require_guest_session_for_read(
+                &headers, &pool, &limiters,
+            )
+            .await?;
+        }
+    }
+    handlers::guest_portal::get_payment_config().await
+}
+
 async fn verify_booking(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
@@ -362,6 +382,33 @@ fn ensure_plausible_portal_token(token: &str) -> Result<(), ApiError> {
 /// (Caddy/Cloudflare access logs, browser history, Referer). Path tokens stay
 /// accepted so already-issued pre-check-in links keep working.
 const BOOKING_ACCESS_TOKEN_HEADER: &str = "x-booking-access-token";
+
+#[derive(Debug, PartialEq, Eq)]
+enum PaymentConfigCredential {
+    BookingAccessToken(String),
+    GuestSession,
+}
+
+fn payment_config_credential(headers: &HeaderMap) -> Result<PaymentConfigCredential, ApiError> {
+    let has_booking_header = headers.get(BOOKING_ACCESS_TOKEN_HEADER).is_some();
+    if has_booking_header {
+        return Ok(PaymentConfigCredential::BookingAccessToken(
+            resolve_booking_access_token(headers, None)?,
+        ));
+    }
+    let has_bearer = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .is_some_and(|token| !token.is_empty());
+    if has_bearer {
+        return Ok(PaymentConfigCredential::GuestSession);
+    }
+    Err(ApiError::Unauthorized(
+        "Sign in or open your booking to view payment details.".to_string(),
+    ))
+}
 
 fn resolve_booking_access_token(
     headers: &HeaderMap,
@@ -597,5 +644,48 @@ mod portal_token_shape_tests {
     #[test]
     fn rejects_a_request_with_neither_header_nor_path_token() {
         assert!(super::resolve_booking_access_token(&axum::http::HeaderMap::new(), None).is_err());
+    }
+
+    #[test]
+    fn payment_config_accepts_a_booking_access_token_header() {
+        let token = "d".repeat(64);
+        let credential = super::payment_config_credential(&headers_with_booking_token(&token))
+            .expect("booking header must authorize payment-config");
+        assert_eq!(
+            credential,
+            super::PaymentConfigCredential::BookingAccessToken(token)
+        );
+    }
+
+    #[test]
+    fn payment_config_accepts_a_guest_session_bearer() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            "Bearer guest-session-token".parse().unwrap(),
+        );
+        let credential = super::payment_config_credential(&headers)
+            .expect("guest session must authorize payment-config");
+        assert_eq!(credential, super::PaymentConfigCredential::GuestSession);
+    }
+
+    #[test]
+    fn payment_config_rejects_an_unauthenticated_caller() {
+        assert!(super::payment_config_credential(&axum::http::HeaderMap::new()).is_err());
+    }
+
+    #[test]
+    fn payment_config_prefers_the_booking_header_over_a_session_bearer() {
+        let token = "e".repeat(64);
+        let mut headers = headers_with_booking_token(&token);
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            "Bearer guest-session-token".parse().unwrap(),
+        );
+        let credential = super::payment_config_credential(&headers).expect("header present");
+        assert_eq!(
+            credential,
+            super::PaymentConfigCredential::BookingAccessToken(token)
+        );
     }
 }
