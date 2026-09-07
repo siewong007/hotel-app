@@ -19,7 +19,7 @@ x-logging: &default-logging
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:19beta3
     container_name: saliminn-staging-db
     restart: unless-stopped
     command:
@@ -39,8 +39,8 @@ services:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       POSTGRES_DB: hotel_management
     volumes:
-      # PostgreSQL 16 uses the classic data directory /var/lib/postgresql/data.
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 19 stores versioned data below /var/lib/postgresql.
+      - postgres_data:/var/lib/postgresql
       # Applied by the official image only while postgres_data is empty.
       - /opt/saliminn-staging/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:

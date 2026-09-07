@@ -23,7 +23,7 @@ readonly BACKUP_DIR="$APP_DIR/backups"
 readonly LOCK_FILE="$APP_DIR/deploy.lock"
 readonly CADDY_FILE=/etc/caddy/Caddyfile
 readonly CADDY_SITE_FILE=/etc/caddy/saliminn-staging.Caddyfile
-readonly POSTGRES_IMAGE=postgres:16
+readonly POSTGRES_IMAGE=postgres:19beta3
 readonly COMPOSE_VERSION=v5.1.4
 readonly COMPOSE_SHA256=33b208d7e76639db742fae84b966cc01dacae58ca3fc4dabbc907045aefdf0c4
 
