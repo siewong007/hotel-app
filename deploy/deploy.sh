@@ -132,15 +132,32 @@ ensure_capacity() {
   swap_kib=$(awk '/^SwapTotal:/ {print $2}' /proc/meminfo)
   if (( swap_kib < 1048576 )); then
     local swap_file=/var/lib/saliminn.swap
-    log "Adding 2 GiB of emergency swap because this shared VPS has less than 1 GiB configured"
-    if [[ ! -f "$swap_file" ]]; then
-      fallocate -l 2G "$swap_file"
-      chmod 0600 "$swap_file"
-      mkswap "$swap_file" >/dev/null
+    # AIC production is a Proxmox LXC. The kernel will not let the container
+    # swapon a file (EPERM), and a failed swapon under `set -e` used to abort
+    # the whole deploy. Skip the file on containers; on a real VM keep the
+    # best-effort 2 GiB file but never let swapon failure stop the release.
+    if systemd-detect-virt --quiet --container 2>/dev/null; then
+      log "Skipping emergency swap file: this host is a container ($(systemd-detect-virt --container 2>/dev/null)) and cannot swapon"
+      if [[ -f "$swap_file" ]] \
+        && ! swapon --show=NAME --noheadings 2>/dev/null | grep -Fxq "$swap_file"; then
+        rm -f -- "$swap_file"
+      fi
+    else
+      log "Adding 2 GiB of emergency swap because this shared VPS has less than 1 GiB configured"
+      if [[ ! -f "$swap_file" ]]; then
+        fallocate -l 2G "$swap_file"
+        chmod 0600 "$swap_file"
+        mkswap "$swap_file" >/dev/null
+      fi
+      if swapon --show=NAME --noheadings | grep -Fxq "$swap_file"; then
+        :
+      elif swapon "$swap_file"; then
+        grep -Fq "$swap_file none swap sw 0 0" /etc/fstab \
+          || printf '%s none swap sw 0 0\n' "$swap_file" >> /etc/fstab
+      else
+        log "swapon $swap_file failed; continuing without extra swap"
+      fi
     fi
-    swapon --show=NAME --noheadings | grep -Fxq "$swap_file" || swapon "$swap_file"
-    grep -Fq "$swap_file none swap sw 0 0" /etc/fstab \
-      || printf '%s none swap sw 0 0\n' "$swap_file" >> /etc/fstab
   fi
   printf 'vm.swappiness=10\n' > /etc/sysctl.d/99-saliminn-swap.conf
   sysctl -q -w vm.swappiness=10

@@ -450,6 +450,33 @@ fn deployment_backs_up_and_patches_before_application_activation() {
 }
 
 #[test]
+fn deployment_does_not_abort_when_the_host_cannot_enable_swap() {
+    // AIC production is a Proxmox LXC. SwapTotal is 512 MiB of virtual swap,
+    // so ensure_capacity tries to add a 2 GiB file, then `swapon` returns
+    // EPERM. Under `set -e`, `grep ... || swapon "$swap_file"` aborted both
+    // AIC deploys on 2026-09-07 before images were loaded.
+    let deploy = repository_file("deploy/deploy.sh");
+    let capacity = deploy
+        .split("ensure_capacity() {")
+        .nth(1)
+        .and_then(|source| source.split("\n}\n").next())
+        .expect("deploy script must define ensure_capacity");
+    let lines = active_lines(capacity);
+
+    assert!(
+        !lines.iter().any(|line| {
+            line.contains(r#"|| swapon "$swap_file""#)
+                || (*line == r#"swapon "$swap_file""#)
+        }),
+        "a failed swapon must not be able to abort the deploy"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("systemd-detect-virt")),
+        "ensure_capacity must detect containers that cannot swapon"
+    );
+}
+
+#[test]
 fn deployment_local_database_setup_records_the_patch_catalog() {
     let makefile = repository_file("Makefile");
     let make_lines = active_lines(&makefile);
