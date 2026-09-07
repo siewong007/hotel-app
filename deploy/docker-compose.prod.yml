@@ -1,4 +1,4 @@
-# Production stack for saliminn.my on the existing payroll Lightsail VPS.
+# Production stack for saliminn.my on the AIC cloud VPS.
 #
 # The host-level Caddy process owns ports 80/443. Every hotel port is bound to
 # loopback, so only Caddy (or an administrator on the VPS) can reach it.

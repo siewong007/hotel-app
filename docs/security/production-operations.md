@@ -18,7 +18,7 @@ password resets, password changes, lockouts, deactivation, and deletion revoke
 their sessions.
 
 Protect the GitHub `production` environment with required reviewers and limit
-deployment-secret access to the release maintainers. Rotate the Lightsail SSH
+deployment-secret access to the release maintainers. Rotate the AIC VPS SSH
 key and `JWT_SECRET` immediately after suspected disclosure. Rotating
 `JWT_SECRET` deliberately invalidates all staff access tokens.
 

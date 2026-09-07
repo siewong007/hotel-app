@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy saliminn.my on the live payroll Lightsail VPS.
+# Deploy saliminn.my on the AIC cloud VPS.
 #
 # Usage (as root):
 #   deploy.sh <40-character-git-sha> <extracted-release-directory>
@@ -80,7 +80,7 @@ done
 ) || die "release checksum verification failed"
 
 ensure_host_runtime() {
-  [[ $(uname -m) == x86_64 ]] || die "this release targets the confirmed x86-64 Lightsail host"
+  [[ $(uname -m) == x86_64 ]] || die "this release targets the confirmed x86-64 AIC VPS host"
 
   local packages=()
   command -v curl >/dev/null 2>&1 || packages+=(ca-certificates curl)
