@@ -20,6 +20,7 @@ use std::time::Duration;
 use chrono::{Datelike, NaiveDate, Utc};
 use serde_json::json;
 
+use super::email_layout::{self, Cta, GuestEmail};
 use super::models::{AudienceGuest, EmailCampaign};
 use super::repository::{BirthdayTargetParams, CommunicationsRepository as Repo, DeliveryValues};
 use super::tokens;
@@ -27,19 +28,14 @@ use super::validation::{self, html_escape};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
-use crate::services::audit::AuditLog;
 use crate::models::AuditEvent;
+use crate::services::audit::AuditLog;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(60);
 const EXPANSION_BATCH: i64 = 200;
 
 fn public_base_url() -> String {
-    std::env::var("PUBLIC_BASE_URL")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "http://localhost:3000".to_string())
-        .trim_end_matches('/')
-        .to_string()
+    email_layout::public_base_url()
 }
 
 /// Standard per-guest variables available to campaign templates.
@@ -107,35 +103,62 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
     if settings_cache::get_string(pool, "pre_arrival_reminder_enabled", "false").await != "true" {
         return Ok(0);
     }
-    let hours =
-        settings_cache::get_i32(pool, "pre_arrival_reminder_hours_before", 48).await;
+    let hours = settings_cache::get_i32(pool, "pre_arrival_reminder_hours_before", 48).await;
     let window_days = reminder_window_days(hours);
     let today = Repo::hotel_local_date(pool).await?;
 
     let due = Repo::due_pre_arrival_bookings(pool, today, window_days).await?;
     let mut queued = 0;
     for booking in due {
-        let subject = format!("Your stay begins soon {}", booking.booking_number);
-        let body_html = format!(
-            "<p>Dear {},</p>             <p>We look forward to welcoming you. Your stay {} starts on <strong>{}</strong>.</p>             <p><strong>Room:</strong> {} ({})<br>             <strong>Check-out:</strong> {}</p>             <p>You can complete online check-in from your guest portal to skip the front desk.</p>",
-            html_escape(&booking.guest_name),
-            html_escape(&booking.booking_number),
-            booking.check_in_date,
-            html_escape(booking.room_number.as_deref().unwrap_or("-")),
-            html_escape(booking.room_type_name.as_deref().unwrap_or("-")),
-            booking.check_out_date,
+        let hotel = email_layout::hotel_display_name();
+        let subject = format!(
+            "Your stay at {hotel} begins soon · {}",
+            booking.booking_number
         );
-        let body_text = format!(
-            "Dear {},\nYour stay {} starts on {}. Room: {} ({}). Check-out: {}.\nYou can complete online check-in from your guest portal.",
-            booking.guest_name,
-            booking.booking_number,
-            booking.check_in_date,
+        let checkin = email_layout::absolute_url("/guest-checkin");
+        let stay_in = booking.check_in_date.format("%d %b %Y").to_string();
+        let stay_out = booking.check_out_date.format("%d %b %Y").to_string();
+        let room = format!(
+            "{} ({})",
             booking.room_number.as_deref().unwrap_or("-"),
             booking.room_type_name.as_deref().unwrap_or("-"),
-            booking.check_out_date,
         );
+        let details = email_layout::details_table(&[
+            ("Booking", &booking.booking_number),
+            ("Room", &room),
+            ("Check-in", &stay_in),
+            ("Check-out", &stay_out),
+        ]);
+        let inner_html = format!(
+            "<p>Dear {},</p>\
+             <p>We look forward to welcoming you. Your stay <strong>{}</strong> starts on <strong>{}</strong>.</p>\
+             {}\
+             <p>You can complete online check-in from your guest portal to skip the front desk.</p>",
+            html_escape(&booking.guest_name),
+            html_escape(&booking.booking_number),
+            html_escape(&stay_in),
+            details,
+        );
+        let inner_text = format!(
+            "Dear {},\nYour stay {} starts on {}. Room: {}. Check-out: {}.\nYou can complete online check-in from your guest portal.",
+            booking.guest_name, booking.booking_number, stay_in, room, stay_out,
+        );
+        let rendered = email_layout::render(GuestEmail {
+            preheader: &format!(
+                "Your {hotel} stay {} starts on {stay_in}.",
+                booking.booking_number
+            ),
+            heading: "Your stay begins soon",
+            inner_html: &inner_html,
+            inner_text: &inner_text,
+            cta: Some(Cta {
+                label: "Complete pre-check-in",
+                url: &checkin,
+            }),
+        });
         let footer = unsubscribe_footer_html(booking.guest_id);
-        let body_html = format!("{body_html}{footer}");
+        let body_html = format!("{}{footer}", rendered.html);
+        let body_text = rendered.text;
 
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
         Repo::insert_delivery_tx(
@@ -376,22 +399,39 @@ async fn issue_birthday_voucher(
         return Ok(0);
     };
 
-    let expiry_text = expires_at.format("%Y-%m-%d").to_string();
+    let expiry_text = expires_at.format("%d %b %Y").to_string();
     let subject = format!("Happy birthday from {hotel_name}!");
-    let body_html = format!(
+    let portal = email_layout::absolute_url("/portal");
+    let details = email_layout::details_table(&[
+        ("Gift", promotion_name),
+        ("Voucher code", &code),
+        ("Valid until", &expiry_text),
+    ]);
+    let inner_html = format!(
         "<p>Dear {first},</p>\
-         <p>Happy birthday! As a thank-you for staying with us, here is your gift: \
-         <strong>{promo}</strong>.</p>\
-         <p>Your voucher code: <strong>{code}</strong> (valid until {expiry}). \
-         You can also find it in your guest portal wallet.</p>\
-         <p>Warm wishes,<br>{hotel}</p>{footer}",
+         <p>Happy birthday! As a thank-you for staying with us, here is your gift.</p>\
+         {details}\
+         <p>You can also find it in your guest portal wallet.</p>\
+         <p>Warm wishes,<br>{hotel}</p>",
         first = html_escape(&guest.first_name),
-        promo = html_escape(promotion_name),
-        code = html_escape(&code),
-        expiry = expiry_text,
         hotel = html_escape(hotel_name),
-        footer = unsubscribe_footer_html(guest.id),
     );
+    let inner_text = format!(
+        "Dear {},\nHappy birthday! Your gift is {promotion_name}.\nVoucher code: {code} (valid until {expiry_text}).\nWarm wishes,\n{hotel_name}",
+        guest.first_name,
+    );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!("A birthday gift from {hotel_name} is waiting in your wallet."),
+        heading: "Happy birthday",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "Open your wallet",
+            url: &portal,
+        }),
+    });
+    let body_html = format!("{}{}", rendered.html, unsubscribe_footer_html(guest.id));
+    let body_text = rendered.text;
 
     AuditLog::log_event_tx(
         &mut tx,
@@ -420,7 +460,7 @@ async fn issue_birthday_voucher(
             recipient_email: &guest.email,
             subject: &subject,
             body_html: &body_html,
-            body_text: None,
+            body_text: Some(&body_text),
             voucher_id: Some(voucher_id),
             idempotency_key: &format!("{source_reference}:guest:{}", guest.id),
         },

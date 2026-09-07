@@ -254,5 +254,8 @@ describe('PortalBookingPage anonymous checkout', () => {
     // shown as the confirmation heading AND spelled out in the retrieval note.
     expect(await screen.findAllByText('SI-20260717-0004')).toHaveLength(2);
     expect(screen.getByText(/how you reopen this booking later/i)).toBeTruthy();
+    expect(
+      screen.getByText(/if it is not in Primary, check Spam and Promotions/i),
+    ).toBeTruthy();
   });
 });

@@ -2,6 +2,7 @@
 //! history, staff-composed email campaigns, a durable delivery outbox, and
 //! global suppressions. Customers are identified by guest_id throughout.
 
+pub mod email_layout;
 pub mod handlers;
 pub mod models;
 pub mod repository;

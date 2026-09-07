@@ -1,12 +1,14 @@
 use crate::constants::PaymentMethod;
 use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     Booking, GuestBankDetails, GuestPaymentConfig, Invoice, InvoicePreview, Payment,
     PaymentActionResponse, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
     PaypalCreateOrderResponse, PendingPaymentEntry, PendingPaymentPage, RecordPaymentRequest,
     UpdatePaymentRequest,
 };
+use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::repositories::guest_portal::GuestPortalRepository;
@@ -15,7 +17,6 @@ use crate::services::audit::AuditLog;
 use rust_decimal::Decimal;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::models::AuditEvent;
 
 const PAYMENT_RECEIPT_UPLOAD_DIR: &str = "private_uploads/payment_receipts";
 const MAX_PAYMENT_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
@@ -47,33 +48,55 @@ pub async fn queue_paid_online_booking_room_assignment(
         return Ok(false);
     };
 
+    let hotel = email_layout::hotel_display_name();
     let subject = format!(
-        "Room {} assigned for booking {}",
+        "{hotel} · room {} assigned · {}",
         assignment.room_number, assignment.booking_number
     );
-    let body_html = format!(
+    let portal = email_layout::absolute_url("/portal");
+    let stay = format!(
+        "{} to {}",
+        assignment.check_in_date.format("%d %b %Y"),
+        assignment.check_out_date.format("%d %b %Y"),
+    );
+    let room = format!("{} ({})", assignment.room_number, assignment.room_type_name);
+    let details = email_layout::details_table(&[
+        ("Booking", &assignment.booking_number),
+        ("Room", &room),
+        ("Stay", &stay),
+    ]);
+    let inner_html = format!(
         "<p>Dear {},</p>\
          <p>Your online payment is confirmed and your room has been assigned.</p>\
-         <p><strong>Booking:</strong> {}<br>\
-         <strong>Room:</strong> {} ({})<br>\
-         <strong>Stay:</strong> {} to {}</p>\
+         {}\
          <p>You can also view these details in your guest portal.</p>",
         html_escape(&assignment.guest_name),
-        html_escape(&assignment.booking_number),
-        html_escape(&assignment.room_number),
-        html_escape(&assignment.room_type_name),
-        assignment.check_in_date,
-        assignment.check_out_date,
+        details,
     );
-    let body_text = format!(
-        "Your online payment is confirmed and your room has been assigned.\n\
-         Booking: {}\nRoom: {} ({})\nStay: {} to {}",
+    let inner_text = format!(
+        "Dear {},\nYour online payment is confirmed and your room has been assigned.\n\
+         Booking: {}\nRoom: {} ({})\nStay: {}",
+        assignment.guest_name,
         assignment.booking_number,
         assignment.room_number,
         assignment.room_type_name,
-        assignment.check_in_date,
-        assignment.check_out_date,
+        stay,
     );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!(
+            "Room {} assigned for {hotel} reservation {}.",
+            assignment.room_number, assignment.booking_number
+        ),
+        heading: "Your room is assigned",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "View your booking",
+            url: &portal,
+        }),
+    });
+    let body_html = rendered.html;
+    let body_text = rendered.text;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     CommunicationsRepository::insert_delivery_tx(
@@ -865,51 +888,65 @@ pub async fn queue_checkout_receipt_email(
     .await
     .map_err(ApiError::from)?;
 
-    let nights = (source.check_out_date - source.check_in_date).num_days().max(0);
+    let nights = (source.check_out_date - source.check_in_date)
+        .num_days()
+        .max(0);
     let balance = (source.total_amount - paid).max(rust_decimal::Decimal::ZERO);
 
-    let subject = format!(
-        "Your receipt for booking {}",
-        source.booking_number.as_deref().unwrap_or("")
+    let hotel = email_layout::hotel_display_name();
+    let booking_number = source.booking_number.as_deref().unwrap_or("");
+    let subject = format!("Your {hotel} receipt · {booking_number}");
+    let portal = email_layout::absolute_url("/portal");
+    let stay = format!(
+        "{} to {} · {} night(s)",
+        source.check_in_date.format("%d %b %Y"),
+        source.check_out_date.format("%d %b %Y"),
+        nights,
     );
-    let body_html = format!(
+    let room = format!(
+        "{} ({})",
+        source.room_number.as_deref().unwrap_or("-"),
+        source.room_type.as_deref().unwrap_or("-"),
+    );
+    let total = format!("{:.2}", source.total_amount);
+    let paid_label = format!("{paid:.2}");
+    let balance_label = format!("{balance:.2}");
+    let details = email_layout::details_table(&[
+        ("Booking", booking_number),
+        ("Invoice", invoice_number),
+        ("Room", &room),
+        ("Stay", &stay),
+        ("Total charged", &total),
+        ("Payments received", &paid_label),
+        ("Balance", &balance_label),
+    ]);
+    let inner_html = format!(
         "<p>Dear {},</p>\
          <p>Thank you for staying with us. Here is your receipt.</p>\
-         <p><strong>Booking:</strong> {}<br>\
-         <strong>Invoice:</strong> {}<br>\
-         <strong>Room:</strong> {} ({})<br>\
-         <strong>Stay:</strong> {} to {} · {} night(s)</p>\
-         <p><strong>Total charged:</strong> {}<br>\
-         <strong>Payments received:</strong> {}<br>\
-         <strong>Balance:</strong> {}</p>\
+         {}\
          <p>You can review your bookings any time in your guest portal.</p>",
         html_escape(&source.guest_name),
-        html_escape(source.booking_number.as_deref().unwrap_or("")),
-        html_escape(invoice_number),
-        html_escape(source.room_number.as_deref().unwrap_or("-")),
-        html_escape(source.room_type.as_deref().unwrap_or("-")),
-        source.check_in_date,
-        source.check_out_date,
-        nights,
-        source.total_amount.round_dp(2),
-        paid.round_dp(2),
-        balance.round_dp(2),
+        details,
     );
-    let body_text = format!(
-        "Booking: {}\nInvoice: {}\nStay: {} to {} ({} night(s))\nTotal charged: {}\nPayments received: {}\nBalance: {}",
-        source.booking_number.as_deref().unwrap_or(""),
-        invoice_number,
-        source.check_in_date,
-        source.check_out_date,
-        nights,
-        source.total_amount.round_dp(2),
-        paid.round_dp(2),
-        balance.round_dp(2),
+    let inner_text = format!(
+        "Dear {},\nThank you for staying with us. Here is your receipt.\n\
+         Booking: {}\nInvoice: {}\nStay: {}\nTotal charged: {}\nPayments received: {}\nBalance: {}",
+        source.guest_name, booking_number, invoice_number, stay, total, paid_label, balance_label,
     );
-
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!("Receipt for your {hotel} stay {booking_number}."),
+        heading: "Your receipt",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "View your booking",
+            url: &portal,
+        }),
+    });
     let footer =
         crate::modules::communications::scheduler::unsubscribe_footer_html(source.guest_id);
-    let body_html_with_footer = format!("{body_html}{footer}");
+    let body_html_with_footer = format!("{}{footer}", rendered.html);
+    let body_text = rendered.text;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     CommunicationsRepository::insert_delivery_tx(
@@ -1521,7 +1558,8 @@ async fn apply_webhook_capture_completed(
         captured_amount: event.captured_amount.clone(),
         captured_currency: event.captured_currency.clone(),
     };
-    if let Err(reason) = verify_captured_amount(&echoed, expected_amount, booking_currency(&booking))
+    if let Err(reason) =
+        verify_captured_amount(&echoed, expected_amount, booking_currency(&booking))
     {
         log::error!(
             "PayPal webhook {} amount mismatch for payment {}: {reason}",
@@ -1534,8 +1572,14 @@ async fn apply_webhook_capture_completed(
         return Ok(PaypalWebhookApplyOutcome::ConflictFlagged);
     }
 
-    match complete_and_confirm(pool, event.payment_id, event.booking_id, None, "payment_captured")
-        .await
+    match complete_and_confirm(
+        pool,
+        event.payment_id,
+        event.booking_id,
+        None,
+        "payment_captured",
+    )
+    .await
     {
         Ok(_) => {
             audit_paypal_webhook(
@@ -1744,7 +1788,9 @@ pub async fn request_payment_receipt(
             action: "payment_receipt_requested",
             resource_type: "payment",
             resource_id: Some(payment_id),
-            details: Some(serde_json::json!({ "booking_id": review.booking_id, "message": message })),
+            details: Some(
+                serde_json::json!({ "booking_id": review.booking_id, "message": message }),
+            ),
             ..Default::default()
         },
     )
@@ -1782,16 +1828,33 @@ async fn queue_payment_receipt_request_notification(
     let booking = booking_number.unwrap_or("your booking");
     let message =
         message.unwrap_or("Please upload a clear receipt showing the transfer reference and date.");
-    let subject = format!("Receipt requested for booking {booking}");
-    let body_html = format!(
+    let hotel = email_layout::hotel_display_name();
+    let subject = format!("Receipt requested · {hotel} {booking}");
+    let portal = email_layout::absolute_url("/portal");
+    let inner_html = format!(
         "<p>Dear {},</p><p>Please upload your bank-transfer receipt for booking <strong>{}</strong> within 24 hours.</p><p>{}</p>",
         html_escape(guest_name.unwrap_or("Guest")),
         html_escape(booking),
         html_escape(message)
     );
-    let body_text = format!(
-        "Please upload your bank-transfer receipt for booking {booking} within 24 hours.\n{message}"
+    let inner_text = format!(
+        "Dear {},\nPlease upload your bank-transfer receipt for booking {booking} within 24 hours.\n{message}",
+        guest_name.unwrap_or("Guest"),
     );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!(
+            "Please upload your transfer receipt for {hotel} reservation {booking}."
+        ),
+        heading: "Receipt needed",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "Open guest portal",
+            url: &portal,
+        }),
+    });
+    let body_html = rendered.html;
+    let body_text = rendered.text;
     let mut tx = match pool.begin().await {
         Ok(tx) => tx,
         Err(error) => {
@@ -1926,21 +1989,36 @@ async fn queue_payment_rejected_notification(
         return Ok(());
     };
 
-    let subject = format!("Update on your payment for booking {booking_number}");
-    let body_html = format!(
+    let hotel = email_layout::hotel_display_name();
+    let subject = format!("Payment update · {hotel} {booking_number}");
+    let portal = email_layout::absolute_url("/portal");
+    let details = email_layout::details_table(&[("Booking", booking_number), ("Reason", reason)]);
+    let inner_html = format!(
         "<p>Dear {},</p>\
          <p>We were unable to confirm your recent payment for booking <strong>{}</strong>.</p>\
-         <p><strong>Reason:</strong> {}</p>\
+         {}\
          <p>Please log in to your guest portal to submit a new payment claim or contact the hotel if you need help.</p>",
         html_escape(guest_name),
         html_escape(booking_number),
-        html_escape(reason),
+        details,
     );
-    let body_text = format!(
-        "We were unable to confirm your recent payment for booking {booking_number}.\n\
+    let inner_text = format!(
+        "Dear {guest_name},\nWe were unable to confirm your recent payment for booking {booking_number}.\n\
          Reason: {reason}\n\
          Please log in to your guest portal to submit a new payment claim or contact the hotel if you need help.",
     );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!("An update on your payment for {hotel} reservation {booking_number}."),
+        heading: "Payment not confirmed",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "Open guest portal",
+            url: &portal,
+        }),
+    });
+    let body_html = rendered.html;
+    let body_text = rendered.text;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     CommunicationsRepository::insert_delivery_tx(

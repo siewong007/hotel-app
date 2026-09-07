@@ -226,6 +226,9 @@ describe('PortalBookingPage voucher eligibility', () => {
     fireEvent.click(continueButton);
 
     await screen.findByRole('heading', { name: 'Complete your payment' });
+    expect(
+      screen.getByText(/if it is not in Primary, check Spam and Promotions/i),
+    ).toBeTruthy();
     await screen.findByText('Choose a payment method');
     fireEvent.click(await screen.findByRole('radio', { name: 'Offline banking (bank transfer)' }));
     expect(await screen.findByRole('button', { name: "I've paid via bank transfer" })).toBeTruthy();

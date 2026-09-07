@@ -21,6 +21,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::AuditEvent;
+use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 use crate::services::audit::AuditLog;
@@ -823,39 +824,16 @@ pub async fn create(
         .as_deref()
         .filter(|value| !value.trim().is_empty())
     {
-        let subject = if settled_by_credits {
-            format!("Booking confirmed {booking_number}")
-        } else {
-            format!("Booking received {booking_number}")
-        };
-        let opening = if settled_by_credits {
-            format!(
-                "Your reservation <strong>{}</strong> is confirmed, fully covered by your complimentary nights.",
-                html_escape(&booking_number)
-            )
-        } else {
-            format!(
-                "Your reservation <strong>{}</strong> has been received and is pending payment.",
-                html_escape(&booking_number)
-            )
-        };
-        let closing = if settled_by_credits {
-            "There is nothing left to pay. You can view this booking any time in your guest portal."
-        } else {
-            "Please complete payment to confirm your booking. You can pay online from your guest portal or complete a bank transfer."
-        };
-        let body_html = format!(
-            "<p>Dear {},</p><p>{}</p>\
-             <p>{} · {} to {} · {} {}</p>\
-             <p>{}</p>",
-            html_escape(&contact.full_name),
-            opening,
-            html_escape(&quote.room_type_name),
+        let (subject, body_html, body_text) = portal_booking_mail(
+            &contact.full_name,
+            &booking_number,
+            &quote.room_type_name,
             quote.check_in_date,
             quote.check_out_date,
-            html_escape(&quote.currency),
+            &quote.currency,
             quote.total_amount,
-            closing,
+            settled_by_credits,
+            false,
         );
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
@@ -867,7 +845,7 @@ pub async fn create(
                 recipient_email: email,
                 subject: &subject,
                 body_html: &body_html,
-                body_text: None,
+                body_text: Some(&body_text),
                 voucher_id: None,
                 idempotency_key: &format!("booking-confirmation:{booking_id}"),
             },
@@ -1072,21 +1050,16 @@ pub async fn create_anonymous(
 
     // The booking number and email are the only way back to this booking once
     // the access token lapses, so the confirmation must always carry both.
-    let subject = format!("Booking received {booking_number}");
-    let body_html = format!(
-        "<p>Dear {},</p>\
-         <p>Your reservation <strong>{}</strong> has been received and is pending payment.</p>\
-         <p>{} · {} to {} · {} {}</p>\
-         <p>Please complete payment to confirm your booking. To view it again, use booking \
-         number <strong>{}</strong> with this email address.</p>",
-        html_escape(&guest.full_name),
-        html_escape(&booking_number),
-        html_escape(&quote.room_type_name),
+    let (subject, body_html, body_text) = portal_booking_mail(
+        &guest.full_name,
+        &booking_number,
+        &quote.room_type_name,
         quote.check_in_date,
         quote.check_out_date,
-        html_escape(&quote.currency),
+        &quote.currency,
         quote.total_amount,
-        html_escape(&booking_number),
+        false,
+        true,
     );
     CommunicationsRepository::insert_delivery_tx(
         &mut tx,
@@ -1098,7 +1071,7 @@ pub async fn create_anonymous(
             recipient_email: &guest.email,
             subject: &subject,
             body_html: &body_html,
-            body_text: None,
+            body_text: Some(&body_text),
             voucher_id: None,
             idempotency_key: &format!("booking-confirmation:{booking_id}"),
         },
@@ -1128,6 +1101,125 @@ pub async fn create_anonymous(
         remaining_rooms: Some(remaining_rooms),
     });
     Ok(confirmation)
+}
+
+fn money_label(currency: &str, amount: Decimal) -> String {
+    let currency = currency.trim();
+    if currency.is_empty() {
+        format!("{amount:.2}")
+    } else {
+        format!("{currency} {amount:.2}")
+    }
+}
+
+fn portal_booking_mail(
+    guest_name: &str,
+    booking_number: &str,
+    room_type_name: &str,
+    check_in: NaiveDate,
+    check_out: NaiveDate,
+    currency: &str,
+    total: Decimal,
+    settled_by_credits: bool,
+    anonymous: bool,
+) -> (String, String, String) {
+    let hotel = email_layout::hotel_display_name();
+    let stay_in = check_in.format("%d %b %Y").to_string();
+    let stay_out = check_out.format("%d %b %Y").to_string();
+    let total_label = money_label(currency, total);
+    let details = email_layout::details_table(&[
+        ("Booking", booking_number),
+        ("Room", room_type_name),
+        ("Check-in", &stay_in),
+        ("Check-out", &stay_out),
+        ("Total", &total_label),
+    ]);
+    let view_url = email_layout::absolute_url("/portal");
+    let pay_url = email_layout::absolute_url("/guest-checkin");
+
+    let (subject, heading, preheader, intro_html, closing_html, intro_text, closing_text, cta) =
+        if settled_by_credits {
+            (
+                format!("{hotel} reservation confirmed {booking_number}"),
+                "Reservation confirmed",
+                format!("Your {hotel} reservation {booking_number} is confirmed."),
+                format!(
+                    "<p>Dear {},</p><p>Your reservation <strong>{}</strong> is confirmed and fully covered by complimentary nights.</p>",
+                    html_escape(guest_name),
+                    html_escape(booking_number),
+                ),
+                "<p>There is nothing left to pay. You can view this booking any time in your guest portal.</p>\
+                 <p>If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives.</p>"
+                    .to_string(),
+                format!(
+                    "Dear {guest_name},\nYour reservation {booking_number} is confirmed and fully covered by complimentary nights."
+                ),
+                "There is nothing left to pay. You can view this booking any time in your guest portal.\nIf this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives."
+                    .to_string(),
+                Cta {
+                    label: "View your booking",
+                    url: &view_url,
+                },
+            )
+        } else {
+            let spam_html = "<p>If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives.</p>";
+            let spam_text = "If this message is not in your Primary inbox, check Spam and Promotions and mark it as not spam so the next one arrives.";
+            let closing_html = if anonymous {
+                format!(
+                    "<p>Please complete payment to confirm this stay.</p>\
+                     <p>To view it later, use booking number <strong>{}</strong> with this email address.</p>\
+                     {spam_html}",
+                    html_escape(booking_number),
+                )
+            } else {
+                format!(
+                    "<p>Please complete payment to confirm this stay. You can pay online from your guest portal or complete a bank transfer.</p>\
+                     {spam_html}"
+                )
+            };
+            let closing_text = if anonymous {
+                format!(
+                    "Please complete payment to confirm this stay.\nTo view it later, use booking number {booking_number} with this email address.\n{spam_text}"
+                )
+            } else {
+                format!(
+                    "Please complete payment to confirm this stay. You can pay online from your guest portal or complete a bank transfer.\n{spam_text}"
+                )
+            };
+            let cta_url = if anonymous { &pay_url } else { &view_url };
+            (
+                format!("{hotel} reservation {booking_number}"),
+                "Reservation received",
+                format!("Your {hotel} reservation {booking_number} is pending payment."),
+                format!(
+                    "<p>Dear {},</p><p>Your reservation <strong>{}</strong> has been received and is pending payment.</p>",
+                    html_escape(guest_name),
+                    html_escape(booking_number),
+                ),
+                closing_html,
+                format!(
+                    "Dear {guest_name},\nYour reservation {booking_number} has been received and is pending payment."
+                ),
+                closing_text,
+                Cta {
+                    label: "Complete payment",
+                    url: cta_url,
+                },
+            )
+        };
+
+    let inner_html = format!("{intro_html}{details}{closing_html}");
+    let inner_text = format!(
+        "{intro_text}\n\nBooking: {booking_number}\nRoom: {room_type_name}\nCheck-in: {stay_in}\nCheck-out: {stay_out}\nTotal: {total_label}\n\n{closing_text}"
+    );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &preheader,
+        heading,
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(cta),
+    });
+    (subject, rendered.html, rendered.text)
 }
 
 #[cfg(test)]
@@ -1399,5 +1491,62 @@ mod tests {
             response.status(),
             axum::http::StatusCode::UNPROCESSABLE_ENTITY
         );
+    }
+
+    #[test]
+    fn anonymous_pending_mail_is_branded_and_tells_the_guest_how_to_pay() {
+        unsafe {
+            std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my");
+            std::env::set_var("SMTP_FROM_NAME", "Salim Inn");
+        }
+        let (subject, html, text) = portal_booking_mail(
+            "Paul <Wong>",
+            "BK-20260908-6eed1312",
+            "Deluxe King",
+            NaiveDate::from_ymd_opt(2026, 9, 8).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 9, 9).unwrap(),
+            "MYR",
+            Decimal::ZERO,
+            false,
+            true,
+        );
+        assert!(subject.contains("Salim Inn"));
+        assert!(subject.contains("BK-20260908-6eed1312"));
+        assert!(html.contains("Salim Inn"));
+        assert!(html.contains("<table"));
+        assert!(html.contains("Deluxe King"));
+        assert!(html.contains("08 Sep 2026"));
+        assert!(html.contains("MYR 0.00"));
+        assert!(html.contains("Complete payment"));
+        assert!(html.contains("https://saliminn.my/guest-checkin"));
+        assert!(html.contains("Paul &lt;Wong&gt;"));
+        assert!(!html.contains("Paul <Wong>"));
+        assert!(text.contains("Salim Inn"));
+        assert!(text.contains("Complete payment"));
+        assert!(!text.contains("<table"));
+        assert!(html.contains("If this message is not in your Primary inbox, check Spam and Promotions"));
+        assert!(text.contains("If this message is not in your Primary inbox, check Spam and Promotions"));
+    }
+
+    #[test]
+    fn credit_settled_mail_is_a_confirmation_not_a_payment_nudge() {
+        unsafe {
+            std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my");
+        }
+        let (subject, html, _) = portal_booking_mail(
+            "Guest",
+            "BK-1",
+            "Deluxe King",
+            NaiveDate::from_ymd_opt(2026, 9, 8).unwrap(),
+            NaiveDate::from_ymd_opt(2026, 9, 9).unwrap(),
+            "MYR",
+            Decimal::ZERO,
+            true,
+            false,
+        );
+        assert!(subject.contains("confirmed"));
+        assert!(html.contains("View your booking"));
+        assert!(html.contains("https://saliminn.my/portal"));
+        assert!(!html.contains("pending payment"));
     }
 }

@@ -18,6 +18,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
 
@@ -72,19 +73,24 @@ impl BookingEmailSource {
     }
 
     fn stay_block_html(&self) -> String {
-        format!(
-            "<p><strong>Booking:</strong> {}<br>\
-             <strong>Room:</strong> {} ({})<br>\
-             <strong>Stay:</strong> {} to {} · {} night(s)<br>\
-             <strong>Total:</strong> {}</p>",
-            html_escape(self.booking_label()),
-            html_escape(self.room_number.as_deref().unwrap_or("-")),
-            html_escape(self.room_type.as_deref().unwrap_or("-")),
-            self.check_in_date,
-            self.check_out_date,
+        let room = format!(
+            "{} ({})",
+            self.room_number.as_deref().unwrap_or("-"),
+            self.room_type.as_deref().unwrap_or("-"),
+        );
+        let stay = format!(
+            "{} to {} · {} night(s)",
+            self.check_in_date.format("%d %b %Y"),
+            self.check_out_date.format("%d %b %Y"),
             self.nights(),
-            self.money(self.total_amount),
-        )
+        );
+        let total = self.money(self.total_amount);
+        email_layout::details_table(&[
+            ("Booking", self.booking_label()),
+            ("Room", &room),
+            ("Stay", &stay),
+            ("Total", &total),
+        ])
     }
 
     fn stay_block_text(&self) -> String {
@@ -189,8 +195,10 @@ pub async fn queue_booking_confirmation_email(
         return Ok(());
     };
 
-    let subject = format!("Booking confirmed {}", source.booking_label());
-    let body_html = format!(
+    let hotel = email_layout::hotel_display_name();
+    let subject = format!("{hotel} reservation confirmed {}", source.booking_label());
+    let portal = email_layout::absolute_url("/portal");
+    let inner_html = format!(
         "<p>Dear {},</p>\
          <p>Your reservation <strong>{}</strong> is confirmed. We look forward to welcoming you.</p>\
          {}\
@@ -199,20 +207,33 @@ pub async fn queue_booking_confirmation_email(
         html_escape(source.booking_label()),
         source.stay_block_html(),
     );
-    let body_text = format!(
+    let inner_text = format!(
         "Dear {},\nYour reservation {} is confirmed. We look forward to welcoming you.\n{}\nYou can review this booking any time in your guest portal.",
         source.guest_name(),
         source.booking_label(),
         source.stay_block_text(),
     );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!(
+            "Your {hotel} reservation {} is confirmed.",
+            source.booking_label()
+        ),
+        heading: "Reservation confirmed",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "View your booking",
+            url: &portal,
+        }),
+    });
 
     queue(
         pool,
         source.guest_id,
         &recipient,
         &subject,
-        &body_html,
-        &body_text,
+        &rendered.html,
+        &rendered.text,
         &format!("booking-confirmed:{booking_id}"),
     )
     .await
@@ -280,42 +301,64 @@ pub async fn queue_payment_confirmation_email(
         "Your booking is confirmed. The remaining balance is payable at the hotel."
     };
 
-    let subject = format!("Payment confirmed for booking {}", source.booking_label());
-    let body_html = format!(
+    let hotel = email_layout::hotel_display_name();
+    let subject = format!("Payment confirmed · {hotel} {}", source.booking_label());
+    let portal = email_layout::absolute_url("/portal");
+    let paid_label = source.money(paid);
+    let balance_label = source.money(balance);
+    let amount_label = source.money(payment.amount);
+    let extra = email_layout::details_table(&[
+        ("Payment", &amount_label),
+        ("Method", &method),
+        ("Payments received", &paid_label),
+        ("Balance", &balance_label),
+    ]);
+    let inner_html = format!(
         "<p>Dear {},</p>\
          <p>We have confirmed your payment of <strong>{}</strong> ({}) for booking <strong>{}</strong>.</p>\
          {}\
-         <p><strong>Payments received:</strong> {}<br>\
-         <strong>Balance:</strong> {}</p>\
+         {}\
          <p>{}</p>",
         html_escape(source.guest_name()),
-        html_escape(&source.money(payment.amount)),
+        html_escape(&amount_label),
         html_escape(&method),
         html_escape(source.booking_label()),
         source.stay_block_html(),
-        source.money(paid),
-        source.money(balance),
+        extra,
         closing,
     );
-    let body_text = format!(
+    let inner_text = format!(
         "Dear {},\nWe have confirmed your payment of {} ({}) for booking {}.\n{}\nPayments received: {}\nBalance: {}\n{}",
         source.guest_name(),
-        source.money(payment.amount),
+        amount_label,
         method,
         source.booking_label(),
         source.stay_block_text(),
-        source.money(paid),
-        source.money(balance),
+        paid_label,
+        balance_label,
         closing,
     );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!(
+            "Payment confirmed for {hotel} reservation {}.",
+            source.booking_label()
+        ),
+        heading: "Payment confirmed",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: "View your booking",
+            url: &portal,
+        }),
+    });
 
     queue(
         pool,
         source.guest_id,
         &recipient,
         &subject,
-        &body_html,
-        &body_text,
+        &rendered.html,
+        &rendered.text,
         &format!("payment-confirmed:{payment_id}"),
     )
     .await
@@ -323,11 +366,7 @@ pub async fn queue_payment_confirmation_email(
 
 /// Best-effort wrapper: a notification failure must never undo a staff payment
 /// approval that has already been committed.
-pub async fn try_queue_payment_confirmation_email(
-    pool: &DbPool,
-    booking_id: i64,
-    payment_id: i64,
-) {
+pub async fn try_queue_payment_confirmation_email(pool: &DbPool, booking_id: i64, payment_id: i64) {
     if let Err(error) = queue_payment_confirmation_email(pool, booking_id, payment_id).await {
         log::error!(
             "Failed to queue payment confirmation email for payment {payment_id} (booking {booking_id}): {error}"

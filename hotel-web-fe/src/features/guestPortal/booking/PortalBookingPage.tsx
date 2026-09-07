@@ -621,7 +621,7 @@ function ConfirmationStage({ confirmation, token, paymentMode, isAnonymous, onSt
       sx={{
         justifyContent: "center",
         mt: 3
-      }}><Button variant="outlined" onClick={onStays}>{isAnonymous ? 'Back to the hotel' : 'View my stays'}</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack>{isAnonymous ? <Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>Keep booking number <strong>{confirmation.booking_number}</strong>. With the email you gave us, it is how you reopen this booking later — this page's link expires.</Alert> : null}</Paper></Container>
+      }}><Button variant="outlined" onClick={onStays}>{isAnonymous ? 'Back to the hotel' : 'View my stays'}</Button><Button variant="contained" onClick={onAnother}>Book another stay</Button></Stack><Alert severity="info" sx={{ mt: 3, textAlign: 'left' }}>We've emailed a confirmation. If it is not in Primary, check Spam and Promotions.{isAnonymous ? <> Keep booking number <strong>{confirmation.booking_number}</strong>. With the email you gave us, it is how you reopen this booking later — this page's link expires.</> : null}</Alert></Paper></Container>
   );
 }
 
