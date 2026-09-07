@@ -14,6 +14,7 @@ import {
   Fade,
   Slide,
   IconButton,
+  InputAdornment,
   Collapse,
   Card,
   CardContent,
@@ -26,6 +27,8 @@ import {
   VpnKey as VpnKeyIcon,
   Person as PersonIcon,
   AdminPanelSettings as AdminIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { storage } from '../../../utils/storage';
@@ -57,6 +60,7 @@ const LoginPage: React.FC = () => {
   });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showFirstLoginPrompt, setShowFirstLoginPrompt] = useState(false);
@@ -249,6 +253,7 @@ const LoginPage: React.FC = () => {
     setPassword('');
     setPasskeyAttempted(false);
     setShowPasswordField(false);
+    setShowPassword(false);
     setPasskeyCheckInProgress(false);
     setUsernameSubmitted(false);
   };
@@ -331,6 +336,7 @@ const LoginPage: React.FC = () => {
   const handleEditUsername = () => {
     setUsernameSubmitted(false);
     setShowPasswordField(false);
+    setShowPassword(false);
     setPasskeyAttempted(false);
     setPassword('');
     setError('');
@@ -900,7 +906,7 @@ const LoginPage: React.FC = () => {
                             <TextField
                               fullWidth
                               label="Password"
-                              type="password"
+                              type={showPassword ? 'text' : 'password'}
                               name="password"
                               autoComplete="current-password"
                               value={password}
@@ -908,6 +914,23 @@ const LoginPage: React.FC = () => {
                               margin="dense"
                               required
                               autoFocus
+                              slotProps={{
+                                input: {
+                                  endAdornment: (
+                                    <InputAdornment position="end">
+                                      <IconButton
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                        onClick={() => setShowPassword((prev) => !prev)}
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        edge="end"
+                                        size="small"
+                                      >
+                                        {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                                      </IconButton>
+                                    </InputAdornment>
+                                  ),
+                                },
+                              }}
                               sx={{
                                 '& .MuiOutlinedInput-root': {
                                   transition: 'all 0.3s',

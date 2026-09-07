@@ -13,8 +13,14 @@ import {
   Collapse,
   CircularProgress,
   Divider,
+  IconButton,
+  InputAdornment,
 } from '@mui/material';
-import { PersonAdd as RegisterIcon } from '@mui/icons-material';
+import {
+  PersonAdd as RegisterIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+} from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import { LoadingSpinner } from '../../../components';
@@ -38,6 +44,8 @@ const RegisterPage: React.FC = () => {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [emailError, setEmailError] = useState('');
@@ -497,10 +505,27 @@ const RegisterPage: React.FC = () => {
                   fullWidth
                   label="Password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleInputChange}
                   required
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            onMouseDown={(e) => e.preventDefault()}
+                            edge="end"
+                            size="small"
+                          >
+                            {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       transition: 'all 0.3s',
@@ -517,10 +542,27 @@ const RegisterPage: React.FC = () => {
                   fullWidth
                   label="Confirm Password"
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                   required
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            onClick={() => setShowConfirmPassword((prev) => !prev)}
+                            onMouseDown={(e) => e.preventDefault()}
+                            edge="end"
+                            size="small"
+                          >
+                            {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       transition: 'all 0.3s',
