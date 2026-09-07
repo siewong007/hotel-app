@@ -37,11 +37,10 @@ env:
   VPS_PORT: "20049"
   VPS_USER: root
   VPS_HOST_KEY: "[162.19.81.122]:20049 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIxenH95jfg3hxfkumJpZJyV7phwCNDrXrAL0wUXnta9"
-  # Flip to "true" once saliminn.my resolves through Cloudflare to this host.
-  # Until then the public HTTPS check is skipped rather than failed, because the
-  # domain still answers from the old AWS Lightsail box. See the verify step below
-  # for why this is a flag and not an IP comparison.
-  PUBLIC_DNS_CUTOVER: "false"
+  # Public HTTPS through Cloudflare to this origin was confirmed 2026-09-07
+  # (saliminn.my/health returned the AIC origin marker). Keep true so a failed
+  # cutover cannot skip the only end-to-end check in this workflow.
+  PUBLIC_DNS_CUTOVER: "true"
 
 jobs:
   gate:

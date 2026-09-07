@@ -147,22 +147,12 @@ ssh \
   ubuntu@13.251.162.88
 ```
 
-## Remaining DNS cutover
+## DNS cutover (completed 2026-09-07)
 
-AIC is serving all four stacks on loopback behind Caddy, and IPv6 to the
-origin works. Public DNS has **not** been flipped yet:
+Cloudflare origin for every public hostname is the proxied AAAA
+`2001:41d0:306:277a::2450`. Lightsail A records and the payrollmy.com
+CloudFront addresses were removed the same day. SSL mode is **Full** (Caddy
+still serves `internal` certificates until Origin CA certs are installed).
 
-| Hostname | Current public answer | Needed origin |
-|---|---|---|
-| `saliminn.my` / `www` | Cloudflare orange-cloud (still serving the Lightsail copy; `last-modified` 2026-09-04) | Proxied AAAA `2001:41d0:306:277a::2450` only; delete the Lightsail A |
-| `api.payrollmy.com` | A `13.251.162.88` | Same AAAA, proxied |
-| `ekowayhardware.com` / `www` | A `13.251.162.88` | Same AAAA, proxied |
-| `payrollmy.com` | CloudFront IPv4 | Proxied AAAA to this origin (Caddy already serves `/opt/payrollmy-site`) |
-
-After those records answer from AIC through Cloudflare:
-
-1. Confirm `curl -fsS https://saliminn.my/health` and the other vhosts.
-2. Set `PUBLIC_DNS_CUTOVER: "true"` in `.github/workflows/deploy.yml` and
-   merge, so production deploys target this host and the public HTTPS check
-   is enforced.
-3. Keep Lightsail running for a few quiet days, then snapshot and delete.
+Keep Lightsail running for a few quiet days, then snapshot and delete. Any
+writes taken on AIC after this cutover will not exist on Lightsail.
