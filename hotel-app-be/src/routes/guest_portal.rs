@@ -38,8 +38,11 @@ const UPLOAD_BODY_LIMIT: usize = 10 * 1024 * 1024;
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/guest-portal/verify", post(verify_booking))
+        .route("/guest-portal/booking", get(get_booking_header))
         .route("/guest-portal/booking/{token}", get(get_booking))
+        .route("/guest-portal/pre-checkin", post(submit_precheckin_header))
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
+        .route("/guest-portal/auto-checkin", post(auto_checkin_header))
         .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
         .route("/guest-portal/session", post(create_session))
         .route("/guest-portal/logout", post(handlers::guest_portal::logout))
@@ -107,6 +110,24 @@ pub fn routes() -> Router<DbPool> {
             post(handlers::guest_portal::session_paypal_capture),
         )
         // Unauthenticated token-based guest payments (rate limited per token).
+        // Header-only paths first so the token never has to appear in the URL.
+        .route(
+            "/guest-portal/booking/payments/bank-transfer",
+            post(token_bank_transfer_header),
+        )
+        .route(
+            "/guest-portal/booking/payments/{payment_id}/receipt",
+            post(token_upload_payment_receipt_header)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
+        )
+        .route(
+            "/guest-portal/booking/payments/paypal/create-order",
+            post(token_paypal_create_order_header),
+        )
+        .route(
+            "/guest-portal/booking/payments/paypal/capture",
+            post(token_paypal_capture_header),
+        )
         .route(
             "/guest-portal/booking/{token}/payments/bank-transfer",
             post(token_bank_transfer),
@@ -148,22 +169,43 @@ async fn check_token_payment_rate_limit(
     Ok(())
 }
 
+async fn require_payment_booking_token(
+    limiters: &RateLimiters,
+    headers: &HeaderMap,
+    path_token: Option<&str>,
+) -> Result<String, ApiError> {
+    let token = resolve_booking_access_token(headers, path_token)?;
+    check_token_payment_rate_limit(limiters, &token).await?;
+    Ok(token)
+}
+
+async fn token_bank_transfer_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    let token = require_payment_booking_token(&limiters, &headers, None).await?;
+    handlers::guest_portal::token_bank_transfer(State(pool), Path(token)).await
+}
+
 async fn token_bank_transfer(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     path: Path<String>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
-    check_token_payment_rate_limit(&limiters, &path.0).await?;
-    handlers::guest_portal::token_bank_transfer(State(pool), path).await
+    let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
+    handlers::guest_portal::token_bank_transfer(State(pool), Path(token)).await
 }
 
-async fn token_upload_payment_receipt(
+async fn token_upload_payment_receipt_header(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
-    Path((token, payment_id)): Path<(String, i64)>,
+    headers: HeaderMap,
+    Path(payment_id): Path<i64>,
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    check_token_payment_rate_limit(&limiters, &token).await?;
+    let token = require_payment_booking_token(&limiters, &headers, None).await?;
     handlers::guest_portal::token_upload_payment_receipt(
         State(pool),
         Path((token, payment_id)),
@@ -172,23 +214,60 @@ async fn token_upload_payment_receipt(
     .await
 }
 
+async fn token_upload_payment_receipt(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Path((path_token, payment_id)): Path<(String, i64)>,
+    multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let token = require_payment_booking_token(&limiters, &headers, Some(&path_token)).await?;
+    handlers::guest_portal::token_upload_payment_receipt(
+        State(pool),
+        Path((token, payment_id)),
+        multipart,
+    )
+    .await
+}
+
+async fn token_paypal_create_order_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
+    let token = require_payment_booking_token(&limiters, &headers, None).await?;
+    handlers::guest_portal::token_paypal_create_order(State(pool), Path(token)).await
+}
+
 async fn token_paypal_create_order(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     path: Path<String>,
 ) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
-    check_token_payment_rate_limit(&limiters, &path.0).await?;
-    handlers::guest_portal::token_paypal_create_order(State(pool), path).await
+    let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
+    handlers::guest_portal::token_paypal_create_order(State(pool), Path(token)).await
+}
+
+async fn token_paypal_capture_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    body: Json<models::PaypalCaptureRequest>,
+) -> Result<Json<models::PaymentActionResponse>, ApiError> {
+    let token = require_payment_booking_token(&limiters, &headers, None).await?;
+    handlers::guest_portal::token_paypal_capture(State(pool), Path(token), body).await
 }
 
 async fn token_paypal_capture(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     path: Path<String>,
     body: Json<models::PaypalCaptureRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
-    check_token_payment_rate_limit(&limiters, &path.0).await?;
-    handlers::guest_portal::token_paypal_capture(State(pool), path, body).await
+    let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
+    handlers::guest_portal::token_paypal_capture(State(pool), Path(token), body).await
 }
 
 async fn create_session(
@@ -279,15 +358,46 @@ fn ensure_plausible_portal_token(token: &str) -> Result<(), ApiError> {
     }
 }
 
-async fn get_booking(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
-    path: Path<String>,
-) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
-    ensure_plausible_portal_token(&path.0)?;
-    let ip = extract_client_ip(&headers, peer_addr);
+/// Header the web client uses so the booking token never appears in the URL
+/// (Caddy/Cloudflare access logs, browser history, Referer). Path tokens stay
+/// accepted so already-issued pre-check-in links keep working.
+const BOOKING_ACCESS_TOKEN_HEADER: &str = "x-booking-access-token";
+
+fn resolve_booking_access_token(
+    headers: &HeaderMap,
+    path_token: Option<&str>,
+) -> Result<String, ApiError> {
+    let from_header = headers
+        .get(BOOKING_ACCESS_TOKEN_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string);
+    let from_path = path_token
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string);
+    let token = match (from_header, from_path) {
+        (Some(token), _) => token,
+        (None, Some(token)) => token,
+        (None, None) => {
+            return Err(ApiError::Unauthorized(
+                "Missing booking access token".to_string(),
+            ));
+        }
+    };
+    ensure_plausible_portal_token(&token)?;
+    Ok(token)
+}
+
+async fn require_booking_token_for_read(
+    limiters: &RateLimiters,
+    headers: &HeaderMap,
+    peer_addr: SocketAddr,
+    path_token: Option<&str>,
+) -> Result<String, ApiError> {
+    let token = resolve_booking_access_token(headers, path_token)?;
+    let ip = extract_client_ip(headers, peer_addr);
     if !limiters.guest_portal_token_ip.check(ip).await {
         return Err(ApiError::TooManyRequestsRetryAfter(
             "Too many requests. Please try again later.".to_string(),
@@ -296,19 +406,85 @@ async fn get_booking(
     }
     let (allowed, retry_after) = limiters
         .guest_portal_token_read
-        .check_with_retry(path.0.clone())
+        .check_with_retry(token.clone())
         .await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
             format!(
-                "Too many requests for this booking link. Please try again in {} seconds.",
-                retry_after
+                "Too many requests for this booking link. Please try again in {retry_after} seconds.",
             ),
             retry_after,
         ));
     }
+    Ok(token)
+}
 
-    handlers::guest_portal::get_booking_by_token(State(pool), path).await
+async fn require_booking_token_for_write(
+    limiters: &RateLimiters,
+    headers: &HeaderMap,
+    peer_addr: SocketAddr,
+    path_token: Option<&str>,
+    retry_message: &str,
+) -> Result<String, ApiError> {
+    let token = resolve_booking_access_token(headers, path_token)?;
+    let ip = extract_client_ip(headers, peer_addr);
+    if !limiters.guest_portal_token_ip.check(ip).await {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            "Too many requests. Please try again later.".to_string(),
+            900,
+        ));
+    }
+    let (allowed, retry_after) = limiters
+        .guest_portal_token
+        .check_with_retry(token.clone())
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("{retry_message} {retry_after} seconds."),
+            retry_after,
+        ));
+    }
+    Ok(token)
+}
+
+async fn get_booking_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    let token = require_booking_token_for_read(&limiters, &headers, peer_addr, None).await?;
+    handlers::guest_portal::get_booking_by_token(State(pool), Path(token)).await
+}
+
+async fn get_booking(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    path: Path<String>,
+) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    let token =
+        require_booking_token_for_read(&limiters, &headers, peer_addr, Some(&path.0)).await?;
+    handlers::guest_portal::get_booking_by_token(State(pool), Path(token)).await
+}
+
+async fn submit_precheckin_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(input): Json<models::PreCheckInUpdateRequest>,
+) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    let token = require_booking_token_for_write(
+        &limiters,
+        &headers,
+        peer_addr,
+        None,
+        "Too many pre-check-in attempts for this booking. Please try again in",
+    )
+    .await?;
+    handlers::guest_portal::submit_precheckin_update(State(pool), Path(token), Json(input)).await
 }
 
 async fn submit_precheckin(
@@ -319,29 +495,32 @@ async fn submit_precheckin(
     path: Path<String>,
     Json(input): Json<models::PreCheckInUpdateRequest>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
-    ensure_plausible_portal_token(&path.0)?;
-    let ip = extract_client_ip(&headers, peer_addr);
-    if !limiters.guest_portal_token_ip.check(ip).await {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            "Too many requests. Please try again later.".to_string(),
-            900,
-        ));
-    }
-    let (allowed, retry_after) = limiters
-        .guest_portal_token
-        .check_with_retry(path.0.clone())
-        .await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!(
-                "Too many pre-check-in attempts for this booking. Please try again in {} seconds.",
-                retry_after
-            ),
-            retry_after,
-        ));
-    }
+    let token = require_booking_token_for_write(
+        &limiters,
+        &headers,
+        peer_addr,
+        Some(&path.0),
+        "Too many pre-check-in attempts for this booking. Please try again in",
+    )
+    .await?;
+    handlers::guest_portal::submit_precheckin_update(State(pool), Path(token), Json(input)).await
+}
 
-    handlers::guest_portal::submit_precheckin_update(State(pool), path, Json(input)).await
+async fn auto_checkin_header(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Result<Json<models::AutoCheckinResponse>, ApiError> {
+    let token = require_booking_token_for_write(
+        &limiters,
+        &headers,
+        peer_addr,
+        None,
+        "Too many check-in attempts for this booking. Please try again in",
+    )
+    .await?;
+    handlers::guest_portal::auto_checkin_by_token(State(pool), Path(token)).await
 }
 
 async fn auto_checkin(
@@ -351,29 +530,15 @@ async fn auto_checkin(
     headers: HeaderMap,
     path: Path<String>,
 ) -> Result<Json<models::AutoCheckinResponse>, ApiError> {
-    ensure_plausible_portal_token(&path.0)?;
-    let ip = extract_client_ip(&headers, peer_addr);
-    if !limiters.guest_portal_token_ip.check(ip).await {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            "Too many requests. Please try again later.".to_string(),
-            900,
-        ));
-    }
-    let (allowed, retry_after) = limiters
-        .guest_portal_token
-        .check_with_retry(path.0.clone())
-        .await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!(
-                "Too many check-in attempts for this booking. Please try again in {} seconds.",
-                retry_after
-            ),
-            retry_after,
-        ));
-    }
-
-    handlers::guest_portal::auto_checkin_by_token(State(pool), path).await
+    let token = require_booking_token_for_write(
+        &limiters,
+        &headers,
+        peer_addr,
+        Some(&path.0),
+        "Too many check-in attempts for this booking. Please try again in",
+    )
+    .await?;
+    handlers::guest_portal::auto_checkin_by_token(State(pool), Path(token)).await
 }
 
 #[cfg(test)]
@@ -398,5 +563,39 @@ mod portal_token_shape_tests {
         // Stored hashes are `sha256:<hex>`. The colon must never be treated as
         // a plausible URL token, or a database dump could be replayed.
         assert!(ensure_plausible_portal_token(&format!("sha256:{}", "a".repeat(64))).is_err());
+    }
+
+    fn headers_with_booking_token(token: &str) -> axum::http::HeaderMap {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            super::BOOKING_ACCESS_TOKEN_HEADER,
+            token.parse().expect("test token is a valid header value"),
+        );
+        headers
+    }
+
+    #[test]
+    fn prefers_the_booking_access_token_header_over_a_path_segment() {
+        let token = "a".repeat(64);
+        let resolved = super::resolve_booking_access_token(
+            &headers_with_booking_token(&token),
+            Some("b".repeat(64).as_str()),
+        )
+        .expect("header token must be accepted");
+        assert_eq!(resolved, token);
+    }
+
+    #[test]
+    fn falls_back_to_a_path_token_when_the_header_is_absent() {
+        let token = "c".repeat(64);
+        let resolved =
+            super::resolve_booking_access_token(&axum::http::HeaderMap::new(), Some(&token))
+                .expect("path token remains valid for old clients");
+        assert_eq!(resolved, token);
+    }
+
+    #[test]
+    fn rejects_a_request_with_neither_header_nor_path_token() {
+        assert!(super::resolve_booking_access_token(&axum::http::HeaderMap::new(), None).is_err());
     }
 }

@@ -15,11 +15,12 @@ import { format } from 'date-fns';
 import { GuestPortalService } from '../../../api';
 import { Booking, Guest } from '../../../types';
 import { errorMessage } from '../../../utils/errorMessage';
+import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 
 export const GuestCheckInVerify: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const token = captureBookingAccessToken(searchParams);
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [guest, setGuest] = useState<Guest | null>(null);
@@ -39,6 +40,14 @@ export const GuestCheckInVerify: React.FC = () => {
   }, [token]);
 
   useEffect(() => {
+    if (searchParams.has('token')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('token');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     if (!token) {
       setError('Invalid or missing verification token');
       setLoading(false);
@@ -49,7 +58,7 @@ export const GuestCheckInVerify: React.FC = () => {
   }, [token, loadBookingData]);
 
   const handleContinue = () => {
-    navigate(`/guest-checkin/form?token=${token}`);
+    navigate('/guest-checkin/form');
   };
 
   if (loading) {

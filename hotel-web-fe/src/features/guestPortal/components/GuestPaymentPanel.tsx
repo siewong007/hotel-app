@@ -6,8 +6,8 @@
  *    booking-confirmation flow, where the guest has a portal session bearer
  *    token (`token`) and a numeric `bookingId`.
  *  - `mode: 'token'` — the unauthenticated pre-arrival flow
- *    (`/guest-checkin/form?token=...`), where the booking token travels as a
- *    URL path segment on every request and there is no `bookingId`.
+ *    (`/guest-checkin/form`), where the booking token is sent as
+ *    `X-Booking-Access-Token` and there is no `bookingId`.
  *
  * The component fetches the public `/guest-portal/payment-config` once to
  * learn the hotel's bank details and whether PayPal is enabled (and its

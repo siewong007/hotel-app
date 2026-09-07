@@ -21,6 +21,7 @@ import { GuestPortalService } from '../../../api';
 import { Booking, Guest, GuestUpdateRequest } from '../../../types';
 import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
 import { errorMessage } from '../../../utils/errorMessage';
+import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -44,8 +45,8 @@ function TabPanel(props: TabPanelProps) {
 
 export const GuestCheckInForm: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const token = captureBookingAccessToken(searchParams);
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [guest, setGuest] = useState<Guest | null>(null);
@@ -91,6 +92,14 @@ export const GuestCheckInForm: React.FC = () => {
       setLoading(false);
     }
   }, [token]);
+
+  useEffect(() => {
+    if (searchParams.has('token')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('token');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!token) {
@@ -402,7 +411,7 @@ export const GuestCheckInForm: React.FC = () => {
         <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
           <Button
             variant="outlined"
-            onClick={() => navigate(`/guest-checkin/verify?token=${token}`)}
+            onClick={() => navigate('/guest-checkin/verify')}
             disabled={submitting}
             sx={{ flex: 1 }}
           >

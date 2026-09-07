@@ -8,6 +8,15 @@ import {
   PreCheckInUpdateRequest,
 } from '../types';
 
+/** Booking-scoped access token. Sent as a header so it never appears in the
+ *  request URL (access logs, browser history, Referer). Distinct from the
+ *  guest-portal session `Authorization` bearer. */
+export const BOOKING_ACCESS_TOKEN_HEADER = 'X-Booking-Access-Token';
+
+function bookingTokenHeaders(token: string): Record<string, string> {
+  return { [BOOKING_ACCESS_TOKEN_HEADER]: token };
+}
+
 export class GuestPortalService {
   static async verify(request: {
     booking_number: string;
@@ -20,14 +29,16 @@ export class GuestPortalService {
     booking: Booking;
     guest: Guest;
   }> {
-    return await api.get(`guest-portal/booking/${token}`).json();
+    return await api.get('guest-portal/booking', { headers: bookingTokenHeaders(token) }).json();
   }
 
   static async submitPreCheckin(
     token: string,
     request: PreCheckInUpdateRequest
   ): Promise<{ booking: Booking; guest: Guest }> {
-    return await api.post(`guest-portal/pre-checkin/${token}`, { json: request }).json();
+    return await api
+      .post('guest-portal/pre-checkin', { json: request, headers: bookingTokenHeaders(token) })
+      .json();
   }
 
   /**
@@ -40,23 +51,31 @@ export class GuestPortalService {
   }
 
   /**
-   * Unauthenticated pre-arrival token flow: the booking token travels as a
-   * URL path segment on every request (see `getBooking` above), never in a
-   * body — these three methods follow the same shape.
+   * Unauthenticated pre-arrival token flow: the booking token travels in
+   * `X-Booking-Access-Token`, never in the URL.
    */
   static async submitBankTransfer(token: string): Promise<PaymentActionResponse> {
-    return await api.post(`guest-portal/booking/${token}/payments/bank-transfer`).json();
+    return await api
+      .post('guest-portal/booking/payments/bank-transfer', {
+        headers: bookingTokenHeaders(token),
+      })
+      .json();
   }
 
   static async uploadPaymentReceipt(token: string, paymentId: number, file: File): Promise<void> {
     const form = new FormData();
     form.append('file', file);
-    await api.post(`guest-portal/booking/${token}/payments/${paymentId}/receipt`, { body: form });
+    await api.post(`guest-portal/booking/payments/${paymentId}/receipt`, {
+      body: form,
+      headers: bookingTokenHeaders(token),
+    });
   }
 
   static async createPaypalOrder(token: string): Promise<PaypalCreateOrderResponse> {
     return await api
-      .post(`guest-portal/booking/${token}/payments/paypal/create-order`)
+      .post('guest-portal/booking/payments/paypal/create-order', {
+        headers: bookingTokenHeaders(token),
+      })
       .json();
   }
 
@@ -66,8 +85,9 @@ export class GuestPortalService {
     paymentId: number
   ): Promise<PaymentActionResponse> {
     return await api
-      .post(`guest-portal/booking/${token}/payments/paypal/capture`, {
+      .post('guest-portal/booking/payments/paypal/capture', {
         json: { order_id: orderId, payment_id: paymentId },
+        headers: bookingTokenHeaders(token),
       })
       .json();
   }

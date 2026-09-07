@@ -11,6 +11,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { GuestPortalService } from '../../../api';
+import { setBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 import { errorMessage } from '../../../utils/errorMessage';
 
 export const GuestCheckInLanding: React.FC = () => {
@@ -37,8 +38,8 @@ export const GuestCheckInLanding: React.FC = () => {
         email: email.trim(),
       });
 
-      // Navigate to verification page with token
-      navigate(`/guest-checkin/verify?token=${response.token}`);
+      setBookingAccessToken(response.token);
+      navigate('/guest-checkin/verify');
     } catch (err) {
       setError(errorMessage(err, 'Failed to verify booking. Please check your details.'));
     } finally {

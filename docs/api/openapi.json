@@ -371,7 +371,25 @@
     "/api/ekyc/verifications/{id}/documents/{kind}": {
       "GET": {}
     },
+    "/api/guest-portal/auto-checkin": {
+      "POST": {}
+    },
     "/api/guest-portal/auto-checkin/{token}": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking": {
+      "GET": {}
+    },
+    "/api/guest-portal/booking/payments/bank-transfer": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/payments/paypal/capture": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/payments/paypal/create-order": {
+      "POST": {}
+    },
+    "/api/guest-portal/booking/payments/{payment_id}/receipt": {
       "POST": {}
     },
     "/api/guest-portal/booking/{token}": {
@@ -481,6 +499,9 @@
     },
     "/api/guest-portal/payment-config": {
       "GET": {}
+    },
+    "/api/guest-portal/pre-checkin": {
+      "POST": {}
     },
     "/api/guest-portal/pre-checkin/{token}": {
       "POST": {}
