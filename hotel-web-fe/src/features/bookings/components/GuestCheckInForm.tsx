@@ -186,7 +186,7 @@ export const GuestCheckInForm: React.FC = () => {
           </Alert>
         )}
 
-        {token && booking?.status === 'pending' && (
+        {token && (booking?.status === 'pending' || booking?.status === 'pending_payment') && (
           <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Complete your payment
