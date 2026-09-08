@@ -8,39 +8,15 @@ import {
   Box,
   Alert,
   CircularProgress,
-  Tabs,
-  Tab,
-  TextField,
-  Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from '@mui/material';
 import { GuestPortalService } from '../../../api';
-import { Booking, Guest, GuestUpdateRequest } from '../../../types';
+import { Booking, Guest } from '../../../types';
 import { GuestPaymentPanel } from '../../guestPortal/components/GuestPaymentPanel';
 import { errorMessage } from '../../../utils/errorMessage';
 import { captureBookingAccessToken } from '../../guestPortal/api/bookingAccessTokenStore';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`guest-tabpanel-${index}`}
-      {...other}
-    >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
-    </div>
-  );
+function needsOnlinePayment(status: string | undefined): boolean {
+  return status === 'pending' || status === 'pending_payment';
 }
 
 export const GuestCheckInForm: React.FC = () => {
@@ -51,41 +27,13 @@ export const GuestCheckInForm: React.FC = () => {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [guest, setGuest] = useState<Guest | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(0);
-
-  // Form data
-  const [formData, setFormData] = useState<GuestUpdateRequest>({});
-  const [marketCode, setMarketCode] = useState('WKII');
-  const [specialRequests, setSpecialRequests] = useState('');
 
   const loadBookingData = useCallback(async () => {
     try {
       const response = await GuestPortalService.getBooking(token!);
       setBooking(response.booking);
       setGuest(response.guest);
-
-      // Initialize form with guest data
-      const nameParts = response.guest.full_name?.split(' ') || [];
-      setFormData({
-        first_name: nameParts[0] || '',
-        last_name: nameParts.slice(1).join(' ') || '',
-        email: response.guest.email || '',
-        phone: response.guest.phone || '',
-        alt_phone: response.guest.alt_phone || '',
-        nationality: response.guest.nationality || '',
-        address_line1: response.guest.address_line1 || '',
-        city: response.guest.city || '',
-        state_province: response.guest.state_province || '',
-        postal_code: response.guest.postal_code || '',
-        country: response.guest.country || '',
-        title: response.guest.title || '',
-        ic_number: response.guest.ic_number || '',
-      });
-
-      setMarketCode(response.booking.market_code || 'WKII');
-      setSpecialRequests(response.booking.special_requests || '');
     } catch (err) {
       setError(errorMessage(err, 'Failed to load booking'));
     } finally {
@@ -110,34 +58,6 @@ export const GuestCheckInForm: React.FC = () => {
 
     loadBookingData();
   }, [token, loadBookingData]);
-
-  const handleChange = (field: keyof GuestUpdateRequest, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.ic_number?.trim()) {
-      setError('IC/Passport number is required to complete check-in');
-      setActiveTab(0);
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      await GuestPortalService.submitPreCheckin(token!, {
-        guest_update: formData,
-        market_code: marketCode,
-        special_requests: specialRequests,
-      });
-
-      navigate('/guest-checkin/confirm');
-    } catch (err) {
-      setError(errorMessage(err, 'Failed to submit pre-check-in'));
-      setSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -166,17 +86,19 @@ export const GuestCheckInForm: React.FC = () => {
     );
   }
 
+  const showPayment = Boolean(token && needsOnlinePayment(booking?.status));
+
   return (
     <Container maxWidth="md" sx={{ mt: 8, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Update Your Information
+            {showPayment ? 'Complete your payment' : 'Your booking'}
           </Typography>
-          <Typography variant="body2" sx={{
-            color: "text.secondary"
-          }}>
-            Please review and update your details for a smooth check-in
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            {showPayment
+              ? 'Pay securely to confirm your reservation. No extra personal details are required.'
+              : 'Payment is not required for this booking right now.'}
           </Typography>
         </Box>
 
@@ -186,11 +108,28 @@ export const GuestCheckInForm: React.FC = () => {
           </Alert>
         )}
 
-        {token && (booking?.status === 'pending' || booking?.status === 'pending_payment') && (
+        {(booking?.booking_number || guest?.full_name) && (
+          <Box sx={{ mb: 3 }}>
+            {booking?.booking_number && (
+              <Typography variant="body1">
+                Booking <strong>{booking.booking_number}</strong>
+              </Typography>
+            )}
+            {booking?.check_in_date && booking?.check_out_date && (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                {booking.check_in_date} to {booking.check_out_date}
+              </Typography>
+            )}
+            {guest?.full_name && (
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                {guest.full_name}
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {showPayment && (
           <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 }, mb: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>
-              Complete your payment
-            </Typography>
             {/*
               The pre-arrival token endpoint (`GET /guest-portal/booking/:token`,
               backed by GuestPortalBookingView) is a guest-safe subset that does
@@ -203,231 +142,24 @@ export const GuestCheckInForm: React.FC = () => {
               charge from the booking server-side and never accepts an amount
               from the client.
             */}
-            <GuestPaymentPanel mode="token" token={token} />
+            <GuestPaymentPanel mode="token" token={token!} />
           </Paper>
         )}
 
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-          <Tab label="Personal Information" />
-          <Tab label="Stay Details" />
-        </Tabs>
+        {!showPayment && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Online pre-check-in is no longer part of this flow. Please complete
+            any remaining details with the hotel at arrival if needed.
+          </Alert>
+        )}
 
-        {/* Tab 1: Personal Information */}
-        <TabPanel value={activeTab} index={0}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 3 }}>
-              <FormControl fullWidth>
-                <InputLabel>Title</InputLabel>
-                <Select
-                  value={formData.title || ''}
-                  onChange={(e) => handleChange('title', e.target.value)}
-                  label="Title"
-                >
-                  <MenuItem value="Mr">Mr</MenuItem>
-                  <MenuItem value="Mrs">Mrs</MenuItem>
-                  <MenuItem value="Ms">Ms</MenuItem>
-                  <MenuItem value="Dr">Dr</MenuItem>
-                  <MenuItem value="Prof">Prof</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4.5 }}>
-              <TextField
-                fullWidth
-                label="First Name"
-                value={formData.first_name || ''}
-                onChange={(e) => handleChange('first_name', e.target.value)}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4.5 }}>
-              <TextField
-                fullWidth
-                label="Last Name"
-                value={formData.last_name || ''}
-                onChange={(e) => handleChange('last_name', e.target.value)}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email || ''}
-                onChange={(e) => handleChange('email', e.target.value)}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Phone"
-                value={formData.phone || ''}
-                onChange={(e) => handleChange('phone', e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Alternate Phone"
-                value={formData.alt_phone || ''}
-                onChange={(e) => handleChange('alt_phone', e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Nationality"
-                value={formData.nationality || ''}
-                onChange={(e) => handleChange('nationality', e.target.value)}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Street Address"
-                value={formData.address_line1 || ''}
-                onChange={(e) => handleChange('address_line1', e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={formData.city || ''}
-                onChange={(e) => handleChange('city', e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="State/Province"
-                value={formData.state_province || ''}
-                onChange={(e) => handleChange('state_province', e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={formData.postal_code || ''}
-                onChange={(e) => handleChange('postal_code', e.target.value)}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Country"
-                value={formData.country || ''}
-                onChange={(e) => handleChange('country', e.target.value)}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                required
-                label="IC/Passport Number"
-                value={formData.ic_number || ''}
-                onChange={(e) => handleChange('ic_number', e.target.value)}
-                error={!formData.ic_number?.trim()}
-                helperText={!formData.ic_number?.trim() ? 'Required to complete check-in' : undefined}
-              />
-            </Grid>
-          </Grid>
-        </TabPanel>
-
-        {/* Tab 2: Stay Details */}
-        <TabPanel value={activeTab} index={1}>
-          <Grid container spacing={2}>
-            <Grid size={12}>
-              <Typography variant="body2" gutterBottom sx={{
-                color: "text.secondary"
-              }}>
-                The following information is read-only. Please contact the hotel if you need to make changes.
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Check-in Date"
-                value={booking?.check_in_date || ''}
-                disabled
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Check-out Date"
-                value={booking?.check_out_date || ''}
-                disabled
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Room Type"
-                value={booking?.room_type || 'Standard'}
-                disabled
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Number of Guests"
-                value={booking?.number_of_guests || 1}
-                disabled
-              />
-            </Grid>
-            <Grid size={12}>
-              <FormControl fullWidth>
-                <InputLabel>Booking Type</InputLabel>
-                <Select
-                  value={marketCode}
-                  onChange={(e) => setMarketCode(e.target.value)}
-                  label="Booking Type"
-                >
-                  <MenuItem value="DIRECT">Direct Booking</MenuItem>
-                  <MenuItem value="OTA">Online Travel Agency</MenuItem>
-                  <MenuItem value="WKII">Walk-in</MenuItem>
-                  <MenuItem value="CORP">Corporate</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Special Requests"
-                multiline
-                rows={4}
-                value={specialRequests}
-                onChange={(e) => setSpecialRequests(e.target.value)}
-                placeholder="Enter any special requests or preferences"
-              />
-            </Grid>
-          </Grid>
-        </TabPanel>
-
-        <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/guest-checkin/verify')}
-            disabled={submitting}
-            sx={{ flex: 1 }}
-          >
-            Back
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={submitting}
-            startIcon={submitting && <CircularProgress size={20} />}
-            sx={{ flex: 1 }}
-            size="large"
-          >
-            {submitting ? 'Submitting...' : 'Submit Pre-Check-In'}
-          </Button>
-        </Box>
+        <Button
+          variant="outlined"
+          fullWidth
+          onClick={() => navigate('/guest-checkin')}
+        >
+          Back
+        </Button>
       </Paper>
     </Container>
   );
