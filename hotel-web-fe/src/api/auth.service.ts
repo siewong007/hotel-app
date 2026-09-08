@@ -12,6 +12,25 @@ import {
 } from '../types';
 
 export class AuthService {
+  /** First-step login: confirm username/email maps to an active account. */
+  static async lookupLoginIdentifier(username: string): Promise<{ exists: boolean }> {
+    try {
+      return await api
+        .post('auth/login/lookup', { json: { username } })
+        .json<{ exists: boolean }>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Unable to verify username',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Unable to verify username');
+    }
+  }
+
   // Registration & Verification
   static async register(data: {
     username: string;

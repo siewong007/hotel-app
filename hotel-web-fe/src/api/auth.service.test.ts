@@ -56,6 +56,34 @@ describe('AuthService', () => {
     del.mockReset();
   });
 
+
+  describe('lookupLoginIdentifier', () => {
+    it('posts username to auth/login/lookup and returns exists', async () => {
+      post.mockReturnValue(mockJsonResponse({ exists: true }));
+
+      const result = await AuthService.lookupLoginIdentifier('admin');
+
+      expect(post).toHaveBeenCalledWith('auth/login/lookup', { json: { username: 'admin' } });
+      expect(result).toEqual({ exists: true });
+    });
+
+    it('wraps an HTTPError into an APIError', async () => {
+      post.mockReturnValue(
+        mockJsonRejection(
+          buildHttpError(429, { error: 'Too many login attempts' }, 'http://localhost/api/auth/login/lookup')
+        )
+      );
+
+      try {
+        await AuthService.lookupLoginIdentifier('admin');
+        throw new Error('expected lookup to fail');
+      } catch (error) {
+        expect(error).toBeInstanceOf(APIError);
+        expect((error as APIError).message).toBe('Too many login attempts');
+      }
+    });
+  });
+
   describe('register', () => {
     it('posts the registration payload as json to auth/register', async () => {
       const data = {

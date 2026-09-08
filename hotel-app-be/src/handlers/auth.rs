@@ -56,6 +56,14 @@ fn clear_refresh_cookie() -> Cookie<'static> {
         .build()
 }
 
+
+pub async fn lookup_login_identifier_handler(
+    State(pool): State<DbPool>,
+    Json(req): Json<crate::models::LoginLookupRequest>,
+) -> Result<Json<crate::models::LoginLookupResponse>, ApiError> {
+    Ok(Json(svc::lookup_login_identifier(&pool, req).await?))
+}
+
 pub async fn login_handler(
     State(pool): State<DbPool>,
     jar: CookieJar,
