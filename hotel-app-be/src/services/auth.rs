@@ -101,10 +101,6 @@ pub(crate) async fn ensure_not_locked(
     Ok(())
 }
 
-/// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
-/// the freshly minted refresh token as a separate `String`; the route handler
-/// sets that token on an `HttpOnly` cookie and never includes it in the JSON body.
-
 /// Active-account check for the Gmail-style login first step. Returns
 /// `exists: false` for unknown, deleted, or inactive accounts so the password
 /// field is never shown for those identifiers.
@@ -125,6 +121,9 @@ pub async fn lookup_login_identifier(
     Ok(LoginLookupResponse { exists })
 }
 
+/// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
+/// the freshly minted refresh token as a separate `String`; the route handler
+/// sets that token on an `HttpOnly` cookie and never includes it in the JSON body.
 pub async fn login(
     pool: &DbPool,
     req: LoginRequest,
