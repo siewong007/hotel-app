@@ -187,6 +187,37 @@ ensure_secrets() {
   local jwt_value=${JWT_SECRET:-}
   (( ${#jwt_value} >= 32 )) || die "JWT_SECRET in $SECRETS_FILE must be at least 32 characters"
 
+
+  # Bank-transfer details are mandatory for the guest payment page. Init with the
+  # hotel's general Maybank account when missing so staging/prod never show
+  # "Bank transfer details are not currently available."
+  ensure_secret_default() {
+    local key="$1"
+    local default="$2"
+    local current
+    current=$(grep -E "^${key}=" "$SECRETS_FILE" 2>/dev/null | tail -n1 | cut -d= -f2- || true)
+    if [[ -z "${current// }" ]]; then
+      if grep -qE "^${key}=" "$SECRETS_FILE" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${default}|" "$SECRETS_FILE"
+      else
+        printf '%s=%s\n' "$key" "$default" >> "$SECRETS_FILE"
+      fi
+      log "Initialized ${key} with general hotel bank default"
+    fi
+  }
+  ensure_secret_default HOTEL_BANK_NAME "Maybank"
+  ensure_secret_default HOTEL_BANK_ACCOUNT_NAME "Salim Inn"
+  ensure_secret_default HOTEL_BANK_ACCOUNT_NUMBER "511270052595"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$SECRETS_FILE"
+  set +a
+
+  [[ -n "${HOTEL_BANK_NAME:-}" && -n "${HOTEL_BANK_ACCOUNT_NAME:-}" && -n "${HOTEL_BANK_ACCOUNT_NUMBER:-}" ]] \
+    || die "HOTEL_BANK_NAME / HOTEL_BANK_ACCOUNT_NAME / HOTEL_BANK_ACCOUNT_NUMBER must be set in $SECRETS_FILE"
+  log "Bank transfer details configured (bank=${HOTEL_BANK_NAME}, account=${HOTEL_BANK_ACCOUNT_NAME})"
+
   # SMTP is optional and deliberately never auto-generated: only the operator
   # can supply a real mailbox. Report the state loudly instead of failing, so a
   # deploy is never blocked by it -- but a half-configured pair is a mistake
