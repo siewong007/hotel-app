@@ -834,6 +834,7 @@ pub async fn create(
             total: quote.total_amount,
             settled_by_credits,
             anonymous: false,
+            access_token: None,
         });
         CommunicationsRepository::insert_delivery_tx(
             &mut tx,
@@ -1060,6 +1061,7 @@ pub async fn create_anonymous(
         total: quote.total_amount,
         settled_by_credits: false,
         anonymous: true,
+        access_token: Some(&access_token),
     });
     CommunicationsRepository::insert_delivery_tx(
         &mut tx,
@@ -1122,6 +1124,9 @@ struct PortalBookingMail<'a> {
     total: Decimal,
     settled_by_credits: bool,
     anonymous: bool,
+    /// Booking access token for anonymous pending-payment deep links.
+    /// Logged-in portal bookings leave this `None`.
+    access_token: Option<&'a str>,
 }
 
 fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) {
@@ -1135,6 +1140,7 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
         total,
         settled_by_credits,
         anonymous,
+        access_token,
     } = mail;
     let hotel = email_layout::hotel_display_name();
     let stay_in = check_in.format("%d %b %Y").to_string();
@@ -1148,7 +1154,16 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
         ("Total", &total_label),
     ]);
     let view_url = email_layout::absolute_url("/portal");
-    let pay_url = email_layout::absolute_url("/guest-checkin");
+    // Prefer a token deep-link into the pre-arrival payment form. The frontend
+    // captures `?token=` into sessionStorage and strips it from the URL.
+    // Fall back to the booking-number lookup page only when no token exists.
+    let pay_url = match access_token.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(token) => email_layout::absolute_url(&format!(
+            "/guest-checkin/form?token={}",
+            token
+        )),
+        None => email_layout::absolute_url("/guest-checkin"),
+    };
 
     let (subject, heading, preheader, intro_html, closing_html, intro_text, closing_text, cta) =
         if settled_by_credits {
@@ -1522,6 +1537,7 @@ mod tests {
             total: Decimal::ZERO,
             settled_by_credits: false,
             anonymous: true,
+            access_token: Some("deadbeefcafebabe"),
         });
         assert!(subject.contains("Salim Inn"));
         assert!(subject.contains("BK-20260908-6eed1312"));
@@ -1531,7 +1547,10 @@ mod tests {
         assert!(html.contains("08 Sep 2026"));
         assert!(html.contains("MYR 0.00"));
         assert!(html.contains("Complete payment"));
-        assert!(html.contains("https://saliminn.my/guest-checkin"));
+        assert!(html.contains(
+            "https://saliminn.my/guest-checkin/form?token=deadbeefcafebabe"
+        ));
+        assert!(!html.contains("https://saliminn.my/guest-checkin\""));
         assert!(html.contains("Paul &lt;Wong&gt;"));
         assert!(!html.contains("Paul <Wong>"));
         assert!(text.contains("Salim Inn"));
@@ -1564,6 +1583,7 @@ mod tests {
             total: Decimal::ZERO,
             settled_by_credits: true,
             anonymous: false,
+            access_token: None,
         });
         assert!(subject.contains("confirmed"));
         assert!(html.contains("View your booking"));
