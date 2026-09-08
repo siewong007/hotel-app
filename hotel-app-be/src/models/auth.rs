@@ -25,6 +25,18 @@ pub struct LoginRequest {
     pub totp_code: Option<String>,
 }
 
+/// First-step login lookup: does this username or email belong to an active account?
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct LoginLookupRequest {
+    #[validate(length(min = 1, message = "Username or email is required"))]
+    pub username: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoginLookupResponse {
+    pub exists: bool,
+}
+
 /// Google Identity Services credential exchange request.
 #[derive(Deserialize, Validate)]
 pub struct GoogleLoginRequest {

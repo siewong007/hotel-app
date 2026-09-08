@@ -37,6 +37,7 @@ fn refresh_request_from_cookie(jar: &CookieJar) -> Result<models::RefreshTokenRe
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/auth/login", post(login))
+        .route("/auth/login/lookup", post(login_lookup))
         .route("/auth/google", post(google_login))
         .route("/auth/access", get(access_snapshot))
         .route("/auth/refresh", post(refresh))
@@ -44,6 +45,28 @@ pub fn routes() -> Router<DbPool> {
         .route("/auth/register", post(register))
         .route("/auth/verify-email", post(verify_email))
         .route("/auth/resend-verification", post(resend_verification))
+}
+
+
+async fn login_lookup(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<models::LoginLookupRequest>,
+) -> Result<Json<models::LoginLookupResponse>, ApiError> {
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many login attempts. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+    handlers::auth::lookup_login_identifier_handler(State(pool), Json(req)).await
 }
 
 // Basic auth handlers

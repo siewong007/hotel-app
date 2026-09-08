@@ -5,7 +5,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{
-    AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginRequest, RefreshTokenRequest,
+    AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginLookupRequest, LoginLookupResponse, LoginRequest, RefreshTokenRequest,
     RefreshTokenResponse, RegisterRequest, ResendVerificationRequest, User, UserResponse,
 };
 use crate::repositories::auth::AuthRepository;
@@ -104,6 +104,27 @@ pub(crate) async fn ensure_not_locked(
 /// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
 /// the freshly minted refresh token as a separate `String`; the route handler
 /// sets that token on an `HttpOnly` cookie and never includes it in the JSON body.
+
+/// Active-account check for the Gmail-style login first step. Returns
+/// `exists: false` for unknown, deleted, or inactive accounts so the password
+/// field is never shown for those identifiers.
+pub async fn lookup_login_identifier(
+    pool: &DbPool,
+    req: LoginLookupRequest,
+) -> Result<LoginLookupResponse, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    let identifier = req.username.trim();
+    if identifier.is_empty() {
+        return Ok(LoginLookupResponse { exists: false });
+    }
+
+    let user = AuthRepository::find_user_by_login(pool, identifier).await?;
+    let exists = matches!(user, Some(user) if user.is_active);
+    Ok(LoginLookupResponse { exists })
+}
+
 pub async fn login(
     pool: &DbPool,
     req: LoginRequest,

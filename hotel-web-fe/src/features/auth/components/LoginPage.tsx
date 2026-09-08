@@ -44,6 +44,7 @@ import {
   sanitizeTwoFactorCode,
   TOTP_CODE_LENGTH,
 } from '../utils/twoFactorCode';
+import { AuthService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
 
 type UserType = 'guest' | 'admin' | null;
@@ -258,31 +259,54 @@ const LoginPage: React.FC = () => {
     setUsernameSubmitted(false);
   };
 
-  // Handle username submission (Gmail-style)
+  // Handle username submission (Gmail-style): require an active account before password.
   const handleUsernameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!username || username.length < 3) {
-      setError('Please enter a valid username');
+    const identifier = username.trim();
+    if (!identifier || identifier.length < 3) {
+      setError('Please enter a valid username or email');
       return;
     }
 
-    setUsernameSubmitted(true);
+    setLoading(true);
     setError('');
 
-    // Safari can leave an automatic WebAuthn request pending without showing
-    // a usable prompt, trapping password users on "Checking for passkey".
-    // Keep the explicit passkey button available, but make Next reliably open
-    // the password step in Apple WebKit browsers. passkeyAttempted stays false
-    // here — no WebAuthn call was made, so the password step must still offer
-    // the passkey as a choice rather than claiming it is unavailable.
-    if (isAppleWebKitBrowser()) {
-      setShowPasswordField(true);
-      return;
-    }
+    try {
+      const { exists } = await AuthService.lookupLoginIdentifier(identifier);
+      if (!exists) {
+        setError('No account found with that username or email');
+        setUsernameSubmitted(false);
+        setShowPasswordField(false);
+        return;
+      }
 
-    // Attempt passkey authentication first
-    await attemptPasskeyAuth();
+      if (identifier !== username) {
+        setUsername(identifier);
+      }
+
+      setUsernameSubmitted(true);
+
+      // Safari can leave an automatic WebAuthn request pending without showing
+      // a usable prompt, trapping password users on "Checking for passkey".
+      // Keep the explicit passkey button available, but make Next reliably open
+      // the password step in Apple WebKit browsers. passkeyAttempted stays false
+      // here — no WebAuthn call was made, so the password step must still offer
+      // the passkey as a choice rather than claiming it is unavailable.
+      if (isAppleWebKitBrowser()) {
+        setShowPasswordField(true);
+        return;
+      }
+
+      // Attempt passkey authentication first
+      await attemptPasskeyAuth();
+    } catch (err) {
+      setError(errorMessage(err, 'Unable to verify username or email'));
+      setUsernameSubmitted(false);
+      setShowPasswordField(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const attemptPasskeyAuth = async () => {
