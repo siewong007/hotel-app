@@ -9,7 +9,8 @@ use super::{Booking, Guest, GuestEkycStatusSummary};
 #[derive(Debug, Deserialize)]
 pub struct GuestPortalVerifyRequest {
     pub booking_number: String,
-    pub email: String,
+    /// Guest name as registered on the booking (matched case-insensitively).
+    pub name: String,
 }
 
 /// Response for guest portal verification.

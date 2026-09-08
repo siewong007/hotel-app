@@ -17,15 +17,15 @@ import { errorMessage } from '../../../utils/errorMessage';
 export const GuestCheckInLanding: React.FC = () => {
   const navigate = useNavigate();
   const [bookingNumber, setBookingNumber] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!bookingNumber.trim() || !email.trim()) {
-      setError('Please enter both booking number and email');
+    if (!bookingNumber.trim() || !name.trim()) {
+      setError('Please enter both booking number and name');
       return;
     }
 
@@ -35,7 +35,7 @@ export const GuestCheckInLanding: React.FC = () => {
     try {
       const response = await GuestPortalService.verify({
         booking_number: bookingNumber.trim(),
-        email: email.trim(),
+        name: name.trim(),
       });
 
       setBookingAccessToken(response.token);
@@ -81,13 +81,13 @@ export const GuestCheckInLanding: React.FC = () => {
 
           <TextField
             fullWidth
-            label="Email Address"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            label="Guest Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             margin="normal"
             required
-            placeholder="Enter your email address"
+            placeholder="Enter the name on the booking"
+            autoComplete="name"
             disabled={loading}
           />
 

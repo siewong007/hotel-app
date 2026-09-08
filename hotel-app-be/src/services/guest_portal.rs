@@ -61,16 +61,26 @@ pub(crate) fn booking_access_token_matches(presented: &str, stored: &str) -> boo
 }
 
 const VERIFY_BOOKING_FAILURE: &str =
-    "Unable to verify booking details. Please check the booking number and email.";
+    "Unable to verify booking details. Please check the booking number and name.";
 
 fn verify_booking_failure() -> ApiError {
     ApiError::Unauthorized(VERIFY_BOOKING_FAILURE.to_string())
 }
 
-fn guest_email_matches(stored_email: Option<&str>, requested_email: &str) -> bool {
-    stored_email
-        .map(str::trim)
-        .is_some_and(|email| email.eq_ignore_ascii_case(requested_email.trim()))
+fn normalize_person_name(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
+}
+
+fn guest_name_matches(stored_full_name: &str, requested_name: &str) -> bool {
+    let requested = normalize_person_name(requested_name);
+    if requested.is_empty() {
+        return false;
+    }
+    normalize_person_name(stored_full_name) == requested
 }
 
 pub async fn verify_guest_booking(
@@ -83,7 +93,7 @@ pub async fn verify_guest_booking(
             .ok_or_else(verify_booking_failure)?;
 
     let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
-    if !guest_email_matches(guest.email.as_deref(), &request.email) {
+    if !guest_name_matches(&guest.full_name, &request.name) {
         return Err(verify_booking_failure());
     }
 
@@ -627,20 +637,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn guest_email_match_allows_case_and_whitespace_differences() {
-        assert!(guest_email_matches(
-            Some(" Guest.Example@Hotel.Local "),
-            "guest.example@hotel.local"
-        ));
+    fn guest_name_match_allows_case_and_whitespace_differences() {
+        assert!(guest_name_matches(" John   Wong ", "john wong"));
+        assert!(guest_name_matches("Deeplink Retest", " deeplink  retest "));
     }
 
     #[test]
-    fn guest_email_match_rejects_missing_or_different_email() {
-        assert!(!guest_email_matches(None, "guest@example.com"));
-        assert!(!guest_email_matches(
-            Some("other@example.com"),
-            "guest@example.com"
-        ));
+    fn guest_name_match_rejects_empty_or_different_name() {
+        assert!(!guest_name_matches("John Wong", ""));
+        assert!(!guest_name_matches("John Wong", "Jane Wong"));
+        assert!(!guest_name_matches("John Wong", "John"));
     }
 
     #[test]

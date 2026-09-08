@@ -28,14 +28,14 @@ describe('GuestPortalService', () => {
   });
 
   describe('verify', () => {
-    it('posts booking_number and email as json to guest-portal/verify', async () => {
+    it('posts booking_number and name as json to guest-portal/verify', async () => {
       const response = { token: 'tok', expires_at: '2026-07-27T00:00:00Z', booking_id: '5' };
       post.mockReturnValue(mockJsonResponse(response));
 
-      const result = await GuestPortalService.verify({ booking_number: 'BK-1', email: 'guest@example.com' });
+      const result = await GuestPortalService.verify({ booking_number: 'BK-1', name: 'John Wong' });
 
       expect(post).toHaveBeenCalledWith('guest-portal/verify', {
-        json: { booking_number: 'BK-1', email: 'guest@example.com' },
+        json: { booking_number: 'BK-1', name: 'John Wong' },
       });
       expect(result).toEqual(response);
     });

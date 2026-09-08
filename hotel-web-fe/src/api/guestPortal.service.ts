@@ -20,7 +20,7 @@ function bookingTokenHeaders(token: string): Record<string, string> {
 export class GuestPortalService {
   static async verify(request: {
     booking_number: string;
-    email: string;
+    name: string;
   }): Promise<{ token: string; expires_at: string; booking_id: string }> {
     return await api.post('guest-portal/verify', { json: request }).json();
   }
