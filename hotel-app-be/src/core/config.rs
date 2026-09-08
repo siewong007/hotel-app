@@ -104,13 +104,13 @@ impl PaypalConfig {
 }
 
 /// Hotel bank-transfer display details shown to guests choosing the manual
-/// bank-transfer payment path. Sourced from env for this pass; a follow-up
-/// moves these into `system_settings` with an admin editor.
+/// bank-transfer payment path. Always configured (env with general defaults);
+/// a follow-up may move these into `system_settings` with an admin editor.
 #[derive(Debug, Clone)]
 pub struct BankDetails {
-    pub bank_name: Option<String>,
-    pub account_name: Option<String>,
-    pub account_number: Option<String>,
+    pub bank_name: String,
+    pub account_name: String,
+    pub account_number: String,
 }
 
 #[derive(Debug, Clone)]
@@ -176,9 +176,18 @@ impl AppConfig {
                 webhook_id: env_opt("PAYPAL_WEBHOOK_ID"),
             },
             bank_details: BankDetails {
-                bank_name: env_opt("HOTEL_BANK_NAME"),
-                account_name: env_opt("HOTEL_BANK_ACCOUNT_NAME"),
-                account_number: env_opt("HOTEL_BANK_ACCOUNT_NUMBER"),
+                bank_name: env_or_nonempty(
+                    "HOTEL_BANK_NAME",
+                    "Maybank",
+                )?,
+                account_name: env_or_nonempty(
+                    "HOTEL_BANK_ACCOUNT_NAME",
+                    "Salim Inn",
+                )?,
+                account_number: env_or_nonempty(
+                    "HOTEL_BANK_ACCOUNT_NUMBER",
+                    "511270052595",
+                )?,
             },
         };
         config.validate_security()?;
@@ -308,6 +317,13 @@ fn required_env(key: &str) -> Result<String, String> {
 }
 
 /// Read an optional env var, treating empty/whitespace-only as absent.
+fn env_or_nonempty(key: &str, default: &str) -> Result<String, String> {
+    match env_opt(key) {
+        Some(value) if !value.trim().is_empty() => Ok(value),
+        _ => Ok(default.to_string()),
+    }
+}
+
 fn env_opt(key: &str) -> Option<String> {
     std::env::var(key)
         .ok()

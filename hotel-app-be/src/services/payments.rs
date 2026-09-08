@@ -999,9 +999,9 @@ pub fn guest_payment_config() -> GuestPaymentConfig {
         paypal_enabled: crate::services::paypal_client::is_enabled(),
         paypal_client_id: cfg.paypal.public_client_id(),
         bank_details: GuestBankDetails {
-            bank_name: cfg.bank_details.bank_name.clone(),
-            account_name: cfg.bank_details.account_name.clone(),
-            account_number: cfg.bank_details.account_number.clone(),
+            bank_name: Some(cfg.bank_details.bank_name.clone()),
+            account_name: Some(cfg.bank_details.account_name.clone()),
+            account_number: Some(cfg.bank_details.account_number.clone()),
         },
     }
 }
