@@ -199,6 +199,9 @@
     "/api/auth/login": {
       "POST": {}
     },
+    "/api/auth/login/lookup": {
+      "POST": {}
+    },
     "/api/auth/logout": {
       "POST": {}
     },
