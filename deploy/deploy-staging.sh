@@ -490,12 +490,6 @@ configure_caddy() {
 staging.saliminn.my {
     encode zstd gzip
 
-    # Gate staging behind basic auth. Hash is host-local (not in git):
-    #   /opt/saliminn-staging/basic-auth.hash  (caddy hash-password output)
-    basic_auth {
-        staging __BASIC_AUTH_HASH_WILL_BE_SUBSTITUTED_AT_RUNTIME__
-    }
-
     # Force HTTPS on repeat visits (prevents SSL-strip downgrade). Set-if-missing
     # so an upstream that also emits HSTS is not duplicated.
     header ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -540,6 +534,11 @@ staging.saliminn.my {
     }
 
     handle {
+        # UI-only basic auth. Never put basic_auth above @backend: the SPA sends
+        # Authorization: Bearer after login, which replaces Basic and would 401 APIs.
+        basic_auth {
+            staging __BASIC_AUTH_HASH_WILL_BE_SUBSTITUTED_AT_RUNTIME__
+        }
         reverse_proxy 127.0.0.1:8083
     }
 }
