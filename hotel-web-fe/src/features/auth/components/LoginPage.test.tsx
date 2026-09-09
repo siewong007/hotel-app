@@ -87,9 +87,12 @@ function renderPage() {
 describe('LoginPage username lookup gate', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
-    // Force the non-WebAuthn path so Next falls through to the password field.
-    // @ts-expect-error test override
-    delete window.PublicKeyCredential;
+    // Take the Apple WebKit branch so Next opens the password step without
+    // depending on jsdom WebAuthn / PublicKeyCredential quirks.
+    Object.defineProperty(navigator, 'vendor', {
+      configurable: true,
+      value: 'Apple Computer, Inc.',
+    });
     mocks.navigate.mockReset();
     mocks.lookupLoginIdentifier.mockReset();
     mocks.login.mockReset();
@@ -117,6 +120,7 @@ describe('LoginPage username lookup gate', () => {
       expect(mocks.lookupLoginIdentifier).toHaveBeenCalledWith('admin');
     });
     expect(await screen.findByLabelText(/^Password$/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sign In' })).toBeTruthy();
   });
 
   it('keeps the password field hidden when the username or email is unknown', async () => {
