@@ -1712,4 +1712,87 @@ mod postgres_tests {
 
         delete_guests(&pool, &[guest_id]).await;
     }
+
+    /// Regression: `linked_guests` decoded into `Guest` while its SELECT list
+    /// omitted `company_name`, `bookings_count`, and `last_stay_date` -- three
+    /// fields `Guest` declares WITHOUT `#[sqlx(default)]`. sqlx's derived
+    /// `FromRow` calls `try_get` per field and returns `ColumnNotFound` when a
+    /// column is absent (`Option<T>` covers a SQL NULL, not a missing column),
+    /// so every call failed at runtime while compiling cleanly -- this repo
+    /// uses `sqlx::query_as`, not the checking macros. The sibling queries all
+    /// carry `company_name` plus `NULL::BIGINT`/`NULL::DATE` placeholders for
+    /// the two aggregates; only this one had drifted, and nothing covered it.
+    #[tokio::test]
+    async fn postgres_linked_guests_selects_every_non_defaulted_guest_column() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let user_id = 985_011;
+        let guest_id = 985_230;
+
+        // `user_guests` cascades from both `guests` and `users`, so deleting
+        // the two parents is enough to clear the link row.
+        async fn cleanup(pool: &PgPool, user_id: i64, guest_id: i64) {
+            delete_guests(pool, &[guest_id]).await;
+            delete_users(pool, &[user_id]).await;
+        }
+
+        cleanup(&pool, user_id, guest_id).await;
+
+        upsert_user(
+            &pool,
+            user_id,
+            "gst985_linked_owner",
+            "gst985.linkedowner@hotel.local",
+            None,
+        )
+        .await;
+        upsert_guest(
+            &pool,
+            guest_id,
+            "Gst985 Linked Guest",
+            Some("gst985.linked@hotel.local"),
+            None,
+            None,
+        )
+        .await;
+        // A non-NULL company_name distinguishes "column selected" from
+        // "column selected but always NULL".
+        sqlx::query("UPDATE guests SET company_name = $2 WHERE id = $1")
+            .bind(guest_id)
+            .bind("Gst985 Holdings")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO user_guests (user_id, guest_id) VALUES ($1, $2)")
+            .bind(user_id)
+            .bind(guest_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let linked = GuestRepository::linked_guests(&pool, user_id).await;
+
+        cleanup(&pool, user_id, guest_id).await;
+
+        let linked = linked.expect("linked_guests must decode into Guest");
+        let guest = linked
+            .iter()
+            .find(|candidate| candidate.id == guest_id)
+            .expect("the linked guest must be returned");
+        assert_eq!(
+            guest.company_name.as_deref(),
+            Some("Gst985 Holdings"),
+            "company_name must be selected, not dropped from the projection"
+        );
+        assert_eq!(
+            guest.nick_name, "Gst985 Linked Guest",
+            "the identifying nickname must survive the projection"
+        );
+        // The two aggregates are not computed by this endpoint; the fix keeps
+        // the sibling queries' explicit NULL placeholders rather than adding
+        // `#[sqlx(default)]`, so they must decode as absent.
+        assert_eq!(guest.bookings_count, None);
+        assert_eq!(guest.last_stay_date, None);
+    }
 }

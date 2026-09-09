@@ -959,8 +959,11 @@ impl GuestRepository {
                    g.guest_type,
                    g.tourism_type,
                    COALESCE(g.discount_percentage, 0) as discount_percentage,
+                   g.company_name,
                    COALESCE(g.complimentary_nights_credit, 0) as complimentary_nights_credit,
-                   g.created_at, g.updated_at
+                   g.created_at, g.updated_at,
+                   NULL::BIGINT as bookings_count,
+                   NULL::DATE as last_stay_date
             FROM guests g
             INNER JOIN user_guests ug ON g.id = ug.guest_id
             WHERE ug.user_id = $1 AND g.deleted_at IS NULL
