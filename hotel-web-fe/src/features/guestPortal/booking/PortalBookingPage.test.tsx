@@ -357,6 +357,9 @@ describe('PortalBookingPage profile completion guard', () => {
     // `error.response` is exactly the bug, and it only shows up when the
     // stream really is spent.
     expect(error.response.bodyUsed).toBe(true);
+    // Asserting that this read rejects IS the point here; the ban exists to keep
+    // production code from doing it.
+    // eslint-disable-next-line no-restricted-syntax
     await expect(error.response.json()).rejects.toThrow();
     expect((error as unknown as { data: unknown }).data).toMatchObject({
       code: 'profile_incomplete',

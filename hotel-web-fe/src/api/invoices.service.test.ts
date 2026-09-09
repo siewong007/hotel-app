@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HTTPError } from 'ky';
+import { buildKyHttpError } from './testSupport/httpError';
 
 // Mock the configured ky instance so no real HTTP happens.
 const post = vi.fn();
@@ -43,11 +43,7 @@ describe('InvoicesService.revertDepositRefund', () => {
   });
 
   it('surfaces backend error messages as an APIError', async () => {
-    const httpError = Object.create(HTTPError.prototype);
-    httpError.response = {
-      status: 400,
-      json: () => Promise.resolve({ error: 'No deposit refund to revert' }),
-    };
+    const httpError = buildKyHttpError(400, { error: 'No deposit refund to revert' });
     post.mockReturnValue({ json: () => Promise.reject(httpError) });
 
     await expect(InvoicesService.revertDepositRefund(42)).rejects.toMatchObject({

@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import {
   Room,
   RoomType,
@@ -59,7 +59,7 @@ export class RoomsService {
       return await api.patch(`rooms/${id}`, { json: data }).json<Room>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update room',
           error.response.status,
@@ -75,7 +75,7 @@ export class RoomsService {
       return await api.put(`rooms/${id}/status`, { json: data }).json<Room>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update room status',
           error.response.status,
@@ -91,7 +91,7 @@ export class RoomsService {
       return await api.post(`rooms/${roomId}/end-maintenance`).json<Room>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to end maintenance',
           error.response.status,
@@ -107,7 +107,7 @@ export class RoomsService {
       return await api.post('rooms/sync-statuses').json<RoomStatusSyncResult>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to sync room statuses',
           error.response.status,
@@ -125,7 +125,7 @@ export class RoomsService {
       }).json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to execute room change',
           error.response.status,
@@ -141,7 +141,7 @@ export class RoomsService {
       return await api.post(`rooms/${roomId}/events`, { json: event }).json<RoomEvent>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to create room event',
           error.response.status,
@@ -157,7 +157,7 @@ export class RoomsService {
       return await api.get(`rooms/${roomId}/detailed`).json<RoomDetailedStatus>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch room detailed status',
           error.response.status,
@@ -184,7 +184,7 @@ export class RoomsService {
     } catch (error) {
       console.error('[API] Room history failed:', error);
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch room history',
           error.response.status,
@@ -217,7 +217,7 @@ export class RoomsService {
       return await api.post('rooms', { json: roomData }).json<Room>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to create room',
           error.response.status,
@@ -233,7 +233,7 @@ export class RoomsService {
       return await api.delete(`rooms/${roomId}`).json<{ success: boolean; message: string }>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to delete room',
           error.response.status,
@@ -249,7 +249,7 @@ export class RoomsService {
       return await api.get('room-types').json<RoomType[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch room types',
           error.response.status,
@@ -265,7 +265,7 @@ export class RoomsService {
       return await api.get('room-types/all').json<RoomType[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch all room types',
           error.response.status,
@@ -281,7 +281,7 @@ export class RoomsService {
       return await api.get(`room-types/${id}`).json<RoomType>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch room type',
           error.response.status,
@@ -297,7 +297,7 @@ export class RoomsService {
       return await api.post('room-types', { json: data }).json<RoomType>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to create room type',
           error.response.status,
@@ -313,7 +313,7 @@ export class RoomsService {
       return await api.patch(`room-types/${id}`, { json: data }).json<RoomType>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update room type',
           error.response.status,
@@ -329,7 +329,7 @@ export class RoomsService {
       return await api.delete(`room-types/${id}`).json<{ success: boolean; message: string }>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to delete room type',
           error.response.status,
@@ -361,7 +361,7 @@ export class RoomsService {
       return await api.get('rooms/occupancy').json<RoomCurrentOccupancy[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch room occupancy',
           error.response.status,
@@ -378,7 +378,7 @@ export class RoomsService {
       return await api.get(`rooms/${roomId}/occupancy`).json<RoomCurrentOccupancy>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch room occupancy',
           error.response.status,
@@ -395,7 +395,7 @@ export class RoomsService {
       return await api.get('rooms/occupancy/summary').json<HotelOccupancySummary>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch hotel occupancy summary',
           error.response.status,
@@ -412,7 +412,7 @@ export class RoomsService {
       return await api.get('rooms/occupancy/by-type').json<OccupancyByRoomType[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch occupancy by room type',
           error.response.status,
@@ -429,7 +429,7 @@ export class RoomsService {
       return await api.get('rooms/with-occupancy').json<RoomWithOccupancy[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch rooms with occupancy',
           error.response.status,

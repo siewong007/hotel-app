@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import {
   Booking,
   BookingCreateRequest,
@@ -78,7 +78,7 @@ export class BookingsService {
       );
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch bookings',
           error.response.status,
@@ -108,7 +108,7 @@ export class BookingsService {
       return await api.post('bookings', { json: backendData }).json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to create booking',
           error.response.status,
@@ -126,7 +126,7 @@ export class BookingsService {
         .json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update booking',
           error.response.status,
@@ -144,7 +144,7 @@ export class BookingsService {
         .json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to check in guest',
           error.response.status,
@@ -167,7 +167,7 @@ export class BookingsService {
         .json<CheckInAdvisory>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to load check-in advisory',
           error.response.status,
@@ -189,7 +189,7 @@ export class BookingsService {
         .json<CheckInAdvisory>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to load check-in advisory',
           error.response.status,
@@ -207,7 +207,7 @@ export class BookingsService {
         .json<BookingVoidResponse>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to void booking',
           error.response.status,
@@ -235,9 +235,7 @@ export class BookingsService {
         .json<BookingReleaseResponse>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        // ky 2 has already read the body into `error.data`; reading the
-        // response again here would throw and drop the server's message.
-        const errorData = (error as { data?: { error?: string } }).data ?? {};
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to release booking',
           error.response.status,
@@ -253,7 +251,7 @@ export class BookingsService {
       return await api.get(`bookings/${bookingId}`).json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch booking',
           error.response.status,
@@ -269,7 +267,7 @@ export class BookingsService {
       return await api.get(`bookings/${bookingId}/timeline`).json<BookingTimelineEntry[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch booking timeline',
           error.response.status,
@@ -327,7 +325,7 @@ export class BookingsService {
       };
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(errorData.error || 'Failed to fetch bookings', error.response.status, errorData);
       }
       throw new APIError('Failed to fetch bookings');
@@ -390,7 +388,7 @@ export class BookingsService {
         .json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to mark booking as complimentary',
           error.response.status,
@@ -410,7 +408,7 @@ export class BookingsService {
         .json<{ success: boolean; message: string; nights_credited: number; guest_id: number }>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to convert complimentary to credits',
           error.response.status,
@@ -449,7 +447,7 @@ export class BookingsService {
         .json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to book with complimentary credits',
           error.response.status,
@@ -470,7 +468,7 @@ export class BookingsService {
       );
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch complimentary bookings',
           error.response.status,
@@ -491,7 +489,7 @@ export class BookingsService {
       return await api.get('complimentary/summary').json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch complimentary summary',
           error.response.status,
@@ -522,7 +520,7 @@ export class BookingsService {
         .json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update complimentary booking',
           error.response.status,
@@ -543,7 +541,7 @@ export class BookingsService {
       return await api.delete(`bookings/${bookingId}/complimentary`).json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to remove complimentary status',
           error.response.status,
@@ -570,7 +568,7 @@ export class BookingsService {
       return await api.get('guests/credits').json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch guests with credits',
           error.response.status,
@@ -603,7 +601,7 @@ export class BookingsService {
       return await api.post('guests/credits', { json: data }).json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to add guest credits',
           error.response.status,
@@ -637,7 +635,7 @@ export class BookingsService {
       return await api.patch(`guests/${guestId}/credits/${roomTypeId}`, { json: data }).json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update guest credits',
           error.response.status,
@@ -666,7 +664,7 @@ export class BookingsService {
       return await api.delete(`guests/${guestId}/credits/${roomTypeId}`).json();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to delete guest credits',
           error.response.status,
@@ -684,7 +682,7 @@ export class BookingsService {
         .json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to reactivate booking',
           error.response.status,

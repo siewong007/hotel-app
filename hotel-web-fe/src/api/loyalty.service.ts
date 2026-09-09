@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import {
   LoyaltyProgram,
   LoyaltyMembership,
@@ -78,7 +78,7 @@ export class LoyaltyService {
       return await api.post('api/rewards', { json: data }).json<LoyaltyReward>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to create reward',
           error.response.status,
@@ -94,7 +94,7 @@ export class LoyaltyService {
       return await api.put(`api/rewards/${id}`, { json: data }).json<LoyaltyReward>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update reward',
           error.response.status,
@@ -110,7 +110,7 @@ export class LoyaltyService {
       await api.delete(`api/rewards/${id}`);
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to delete reward',
           error.response.status,
@@ -126,7 +126,7 @@ export class LoyaltyService {
       return await api.get('rewards/redemptions').json<RewardRedemption[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch redemption history',
           error.response.status,

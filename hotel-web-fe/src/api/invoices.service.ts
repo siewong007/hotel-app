@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import type { PaymentWorkflowSummary } from '../types';
 
 export class InvoicesService {
@@ -8,7 +8,7 @@ export class InvoicesService {
       return await api.get(`invoices/preview/${bookingId}`).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch invoice preview',
           error.response.status,
@@ -24,7 +24,7 @@ export class InvoicesService {
       return await api.post(`invoices/generate/${bookingId}`).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to generate invoice',
           error.response.status,
@@ -55,7 +55,7 @@ export class InvoicesService {
       return await api.post('payments/record-payment', { json: payload }).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to record payment',
           error.response.status,
@@ -71,7 +71,7 @@ export class InvoicesService {
       return await api.get(`payments/all-payments/${bookingId}`).json<any[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch payments',
           error.response.status,
@@ -87,7 +87,7 @@ export class InvoicesService {
       return await api.get(`payments/workflow-summary/${bookingId}`).json<PaymentWorkflowSummary>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch payment workflow summary',
           error.response.status,
@@ -107,7 +107,7 @@ export class InvoicesService {
       }).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to refund deposit',
           error.response.status,
@@ -123,7 +123,7 @@ export class InvoicesService {
       return await api.post(`payments/revert-deposit-refund/${bookingId}`).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to revert deposit refund',
           error.response.status,
@@ -139,7 +139,7 @@ export class InvoicesService {
       return await api.get('invoices').json<any[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to fetch user invoices',
           error.response.status,
@@ -170,7 +170,7 @@ export class InvoicesService {
       return await api.patch(`payments/${paymentId}`, { json: payload }).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to update payment',
           error.response.status,
@@ -186,7 +186,7 @@ export class InvoicesService {
       return await api.delete(`payments/${paymentId}`).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Failed to delete payment',
           error.response.status,

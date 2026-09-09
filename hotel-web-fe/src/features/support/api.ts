@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from '../../api/client';
+import { api, APIError, readErrorData } from '../../api/client';
 import type {
   SupportActionPayload,
   SupportAgent,
@@ -19,12 +19,8 @@ function searchParamsFrom(params: SupportConversationListParams): Record<string,
 
 async function mapHttpError(error: unknown, fallback: string): Promise<never> {
   if (error instanceof HTTPError) {
-    const details = await error.response.json().catch(() => undefined);
-    const message = typeof details === 'object' && details !== null
-      ? ((details as { error?: string; message?: string }).error
-        ?? (details as { message?: string }).message
-        ?? fallback)
-      : fallback;
+    const details = readErrorData(error);
+    const message = details.error ?? details.message ?? fallback;
     throw new APIError(message, error.response.status, details);
   }
 

@@ -28,7 +28,7 @@ export interface EkycSubmitPayload {
 }
 
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export interface EkycListParams {
@@ -211,7 +211,7 @@ function paramsToSearch(params?: EkycListParams): string {
 
 async function mapHttpError(error: unknown, fallback: string): Promise<never> {
   if (error instanceof HTTPError) {
-    const errorData = await error.response.json<{ error?: string }>().catch(() => ({}) as { error?: string });
+    const errorData = readErrorData(error);
     throw new APIError(
       errorData.error || fallback,
       error.response.status,
