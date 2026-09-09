@@ -653,7 +653,7 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
 }
 
 fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 9);
+    assert_eq!(revisions.len(), 10);
     assert_eq!(
         revisions
             .iter()
