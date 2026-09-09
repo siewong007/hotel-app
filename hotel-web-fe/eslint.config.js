@@ -46,6 +46,17 @@ export default [
             "CallExpression[callee.property.name='slice'][callee.object.callee.property.name='toISOString']",
           message:
             "Don't extract a date from toISOString() (it's UTC and shifts a day overnight). Use formatLocalDate() from src/utils/date.ts."
+        },
+        // ky 2 parses the error body into `error.data` and consumes the response
+        // stream doing it, so `error.response.json()` ALWAYS rejects with "Body is
+        // unusable". Wrapped in the usual `.catch(() => ({}))` that silently
+        // discarded every server-supplied message in favour of a generic fallback.
+        // Use readErrorData(error) from src/api/client.ts. See lessons theme 13.
+        {
+          selector:
+            "CallExpression[callee.object.property.name='response'][callee.property.name='json']",
+          message:
+            "ky 2 already consumed the error body; error.response.json() always rejects. Use readErrorData(error) from src/api/client.ts."
         }
       ]
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HTTPError } from 'ky';
+import { buildKyHttpError } from './testSupport/httpError';
 
 // Mock the configured ky instance so no real HTTP happens.
 const get = vi.fn();
@@ -31,10 +31,10 @@ function mockJsonRejection(error: unknown) {
   return { json: () => Promise.reject(error) };
 }
 
+/** A ky HTTPError as a real failed request throws it: body parsed onto
+ *  `data`, response stream already consumed. See testSupport/httpError.ts. */
 function buildHttpError(status: number, body: unknown, url = 'http://localhost/api/rewards') {
-  const response = new Response(JSON.stringify(body), { status, statusText: 'Error' });
-  const request = new Request(url, { method: 'POST' });
-  return new HTTPError(response, request, {} as any);
+  return buildKyHttpError(status, body, url);
 }
 
 describe('LoyaltyService', () => {

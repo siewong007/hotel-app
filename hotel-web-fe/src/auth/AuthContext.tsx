@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, refreshAccessToken, APIError } from '../api/client';
+import { api, refreshAccessToken, APIError, readErrorData } from '../api/client';
 import { HTTPError } from 'ky';
 import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
@@ -79,7 +79,7 @@ async function extractHttpErrorMessage(error: unknown, fallback: string): Promis
   let message = fallback;
   try {
     if (error instanceof HTTPError) {
-      const data = await error.response.json().catch(() => ({}) as { error?: string; message?: string });
+      const data = readErrorData(error);
       message = data.error || data.message || fallback;
     } else if (error instanceof Error && error.message) {
       message = error.message;

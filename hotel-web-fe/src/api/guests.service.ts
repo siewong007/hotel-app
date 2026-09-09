@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import { Guest, GuestCreateRequest, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
@@ -16,7 +16,7 @@ const toGuestApiError = async (error: unknown, fallback: string): Promise<APIErr
   // pass it through so an outer catch can't downgrade it to the generic fallback.
   if (error instanceof APIError) return error;
   if (error instanceof HTTPError) {
-    const errorData = await error.response.json().catch(() => ({}));
+    const errorData = readErrorData(error);
     if (error.response.status === 401) {
       notifyUnauthorized();
       return new APIError(SESSION_EXPIRED_MESSAGE, error.response.status, errorData);

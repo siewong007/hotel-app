@@ -1,5 +1,5 @@
 // Base API client configuration
-import ky, { isHTTPError } from 'ky';
+import ky, { isHTTPError, type HTTPError } from 'ky';
 import { storage } from '../utils/storage';
 import { getActiveLocale } from '../i18n/localeStore';
 import { getAccessToken, setAccessToken, clearAccessToken } from '../auth/tokenStore';
@@ -21,6 +21,39 @@ export class APIError extends Error {
     super(message);
     this.name = 'APIError';
   }
+}
+
+/**
+ * The JSON body the backend returns alongside a failed request. Only `error`
+ * and `message` are contractual; the rest is passed through to `APIError.details`.
+ */
+export type ApiErrorBody = {
+  error?: string;
+  message?: string;
+  [key: string]: unknown;
+};
+
+/**
+ * Read the parsed body of a failed request.
+ *
+ * ky 2 pre-parses the error body into `error.data` and CONSUMES the response
+ * stream doing it, so `error.response.json()` always rejects with "Body is
+ * unusable". Call sites that wrapped that read in `.catch(() => ({}))` therefore
+ * swallowed the rejection and always got `{}` — discarding every server-supplied
+ * message in favour of their generic fallback. Read `error.data` instead.
+ *
+ * Returns `{}` when the body was empty, unparseable, or not a JSON object (ky
+ * sets `data` to a plain string for non-JSON content types), which keeps the
+ * "always an object" shape callers pass to `APIError.details`.
+ *
+ * See ky's HTTPError doc comment, src/api/client.ts's `beforeError` hook, and
+ * lessons theme 13.
+ */
+export function readErrorData(error: HTTPError): ApiErrorBody {
+  const body: unknown = error.data;
+  return typeof body === 'object' && body !== null && !Array.isArray(body)
+    ? (body as ApiErrorBody)
+    : {};
 }
 
 // Legacy snapshot for code that only needs to display/debug the current startup base URL.

@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError } from './client';
+import { api, APIError, readErrorData } from './client';
 import {
   UserProfile,
   UserProfileUpdate,
@@ -21,7 +21,7 @@ export class AuthService {
         .json<{ exists: boolean }>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Unable to verify username',
           error.response.status,
@@ -51,7 +51,7 @@ export class AuthService {
       await api.post('auth/register', { json: data });
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Registration failed',
           error.response.status,
@@ -80,7 +80,7 @@ export class AuthService {
         .json<AuthResponse>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Google sign-in failed',
           error.response.status,
@@ -101,7 +101,7 @@ export class AuthService {
       return await api.post('profile/complete', { json: input }).json<UserProfile>();
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Profile completion failed',
           error.response.status,
@@ -117,7 +117,7 @@ export class AuthService {
       await api.post('auth/verify-email', { json: { token } });
     } catch (error) {
       if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
+        const errorData = readErrorData(error);
         throw new APIError(
           errorData.error || 'Email verification failed',
           error.response.status,
