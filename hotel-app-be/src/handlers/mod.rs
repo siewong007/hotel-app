@@ -20,6 +20,7 @@ pub mod maintenance;
 pub mod night_audit;
 pub mod passkey;
 pub mod payments;
+pub mod payment_retry;
 pub mod profile;
 pub mod rates;
 pub mod rbac;

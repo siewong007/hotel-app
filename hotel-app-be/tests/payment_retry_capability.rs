@@ -10,7 +10,7 @@
 mod postgres_tests {
     use chrono::{Duration, Utc};
     use hotel_app_be::repositories::payment_retry::PaymentRetryRepository;
-    use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+    use sqlx::{PgPool, postgres::PgPoolOptions};
 
     async fn pool() -> Option<PgPool> {
         let database_url = match std::env::var("DATABASE_URL") {

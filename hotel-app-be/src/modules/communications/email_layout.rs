@@ -49,6 +49,67 @@ pub fn absolute_url(path: &str) -> String {
     format!("{}{path}", public_base_url())
 }
 
+/// Host portion of the configured public base URL, e.g. `saliminn.my`.
+///
+/// Shown in the identity seal so a guest can compare what the mail claims
+/// against the address they reach by typing the hotel's name themselves.
+pub fn canonical_host() -> String {
+    let base = public_base_url();
+    let without_scheme = base
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(&base);
+    without_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(without_scheme)
+        .to_string()
+}
+
+/// A visual identity block naming the hotel and its canonical host.
+///
+/// This is an identity *cue*, not proof. The markup is ordinary HTML and
+/// anyone can copy it, so the seal says so in as many words and points the
+/// guest at the two controls that actually establish authenticity: the
+/// sender-domain authentication their mail provider checks, and reaching the
+/// hotel by typing its address rather than following a link. Claiming more
+/// than that -- "verified", "certified", a delivery guarantee -- would teach
+/// guests to trust a graphic a phisher can reproduce in an afternoon.
+pub fn identity_seal_html() -> String {
+    let hotel = html_escape(&hotel_display_name());
+    let host = html_escape(&canonical_host());
+    format!(
+        "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" \
+         style=\"margin:26px 0 4px;border-collapse:collapse;\">\
+           <tr>\
+             <td style=\"padding:14px 16px;background:#fffdf7;border:1px solid #d9b572;\
+                  border-radius:10px;font-family:Arial,Helvetica,sans-serif;\">\
+               <div style=\"font-family:Georgia,'Times New Roman',serif;font-size:15px;\
+                    letter-spacing:0.06em;color:#102a21;\">{hotel}</div>\
+               <div style=\"font-size:12px;color:#5b7268;padding-top:2px;\">{host}</div>\
+               <div style=\"font-size:11px;color:#5b7268;line-height:1.5;padding-top:8px;\">\
+                 This seal is a visual cue only and can be copied. What actually proves \
+                 this mail is ours is your provider's sender-domain check, and reaching \
+                 {host} by typing it yourself rather than following a link.\
+               </div>\
+             </td>\
+           </tr>\
+         </table>"
+    )
+}
+
+/// Plain-text counterpart of [`identity_seal_html`], carrying the same caveat.
+pub fn identity_seal_text() -> String {
+    let hotel = hotel_display_name();
+    let host = canonical_host();
+    format!(
+        "-- {hotel} ({host}) --\n\
+         This seal is a visual cue only and can be copied. What actually proves this mail \
+         is ours is your provider's sender-domain check, and reaching {host} by typing it \
+         yourself rather than following a link.\n"
+    )
+}
+
 /// Label/value rows as an email-safe table. Values are escaped.
 pub fn details_table(rows: &[(&str, &str)]) -> String {
     if rows.is_empty() {
@@ -225,6 +286,46 @@ mod tests {
         assert!(html.contains("Deluxe &lt;King&gt;"));
         assert!(!html.contains("Deluxe <King>"));
         assert!(html.contains("Room"));
+    }
+
+    #[test]
+    fn the_identity_seal_names_the_hotel_and_host_without_claiming_verification() {
+        unsafe {
+            std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my/");
+        }
+        assert_eq!(canonical_host(), "saliminn.my");
+
+        let html = identity_seal_html();
+        let text = identity_seal_text();
+        for rendered in [&html, &text] {
+            assert!(rendered.contains("saliminn.my"), "seal must name the host");
+            assert!(
+                rendered.contains("can be copied"),
+                "the seal must admit it is only a cue"
+            );
+            assert!(
+                rendered.contains("sender-domain"),
+                "the seal must point at the control that actually authenticates"
+            );
+        }
+
+        // Overclaiming would teach guests to trust a graphic a phisher can
+        // reproduce, which is worse than showing no seal at all.
+        let lowered = format!("{html}{text}").to_lowercase();
+        for forbidden in ["verified", "certified", "guaranteed", "authenticated by"] {
+            assert!(
+                !lowered.contains(forbidden),
+                "the seal must not claim {forbidden}"
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_host_strips_scheme_path_and_port_free_suffixes() {
+        unsafe {
+            std::env::set_var("PUBLIC_BASE_URL", "https://example.test/booking?x=1");
+        }
+        assert_eq!(canonical_host(), "example.test");
     }
 
     #[test]

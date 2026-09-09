@@ -124,6 +124,29 @@ impl PaymentRetryRepository {
         Ok(row.is_some())
     }
 
+    /// Retire a capability by expiring it in place.
+    ///
+    /// Used when a booking's payment is rejected again: the earlier link's raw
+    /// token is unrecoverable by design, so it cannot be re-sent, and leaving
+    /// it live would mean two working links for one reservation. Expiring is
+    /// preferred over deleting so the audit trail of what was issued survives.
+    pub async fn expire(pool: &DbPool, capability_id: i64) -> Result<(), ApiError> {
+        let sql = format!(
+            "UPDATE payment_retry_capabilities SET expires_at = {now} \
+             WHERE id = {} AND consumed_at IS NULL AND expires_at > {now}",
+            param!(1),
+            now = current_timestamp()
+        );
+        sqlx::query(&sql)
+            .bind(capability_id)
+            .execute(pool)
+            .await
+            .map_err(|e| {
+                ApiError::Database(format!("Failed to retire payment retry capability: {}", e))
+            })?;
+        Ok(())
+    }
+
     /// Outstanding capabilities already issued for a booking, newest first.
     ///
     /// Used to avoid emailing a second live link for the same booking while one

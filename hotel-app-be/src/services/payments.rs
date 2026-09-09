@@ -14,6 +14,7 @@ use crate::modules::communications::validation::html_escape;
 use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::payment::{PaymentRepository, PendingPaymentValues};
 use crate::services::audit::AuditLog;
+use crate::services::payment_retry;
 use rust_decimal::Decimal;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -1051,6 +1052,31 @@ pub async fn create_bank_transfer_claim(
     pool: &DbPool,
     booking: &Booking,
 ) -> Result<PaymentActionResponse, ApiError> {
+    create_bank_transfer_claim_inner(pool, booking, None).await
+}
+
+/// Bank-transfer claim raised from an emailed recovery link.
+///
+/// Identical to the portal path in every business rule -- the booking lock,
+/// the status guard and the duplicate-payment guard all still apply and remain
+/// authoritative -- except that spending the capability happens inside the same
+/// transaction as the insert. If the capability turns out to be already spent
+/// (a second submission racing the first), the whole transaction rolls back,
+/// so a capability is never marked used against a payment that did not survive
+/// and the guest is never charged twice.
+pub async fn create_bank_transfer_claim_for_capability(
+    pool: &DbPool,
+    booking: &Booking,
+    capability_id: i64,
+) -> Result<PaymentActionResponse, ApiError> {
+    create_bank_transfer_claim_inner(pool, booking, Some(capability_id)).await
+}
+
+async fn create_bank_transfer_claim_inner(
+    pool: &DbPool,
+    booking: &Booking,
+    capability_id: Option<i64>,
+) -> Result<PaymentActionResponse, ApiError> {
     let currency = booking_currency(booking);
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking.id).await?;
@@ -1107,6 +1133,23 @@ pub async fn create_bank_transfer_claim(
         },
     )
     .await?;
+
+    if let Some(capability_id) = capability_id {
+        let spent = crate::repositories::payment_retry::PaymentRetryRepository::consume_tx(
+            &mut tx,
+            capability_id,
+            payment_id,
+        )
+        .await?;
+        if !spent {
+            // Another submission won the race, or the link expired between the
+            // lookup and here. Dropping the transaction unwinds the payment.
+            return Err(ApiError::Conflict(
+                "This payment link has already been used.".to_string(),
+            ));
+        }
+    }
+
     tx.commit().await.map_err(ApiError::from)?;
 
     Ok(PaymentActionResponse {
@@ -2080,6 +2123,7 @@ async fn queue_payment_rejected_notification(
     pool: &DbPool,
     guest_id: i64,
     guest_name: &str,
+    booking_id: i64,
     booking_number: &str,
     payment_id: i64,
     reason: &str,
@@ -2088,33 +2132,82 @@ async fn queue_payment_rejected_notification(
         return Ok(());
     };
 
+    // An anonymous booker has no account, so "log in to your guest portal" is
+    // advice they cannot follow -- it was the whole reason a rejected payment
+    // lost the reservation. Offer a scoped recovery link when the booking can
+    // still take one, and fall back to the portal otherwise.
+    //
+    // A failure to mint must never suppress the notification itself: the guest
+    // still needs to know the payment did not go through.
+    let recovery = match payment_retry::issue_recovery_link(pool, booking_id, payment_id).await {
+        Ok(link) => link,
+        Err(error) => {
+            log::error!(
+                "Failed to issue payment recovery link for booking {booking_id}: {error}"
+            );
+            None
+        }
+    };
+
     let hotel = email_layout::hotel_display_name();
     let subject = format!("Payment update · {hotel} {booking_number}");
     let portal = email_layout::absolute_url("/portal");
-    let details = email_layout::details_table(&[("Booking", booking_number), ("Reason", reason)]);
+    let seal_html = email_layout::identity_seal_html();
+    let seal_text = email_layout::identity_seal_text();
+
+    let expiry_label = recovery
+        .as_ref()
+        .map(|link| link.expires_at.format("%e %b %Y, %H:%M UTC").to_string());
+    let mut rows: Vec<(&str, &str)> = vec![("Booking", booking_number), ("Reason", reason)];
+    if let Some(expiry) = expiry_label.as_deref() {
+        rows.push(("Link valid until", expiry));
+    }
+    let details = email_layout::details_table(&rows);
+
+    let (action_html, action_text, cta) = match recovery.as_ref() {
+        Some(link) => (
+            "<p>You can pay again using the button below. The link works once and \
+             then expires, so please do not share it.</p>".to_string(),
+            "You can pay again using the link below. It works once and then expires, \
+             so please do not share it.".to_string(),
+            Cta {
+                label: "Complete your payment",
+                url: &link.url,
+            },
+        ),
+        None => (
+            "<p>Please contact the hotel and we will help you complete this booking.</p>"
+                .to_string(),
+            "Please contact the hotel and we will help you complete this booking.".to_string(),
+            Cta {
+                label: "Open guest portal",
+                url: &portal,
+            },
+        ),
+    };
+
     let inner_html = format!(
         "<p>Dear {},</p>\
          <p>We were unable to confirm your recent payment for booking <strong>{}</strong>.</p>\
          {}\
-         <p>Please log in to your guest portal to submit a new payment claim or contact the hotel if you need help.</p>",
+         {}\
+         {}",
         html_escape(guest_name),
         html_escape(booking_number),
         details,
+        action_html,
+        seal_html,
     );
     let inner_text = format!(
         "Dear {guest_name},\nWe were unable to confirm your recent payment for booking {booking_number}.\n\
-         Reason: {reason}\n\
-         Please log in to your guest portal to submit a new payment claim or contact the hotel if you need help.",
+         Reason: {reason}\n{action_text}\n\n{seal_text}",
     );
     let rendered = email_layout::render(GuestEmail {
         preheader: &format!("An update on your payment for {hotel} reservation {booking_number}."),
         heading: "Payment not confirmed",
         inner_html: &inner_html,
         inner_text: &inner_text,
-        cta: Some(Cta {
-            label: "Open guest portal",
-            url: &portal,
-        }),
+        cta: Some(cta),
     });
     let body_html = rendered.html;
     let body_text = rendered.text;
@@ -2160,6 +2253,7 @@ async fn try_queue_payment_rejected_notification(
         pool,
         guest_id,
         guest_name.unwrap_or("Guest"),
+        booking_id,
         &booking_label,
         payment_id,
         reason,
