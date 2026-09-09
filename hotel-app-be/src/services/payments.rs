@@ -1010,8 +1010,15 @@ pub fn guest_payment_config() -> GuestPaymentConfig {
 /// Guard: a guest may only initiate payment while the booking is still awaiting
 /// it (`status = 'pending_payment'`). Anything else (already confirmed/checked-in,
 /// cancelled, voided) is a no-op the caller should reject.
+/// Booking states that may take a new guest payment.
+///
+/// Exported because the emailed recovery path must not offer a payment button
+/// the guard below would then refuse: anything deciding whether to *invite* a
+/// payment has to narrow from this list rather than keep its own copy.
+pub const BOOKING_STATUSES_AWAITING_PAYMENT: [&str; 2] = ["pending", "pending_payment"];
+
 fn ensure_booking_awaiting_payment(status: &str) -> Result<(), ApiError> {
-    if matches!(status, "pending" | "pending_payment") {
+    if BOOKING_STATUSES_AWAITING_PAYMENT.contains(&status) {
         Ok(())
     } else {
         Err(ApiError::BadRequest(

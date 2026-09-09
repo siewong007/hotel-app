@@ -127,15 +127,11 @@ fn unavailable() -> ApiError {
 
 /// Booking states that may still accept a replacement payment by email.
 ///
-/// Deliberately pre-arrival only. Once a guest is in-house or departed the
-/// money is settled at the desk, and an emailed self-service link would be
-/// collecting against a stay that staff are already handling.
-const RECOVERABLE_BOOKING_STATUSES: [&str; 4] = [
-    "pending",
-    "pending_payment",
-    "pending_confirmation",
-    "confirmed",
-];
+/// This is deliberately not its own list. `create_bank_transfer_claim` refuses
+/// anything outside `BOOKING_STATUSES_AWAITING_PAYMENT`, so inviting a payment
+/// for a wider set would show the guest a button that always fails -- which is
+/// exactly what an earlier version of this did for `confirmed` bookings.
+use crate::services::payments::BOOKING_STATUSES_AWAITING_PAYMENT as RECOVERABLE_BOOKING_STATUSES;
 
 /// Payment states that mean the booking is already settled.
 ///
@@ -349,11 +345,11 @@ mod tests {
         // shape is checked rather than just "paid".
         for settled in ["paid", "paid_rate", "refunded", "void"] {
             assert!(
-                !is_recoverable("confirmed", settled),
+                !is_recoverable("pending_payment", settled),
                 "{settled} must not be offered repayment"
             );
         }
-        assert!(is_recoverable("confirmed", "unpaid"));
+        assert!(is_recoverable("pending_payment", "unpaid"));
         assert!(is_recoverable("pending_payment", "partial"));
         assert!(is_recoverable("pending", "unpaid_deposit"));
     }
@@ -368,6 +364,10 @@ mod tests {
             "no_show",
             "voided",
             "comp_void",
+            // Not awaiting payment either: the payment layer refuses these, so
+            // offering a button for them would always fail.
+            "confirmed",
+            "pending_confirmation",
         ] {
             assert!(
                 !is_recoverable(status, "unpaid"),

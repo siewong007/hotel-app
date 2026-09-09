@@ -54,11 +54,16 @@ pub fn absolute_url(path: &str) -> String {
 /// Shown in the identity seal so a guest can compare what the mail claims
 /// against the address they reach by typing the hotel's name themselves.
 pub fn canonical_host() -> String {
-    let base = public_base_url();
-    let without_scheme = base
-        .split_once("://")
-        .map(|(_, rest)| rest)
-        .unwrap_or(&base);
+    host_of(&public_base_url())
+}
+
+/// Pure form of [`canonical_host`].
+///
+/// Split out so tests never have to mutate `PUBLIC_BASE_URL`: the lib tests
+/// share one process, so an env-var assertion races every other test that
+/// reads the same variable.
+fn host_of(base: &str) -> String {
+    let without_scheme = base.split_once("://").map(|(_, rest)| rest).unwrap_or(base);
     without_scheme
         .split(['/', '?', '#'])
         .next()
@@ -76,8 +81,12 @@ pub fn canonical_host() -> String {
 /// than that -- "verified", "certified", a delivery guarantee -- would teach
 /// guests to trust a graphic a phisher can reproduce in an afternoon.
 pub fn identity_seal_html() -> String {
-    let hotel = html_escape(&hotel_display_name());
-    let host = html_escape(&canonical_host());
+    seal_html_for(&hotel_display_name(), &canonical_host())
+}
+
+fn seal_html_for(hotel_name: &str, host_name: &str) -> String {
+    let hotel = html_escape(hotel_name);
+    let host = html_escape(host_name);
     format!(
         "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" \
          style=\"margin:26px 0 4px;border-collapse:collapse;\">\
@@ -100,8 +109,10 @@ pub fn identity_seal_html() -> String {
 
 /// Plain-text counterpart of [`identity_seal_html`], carrying the same caveat.
 pub fn identity_seal_text() -> String {
-    let hotel = hotel_display_name();
-    let host = canonical_host();
+    seal_text_for(&hotel_display_name(), &canonical_host())
+}
+
+fn seal_text_for(hotel: &str, host: &str) -> String {
     format!(
         "-- {hotel} ({host}) --\n\
          This seal is a visual cue only and can be copied. What actually proves this mail \
@@ -290,13 +301,8 @@ mod tests {
 
     #[test]
     fn the_identity_seal_names_the_hotel_and_host_without_claiming_verification() {
-        unsafe {
-            std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my/");
-        }
-        assert_eq!(canonical_host(), "saliminn.my");
-
-        let html = identity_seal_html();
-        let text = identity_seal_text();
+        let html = seal_html_for("Salim Inn", "saliminn.my");
+        let text = seal_text_for("Salim Inn", "saliminn.my");
         for rendered in [&html, &text] {
             assert!(rendered.contains("saliminn.my"), "seal must name the host");
             assert!(
@@ -321,11 +327,18 @@ mod tests {
     }
 
     #[test]
-    fn canonical_host_strips_scheme_path_and_port_free_suffixes() {
-        unsafe {
-            std::env::set_var("PUBLIC_BASE_URL", "https://example.test/booking?x=1");
-        }
-        assert_eq!(canonical_host(), "example.test");
+    fn seal_escapes_a_hostile_hotel_name() {
+        let html = seal_html_for("<script>x</script>", "example.test");
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn canonical_host_strips_scheme_path_and_query() {
+        assert_eq!(host_of("https://example.test/booking?x=1"), "example.test");
+        assert_eq!(host_of("https://saliminn.my/"), "saliminn.my");
+        assert_eq!(host_of("http://localhost:3000"), "localhost:3000");
+        assert_eq!(host_of("example.test"), "example.test");
     }
 
     #[test]

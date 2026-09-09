@@ -121,5 +121,23 @@
     "signInAgain": "Sign in again",
     "nickname": "Nickname",
     "nicknameHint": "Any name you like — it holds the room and must not already be taken."
+  },
+  "recoverPayment": {
+    "title": "Complete your payment",
+    "subtitle": "Your previous payment could not be confirmed. You can pay again below.",
+    "reference": "Reservation",
+    "amountDue": "Amount due",
+    "expires": "This link is valid until",
+    "singleUse": "This link works once. Please do not forward it.",
+    "bankTransfer": "Pay by bank transfer",
+    "bankTransferHint": "We will give you the transfer details and confirm once the funds arrive.",
+    "submitting": "Submitting…",
+    "submitted": "Payment claim received",
+    "submittedBody": "We have recorded your payment claim and will confirm it shortly. You do not need to submit it again.",
+    "alreadySubmitted": "You have already used this link. Your payment claim is with us and no further action is needed.",
+    "unavailableTitle": "This link is no longer available",
+    "unavailableBody": "It may have expired, already been used, or the reservation may have moved on. Please contact the hotel and we will help you complete your booking.",
+    "failed": "We could not record your payment. Please try again, or contact the hotel if the problem continues.",
+    "loading": "Checking your payment link…"
   }
 }

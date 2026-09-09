@@ -119,5 +119,23 @@
     "signInAgain": "Log masuk semula",
     "nickname": "Nama samaran",
     "nicknameHint": "Apa-apa nama yang anda suka — ia menahan bilik dan tidak boleh sudah digunakan."
+  },
+  "recoverPayment": {
+    "title": "Lengkapkan pembayaran anda",
+    "subtitle": "Pembayaran anda sebelum ini tidak dapat disahkan. Anda boleh membayar semula di bawah.",
+    "reference": "Tempahan",
+    "amountDue": "Jumlah perlu dibayar",
+    "expires": "Pautan ini sah sehingga",
+    "singleUse": "Pautan ini hanya boleh digunakan sekali. Sila jangan kongsikan.",
+    "bankTransfer": "Bayar melalui pemindahan bank",
+    "bankTransferHint": "Kami akan berikan butiran pemindahan dan mengesahkannya sebaik dana diterima.",
+    "submitting": "Menghantar…",
+    "submitted": "Tuntutan pembayaran diterima",
+    "submittedBody": "Kami telah merekodkan tuntutan pembayaran anda dan akan mengesahkannya tidak lama lagi. Anda tidak perlu menghantarnya semula.",
+    "alreadySubmitted": "Anda telah menggunakan pautan ini. Tuntutan pembayaran anda ada bersama kami dan tiada tindakan lanjut diperlukan.",
+    "unavailableTitle": "Pautan ini tidak lagi tersedia",
+    "unavailableBody": "Ia mungkin telah tamat tempoh, telah digunakan, atau tempahan telah berubah. Sila hubungi hotel dan kami akan membantu anda melengkapkan tempahan.",
+    "failed": "Kami tidak dapat merekodkan pembayaran anda. Sila cuba lagi, atau hubungi hotel jika masalah berterusan.",
+    "loading": "Menyemak pautan pembayaran anda…"
   }
 }
