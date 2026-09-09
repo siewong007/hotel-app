@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   bankTransfer: vi.fn(),
   paypalCreateOrder: vi.fn(),
   paypalCapture: vi.fn(),
+  uploadReceipt: vi.fn(),
   scriptRejected: { value: false },
 }));
 
@@ -18,6 +19,7 @@ vi.mock('./api', () => ({
     bankTransfer: (...a: unknown[]) => mocks.bankTransfer(...a),
     paypalCreateOrder: (...a: unknown[]) => mocks.paypalCreateOrder(...a),
     paypalCapture: (...a: unknown[]) => mocks.paypalCapture(...a),
+    uploadReceipt: (...a: unknown[]) => mocks.uploadReceipt(...a),
   },
 }));
 
@@ -65,6 +67,8 @@ const liveLink = {
   expires_at: '2026-09-09T18:00:00Z',
   payment_methods: ['bank_transfer', 'paypal'],
   paypal_client_id: 'test-client-id',
+  payment_id: null,
+  receipt_uploadable: false,
   already_submitted: false,
 };
 
@@ -87,6 +91,7 @@ beforeEach(() => {
     status: 'completed',
     booking_status: 'confirmed',
   });
+  mocks.uploadReceipt.mockResolvedValue(undefined);
   mocks.scriptRejected.value = false;
 });
 
@@ -196,5 +201,76 @@ describe('PaymentRecoveryPage', () => {
     fireEvent.click(await screen.findByTestId('paypal-pay'));
     expect(await screen.findByText(/could not start your PayPal payment/i)).toBeDefined();
     expect(screen.queryByText(/recorded your payment claim/i)).toBeNull();
+  });
+
+  it('offers a receipt upload once a bank transfer claim is raised', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /bank transfer/i }));
+    expect(await screen.findByText(/transfer receipt/i)).toBeDefined();
+
+    const file = new File(['x'], 'receipt.png', { type: 'image/png' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => expect(mocks.uploadReceipt).toHaveBeenCalledTimes(1));
+    // Scoped to the payment the claim produced, not to anything the page chose.
+    expect(mocks.uploadReceipt).toHaveBeenCalledWith('a'.repeat(64), 91, file);
+    expect(await screen.findByText(/Receipt received/i)).toBeDefined();
+  });
+
+  it('lets a guest who returns later attach evidence to the earlier claim', async () => {
+    mocks.view.mockResolvedValue({
+      ...liveLink,
+      already_submitted: true,
+      payment_id: 404,
+      receipt_uploadable: true,
+    });
+    renderPage();
+    expect(await screen.findByText(/transfer receipt/i)).toBeDefined();
+
+    const file = new File(['x'], 'receipt.pdf', { type: 'application/pdf' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() =>
+      expect(mocks.uploadReceipt).toHaveBeenCalledWith('a'.repeat(64), 404, file),
+    );
+  });
+
+  it('does not offer a receipt upload after a PayPal capture', async () => {
+    // payment_id is set, so only the server's receipt_uploadable=false can
+    // suppress the upload -- without it this test would pass for the wrong
+    // reason.
+    mocks.view.mockResolvedValue({ ...liveLink, payment_id: 777, receipt_uploadable: false });
+    renderPage();
+    fireEvent.click(await screen.findByTestId('paypal-pay'));
+    await waitFor(() => expect(mocks.paypalCapture).toHaveBeenCalledTimes(1));
+    // A captured card payment needs no evidence, and the server refuses one.
+    expect(screen.queryByText(/transfer receipt/i)).toBeNull();
+  });
+
+  it('offers the upload on reload only when the server still wants evidence', async () => {
+    mocks.view.mockResolvedValue({
+      ...liveLink,
+      already_submitted: true,
+      payment_id: 888,
+      receipt_uploadable: false,
+    });
+    renderPage();
+    expect(await screen.findByText(/already used this link/i)).toBeDefined();
+    expect(screen.queryByText(/transfer receipt/i)).toBeNull();
+  });
+
+  it('reports a rejected receipt without claiming it was accepted', async () => {
+    mocks.uploadReceipt.mockRejectedValue(new Error('bad file'));
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /bank transfer/i }));
+    await screen.findByText(/transfer receipt/i);
+
+    const file = new File(['x'], 'virus.exe', { type: 'application/octet-stream' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(await screen.findByText(/could not accept that file/i)).toBeDefined();
+    expect(screen.queryByText(/Receipt received/i)).toBeNull();
   });
 });

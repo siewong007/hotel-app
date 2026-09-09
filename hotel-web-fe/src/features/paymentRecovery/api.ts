@@ -54,4 +54,20 @@ export const PaymentRecoveryApi = {
       })
       .json<PaymentActionResponse>();
   },
+
+  /**
+   * Attach proof of a bank transfer to the claim this link raised. The server
+   * accepts it only for the payment this capability produced, and only while
+   * that payment is a pending bank-transfer claim.
+   */
+  uploadReceipt(token: string, paymentId: number, file: File): Promise<void> {
+    const form = new FormData();
+    form.append('file', file);
+    return api
+      .post(
+        `/booking/recover-payment/${encodeURIComponent(token)}/payments/${paymentId}/receipt`,
+        { body: form },
+      )
+      .json<void>();
+  },
 };

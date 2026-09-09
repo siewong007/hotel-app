@@ -140,6 +140,12 @@
     "paypal": "Bayar dengan PayPal atau kad",
     "paypalUnavailable": "PayPal tidak dapat dimuatkan. Sila lumpuhkan penyekat kandungan dan cuba lagi.",
     "paypalFailed": "Kami tidak dapat memulakan pembayaran PayPal anda. Sila cuba lagi, atau bayar melalui pemindahan bank.",
-    "or": "atau"
+    "or": "atau",
+    "uploadHeading": "Hantar resit pemindahan anda",
+    "uploadHint": "Gambar atau PDF pemindahan membantu kami mengesahkan pembayaran anda dengan lebih cepat.",
+    "uploadChoose": "Pilih resit",
+    "uploading": "Memuat naik…",
+    "uploaded": "Resit diterima. Terima kasih — kami akan mengesahkan pembayaran anda tidak lama lagi.",
+    "uploadFailed": "Kami tidak dapat menerima fail itu. Sila hantar JPEG, PNG, WebP atau PDF di bawah 10MB."
   }
 }

@@ -459,4 +459,83 @@ mod postgres_tests {
         assert!(resolved.is_consumed());
         assert_eq!(resolved.replacement_payment_id, Some(payment_id));
     }
+
+    #[tokio::test]
+    async fn postgres_receipt_upload_is_scoped_to_the_payment_the_link_produced() {
+        let Some(pool) = pool().await else {
+            return;
+        };
+        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 8;
+        let (guest_id, booking_id) = seed_booking(&pool, suffix, 8).await;
+        let token = format!("{suffix:064x}");
+
+        let capability = PaymentRetryRepository::create(
+            &pool,
+            booking_id,
+            None,
+            &token_hash(&token),
+            Utc::now() + Duration::minutes(60),
+        )
+        .await
+        .expect("create");
+
+        let mine: i64 = sqlx::query_scalar(
+            "INSERT INTO payments (booking_id, amount, payment_method, status) \
+             VALUES ($1, 100, 'bank_transfer', 'pending') RETURNING id",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .expect("seed payment");
+
+        let mut tx = pool.begin().await.expect("begin");
+        PaymentRetryRepository::consume_tx(&mut tx, capability.id, mine)
+            .await
+            .expect("consume");
+        tx.commit().await.expect("commit");
+
+        // A 1x1 PNG: real magic bytes, so the type sniff passes and the only
+        // thing under test is the scoping.
+        let png: Vec<u8> = vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52,
+        ];
+
+        let foreign = hotel_app_be::services::payment_retry::upload_recovered_receipt(
+            &pool,
+            &token,
+            mine + 9_999,
+            &png,
+        )
+        .await;
+
+        cleanup(&pool, guest_id, booking_id).await;
+
+        assert!(
+            matches!(
+                foreign,
+                Err(hotel_app_be::core::error::ApiError::Forbidden(_))
+            ),
+            "a link must not attach evidence to another payment: {foreign:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_receipt_upload_refuses_an_unknown_link() {
+        let Some(pool) = pool().await else {
+            return;
+        };
+        // No capability exists for this token at all.
+        let result = hotel_app_be::services::payment_retry::upload_recovered_receipt(
+            &pool,
+            &"f".repeat(64),
+            1,
+            &[0x25, 0x50, 0x44, 0x46],
+        )
+        .await;
+        assert!(
+            matches!(result, Err(hotel_app_be::core::error::ApiError::NotFound(_))),
+            "an unknown link must get the same generic answer: {result:?}"
+        );
+    }
 }

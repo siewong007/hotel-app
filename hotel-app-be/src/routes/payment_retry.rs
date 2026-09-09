@@ -7,11 +7,16 @@
 
 use axum::{
     Router,
+    extract::DefaultBodyLimit,
     routing::{get, post},
 };
 
 use crate::core::db::DbPool;
 use crate::handlers::payment_retry;
+
+/// Matches the guest-portal receipt limit; `save_payment_receipt` enforces the
+/// same ceiling again, so this only stops a large body being buffered at all.
+const UPLOAD_BODY_LIMIT: usize = 10 * 1024 * 1024;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -33,5 +38,10 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/booking/recover-payment/{token}/paypal/capture",
             post(payment_retry::recover_paypal_capture_handler),
+        )
+        .route(
+            "/booking/recover-payment/{token}/payments/{payment_id}/receipt",
+            post(payment_retry::recover_upload_receipt_handler)
+                .layer(DefaultBodyLimit::max(UPLOAD_BODY_LIMIT)),
         )
 }

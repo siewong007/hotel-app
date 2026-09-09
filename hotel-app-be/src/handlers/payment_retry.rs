@@ -11,7 +11,7 @@
 
 use axum::{
     Json,
-    extract::{ConnectInfo, Path, State},
+    extract::{ConnectInfo, Multipart, Path, State},
     http::HeaderMap,
 };
 use std::net::SocketAddr;
@@ -36,6 +36,14 @@ pub struct PaymentRecoveryView {
     /// Public PayPal client id, so the page can render the PayPal button.
     /// `None` when this deployment has no PayPal credentials.
     pub paypal_client_id: Option<String>,
+    /// The payment this link already produced, if any. Lets a guest who comes
+    /// back later attach evidence to the claim they already raised.
+    pub payment_id: Option<i64>,
+    /// Whether evidence can still be attached to that payment. Decided here
+    /// rather than in the page, because only a pending bank-transfer claim
+    /// accepts a receipt -- a captured PayPal payment needs none and the
+    /// upload endpoint refuses one.
+    pub receipt_uploadable: bool,
     /// True once the link has been spent. The page shows the outcome instead of
     /// a payment form, so a duplicate submission never creates a second payment.
     pub already_submitted: bool,
@@ -121,4 +129,23 @@ pub async fn recover_paypal_capture_handler(
         )
         .await?,
     ))
+}
+
+/// Attach payment evidence to the claim raised through this link.
+///
+/// The capability authorises exactly this payment and nothing else -- no
+/// pre-check-in, no profile, no other booking -- which is what lets an
+/// anonymous guest send proof of a bank transfer without an account.
+pub async fn recover_upload_receipt_handler(
+    State(pool): State<DbPool>,
+    axum::Extension(limiters): axum::Extension<RateLimiters>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path((token, payment_id)): Path<(String, i64)>,
+    multipart: Multipart,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_capacity(&limiters, &headers, peer).await?;
+    let bytes = crate::handlers::guest_portal::receipt_upload_bytes(multipart).await?;
+    payment_retry::upload_recovered_receipt(&pool, &token, payment_id, &bytes).await?;
+    Ok(Json(serde_json::json!({ "uploaded": true })))
 }

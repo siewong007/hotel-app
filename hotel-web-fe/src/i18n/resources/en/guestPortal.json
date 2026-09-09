@@ -142,6 +142,12 @@
     "paypal": "Pay with PayPal or card",
     "paypalUnavailable": "PayPal could not load. Please disable content blockers and try again.",
     "paypalFailed": "We could not start your PayPal payment. Please try again, or pay by bank transfer.",
-    "or": "or"
+    "or": "or",
+    "uploadHeading": "Send us your transfer receipt",
+    "uploadHint": "A photo or PDF of the transfer helps us confirm your payment faster.",
+    "uploadChoose": "Choose receipt",
+    "uploading": "Uploading…",
+    "uploaded": "Receipt received. Thank you — we will confirm your payment shortly.",
+    "uploadFailed": "We could not accept that file. Please send a JPEG, PNG, WebP or PDF under 10MB."
   }
 }

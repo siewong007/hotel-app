@@ -68,6 +68,11 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
     onError: () => setFailed(true),
   });
 
+  const upload = useMutation({
+    mutationFn: (file: File) =>
+      PaymentRecoveryApi.uploadReceipt(token, receiptPaymentId as number, file),
+  });
+
   const createOrder = useCallback(async () => {
     setPaypalFailed(false);
     try {
@@ -125,6 +130,16 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
   const done = view.already_submitted || submit.isSuccess || paypalDone;
   const paypalReady =
     view.payment_methods.includes('paypal') && Boolean(view.paypal_client_id);
+  // Either the claim raised just now, or the one this link raised earlier --
+  // a guest who leaves to find the file and comes back must still be able to
+  // send it.
+  const receiptPaymentId = submit.data?.payment_id ?? view.payment_id;
+  // Whether evidence is still wanted is the server's call: on a fresh load it
+  // says so directly, and immediately after a claim we know it was one. The
+  // page never infers it, or a reload after a PayPal capture would offer an
+  // upload the server then refuses.
+  const canUploadReceipt =
+    done && receiptPaymentId != null && (submit.isSuccess || view.receipt_uploadable);
 
   return (
     <Box sx={{ maxWidth: 520, mx: 'auto', mt: 6, px: 2 }}>
@@ -172,11 +187,54 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
           <Divider sx={{ my: 2 }} />
 
           {done ? (
-            <Alert severity="success">
-              {view.already_submitted && !submit.isSuccess
-                ? t('recoverPayment.alreadySubmitted')
-                : t('recoverPayment.submittedBody')}
-            </Alert>
+            <>
+              <Alert severity="success">
+                {view.already_submitted && !submit.isSuccess
+                  ? t('recoverPayment.alreadySubmitted')
+                  : t('recoverPayment.submittedBody')}
+              </Alert>
+              {canUploadReceipt && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    {t('recoverPayment.uploadHeading')}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: 'text.secondary', mb: 1.5 }}
+                  >
+                    {t('recoverPayment.uploadHint')}
+                  </Typography>
+                  {upload.isError && (
+                    <Alert severity="error" sx={{ mb: 1.5 }}>
+                      {t('recoverPayment.uploadFailed')}
+                    </Alert>
+                  )}
+                  {upload.isSuccess ? (
+                    <Alert severity="success">{t('recoverPayment.uploaded')}</Alert>
+                  ) : (
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      fullWidth
+                      disabled={upload.isPending}
+                    >
+                      {upload.isPending
+                        ? t('recoverPayment.uploading')
+                        : t('recoverPayment.uploadChoose')}
+                      <input
+                        type="file"
+                        hidden
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) upload.mutate(file);
+                        }}
+                      />
+                    </Button>
+                  )}
+                </Box>
+              )}
+            </>
           ) : (
             <>
               {failed && (

@@ -249,6 +249,9 @@
     "/api/booking/recover-payment/{token}/bank-transfer": {
       "POST": {}
     },
+    "/api/booking/recover-payment/{token}/payments/{payment_id}/receipt": {
+      "POST": {}
+    },
     "/api/booking/recover-payment/{token}/paypal/capture": {
       "POST": {}
     },

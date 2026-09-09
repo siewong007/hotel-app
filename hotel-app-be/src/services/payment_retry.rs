@@ -251,6 +251,20 @@ pub async fn describe_recovery(
         return Err(unavailable());
     }
 
+    // Ask the payment itself whether it still wants evidence. A page that
+    // guessed from its own state would offer an upload after a PayPal capture,
+    // which the server then refuses -- a control that exists only to fail.
+    let receipt_uploadable = match capability.replacement_payment_id {
+        Some(payment_id) => crate::repositories::payment::PaymentRepository::get_payment_for_review(
+            pool, payment_id,
+        )
+        .await?
+        .is_some_and(|payment| {
+            payment.payment_method == "bank_transfer" && payment.status == "pending"
+        }),
+        None => false,
+    };
+
     // Only advertise what the deployment can actually take. Offering PayPal on
     // a hotel with no PayPal credentials would give the guest a button that
     // fails at the gateway.
@@ -265,6 +279,8 @@ pub async fn describe_recovery(
         currency: booking.currency.clone().unwrap_or_else(|| "MYR".to_string()),
         expires_at: capability.expires_at,
         payment_methods: methods,
+        payment_id: capability.replacement_payment_id,
+        receipt_uploadable,
         paypal_client_id: crate::core::config::get().paypal.public_client_id(),
         already_submitted: capability.is_consumed(),
     })
@@ -361,6 +377,28 @@ pub async fn capture_recovered_paypal(
         .await
         .map_err(|_| unavailable())?;
     crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
+}
+
+/// Attach payment evidence to the claim this capability raised.
+///
+/// Scoped to the payment the capability produced, so the link cannot be used to
+/// attach a file to anybody else's payment. It grants nothing beyond that: no
+/// pre-check-in, no profile, no other booking. The size, file-type and
+/// payment-state checks are `save_payment_receipt`'s and are unchanged --
+/// evidence is still only accepted for a pending bank-transfer claim.
+pub async fn upload_recovered_receipt(
+    pool: &DbPool,
+    presented: &str,
+    payment_id: i64,
+    bytes: &[u8],
+) -> Result<(), ApiError> {
+    let capability = resolve_capability(pool, presented).await?;
+    if capability.replacement_payment_id != Some(payment_id) {
+        return Err(ApiError::Forbidden(
+            "This payment link does not authorise that payment.".to_string(),
+        ));
+    }
+    crate::services::payments::save_payment_receipt(pool, payment_id, bytes).await
 }
 
 #[cfg(test)]
