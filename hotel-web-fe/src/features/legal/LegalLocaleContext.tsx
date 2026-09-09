@@ -1,7 +1,10 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import {
+  getActiveLocale,
+  setActiveLocale,
+  subscribeToLocale,
+} from '../../i18n/localeStore';
 import type { LegalLocale } from './content';
-
-const STORAGE_KEY = 'legal-locale';
 
 interface LegalLocaleValue {
   locale: LegalLocale;
@@ -10,68 +13,40 @@ interface LegalLocaleValue {
 
 const LegalLocaleContext = createContext<LegalLocaleValue | undefined>(undefined);
 
-function readStoredLocale(): LegalLocale {
-  // Guarded: storage throws in private-mode and non-DOM runtimes, and the
-  // consent UI must still render if it does.
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === 'en' || stored === 'ms') return stored;
-    // Fall back to the browser's own preference before defaulting.
-    if (typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('ms')) {
-      return 'ms';
-    }
-  } catch {
-    // Ignore and use the default.
-  }
-  return 'en';
-}
-
 /**
  * Holds which language the legal text is displayed in.
  *
  * This is not cosmetic: the chosen locale is written into the consent record,
  * because PDPA s.7(2) requires the notice in both Bahasa Malaysia and English
  * and the evidence should say which one the guest actually read.
+ *
+ * The interface language store is the single source of truth — a guest who
+ * picks Bahasa Melayu in the header (or on these EN/MS toggles) must see the
+ * terms in that language, and the payload must record that same code. A second
+ * `legal-locale` store was what made the checkbox language and the recorded
+ * locale diverge.
  */
 export const LegalLocaleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [locale, setLocaleState] = useState<LegalLocale>(readStoredLocale);
-
-  const setLocale = useCallback((next: LegalLocale) => {
-    setLocaleState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // A remembered preference is a convenience; failing to store it must not
-      // break the page.
-    }
-  }, []);
-
-  const value = useMemo(() => ({ locale, setLocale }), [locale, setLocale]);
+  const value = useSharedLegalLocale();
   return <LegalLocaleContext.Provider value={value}>{children}</LegalLocaleContext.Provider>;
 };
+
+function useSharedLegalLocale(): LegalLocaleValue {
+  const locale = useSyncExternalStore(subscribeToLocale, getActiveLocale, getActiveLocale);
+  const setLocale = useCallback((next: LegalLocale) => {
+    setActiveLocale(next);
+  }, []);
+  return useMemo(() => ({ locale, setLocale }), [locale, setLocale]);
+}
 
 /**
  * Returns the active legal locale. Usable outside the provider — the consent
  * blocks appear on public pages that do not all mount it — in which case it
- * falls back to the stored preference and a no-op setter.
+ * still reads the shared interface language so a parent `buildPayload` and the
+ * checkboxes cannot disagree.
  */
 export function useLegalLocale(): LegalLocaleValue {
   const context = useContext(LegalLocaleContext);
-  const [standaloneLocale, setStandaloneLocale] = useState<LegalLocale>(readStoredLocale);
-
-  const standaloneSet = useCallback((next: LegalLocale) => {
-    setStandaloneLocale(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // See above.
-    }
-  }, []);
-
-  const fallback = useMemo(
-    () => ({ locale: standaloneLocale, setLocale: standaloneSet }),
-    [standaloneLocale, standaloneSet],
-  );
-
+  const fallback = useSharedLegalLocale();
   return context ?? fallback;
 }

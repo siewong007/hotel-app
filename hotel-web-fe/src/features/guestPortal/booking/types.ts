@@ -76,6 +76,7 @@ export interface CreateGuestBookingRequest extends GuestBookingQuoteRequest {
   expected_total: string | number;
   special_requests?: string;
   cleaning_preference?: boolean;
+  consents: ConsentAcceptance[];
 }
 
 /** Contact details an anonymous booker supplies inline, standing in for the

@@ -63,9 +63,21 @@ export class AuthService {
   }
 
   // Google Guest Sign-In
-  static async loginWithGoogle(credential: string): Promise<AuthResponse> {
+  static async loginWithGoogle(
+    credential: string,
+    options?: { consents: ConsentAcceptance[]; marketing_opt_in: boolean },
+  ): Promise<AuthResponse> {
     try {
-      return await api.post('auth/google', { json: { credential } }).json<AuthResponse>();
+      return await api
+        .post('auth/google', {
+          json: {
+            credential,
+            ...(options
+              ? { consents: options.consents, marketing_opt_in: options.marketing_opt_in }
+              : {}),
+          },
+        })
+        .json<AuthResponse>();
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));

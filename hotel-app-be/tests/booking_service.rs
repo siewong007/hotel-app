@@ -76,22 +76,19 @@ mod postgres_tests {
             }
         };
 
-/// Initialize process config exactly once for suites whose flows now touch
-    /// config-dependent side effects (checkout receipt footer).
-    fn core_config_init_in_tests() {
-        if std::env::var("SETTINGS_CACHE_TTL_SECS").is_err() {
-            // SAFETY: single-test binary; no concurrent environment readers.
-            unsafe { std::env::set_var("SETTINGS_CACHE_TTL_SECS", "0") };
+        /// Initialize process config exactly once for suites whose flows now touch
+        /// config-dependent side effects (checkout receipt footer).
+        fn core_config_init_in_tests() {
+            if std::env::var("SETTINGS_CACHE_TTL_SECS").is_err() {
+                // SAFETY: single-test binary; no concurrent environment readers.
+                unsafe { std::env::set_var("SETTINGS_CACHE_TTL_SECS", "0") };
+            }
+            if std::env::var("JWT_SECRET").is_err() {
+                // SAFETY: single-test binary; no concurrent environment readers.
+                unsafe { std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret") };
+            }
+            hotel_app_be::core::config::init_from_env().expect("test config initialises from env");
         }
-        if std::env::var("JWT_SECRET").is_err() {
-            // SAFETY: single-test binary; no concurrent environment readers.
-            unsafe { std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret") };
-        }
-        hotel_app_be::core::config::init_from_env()
-            .expect("test config initialises from env");
-    }
-    
-    
 
         // Serialize against the other PostgreSQL workflow tests (shared DB + DDL).
         let guard = super::pg_serial_lock().lock_owned().await;
@@ -1701,6 +1698,7 @@ mod postgres_creation_tests {
 mod postgres_guest_portal_race_tests {
     use chrono::{Duration, NaiveDate};
     use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
     use hotel_app_be::modules::guest_booking::availability::AvailabilityHub;
     use hotel_app_be::modules::guest_booking::models::{
         BookingQuoteRequest, CreateGuestBookingRequest,
@@ -1879,6 +1877,12 @@ mod postgres_guest_portal_race_tests {
         .await
         .expect("quote should succeed with one available room");
 
+        let granted = |document: ConsentDocument| ConsentAcceptance {
+            document,
+            version: document.current_version().to_string(),
+            granted: true,
+            locale: "en".to_string(),
+        };
         let build_request = |client_request_id: &str| CreateGuestBookingRequest {
             client_request_id: client_request_id.to_string(),
             room_type_id,
@@ -1891,6 +1895,10 @@ mod postgres_guest_portal_race_tests {
             expected_total: quote.total_amount,
             special_requests: None,
             cleaning_preference: None,
+            consents: vec![
+                granted(ConsentDocument::TermsOfService),
+                granted(ConsentDocument::PrivacyNotice),
+            ],
         };
 
         let hub = AvailabilityHub::default();
@@ -1912,11 +1920,12 @@ mod postgres_guest_portal_race_tests {
             "the losing concurrent booking should return a conflict-class error, got: {failed:?}"
         );
 
-        let booking_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE room_id = $1")
-            .bind(room_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let booking_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE room_id = $1")
+                .bind(room_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(
             booking_count, 1,
             "exactly one booking row should exist for the contested room"

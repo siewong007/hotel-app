@@ -67,6 +67,13 @@ impl ConsentSubject {
         self.guest_id = Some(guest_id);
         self
     }
+
+    /// Attach the booking this consent authorised, so the row is findable from
+    /// the stay as well as from the guest.
+    pub fn with_booking(mut self, booking_id: i64) -> Self {
+        self.booking_id = Some(booking_id);
+        self
+    }
 }
 
 /// Request context captured alongside a consent decision.

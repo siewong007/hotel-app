@@ -132,7 +132,7 @@ export const ConsentBlock: React.FC<ConsentBlockProps> = ({
             exclusive
             value={locale}
             onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label="Legal notice language"
+            aria-label={locale === 'ms' ? 'Bahasa notis undang-undang' : 'Legal notice language'}
           >
             {LEGAL_LOCALES.map((option) => (
               <ToggleButton key={option} value={option} sx={{ px: 1.5, py: 0.25, fontSize: '0.7rem' }}>

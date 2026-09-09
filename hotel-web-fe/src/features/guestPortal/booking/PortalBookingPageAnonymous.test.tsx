@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetLocaleStoreForTests, setActiveLocale } from '../../../i18n/localeStore';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -150,6 +151,23 @@ describe('PortalBookingPage anonymous checkout', () => {
 
   afterEach(() => {
     cleanup();
+    resetLocaleStoreForTests();
+  });
+
+  it('renders search and review labels in Bahasa Melayu when that is the active language', async () => {
+    setActiveLocale('ms');
+    render(<PortalBookingPage />);
+
+    expect(screen.getByRole('heading', { name: 'Cari' })).toBeTruthy();
+    expect(screen.getByLabelText('Daftar Masuk')).toBeTruthy();
+    expect(screen.getByLabelText('Daftar Keluar')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cari' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cari' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Pilih' }));
+    expect(await screen.findByRole('heading', { name: 'Semak penginapan anda' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Butiran anda' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Teruskan ke pembayaran' })).toBeTruthy();
   });
 
   it('lets a visitor with no account search instead of bouncing to sign-in', async () => {

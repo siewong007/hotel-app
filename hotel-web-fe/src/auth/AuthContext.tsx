@@ -35,7 +35,10 @@ export interface LoginResult {
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string, totpCode?: string) => Promise<LoginResult>;
-  loginWithGoogle: (credential: string) => Promise<LoginResult>;
+  loginWithGoogle: (
+    credential: string,
+    options?: { consents: ConsentAcceptance[]; marketing_opt_in: boolean },
+  ) => Promise<LoginResult>;
   // Merges a freshly-returned profile (e.g. from POST /profile/complete) into
   // the in-memory auth user and its storage cache, without a network round
   // trip or a full-page reload. See applyAuthSession for the same
@@ -333,13 +336,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [applyAuthSession]);
 
-  const loginWithGoogle = useCallback(async (credential: string): Promise<LoginResult> => {
+  const loginWithGoogle = useCallback(async (
+    credential: string,
+    options?: { consents: ConsentAcceptance[]; marketing_opt_in: boolean },
+  ): Promise<LoginResult> => {
     try {
       // Same reasoning as login(): let any in-flight logout settle first so it
       // cannot revoke the refresh cookie this new session is about to create.
       await pendingLogoutRef.current;
 
-      const data = await AuthService.loginWithGoogle(credential);
+      const data = options
+        ? await AuthService.loginWithGoogle(credential, options)
+        : await AuthService.loginWithGoogle(credential);
 
       return applyAuthSession(data);
     } catch (error) {

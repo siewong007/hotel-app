@@ -1,16 +1,43 @@
 //! Authentication repository for database operations.
 
 use crate::constants::UserType;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::{Guest, RegisterRequest, User};
+use crate::modules::consent::models::{ConsentAcceptance, ConsentSource};
+use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
+use crate::modules::consent::validation as consent_validation;
 use crate::services::google_identity::{
     GoogleIdentity, google_identity_fingerprint, google_username,
 };
 use chrono::{DateTime, Utc};
 
 pub struct AuthRepository;
+
+/// Consent evidence required to insert a new Google guest account.
+pub struct NewGoogleAccountConsent<'a> {
+    pub consents: &'a [ConsentAcceptance],
+    pub context: &'a ConsentContext,
+    pub language_preference: &'a str,
+}
+
+/// Outcome of resolving a Google identity to a guest user.
+#[derive(Debug)]
+pub struct GoogleGuestResolution {
+    pub user: User,
+    /// True when this call inserted the guest and user rows.
+    pub created: bool,
+    pub guest_id: Option<i64>,
+}
+
+fn existing_google_user(user: User) -> GoogleGuestResolution {
+    GoogleGuestResolution {
+        user,
+        created: false,
+        guest_id: None,
+    }
+}
 
 /// Upper bound on internal retries inside `resolve_google_guest` when a
 /// concurrent insert/update loses a race on a unique constraint. Bounded so a
@@ -212,18 +239,18 @@ impl AuthRepository {
     }
 
     pub async fn register_guest_user(
-        pool: &DbPool,
+        tx: &mut DbTransaction<'_>,
         req: &RegisterRequest,
         password_hash: &str,
+        language_preference: &str,
     ) -> Result<(Guest, User), ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
         let full_name = format!("{} {}", req.first_name, req.last_name);
         let guest_query = r#"
                 INSERT INTO guests (
                     first_name, last_name, full_name, email, phone, address_line_1,
-                    is_active, guest_type, created_at
+                    is_active, guest_type, language_preference, created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, true, 'non_member', CURRENT_TIMESTAMP)
+                VALUES ($1, $2, $3, $4, $5, $6, true, 'non_member', $7, CURRENT_TIMESTAMP)
                 RETURNING id, full_name, email, phone, ic_number, nationality,
                           address_line_1 AS address_line1, city, state AS state_province,
                           postal_code, country, title, alt_phone, is_active, guest_type,
@@ -242,7 +269,8 @@ impl AuthRepository {
             .bind(&req.email)
             .bind(&req.phone)
             .bind(&req.address_line1)
-            .fetch_one(&mut *tx)
+            .bind(language_preference)
+            .fetch_one(&mut **tx)
             .await
             .map_err(|error| {
                 if is_guest_name_unique_violation(&error) {
@@ -284,24 +312,22 @@ impl AuthRepository {
             .bind(guest.id)
             .bind(is_verified)
             .bind(user_uuid)
-            .fetch_one(&mut *tx)
+            .fetch_one(&mut **tx)
             .await
             .map_err(ApiError::from)?;
 
         let guest_role_id: i64 =
             sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")
-                .fetch_one(&mut *tx)
+                .fetch_one(&mut **tx)
                 .await
                 .map_err(|e| ApiError::Database(format!("Guest role not found: {}", e)))?;
 
         sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)")
             .bind(user.id)
             .bind(guest_role_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
-
-        tx.commit().await.map_err(ApiError::from)?;
 
         Ok((guest, user))
     }
@@ -312,8 +338,9 @@ impl AuthRepository {
     pub async fn resolve_google_guest(
         pool: &DbPool,
         identity: &GoogleIdentity,
-    ) -> Result<User, ApiError> {
-        Self::resolve_google_guest_attempt(pool, identity, 0).await
+        new_account: Option<&NewGoogleAccountConsent<'_>>,
+    ) -> Result<GoogleGuestResolution, ApiError> {
+        Self::resolve_google_guest_attempt(pool, identity, 0, new_account).await
     }
 
     /// Bounded-retry implementation backing `resolve_google_guest`. `attempt`
@@ -323,7 +350,8 @@ impl AuthRepository {
         pool: &DbPool,
         identity: &GoogleIdentity,
         attempt: u8,
-    ) -> Result<User, ApiError> {
+        new_account: Option<&NewGoogleAccountConsent<'_>>,
+    ) -> Result<GoogleGuestResolution, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
         if let Some(user) = sqlx::query_as::<_, User>(
@@ -335,7 +363,7 @@ impl AuthRepository {
         .map_err(ApiError::from)? {
             ensure_active_google_guest(&user)?;
             tx.commit().await.map_err(ApiError::from)?;
-            return Ok(user);
+            return Ok(existing_google_user(user));
         }
 
         let email_match = sqlx::query_as::<_, User>(
@@ -351,7 +379,7 @@ impl AuthRepository {
             match user.google_subject.as_deref() {
                 Some(subject) if subject == identity.subject => {
                     tx.commit().await.map_err(ApiError::from)?;
-                    return Ok(user);
+                    return Ok(existing_google_user(user));
                 }
                 Some(_) => {
                     return Err(ApiError::Conflict(
@@ -406,13 +434,13 @@ impl AuthRepository {
                     })?;
                     ensure_active_google_guest(&winner)?;
                     tx.commit().await.map_err(ApiError::from)?;
-                    return Ok(winner);
+                    return Ok(existing_google_user(winner));
                 }
                 Err(error) => return Err(ApiError::from(error)),
             };
 
             tx.commit().await.map_err(ApiError::from)?;
-            return Ok(linked);
+            return Ok(existing_google_user(linked));
         }
 
         let email_is_already_reserved =
@@ -439,7 +467,7 @@ impl AuthRepository {
             {
                 ensure_active_google_guest(&winner)?;
                 tx.commit().await.map_err(ApiError::from)?;
-                return Ok(winner);
+                return Ok(existing_google_user(winner));
             }
 
             // Nothing holds this Google subject, so the address genuinely
@@ -451,6 +479,18 @@ impl AuthRepository {
             ));
         }
 
+        let consent = new_account.ok_or_else(|| {
+            ApiError::BadRequest(
+                "Consent to the Booking Terms and Conditions is required before this request can be accepted"
+                    .to_string(),
+            )
+        })?;
+        consent_validation::validate_locales(consent.consents)?;
+        consent_validation::require_consents(
+            consent.consents,
+            consent_validation::REGISTRATION_REQUIRED,
+        )?;
+
         sqlx::query("SAVEPOINT google_guest_create")
             .execute(&mut *tx)
             .await
@@ -458,12 +498,13 @@ impl AuthRepository {
         let guest_full_name = google_guest_full_name(identity, attempt);
         let display_name = google_display_name(identity);
         let guest_id = sqlx::query_scalar::<_, i64>(
-            "INSERT INTO guests (first_name, last_name, full_name, email, is_active, guest_type, created_at) VALUES ($1, $2, $3, $4, true, 'non_member', CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING RETURNING id",
+            "INSERT INTO guests (first_name, last_name, full_name, email, is_active, guest_type, language_preference, created_at) VALUES ($1, $2, $3, $4, true, 'non_member', $5, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING RETURNING id",
         )
         .bind(identity.given_name.as_deref())
         .bind(identity.family_name.as_deref())
         .bind(&guest_full_name)
         .bind(&identity.email)
+        .bind(consent.language_preference)
         .fetch_optional(&mut *tx)
         .await
         .map_err(ApiError::from)?;
@@ -486,7 +527,7 @@ impl AuthRepository {
             .map_err(ApiError::from)? {
                 ensure_active_google_guest(&winner)?;
                 tx.commit().await.map_err(ApiError::from)?;
-                return Ok(winner);
+                return Ok(existing_google_user(winner));
             }
 
             tx.rollback().await.map_err(ApiError::from)?;
@@ -500,6 +541,7 @@ impl AuthRepository {
                 pool,
                 identity,
                 attempt + 1,
+                new_account,
             ))
             .await;
         };
@@ -545,6 +587,7 @@ impl AuthRepository {
                     pool,
                     identity,
                     attempt + 1,
+                    new_account,
                 ))
                 .await;
             }
@@ -571,6 +614,7 @@ impl AuthRepository {
                     pool,
                     identity,
                     attempt + 1,
+                    new_account,
                 ))
                 .await;
             }
@@ -591,8 +635,21 @@ impl AuthRepository {
         .await
         .map_err(ApiError::from)?;
 
+        consent_service::record_tx(
+            &mut tx,
+            ConsentSubject::user(user.id).with_guest(guest_id),
+            consent.consents,
+            ConsentSource::Registration,
+            consent.context,
+        )
+        .await?;
+
         tx.commit().await.map_err(ApiError::from)?;
-        Ok(user)
+        Ok(GoogleGuestResolution {
+            user,
+            created: true,
+            guest_id: Some(guest_id),
+        })
     }
 }
 

@@ -609,6 +609,8 @@ pub async fn create(
     user_agent: Option<String>,
 ) -> Result<GuestBookingConfirmation, ApiError> {
     let request_id = validate_client_request_id(&request.client_request_id)?;
+    consent_validation::validate_locales(&request.consents)?;
+    consent_validation::require_consents(&request.consents, consent_validation::BOOKING_REQUIRED)?;
     if let Some(existing) = Repository::find_by_request_id(pool, guest_id, &request_id).await? {
         return Ok(existing);
     }
@@ -817,8 +819,19 @@ pub async fn create(
                 "complimentary_nights": quote.complimentary_nights,
                 "complimentary_discount": quote.complimentary_discount.to_string(),
             })),
-            ip_address,
-            user_agent,
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
+        },
+    )
+    .await?;
+    consent_service::record_tx(
+        &mut tx,
+        ConsentSubject::guest(guest_id).with_booking(booking_id),
+        &request.consents,
+        ConsentSource::OnlineBooking,
+        &ConsentContext {
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
         },
     )
     .await?;
@@ -988,7 +1001,9 @@ pub async fn create_anonymous(
         quote.check_out_date,
     )
     .await?;
-    let guest_id = Repository::insert_anonymous_guest_tx(&mut tx, &guest).await?;
+    let language_preference = consent_validation::preferred_locale(&request.consents);
+    let guest_id =
+        Repository::insert_anonymous_guest_tx(&mut tx, &guest, &language_preference).await?;
     let insert = BookingInsert {
         portal_request_id: request_id.clone(),
         guest_id,

@@ -259,7 +259,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
                     }}
                   >
-                    Sign in
+                    {tOr('actions.signIn', 'Sign in')}
                   </Button>
                 )}
               </Box>
@@ -288,7 +288,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   '&:focus-visible': { outline: '3px solid #FFFFFF', outlineOffset: 3 },
                 }}
               >
-                Book a stay
+                {tOr('actions.bookStay', 'Book a stay')}
               </Button>
             </Toolbar>
           </Container>
@@ -332,7 +332,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           <Box sx={{ px: 2, pt: 2, pb: 1 }}>
             <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'rgba(23,33,29,0.18)', mx: 'auto', mb: 1.5 }} />
             <Typography variant="overline" sx={{ color: '#8d6b30', fontWeight: 700, letterSpacing: '.12em' }}>
-              More
+              {tOr('actions.more', 'More')}
             </Typography>
           </Box>
           <List sx={{ pb: 1 }}>
@@ -346,7 +346,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                 sx={{ minHeight: 52 }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: FOREST }}>{link.icon}</ListItemIcon>
-              <ListItemText primary={link.label} slotProps={{
+              <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
                   primary: { sx: { fontWeight: 600 } }
                 }} />
               </ListItemButton>
@@ -354,7 +354,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             <Divider component="li" sx={{ my: 1 }} />
             <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={{ minHeight: 52 }}>
               <ListItemIcon sx={{ minWidth: 40, color: FOREST }}><OpenInNewOutlinedIcon /></ListItemIcon>
-              <ListItemText primary="Explore hotel" slotProps={{
+              <ListItemText primary={tOr('actions.exploreHotel', 'Explore hotel')} slotProps={{
                 primary: { sx: { fontWeight: 600 } }
               }} />
             </ListItemButton>

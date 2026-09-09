@@ -14,10 +14,12 @@
  * that is not yet present by falling back to English.
  */
 
+import enAuth from './en/auth.json';
 import enCommon from './en/common.json';
 import enErrors from './en/errors.json';
 import enGuestPortal from './en/guestPortal.json';
 import enNav from './en/nav.json';
+import msAuth from './ms/auth.json';
 import msCommon from './ms/common.json';
 import msErrors from './ms/errors.json';
 import msGuestPortal from './ms/guestPortal.json';
@@ -30,6 +32,7 @@ import type { LocaleResources, TranslationBundle } from '../translator';
 export type Namespace = keyof typeof enResources;
 
 const enResources = {
+  auth: enAuth as TranslationBundle,
   common: enCommon as TranslationBundle,
   errors: enErrors as TranslationBundle,
   guestPortal: enGuestPortal as TranslationBundle,
@@ -37,6 +40,7 @@ const enResources = {
 };
 
 const msResources = {
+  auth: msAuth as TranslationBundle,
   common: msCommon as TranslationBundle,
   errors: msErrors as TranslationBundle,
   guestPortal: msGuestPortal as TranslationBundle,

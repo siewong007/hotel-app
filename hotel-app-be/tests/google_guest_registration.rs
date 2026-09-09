@@ -5,9 +5,43 @@
 //! represent. A configured database must include migration 0002.
 
 use hotel_app_be::core::error::ApiError;
-use hotel_app_be::repositories::auth::AuthRepository;
+use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
+use hotel_app_be::modules::consent::service::ConsentContext;
+use hotel_app_be::repositories::auth::{AuthRepository, NewGoogleAccountConsent};
 use hotel_app_be::services::google_identity::{GoogleIdentity, google_username};
 use sqlx::{PgPool, postgres::PgPoolOptions};
+
+fn registration_consents() -> Vec<ConsentAcceptance> {
+    let granted = |document: ConsentDocument| ConsentAcceptance {
+        document,
+        version: document.current_version().to_string(),
+        granted: true,
+        locale: "en".to_string(),
+    };
+    vec![
+        granted(ConsentDocument::TermsOfService),
+        granted(ConsentDocument::PrivacyNotice),
+    ]
+}
+
+async fn resolve_new(
+    pool: &PgPool,
+    identity: &GoogleIdentity,
+) -> Result<hotel_app_be::repositories::auth::GoogleGuestResolution, ApiError> {
+    let consents = registration_consents();
+    let context = ConsentContext::default();
+    let locale = "en".to_string();
+    AuthRepository::resolve_google_guest(
+        pool,
+        identity,
+        Some(&NewGoogleAccountConsent {
+            consents: &consents,
+            context: &context,
+            language_preference: &locale,
+        }),
+    )
+    .await
+}
 
 fn test_identity(label: &str) -> GoogleIdentity {
     let nonce = uuid::Uuid::now_v7().simple().to_string();
@@ -71,13 +105,13 @@ async fn postgres_google_guest_create_race_returns_one_subject_account() {
     let first_identity = identity.clone();
     let second_identity = identity.clone();
     let (first, second) = tokio::join!(
-        AuthRepository::resolve_google_guest(&first_pool, &first_identity),
-        AuthRepository::resolve_google_guest(&second_pool, &second_identity),
+        resolve_new(&first_pool, &first_identity),
+        resolve_new(&second_pool, &second_identity),
     );
 
     let first = first.expect("the first concurrent Google guest create must succeed");
     let second = second.expect("the second concurrent Google guest create must return the winner");
-    assert_eq!(first.id, second.id);
+    assert_eq!(first.user.id, second.user.id);
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE google_subject = $1")
         .bind(&identity.subject)
         .fetch_one(&pool)
@@ -120,17 +154,18 @@ async fn postgres_google_guest_link_race_returns_the_same_existing_guest() {
     let first_identity = identity.clone();
     let second_identity = identity.clone();
     let (first, second) = tokio::join!(
-        AuthRepository::resolve_google_guest(&first_pool, &first_identity),
-        AuthRepository::resolve_google_guest(&second_pool, &second_identity),
+        resolve_new(&first_pool, &first_identity),
+        resolve_new(&second_pool, &second_identity),
     );
 
     assert_eq!(
-        first.expect("first link request must succeed").id,
+        first.expect("first link request must succeed").user.id,
         existing_user_id
     );
     assert_eq!(
         second
             .expect("second link request must return the linked guest")
+            .user
             .id,
         existing_user_id
     );
@@ -166,9 +201,10 @@ async fn postgres_google_guest_creation_retries_a_taken_derived_username() {
     .await
     .expect("test setup must reserve the initial Google username");
 
-    let user = AuthRepository::resolve_google_guest(&pool, &identity)
+    let user = resolve_new(&pool, &identity)
         .await
-        .expect("a username collision must not reject a new verified Google guest");
+        .expect("a username collision must not reject a new verified Google guest")
+        .user;
     assert_ne!(user.username, taken_username);
     assert_eq!(
         user.google_subject.as_deref(),
@@ -200,9 +236,10 @@ async fn postgres_google_guest_creation_allows_an_unrelated_duplicate_display_na
     .await
     .expect("test setup must reserve the human display name");
 
-    let user = AuthRepository::resolve_google_guest(&pool, &identity)
+    let user = resolve_new(&pool, &identity)
         .await
-        .expect("an unrelated same-name guest must not block Google registration");
+        .expect("an unrelated same-name guest must not block Google registration")
+        .user;
     let stored_guest_name: String = sqlx::query_scalar(
         "SELECT g.full_name FROM guests g JOIN users u ON u.guest_id = g.id WHERE u.id = $1",
     )
@@ -246,7 +283,7 @@ async fn postgres_google_guest_rejects_an_email_held_by_a_soft_deleted_account()
     .await
     .expect("test setup must create a soft-deleted user");
 
-    let result = AuthRepository::resolve_google_guest(&pool, &identity).await;
+    let result = resolve_new(&pool, &identity).await;
 
     cleanup_email(&pool, &identity.email).await;
 
@@ -256,5 +293,26 @@ async fn postgres_google_guest_rejects_an_email_held_by_a_soft_deleted_account()
             "a reserved address must still be refused, not resolved to a winner"
         ),
         other => panic!("expected a Conflict for a reserved email, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn postgres_google_guest_create_requires_booking_terms_consent() {
+    let Some(pool) = postgres_pool().await else {
+        return;
+    };
+    let identity = test_identity("consent-required");
+    cleanup_email(&pool, &identity.email).await;
+
+    let result = AuthRepository::resolve_google_guest(&pool, &identity, None).await;
+
+    cleanup_email(&pool, &identity.email).await;
+
+    match result {
+        Err(ApiError::BadRequest(message)) => assert!(
+            message.contains("Booking Terms"),
+            "first-time Google create must name the missing consent, got {message}"
+        ),
+        other => panic!("expected BadRequest without consents, got {other:?}"),
     }
 }

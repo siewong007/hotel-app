@@ -165,6 +165,33 @@ describe('AuthService', () => {
       expect(result).toEqual(authResponse);
     });
 
+    it('sends the registration consents with a first-time Google sign-in', async () => {
+      const authResponse = {
+        access_token: 'tok_abc',
+        user: { id: '1', username: 'guest@example.com', email: 'guest@example.com', is_active: true, created_at: 'x', updated_at: 'x' },
+        roles: ['guest'],
+        permissions: [],
+        route_policies: [],
+        is_first_login: true,
+        profile_complete: false,
+        missing_profile_fields: ['first_name'],
+      };
+      post.mockReturnValue(mockJsonResponse(authResponse));
+
+      await AuthService.loginWithGoogle('google-id-token', {
+        consents: REQUIRED_CONSENTS,
+        marketing_opt_in: false,
+      });
+
+      expect(post).toHaveBeenCalledWith('auth/google', {
+        json: {
+          credential: 'google-id-token',
+          consents: REQUIRED_CONSENTS,
+          marketing_opt_in: false,
+        },
+      });
+    });
+
     it('wraps an HTTPError into an APIError with the server message (e.g. 503 when unconfigured)', async () => {
       post.mockReturnValue(mockJsonRejection(buildHttpError(503, { error: 'Google sign-in is not configured' })));
 

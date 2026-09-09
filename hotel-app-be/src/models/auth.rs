@@ -42,6 +42,13 @@ pub struct LoginLookupResponse {
 pub struct GoogleLoginRequest {
     #[validate(length(min = 1, message = "Google credential is required"))]
     pub credential: String,
+    /// Required when this sign-in creates a guest account. Existing Google
+    /// sessions omit it; a first-time create without Booking Terms + Privacy
+    /// Notice consent is rejected.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
+    #[serde(default)]
+    pub marketing_opt_in: bool,
 }
 
 // A Google credential is a bearer token and must not appear in debug logs.
@@ -49,6 +56,8 @@ impl std::fmt::Debug for GoogleLoginRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GoogleLoginRequest")
             .field("credential", &"<redacted>")
+            .field("consents", &self.consents.len())
+            .field("marketing_opt_in", &self.marketing_opt_in)
             .finish()
     }
 }

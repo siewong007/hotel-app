@@ -28,6 +28,8 @@ import { storage } from '../../../utils/storage';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { errorMessage } from '../../../utils/errorMessage';
 import { safeGuestRedirect } from '../guestRedirect';
+import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
+import { useTranslation } from '../../../i18n';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { REGISTRATION_CONSENTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
@@ -60,6 +62,7 @@ const RegisterPage: React.FC = () => {
   const [googleError, setGoogleError] = useState('');
   const consent = useConsent(REGISTRATION_CONSENTS);
   const { locale: legalLocale } = useLegalLocale();
+  const { t } = useTranslation('auth');
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -157,7 +160,7 @@ const RegisterPage: React.FC = () => {
     // instead of a generic API error.
     if (!consent.allRequiredGranted) {
       consent.setShowErrors(true);
-      setError('Please read and accept the Booking Terms and the Privacy Notice to continue.');
+      setError(t('register.consentRequired'));
       return;
     }
 
@@ -196,8 +199,14 @@ const RegisterPage: React.FC = () => {
     setGoogleError('');
     setError('');
 
+    if (!consent.allRequiredGranted) {
+      consent.setShowErrors(true);
+      setGoogleError(t('register.googleNeedsConsent'));
+      return;
+    }
+
     try {
-      await loginWithGoogle(credential);
+      await loginWithGoogle(credential, consent.buildPayload(legalLocale));
 
       const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
       const redirectParam = safeGuestRedirect(searchParams.get('redirect'));
@@ -252,6 +261,9 @@ const RegisterPage: React.FC = () => {
         },
       }}
     >
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>
+        <LanguageSwitcher color="default" size="small" />
+      </Box>
       <Container className="auth-container" maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in timeout={800}>
           <Paper
@@ -286,7 +298,7 @@ const RegisterPage: React.FC = () => {
                   backgroundClip: 'text',
                 }}
               >
-                Join us
+                {t('register.title')}
               </Typography>
               {/* The hotel name is already the card's eyebrow (.auth-card::before,
                   fed by --auth-brand-eyebrow from the same settings), so it is
@@ -305,7 +317,7 @@ const RegisterPage: React.FC = () => {
                   letterSpacing: '0.02em',
                 }}
               >
-                Save your details for a smoother stay
+                {t('register.subtitle')}
               </Typography>
             </Box>
 
@@ -377,19 +389,6 @@ const RegisterPage: React.FC = () => {
                 </Box>
               </Alert>
             </Collapse>
-
-            {/* Google Guest Sign-In */}
-            {!success && (
-              <>
-                <Collapse in={!!googleError}>
-                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGoogleError('')}>
-                    {googleError}
-                  </Alert>
-                </Collapse>
-                <GoogleSignInButton onCredential={handleGoogleCredential} />
-                <Divider sx={{ my: 3 }}>or create an account</Divider>
-              </>
-            )}
 
           <form onSubmit={handleRegister}>
             <Grid container spacing={2}>
@@ -619,13 +618,25 @@ const RegisterPage: React.FC = () => {
               }}
               disabled={loading || redirectCountdown !== null}
             >
-              {loading ? <LoadingSpinner size={24} /> : 'Create Account'}
+              {loading ? <LoadingSpinner size={24} /> : t('register.submit')}
             </Button>
           </form>
 
+          {!success && (
+            <>
+              <Divider sx={{ my: 3 }}>{t('register.orCreate')}</Divider>
+              <Collapse in={!!googleError}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGoogleError('')}>
+                  {googleError}
+                </Alert>
+              </Collapse>
+              <GoogleSignInButton onCredential={handleGoogleCredential} />
+            </>
+          )}
+
           <Box sx={{ mt: 3, textAlign: 'center' }}>
             <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>
-              Already have an account?{' '}
+              {t('register.alreadyHaveAccount')}{' '}
               <Button
                 variant="text"
                 sx={{
@@ -643,7 +654,7 @@ const RegisterPage: React.FC = () => {
                 }}
                 onClick={() => navigate('/login')}
               >
-                Sign in
+                {t('register.signIn')}
               </Button>
             </Typography>
           </Box>

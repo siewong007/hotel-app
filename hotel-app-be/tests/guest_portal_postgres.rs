@@ -328,7 +328,7 @@ mod postgres_tests {
             tourism_type: "local".to_string(),
         };
         let mut tx = pool.begin().await.expect("begin");
-        let guest_id = GuestBookingRepository::insert_anonymous_guest_tx(&mut tx, &details)
+        let guest_id = GuestBookingRepository::insert_anonymous_guest_tx(&mut tx, &details, "en")
             .await
             .expect("insert must retry with a suffix instead of failing the transaction");
         tx.commit().await.expect("commit");

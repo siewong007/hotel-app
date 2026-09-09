@@ -92,6 +92,8 @@ pub async fn google_login_handler(
         &req.credential,
         ip_address.as_deref(),
         user_agent.as_deref(),
+        &req.consents,
+        req.marketing_opt_in,
     )
     .await?;
     let jar = jar.add(build_refresh_cookie(refresh_token));

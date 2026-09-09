@@ -49,6 +49,14 @@ vi.mock('../api/portalTokenStore', () => ({
   setPortalToken: vi.fn(),
 }));
 
+/** Ticks the two consents the booking form requires (PDPA: never pre-ticked). */
+function acceptRequiredConsents() {
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: /Booking Terms and Conditions/ }),
+  );
+  fireEvent.click(screen.getByRole('checkbox', { name: /Privacy Notice/ }));
+}
+
 vi.mock('../api/usePortalSession', () => ({
   usePortalSession: () => ({ token: 'guest-token' }),
 }));
@@ -223,6 +231,7 @@ describe('PortalBookingPage voucher eligibility', () => {
 
     const continueButton = screen.getByRole('button', { name: 'Continue to payment' }) as HTMLButtonElement;
     expect(continueButton.disabled).toBe(false);
+    acceptRequiredConsents();
     fireEvent.click(continueButton);
 
     await screen.findByRole('heading', { name: 'Complete your payment' });
@@ -449,12 +458,17 @@ describe('PortalBookingPage complimentary nights', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
     await screen.findByText('Review your stay');
+    acceptRequiredConsents();
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
 
     await waitFor(() => expect(mocks.createBooking).toHaveBeenCalled());
     expect(mocks.createBooking.mock.calls[0][0]).toMatchObject({
       complimentary_dates: ['2026-07-18'],
       expected_total: '250.00',
+      consents: [
+        { document: 'terms_of_service', granted: true, locale: 'en' },
+        { document: 'privacy_notice', granted: true, locale: 'en' },
+      ],
     });
   });
 });

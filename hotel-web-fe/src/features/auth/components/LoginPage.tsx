@@ -46,6 +46,8 @@ import {
 } from '../utils/twoFactorCode';
 import { AuthService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
+import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
+import { useTranslation } from '../../../i18n';
 
 type UserType = 'guest' | 'admin' | null;
 
@@ -72,6 +74,7 @@ const LoginPage: React.FC = () => {
   const [passkeyCheckInProgress, setPasskeyCheckInProgress] = useState(false);
   const [usernameSubmitted, setUsernameSubmitted] = useState(false);
   const { login, loginWithPasskey, registerPasskey, loginWithGoogle } = useAuth();
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -516,6 +519,9 @@ const LoginPage: React.FC = () => {
         },
       }}
     >
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>
+        <LanguageSwitcher color="default" size="small" />
+      </Box>
       <Container className="auth-container" maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
         <Fade in timeout={800}>
           <Paper
@@ -549,7 +555,7 @@ const LoginPage: React.FC = () => {
                   backgroundClip: 'text',
                 }}
               >
-                Welcome
+                {t('login.title')}
               </Typography>
               {/* The hotel name is already the card's eyebrow (.auth-card::before,
                   fed by --auth-brand-eyebrow from the same settings), so it is

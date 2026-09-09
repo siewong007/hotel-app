@@ -71,7 +71,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
             exclusive
             value={locale}
             onChange={(_event, next) => next && setLocale(next as LegalLocale)}
-            aria-label="Document language"
+            aria-label={locale === 'ms' ? 'Bahasa dokumen' : 'Document language'}
           >
             {LEGAL_LOCALES.map((option) => (
               <ToggleButton key={option} value={option} sx={{ px: 1.5 }}>

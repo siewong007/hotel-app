@@ -70,6 +70,11 @@ pub struct CreateGuestBookingRequest {
     pub expected_total: Decimal,
     pub special_requests: Option<String>,
     pub cleaning_preference: Option<bool>,
+    /// Consent taken on the booking form. The Booking Terms and the Privacy
+    /// Notice are mandatory; the request is refused before any row is written
+    /// if either is missing, refused, or pinned to a superseded version.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
 }
 
 #[derive(Debug, Clone, Serialize)]

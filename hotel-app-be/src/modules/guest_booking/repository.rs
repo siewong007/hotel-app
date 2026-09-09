@@ -852,6 +852,7 @@ impl GuestBookingRepository {
     pub async fn insert_anonymous_guest_tx(
         tx: &mut DbTransaction<'_>,
         details: &ValidatedAnonymousGuest,
+        language_preference: &str,
     ) -> Result<i64, ApiError> {
         for attempt in 1u32..=50 {
             let full_name = disambiguated_full_name(&details.full_name, attempt);
@@ -861,8 +862,8 @@ impl GuestBookingRepository {
                 .map_err(ApiError::from)?;
             match sqlx::query_scalar(
                 r#"
-                    INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type)
-                    VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type)
+                    INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type, language_preference)
+                    VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type, $7)
                     RETURNING id
                 "#,
             )
@@ -872,6 +873,7 @@ impl GuestBookingRepository {
             .bind(details.email.as_str())
             .bind(details.phone.as_deref())
             .bind(details.tourism_type.as_str())
+            .bind(language_preference)
             .fetch_one(&mut **tx)
             .await
             {

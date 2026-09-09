@@ -350,18 +350,55 @@ pub async fn login(
 
 /// Authenticates a guest from a verified Google ID token. The credential is
 /// consumed only by Google verification and is never written to logs or audits.
+///
+/// Creating a new guest account requires the same Booking Terms + Privacy
+/// Notice consent as password registration. An existing Google session does not.
 pub async fn login_with_google(
     pool: &DbPool,
     credential: &str,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    marketing_opt_in: bool,
 ) -> Result<(AuthResponse, String), ApiError> {
     let identity = google_identity::verify_id_token(
         credential,
         crate::core::config::get().google_client_id.as_deref(),
     )
     .await?;
-    let user = AuthRepository::resolve_google_guest(pool, &identity).await?;
+    let consent_context = ConsentContext {
+        ip_address: ip_address.map(str::to_string),
+        user_agent: user_agent.map(str::to_string),
+    };
+    let language_preference = consent_validation::preferred_locale(consents);
+    let new_account = if consents.is_empty() {
+        None
+    } else {
+        consent_validation::validate_locales(consents)?;
+        consent_validation::require_consents(consents, consent_validation::REGISTRATION_REQUIRED)?;
+        Some(crate::repositories::auth::NewGoogleAccountConsent {
+            consents,
+            context: &consent_context,
+            language_preference: &language_preference,
+        })
+    };
+    let resolution =
+        AuthRepository::resolve_google_guest(pool, &identity, new_account.as_ref()).await?;
+    let user = resolution.user;
+    if resolution.created
+        && let Some(guest_id) = resolution.guest_id
+    {
+        communications_service::record_signup_marketing_consent(
+            pool,
+            guest_id,
+            marketing_opt_in,
+            "registration",
+            Some(ConsentDocument::PrivacyNotice.current_version()),
+            consent_context.ip_address.clone(),
+            consent_context.user_agent.clone(),
+        )
+        .await?;
+    }
 
     ensure_not_locked(pool, user.id, &user.username, ip_address, user_agent).await?;
     let _ = AuthRepository::reset_login_attempts(pool, user.id).await;
@@ -592,16 +629,20 @@ pub async fn register(
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
-    let (guest, user) = AuthRepository::register_guest_user(pool, &req, &password_hash).await?;
-
-    consent_service::record(
-        pool,
+    let language_preference = consent_validation::preferred_locale(&req.consents);
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let (guest, user) =
+        AuthRepository::register_guest_user(&mut tx, &req, &password_hash, &language_preference)
+            .await?;
+    consent_service::record_tx(
+        &mut tx,
         ConsentSubject::user(user.id).with_guest(guest.id),
         &req.consents,
         ConsentSource::Registration,
         consent_context,
     )
     .await?;
+    tx.commit().await.map_err(ApiError::from)?;
 
     // Marketing goes to the notification consent ledger, which owns the
     // unsubscribe link. A refusal is recorded there explicitly rather than left

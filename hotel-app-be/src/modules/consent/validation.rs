@@ -79,6 +79,20 @@ pub fn validate_locales(submitted: &[ConsentAcceptance]) -> Result<(), ApiError>
     Ok(())
 }
 
+/// The language the guest actually read the notices in.
+///
+/// Stored on `guests.language_preference` so later mail (booking confirmation,
+/// payment receipts) matches the notice they accepted, rather than the column
+/// default of `en`.
+pub fn preferred_locale(submitted: &[ConsentAcceptance]) -> String {
+    submitted
+        .iter()
+        .map(|entry| entry.locale.as_str())
+        .find(|locale| *locale == "en" || *locale == "ms")
+        .unwrap_or("en")
+        .to_string()
+}
+
 fn human_name(document: ConsentDocument) -> &'static str {
     match document {
         ConsentDocument::TermsOfService => "Booking Terms and Conditions",
@@ -151,6 +165,14 @@ mod tests {
         let mut entry = accept(ConsentDocument::TermsOfService, true);
         entry.locale = "fr".to_string();
         assert!(validate_locales(&[entry]).is_err());
+    }
+
+    #[test]
+    fn preferred_locale_follows_the_notice_the_guest_read() {
+        let mut malay = accept(ConsentDocument::TermsOfService, true);
+        malay.locale = "ms".to_string();
+        assert_eq!(preferred_locale(&[malay]), "ms");
+        assert_eq!(preferred_locale(&[]), "en");
     }
 
     #[test]
