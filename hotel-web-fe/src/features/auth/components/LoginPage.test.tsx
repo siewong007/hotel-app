@@ -87,11 +87,12 @@ function renderPage() {
 describe('LoginPage username lookup gate', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
-    // Take the Apple WebKit branch so Next opens the password step without
-    // depending on jsdom WebAuthn / PublicKeyCredential quirks.
-    Object.defineProperty(navigator, 'vendor', {
+    // Ensure WebAuthn is present so Next attempts passkey after a successful
+    // lookup; tests control the outcome via loginWithPasskey.
+    Object.defineProperty(window, 'PublicKeyCredential', {
       configurable: true,
-      value: 'Apple Computer, Inc.',
+      writable: true,
+      value: function PublicKeyCredential() {},
     });
     mocks.navigate.mockReset();
     mocks.lookupLoginIdentifier.mockReset();
@@ -109,6 +110,8 @@ describe('LoginPage username lookup gate', () => {
 
   it('shows the password step only after lookup confirms the account exists', async () => {
     mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
+    // Passkey unavailable → LoginPage falls through to the password field.
+    mocks.loginWithPasskey.mockRejectedValue(new Error('no credentials available'));
     renderPage();
 
     fireEvent.change(screen.getByLabelText(/Username or Email/i), {
@@ -136,5 +139,6 @@ describe('LoginPage username lookup gate', () => {
       await screen.findByText('No account found with that username or email')
     ).toBeTruthy();
     expect(screen.queryByLabelText(/^Password$/i)).toBeNull();
+    expect(mocks.loginWithPasskey).not.toHaveBeenCalled();
   });
 });
