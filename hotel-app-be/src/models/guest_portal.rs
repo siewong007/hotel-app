@@ -101,6 +101,12 @@ pub struct GuestPortalBookingResponse {
     pub booking: GuestPortalBookingView,
     pub guest: GuestPortalGuestView,
     pub ekyc_summary: GuestEkycStatusSummary,
+    /// Outstanding bank-transfer receipt request, if staff require proof.
+    /// Same fields the signed-in dashboard already exposes; the token flow
+    /// needs them so an anonymous booker can upload without an account.
+    pub receipt_request_payment_id: Option<i64>,
+    pub receipt_request_message: Option<String>,
+    pub receipt_uploaded: bool,
 }
 
 // ============================================================================

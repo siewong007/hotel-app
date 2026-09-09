@@ -1,6 +1,7 @@
 //! Guest portal data access
 
 use chrono::{DateTime, Utc};
+use sqlx::Row;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -47,6 +48,48 @@ impl GuestPortalRepository {
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))?;
         Ok(row.as_ref().map(row_mappers::row_to_booking))
+    }
+
+    /// Outstanding receipt request for a token-authenticated booking.
+    pub async fn find_booking_receipt_request(
+        pool: &DbPool,
+        booking_id: i64,
+    ) -> Result<(Option<i64>, Option<String>, bool), ApiError> {
+        let row = sqlx::query(
+            r#"
+                SELECT
+                    (SELECT p.id FROM payments p
+                        JOIN payment_receipt_requests pr ON pr.payment_id = p.id
+                        WHERE p.booking_id = $1 AND p.status = 'pending'
+                          AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL
+                        ORDER BY pr.requested_at DESC, p.id DESC LIMIT 1)
+                        AS receipt_request_payment_id,
+                    (SELECT pr.request_message FROM payments p
+                        JOIN payment_receipt_requests pr ON pr.payment_id = p.id
+                        WHERE p.booking_id = $1 AND p.status = 'pending' AND pr.uploaded_at IS NULL
+                        ORDER BY pr.requested_at DESC LIMIT 1)
+                        AS receipt_request_message,
+                    EXISTS(
+                        SELECT 1 FROM payments p
+                        JOIN payment_receipt_requests pr ON pr.payment_id = p.id
+                        WHERE p.booking_id = $1 AND p.status = 'pending'
+                          AND pr.uploaded_at IS NOT NULL
+                    ) AS receipt_uploaded
+            "#,
+        )
+        .bind(booking_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to fetch receipt request: {e}")))?;
+        Ok((
+            row.try_get::<Option<i64>, _>("receipt_request_payment_id")
+                .ok()
+                .flatten(),
+            row.try_get::<Option<String>, _>("receipt_request_message")
+                .ok()
+                .flatten(),
+            row.try_get::<bool, _>("receipt_uploaded").unwrap_or(false),
+        ))
     }
 
     pub async fn find_booking_by_id(pool: &DbPool, booking_id: i64) -> Result<Booking, ApiError> {

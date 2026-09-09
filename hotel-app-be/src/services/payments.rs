@@ -1799,6 +1799,7 @@ pub async fn request_payment_receipt(
         pool,
         review.guest_id,
         review.guest_name.as_deref(),
+        review.booking_id,
         review.booking_number.as_deref(),
         payment_id,
         message,
@@ -1807,11 +1808,104 @@ pub async fn request_payment_receipt(
     Ok(())
 }
 
+/// Branded receipt-request mail. Signed-in guests keep the portal CTA;
+/// anonymous bookers get a booking-scoped upload link because they have no
+/// account to sign in with.
+fn receipt_request_mail(
+    guest_name: &str,
+    booking: &str,
+    message: &str,
+    access_token: Option<&str>,
+) -> (String, String, String) {
+    let hotel = email_layout::hotel_display_name();
+    let subject = format!("Receipt requested · {hotel} {booking}");
+    let cta_url = match access_token
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(token) => email_layout::absolute_url(&format!("/guest-checkin/form?token={token}")),
+        None => email_layout::absolute_url("/portal"),
+    };
+    let cta_label = if access_token
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_some()
+    {
+        "Upload receipt"
+    } else {
+        "Open guest portal"
+    };
+    let inner_html = format!(
+        "<p>Dear {},</p><p>Please upload your bank-transfer receipt for booking <strong>{}</strong> within 24 hours.</p><p>{}</p>",
+        html_escape(guest_name),
+        html_escape(booking),
+        html_escape(message)
+    );
+    let inner_text = format!(
+        "Dear {guest_name},\nPlease upload your bank-transfer receipt for booking {booking} within 24 hours.\n{message}",
+    );
+    let rendered = email_layout::render(GuestEmail {
+        preheader: &format!(
+            "Please upload your transfer receipt for {hotel} reservation {booking}."
+        ),
+        heading: "Receipt needed",
+        inner_html: &inner_html,
+        inner_text: &inner_text,
+        cta: Some(Cta {
+            label: cta_label,
+            url: &cta_url,
+        }),
+    });
+    (subject, rendered.html, rendered.text)
+}
+
+/// Mint a fresh booking access token when this guest has no portal account.
+/// The original Complete-payment token is stored hashed, so a later receipt
+/// request cannot reuse it — reissuing is the same move anonymous create uses.
+async fn issue_anonymous_receipt_upload_token(
+    pool: &DbPool,
+    guest_id: i64,
+    booking_id: i64,
+) -> Option<String> {
+    match crate::repositories::guest_portal_session::GuestPortalSessionRepository::find_guest_user_id(
+        pool, guest_id,
+    )
+    .await
+    {
+        Ok(None) => {}
+        Ok(Some(_)) => return None,
+        Err(error) => {
+            log::error!("Failed to resolve portal account for receipt request: {error}");
+            return None;
+        }
+    }
+    let booking = match GuestPortalRepository::find_booking_by_id(pool, booking_id).await {
+        Ok(booking) => booking,
+        Err(error) => {
+            log::error!("Failed to load booking {booking_id} for receipt-upload token: {error}");
+            return None;
+        }
+    };
+    let token = crate::services::guest_portal::generate_session_token();
+    let expires_at = crate::modules::guest_booking::service::anonymous_access_token_expiry(
+        chrono::Utc::now(),
+        booking.check_in_date,
+    );
+    if let Err(error) =
+        GuestPortalRepository::update_precheckin_token(pool, booking_id, &token, expires_at).await
+    {
+        log::error!("Failed to issue receipt-upload token for booking {booking_id}: {error}");
+        return None;
+    }
+    Some(token)
+}
+
 /// Notify the guest each time staff request or re-request proof of a bank transfer.
 async fn queue_payment_receipt_request_notification(
     pool: &DbPool,
     guest_id: Option<i64>,
     guest_name: Option<&str>,
+    booking_id: i64,
     booking_number: Option<&str>,
     payment_id: i64,
     message: Option<&str>,
@@ -1828,33 +1922,13 @@ async fn queue_payment_receipt_request_notification(
     let booking = booking_number.unwrap_or("your booking");
     let message =
         message.unwrap_or("Please upload a clear receipt showing the transfer reference and date.");
-    let hotel = email_layout::hotel_display_name();
-    let subject = format!("Receipt requested · {hotel} {booking}");
-    let portal = email_layout::absolute_url("/portal");
-    let inner_html = format!(
-        "<p>Dear {},</p><p>Please upload your bank-transfer receipt for booking <strong>{}</strong> within 24 hours.</p><p>{}</p>",
-        html_escape(guest_name.unwrap_or("Guest")),
-        html_escape(booking),
-        html_escape(message)
-    );
-    let inner_text = format!(
-        "Dear {},\nPlease upload your bank-transfer receipt for booking {booking} within 24 hours.\n{message}",
+    let access_token = issue_anonymous_receipt_upload_token(pool, guest_id, booking_id).await;
+    let (subject, body_html, body_text) = receipt_request_mail(
         guest_name.unwrap_or("Guest"),
+        booking,
+        message,
+        access_token.as_deref(),
     );
-    let rendered = email_layout::render(GuestEmail {
-        preheader: &format!(
-            "Please upload your transfer receipt for {hotel} reservation {booking}."
-        ),
-        heading: "Receipt needed",
-        inner_html: &inner_html,
-        inner_text: &inner_text,
-        cta: Some(Cta {
-            label: "Open guest portal",
-            url: &portal,
-        }),
-    });
-    let body_html = rendered.html;
-    let body_text = rendered.text;
     let mut tx = match pool.begin().await {
         Ok(tx) => tx,
         Err(error) => {
@@ -2323,6 +2397,52 @@ pub async fn load_payment_receipt(
     let bytes = fs::read(path)
         .map_err(|_| ApiError::NotFound("Receipt file is unavailable.".to_string()))?;
     Ok((bytes, receipt.content_type))
+}
+
+#[cfg(test)]
+mod receipt_request_mail_tests {
+    use super::receipt_request_mail;
+
+    #[test]
+    fn signed_in_guest_is_sent_to_the_guest_portal() {
+        unsafe {
+            std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my");
+            std::env::set_var("SMTP_FROM_NAME", "Salim Inn");
+        }
+        let (subject, html, text) = receipt_request_mail(
+            "zz",
+            "BK-20260910-a3a2579f",
+            "Please upload a clear receipt showing the transfer reference and date.",
+            None,
+        );
+        assert!(subject.contains("Receipt requested"));
+        assert!(html.contains("Receipt needed"));
+        assert!(html.contains("Open guest portal"));
+        assert!(html.contains("https://saliminn.my/portal"));
+        assert!(!html.contains("/guest-checkin/form"));
+        assert!(text.contains("Open guest portal"));
+    }
+
+    #[test]
+    fn anonymous_guest_is_sent_a_booking_token_upload_link() {
+        unsafe {
+            std::env::set_var("PUBLIC_BASE_URL", "https://saliminn.my");
+            std::env::set_var("SMTP_FROM_NAME", "Salim Inn");
+        }
+        let (subject, html, text) = receipt_request_mail(
+            "zz",
+            "BK-20260910-a3a2579f",
+            "Please upload a clear receipt showing the transfer reference and date.",
+            Some("deadbeefcafebabe"),
+        );
+        assert!(subject.contains("BK-20260910-a3a2579f"));
+        assert!(html.contains("Upload receipt"));
+        assert!(html.contains("https://saliminn.my/guest-checkin/form?token=deadbeefcafebabe"));
+        assert!(!html.contains("Open guest portal"));
+        assert!(!html.contains("https://saliminn.my/portal\""));
+        assert!(text.contains("Upload receipt"));
+        assert!(text.contains("/guest-checkin/form?token=deadbeefcafebabe"));
+    }
 }
 
 #[cfg(test)]

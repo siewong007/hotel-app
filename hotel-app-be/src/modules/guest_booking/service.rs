@@ -69,7 +69,7 @@ fn is_foreign_tourist(tourism_type: &str) -> bool {
     tourism_type.eq_ignore_ascii_case("foreign")
 }
 
-fn anonymous_token_expiry(
+pub(crate) fn anonymous_access_token_expiry(
     now: chrono::DateTime<chrono::Utc>,
     check_in: NaiveDate,
 ) -> chrono::DateTime<chrono::Utc> {
@@ -88,14 +88,14 @@ fn anonymous_token_expiry(
 /// a retry cannot extend the unpaid hold; recompute only when the stored
 /// value is missing or already past (the token is hashed at rest, so retry
 /// always mints a new plaintext token).
-fn replay_anonymous_token_expiry(
+fn replay_anonymous_access_token_expiry(
     now: chrono::DateTime<chrono::Utc>,
     check_in: NaiveDate,
     stored_expiry: Option<chrono::DateTime<chrono::Utc>>,
 ) -> chrono::DateTime<chrono::Utc> {
     match stored_expiry {
         Some(expiry) if expiry > now => expiry,
-        _ => anonymous_token_expiry(now, check_in),
+        _ => anonymous_access_token_expiry(now, check_in),
     }
 }
 
@@ -924,7 +924,7 @@ pub async fn create_anonymous(
         Repository::find_anonymous_by_request_id(pool, &request_id, &guest.email).await?
     {
         let access_token = crate::services::guest_portal::generate_session_token();
-        let access_token_expires_at = replay_anonymous_token_expiry(
+        let access_token_expires_at = replay_anonymous_access_token_expiry(
             chrono::Utc::now(),
             existing.check_in_date,
             existing.access_token_expires_at,
@@ -984,7 +984,8 @@ pub async fn create_anonymous(
     let booking_number =
         crate::services::booking::generate_booking_number_for_date(quote.check_in_date);
     let access_token = crate::services::guest_portal::generate_session_token();
-    let access_token_expires_at = anonymous_token_expiry(chrono::Utc::now(), quote.check_in_date);
+    let access_token_expires_at =
+        anonymous_access_token_expiry(chrono::Utc::now(), quote.check_in_date);
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     Repository::ensure_online_room_available_tx(
@@ -1358,7 +1359,7 @@ mod tourism_tax_tests {
 }
 
 #[cfg(test)]
-mod anonymous_token_expiry_tests {
+mod anonymous_access_token_expiry_tests {
     use super::*;
 
     fn at(date: &str) -> chrono::DateTime<chrono::Utc> {
@@ -1376,7 +1377,7 @@ mod anonymous_token_expiry_tests {
     #[test]
     fn near_stay_keeps_the_flat_minimum() {
         // Arrival is soon, so 14 days already outlasts the verify window.
-        let expiry = anonymous_token_expiry(at("2026-09-05"), day("2026-09-10"));
+        let expiry = anonymous_access_token_expiry(at("2026-09-05"), day("2026-09-10"));
         assert_eq!(expiry, at("2026-09-05") + Duration::days(14));
     }
 
@@ -1384,7 +1385,7 @@ mod anonymous_token_expiry_tests {
     fn distant_stay_holds_until_verify_can_reissue() {
         // Booked three months out: the token must survive until verify opens,
         // or the guest has no way to pay in between.
-        let expiry = anonymous_token_expiry(at("2026-09-05"), day("2026-12-01"));
+        let expiry = anonymous_access_token_expiry(at("2026-09-05"), day("2026-12-01"));
         assert_eq!(
             expiry,
             day("2026-11-24").and_hms_opt(0, 0, 0).unwrap().and_utc()
@@ -1396,7 +1397,7 @@ mod anonymous_token_expiry_tests {
         let now = at("2026-09-05");
         for offset in [0_i64, 1, 7, 13, 14, 15, 30, 90] {
             let check_in = day("2026-09-05") + Duration::days(offset);
-            let expiry = anonymous_token_expiry(now, check_in);
+            let expiry = anonymous_access_token_expiry(now, check_in);
             let verify_opens = check_in.and_hms_opt(0, 0, 0).unwrap().and_utc()
                 - Duration::days(VERIFY_REISSUE_WINDOW_DAYS);
             assert!(
@@ -1412,7 +1413,7 @@ mod anonymous_token_expiry_tests {
         let now = at("2026-09-05");
         let stored = now + Duration::days(20);
         assert_eq!(
-            replay_anonymous_token_expiry(now, day("2026-12-01"), Some(stored)),
+            replay_anonymous_access_token_expiry(now, day("2026-12-01"), Some(stored)),
             stored
         );
     }
@@ -1421,10 +1422,13 @@ mod anonymous_token_expiry_tests {
     fn idempotent_retry_recomputes_when_the_stored_deadline_is_gone_or_past() {
         let now = at("2026-09-05");
         let check_in = day("2026-12-01");
-        let expected = anonymous_token_expiry(now, check_in);
-        assert_eq!(replay_anonymous_token_expiry(now, check_in, None), expected);
+        let expected = anonymous_access_token_expiry(now, check_in);
         assert_eq!(
-            replay_anonymous_token_expiry(now, check_in, Some(now - Duration::seconds(1))),
+            replay_anonymous_access_token_expiry(now, check_in, None),
+            expected
+        );
+        assert_eq!(
+            replay_anonymous_access_token_expiry(now, check_in, Some(now - Duration::seconds(1))),
             expected
         );
     }

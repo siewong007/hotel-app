@@ -8,6 +8,7 @@ import {
   Box,
   Alert,
   CircularProgress,
+  Stack,
 } from '@mui/material';
 import { GuestPortalService } from '../../../api';
 import { Booking, Guest } from '../../../types';
@@ -28,12 +29,22 @@ export const GuestCheckInForm: React.FC = () => {
   const [guest, setGuest] = useState<Guest | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [receiptRequestPaymentId, setReceiptRequestPaymentId] = useState<number | null>(null);
+  const [receiptRequestMessage, setReceiptRequestMessage] = useState<string | null>(null);
+  const [receiptAlreadyUploaded, setReceiptAlreadyUploaded] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptUploadError, setReceiptUploadError] = useState<string | null>(null);
+  const [receiptSubmitted, setReceiptSubmitted] = useState(false);
 
   const loadBookingData = useCallback(async () => {
     try {
       const response = await GuestPortalService.getBooking(token!);
       setBooking(response.booking);
       setGuest(response.guest);
+      setReceiptRequestPaymentId(response.receipt_request_payment_id ?? null);
+      setReceiptRequestMessage(response.receipt_request_message ?? null);
+      setReceiptAlreadyUploaded(Boolean(response.receipt_uploaded));
     } catch (err) {
       setError(errorMessage(err, 'Failed to load booking'));
     } finally {
@@ -86,19 +97,49 @@ export const GuestCheckInForm: React.FC = () => {
     );
   }
 
-  const showPayment = Boolean(token && needsOnlinePayment(booking?.status));
+  const needsReceipt =
+    Boolean(receiptRequestPaymentId) && !receiptAlreadyUploaded && !receiptSubmitted;
+  const showPayment =
+    Boolean(token && needsOnlinePayment(booking?.status))
+    && !needsReceipt
+    && !receiptSubmitted
+    && !receiptAlreadyUploaded;
+
+  const handleReceiptUpload = async () => {
+    if (!token || !receiptRequestPaymentId || !receiptFile) return;
+    setReceiptUploading(true);
+    setReceiptUploadError(null);
+    try {
+      await GuestPortalService.uploadPaymentReceipt(token, receiptRequestPaymentId, receiptFile);
+      setReceiptSubmitted(true);
+      setReceiptFile(null);
+    } catch (err) {
+      setReceiptUploadError(errorMessage(err, 'Unable to upload your receipt.'));
+    } finally {
+      setReceiptUploading(false);
+    }
+  };
+
+  const heading = needsReceipt
+    ? 'Upload your receipt'
+    : showPayment
+      ? 'Complete your payment'
+      : 'Your booking';
+  const subtitle = needsReceipt
+    ? 'Our team has requested your bank-transfer receipt. Please submit it within 24 hours to avoid automatic rejection of this payment.'
+    : showPayment
+      ? 'Pay securely to confirm your reservation. No extra personal details are required.'
+      : 'Payment is not required for this booking right now.';
 
   return (
     <Container maxWidth="md" sx={{ mt: 8, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            {showPayment ? 'Complete your payment' : 'Your booking'}
+            {heading}
           </Typography>
           <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {showPayment
-              ? 'Pay securely to confirm your reservation. No extra personal details are required.'
-              : 'Payment is not required for this booking right now.'}
+            {subtitle}
           </Typography>
         </Box>
 
@@ -146,7 +187,60 @@ export const GuestCheckInForm: React.FC = () => {
           </Paper>
         )}
 
-        {!showPayment && (
+        {needsReceipt ? (
+          <Box sx={{ mb: 3 }}>
+            {receiptRequestMessage ? (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {receiptRequestMessage}
+              </Alert>
+            ) : null}
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Upload payment receipt
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+              Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
+            </Typography>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              sx={{ alignItems: { sm: 'center' } }}
+            >
+              <Button component="label" variant="outlined" disabled={receiptUploading}>
+                {receiptFile ? receiptFile.name : 'Choose receipt file'}
+                <input
+                  hidden
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  aria-label="Select receipt file"
+                  onChange={(event) => {
+                    setReceiptUploadError(null);
+                    setReceiptFile(event.target.files?.[0] ?? null);
+                  }}
+                />
+              </Button>
+              <Button
+                variant="contained"
+                disabled={!receiptFile || receiptUploading}
+                onClick={() => void handleReceiptUpload()}
+              >
+                {receiptUploading ? 'Uploading…' : 'Upload receipt'}
+              </Button>
+            </Stack>
+            {receiptUploadError ? (
+              <Alert severity="error" sx={{ mt: 1 }}>
+                {receiptUploadError}
+              </Alert>
+            ) : null}
+          </Box>
+        ) : null}
+
+        {receiptSubmitted || receiptAlreadyUploaded ? (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            Your receipt has been submitted and is pending confirmation from our team.
+          </Alert>
+        ) : null}
+
+        {!showPayment && !needsReceipt && !receiptSubmitted && !receiptAlreadyUploaded && (
           <Alert severity="info" sx={{ mb: 3 }}>
             Online pre-check-in is no longer part of this flow. Please complete
             any remaining details with the hotel at arrival if needed.

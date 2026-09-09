@@ -28,6 +28,9 @@ export class GuestPortalService {
   static async getBooking(token: string): Promise<{
     booking: Booking;
     guest: Guest;
+    receipt_request_payment_id?: number | null;
+    receipt_request_message?: string | null;
+    receipt_uploaded?: boolean;
   }> {
     return await api.get('guest-portal/booking', { headers: bookingTokenHeaders(token) }).json();
   }

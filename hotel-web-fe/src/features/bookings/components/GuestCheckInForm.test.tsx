@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   setSearchParams: vi.fn(),
   searchParams: new URLSearchParams(),
   getBooking: vi.fn(),
+  uploadPaymentReceipt: vi.fn(),
   captureBookingAccessToken: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock('../../../router', () => ({
 vi.mock('../../../api', () => ({
   GuestPortalService: {
     getBooking: (...args: unknown[]) => mocks.getBooking(...args),
+    uploadPaymentReceipt: (...args: unknown[]) => mocks.uploadPaymentReceipt(...args),
   },
 }));
 
@@ -37,6 +39,7 @@ describe('GuestCheckInForm', () => {
     mocks.navigate.mockReset();
     mocks.setSearchParams.mockReset();
     mocks.getBooking.mockReset();
+    mocks.uploadPaymentReceipt.mockReset();
     mocks.captureBookingAccessToken.mockReset();
     mocks.searchParams = new URLSearchParams();
     mocks.captureBookingAccessToken.mockReturnValue('tok-abc');
@@ -92,6 +95,43 @@ describe('GuestCheckInForm', () => {
     expect(screen.queryByTestId('guest-payment-panel')).toBeNull();
     expect(
       screen.getByText(/Online pre-check-in is no longer part of this flow/i)
+    ).toBeTruthy();
+  });
+
+  it('lets an anonymous booker upload a requested bank-transfer receipt without signing in', async () => {
+    mocks.getBooking.mockResolvedValue({
+      booking: {
+        id: 11,
+        booking_number: 'BK-20260910-a3a2579f',
+        status: 'pending_payment',
+        check_in_date: '2026-09-10',
+        check_out_date: '2026-09-11',
+      },
+      guest: { id: 8, full_name: 'zz' },
+      receipt_request_payment_id: 42,
+      receipt_request_message: 'Please upload a clear receipt showing the transfer reference and date.',
+      receipt_uploaded: false,
+    });
+    mocks.uploadPaymentReceipt.mockResolvedValue(undefined);
+
+    render(<GuestCheckInForm />);
+
+    expect(await screen.findByRole('heading', { name: 'Upload your receipt' })).toBeTruthy();
+    expect(screen.getByText(/BK-20260910-a3a2579f/)).toBeTruthy();
+    expect(
+      screen.getByText(/Please upload a clear receipt showing the transfer reference and date/)
+    ).toBeTruthy();
+    expect(screen.queryByTestId('guest-payment-panel')).toBeNull();
+
+    const file = new File(['receipt'], 'transfer.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Select receipt file'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload receipt' }));
+
+    await waitFor(() => {
+      expect(mocks.uploadPaymentReceipt).toHaveBeenCalledWith('tok-abc', 42, file);
+    });
+    expect(
+      await screen.findByText('Your receipt has been submitted and is pending confirmation from our team.')
     ).toBeTruthy();
   });
 

@@ -244,10 +244,16 @@ async fn portal_response(
     let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
     let ekyc_summary = auto_checkin::auto_checkin_eligibility(pool, booking.id).await?;
 
+    let (receipt_request_payment_id, receipt_request_message, receipt_uploaded) =
+        GuestPortalRepository::find_booking_receipt_request(pool, booking.id).await?;
+
     Ok(GuestPortalBookingResponse {
         booking: booking.into(),
         guest: guest.into(),
         ekyc_summary,
+        receipt_request_payment_id,
+        receipt_request_message,
+        receipt_uploaded,
     })
 }
 
