@@ -302,7 +302,7 @@ mod postgres_tests {
     }
 
     #[tokio::test]
-    async fn postgres_anonymous_guest_insert_retries_when_the_name_is_taken() {
+    async fn postgres_anonymous_guest_insert_fails_when_the_nickname_is_taken() {
         let Some(pool) = pool().await else {
             return;
         };
