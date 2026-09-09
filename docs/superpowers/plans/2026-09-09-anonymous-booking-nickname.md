@@ -1,6 +1,6 @@
 # Anonymous Booking Nickname Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Anonymous bookers enter a unique nickname stored in `guests.nick_name` (renamed from `full_name`); a taken name returns 409 `guest_name_taken` instead of `Name (2)`; staff enter legal first/last at check-in without changing `nick_name`.
 
@@ -49,7 +49,7 @@
 - Consumes: existing `ApiError` / `IntoResponse`
 - Produces: `ApiError::GuestNameTaken` → HTTP 409 `{ "error": "This nickname is already used. Please choose another.", "code": "guest_name_taken" }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add at the bottom of `error.rs`:
 
@@ -74,13 +74,13 @@ mod guest_name_taken_tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd hotel-app-be && cargo test --lib guest_name_taken_is_conflict_with_stable_code -- --nocapture`
 
 Expected: compile error `no variant named GuestNameTaken`
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Add variant `GuestNameTaken` (no payload). Display: `Conflict: nickname taken`. In `IntoResponse` status map: 409 + polished message `"This nickname is already used. Please choose another."`. After the `ProfileIncomplete` special body, handle:
 
@@ -96,13 +96,13 @@ if let ApiError::GuestNameTaken = &self {
 
 Match `GuestNameTaken` in `Display` and the status `match`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd hotel-app-be && cargo test --lib guest_name_taken_is_conflict_with_stable_code`
 
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add hotel-app-be/src/core/error.rs
@@ -124,7 +124,7 @@ git commit -m "feat(api): return 409 guest_name_taken for duplicate nicknames"
 - Consumes: `ValidatedAnonymousGuest { nick_name: String, first_name: String, last_name: Option<String>, ... }`
 - Produces: `insert_anonymous_guest_tx` inserts `nick_name` once; on unique violation rolls SAVEPOINT and returns `ApiError::GuestNameTaken`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace `anonymous_guest_name_tests` so the suffix helper is gone and insert is expected to fail when taken. Change postgres test `postgres_anonymous_guest_insert_retries_when_the_name_is_taken` to:
 
@@ -161,13 +161,13 @@ fn anonymous_guest_uses_first_name_as_nickname_without_last_name() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `cd hotel-app-be && cargo test --lib anonymous_guest_uses_first_name_as_nickname_without_last_name`
 
 Expected: FAIL — `nick_name` not on struct / last_name still Some / `disambiguated_full_name` still present.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 - Rename `ValidatedAnonymousGuest.full_name` → `nick_name`. Always `nick_name = first_name`; ignore/drop last_name (treat blank as None). Validation error for empty first_name: `"Please enter a nickname"`.
 - Delete `disambiguated_full_name` and the 1..=50 loop.
@@ -178,7 +178,7 @@ Keep using column name `full_name` in SQL **until Task 3** if the rename is not 
 
 **Order lock:** implement Task 3 schema first if insert SQL cannot compile against `nick_name` yet. If executing in order, Task 2 SQL still says `full_name` and Task 3 switches the identifier.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd hotel-app-be && cargo test --lib anonymous_guest_uses_first_name -- --nocapture`
 
@@ -186,7 +186,7 @@ If `DATABASE_URL` is set: `cargo test --all-features postgres_anonymous_guest_in
 
 Expected: unit PASS; postgres test PASS when DB available (fail-closed if it still writes `(2)`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(guest-booking): reject duplicate anonymous nicknames instead of suffixing"
@@ -207,17 +207,17 @@ git commit -m "fix(guest-booking): reject duplicate anonymous nicknames instead 
 **Interfaces:**
 - Produces: live DBs rename column/indexes; fresh installs already have `nick_name`
 
-- [ ] **Step 1: Write the failing catalog assertion**
+- [x] **Step 1: Write the failing catalog assertion**
 
 In `postgres_patch_catalog.rs` after the ordered-windows check, assert the last entry is version 11 / `guest-nick-name` / `0011_guest_nick_name.sql`. Checksum can be filled after the file exists; first run should fail “manifest last version is 10”.
 
-- [ ] **Step 2: Run to verify fail**
+- [x] **Step 2: Run to verify fail**
 
 Run: `cd hotel-app-be && cargo test --test postgres_patch_catalog postgres_patch_manifest_is_ordered -- --nocapture`
 
 Expected: FAIL last version != 11
 
-- [ ] **Step 3: Schema + patch**
+- [x] **Step 3: Schema + patch**
 
 Baseline: rename column and indexes (`idx_guests_nick_name`, `idx_guests_nick_name_trgm`, `idx_guests_nick_name_unique`). Update `CREATE VIEW booking_summary` to `g.nick_name AS guest_name`. Update AGE `PROPERTIES` list.
 
@@ -256,13 +256,13 @@ Recompute V1 baseline file sha256 the same way; replace `sha256:1149266ee7cc6ae8
 
 Run `make prepare-desktop` (uses `sync-desktop-resources.mjs`) so `hotel-desktop/src-tauri/database/postgres/` matches the backend. Do not hand-edit those copies.
 
-- [ ] **Step 4: Run catalog tests**
+- [x] **Step 4: Run catalog tests**
 
 Run: `cd hotel-app-be && cargo test --test postgres_patch_catalog -- --nocapture`
 
 Expected: PASS (checksums match, last patch 11)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(db): rename guests.full_name to nick_name"
@@ -280,7 +280,7 @@ git commit -m "feat(db): rename guests.full_name to nick_name"
 **Interfaces:**
 - Produces: `Guest.nick_name: String`; `GuestRepository::nick_name_conflict_id`; staff create still sets `nick_name` from first + last
 
-- [ ] **Step 1: Write a failing compile/test probe**
+- [x] **Step 1: Write a failing compile/test probe**
 
 Change `guests_rates_loyalty.rs` fixture SQL from `INSERT INTO guests (id, full_name, ...)` to `nick_name` first if Task 3 landed; or add:
 
@@ -290,11 +290,11 @@ assert!(sqlx::query_scalar::<_, String>("SELECT nick_name FROM guests WHERE id =
 
 in an existing postgres test that currently selects `full_name`.
 
-- [ ] **Step 2: Run to fail**
+- [x] **Step 2: Run to fail**
 
 Run a focused guests test; expect SQL/column errors until rename is complete.
 
-- [ ] **Step 3: Rename mechanically**
+- [x] **Step 3: Rename mechanically**
 
 - Struct fields on guest domain types: `full_name` → `nick_name` (serde JSON `nick_name`).
 - SQL against `guests`: column `nick_name`.
@@ -304,13 +304,13 @@ Run a focused guests test; expect SQL/column errors until rename is complete.
 - Test fixtures: `INSERT INTO guests (..., nick_name, ...)`.
 - Leave `users.full_name` and `ekyc_verifications.full_name` untouched (verify with `rg 'users \(.*full_name'` vs `guests \(.*full_name'`).
 
-- [ ] **Step 4: Compile**
+- [x] **Step 4: Compile**
 
 Run: `cd hotel-app-be && cargo check --all-features && cargo test --lib --offline` (skip offline if needed)
 
 Expected: check passes. Lib tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "refactor(guests): rename guest identifier field to nick_name"
@@ -328,15 +328,15 @@ git commit -m "refactor(guests): rename guest identifier field to nick_name"
 **Interfaces:**
 - Produces: `Guest { nick_name, first_name: Option<String>, last_name: Option<String>, ... }`
 
-- [ ] **Step 1: Failing frontend type usage in check-in test** (can land with Task 7). Backend: add a unit/integration read that `find_by_id` returns `last_name`.
+- [x] **Step 1: Failing frontend type usage in check-in test** (can land with Task 7). Backend: add a unit/integration read that `find_by_id` returns `last_name`.
 
-- [ ] **Step 2: Run to fail** — missing fields on `Guest`.
+- [x] **Step 2: Run to fail** — missing fields on `Guest`.
 
-- [ ] **Step 3: Add columns to `Guest` and every matching SELECT (`first_name`, `last_name`). serde: include them. Frontend `Guest` type: `nick_name: string; first_name?: string | null; last_name?: string | null`.
+- [x] **Step 3: Add columns to `Guest` and every matching SELECT (`first_name`, `last_name`). serde: include them. Frontend `Guest` type: `nick_name: string; first_name?: string | null; last_name?: string | null`.
 
-- [ ] **Step 4: `cargo check --all-features`**
+- [x] **Step 4: `cargo check --all-features`**
 
-- [ ] **Step 5: Commit** `feat(guests): return first_name and last_name on guest payloads`
+- [x] **Step 5: Commit** `feat(guests): return first_name and last_name on guest payloads`
 
 ---
 
@@ -352,7 +352,7 @@ git commit -m "refactor(guests): rename guest identifier field to nick_name"
 - Consumes: 409 `{ code: "guest_name_taken" }`
 - Produces: Nickname field; create body `guest.first_name` only
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Update existing “First name” queries to Nickname. Add:
 
@@ -412,11 +412,11 @@ ms:
 }
 ```
 
-- [ ] **Step 2: `cd hotel-web-fe && bun run test src/features/guestPortal/booking/PortalBookingPageAnonymous.test.tsx --run`**
+- [x] **Step 2: `cd hotel-web-fe && bun run test src/features/guestPortal/booking/PortalBookingPageAnonymous.test.tsx --run`**
 
 Expected: FAIL missing Nickname / still First name
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `GuestDetailsForm`: one Nickname `TextField` bound to `first_name`; remove last name field.
 - `guestDetailsError`: missing nickname → `book.errors.nickname`.
@@ -424,9 +424,9 @@ Expected: FAIL missing Nickname / still First name
 - `submitAnonymousBooking` catch: if name taken, `setError(t('book.errors.nicknameTaken'))`, set nickname field error, **return without re-quote**.
 - Create payload: no `last_name`.
 
-- [ ] **Step 4: Re-run the test file + `bun run typecheck` on touched files (full typecheck if feasible)**
+- [x] **Step 4: Re-run the test file + `bun run typecheck` on touched files (full typecheck if feasible)**
 
-- [ ] **Step 5: Commit** `feat(guest-portal): collect a unique nickname for anonymous booking`
+- [x] **Step 5: Commit** `feat(guest-portal): collect a unique nickname for anonymous booking`
 
 ---
 
@@ -441,7 +441,7 @@ Expected: FAIL missing Nickname / still First name
 - Consumes: `guest.nick_name`, `guest.last_name`
 - Produces: editable required first/last; hint `Booked as: {nick_name}` when `!last_name`; `guest_update` without nick_name
 
-- [ ] **Step 1: Failing test**
+- [x] **Step 1: Failing test**
 
 ```tsx
 it('asks for legal names on a nickname-only guest and does not split the nickname', async () => {
@@ -461,9 +461,9 @@ it('asks for legal names on a nickname-only guest and does not split the nicknam
 });
 ```
 
-- [ ] **Step 2: Run test — FAIL** (fields disabled / split CoolAlex)
+- [x] **Step 2: Run test — FAIL** (fields disabled / split CoolAlex)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - Stop parsing `full_name`/`nick_name` into first/last.
 - Prefill from `guest.first_name` / `guest.last_name` only when `last_name` is non-empty; otherwise empty strings.
@@ -471,9 +471,9 @@ it('asks for legal names on a nickname-only guest and does not split the nicknam
 - Show `Booked as: {guest.nick_name}` when `!guest.last_name`.
 - `guest_update` sends first_name, last_name, other fields — never nick_name.
 
-- [ ] **Step 4: Re-run EnhancedCheckInModal tests**
+- [x] **Step 4: Re-run EnhancedCheckInModal tests**
 
-- [ ] **Step 5: Commit** `feat(check-in): collect legal name without changing nick_name`
+- [x] **Step 5: Commit** `feat(check-in): collect legal name without changing nick_name`
 
 ---
 
@@ -496,8 +496,8 @@ Use for confirmation-style mail and invoice guest name **after** check-in. Booki
 
 Search: keep matching `nick_name` and first/last (already searches first_name).
 
-- [ ] Tests for the helper (fail, implement, pass)
-- [ ] Commit `feat(guests): show legal name on folios after check-in`
+- [x] Tests for the helper (fail, implement, pass)
+- [x] Commit `feat(guests): show legal name on folios after check-in`
 
 ---
 
@@ -507,19 +507,19 @@ Search: keep matching `nick_name` and first/last (already searches first_name).
 
 Replace display/sort/split of `guest.full_name` with `guest.nick_name`. Guest configuration must not split nick_name into first/last when last_name exists — use API first/last.
 
-- [ ] `bun run test` on touched feature tests
-- [ ] `bun run typecheck` (must be clean for `nick_name`)
-- [ ] Commit `refactor(web): use guest.nick_name in staff UI`
+- [x] `bun run test` on touched feature tests
+- [x] `bun run typecheck` (must be clean for `nick_name`)
+- [x] Commit `refactor(web): use guest.nick_name in staff UI`
 
 ---
 
 ### Task 10: Verification
 
-- [ ] `cd hotel-app-be && cargo fmt && cargo check --all-features && cargo clippy --all-features -- -D warnings`
-- [ ] `cd hotel-app-be && cargo test --all-features` with `DATABASE_URL` set; confirm run count is a full suite, not ~209
-- [ ] `cd hotel-web-fe && bun run typecheck && bun run lint && bun run test -- --run`
-- [ ] `rg -n "disambiguated_full_name|Name \(2\)|idx_guests_full_name_unique" hotel-app-be --glob '!**/0001_v1_baseline.sql'` should not hit live insert logic (baseline history of old name only in patch IF EXISTS)
-- [ ] `rg "INSERT INTO guests.*full_name" hotel-app-be` should be empty
+- [x] `cd hotel-app-be && cargo fmt && cargo check --all-features && cargo clippy --all-features -- -D warnings`
+- [x] `cd hotel-app-be && cargo test --all-features` with `DATABASE_URL` set; confirm run count is a full suite, not ~209
+- [x] `cd hotel-web-fe && bun run typecheck && bun run lint && bun run test -- --run`
+- [x] `rg -n "disambiguated_full_name|Name \(2\)|idx_guests_full_name_unique" hotel-app-be --glob '!**/0001_v1_baseline.sql'` should not hit live insert logic (baseline history of old name only in patch IF EXISTS)
+- [x] `rg "INSERT INTO guests.*full_name" hotel-app-be` should be empty
 
 ---
 
@@ -537,3 +537,52 @@ Replace display/sort/split of `guest.full_name` with `guest.nick_name`. Guest co
 | en/ms | 6 |
 | Do not rename users/eKYC full_name | 4 |
 | Tests listed in spec | 1–7, 10 |
+
+---
+
+## Outcome (completed 2026-09-09)
+
+All ten tasks are implemented on `feature/anonymous-booking-nickname`.
+
+**Verification.** Backend: `cargo fmt`, `cargo check --all-features`,
+`cargo clippy --all-features -- -D warnings` and the same with `--all-targets`
+all clean; `cargo test --all-features` against a real PostgreSQL 19 database
+ran 863 passed / 8 ignored across 27 binaries. Frontend: `typecheck`, `lint`,
+`build` clean and 1124 tests pass across 131 files.
+
+One test does not pass here: `postgres_v1_patches_converge_and_are_idempotent`
+falls back to a Docker `postgres:19` container for `pg_dump` and panics with
+"a PostgreSQL 19 pg_dump is required" because no Docker daemon is running on
+this machine. It fails while locating the tool, before comparing any schema,
+so it is environmental. The property it asserts was proved by hand with the
+same pg_dump: fresh baseline and (old baseline + patch 0011) produce identical
+11432-line dumps, and the patch is idempotent on re-run and a no-op on a fresh
+install. It should pass in CI, where Docker is available.
+
+**Two deviations from the plan as written.**
+
+1. Task 3 said to recompute the V1 baseline SHA-256 and replace the pins in
+   `_begin.sql`, `seed.sql` and the tests. That would have been destructive and
+   was NOT done. The value is a frozen lineage token, not a hash of the
+   baseline file: `seed.sql` writes the literal into `hotel_schema_revisions`
+   and `_begin.sql` compares each live database's recorded value against it.
+   It was set once in `8bed05c5` and never moved, while the baseline file has
+   changed many times since. Rotating it would make every installed database
+   fail `unsupported V1 baseline checksum`, blocking the whole catalog — and
+   desktop treats a patch failure as fatal, so those installs would not start.
+
+2. The plan's registration list was incomplete. Patch 0011 also had to be named
+   in `.github/workflows/deploy-staging.yml`, `deploy/deploy-staging.sh`, and a
+   FOURTH hardcoded spot in `tests/postgres_patch_lifecycle.rs`
+   (`assert_expected_revisions`' `revisions.len()`) beyond the three CLAUDE.md
+   documents. Nothing enforces the two staging files.
+
+**Found by the convergence proof, not by tests.** `ALTER TABLE ... RENAME
+COLUMN` does not carry the generated NOT NULL constraint name, and a SQL/PGQ
+`PROPERTY GRAPH` stores the exposed property name, so it re-rendered as
+`nick_name AS full_name`. Patch 0011 handles both explicitly. Views were fine —
+they track by attnum.
+
+Two out-of-scope defects were spun off rather than folded in: the `linked_guests`
+query selecting fewer columns than it decodes, and `readProfileIncompleteFields`
+reading an already-consumed response body.
