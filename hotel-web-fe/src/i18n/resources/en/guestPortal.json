@@ -138,6 +138,10 @@
     "unavailableTitle": "This link is no longer available",
     "unavailableBody": "It may have expired, already been used, or the reservation may have moved on. Please contact the hotel and we will help you complete your booking.",
     "failed": "We could not record your payment. Please try again, or contact the hotel if the problem continues.",
-    "loading": "Checking your payment link…"
+    "loading": "Checking your payment link…",
+    "paypal": "Pay with PayPal or card",
+    "paypalUnavailable": "PayPal could not load. Please disable content blockers and try again.",
+    "paypalFailed": "We could not start your PayPal payment. Please try again, or pay by bank transfer.",
+    "or": "or"
   }
 }

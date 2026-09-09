@@ -298,4 +298,165 @@ mod postgres_tests {
         assert_eq!(found.len(), 1, "only the unexpired, unconsumed row counts");
         assert_eq!(found[0].id, live.id);
     }
+
+    /// SHA-256 of a token, prefixed the way the service persists it.
+    fn token_hash(token: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        format!("sha256:{}", hex::encode(hasher.finalize()))
+    }
+
+    #[tokio::test]
+    async fn postgres_restore_gives_the_capability_back_after_a_released_payment() {
+        let Some(pool) = pool().await else {
+            return;
+        };
+        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 5;
+        let (guest_id, booking_id) = seed_booking(&pool, suffix, 5).await;
+        let hash = format!("sha256:{suffix:064x}");
+
+        let capability = PaymentRetryRepository::create(
+            &pool,
+            booking_id,
+            None,
+            &hash,
+            Utc::now() + Duration::minutes(60),
+        )
+        .await
+        .expect("create");
+
+        let payment_id: i64 = sqlx::query_scalar(
+            "INSERT INTO payments (booking_id, amount, payment_method, status) \
+             VALUES ($1, 100, 'paypal', 'pending') RETURNING id",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .expect("seed payment");
+
+        let mut tx = pool.begin().await.expect("begin");
+        PaymentRetryRepository::consume_tx(&mut tx, capability.id, payment_id)
+            .await
+            .expect("consume");
+        tx.commit().await.expect("commit");
+
+        // A restore scoped to a different payment must not resurrect this one.
+        let wrong = PaymentRetryRepository::restore(&pool, capability.id, payment_id + 9_999)
+            .await
+            .expect("restore with the wrong payment");
+        let right = PaymentRetryRepository::restore(&pool, capability.id, payment_id)
+            .await
+            .expect("restore");
+        let after = PaymentRetryRepository::find_by_token_hash(&pool, &hash)
+            .await
+            .expect("lookup")
+            .expect("present");
+
+        cleanup(&pool, guest_id, booking_id).await;
+
+        assert!(!wrong, "a restore must be scoped to the payment it funded");
+        assert!(right, "the scoped restore must succeed");
+        assert!(!after.is_consumed(), "the guest gets their link back");
+        assert_eq!(after.replacement_payment_id, None);
+    }
+
+    #[tokio::test]
+    async fn postgres_capture_refuses_a_payment_the_link_did_not_authorise() {
+        let Some(pool) = pool().await else {
+            return;
+        };
+        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 6;
+        let (guest_id, booking_id) = seed_booking(&pool, suffix, 6).await;
+        let token = format!("{suffix:064x}");
+
+        let capability = PaymentRetryRepository::create(
+            &pool,
+            booking_id,
+            None,
+            &token_hash(&token),
+            Utc::now() + Duration::minutes(60),
+        )
+        .await
+        .expect("create");
+
+        let mine: i64 = sqlx::query_scalar(
+            "INSERT INTO payments (booking_id, amount, payment_method, status) \
+             VALUES ($1, 100, 'paypal', 'pending') RETURNING id",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .expect("seed payment");
+
+        let mut tx = pool.begin().await.expect("begin");
+        PaymentRetryRepository::consume_tx(&mut tx, capability.id, mine)
+            .await
+            .expect("consume");
+        tx.commit().await.expect("commit");
+
+        // Pointing a spent link at somebody else's payment must be refused
+        // before PayPal is contacted at all.
+        let result = hotel_app_be::services::payment_retry::capture_recovered_paypal(
+            &pool,
+            &token,
+            "ORDER-DOES-NOT-MATTER",
+            mine + 9_999,
+        )
+        .await;
+
+        cleanup(&pool, guest_id, booking_id).await;
+
+        assert!(
+            matches!(result, Err(hotel_app_be::core::error::ApiError::Forbidden(_))),
+            "capture must be scoped to the payment this link produced: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn postgres_a_spent_capability_still_resolves_so_capture_can_finish() {
+        let Some(pool) = pool().await else {
+            return;
+        };
+        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 7;
+        let (guest_id, booking_id) = seed_booking(&pool, suffix, 7).await;
+        let token = format!("{suffix:064x}");
+
+        let capability = PaymentRetryRepository::create(
+            &pool,
+            booking_id,
+            None,
+            &token_hash(&token),
+            Utc::now() + Duration::minutes(60),
+        )
+        .await
+        .expect("create");
+
+        let payment_id: i64 = sqlx::query_scalar(
+            "INSERT INTO payments (booking_id, amount, payment_method, status) \
+             VALUES ($1, 100, 'paypal', 'pending') RETURNING id",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .expect("seed payment");
+
+        let mut tx = pool.begin().await.expect("begin");
+        PaymentRetryRepository::consume_tx(&mut tx, capability.id, payment_id)
+            .await
+            .expect("consume");
+        tx.commit().await.expect("commit");
+
+        // The guest approves in PayPal's window and comes back to a link that
+        // is already spent. Resolution must still succeed, or every authorised
+        // PayPal order would be stranded between approval and capture.
+        let resolved =
+            hotel_app_be::services::payment_retry::resolve_capability(&pool, &token).await;
+
+        cleanup(&pool, guest_id, booking_id).await;
+
+        let resolved = resolved.expect("a spent capability must still resolve");
+        assert!(resolved.is_consumed());
+        assert_eq!(resolved.replacement_payment_id, Some(payment_id));
+    }
 }

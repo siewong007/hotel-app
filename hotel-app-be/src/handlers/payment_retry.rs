@@ -19,7 +19,7 @@ use std::net::SocketAddr;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
-use crate::models::PaymentActionResponse;
+use crate::models::{PaymentActionResponse, PaypalCreateOrderResponse};
 use crate::services::payment_retry;
 
 /// What the recovery page may show. Deliberately minimal: a reservation
@@ -33,6 +33,9 @@ pub struct PaymentRecoveryView {
     pub currency: String,
     pub expires_at: chrono::DateTime<chrono::Utc>,
     pub payment_methods: Vec<String>,
+    /// Public PayPal client id, so the page can render the PayPal button.
+    /// `None` when this deployment has no PayPal credentials.
+    pub paypal_client_id: Option<String>,
     /// True once the link has been spent. The page shows the outcome instead of
     /// a payment form, so a duplicate submission never creates a second payment.
     pub already_submitted: bool,
@@ -77,5 +80,45 @@ pub async fn recover_bank_transfer_handler(
     require_capacity(&limiters, &headers, peer).await?;
     Ok(Json(
         payment_retry::recover_with_bank_transfer(&pool, &token).await?,
+    ))
+}
+
+/// Body for the capture call. The order id comes back from PayPal's approval
+/// window; the payment id is the one this capability produced, and the service
+/// refuses any other.
+#[derive(Debug, serde::Deserialize)]
+pub struct CaptureRecoveredPaypalRequest {
+    pub order_id: String,
+    pub payment_id: i64,
+}
+
+pub async fn recover_paypal_create_order_handler(
+    State(pool): State<DbPool>,
+    axum::Extension(limiters): axum::Extension<RateLimiters>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(token): Path<String>,
+) -> Result<Json<PaypalCreateOrderResponse>, ApiError> {
+    require_capacity(&limiters, &headers, peer).await?;
+    Ok(Json(payment_retry::recover_with_paypal(&pool, &token).await?))
+}
+
+pub async fn recover_paypal_capture_handler(
+    State(pool): State<DbPool>,
+    axum::Extension(limiters): axum::Extension<RateLimiters>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Path(token): Path<String>,
+    Json(request): Json<CaptureRecoveredPaypalRequest>,
+) -> Result<Json<PaymentActionResponse>, ApiError> {
+    require_capacity(&limiters, &headers, peer).await?;
+    Ok(Json(
+        payment_retry::capture_recovered_paypal(
+            &pool,
+            &token,
+            &request.order_id,
+            request.payment_id,
+        )
+        .await?,
     ))
 }

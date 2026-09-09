@@ -136,6 +136,10 @@
     "unavailableTitle": "Pautan ini tidak lagi tersedia",
     "unavailableBody": "Ia mungkin telah tamat tempoh, telah digunakan, atau tempahan telah berubah. Sila hubungi hotel dan kami akan membantu anda melengkapkan tempahan.",
     "failed": "Kami tidak dapat merekodkan pembayaran anda. Sila cuba lagi, atau hubungi hotel jika masalah berterusan.",
-    "loading": "Menyemak pautan pembayaran anda…"
+    "loading": "Menyemak pautan pembayaran anda…",
+    "paypal": "Bayar dengan PayPal atau kad",
+    "paypalUnavailable": "PayPal tidak dapat dimuatkan. Sila lumpuhkan penyekat kandungan dan cuba lagi.",
+    "paypalFailed": "Kami tidak dapat memulakan pembayaran PayPal anda. Sila cuba lagi, atau bayar melalui pemindahan bank.",
+    "or": "atau"
   }
 }

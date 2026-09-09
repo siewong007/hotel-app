@@ -7,13 +7,41 @@ import { resetLocaleStoreForTests, setActiveLocale } from '../../i18n/localeStor
 const mocks = vi.hoisted(() => ({
   view: vi.fn(),
   bankTransfer: vi.fn(),
+  paypalCreateOrder: vi.fn(),
+  paypalCapture: vi.fn(),
+  scriptRejected: { value: false },
 }));
 
 vi.mock('./api', () => ({
   PaymentRecoveryApi: {
     view: (...a: unknown[]) => mocks.view(...a),
     bankTransfer: (...a: unknown[]) => mocks.bankTransfer(...a),
+    paypalCreateOrder: (...a: unknown[]) => mocks.paypalCreateOrder(...a),
+    paypalCapture: (...a: unknown[]) => mocks.paypalCapture(...a),
   },
+}));
+
+// Stand in for PayPal's hosted script. The button drives the real
+// createOrder -> onApprove sequence so the page's own wiring is exercised.
+vi.mock('@paypal/react-paypal-js', () => ({
+  PayPalScriptProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  usePayPalScriptReducer: () => [{ isRejected: mocks.scriptRejected.value }, vi.fn()],
+  PayPalButtons: (props: Record<string, unknown>) => (
+    <button
+      type="button"
+      data-testid="paypal-pay"
+      onClick={() => {
+        void (async () => {
+          const orderId = await (props.createOrder as () => Promise<string>)();
+          await (props.onApprove as (d: { orderID: string }) => Promise<void>)({
+            orderID: orderId,
+          });
+        })().catch(() => {});
+      }}
+    >
+      PayPal
+    </button>
+  ),
 }));
 
 import PaymentRecoveryPage from './PaymentRecoveryPage';
@@ -35,7 +63,8 @@ const liveLink = {
   amount_due: '250.00',
   currency: 'MYR',
   expires_at: '2026-09-09T18:00:00Z',
-  payment_methods: ['bank_transfer'],
+  payment_methods: ['bank_transfer', 'paypal'],
+  paypal_client_id: 'test-client-id',
   already_submitted: false,
 };
 
@@ -52,6 +81,13 @@ beforeEach(() => {
     status: 'pending',
     booking_status: 'pending_confirmation',
   });
+  mocks.paypalCreateOrder.mockResolvedValue({ order_id: 'ORDER-7', payment_id: 555 });
+  mocks.paypalCapture.mockResolvedValue({
+    payment_id: 555,
+    status: 'completed',
+    booking_status: 'confirmed',
+  });
+  mocks.scriptRejected.value = false;
 });
 
 describe('PaymentRecoveryPage', () => {
@@ -113,5 +149,52 @@ describe('PaymentRecoveryPage', () => {
     setActiveLocale('ms');
     renderPage();
     expect(await screen.findByText(/Lengkapkan pembayaran anda/i)).toBeDefined();
+  });
+
+  it('captures the order against the payment create-order returned, not any other', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByTestId('paypal-pay'));
+    await waitFor(() => expect(mocks.paypalCapture).toHaveBeenCalledTimes(1));
+    // Scope: the server refuses a capture for any payment other than the one
+    // this capability produced, so the id must come from create-order.
+    expect(mocks.paypalCapture).toHaveBeenCalledWith(
+      'a'.repeat(64),
+      'ORDER-7',
+      555,
+    );
+    expect(await screen.findByText(/recorded your payment claim/i)).toBeDefined();
+  });
+
+  it('authorises only one order per click sequence', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByTestId('paypal-pay'));
+    await waitFor(() => expect(mocks.paypalCapture).toHaveBeenCalledTimes(1));
+    expect(mocks.paypalCreateOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides PayPal when the deployment has no PayPal credentials', async () => {
+    mocks.view.mockResolvedValue({
+      ...liveLink,
+      payment_methods: ['bank_transfer'],
+      paypal_client_id: null,
+    });
+    renderPage();
+    await screen.findByRole('button', { name: /bank transfer/i });
+    expect(screen.queryByTestId('paypal-pay')).toBeNull();
+  });
+
+  it('explains when PayPal\u2019s own script cannot load', async () => {
+    mocks.scriptRejected.value = true;
+    renderPage();
+    expect(await screen.findByText(/could not load/i)).toBeDefined();
+    expect(screen.queryByTestId('paypal-pay')).toBeNull();
+  });
+
+  it('reports a failed PayPal capture without claiming the booking is paid', async () => {
+    mocks.paypalCapture.mockRejectedValue(new Error('gateway down'));
+    renderPage();
+    fireEvent.click(await screen.findByTestId('paypal-pay'));
+    expect(await screen.findByText(/could not start your PayPal payment/i)).toBeDefined();
+    expect(screen.queryByText(/recorded your payment claim/i)).toBeNull();
   });
 });

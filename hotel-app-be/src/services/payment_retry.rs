@@ -251,12 +251,21 @@ pub async fn describe_recovery(
         return Err(unavailable());
     }
 
+    // Only advertise what the deployment can actually take. Offering PayPal on
+    // a hotel with no PayPal credentials would give the guest a button that
+    // fails at the gateway.
+    let mut methods = vec!["bank_transfer".to_string()];
+    if crate::services::paypal_client::is_enabled() {
+        methods.push("paypal".to_string());
+    }
+
     Ok(crate::handlers::payment_retry::PaymentRecoveryView {
         booking_number: booking.booking_number.clone(),
         amount_due: booking.total_amount.to_string(),
         currency: booking.currency.clone().unwrap_or_else(|| "MYR".to_string()),
         expires_at: capability.expires_at,
-        payment_methods: vec!["bank_transfer".to_string()],
+        payment_methods: methods,
+        paypal_client_id: crate::core::config::get().paypal.public_client_id(),
         already_submitted: capability.is_consumed(),
     })
 }
@@ -290,6 +299,68 @@ pub async fn recover_with_bank_transfer(
         capability.id,
     )
     .await
+}
+
+/// Create a PayPal order against the booking named by this capability.
+///
+/// A duplicate submission does not authorise a second order: a spent capability
+/// resolves to the payment it already produced, and that payment's existing
+/// order id is returned so the guest finishes the order they already have.
+pub async fn recover_with_paypal(
+    pool: &DbPool,
+    presented: &str,
+) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
+    let capability = resolve_capability(pool, presented).await?;
+
+    if let Some(existing) = capability.replacement_payment_id {
+        // Resume rather than authorise again: the guest may simply have
+        // reloaded between approving in PayPal's window and coming back.
+        let order_id =
+            crate::repositories::payment::PaymentRepository::find_gateway_order_id(pool, existing)
+                .await?
+                .ok_or_else(|| {
+                    ApiError::Conflict(
+                        "A payment is already in progress for this booking.".to_string(),
+                    )
+                })?;
+        return Ok(crate::models::PaypalCreateOrderResponse {
+            order_id,
+            payment_id: existing,
+        });
+    }
+
+    let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
+        .await
+        .map_err(|_| unavailable())?;
+    crate::services::payments::create_paypal_order_for_capability(pool, &booking, capability.id)
+        .await
+}
+
+/// Capture the PayPal order this capability authorised.
+///
+/// Deliberately works on a *spent* capability. Creating the order consumes the
+/// link, but the guest still has to approve it in PayPal's window and come
+/// back; refusing a consumed capability here would strand every PayPal payment
+/// between authorisation and capture. Scope is kept by requiring the payment to
+/// be the one this capability actually produced, so a spent link cannot be
+/// pointed at any other payment.
+pub async fn capture_recovered_paypal(
+    pool: &DbPool,
+    presented: &str,
+    order_id: &str,
+    payment_id: i64,
+) -> Result<crate::models::PaymentActionResponse, ApiError> {
+    let capability = resolve_capability(pool, presented).await?;
+    if capability.replacement_payment_id != Some(payment_id) {
+        return Err(ApiError::Forbidden(
+            "This payment link does not authorise that payment.".to_string(),
+        ));
+    }
+
+    let booking = crate::services::booking::fetch_booking_by_id(pool, capability.booking_id)
+        .await
+        .map_err(|_| unavailable())?;
+    crate::services::payments::capture_paypal_payment(pool, &booking, order_id, payment_id).await
 }
 
 #[cfg(test)]

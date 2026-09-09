@@ -1173,6 +1173,29 @@ pub async fn create_paypal_order(
     pool: &DbPool,
     booking: &Booking,
 ) -> Result<PaypalCreateOrderResponse, ApiError> {
+    create_paypal_order_inner(pool, booking, None).await
+}
+
+/// PayPal order raised from an emailed recovery link.
+///
+/// Same business rules as the portal path; the capability is spent inside the
+/// same transaction as the pending payment. PayPal is contacted only after that
+/// transaction commits (it needs the payment id in `custom_id`), so if PayPal
+/// then refuses, the released payment is accompanied by a restored capability --
+/// otherwise the guest would be left holding a spent link that bought nothing.
+pub async fn create_paypal_order_for_capability(
+    pool: &DbPool,
+    booking: &Booking,
+    capability_id: i64,
+) -> Result<PaypalCreateOrderResponse, ApiError> {
+    create_paypal_order_inner(pool, booking, Some(capability_id)).await
+}
+
+async fn create_paypal_order_inner(
+    pool: &DbPool,
+    booking: &Booking,
+    capability_id: Option<i64>,
+) -> Result<PaypalCreateOrderResponse, ApiError> {
     let currency = booking_currency(booking);
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking.id).await?;
@@ -1212,6 +1235,21 @@ pub async fn create_paypal_order(
         },
     )
     .await?;
+
+    if let Some(capability_id) = capability_id {
+        let spent = crate::repositories::payment_retry::PaymentRetryRepository::consume_tx(
+            &mut tx,
+            capability_id,
+            payment_id,
+        )
+        .await?;
+        if !spent {
+            return Err(ApiError::Conflict(
+                "This payment link has already been used.".to_string(),
+            ));
+        }
+    }
+
     tx.commit().await.map_err(ApiError::from)?;
 
     let custom_id = format!("{}:{}", booking.id, payment_id);
@@ -1234,6 +1272,22 @@ pub async fn create_paypal_order(
                 "PayPal could not create an order. No payment was captured.",
             )
             .await?;
+            if let Some(capability_id) = capability_id {
+                // Best effort: the guest already has an error, and failing here
+                // too would replace it with a less useful one.
+                if let Err(restore_error) =
+                    crate::repositories::payment_retry::PaymentRetryRepository::restore(
+                        pool,
+                        capability_id,
+                        payment_id,
+                    )
+                    .await
+                {
+                    log::error!(
+                        "Failed to restore payment retry capability {capability_id} after a PayPal order failure: {restore_error}"
+                    );
+                }
+            }
             return Err(error);
         }
     };

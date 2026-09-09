@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -11,9 +11,29 @@ import {
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  PayPalButtons,
+  PayPalScriptProvider,
+  usePayPalScriptReducer,
+} from '@paypal/react-paypal-js';
 import { PaymentRecoveryApi } from './api';
 import { useTranslation } from '../../i18n';
 import { formatHotelDateTime } from '../../utils/date';
+
+/** Shows a clear reason when PayPal's own script cannot load. */
+function PayPalButtonContent(props: {
+  createOrder: () => Promise<string>;
+  onApprove: (data: { orderID: string }) => Promise<void>;
+  onError: () => void;
+  unavailable: string;
+}) {
+  const [{ isRejected }] = usePayPalScriptReducer();
+  const { unavailable, ...buttonProps } = props;
+  if (isRejected) {
+    return <Alert severity="error">{unavailable}</Alert>;
+  }
+  return <PayPalButtons style={{ layout: 'vertical' }} {...buttonProps} />;
+}
 
 /**
  * Public payment-recovery page, reached from the link in a payment-rejected
@@ -30,6 +50,11 @@ import { formatHotelDateTime } from '../../utils/date';
 export default function PaymentRecoveryPage({ token }: { token: string }) {
   const { t } = useTranslation('guestPortal');
   const [failed, setFailed] = useState(false);
+  const [paypalFailed, setPaypalFailed] = useState(false);
+  const [paypalDone, setPaypalDone] = useState(false);
+  // The payment id the authorised order belongs to. Capture is refused for any
+  // other payment, so this must come from the create-order response.
+  const pendingPaypalPaymentId = useRef<number | null>(null);
 
   const recovery = useQuery({
     queryKey: ['payment-recovery', token],
@@ -42,6 +67,35 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
     onMutate: () => setFailed(false),
     onError: () => setFailed(true),
   });
+
+  const createOrder = useCallback(async () => {
+    setPaypalFailed(false);
+    try {
+      const order = await PaymentRecoveryApi.paypalCreateOrder(token);
+      pendingPaypalPaymentId.current = order.payment_id;
+      return order.order_id;
+    } catch (error) {
+      setPaypalFailed(true);
+      throw error;
+    }
+  }, [token]);
+
+  const onApprove = useCallback(
+    async (data: { orderID: string }) => {
+      const paymentId = pendingPaypalPaymentId.current;
+      if (paymentId == null) {
+        setPaypalFailed(true);
+        return;
+      }
+      try {
+        await PaymentRecoveryApi.paypalCapture(token, data.orderID, paymentId);
+        setPaypalDone(true);
+      } catch {
+        setPaypalFailed(true);
+      }
+    },
+    [token],
+  );
 
   if (recovery.isLoading) {
     return (
@@ -68,7 +122,9 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
   const amount = `${view.currency} ${view.amount_due}`;
   // Spent links and freshly submitted ones read the same to the guest: the
   // claim is with the hotel and there is nothing more to do.
-  const done = view.already_submitted || submit.isSuccess;
+  const done = view.already_submitted || submit.isSuccess || paypalDone;
+  const paypalReady =
+    view.payment_methods.includes('paypal') && Boolean(view.paypal_client_id);
 
   return (
     <Box sx={{ maxWidth: 520, mx: 'auto', mt: 6, px: 2 }}>
@@ -131,6 +187,35 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
               <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
                 {t('recoverPayment.singleUse')}
               </Typography>
+              {paypalReady && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    {t('recoverPayment.paypal')}
+                  </Typography>
+                  {paypalFailed && (
+                    <Alert severity="error" sx={{ mb: 1.5 }}>
+                      {t('recoverPayment.paypalFailed')}
+                    </Alert>
+                  )}
+                  <PayPalScriptProvider
+                    options={{
+                      clientId: view.paypal_client_id as string,
+                      currency: view.currency,
+                      intent: 'capture',
+                    }}
+                  >
+                    <PayPalButtonContent
+                      createOrder={createOrder}
+                      onApprove={onApprove}
+                      onError={() => setPaypalFailed(true)}
+                      unavailable={t('recoverPayment.paypalUnavailable')}
+                    />
+                  </PayPalScriptProvider>
+                  {view.payment_methods.includes('bank_transfer') && (
+                    <Divider sx={{ my: 2 }}>{t('recoverPayment.or')}</Divider>
+                  )}
+                </Box>
+              )}
               {view.payment_methods.includes('bank_transfer') && (
                 <>
                   <Button

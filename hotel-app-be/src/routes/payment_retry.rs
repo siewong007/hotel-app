@@ -23,4 +23,15 @@ pub fn routes() -> Router<DbPool> {
             "/booking/recover-payment/{token}/bank-transfer",
             post(payment_retry::recover_bank_transfer_handler),
         )
+        .route(
+            "/booking/recover-payment/{token}/paypal/create-order",
+            post(payment_retry::recover_paypal_create_order_handler),
+        )
+        // Capture stays reachable after the capability is spent: the guest has
+        // to approve the order in PayPal's window and return, and refusing a
+        // consumed link here would strand every authorised order.
+        .route(
+            "/booking/recover-payment/{token}/paypal/capture",
+            post(payment_retry::recover_paypal_capture_handler),
+        )
 }

@@ -124,6 +124,38 @@ impl PaymentRetryRepository {
         Ok(row.is_some())
     }
 
+    /// Give a capability back after the payment it was spent on was released.
+    ///
+    /// PayPal order creation happens after the payment row is committed, so a
+    /// PayPal outage leaves a released payment behind. Releasing that payment
+    /// without releasing the capability would leave the guest holding a link
+    /// that is spent but bought nothing -- the one outcome worse than the
+    /// original rejection. Scoped to the payment it was spent on so a restore
+    /// can never resurrect a capability that funded a different, live payment.
+    pub async fn restore(
+        pool: &DbPool,
+        capability_id: i64,
+        spent_on_payment_id: i64,
+    ) -> Result<bool, ApiError> {
+        let sql = format!(
+            "UPDATE payment_retry_capabilities \
+             SET consumed_at = NULL, replacement_payment_id = NULL \
+             WHERE id = {} AND replacement_payment_id = {} \
+             RETURNING id",
+            param!(1),
+            param!(2)
+        );
+        let row = sqlx::query(&sql)
+            .bind(capability_id)
+            .bind(spent_on_payment_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| {
+                ApiError::Database(format!("Failed to restore payment retry capability: {}", e))
+            })?;
+        Ok(row.is_some())
+    }
+
     /// Retire a capability by expiring it in place.
     ///
     /// Used when a booking's payment is rejected again: the earlier link's raw

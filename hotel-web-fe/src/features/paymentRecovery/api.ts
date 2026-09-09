@@ -1,5 +1,5 @@
 import { api } from '../../api/client';
-import type { PaymentActionResponse } from '../../types';
+import type { PaymentActionResponse, PaypalCreateOrderResponse } from '../../types';
 import type { PaymentRecoveryView } from './types';
 
 /**
@@ -25,6 +25,33 @@ export const PaymentRecoveryApi = {
   bankTransfer(token: string): Promise<PaymentActionResponse> {
     return api
       .post(`/booking/recover-payment/${encodeURIComponent(token)}/bank-transfer`)
+      .json<PaymentActionResponse>();
+  },
+
+  /**
+   * Authorise a PayPal order. Spends the capability, so calling it twice
+   * resolves to the order already created rather than authorising a second one.
+   */
+  paypalCreateOrder(token: string): Promise<PaypalCreateOrderResponse> {
+    return api
+      .post(`/booking/recover-payment/${encodeURIComponent(token)}/paypal/create-order`)
+      .json<PaypalCreateOrderResponse>();
+  },
+
+  /**
+   * Capture an approved order. Deliberately still works once the capability is
+   * spent: the guest has to approve in PayPal's window and come back, and the
+   * link is already consumed by then.
+   */
+  paypalCapture(
+    token: string,
+    orderId: string,
+    paymentId: number,
+  ): Promise<PaymentActionResponse> {
+    return api
+      .post(`/booking/recover-payment/${encodeURIComponent(token)}/paypal/capture`, {
+        json: { order_id: orderId, payment_id: paymentId },
+      })
       .json<PaymentActionResponse>();
   },
 };

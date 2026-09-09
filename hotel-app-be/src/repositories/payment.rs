@@ -861,6 +861,24 @@ impl PaymentRepository {
         Ok(())
     }
 
+    /// The PayPal order id attached to a payment, if it has one yet.
+    ///
+    /// A pending PayPal payment has no order id between its insert and the
+    /// gateway call, so `None` here means "order not created yet", not
+    /// "payment missing".
+    pub async fn find_gateway_order_id(
+        pool: &DbPool,
+        payment_id: i64,
+    ) -> Result<Option<String>, ApiError> {
+        let sql = "SELECT gateway_payment_intent_id FROM payments WHERE id = $1";
+        let order_id: Option<Option<String>> = sqlx::query_scalar(sql)
+            .bind(payment_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(order_id.flatten())
+    }
+
     /// Compare-and-swap a payment to `completed`, stamping `processed_at` /
     /// `processed_by`. Guarded by `status IN ('pending','processing')` so a
     /// concurrent approval collapses to `Ok(None)` (no row) instead of
