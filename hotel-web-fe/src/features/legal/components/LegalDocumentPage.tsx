@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Box,
+  Button,
   Container,
   Divider,
   Link,
@@ -10,6 +11,8 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { useNavigate } from '../../../router';
 import {
   HOTEL_LEGAL_IDENTITY,
   LEGAL_DOCUMENTS,
@@ -39,9 +42,24 @@ const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }
  * checkbox that links somewhere you need to log in to read is not informed
  * consent.
  */
+function returnToPreviousPage(navigate: (to: string) => void) {
+  const referrer = document.referrer;
+  try {
+    if (referrer && new URL(referrer).origin === window.location.origin) {
+      window.history.back();
+      return;
+    }
+  } catch {
+    // Malformed referrer — treat as no in-app history.
+  }
+  navigate('/');
+}
+
 export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ documentId }) => {
   const { locale, setLocale } = useLegalLocale();
+  const navigate = useNavigate();
   const document = LEGAL_DOCUMENTS[documentId];
+  const backLabel = locale === 'ms' ? 'Kembali' : 'Back';
 
   if (!document) {
     return (
@@ -54,6 +72,13 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
   return (
     <Container maxWidth="md" sx={{ py: { xs: 3, md: 6 } }}>
       <Paper elevation={0} sx={{ p: { xs: 2.5, md: 5 }, border: 1, borderColor: 'divider' }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => returnToPreviousPage(navigate)}
+          sx={{ mb: 2, ml: -1 }}
+        >
+          {backLabel}
+        </Button>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           sx={{ justifyContent: 'space-between', alignItems: { sm: 'flex-start' }, gap: 2 }}
@@ -140,7 +165,14 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
 
         <Divider sx={{ my: 4 }} />
 
-        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2 }}>
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+          <Button
+            startIcon={<ArrowBackIcon />}
+            onClick={() => returnToPreviousPage(navigate)}
+            sx={{ ml: -1 }}
+          >
+            {backLabel}
+          </Button>
           {SIBLING_LINKS.filter((entry) => entry.id !== documentId).map((entry) => (
             <Link key={entry.id} href={LEGAL_DOCUMENT_PATHS[entry.id]} variant="body2">
               {entry.label[locale]}
