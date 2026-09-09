@@ -76,8 +76,8 @@ const RegisterPage: React.FC = () => {
       const redirectParam = safeGuestRedirect(searchParams.get('redirect'));
       navigate(
         redirectParam
-          ? `/login?account=guest&redirect=${encodeURIComponent(redirectParam)}`
-          : '/login?account=guest',
+          ? `/login?redirect=${encodeURIComponent(redirectParam)}`
+          : '/login',
         { replace: true }
       );
       return;

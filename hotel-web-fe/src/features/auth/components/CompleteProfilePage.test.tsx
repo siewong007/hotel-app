@@ -192,7 +192,7 @@ describe('CompleteProfilePage', () => {
     mocks.authState.isAuthenticated = false;
     renderPage();
 
-    expect(screen.getByTestId('navigate').getAttribute('data-to')).toBe('/login?account=guest');
+    expect(screen.getByTestId('navigate').getAttribute('data-to')).toBe('/login');
   });
 
   it('redirects a guest whose profile is already complete straight to the portal', () => {

@@ -8,10 +8,8 @@
 // the same title once React mounts — this only avoids showing index.html's
 // static placeholder in between.
 (() => {
-  const guestPaths = new Set(['/guest-portal', '/offers', '/register']);
-  const params = new URLSearchParams(window.location.search);
-  const isGuestExperience = guestPaths.has(window.location.pathname)
-    || (window.location.pathname === '/login' && params.get('account') === 'guest');
+  const guestPaths = new Set(['/guest-portal', '/offers', '/register', '/login', '/complete-profile']);
+  const isGuestExperience = guestPaths.has(window.location.pathname);
 
   try {
     const cached = localStorage.getItem('hotelSettings');

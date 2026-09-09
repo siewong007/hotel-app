@@ -118,7 +118,7 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
                 claimMutation.variables?.promotionId === entry.promotion.id
               }
               onClaim={() => handleClaim(entry)}
-              onSignIn={() => navigate('/login?account=guest')}
+              onSignIn={() => navigate('/login')}
             />
           </Grid>
         ))}

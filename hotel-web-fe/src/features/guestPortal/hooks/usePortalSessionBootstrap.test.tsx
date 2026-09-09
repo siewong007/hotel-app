@@ -151,7 +151,7 @@ describe('usePortalSessionBootstrap', () => {
 
     expect(mocks.auth.logout).toHaveBeenCalledTimes(1);
     expect(mocks.logoutPortal).toHaveBeenCalledTimes(1);
-    expect(mocks.navigate).toHaveBeenCalledWith('/login?account=guest', {
+    expect(mocks.navigate).toHaveBeenCalledWith('/login', {
       replace: true,
     });
   });

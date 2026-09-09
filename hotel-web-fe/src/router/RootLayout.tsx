@@ -28,9 +28,7 @@ export const RootLayout: React.FC = () => {
     isGuestPortal && (location.search as { view?: string }).view === 'booking';
   const isAdminPortal = pathname === '/admin-portal';
   const isOffersPage = pathname === '/offers' || pathname.startsWith('/offers/');
-  const account = (location.search as { account?: string }).account;
-  const isGuestLogin = pathname === '/login' && account === 'guest';
-  const isGuestExperience = isGuestPortal || isOffersPage || pathname === '/register' || isGuestLogin || pathname === '/complete-profile';
+  const isGuestExperience = isGuestPortal || isOffersPage || pathname === '/register' || pathname === '/login' || pathname === '/complete-profile';
   const isGuestModelHome = isGuestPortal;
   const isTimelinePage = pathname.startsWith('/timeline');
   const boardSkinActive =
@@ -89,7 +87,7 @@ export const RootLayout: React.FC = () => {
     // booking view, which is reachable with no account at all.
     if (!isAuthenticated && !isPublicBooking) {
       // Typed-route shim contract — see router/compat.tsx.
-      return <Navigate to="/login" search={{ account: 'guest' } as any} replace />;
+      return <Navigate to="/login" replace />;
     }
 
     // Only meaningful once signed in; an anonymous booker has no `user`.
@@ -111,7 +109,7 @@ export const RootLayout: React.FC = () => {
   if (isAdminPortal) {
     if (isLoading) return <LoadingFallback />;
     // Typed-route shim contract — see router/compat.tsx.
-    if (!isAuthenticated) return <Navigate to="/login" search={{ account: 'admin' } as any} replace />;
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
     if (user?.user_type === 'guest') return <Navigate to={'/guest-portal' as any} replace />; // shim contract — see router/compat.tsx
   }
 

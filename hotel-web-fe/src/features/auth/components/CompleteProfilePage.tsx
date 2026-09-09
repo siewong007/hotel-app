@@ -69,7 +69,7 @@ const CompleteProfilePage: React.FC = () => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login?account=guest" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (user?.user_type !== 'guest') {

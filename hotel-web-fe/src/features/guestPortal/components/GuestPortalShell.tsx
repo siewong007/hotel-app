@@ -55,7 +55,7 @@ const GOLD = '#C7A45B';
 
 const DASHBOARD_LINK = '/guest-portal?section=overview';
 const BOOKING_LINK = '/guest-portal?view=booking';
-const SIGN_IN_LINK = '/login?account=guest&redirect=%2Fguest-portal%3Fview%3Dbooking';
+const SIGN_IN_LINK = '/login?redirect=%2Fguest-portal%3Fview%3Dbooking';
 const HOTEL_INDEX_LINK = '/salim-inn/index.html?account=guest';
 const MORE_VALUE = 'more';
 

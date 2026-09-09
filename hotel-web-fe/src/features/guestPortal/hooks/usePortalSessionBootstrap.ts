@@ -102,7 +102,7 @@ export function usePortalSessionBootstrap(): PortalSessionBootstrap {
 
   const restartSignIn = useCallback(() => {
     signOut();
-    navigate('/login?account=guest', { replace: true });
+    navigate('/login', { replace: true });
   }, [navigate, signOut]);
 
   return useMemo(() => {

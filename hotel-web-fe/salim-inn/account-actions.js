@@ -42,7 +42,7 @@ function updateAccountActions() {
     bookingAction.hidden = true;
   } else {
     accountAction.textContent = 'Sign in';
-    accountAction.href = '/login?account=guest';
+    accountAction.href = '/login';
     bookingAction.textContent = 'Book stay';
     bookingAction.href = BOOKING_LINK;
   }

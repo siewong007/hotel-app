@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
 import { safeGuestRedirect } from '../guestRedirect';
@@ -16,23 +16,18 @@ import {
   IconButton,
   InputAdornment,
   Collapse,
-  Card,
-  CardContent,
   Divider,
 } from '@mui/material';
 import {
   Lock as LockIcon,
   Fingerprint as FingerprintIcon,
-  ArrowBack as ArrowBackIcon,
   VpnKey as VpnKeyIcon,
   Person as PersonIcon,
-  AdminPanelSettings as AdminIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { storage } from '../../../utils/storage';
-import { getHotelSettings } from '../../../utils/hotelSettings';
 import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 import { LoadingSpinner } from '../../../components';
 import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDashboard.service';
@@ -49,18 +44,11 @@ import { errorMessage } from '../../../utils/errorMessage';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 
-type UserType = 'guest' | 'admin' | null;
-
 const isAppleWebKitBrowser = () =>
   typeof navigator !== 'undefined' && navigator.vendor === 'Apple Computer, Inc.';
 
 const LoginPage: React.FC = () => {
-  const hotelSettings = getHotelSettings();
   const [searchParams] = useSearchParams();
-  const [userType, setUserType] = useState<UserType>(() => {
-    const account = searchParams.get('account');
-    return account === 'guest' || account === 'admin' ? account : null;
-  });
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -78,15 +66,10 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const account = searchParams.get('account');
-    setUserType(account === 'guest' || account === 'admin' ? account : null);
-  }, [searchParams]);
-
   const completeSignIn = () => {
-    // Route by the authenticated account's actual type, not the login tab the
-    // user picked — a guest signing in from the admin tab must still get the
-    // guest experience, and vice versa.
+    // Route by the authenticated account's actual type. Guest and staff share
+    // this form; a guest must still land on the guest portal, and staff on
+    // the admin workspace.
     const account = storage.getItem<{ user_type?: 'admin' | 'guest' }>('user')?.user_type;
 
     if (account === 'guest') {
@@ -221,10 +204,14 @@ const LoginPage: React.FC = () => {
       // branch on the status AuthContext's loginWithGoogle preserves, not the
       // message text, which can be reworded without breaking this check.
       const googleStatus = (err as { statusCode?: number }).statusCode;
+      // First-time Google guests must accept Booking Terms + Privacy Notice on
+      // /register. Existing Google sessions do not send consents and still work.
       setError(
         googleStatus === 503
           ? 'Google sign-in is unavailable right now. Please sign in with your username instead.'
-          : message
+          : googleStatus === 400 && /consent/i.test(message)
+            ? t('login.googleNeedsAccount')
+            : message
       );
       setLoading(false);
     }
@@ -248,18 +235,6 @@ const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleBackToUserType = () => {
-    navigate('/login', { replace: true });
-    setError('');
-    setUsername('');
-    setPassword('');
-    setPasskeyAttempted(false);
-    setShowPasswordField(false);
-    setShowPassword(false);
-    setPasskeyCheckInProgress(false);
-    setUsernameSubmitted(false);
   };
 
   // Handle username submission (Gmail-style): require an active account before password.
@@ -574,8 +549,7 @@ const LoginPage: React.FC = () => {
                   letterSpacing: '0.02em',
                 }}
               >
-                {!userType && `Choose how you use ${hotelSettings.hotel_name}`}
-                {userType && `Continue to your ${userType === 'guest' ? 'guest stay' : 'staff workspace'}`}
+                {t('login.subtitle')}
               </Typography>
             </Box>
 
@@ -586,152 +560,12 @@ const LoginPage: React.FC = () => {
               </Alert>
             </Collapse>
 
-            {/* Step 1: User Type Selection */}
-            {!userType && (
-              <Fade in timeout={600}>
-                <Box>
-                  <Card
-                    className="auth-choice-card"
-                    onClick={() => navigate('/login?account=guest')}
-                    sx={{
-                      mb: 3,
-                      cursor: 'pointer',
-                      transition: 'all 0.3s',
-                      border: '2px solid transparent',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 12px 32px var(--hotel-shadow-color)',
-                        border: '2px solid var(--hotel-primary)',
-                      },
-                    }}
-                  >
-                    <CardContent sx={{ p: 3 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box
-                          sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            background: 'var(--hotel-action-gradient)',
-                          }}
-                        >
-                          <PersonIcon sx={{ fontSize: 40, color: 'white' }} />
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography
-                            variant="h5"
-                            gutterBottom
-                            sx={{
-                              fontWeight: 700,
-                              color: "var(--hotel-accent-text)"
-                            }}>
-                            Guest stay
-                          </Typography>
-                          <Typography variant="body2" sx={{
-                            color: "text.secondary"
-                          }}>
-                            View bookings, plan your stay, and access member rewards
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-
-                  <Card
-                    className="auth-choice-card"
-                    onClick={() => navigate('/login?account=admin')}
-                    sx={{
-                      cursor: 'pointer',
-                      transition: 'all 0.3s',
-                      border: '2px solid transparent',
-                      '&:hover': {
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 12px 32px var(--hotel-shadow-color)',
-                        border: '2px solid var(--hotel-secondary)',
-                      },
-                    }}
-                  >
-                    <CardContent sx={{ p: 3 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box
-                          sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            background: 'linear-gradient(135deg, var(--hotel-secondary) 0%, var(--hotel-primary-light) 100%)',
-                          }}
-                        >
-                          <AdminIcon sx={{ fontSize: 40, color: 'white' }} />
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography
-                            variant="h5"
-                            gutterBottom
-                            sx={{
-                              fontWeight: 700,
-                              color: "var(--hotel-accent-text)"
-                            }}>
-                            Hotel staff
-                          </Typography>
-                          <Typography variant="body2" sx={{
-                            color: "text.secondary"
-                          }}>
-                            Access operations, guest services, and performance insights
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-
-                  <Box sx={{ mt: 3, textAlign: 'center' }}>
-                    <Typography variant="body2" sx={{
-                      color: "text.secondary"
-                    }}>
-                      Don't have an account?{' '}
-                      <Button
-                        variant="text"
-                        sx={{
-                          p: 0,
-                          minWidth: 'auto',
-                          fontSize: 'inherit',
-                          textTransform: 'none',
-                          fontWeight: 600,
-                          color: 'var(--hotel-primary)',
-                          '&:hover': {
-                            background: 'transparent',
-                            textDecoration: 'underline',
-                          },
-                        }}
-                        onClick={() => navigate('/register')}
-                      >
-                        Sign up
-                      </Button>
-                    </Typography>
-                  </Box>
-                </Box>
-              </Fade>
-            )}
-
             {/* Shared account login form */}
-            {userType && (
-              <Slide direction="left" in timeout={400}>
+            <Slide direction="left" in timeout={400}>
                 <Box>
-                  {/* Identity row — back control, step icon and step label on a
-                      single line so the form stays above the fold on phones. */}
+                  {/* Identity row — step icon and step label on a single line
+                      so the form stays above the fold on phones. */}
                   <Box sx={{ mb: { xs: 2, sm: 3 }, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <IconButton
-                      onClick={handleBackToUserType}
-                      aria-label="Back to account type"
-                      sx={{
-                        ml: -1,
-                        color: 'var(--hotel-primary)',
-                        transition: 'transform 0.3s',
-                        '&:hover': {
-                          transform: 'translateX(-4px)',
-                          backgroundColor: 'var(--hotel-muted-bg)',
-                        },
-                      }}
-                    >
-                      <ArrowBackIcon />
-                    </IconButton>
                     <Box
                       sx={{
                         display: { xs: 'none', sm: 'inline-flex' },
@@ -772,9 +606,7 @@ const LoginPage: React.FC = () => {
                         }}>
                         {passkeyCheckInProgress
                           ? 'Checking for a passkey'
-                          : userType === 'guest'
-                            ? 'Guest account'
-                            : 'Staff account'}
+                          : t('login.subtitle')}
                       </Typography>
                     </Box>
                   </Box>
@@ -853,12 +685,8 @@ const LoginPage: React.FC = () => {
                         Sign in with passkey
                       </Button>
 
-                      {userType === 'guest' && (
-                        <>
-                          <Divider sx={{ my: 2 }}>or</Divider>
-                          <GoogleSignInButton onCredential={handleGoogleCredential} />
-                        </>
-                      )}
+                      <Divider sx={{ my: 2 }}>{t('login.or')}</Divider>
+                      <GoogleSignInButton onCredential={handleGoogleCredential} />
                     </form>
                   )}
 
@@ -1037,9 +865,32 @@ const LoginPage: React.FC = () => {
                       )}
                     </Box>
                   )}
+
+                  <Box sx={{ mt: 3, textAlign: 'center' }}>
+                    <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                      {t('login.noAccount')}{' '}
+                      <Button
+                        variant="text"
+                        sx={{
+                          p: 0,
+                          minWidth: 'auto',
+                          fontSize: 'inherit',
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          color: 'var(--hotel-primary)',
+                          '&:hover': {
+                            background: 'transparent',
+                            textDecoration: 'underline',
+                          },
+                        }}
+                        onClick={() => navigate('/register')}
+                      >
+                        {t('login.signUp')}
+                      </Button>
+                    </Typography>
+                  </Box>
                 </Box>
               </Slide>
-            )}
 
           </Paper>
         </Fade>

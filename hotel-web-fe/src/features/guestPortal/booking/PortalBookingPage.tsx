@@ -514,7 +514,7 @@ function GuestDetailsForm({ details, onChange }: { details: AnonymousGuestDetail
       </Grid>
       <Alert severity="info" sx={{ mt: 2 }}>
         {t('book.anonymousLead')}{' '}
-        <Box component="a" href="/login?account=guest&redirect=%2Fguest-portal%3Fview%3Dbooking" sx={{ color: 'inherit', fontWeight: 700 }}>{t('book.signIn')}</Box>
+        <Box component="a" href="/login?redirect=%2Fguest-portal%3Fview%3Dbooking" sx={{ color: 'inherit', fontWeight: 700 }}>{t('book.signIn')}</Box>
         {' '}{t('book.anonymousTrail')}
       </Alert>
     </Box>

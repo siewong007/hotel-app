@@ -39,7 +39,7 @@ export const PortalDashboardPage: React.FC = () => {
   }
 
   if (needsLogin) {
-    return <Navigate to="/login?account=guest" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (!token) {
