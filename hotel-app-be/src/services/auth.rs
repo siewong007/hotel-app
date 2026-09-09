@@ -117,8 +117,13 @@ pub async fn lookup_login_identifier(
     }
 
     let user = AuthRepository::find_user_by_login(pool, identifier).await?;
-    let exists = matches!(user, Some(user) if user.is_active);
-    Ok(LoginLookupResponse { exists })
+    Ok(LoginLookupResponse {
+        exists: active_login_account_exists(user.as_ref()),
+    })
+}
+
+fn active_login_account_exists(user: Option<&User>) -> bool {
+    matches!(user, Some(user) if user.is_active)
 }
 
 /// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
@@ -653,4 +658,41 @@ fn generic_verification_response() -> serde_json::Value {
     json!({
         "message": "If that account needs verification, a new email has been sent."
     })
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+
+    fn sample_user(is_active: bool) -> User {
+        User {
+            id: 1,
+            username: "admin".into(),
+            email: "admin@example.com".into(),
+            google_subject: None,
+            full_name: Some("Admin".into()),
+            phone: None,
+            is_active,
+            is_verified: true,
+            user_type: None,
+            two_factor_enabled: Some(false),
+            two_factor_secret: None,
+            two_factor_recovery_codes: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn active_login_account_exists_for_active_user() {
+        assert!(active_login_account_exists(Some(&sample_user(true))));
+    }
+
+    #[test]
+    fn active_login_account_exists_rejects_missing_or_inactive() {
+        assert!(!active_login_account_exists(None));
+        assert!(!active_login_account_exists(Some(&sample_user(false))));
+    }
 }
