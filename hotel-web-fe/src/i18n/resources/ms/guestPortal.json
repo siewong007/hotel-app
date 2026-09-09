@@ -119,5 +119,33 @@
     "signInAgain": "Log masuk semula",
     "nickname": "Nama samaran",
     "nicknameHint": "Apa-apa nama yang anda suka — ia menahan bilik dan tidak boleh sudah digunakan."
+  },
+  "recoverPayment": {
+    "title": "Lengkapkan pembayaran anda",
+    "subtitle": "Pembayaran anda sebelum ini tidak dapat disahkan. Anda boleh membayar semula di bawah.",
+    "reference": "Tempahan",
+    "amountDue": "Jumlah perlu dibayar",
+    "expires": "Pautan ini sah sehingga",
+    "singleUse": "Pautan ini hanya boleh digunakan sekali. Sila jangan kongsikan.",
+    "bankTransfer": "Bayar melalui pemindahan bank",
+    "bankTransferHint": "Kami akan berikan butiran pemindahan dan mengesahkannya sebaik dana diterima.",
+    "submitting": "Menghantar…",
+    "submitted": "Tuntutan pembayaran diterima",
+    "submittedBody": "Kami telah merekodkan tuntutan pembayaran anda dan akan mengesahkannya tidak lama lagi. Anda tidak perlu menghantarnya semula.",
+    "alreadySubmitted": "Anda telah menggunakan pautan ini. Tuntutan pembayaran anda ada bersama kami dan tiada tindakan lanjut diperlukan.",
+    "unavailableTitle": "Pautan ini tidak lagi tersedia",
+    "unavailableBody": "Ia mungkin telah tamat tempoh, telah digunakan, atau tempahan telah berubah. Sila hubungi hotel dan kami akan membantu anda melengkapkan tempahan.",
+    "failed": "Kami tidak dapat merekodkan pembayaran anda. Sila cuba lagi, atau hubungi hotel jika masalah berterusan.",
+    "loading": "Menyemak pautan pembayaran anda…",
+    "paypal": "Bayar dengan PayPal atau kad",
+    "paypalUnavailable": "PayPal tidak dapat dimuatkan. Sila lumpuhkan penyekat kandungan dan cuba lagi.",
+    "paypalFailed": "Kami tidak dapat memulakan pembayaran PayPal anda. Sila cuba lagi, atau bayar melalui pemindahan bank.",
+    "or": "atau",
+    "uploadHeading": "Hantar resit pemindahan anda",
+    "uploadHint": "Gambar atau PDF pemindahan membantu kami mengesahkan pembayaran anda dengan lebih cepat.",
+    "uploadChoose": "Pilih resit",
+    "uploading": "Memuat naik…",
+    "uploaded": "Resit diterima. Terima kasih — kami akan mengesahkan pembayaran anda tidak lama lagi.",
+    "uploadFailed": "Kami tidak dapat menerima fail itu. Sila hantar JPEG, PNG, WebP atau PDF di bawah 10MB."
   }
 }

@@ -20,6 +20,7 @@ pub mod ledgers;
 pub mod maintenance;
 pub mod night_audit;
 pub mod passkey;
+pub mod payment_retry;
 pub mod payments;
 pub mod profile;
 pub mod rates;
@@ -253,6 +254,7 @@ pub fn create_router(pool: DbPool) -> Router {
     // static asset URLs depend on them.
     let api_routes = Router::new()
         .merge(auth::routes())
+        .merge(payment_retry::routes())
         .merge(booking_channels::routes())
         .merge(rooms::routes())
         .merge(guests::routes())

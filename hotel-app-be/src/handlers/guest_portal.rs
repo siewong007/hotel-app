@@ -220,7 +220,14 @@ pub async fn session_bank_transfer(
     ))
 }
 
-async fn receipt_upload_bytes(mut multipart: Multipart) -> Result<Vec<u8>, ApiError> {
+/// Pull the `file` field out of a receipt upload.
+///
+/// Shared with the emailed recovery path so both routes agree on what counts
+/// as a receipt upload; the size, type and payment-state checks live further
+/// in, in `save_payment_receipt`.
+pub(crate) async fn receipt_upload_bytes(
+    mut multipart: Multipart,
+) -> Result<Vec<u8>, ApiError> {
     while let Some(field) = multipart
         .next_field()
         .await
