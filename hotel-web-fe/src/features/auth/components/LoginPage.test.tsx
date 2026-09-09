@@ -116,7 +116,7 @@ describe('LoginPage username lookup gate', () => {
     await waitFor(() => {
       expect(mocks.lookupLoginIdentifier).toHaveBeenCalledWith('admin');
     });
-    expect(await screen.findByLabelText(/^Password$/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Password$/i)).toBeTruthy();
   });
 
   it('keeps the password field hidden when the username or email is unknown', async () => {
@@ -130,7 +130,7 @@ describe('LoginPage username lookup gate', () => {
 
     expect(
       await screen.findByText('No account found with that username or email')
-    ).toBeInTheDocument();
-    expect(screen.queryByLabelText(/^Password$/i)).not.toBeInTheDocument();
+    ).toBeTruthy();
+    expect(screen.queryByLabelText(/^Password$/i)).toBeNull();
   });
 });

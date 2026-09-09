@@ -63,14 +63,15 @@ describe('GuestCheckInForm', () => {
 
     render(<GuestCheckInForm />);
 
-    expect(await screen.findByRole('heading', { name: 'Complete your payment' })).toBeInTheDocument();
-    expect(screen.getByText(/BK-20261012-test/)).toBeInTheDocument();
-    expect(screen.getByText('Deeplink Retest')).toBeInTheDocument();
-    expect(screen.getByTestId('guest-payment-panel')).toHaveAttribute('data-mode', 'token');
-    expect(screen.getByTestId('guest-payment-panel')).toHaveAttribute('data-token', 'tok-abc');
-    expect(screen.queryByText('Submit Pre-Check-In')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/IC\/Passport/i)).not.toBeInTheDocument();
-    expect(screen.queryByText('Personal Information')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Complete your payment' })).toBeTruthy();
+    expect(screen.getByText(/BK-20261012-test/)).toBeTruthy();
+    expect(screen.getByText('Deeplink Retest')).toBeTruthy();
+    const panel = screen.getByTestId('guest-payment-panel');
+    expect(panel.getAttribute('data-mode')).toBe('token');
+    expect(panel.getAttribute('data-token')).toBe('tok-abc');
+    expect(screen.queryByText('Submit Pre-Check-In')).toBeNull();
+    expect(screen.queryByLabelText(/IC\/Passport/i)).toBeNull();
+    expect(screen.queryByText('Personal Information')).toBeNull();
   });
 
   it('hides payment panel when booking does not need online payment', async () => {
@@ -87,9 +88,11 @@ describe('GuestCheckInForm', () => {
 
     render(<GuestCheckInForm />);
 
-    expect(await screen.findByRole('heading', { name: 'Your booking' })).toBeInTheDocument();
-    expect(screen.queryByTestId('guest-payment-panel')).not.toBeInTheDocument();
-    expect(screen.getByText(/Online pre-check-in is no longer part of this flow/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your booking' })).toBeTruthy();
+    expect(screen.queryByTestId('guest-payment-panel')).toBeNull();
+    expect(
+      screen.getByText(/Online pre-check-in is no longer part of this flow/i)
+    ).toBeTruthy();
   });
 
   it('shows an error when the booking token is missing', async () => {
@@ -97,7 +100,7 @@ describe('GuestCheckInForm', () => {
 
     render(<GuestCheckInForm />);
 
-    expect(await screen.findByText('Invalid or missing token')).toBeInTheDocument();
+    expect(await screen.findByText('Invalid or missing token')).toBeTruthy();
     await waitFor(() => {
       expect(mocks.getBooking).not.toHaveBeenCalled();
     });
