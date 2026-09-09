@@ -34,7 +34,11 @@ use crate::modules::communications::validation::html_escape;
 #[derive(sqlx::FromRow)]
 struct BookingEmailSource {
     guest_id: i64,
+    /// The booking nickname. Legal name, when it exists, lives in the two
+    /// fields below and wins — see `display_guest_name`.
     guest_name: Option<String>,
+    guest_first_name: Option<String>,
+    guest_last_name: Option<String>,
     guest_email: Option<String>,
     booking_number: Option<String>,
     check_in_date: chrono::NaiveDate,
@@ -50,12 +54,20 @@ struct BookingEmailSource {
 }
 
 impl BookingEmailSource {
-    fn guest_name(&self, locale: Locale) -> &str {
-        self.guest_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| locale.message("email.fallback.guest"))
+    /// Mail goes out both before and after check-in, so this follows the same
+    /// rule as invoices: the legal name once check-in has supplied both halves,
+    /// the booking nickname until then.
+    fn guest_name(&self, locale: Locale) -> String {
+        let display = crate::models::guest::display_guest_name(
+            self.guest_name.as_deref().unwrap_or_default(),
+            self.guest_first_name.as_deref(),
+            self.guest_last_name.as_deref(),
+        );
+        if display.is_empty() {
+            locale.message("email.fallback.guest").to_string()
+        } else {
+            display
+        }
     }
 
     fn booking_label(&self, locale: Locale) -> &str {
@@ -137,6 +149,8 @@ async fn load_source(
         r#"
         SELECT g.id AS guest_id,
                g.nick_name AS guest_name,
+               g.first_name AS guest_first_name,
+               g.last_name AS guest_last_name,
                g.email AS guest_email,
                b.booking_number,
                b.check_in_date,
@@ -241,7 +255,7 @@ pub async fn queue_booking_confirmation_email(
         "<p>{}</p><p>{}</p>{}<p>{}</p>",
         locale.format(
             "email.greeting",
-            &[("name", &html_escape(source.guest_name(locale)))]
+            &[("name", &html_escape(&source.guest_name(locale)))]
         ),
         locale.format(
             "email.bookingConfirmed.bodyHtml",
@@ -252,7 +266,7 @@ pub async fn queue_booking_confirmation_email(
     );
     let inner_text = format!(
         "{}\n{}\n{}\n{}",
-        locale.format("email.greeting", &[("name", source.guest_name(locale))]),
+        locale.format("email.greeting", &[("name", &source.guest_name(locale))]),
         locale.format("email.bookingConfirmed.bodyText", &[("booking", booking)]),
         source.stay_block_text(locale),
         locale.message("email.bookingConfirmed.portalNote"),
@@ -367,7 +381,7 @@ pub async fn queue_payment_confirmation_email(
         "<p>{}</p><p>{}</p>{}{}<p>{}</p>",
         locale.format(
             "email.greeting",
-            &[("name", &html_escape(source.guest_name(locale)))]
+            &[("name", &html_escape(&source.guest_name(locale)))]
         ),
         locale.format(
             "email.paymentConfirmed.bodyHtml",
@@ -383,7 +397,7 @@ pub async fn queue_payment_confirmation_email(
     );
     let inner_text = format!(
         "{}\n{}\n{}\n{}: {}\n{}: {}\n{}",
-        locale.format("email.greeting", &[("name", source.guest_name(locale))]),
+        locale.format("email.greeting", &[("name", &source.guest_name(locale))]),
         locale.format(
             "email.paymentConfirmed.bodyText",
             &[
@@ -445,6 +459,8 @@ mod tests {
         BookingEmailSource {
             guest_id: 1,
             guest_name: Some("Aisha Rahman".to_string()),
+            guest_first_name: None,
+            guest_last_name: None,
             guest_email: Some("aisha@example.com".to_string()),
             booking_number: Some("BK-2026-0042".to_string()),
             check_in_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 5).expect("valid date"),

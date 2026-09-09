@@ -43,11 +43,11 @@ mod postgres_tests {
         GiftPointsInput, ManualAdjustmentInput, RedeemRewardInput, RewardInput,
     };
     use hotel_app_be::modules::loyalty::service as loyalty_service;
-    use hotel_app_be::repositories::guest::GuestRepository;
     use hotel_app_be::repositories::bookings::{
         add_guest_credits_handler, book_with_credits_handler, delete_guest_credits_handler,
         update_guest_credits_handler,
     };
+    use hotel_app_be::repositories::guest::GuestRepository;
     use hotel_app_be::services::guests as guest_service;
     use hotel_app_be::services::rates as rate_service;
     use hotel_app_be::{AuthService, Claims};

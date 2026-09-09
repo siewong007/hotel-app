@@ -814,6 +814,10 @@ mod tests {
         Guest {
             id,
             nick_name: nick_name.to_string(),
+            // These fixtures model guests who have not checked in yet, so the
+            // legal name is still unset.
+            first_name: None,
+            last_name: None,
             email: email.map(str::to_string),
             phone: phone.map(str::to_string),
             ic_number: ic_number.map(str::to_string),
