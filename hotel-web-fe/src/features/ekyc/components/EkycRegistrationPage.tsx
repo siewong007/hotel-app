@@ -34,6 +34,10 @@ import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatLocalDate } from '../../../utils/date';
 import { errorMessage } from '../../../utils/errorMessage';
+import { ConsentBlock } from '../../legal/components/ConsentBlock';
+import { EKYC_CONSENTS, EKYC_KEY_POINTS } from '../../legal/content';
+import { useLegalLocale } from '../../legal/LegalLocaleContext';
+import { useConsent } from '../../legal/useConsent';
 
 interface PersonalInfo {
   fullName: string;
@@ -93,6 +97,8 @@ const EkycRegistrationPage: React.FC = () => {
     currentAddress: '',
   });
 
+  const consent = useConsent(EKYC_CONSENTS);
+  const { locale: legalLocale } = useLegalLocale();
   const [documentInfo, setDocumentInfo] = useState<DocumentInfo>({
     idType: 'passport',
     idNumber: '',
@@ -210,6 +216,17 @@ const EkycRegistrationPage: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    // Checked BEFORE the uploads below, not just before the submit call. The
+    // uploads put the ID images and the selfie on the server, so running them
+    // first and letting the API reject afterwards would mean processing
+    // biometric data without consent — the exact thing this gate exists to
+    // prevent.
+    if (!consent.allRequiredGranted) {
+      consent.setShowErrors(true);
+      setError('Please give your explicit consent to identity verification before submitting.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -241,6 +258,8 @@ const EkycRegistrationPage: React.FC = () => {
         id_back_image: idBackPath,
         selfie_image: selfiePath,
         proof_of_address: proofPath,
+
+        consents: consent.buildPayload(legalLocale).consents,
       };
 
       // Call API to submit eKYC using centralized service
@@ -781,6 +800,19 @@ const EkycRegistrationPage: React.FC = () => {
                 Once approved, you'll be able to use self-check-in for your bookings.
               </Typography>
             </Alert>
+
+            {/* Explicit consent for sensitive personal data (PDPA s.40). Kept
+                separate from every other agreement in the product and never
+                pre-ticked: bundling it would invalidate it. */}
+            <ConsentBlock
+              prompts={EKYC_CONSENTS}
+              state={consent}
+              keyPoints={EKYC_KEY_POINTS}
+              title={{
+                en: 'Consent to identity verification',
+                ms: 'Persetujuan pengesahan identiti',
+              }}
+            />
           </Box>
         );
 

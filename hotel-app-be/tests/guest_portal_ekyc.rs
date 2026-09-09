@@ -31,12 +31,13 @@
 //! flagged separately instead.
 
 mod postgres_tests {
+    use hotel_app_be::ApiError;
     use hotel_app_be::models::EkycSubmissionRequest;
+    use hotel_app_be::modules::consent::models::{ConsentAcceptance, ConsentDocument};
     use hotel_app_be::modules::ekyc::service::{self, SubmissionChannel};
     use hotel_app_be::modules::ekyc::validation;
     use hotel_app_be::repositories::ekyc::EkycRepository;
     use hotel_app_be::repositories::guest_portal_session::GuestPortalSessionRepository;
-    use hotel_app_be::ApiError;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
     use std::fs;
     use std::path::PathBuf;
@@ -237,6 +238,15 @@ mod postgres_tests {
             phone: Some("+60123456789".to_string()),
             email: Some("guest-ekyc-test@example.com".to_string()),
             current_address: None,
+            // A real submission must carry explicit consent to process the
+            // biometric selfie (PDPA s.40); `submit_ekyc` refuses without it
+            // before reading a single image, so the fixture carries it too.
+            consents: vec![ConsentAcceptance {
+                document: ConsentDocument::EkycBiometric,
+                version: ConsentDocument::EkycBiometric.current_version().to_string(),
+                granted: true,
+                locale: "en".to_string(),
+            }],
         }
     }
 
@@ -314,11 +324,12 @@ mod postgres_tests {
         .expect("happy-path submission must succeed");
         assert_eq!(status.status, "submitted");
 
-        let rows = sqlx::query("SELECT user_id, guest_id FROM ekyc_verifications WHERE guest_id = $1")
-            .bind(f.guest_id)
-            .fetch_all(&pool)
-            .await
-            .expect("read back verifications");
+        let rows =
+            sqlx::query("SELECT user_id, guest_id FROM ekyc_verifications WHERE guest_id = $1")
+                .bind(f.guest_id)
+                .fetch_all(&pool)
+                .await
+                .expect("read back verifications");
         assert_eq!(rows.len(), 1, "exactly one verification row must exist");
         assert_eq!(rows[0].get::<i64, _>("user_id"), f.user_id);
         assert_eq!(rows[0].get::<i64, _>("guest_id"), f.guest_id);
@@ -414,7 +425,12 @@ mod postgres_tests {
         let first = service::submit_ekyc(
             &pool,
             f.user_id,
-            submission_request(id_front.clone(), selfie.clone(), "First Attempt", "P1111111"),
+            submission_request(
+                id_front.clone(),
+                selfie.clone(),
+                "First Attempt",
+                "P1111111",
+            ),
             SubmissionChannel::GuestPortal,
             None,
             None,
@@ -459,9 +475,15 @@ mod postgres_tests {
         .fetch_one(&pool)
         .await
         .expect("count awaiting-info rows");
-        assert_eq!(still_awaiting, 0, "dashboard must not keep counting the old request");
+        assert_eq!(
+            still_awaiting, 0,
+            "dashboard must not keep counting the old request"
+        );
 
-        assert_ne!(second.id, first.id, "a new verification row must be created");
+        assert_ne!(
+            second.id, first.id,
+            "a new verification row must be created"
+        );
         assert_eq!(second.status, "submitted");
 
         cleanup(&pool, f.guest_id, f.user_id).await;
@@ -617,11 +639,13 @@ mod postgres_tests {
             "additional_information_required must NOT block a new submission"
         );
 
-        sqlx::query("UPDATE ekyc_verifications SET status = 'pending_manual_review' WHERE guest_id = $1")
-            .bind(f.guest_id)
-            .execute(&pool)
-            .await
-            .expect("move verification to pending_manual_review");
+        sqlx::query(
+            "UPDATE ekyc_verifications SET status = 'pending_manual_review' WHERE guest_id = $1",
+        )
+        .bind(f.guest_id)
+        .execute(&pool)
+        .await
+        .expect("move verification to pending_manual_review");
         assert!(
             EkycRepository::exists_open_for_guest(&pool, f.guest_id)
                 .await

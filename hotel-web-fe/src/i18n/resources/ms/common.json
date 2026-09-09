@@ -1,0 +1,38 @@
+{
+  "actions": {
+    "save": "Simpan",
+    "cancel": "Batal",
+    "close": "Tutup",
+    "confirm": "Sahkan",
+    "delete": "Padam",
+    "edit": "Sunting",
+    "search": "Cari",
+    "retry": "Cuba lagi",
+    "back": "Kembali",
+    "next": "Seterusnya",
+    "apply": "Guna",
+    "reset": "Set semula"
+  },
+  "state": {
+    "loading": "Memuatkan…",
+    "saving": "Menyimpan…",
+    "empty": "Tiada apa-apa untuk dipaparkan",
+    "noResults": "Tiada hasil dijumpai"
+  },
+  "language": {
+    "label": "Bahasa",
+    "change": "Tukar bahasa",
+    "current": "Bahasa semasa: {{language}}",
+    "switchedTo": "Bahasa ditukar kepada {{language}}"
+  },
+  "count": {
+    "items_zero": "Tiada item",
+    "items_other": "{{count}} item",
+    "nights_zero": "Tiada malam",
+    "nights_other": "{{count}} malam",
+    "guests_zero": "Tiada tetamu",
+    "guests_other": "{{count}} orang tetamu",
+    "rooms_zero": "Tiada bilik",
+    "rooms_other": "{{count}} bilik"
+  }
+}

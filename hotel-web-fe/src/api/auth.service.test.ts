@@ -22,6 +22,12 @@ vi.mock('./client', async () => {
 import { AuthService } from './auth.service';
 import { APIError } from './client';
 
+/** The two consents the API requires on every registration. */
+const REQUIRED_CONSENTS = [
+  { document: 'terms_of_service' as const, version: '2026-09-09', granted: true, locale: 'en' as const },
+  { document: 'privacy_notice' as const, version: '2026-09-09', granted: true, locale: 'en' as const },
+];
+
 function mockJsonResponse(payload: unknown) {
   return { json: () => Promise.resolve(payload) };
 }
@@ -92,6 +98,8 @@ describe('AuthService', () => {
         first_name: 'New',
         last_name: 'User',
         phone: '0123456789',
+        consents: REQUIRED_CONSENTS,
+        marketing_opt_in: false,
       };
       post.mockReturnValue(Promise.resolve(undefined));
 
@@ -110,6 +118,8 @@ describe('AuthService', () => {
           first_name: 'New',
           last_name: 'User',
           phone: '0123456789',
+          consents: REQUIRED_CONSENTS,
+          marketing_opt_in: false,
         }),
       ).rejects.toMatchObject({
         name: 'APIError',
@@ -128,6 +138,8 @@ describe('AuthService', () => {
           first_name: 'X',
           last_name: 'Y',
           phone: '0123456789',
+          consents: REQUIRED_CONSENTS,
+          marketing_opt_in: false,
         }),
       ).rejects.toMatchObject({ name: 'APIError', message: 'Registration failed' });
     });

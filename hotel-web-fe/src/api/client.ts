@@ -1,6 +1,7 @@
 // Base API client configuration
 import ky, { isHTTPError } from 'ky';
 import { storage } from '../utils/storage';
+import { getActiveLocale } from '../i18n/localeStore';
 import { getAccessToken, setAccessToken, clearAccessToken } from '../auth/tokenStore';
 import { apiUrl, getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
 import {
@@ -245,6 +246,13 @@ export const api = ky.create({
         const request = requestFromKyHook(input);
         const nextUrl = resolveApiRequestUrl(request.url);
         const apiRequest = nextUrl === request.url ? request : await createRequestWithUrl(request, nextUrl);
+        // Tell the API which language this client is showing, so server-rendered
+        // output that leaves the browser — booking confirmation emails, receipts —
+        // is written in the language the guest is actually reading. A caller that
+        // set the header itself (a staff member acting on a guest's behalf) wins.
+        if (!apiRequest.headers.has('Accept-Language')) {
+          apiRequest.headers.set('Accept-Language', getActiveLocale());
+        }
         // Requests that set their own Authorization header (e.g. the guest
         // portal's session token) must not be overwritten with the staff token.
         if (apiRequest.headers.has('Authorization')) {

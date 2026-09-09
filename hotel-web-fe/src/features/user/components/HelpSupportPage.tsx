@@ -24,6 +24,7 @@ import {
 import { Link } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { canAccessNavigationRoute, navigationRouteDefinitions, preloadRoute } from '../../../navigation/routeRegistry';
+import { useRouteLabels } from '../../../navigation/routeLabels';
 
 const supportChecklist = [
   'Check the breadcrumb trail to confirm you are working in the intended module.',
@@ -44,6 +45,7 @@ const workflowTips = [
 ];
 
 export default function HelpSupportPage() {
+  const { navLabel: navLabelFor } = useRouteLabels();
   const { getRoutePolicy, hasPermission, hasRole, user } = useAuth();
 
   const quickLinks = navigationRouteDefinitions
@@ -132,7 +134,7 @@ export default function HelpSupportPage() {
                                 </Box>
                                 <Box>
                                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                                    {route.navLabel || route.breadcrumbLabel}
+                                    {navLabelFor(route)}
                                   </Typography>
                                   <Typography variant="caption" sx={{
                                     color: "text.secondary"

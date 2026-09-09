@@ -90,6 +90,10 @@ const PromotionManagementPage = lazyRoute(() => import('../features/promotions/p
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
 const NotificationsPage = lazyRoute(() => import('../features/notifications/pages/NotificationsPage'));
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
+const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
+const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
+const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
+const LegalIdentityVerificationPage = lazyRoute(() => import('../features/legal/pages/IdentityVerificationPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'public' },
@@ -104,6 +108,10 @@ const routeDefinitions: AppRouteDefinition[] = [
   { id: 'portal-dashboard', path: '/portal', component: PortalDashboardPage, animationType: 'fade', visibility: 'public' },
   { id: 'portal-book', path: '/portal/book', component: PortalBookingPage, animationType: 'fade', visibility: 'public' },
   { id: 'offers', path: '/offers', component: OffersPage, animationType: 'fade', visibility: 'public' },
+  { id: 'legal-terms', path: '/legal/terms', component: LegalTermsPage, animationType: 'fade', visibility: 'public' },
+  { id: 'legal-privacy', path: '/legal/privacy', component: LegalPrivacyPage, animationType: 'fade', visibility: 'public' },
+  { id: 'legal-payment-terms', path: '/legal/payment-terms', component: LegalPaymentTermsPage, animationType: 'fade', visibility: 'public' },
+  { id: 'legal-identity-verification', path: '/legal/identity-verification', component: LegalIdentityVerificationPage, animationType: 'fade', visibility: 'public' },
   { id: 'dashboard', path: '/', component: DashboardRouter, animationType: 'fade', visibility: 'auth' },
   {
     id: 'timeline',

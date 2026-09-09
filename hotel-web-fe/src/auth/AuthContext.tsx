@@ -9,6 +9,7 @@ import { storage } from '../utils/storage';
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy, UserProfile } from '../types';
 import { normalizeAuthUser, type AuthUserShape } from './authUser';
+import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export interface User extends AuthUserShape {}
 
@@ -40,7 +41,7 @@ interface AuthContextType extends AuthState {
   // trip or a full-page reload. See applyAuthSession for the same
   // state+storage write-through pattern this mirrors.
   applyProfileUpdate: (profile: UserProfile) => void;
-  register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => Promise<void>;
+  register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -228,7 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener('auth:tokens-refreshed', handleTokensRefreshed);
   }, []);
 
-  const register = useCallback(async (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => {
+  const register = useCallback(async (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }) => {
     try {
       await AuthService.register(data);
     } catch (error) {

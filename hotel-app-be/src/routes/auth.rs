@@ -47,7 +47,6 @@ pub fn routes() -> Router<DbPool> {
         .route("/auth/resend-verification", post(resend_verification))
 }
 
-
 async fn login_lookup(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
@@ -193,7 +192,7 @@ async fn register(
             retry_after,
         ));
     }
-    handlers::auth::register_handler(State(pool), Json(req)).await
+    handlers::auth::register_handler(State(pool), headers, peer_addr, Json(req)).await
 }
 
 async fn verify_email(

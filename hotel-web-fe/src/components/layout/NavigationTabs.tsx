@@ -32,6 +32,8 @@ import {
   navigationRouteDefinitions,
   preloadRoute,
 } from '../../navigation/routeRegistry';
+import { useRouteLabels } from '../../navigation/routeLabels';
+import { LanguageSwitcher } from '../common/LanguageSwitcher';
 
 interface NavigationTabsProps {
   darkBg?: boolean;
@@ -50,6 +52,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const displayEmail = user?.email?.endsWith('@no-email.invalid') ? '' : user?.email;
   const hotelName = getHotelSettings().hotel_name;
 
+  const { navLabel: navLabelFor } = useRouteLabels();
   const visibleItems = React.useMemo(
     () =>
       navigationRouteDefinitions.filter((item) =>
@@ -258,7 +261,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     if (showClient) {
       const pages = visibleItems
         .filter((item) => {
-          const label = item.navLabel || item.breadcrumbLabel || item.path;
+          const label = navLabelFor(item);
           return (
             !lowTerm ||
             label.toLowerCase().includes(lowTerm) ||
@@ -268,7 +271,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
         .slice(0, term ? 6 : 12)
         .map((item) => ({
           key: `pg-${item.id}`,
-          title: item.navLabel || item.breadcrumbLabel || item.path,
+          title: navLabelFor(item),
           subtitle: item.path,
           icon: renderNavIcon(item, 16) || dot,
           route: item.path,
@@ -277,7 +280,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     }
 
     return out;
-  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest]);
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor]);
 
   const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
@@ -521,6 +524,8 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           </Box>
         )}
 
+        <LanguageSwitcher color="inherit" size="small" />
+
         <NotificationCenter darkBg={darkBg} />
 
         {/* User pill */}
@@ -628,7 +633,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
                     }}
                   >
                     {renderNavIcon(item, 16)}
-                    {item.navLabel || item.breadcrumbLabel}
+                    {navLabelFor(item)}
                   </Box>
                 );
               })}

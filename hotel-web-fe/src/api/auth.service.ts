@@ -10,6 +10,7 @@ import {
   UserSessionInfo,
   AuthResponse,
 } from '../types';
+import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export class AuthService {
   /** First-step login: confirm username/email maps to an active account. */
@@ -40,6 +41,11 @@ export class AuthService {
     last_name: string;
     phone: string;
     address_line1?: string;
+    /** PDPA consent taken on the form. The API rejects a registration whose
+     *  Booking Terms or Privacy Notice consent is missing, refused, or pinned
+     *  to a superseded version. */
+    consents: ConsentAcceptance[];
+    marketing_opt_in: boolean;
   }): Promise<void> {
     try {
       await api.post('auth/register', { json: data });

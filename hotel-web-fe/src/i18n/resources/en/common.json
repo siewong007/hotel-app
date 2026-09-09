@@ -1,0 +1,42 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "retry": "Try again",
+    "back": "Back",
+    "next": "Next",
+    "apply": "Apply",
+    "reset": "Reset"
+  },
+  "state": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "empty": "Nothing to show",
+    "noResults": "No results found"
+  },
+  "language": {
+    "label": "Language",
+    "change": "Change language",
+    "current": "Current language: {{language}}",
+    "switchedTo": "Language changed to {{language}}"
+  },
+  "count": {
+    "items_zero": "No items",
+    "items_one": "{{count}} item",
+    "items_other": "{{count}} items",
+    "nights_zero": "No nights",
+    "nights_one": "{{count}} night",
+    "nights_other": "{{count}} nights",
+    "guests_zero": "No guests",
+    "guests_one": "{{count}} guest",
+    "guests_other": "{{count}} guests",
+    "rooms_zero": "No rooms",
+    "rooms_one": "{{count}} room",
+    "rooms_other": "{{count}} rooms"
+  }
+}

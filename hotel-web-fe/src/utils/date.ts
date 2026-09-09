@@ -1,4 +1,5 @@
 import { getHotelSetting } from './hotelSettings';
+import { dateFormatter, intlTag } from '../i18n/format';
 
 export const formatLocalDate = (date: Date = new Date()): string => {
   const year = date.getFullYear();
@@ -110,15 +111,19 @@ export const formatHotelDate = (value: BusinessDateValue, fallback = '-'): strin
   const match = DATE_ONLY_RE.exec(toHotelDateString(value));
   if (!match) return fallback;
   const calendarDate = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return calendarDate.toLocaleDateString('en-US', {
+  // Rendered in the interface language, not the viewer's browser locale: a
+  // staff member reading the app in Bahasa Melayu on an en-US machine should
+  // see Malay month names.
+  return dateFormatter({
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-  });
+  }).format(calendarDate);
 };
 
 // Date + time display: zoned instants render in the hotel timezone; zone-less
 // values keep their literal wall time; date-only values render as a date.
+// All three render in the active interface language (see src/i18n).
 export const formatHotelDateTime = (value: BusinessDateValue, fallback = '-'): string => {
   if (!value) return fallback;
   if (typeof value === 'string') {
@@ -129,17 +134,17 @@ export const formatHotelDateTime = (value: BusinessDateValue, fallback = '-'): s
         Number(dateOnly[1]),
         Number(dateOnly[2]) - 1,
         Number(dateOnly[3])
-      ).toLocaleDateString();
+      ).toLocaleDateString(intlTag());
     }
     const parsed = new Date(trimmed);
     if (Number.isNaN(parsed.getTime())) return fallback;
     if (NAIVE_DATETIME_RE.test(trimmed) && !TRAILING_ZONE_RE.test(trimmed)) {
-      return parsed.toLocaleString();
+      return parsed.toLocaleString(intlTag());
     }
-    return parsed.toLocaleString(undefined, { timeZone: getHotelTimeZone() });
+    return parsed.toLocaleString(intlTag(), { timeZone: getHotelTimeZone() });
   }
   if (Number.isNaN(value.getTime())) return fallback;
-  return value.toLocaleString(undefined, { timeZone: getHotelTimeZone() });
+  return value.toLocaleString(intlTag(), { timeZone: getHotelTimeZone() });
 };
 
 // True once the hotel calendar has moved past the value's date (the day itself

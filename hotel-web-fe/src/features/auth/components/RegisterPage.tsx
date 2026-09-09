@@ -28,6 +28,10 @@ import { storage } from '../../../utils/storage';
 import { GoogleSignInButton } from './GoogleSignInButton';
 import { errorMessage } from '../../../utils/errorMessage';
 import { safeGuestRedirect } from '../guestRedirect';
+import { ConsentBlock } from '../../legal/components/ConsentBlock';
+import { REGISTRATION_CONSENTS } from '../../legal/content';
+import { useLegalLocale } from '../../legal/LegalLocaleContext';
+import { useConsent } from '../../legal/useConsent';
 
 const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
@@ -54,6 +58,8 @@ const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [googleError, setGoogleError] = useState('');
+  const consent = useConsent(REGISTRATION_CONSENTS);
+  const { locale: legalLocale } = useLegalLocale();
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -146,9 +152,19 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
+    // Consent is checked here as well as on the server. The server is what
+    // makes it binding; this is only so the guest sees which box they missed
+    // instead of a generic API error.
+    if (!consent.allRequiredGranted) {
+      consent.setShowErrors(true);
+      setError('Please read and accept the Booking Terms and the Privacy Notice to continue.');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const consentPayload = consent.buildPayload(legalLocale);
       await register({
         username: formData.username,
         email: formData.email.trim() || undefined,
@@ -157,6 +173,8 @@ const RegisterPage: React.FC = () => {
         last_name: formData.lastName,
         phone: formData.phone,
         address_line1: formData.addressLine1.trim() || undefined,
+        consents: consentPayload.consents,
+        marketing_opt_in: consentPayload.marketing_opt_in,
       });
 
       const requiresEmailVerification = Boolean(formData.email.trim());
@@ -574,6 +592,8 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
             </Grid>
+
+            <ConsentBlock prompts={REGISTRATION_CONSENTS} state={consent} />
 
             <Button
               type="submit"

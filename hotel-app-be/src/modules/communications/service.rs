@@ -418,8 +418,7 @@ pub async fn list_delivery_feed(
     let items = rows
         .into_iter()
         .map(|d| {
-            let tier_label =
-                crate::modules::communications::validation::delivery_tier(&d.kind);
+            let tier_label = crate::modules::communications::validation::delivery_tier(&d.kind);
             DeliveryFeedItem {
                 summary: DeliverySummary {
                     id: d.id,
@@ -799,6 +798,46 @@ pub async fn update_my_preferences(
     )
     .await?;
     get_preferences(pool, guest_id).await
+}
+
+/// Record the marketing decision a guest made on a signup or booking form.
+///
+/// Marketing consent deliberately does NOT go into `consent_records` with the
+/// terms and privacy notice: this ledger already carries policy version,
+/// source, IP and user agent, and it owns the unsubscribe link the emails
+/// footer, so a second marketing ledger would only be a second thing to
+/// disagree with the first.
+///
+/// A refusal is written as an explicit opt-out on every topic rather than
+/// simply omitted, so "the guest was asked and said no" is distinguishable from
+/// "the guest was never asked".
+pub async fn record_signup_marketing_consent(
+    pool: &DbPool,
+    guest_id: i64,
+    opted_in: bool,
+    source: &str,
+    policy_version: Option<&str>,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<(), ApiError> {
+    let changes: Vec<(String, bool)> = validation::TOPICS
+        .iter()
+        .map(|topic| ((*topic).to_string(), opted_in))
+        .collect();
+    apply_preference_changes(
+        pool,
+        PreferenceChangeRequest {
+            guest_id,
+            changes: &changes,
+            source,
+            policy_version,
+            actor_type: "guest",
+            actor_user_id: None,
+            ip_address,
+            user_agent,
+        },
+    )
+    .await
 }
 
 pub async fn record_staff_consent(

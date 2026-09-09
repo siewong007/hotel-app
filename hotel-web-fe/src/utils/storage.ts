@@ -11,6 +11,7 @@ type StorageKey =
   | 'roles'
   | 'routePolicies'
   | 'themeMode'
+  | 'locale'
   | 'cmdRecents'
   | 'notificationHistory'
   | 'ekycAdminFilters'

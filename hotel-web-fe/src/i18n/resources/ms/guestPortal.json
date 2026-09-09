@@ -1,0 +1,40 @@
+{
+  "shell": {
+    "title": "Portal Tetamu",
+    "signOut": "Log Keluar",
+    "notifications": "Pemberitahuan",
+    "support": "Sokongan"
+  },
+  "tabs": {
+    "overview": "Ringkasan",
+    "bookings": "Tempahan Saya",
+    "payments": "Pembayaran",
+    "support": "Sokongan"
+  },
+  "booking": {
+    "checkIn": "Daftar Masuk",
+    "checkOut": "Daftar Keluar",
+    "nights": "Malam",
+    "room": "Bilik",
+    "roomType": "Jenis Bilik",
+    "total": "Jumlah",
+    "bookingNumber": "Nombor Tempahan",
+    "status": "Status"
+  },
+  "nav": {
+    "overview": "Laman Utama",
+    "stays": "Penginapan",
+    "points-history": "Mata",
+    "offers": "Tawaran",
+    "vouchers": "Baucar",
+    "credits": "Malam Percuma",
+    "identity": "Identiti",
+    "preferences": "Keutamaan"
+  },
+  "actions": {
+    "exploreHotel": "Terokai Hotel",
+    "book": "Tempah",
+    "more": "Lagi",
+    "signIn": "Log Masuk"
+  }
+}

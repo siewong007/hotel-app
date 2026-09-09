@@ -13,6 +13,10 @@ use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
+use crate::models::AuditEvent;
+use crate::modules::consent::models::ConsentSource;
+use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
+use crate::modules::consent::validation as consent_validation;
 use crate::modules::ekyc::models::{
     EkycAdminCreateRequest, EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
     EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDocumentAvailability, EkycListQuery,
@@ -27,7 +31,6 @@ use crate::repositories::ekyc::{
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
 use crate::utils::sanitization::Sanitizer;
-use crate::models::AuditEvent;
 
 /// Which surface a verification was submitted through.
 ///
@@ -93,10 +96,9 @@ pub async fn store_document_upload(
         let field_name = field.name().unwrap_or("").to_string();
 
         if field_name == "documentType" || field_name == "document_type" {
-            let raw_document_type = field
-                .text()
-                .await
-                .map_err(|e| ApiError::BadRequest(format!("Failed to read document type: {}", e)))?;
+            let raw_document_type = field.text().await.map_err(|e| {
+                ApiError::BadRequest(format!("Failed to read document type: {}", e))
+            })?;
             document_type = validation::sanitize_document_type(&raw_document_type)?;
         } else if field_name == "file" {
             let content_type = field.content_type().unwrap_or("").to_string();
@@ -156,6 +158,25 @@ pub async fn submit_ekyc(
     let guest_id = guest_id.ok_or_else(|| {
         ApiError::BadRequest("Your account is not linked to a guest profile".to_string())
     })?;
+
+    // Checked and recorded before any image in this request is read. Biometric
+    // data is sensitive personal data under PDPA s.40, so processing it and
+    // only then noticing consent was missing would already be the breach.
+    consent_validation::validate_locales(&req.consents)?;
+    consent_validation::require_consents(&req.consents, consent_validation::EKYC_REQUIRED)?;
+
+    let consent_context = ConsentContext {
+        ip_address: ip_address.clone(),
+        user_agent: user_agent.clone(),
+    };
+    consent_service::record(
+        pool,
+        ConsentSubject::guest(guest_id).with_user(user_id),
+        &req.consents,
+        ConsentSource::Ekyc,
+        &consent_context,
+    )
+    .await?;
 
     if EkycRepository::exists_open_for_guest(pool, guest_id).await? {
         return Err(ApiError::BadRequest(

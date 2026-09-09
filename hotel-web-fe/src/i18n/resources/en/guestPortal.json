@@ -1,0 +1,40 @@
+{
+  "shell": {
+    "title": "Guest Portal",
+    "signOut": "Sign out",
+    "notifications": "Notifications",
+    "support": "Support"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "bookings": "My Bookings",
+    "payments": "Payments",
+    "support": "Support"
+  },
+  "booking": {
+    "checkIn": "Check-in",
+    "checkOut": "Check-out",
+    "nights": "Nights",
+    "room": "Room",
+    "roomType": "Room type",
+    "total": "Total",
+    "bookingNumber": "Booking number",
+    "status": "Status"
+  },
+  "nav": {
+    "overview": "Home",
+    "stays": "Stays",
+    "points-history": "Points",
+    "offers": "Offers",
+    "vouchers": "Vouchers",
+    "credits": "Free nights",
+    "identity": "Identity",
+    "preferences": "Preferences"
+  },
+  "actions": {
+    "exploreHotel": "Explore hotel",
+    "book": "Book",
+    "more": "More",
+    "signIn": "Sign in"
+  }
+}

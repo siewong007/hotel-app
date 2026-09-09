@@ -300,6 +300,18 @@ pub struct RegisterRequest {
     pub phone: String,
     #[validate(length(max = 255, message = "Address is too long"))]
     pub address_line1: Option<String>,
+    /// Consent decisions taken on the registration form. The Booking Terms and
+    /// the Privacy Notice are mandatory here — `consent::validation` rejects the
+    /// request if either is missing, refused, or pinned to a superseded
+    /// version, so a client that stops sending these cannot quietly create
+    /// accounts with no provable consent.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
+    /// Optional marketing opt-in. Recorded through the notification consent
+    /// ledger rather than `consent_records`; see
+    /// `communications::service::record_signup_marketing_consent`.
+    #[serde(default)]
+    pub marketing_opt_in: bool,
 }
 
 /// Email verification confirmation

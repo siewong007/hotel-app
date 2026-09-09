@@ -26,6 +26,12 @@ pub struct EkycSubmissionRequest {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub current_address: Option<String>,
+    /// Explicit consent to process the identity document and the facial image.
+    /// A selfie is biometric data, which PDPA s.40 classes as sensitive
+    /// personal data requiring explicit consent, so this submission is refused
+    /// before a single image is read if the consent is absent or refused.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
 }
 
 /// Admin-initiated eKYC creation request (front-desk verifies a walk-in's
@@ -381,4 +387,3 @@ pub struct SelfCheckinRequest {
     pub device_type: Option<String>,
     pub checkin_location: Option<String>,
 }
-

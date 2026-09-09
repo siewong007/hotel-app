@@ -33,6 +33,8 @@ import { getValidPortalToken, PORTAL_TOKEN_CHANGE_EVENT } from '../api/portalTok
 import { GuestPortalNotificationBell } from './GuestPortalNotificationBell';
 import { PortalSupportWidget } from './PortalSupportWidget';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { useTranslation } from '../../../i18n';
+import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 
 interface GuestPortalShellProps {
   children: ReactNode;
@@ -110,6 +112,7 @@ function currentGuestSection(search: string): GuestSection {
 
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children, showAccountNav = true }: GuestPortalShellProps) {
+  const { tOr } = useTranslation('guestPortal');
   const location = useLocation();
   const navigate = useNavigate();
   const hotelName = getHotelSettings().hotel_name;
@@ -229,15 +232,16 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
                     }}
                   >
-                    {link.label}
+                    {tOr(`nav.${link.section}`, link.label)}
                   </Button>
                 ))}
                 <Button component="a" href={HOTEL_INDEX_LINK} color="inherit" sx={{ flexShrink: 0, minHeight: 44, px: 1.5, color: 'rgba(255,255,255,0.72)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'rgba(255,255,255,0.09)', color: '#FFFFFF', transform: 'translateY(-1px)' } }}>
-                  Explore hotel
+                  {tOr('actions.exploreHotel', 'Explore hotel')}
                 </Button>
               </Stack>
 
-              <Box sx={{ ml: 'auto', flexShrink: 0 }}>
+              <Box sx={{ ml: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <LanguageSwitcher color="inherit" size="small" />
                 {showAccountNav ? (
                   <GuestPortalNotificationBell token={portalToken} />
                 ) : (
@@ -297,19 +301,19 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
         <Box component="nav" aria-label="Guest portal mobile navigation" sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' }, position: 'fixed', inset: 'auto 0 0', zIndex: theme => theme.zIndex.appBar, px: 1, pb: 'max(8px, env(safe-area-inset-bottom))', pt: 1, bgcolor: 'rgba(245,240,230,0.94)', backdropFilter: 'blur(14px)', borderTop: '1px solid rgba(23,33,29,0.12)' }}>
           <BottomNavigation showLabels value={mobileValue} sx={{ height: 64, borderRadius: 2, bgcolor: '#FFFCF6', boxShadow: '0 8px 24px rgba(24,35,29,0.12)', overflow: 'hidden', '& .MuiBottomNavigationAction-root': { minWidth: 0, maxWidth: 'none', color: '#56625B', transition: 'color 200ms ease, transform 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, '& .MuiBottomNavigationAction-root.Mui-selected': { color: FOREST }, '& .MuiBottomNavigationAction-label': { fontSize: '0.625rem', fontWeight: 700, mt: 0.25 }, '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: '0.625rem' } }}>
             {primarySections.map(link => (
-              <BottomNavigationAction key={link.label} component={Link} to={link.to} value={link.to} label={link.label} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
+              <BottomNavigationAction key={link.label} component={Link} to={link.to} value={link.to} label={tOr(`nav.${link.section}`, link.label)} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
             ))}
             <BottomNavigationAction
               component={Link}
               to={BOOKING_LINK}
               value={BOOKING_LINK}
-              label="Book"
+              label={tOr('actions.book', 'Book')}
               icon={<CalendarMonthOutlinedIcon />}
               aria-current={activeSection === 'booking' ? 'page' : undefined}
             />
             <BottomNavigationAction
               value={MORE_VALUE}
-              label="More"
+              label={tOr('actions.more', 'More')}
               icon={<MoreHorizOutlinedIcon />}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}

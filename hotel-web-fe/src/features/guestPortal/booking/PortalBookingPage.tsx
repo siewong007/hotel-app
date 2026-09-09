@@ -19,6 +19,10 @@ import { GuestPaymentPanel } from '../components/GuestPaymentPanel';
 import { HTTPError } from 'ky';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { GuestBookingApi, PublicBookingApi } from './api';
+import { ConsentBlock } from '../../legal/components/ConsentBlock';
+import { BOOKING_CONSENTS } from '../../legal/content';
+import { useLegalLocale } from '../../legal/LegalLocaleContext';
+import { useConsent, type ConsentState } from '../../legal/useConsent';
 import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation, GuestBookingOffer, GuestBookingQuote, GuestBookingSearch } from './types';
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
@@ -96,6 +100,8 @@ const PortalBookingPage: React.FC = () => {
   const [cleaningPreference, setCleaningPreference] = useState(false);
   const [requestId, setRequestId] = useState(newRequestId);
   const [confirmation, setConfirmation] = useState<GuestBookingConfirmation | null>(null);
+  const consent = useConsent(BOOKING_CONSENTS);
+  const { locale: legalLocale } = useLegalLocale();
   const [isSearching, setIsSearching] = useState(false);
   const [isQuoting, setIsQuoting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -246,6 +252,14 @@ const PortalBookingPage: React.FC = () => {
     if (!quote) return;
     const detailsError = guestDetailsError(guestDetails);
     if (detailsError) { setError(detailsError); return; }
+    // Mirrors the server check so the guest sees which box they missed rather
+    // than a generic rejection. The server is what actually binds.
+    if (!consent.allRequiredGranted) {
+      consent.setShowErrors(true);
+      setError('Please read and accept the Booking Terms and the Privacy Notice to continue.');
+      return;
+    }
+    const consentPayload = consent.buildPayload(legalLocale);
     setIsSubmitting(true); setError(null);
     try {
       const result = await PublicBookingApi.create({
@@ -255,6 +269,8 @@ const PortalBookingPage: React.FC = () => {
         expected_total: quote.total_amount,
         special_requests: specialRequests.trim() || undefined,
         cleaning_preference: cleaningPreference,
+        consents: consentPayload.consents,
+        marketing_opt_in: consentPayload.marketing_opt_in,
         guest: {
           first_name: guestDetails.first_name.trim(),
           last_name: guestDetails.last_name?.trim() || undefined,
@@ -279,7 +295,7 @@ const PortalBookingPage: React.FC = () => {
       }
       catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, guestDetails, quote, requestId, runSearch, search, specialRequests]);
+  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, search, specialRequests]);
 
   const submitBooking = useCallback(async () => {
     if (!quote) return;
@@ -351,7 +367,7 @@ const PortalBookingPage: React.FC = () => {
         <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>Choose your room</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} guestDetails={guestDetails} onGuestDetails={setGuestDetails} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>Room availability changed</DialogTitle><DialogContent><Typography>This room or its online availability changed while you were reviewing. We refreshed the options and cleared the previous quote so you can choose from the latest availability.</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>View available rooms</Button></DialogActions></Dialog>
     </Container>
@@ -425,12 +441,12 @@ function LoadingQuote() { return (
     }}><CircularProgress size={24} /><Typography>Confirming the latest price…</Typography></Stack></Paper>
 ); }
 
-function ReviewStage(props: { isAnonymous: boolean; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
-  const { isAnonymous, guestDetails, onGuestDetails, quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
+function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
+  const { isAnonymous, consent, guestDetails, onGuestDetails, quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
   return (
     <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">Review your stay</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
         color: "text.secondary"
-      }}>{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}</>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
+      }}>{quote.check_in_date} to {quote.check_out_date} · {countStayNights(search)} night{countStayNights(search) === 1 ? '' : 's'} · {quote.adults} adults{quote.children > 0 ? ` · ${quote.children} children` : ''}</Typography>{isAnonymous ? <><GuestDetailsForm details={guestDetails} onChange={onGuestDetails} /><ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /></> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">Voucher</InputLabel><Select labelId="voucher-label" label="Voucher" value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">No voucher</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? ' — Not eligible for this stay' : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{quote.voucher_name} has been applied.</Alert>}</>}<TextField label="Special requests" value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
       }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label="I would like daily room cleaning" /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
   );

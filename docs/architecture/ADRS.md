@@ -257,3 +257,58 @@ baseline that will not install.
 - ✅ Built-in lazy loading support
 - ❌ Generated file must be committed
 - ❌ Migration from previous router required routes to be reorganized
+
+---
+
+## ADR 012: Hand-Rolled Internationalisation on `Intl`
+
+**Status:** Accepted (2026-09-09)
+
+**Context:** The platform serves a Malaysian hotel and needed to speak more than
+English — guests booking online, and staff running the property. Interface text,
+dates and numbers all needed to follow a chosen language, and so did the
+transactional email a guest receives, which is rendered on the server minutes
+after the request that triggered it, with no session left to consult.
+
+The obvious choice was `i18next` + `react-i18next`. Against it: the dependency
+policy in `AGENTS.md` asks for a strong reason before adding a library, and the
+"nontrivial domain" argument that justified i18next historically has largely
+moved into the platform — `Intl.PluralRules`, `Intl.NumberFormat`,
+`Intl.DateTimeFormat` and `Intl.RelativeTimeFormat` are all native and are what
+a library would delegate to anyway. This repo has also been burned by a
+dependency's version constraints (see the typescript-eslint note in
+`.claude/rules/lessons.md`), and an interface-wide dependency is an expensive
+one to be pinned by.
+
+**Decision:** Implement i18n in-house, on `Intl`, on both sides of the stack:
+
+- `hotel-web-fe/src/i18n/` — a pure translation engine (namespace lookup, plural
+  selection via `Intl.PluralRules`, `{{var}}` interpolation), JSON bundles per
+  locale, a module-level locale store read through `useSyncExternalStore`, and
+  memoised `Intl` formatters. The `useTranslation(ns)` → `{ t }` surface is
+  deliberately i18next-shaped, so adopting the library later is an import
+  change rather than a call-site migration.
+- `hotel-app-be/src/core/i18n.rs` — a `Locale` type, `Accept-Language`
+  negotiation with q-values, and JSON catalogs compiled in with `include_str!`.
+
+Both sides use `{{name}}` placeholders, matching the spelling
+`communications::validation::render_template` already uses for email templates,
+so a string can move between the three without being rewritten.
+
+Guest language is persisted in `guests.language_preference`, a column that
+already existed in the V1 baseline and had no reader. Staff interface language
+is a browser preference (`localStorage`), consistent with how `themeMode` and
+`hotelCurrency` are already handled.
+
+**Consequences:**
+- ✅ No new frontend dependency, and no version constraint on the interface layer
+- ✅ One idiom across web, desktop and server; one placeholder syntax
+- ✅ Guest-facing email is written in the guest's language, resolved at render
+  time from stored state rather than from a request that is long gone
+- ✅ Bundle parity, plural coverage and placeholder correctness are enforced by
+  tests on both sides — a half-translated locale fails CI instead of silently
+  serving English
+- ✅ No schema change: the language column and its default already ship
+- ❌ Features a library would give for free must be written if ever needed:
+  context/gender selection, ICU message format, translator tooling integration
+- ❌ Translations live in the repo, so a copy change is a code change

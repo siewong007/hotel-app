@@ -34,6 +34,9 @@ import { GuestPortalService } from '../../../api/guestPortal.service';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { formatCurrency, getCurrentCurrency } from '../../../utils/currency';
 import type { GuestPaymentConfig, PaymentActionResponse } from '../../../types';
+import { ConsentBlock } from '../../legal/components/ConsentBlock';
+import { PAYMENT_CONSENTS, PAYMENT_KEY_POINTS } from '../../legal/content';
+import { useConsent } from '../../legal/useConsent';
 
 export interface GuestPaymentPanelProps {
   amount?: string | number | null;
@@ -88,6 +91,7 @@ export function GuestPaymentPanel({
   const [pendingPaypalPaymentId, setPendingPaypalPaymentId] = useState<number | null>(null);
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | null>(null);
+  const consent = useConsent(PAYMENT_CONSENTS);
   // React state updates are asynchronous, so it cannot by itself prevent two
   // clicks in the same render from creating two payment claims.
   const paymentAttemptInFlight = useRef(false);
@@ -290,6 +294,20 @@ export function GuestPaymentPanel({
           ) : null}
         </RadioGroup>
       </FormControl>
+
+      {/* The guest is authorising a specific amount here, so the terms that
+          govern it — how each method settles, when the booking is confirmed,
+          and how refunds work — are shown at the point of payment rather than
+          left behind a link they have already passed. */}
+      {paymentMethod ? (
+        <ConsentBlock
+          prompts={PAYMENT_CONSENTS}
+          state={consent}
+          keyPoints={PAYMENT_KEY_POINTS}
+          title={{ en: 'Before you pay', ms: 'Sebelum anda membayar' }}
+        />
+      ) : null}
+
       {paymentMethod === 'bank_transfer' && showBankTransfer ? <Box sx={{ mt: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
           Bank transfer details
@@ -342,7 +360,7 @@ export function GuestPaymentPanel({
           </Typography>
           <Button
             variant="outlined"
-            disabled={!canPay || bankSubmitting}
+            disabled={!canPay || bankSubmitting || !consent.allRequiredGranted}
             onClick={() => void submitBankTransfer()}
           >
             {bankSubmitting ? <CircularProgress size={20} /> : "I've paid via bank transfer"}
@@ -367,13 +385,19 @@ export function GuestPaymentPanel({
               intent: 'capture',
             }}
           >
-            <PayPalButtons
-              style={{ layout: 'vertical' }}
-              createOrder={createOrder}
-              onApprove={onApprove}
-              onError={onPaypalError}
-              onCancel={onPaypalCancel}
-            />
+            {consent.allRequiredGranted ? (
+              <PayPalButtons
+                style={{ layout: 'vertical' }}
+                createOrder={createOrder}
+                onApprove={onApprove}
+                onError={onPaypalError}
+                onCancel={onPaypalCancel}
+              />
+            ) : (
+              <Alert severity="info">
+                Please accept the Payment Terms above to continue to PayPal.
+              </Alert>
+            )}
           </PayPalScriptProvider>
         </Box>
       ) : null}

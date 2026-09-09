@@ -1,0 +1,45 @@
+{
+  "groups": {
+    "main": "Utama",
+    "operations": "Operasi",
+    "admin": "Pentadbiran",
+    "config": "Konfigurasi"
+  },
+  "routes": {
+    "timeline": { "label": "Garis Masa", "breadcrumb": "Garis Masa Tempahan" },
+    "guest-config": { "label": "Tetamu", "breadcrumb": "Pengurusan Tetamu" },
+    "bookings": { "label": "Tempahan", "breadcrumb": "Tempahan" },
+    "room-management": { "label": "Bilik", "breadcrumb": "Pengurusan Bilik" },
+    "online-inventory": { "label": "Inventori Dalam Talian", "breadcrumb": "Kawalan Inventori Dalam Talian" },
+    "reports": { "label": "Laporan", "breadcrumb": "Laporan" },
+    "housekeeping": { "label": "Pengemasan", "breadcrumb": "Pengemasan" },
+    "support": { "label": "Sokongan", "breadcrumb": "Sokongan Tetamu" },
+    "profile": { "label": "Profil Saya", "breadcrumb": "Profil Saya" },
+    "help": { "label": "Bantuan", "breadcrumb": "Bantuan & Sokongan" },
+    "room-config": { "label": "Konfigurasi Bilik", "breadcrumb": "Konfigurasi Bilik" },
+    "settings": { "label": "Tetapan Hotel", "breadcrumb": "Tetapan Hotel" },
+    "rbac": { "label": "Kawalan Akses", "breadcrumb": "Kawalan Akses" },
+    "company-ledger": { "label": "Lejar", "breadcrumb": "Lejar Syarikat" },
+    "night-audit": { "label": "Audit Malam", "breadcrumb": "Audit Malam" },
+    "payment-approvals": { "label": "Kelulusan Pembayaran", "breadcrumb": "Kelulusan Pembayaran" },
+    "audit-log": { "label": "Log Audit", "breadcrumb": "Log Audit" },
+    "complimentary": { "label": "Malam Percuma", "breadcrumb": "Malam Percuma" },
+    "loyalty": { "label": "Kesetiaan", "breadcrumb": "Kesetiaan" },
+    "promotions": { "label": "Promosi", "breadcrumb": "Promosi & Baucar" },
+    "communications": { "label": "Komunikasi", "breadcrumb": "Komunikasi" },
+    "notifications": { "label": "Pemberitahuan", "breadcrumb": "Pemberitahuan" },
+    "data-transfer": { "label": "Pemindahan Data", "breadcrumb": "Pemindahan Data" },
+    "ekyc-admin": { "label": "Pentadbir eKYC", "breadcrumb": "Pentadbir eKYC" }
+  },
+  "userMenu": {
+    "profile": "Profil Saya",
+    "settings": "Tetapan",
+    "logout": "Log Keluar",
+    "signedInAs": "Log masuk sebagai {{name}}"
+  },
+  "aria": {
+    "mainNavigation": "Navigasi utama",
+    "openMenu": "Buka menu",
+    "moreSections": "Bahagian lain"
+  }
+}

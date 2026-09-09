@@ -23,7 +23,11 @@ use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
+use crate::modules::communications::service as communications_service;
 use crate::modules::communications::validation::html_escape;
+use crate::modules::consent::models::{ConsentDocument, ConsentSource};
+use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
+use crate::modules::consent::validation as consent_validation;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::ProfileCompletion;
 use crate::services::profile::completion_for_guest;
@@ -895,6 +899,11 @@ pub async fn create_anonymous(
     let request_id = validate_client_request_id(&request.client_request_id)?;
     let guest = validate_anonymous_guest(&request.guest)?;
 
+    // Checked before the idempotent-replay branch below, so a replayed request
+    // that has dropped its consent cannot reissue an access token either.
+    consent_validation::validate_locales(&request.consents)?;
+    consent_validation::require_consents(&request.consents, consent_validation::BOOKING_REQUIRED)?;
+
     // Idempotent retry: same client request id, same email. The stored
     // access token is hashed, so the original plaintext cannot be recovered
     // — mint a replacement so a lost first response can still pay.
@@ -1027,6 +1036,20 @@ pub async fn create_anonymous(
         }),
     )
     .await?;
+    // Consent joins this transaction: the guest row, the booking and the consent
+    // that authorised them commit together or not at all.
+    consent_service::record_tx(
+        &mut tx,
+        ConsentSubject::anonymous_booking(guest_id, booking_id),
+        &request.consents,
+        ConsentSource::OnlineBooking,
+        &ConsentContext {
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
+        },
+    )
+    .await?;
+
     AuditLog::log_event_tx(
         &mut tx,
         AuditEvent {
@@ -1043,8 +1066,8 @@ pub async fn create_anonymous(
                 "currency": quote.currency,
                 "guest_id": guest_id,
             })),
-            ip_address,
-            user_agent,
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
         },
     )
     .await?;
@@ -1081,6 +1104,23 @@ pub async fn create_anonymous(
     .await?;
 
     tx.commit().await.map_err(ApiError::from)?;
+
+    // Outside the booking transaction on purpose: failing to store a mailing
+    // preference must not roll back a booking the guest is about to pay for.
+    // The binding consent is already committed above in `consent_records`.
+    if let Err(error) = communications_service::record_signup_marketing_consent(
+        pool,
+        guest_id,
+        request.marketing_opt_in,
+        "online_booking",
+        Some(ConsentDocument::PrivacyNotice.current_version()),
+        ip_address.clone(),
+        user_agent.clone(),
+    )
+    .await
+    {
+        log::warn!("Failed to record marketing preference for guest {guest_id}: {error}");
+    }
 
     let mut confirmation = Repository::confirmation_by_id(pool, booking_id).await?;
     confirmation.access_token = Some(access_token);
@@ -1157,11 +1197,11 @@ fn portal_booking_mail(mail: PortalBookingMail<'_>) -> (String, String, String) 
     // Prefer a token deep-link into the pre-arrival payment form. The frontend
     // captures `?token=` into sessionStorage and strips it from the URL.
     // Fall back to the booking-number lookup page only when no token exists.
-    let pay_url = match access_token.map(str::trim).filter(|value| !value.is_empty()) {
-        Some(token) => email_layout::absolute_url(&format!(
-            "/guest-checkin/form?token={}",
-            token
-        )),
+    let pay_url = match access_token
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        Some(token) => email_layout::absolute_url(&format!("/guest-checkin/form?token={}", token)),
         None => email_layout::absolute_url("/guest-checkin"),
     };
 
@@ -1547,9 +1587,7 @@ mod tests {
         assert!(html.contains("08 Sep 2026"));
         assert!(html.contains("MYR 0.00"));
         assert!(html.contains("Complete payment"));
-        assert!(html.contains(
-            "https://saliminn.my/guest-checkin/form?token=deadbeefcafebabe"
-        ));
+        assert!(html.contains("https://saliminn.my/guest-checkin/form?token=deadbeefcafebabe"));
         assert!(!html.contains("https://saliminn.my/guest-checkin\""));
         assert!(html.contains("Paul &lt;Wong&gt;"));
         assert!(!html.contains("Paul <Wong>"));

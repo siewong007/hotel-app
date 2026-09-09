@@ -21,10 +21,15 @@ export interface EkycSubmitPayload {
   selfie_image?: string | null;
   proof_of_address?: string | null;
   self_checkin_enabled?: boolean;
+  /** Explicit consent to process the ID document and facial image. The API
+   *  refuses the submission before reading any image without it: a selfie is
+   *  biometric data, which PDPA s.40 treats as sensitive personal data. */
+  consents?: ConsentAcceptance[];
 }
 
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
+import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export interface EkycListParams {
   [key: string]: string | number | boolean | undefined;

@@ -1,0 +1,57 @@
+{
+  "email": {
+    "greeting": "Dear {{name}},",
+    "fallback": {
+      "guest": "Guest",
+      "booking": "your booking"
+    },
+    "labels": {
+      "booking": "Booking",
+      "room": "Room",
+      "stay": "Stay",
+      "total": "Total",
+      "payment": "Payment",
+      "method": "Method",
+      "paymentsReceived": "Payments received",
+      "balance": "Balance"
+    },
+    "stay": {
+      "range": "{{from}} to {{to}} · {{nights}} night(s)",
+      "text": "Booking: {{booking}}\nRoom: {{room}} ({{roomType}})\nStay: {{from}} to {{to}} ({{nights}} night(s))\nTotal: {{total}}"
+    },
+    "cta": {
+      "viewBooking": "View your booking"
+    },
+    "bookingConfirmed": {
+      "subject": "{{hotel}} reservation confirmed {{booking}}",
+      "preheader": "Your {{hotel}} reservation {{booking}} is confirmed.",
+      "heading": "Reservation confirmed",
+      "bodyHtml": "Your reservation <strong>{{booking}}</strong> is confirmed. We look forward to welcoming you.",
+      "bodyText": "Your reservation {{booking}} is confirmed. We look forward to welcoming you.",
+      "portalNote": "You can review this booking any time in your guest portal."
+    },
+    "paymentConfirmed": {
+      "subject": "Payment confirmed · {{hotel}} {{booking}}",
+      "preheader": "Payment confirmed for {{hotel}} reservation {{booking}}.",
+      "heading": "Payment confirmed",
+      "bodyHtml": "We have confirmed your payment of <strong>{{amount}}</strong> ({{method}}) for booking <strong>{{booking}}</strong>.",
+      "bodyText": "We have confirmed your payment of {{amount}} ({{method}}) for booking {{booking}}.",
+      "settled": "Your booking is fully paid and confirmed. There is nothing left to settle.",
+      "outstanding": "Your booking is confirmed. The remaining balance is payable at the hotel."
+    },
+    "months": {
+      "01": "Jan",
+      "02": "Feb",
+      "03": "Mar",
+      "04": "Apr",
+      "05": "May",
+      "06": "Jun",
+      "07": "Jul",
+      "08": "Aug",
+      "09": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    }
+  }
+}

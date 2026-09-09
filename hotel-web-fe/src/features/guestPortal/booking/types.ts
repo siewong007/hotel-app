@@ -1,3 +1,4 @@
+import type { ConsentAcceptance } from '../../legal/useConsent';
 export interface GuestBookingSearch {
   check_in_date: string;
   check_out_date: string;
@@ -100,6 +101,10 @@ export interface CreateAnonymousBookingRequest extends GuestBookingSearch {
   special_requests?: string;
   cleaning_preference?: boolean;
   guest: AnonymousGuestDetails;
+  /** PDPA consent taken on the booking form. The API refuses the booking if the
+   *  Booking Terms or Privacy Notice consent is missing, refused, or stale. */
+  consents: ConsentAcceptance[];
+  marketing_opt_in: boolean;
 }
 
 export interface GuestBookingConfirmation {

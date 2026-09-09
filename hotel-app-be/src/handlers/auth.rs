@@ -56,7 +56,6 @@ fn clear_refresh_cookie() -> Cookie<'static> {
         .build()
 }
 
-
 pub async fn lookup_login_identifier_handler(
     State(pool): State<DbPool>,
     Json(req): Json<crate::models::LoginLookupRequest>,
@@ -136,9 +135,13 @@ pub async fn logout_handler(
 
 pub async fn register_handler(
     State(pool): State<DbPool>,
+    headers: axum::http::HeaderMap,
+    peer_addr: std::net::SocketAddr,
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(svc::register(&pool, req).await?))
+    let consent_context =
+        crate::modules::consent::service::ConsentContext::from_request(&headers, peer_addr);
+    Ok(Json(svc::register(&pool, req, &consent_context).await?))
 }
 
 pub async fn verify_email_handler(

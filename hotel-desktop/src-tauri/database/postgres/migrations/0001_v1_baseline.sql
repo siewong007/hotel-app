@@ -1888,6 +1888,68 @@ ALTER TABLE public.companies ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: consent_records; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.consent_records (
+    id bigint NOT NULL,
+    subject_type character varying(20) NOT NULL,
+    user_id bigint,
+    guest_id bigint,
+    booking_id bigint,
+    document_type character varying(40) NOT NULL,
+    document_version character varying(40) NOT NULL,
+    locale character varying(10) DEFAULT 'en'::character varying NOT NULL,
+    granted boolean NOT NULL,
+    source character varying(40) NOT NULL,
+    ip_address inet,
+    user_agent text,
+    withdrawn_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT consent_records_document_type_check CHECK (((document_type)::text = ANY ((ARRAY['terms_of_service'::character varying, 'privacy_notice'::character varying, 'payment_terms'::character varying, 'ekyc_biometric'::character varying])::text[]))),
+    CONSTRAINT consent_records_locale_check CHECK (((locale)::text = ANY ((ARRAY['en'::character varying, 'ms'::character varying])::text[]))),
+    CONSTRAINT consent_records_source_check CHECK (((source)::text = ANY ((ARRAY['registration'::character varying, 'online_booking'::character varying, 'payment'::character varying, 'ekyc'::character varying, 'guest_portal'::character varying, 'front_desk'::character varying])::text[]))),
+    CONSTRAINT consent_records_subject_present_check CHECK (((user_id IS NOT NULL) OR (guest_id IS NOT NULL) OR (booking_id IS NOT NULL))),
+    CONSTRAINT consent_records_subject_type_check CHECK (((subject_type)::text = ANY ((ARRAY['user'::character varying, 'guest'::character varying, 'anonymous'::character varying])::text[])))
+);
+
+
+--
+-- Name: TABLE consent_records; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.consent_records IS 'Append-only evidence of consent given or withdrawn under the Personal Data Protection Act 2010. One row per document per act of consent; a withdrawal is a new row with granted = false rather than an update, so the history stays provable.';
+
+
+--
+-- Name: COLUMN consent_records.document_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.consent_records.document_version IS 'Version string of the document the subject actually saw, so a later reissue of the text cannot be mistaken for what was agreed to.';
+
+
+--
+-- Name: COLUMN consent_records.granted; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.consent_records.granted IS 'true when consent was given, false when it was refused or later withdrawn.';
+
+
+--
+-- Name: consent_records_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.consent_records ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.consent_records_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: corporate_account_contacts; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5243,6 +5305,14 @@ ALTER TABLE ONLY public.companies
 
 
 --
+-- Name: consent_records consent_records_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.consent_records
+    ADD CONSTRAINT consent_records_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: corporate_account_contacts corporate_account_contacts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6603,6 +6673,34 @@ CREATE INDEX idx_companies_company_name_trgm ON public.companies USING gin (comp
 --
 
 CREATE UNIQUE INDEX idx_companies_name_unique ON public.companies USING btree (lower((company_name)::text));
+
+
+--
+-- Name: idx_consent_records_booking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_records_booking ON public.consent_records USING btree (booking_id) WHERE (booking_id IS NOT NULL);
+
+
+--
+-- Name: idx_consent_records_document; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_records_document ON public.consent_records USING btree (document_type, document_version);
+
+
+--
+-- Name: idx_consent_records_guest; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_records_guest ON public.consent_records USING btree (guest_id) WHERE (guest_id IS NOT NULL);
+
+
+--
+-- Name: idx_consent_records_user; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_consent_records_user ON public.consent_records USING btree (user_id) WHERE (user_id IS NOT NULL);
 
 
 --
@@ -8382,6 +8480,30 @@ ALTER TABLE ONLY public.bookings
 
 ALTER TABLE ONLY public.companies
     ADD CONSTRAINT companies_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+
+
+--
+-- Name: consent_records consent_records_booking_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.consent_records
+    ADD CONSTRAINT consent_records_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE CASCADE;
+
+
+--
+-- Name: consent_records consent_records_guest_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.consent_records
+    ADD CONSTRAINT consent_records_guest_id_fkey FOREIGN KEY (guest_id) REFERENCES public.guests(id) ON DELETE CASCADE;
+
+
+--
+-- Name: consent_records consent_records_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.consent_records
+    ADD CONSTRAINT consent_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --

@@ -49,6 +49,10 @@ import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/in
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
+import { Route as LegalIdentityVerificationRouteImport } from './routes/legal/identity-verification'
+import { Route as LegalPaymentTermsRouteImport } from './routes/legal/payment-terms'
+import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
+import { Route as LegalTermsRouteImport } from './routes/legal/terms'
 import { Route as PortalIndexRouteImport } from './routes/portal/index'
 import { Route as PortalBookRouteImport } from './routes/portal/book'
 import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
@@ -253,6 +257,27 @@ const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
   path: '/guest-checkin/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LegalIdentityVerificationRoute =
+  LegalIdentityVerificationRouteImport.update({
+    id: '/legal/identity-verification',
+    path: '/legal/identity-verification',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LegalPaymentTermsRoute = LegalPaymentTermsRouteImport.update({
+  id: '/legal/payment-terms',
+  path: '/legal/payment-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/legal/privacy',
+  path: '/legal/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalTermsRoute = LegalTermsRouteImport.update({
+  id: '/legal/terms',
+  path: '/legal/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalIndexRoute = PortalIndexRouteImport.update({
   id: '/portal/',
   path: '/portal/',
@@ -309,6 +334,10 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/legal/identity-verification': typeof LegalIdentityVerificationRoute
+  '/legal/payment-terms': typeof LegalPaymentTermsRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
@@ -354,6 +383,10 @@ export interface FileRoutesByTo {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/legal/identity-verification': typeof LegalIdentityVerificationRoute
+  '/legal/payment-terms': typeof LegalPaymentTermsRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin': typeof GuestCheckinIndexRoute
@@ -400,6 +433,10 @@ export interface FileRoutesById {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/legal/identity-verification': typeof LegalIdentityVerificationRoute
+  '/legal/payment-terms': typeof LegalPaymentTermsRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/terms': typeof LegalTermsRoute
   '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
@@ -447,6 +484,10 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/legal/identity-verification'
+    | '/legal/payment-terms'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin/'
@@ -492,6 +533,10 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/legal/identity-verification'
+    | '/legal/payment-terms'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin'
@@ -537,6 +582,10 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/legal/identity-verification'
+    | '/legal/payment-terms'
+    | '/legal/privacy'
+    | '/legal/terms'
     | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin/'
@@ -583,6 +632,10 @@ export interface RootRouteChildren {
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
   GuestCheckinFormRoute: typeof GuestCheckinFormRoute
   GuestCheckinVerifyRoute: typeof GuestCheckinVerifyRoute
+  LegalIdentityVerificationRoute: typeof LegalIdentityVerificationRoute
+  LegalPaymentTermsRoute: typeof LegalPaymentTermsRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalTermsRoute: typeof LegalTermsRoute
   PortalBookRoute: typeof PortalBookRoute
   UnsubscribeTokenRoute: typeof UnsubscribeTokenRoute
   GuestCheckinIndexRoute: typeof GuestCheckinIndexRoute
@@ -871,6 +924,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestCheckinVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/legal/identity-verification': {
+      id: '/legal/identity-verification'
+      path: '/legal/identity-verification'
+      fullPath: '/legal/identity-verification'
+      preLoaderRoute: typeof LegalIdentityVerificationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/payment-terms': {
+      id: '/legal/payment-terms'
+      path: '/legal/payment-terms'
+      fullPath: '/legal/payment-terms'
+      preLoaderRoute: typeof LegalPaymentTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/legal/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/terms': {
+      id: '/legal/terms'
+      path: '/legal/terms'
+      fullPath: '/legal/terms'
+      preLoaderRoute: typeof LegalTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/': {
       id: '/portal/'
       path: '/portal'
@@ -935,6 +1016,10 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,
   GuestCheckinFormRoute: GuestCheckinFormRoute,
   GuestCheckinVerifyRoute: GuestCheckinVerifyRoute,
+  LegalIdentityVerificationRoute: LegalIdentityVerificationRoute,
+  LegalPaymentTermsRoute: LegalPaymentTermsRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalTermsRoute: LegalTermsRoute,
   PortalBookRoute: PortalBookRoute,
   UnsubscribeTokenRoute: UnsubscribeTokenRoute,
   GuestCheckinIndexRoute: GuestCheckinIndexRoute,

@@ -1,0 +1,57 @@
+{
+  "email": {
+    "greeting": "Salam sejahtera {{name}},",
+    "fallback": {
+      "guest": "Tetamu",
+      "booking": "tempahan anda"
+    },
+    "labels": {
+      "booking": "Tempahan",
+      "room": "Bilik",
+      "stay": "Penginapan",
+      "total": "Jumlah",
+      "payment": "Pembayaran",
+      "method": "Kaedah",
+      "paymentsReceived": "Pembayaran diterima",
+      "balance": "Baki"
+    },
+    "stay": {
+      "range": "{{from}} hingga {{to}} · {{nights}} malam",
+      "text": "Tempahan: {{booking}}\nBilik: {{room}} ({{roomType}})\nPenginapan: {{from}} hingga {{to}} ({{nights}} malam)\nJumlah: {{total}}"
+    },
+    "cta": {
+      "viewBooking": "Lihat tempahan anda"
+    },
+    "bookingConfirmed": {
+      "subject": "Tempahan {{hotel}} disahkan {{booking}}",
+      "preheader": "Tempahan {{hotel}} anda {{booking}} telah disahkan.",
+      "heading": "Tempahan disahkan",
+      "bodyHtml": "Tempahan anda <strong>{{booking}}</strong> telah disahkan. Kami menantikan kehadiran anda.",
+      "bodyText": "Tempahan anda {{booking}} telah disahkan. Kami menantikan kehadiran anda.",
+      "portalNote": "Anda boleh menyemak tempahan ini pada bila-bila masa di portal tetamu anda."
+    },
+    "paymentConfirmed": {
+      "subject": "Pembayaran disahkan · {{hotel}} {{booking}}",
+      "preheader": "Pembayaran disahkan untuk tempahan {{hotel}} {{booking}}.",
+      "heading": "Pembayaran disahkan",
+      "bodyHtml": "Kami telah mengesahkan pembayaran anda sebanyak <strong>{{amount}}</strong> ({{method}}) untuk tempahan <strong>{{booking}}</strong>.",
+      "bodyText": "Kami telah mengesahkan pembayaran anda sebanyak {{amount}} ({{method}}) untuk tempahan {{booking}}.",
+      "settled": "Tempahan anda telah dibayar sepenuhnya dan disahkan. Tiada baki tertunggak.",
+      "outstanding": "Tempahan anda telah disahkan. Baki yang tinggal boleh dijelaskan di hotel."
+    },
+    "months": {
+      "01": "Jan",
+      "02": "Feb",
+      "03": "Mac",
+      "04": "Apr",
+      "05": "Mei",
+      "06": "Jun",
+      "07": "Jul",
+      "08": "Ogo",
+      "09": "Sep",
+      "10": "Okt",
+      "11": "Nov",
+      "12": "Dis"
+    }
+  }
+}

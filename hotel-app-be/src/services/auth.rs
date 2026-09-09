@@ -5,9 +5,14 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{
-    AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginLookupRequest, LoginLookupResponse, LoginRequest, RefreshTokenRequest,
-    RefreshTokenResponse, RegisterRequest, ResendVerificationRequest, User, UserResponse,
+    AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginLookupRequest,
+    LoginLookupResponse, LoginRequest, RefreshTokenRequest, RefreshTokenResponse, RegisterRequest,
+    ResendVerificationRequest, User, UserResponse,
 };
+use crate::modules::communications::service as communications_service;
+use crate::modules::consent::models::{ConsentDocument, ConsentSource};
+use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
+use crate::modules::consent::validation as consent_validation;
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::guest::GuestRepository;
 use crate::repositories::rbac::RbacRepository;
@@ -258,8 +263,8 @@ pub async fn login(
 
         let stored = two_factor_secret
             .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
-        let secret = AuthService::decrypt_stored_totp_secret(&stored)
-            .map_err(ApiError::Internal)?;
+        let secret =
+            AuthService::decrypt_stored_totp_secret(&stored).map_err(ApiError::Internal)?;
         // TOTP first, then recovery-code fallback — the same order the
         // 2FA-disable flow uses. Recovery codes must work here: this is the
         // only unauthenticated surface, so without it a user who lost their
@@ -539,6 +544,7 @@ pub async fn logout(pool: &DbPool, req: RefreshTokenRequest) -> Result<(), ApiEr
 pub async fn register(
     pool: &DbPool,
     mut req: RegisterRequest,
+    consent_context: &ConsentContext,
 ) -> Result<serde_json::Value, ApiError> {
     req.email = req
         .email
@@ -554,6 +560,12 @@ pub async fn register(
 
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    // Consent is checked before any row is written. A request that has not
+    // accepted the current Booking Terms and Privacy Notice is rejected here,
+    // so there is no path that creates an account without provable consent.
+    consent_validation::validate_locales(&req.consents)?;
+    consent_validation::require_consents(&req.consents, consent_validation::REGISTRATION_REQUIRED)?;
 
     req.first_name = Sanitizer::sanitize_guest_name(&req.first_name);
     req.last_name = Sanitizer::sanitize_guest_name(&req.last_name);
@@ -581,6 +593,29 @@ pub async fn register(
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
     let (guest, user) = AuthRepository::register_guest_user(pool, &req, &password_hash).await?;
+
+    consent_service::record(
+        pool,
+        ConsentSubject::user(user.id).with_guest(guest.id),
+        &req.consents,
+        ConsentSource::Registration,
+        consent_context,
+    )
+    .await?;
+
+    // Marketing goes to the notification consent ledger, which owns the
+    // unsubscribe link. A refusal is recorded there explicitly rather than left
+    // absent, so "asked and declined" stays distinguishable from "never asked".
+    communications_service::record_signup_marketing_consent(
+        pool,
+        guest.id,
+        req.marketing_opt_in,
+        "registration",
+        Some(ConsentDocument::PrivacyNotice.current_version()),
+        consent_context.ip_address.clone(),
+        consent_context.user_agent.clone(),
+    )
+    .await?;
 
     if req.email.is_some() {
         AuthService::create_email_verification_token(pool, user.id)
@@ -659,7 +694,6 @@ fn generic_verification_response() -> serde_json::Value {
         "message": "If that account needs verification, a new email has been sent."
     })
 }
-
 
 #[cfg(test)]
 mod tests {

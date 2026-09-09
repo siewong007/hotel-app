@@ -91,6 +91,11 @@ const baseConfig = {
   paypal_client_id: undefined as string | undefined,
 };
 
+/** Accepts the Payment Terms, which now gate both pay paths. Never pre-ticked. */
+function acceptPaymentTerms() {
+  fireEvent.click(screen.getByRole('checkbox', { name: /Payment Terms/ }));
+}
+
 function configWith(overrides: Partial<typeof baseConfig> = {}) {
   return { ...baseConfig, ...overrides };
 }
@@ -133,6 +138,7 @@ describe('GuestPaymentPanel', () => {
     render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" onPaid={onPaid} />);
 
     fireEvent.click(await screen.findByText('Offline banking (bank transfer)'));
+    acceptPaymentTerms();
     fireEvent.click(screen.getByText("I've paid via bank transfer"));
 
     expect(await screen.findByText('Pending payment confirmation by our team.')).toBeTruthy();
@@ -156,10 +162,35 @@ describe('GuestPaymentPanel', () => {
       .closest('label')
       ?.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
+    acceptPaymentTerms();
     fireEvent.click(screen.getByText("I've paid via bank transfer"));
 
     await screen.findByText('Pending payment confirmation by our team.');
     expect(mocks.dashboardUploadReceipt).toHaveBeenCalledWith(43, file, 'portal-token');
+  });
+
+  it('will not take a bank transfer until the payment terms are accepted', async () => {
+    render(<GuestPaymentPanel mode="session" bookingId={9} token="portal-token" />);
+
+    fireEvent.click(await screen.findByText('Offline banking (bank transfer)'));
+    // Terms deliberately not accepted.
+    fireEvent.click(screen.getByText("I've paid via bank transfer"));
+
+    expect(mocks.dashboardSubmitBankTransfer).not.toHaveBeenCalled();
+  });
+
+  it('withholds the PayPal buttons until the payment terms are accepted', async () => {
+    mocks.dashboardPaymentConfig.mockResolvedValue(
+      configWith({ paypal_enabled: true, paypal_client_id: 'test-client-id' }),
+    );
+
+    render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
+
+    fireEvent.click(await screen.findByText('PayPal or debit / credit card'));
+
+    // A guest must not reach PayPal's own flow without having seen the terms.
+    expect(screen.queryByTestId('paypal-pay')).toBeNull();
+    expect(screen.getByText(/accept the Payment Terms above/i)).toBeTruthy();
   });
 
   it('routes pre-arrival (token mode) claims through the unauthenticated service', async () => {
@@ -171,6 +202,7 @@ describe('GuestPaymentPanel', () => {
     render(<GuestPaymentPanel mode="token" token="booking-token" />);
 
     fireEvent.click(await screen.findByText('Offline banking (bank transfer)'));
+    acceptPaymentTerms();
     fireEvent.click(screen.getByText("I've paid via bank transfer"));
 
     expect(await screen.findByText('Payment received — your booking is confirmed.')).toBeTruthy();
@@ -189,6 +221,7 @@ describe('GuestPaymentPanel', () => {
     render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
 
     fireEvent.click(await screen.findByText('Offline banking (bank transfer)'));
+    acceptPaymentTerms();
     const submit = screen.getByText("I've paid via bank transfer");
     fireEvent.click(submit);
     fireEvent.click(submit);
@@ -224,6 +257,7 @@ describe('GuestPaymentPanel', () => {
     );
 
     fireEvent.click(await screen.findByText('PayPal or debit / credit card'));
+    acceptPaymentTerms();
     expect(mocks.paypalButtons).toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId('paypal-pay'));

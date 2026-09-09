@@ -1,0 +1,9 @@
+{
+  "generic": "Sesuatu tidak kena. Sila cuba lagi.",
+  "network": "Kami tidak dapat menghubungi pelayan. Sila semak sambungan anda dan cuba lagi.",
+  "unauthorized": "Sesi anda telah tamat. Sila log masuk semula.",
+  "forbidden": "Anda tiada kebenaran untuk melakukannya.",
+  "notFound": "Kami tidak menjumpai apa yang anda cari.",
+  "validation": "Sila semak medan yang ditandakan dan cuba lagi.",
+  "server": "Pelayan menghadapi masalah. Pasukan kami telah dimaklumkan."
+}

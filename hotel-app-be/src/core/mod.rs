@@ -4,6 +4,7 @@
 //! - `auth`: Authentication service (JWT, password hashing, 2FA, refresh tokens)
 //! - `db`: Database connection pool
 //! - `error`: Unified API error types
+//! - `i18n`: Locale negotiation and the server-side message catalog
 //! - `middleware`: Request authentication and authorization middleware
 //! - `metrics`: In-process counters for operational alerting
 //! - `sql_compat`: PostgreSQL SQL helpers
@@ -12,6 +13,7 @@ pub mod auth;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod i18n;
 pub mod metrics;
 pub mod middleware;
 pub mod rate_limiter;

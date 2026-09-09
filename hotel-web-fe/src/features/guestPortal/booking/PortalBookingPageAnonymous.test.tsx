@@ -121,6 +121,14 @@ function fillContactDetails() {
   });
 }
 
+/** Ticks the two consents the booking form requires (PDPA: never pre-ticked). */
+function acceptRequiredConsents() {
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: /Booking Terms and Conditions/ }),
+  );
+  fireEvent.click(screen.getByRole('checkbox', { name: /Privacy Notice/ }));
+}
+
 describe('PortalBookingPage anonymous checkout', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
@@ -179,6 +187,9 @@ describe('PortalBookingPage anonymous checkout', () => {
   it('refuses to book until tourism type is chosen explicitly', async () => {
     await reachReviewStep();
     fillContactDetails();
+    // Consent given, so the only thing left to reject is the missing tourism
+    // type — otherwise this test would pass for the wrong reason.
+    acceptRequiredConsents();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
 
@@ -195,11 +206,38 @@ describe('PortalBookingPage anonymous checkout', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /Email/ }), {
       target: { value: 'not-an-email' },
     });
+    acceptRequiredConsents();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
 
     await screen.findByText(/valid email address/i);
     expect(mocks.publicCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses to book until the terms and privacy notice are accepted', async () => {
+    await reachReviewStep();
+    fillContactDetails();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /Guest type/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Foreign tourist/ }));
+
+    // Changing tourism type re-quotes; the button is absent while that runs.
+    const confirm = await screen.findByRole('button', { name: 'Continue to payment' });
+
+    // Everything else is valid, so a refusal here can only be the consent gate.
+    fireEvent.click(confirm);
+
+    await screen.findByText(/accept the Booking Terms and the Privacy Notice/i);
+    expect(mocks.publicCreate).not.toHaveBeenCalled();
+  });
+
+  it('never pre-ticks a consent box', async () => {
+    await reachReviewStep();
+
+    // Consent must be a positive act under the PDPA, so a pre-ticked box is not
+    // consent at all.
+    for (const box of screen.getAllByRole('checkbox')) {
+      expect((box as HTMLInputElement).checked).toBe(false);
+    }
   });
 
   it('books at list price, carrying no voucher or credits', async () => {
@@ -222,6 +260,7 @@ describe('PortalBookingPage anonymous checkout', () => {
 
     await reachReviewStep();
     fillContactDetails();
+    acceptRequiredConsents();
     fireEvent.mouseDown(screen.getByRole('combobox', { name: /Guest type/ }));
     fireEvent.click(screen.getByRole('option', { name: /Foreign tourist/ }));
 
@@ -248,6 +287,14 @@ describe('PortalBookingPage anonymous checkout', () => {
     })).toBe(true);
     expect(payload).not.toHaveProperty('voucher_id');
     expect(payload).not.toHaveProperty('complimentary_dates');
+    // The consent the guest gave travels with the booking, pinned to the
+    // version of the text they were shown.
+    expect(payload.consents).toEqual([
+      { document: 'terms_of_service', version: '2026-09-09', granted: true, locale: 'en' },
+      { document: 'privacy_notice', version: '2026-09-09', granted: true, locale: 'en' },
+    ]);
+    // Untouched optional box is sent as an explicit refusal, not omitted.
+    expect(payload.marketing_opt_in).toBe(false);
     expect(mocks.memberCreate).not.toHaveBeenCalled();
 
     // The booking number is the guest's way back once the link lapses, so it is

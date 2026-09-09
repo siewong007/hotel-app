@@ -1,0 +1,45 @@
+{
+  "groups": {
+    "main": "Main",
+    "operations": "Operations",
+    "admin": "Administration",
+    "config": "Configuration"
+  },
+  "routes": {
+    "timeline": { "label": "Timeline", "breadcrumb": "Reservation Timeline" },
+    "guest-config": { "label": "Guests", "breadcrumb": "Guest Management" },
+    "bookings": { "label": "Bookings", "breadcrumb": "Bookings" },
+    "room-management": { "label": "Rooms", "breadcrumb": "Room Management" },
+    "online-inventory": { "label": "Online Inventory", "breadcrumb": "Online Inventory Control" },
+    "reports": { "label": "Reports", "breadcrumb": "Reports" },
+    "housekeeping": { "label": "Housekeeping", "breadcrumb": "Housekeeping" },
+    "support": { "label": "Support", "breadcrumb": "Guest Support" },
+    "profile": { "label": "My Profile", "breadcrumb": "My Profile" },
+    "help": { "label": "Help", "breadcrumb": "Help & Support" },
+    "room-config": { "label": "Room Configuration", "breadcrumb": "Room Configuration" },
+    "settings": { "label": "Hotel Settings", "breadcrumb": "Hotel Settings" },
+    "rbac": { "label": "Access Control", "breadcrumb": "Access Control" },
+    "company-ledger": { "label": "Ledger", "breadcrumb": "Company Ledger" },
+    "night-audit": { "label": "Night Audit", "breadcrumb": "Night Audit" },
+    "payment-approvals": { "label": "Payment Approvals", "breadcrumb": "Payment Approvals" },
+    "audit-log": { "label": "Audit Log", "breadcrumb": "Audit Log" },
+    "complimentary": { "label": "Complimentary Nights", "breadcrumb": "Complimentary Nights" },
+    "loyalty": { "label": "Loyalty", "breadcrumb": "Loyalty" },
+    "promotions": { "label": "Promotions", "breadcrumb": "Promotions & Vouchers" },
+    "communications": { "label": "Communications", "breadcrumb": "Communications" },
+    "notifications": { "label": "Notifications", "breadcrumb": "Notifications" },
+    "data-transfer": { "label": "Data Transfer", "breadcrumb": "Data Transfer" },
+    "ekyc-admin": { "label": "eKYC Admin", "breadcrumb": "eKYC Admin" }
+  },
+  "userMenu": {
+    "profile": "My Profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "signedInAs": "Signed in as {{name}}"
+  },
+  "aria": {
+    "mainNavigation": "Main navigation",
+    "openMenu": "Open menu",
+    "moreSections": "More sections"
+  }
+}

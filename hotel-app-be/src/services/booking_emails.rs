@@ -15,9 +15,17 @@
 //!
 //! Every sender is a no-op when the guest has no email on file — that is the
 //! "(if available)" contract, not an error.
+//!
+//! Both are written in the guest's own language. The worker sends these
+//! minutes after the staff action that queued them, with no request and no
+//! session to consult, so the language is resolved here at render time from
+//! `guests.language_preference` and frozen into the stored subject and body.
+//! See `core::i18n`.
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::i18n::{DEFAULT_LOCALE, DEFAULT_LOCALE_SETTING_KEY, Locale};
+use crate::core::settings_cache;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
@@ -35,23 +43,27 @@ struct BookingEmailSource {
     currency: Option<String>,
     room_number: Option<String>,
     room_type: Option<String>,
+    /// `guests.language_preference`. Unvalidated free text as far as this
+    /// struct is concerned — `Locale::parse` decides whether it names a
+    /// language we still ship.
+    guest_locale: Option<String>,
 }
 
 impl BookingEmailSource {
-    fn guest_name(&self) -> &str {
+    fn guest_name(&self, locale: Locale) -> &str {
         self.guest_name
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .unwrap_or("Guest")
+            .unwrap_or_else(|| locale.message("email.fallback.guest"))
     }
 
-    fn booking_label(&self) -> &str {
+    fn booking_label(&self, locale: Locale) -> &str {
         self.booking_number
             .as_deref()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .unwrap_or("your booking")
+            .unwrap_or_else(|| locale.message("email.fallback.booking"))
     }
 
     fn nights(&self) -> i64 {
@@ -72,37 +84,44 @@ impl BookingEmailSource {
         }
     }
 
-    fn stay_block_html(&self) -> String {
+    fn stay_block_html(&self, locale: Locale) -> String {
         let room = format!(
             "{} ({})",
             self.room_number.as_deref().unwrap_or("-"),
             self.room_type.as_deref().unwrap_or("-"),
         );
-        let stay = format!(
-            "{} to {} · {} night(s)",
-            self.check_in_date.format("%d %b %Y"),
-            self.check_out_date.format("%d %b %Y"),
-            self.nights(),
+        let stay = locale.format(
+            "email.stay.range",
+            &[
+                ("from", &locale.format_date(self.check_in_date)),
+                ("to", &locale.format_date(self.check_out_date)),
+                ("nights", &self.nights().to_string()),
+            ],
         );
         let total = self.money(self.total_amount);
         email_layout::details_table(&[
-            ("Booking", self.booking_label()),
-            ("Room", &room),
-            ("Stay", &stay),
-            ("Total", &total),
+            (
+                locale.message("email.labels.booking"),
+                self.booking_label(locale),
+            ),
+            (locale.message("email.labels.room"), &room),
+            (locale.message("email.labels.stay"), &stay),
+            (locale.message("email.labels.total"), &total),
         ])
     }
 
-    fn stay_block_text(&self) -> String {
-        format!(
-            "Booking: {}\nRoom: {} ({})\nStay: {} to {} ({} night(s))\nTotal: {}",
-            self.booking_label(),
-            self.room_number.as_deref().unwrap_or("-"),
-            self.room_type.as_deref().unwrap_or("-"),
-            self.check_in_date,
-            self.check_out_date,
-            self.nights(),
-            self.money(self.total_amount),
+    fn stay_block_text(&self, locale: Locale) -> String {
+        locale.format(
+            "email.stay.text",
+            &[
+                ("booking", self.booking_label(locale)),
+                ("room", self.room_number.as_deref().unwrap_or("-")),
+                ("roomType", self.room_type.as_deref().unwrap_or("-")),
+                ("from", &locale.format_date(self.check_in_date)),
+                ("to", &locale.format_date(self.check_out_date)),
+                ("nights", &self.nights().to_string()),
+                ("total", &self.money(self.total_amount)),
+            ],
         )
     }
 }
@@ -125,7 +144,8 @@ async fn load_source(
                b.total_amount,
                b.currency,
                r.room_number,
-               rt.name AS room_type
+               rt.name AS room_type,
+               g.language_preference AS guest_locale
         FROM bookings b
         JOIN guests g ON g.id = b.guest_id
         LEFT JOIN rooms r ON r.id = b.room_id
@@ -152,6 +172,18 @@ async fn load_source(
     };
 
     Ok(Some((source, recipient)))
+}
+
+/// Decide which language this guest's mail is written in.
+///
+/// The guest's own `language_preference` wins; a hotel that has configured a
+/// `default_locale` supplies the house language for guests who never chose;
+/// English is the floor. A stored value naming a language we no longer ship
+/// falls through rather than failing the send.
+async fn resolve_locale(pool: &DbPool, source: &BookingEmailSource) -> Locale {
+    let hotel_default =
+        settings_cache::get_string(pool, DEFAULT_LOCALE_SETTING_KEY, DEFAULT_LOCALE).await;
+    Locale::resolve([source.guest_locale.as_deref(), Some(hotel_default.as_str())])
 }
 
 /// Queue one `email_deliveries` row in its own transaction. Callers run after
@@ -195,34 +227,47 @@ pub async fn queue_booking_confirmation_email(
         return Ok(());
     };
 
+    let locale = resolve_locale(pool, &source).await;
     let hotel = email_layout::hotel_display_name();
-    let subject = format!("{hotel} reservation confirmed {}", source.booking_label());
+    let booking = source.booking_label(locale);
+    let subject = locale.format(
+        "email.bookingConfirmed.subject",
+        &[("hotel", &hotel), ("booking", booking)],
+    );
     let portal = email_layout::absolute_url("/portal");
+    // Values interpolated into the HTML body are escaped first; catalog
+    // entries are developer-authored and carry their own markup.
     let inner_html = format!(
-        "<p>Dear {},</p>\
-         <p>Your reservation <strong>{}</strong> is confirmed. We look forward to welcoming you.</p>\
-         {}\
-         <p>You can review this booking any time in your guest portal.</p>",
-        html_escape(source.guest_name()),
-        html_escape(source.booking_label()),
-        source.stay_block_html(),
+        "<p>{}</p><p>{}</p>{}<p>{}</p>",
+        locale.format(
+            "email.greeting",
+            &[("name", &html_escape(source.guest_name(locale)))]
+        ),
+        locale.format(
+            "email.bookingConfirmed.bodyHtml",
+            &[("booking", &html_escape(booking))]
+        ),
+        source.stay_block_html(locale),
+        locale.message("email.bookingConfirmed.portalNote"),
     );
     let inner_text = format!(
-        "Dear {},\nYour reservation {} is confirmed. We look forward to welcoming you.\n{}\nYou can review this booking any time in your guest portal.",
-        source.guest_name(),
-        source.booking_label(),
-        source.stay_block_text(),
+        "{}\n{}\n{}\n{}",
+        locale.format("email.greeting", &[("name", source.guest_name(locale))]),
+        locale.format("email.bookingConfirmed.bodyText", &[("booking", booking)]),
+        source.stay_block_text(locale),
+        locale.message("email.bookingConfirmed.portalNote"),
+    );
+    let preheader = locale.format(
+        "email.bookingConfirmed.preheader",
+        &[("hotel", &hotel), ("booking", booking)],
     );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!(
-            "Your {hotel} reservation {} is confirmed.",
-            source.booking_label()
-        ),
-        heading: "Reservation confirmed",
+        preheader: &preheader,
+        heading: locale.message("email.bookingConfirmed.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
-            label: "View your booking",
+            label: locale.message("email.cta.viewBooking"),
             url: &portal,
         }),
     });
@@ -295,59 +340,76 @@ pub async fn queue_payment_confirmation_email(
 
     let balance = (source.total_amount - paid).max(rust_decimal::Decimal::ZERO);
     let method = payment.payment_method.replace('_', " ");
+    let locale = resolve_locale(pool, &source).await;
     let closing = if balance.is_zero() {
-        "Your booking is fully paid and confirmed. There is nothing left to settle."
+        locale.message("email.paymentConfirmed.settled")
     } else {
-        "Your booking is confirmed. The remaining balance is payable at the hotel."
+        locale.message("email.paymentConfirmed.outstanding")
     };
 
     let hotel = email_layout::hotel_display_name();
-    let subject = format!("Payment confirmed · {hotel} {}", source.booking_label());
+    let booking = source.booking_label(locale);
+    let subject = locale.format(
+        "email.paymentConfirmed.subject",
+        &[("hotel", &hotel), ("booking", booking)],
+    );
     let portal = email_layout::absolute_url("/portal");
     let paid_label = source.money(paid);
     let balance_label = source.money(balance);
     let amount_label = source.money(payment.amount);
     let extra = email_layout::details_table(&[
-        ("Payment", &amount_label),
-        ("Method", &method),
-        ("Payments received", &paid_label),
-        ("Balance", &balance_label),
+        (locale.message("email.labels.payment"), &amount_label),
+        (locale.message("email.labels.method"), &method),
+        (locale.message("email.labels.paymentsReceived"), &paid_label),
+        (locale.message("email.labels.balance"), &balance_label),
     ]);
     let inner_html = format!(
-        "<p>Dear {},</p>\
-         <p>We have confirmed your payment of <strong>{}</strong> ({}) for booking <strong>{}</strong>.</p>\
-         {}\
-         {}\
-         <p>{}</p>",
-        html_escape(source.guest_name()),
-        html_escape(&amount_label),
-        html_escape(&method),
-        html_escape(source.booking_label()),
-        source.stay_block_html(),
+        "<p>{}</p><p>{}</p>{}{}<p>{}</p>",
+        locale.format(
+            "email.greeting",
+            &[("name", &html_escape(source.guest_name(locale)))]
+        ),
+        locale.format(
+            "email.paymentConfirmed.bodyHtml",
+            &[
+                ("amount", &html_escape(&amount_label)),
+                ("method", &html_escape(&method)),
+                ("booking", &html_escape(booking)),
+            ]
+        ),
+        source.stay_block_html(locale),
         extra,
         closing,
     );
     let inner_text = format!(
-        "Dear {},\nWe have confirmed your payment of {} ({}) for booking {}.\n{}\nPayments received: {}\nBalance: {}\n{}",
-        source.guest_name(),
-        amount_label,
-        method,
-        source.booking_label(),
-        source.stay_block_text(),
+        "{}\n{}\n{}\n{}: {}\n{}: {}\n{}",
+        locale.format("email.greeting", &[("name", source.guest_name(locale))]),
+        locale.format(
+            "email.paymentConfirmed.bodyText",
+            &[
+                ("amount", &amount_label),
+                ("method", &method),
+                ("booking", booking),
+            ]
+        ),
+        source.stay_block_text(locale),
+        locale.message("email.labels.paymentsReceived"),
         paid_label,
+        locale.message("email.labels.balance"),
         balance_label,
         closing,
     );
+    let preheader = locale.format(
+        "email.paymentConfirmed.preheader",
+        &[("hotel", &hotel), ("booking", booking)],
+    );
     let rendered = email_layout::render(GuestEmail {
-        preheader: &format!(
-            "Payment confirmed for {hotel} reservation {}.",
-            source.booking_label()
-        ),
-        heading: "Payment confirmed",
+        preheader: &preheader,
+        heading: locale.message("email.paymentConfirmed.heading"),
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
-            label: "View your booking",
+            label: locale.message("email.cta.viewBooking"),
             url: &portal,
         }),
     });
@@ -371,5 +433,137 @@ pub async fn try_queue_payment_confirmation_email(pool: &DbPool, booking_id: i64
         log::error!(
             "Failed to queue payment confirmation email for payment {payment_id} (booking {booking_id}): {error}"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+
+    fn source() -> BookingEmailSource {
+        BookingEmailSource {
+            guest_id: 1,
+            guest_name: Some("Aisha Rahman".to_string()),
+            guest_email: Some("aisha@example.com".to_string()),
+            booking_number: Some("BK-2026-0042".to_string()),
+            check_in_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 5).expect("valid date"),
+            check_out_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 8).expect("valid date"),
+            total_amount: Decimal::new(45000, 2),
+            currency: Some("MYR".to_string()),
+            room_number: Some("1203".to_string()),
+            room_type: Some("Deluxe King".to_string()),
+            guest_locale: Some("ms".to_string()),
+        }
+    }
+
+    fn locale(tag: &str) -> Locale {
+        Locale::parse(tag).expect("test locale is supported")
+    }
+
+    #[test]
+    fn stay_details_render_in_the_guest_s_language() {
+        let source = source();
+        let malay = source.stay_block_html(locale("ms"));
+
+        assert!(
+            malay.contains("Tempahan"),
+            "missing the Malay 'Booking' label: {malay}"
+        );
+        assert!(
+            malay.contains("Bilik"),
+            "missing the Malay 'Room' label: {malay}"
+        );
+        assert!(
+            malay.contains("Penginapan"),
+            "missing the Malay 'Stay' label: {malay}"
+        );
+        assert!(
+            malay.contains("Jumlah"),
+            "missing the Malay 'Total' label: {malay}"
+        );
+        // August abbreviates to "Ogo" in Malay, not "Aug".
+        assert!(
+            malay.contains("05 Ogo 2026"),
+            "check-in not localised: {malay}"
+        );
+        assert!(
+            malay.contains("08 Ogo 2026"),
+            "check-out not localised: {malay}"
+        );
+        assert!(
+            !malay.contains("Aug"),
+            "English month leaked into the Malay email: {malay}"
+        );
+    }
+
+    #[test]
+    fn stay_details_still_render_in_english_by_default() {
+        let english = source().stay_block_html(Locale::default_locale());
+        assert!(english.contains("Booking"));
+        assert!(english.contains("05 Aug 2026"));
+        assert!(english.contains("08 Aug 2026"));
+    }
+
+    #[test]
+    fn plain_text_stay_block_is_localised_and_carries_every_field() {
+        let text = source().stay_block_text(locale("ms"));
+        for expected in [
+            "Tempahan: BK-2026-0042",
+            "Bilik: 1203 (Deluxe King)",
+            "05 Ogo 2026",
+            "08 Ogo 2026",
+            "MYR 450.00",
+        ] {
+            assert!(text.contains(expected), "missing {expected:?} in: {text}");
+        }
+        assert!(
+            !text.contains("{{"),
+            "an unresolved placeholder reached the body: {text}"
+        );
+    }
+
+    #[test]
+    fn nights_are_counted_from_the_stay_dates() {
+        assert_eq!(source().nights(), 3);
+    }
+
+    #[test]
+    fn missing_guest_and_booking_names_fall_back_in_the_right_language() {
+        let mut anonymous = source();
+        anonymous.guest_name = None;
+        anonymous.booking_number = Some("   ".to_string());
+
+        assert_eq!(anonymous.guest_name(locale("ms")), "Tetamu");
+        assert_eq!(anonymous.booking_label(locale("ms")), "tempahan anda");
+        assert_eq!(anonymous.guest_name(Locale::default_locale()), "Guest");
+        assert_eq!(
+            anonymous.booking_label(Locale::default_locale()),
+            "your booking"
+        );
+    }
+
+    #[test]
+    fn an_unsupported_stored_preference_degrades_to_english() {
+        // A guest row holding a language we no longer ship must still receive
+        // mail, in English — never a failed send.
+        let resolved = Locale::resolve([Some("de-DE"), Some(DEFAULT_LOCALE)]);
+        assert_eq!(resolved.as_str(), "en");
+    }
+
+    #[test]
+    fn a_blank_stored_preference_falls_through_to_the_hotel_default() {
+        let resolved = Locale::resolve([Some(""), Some("ms")]);
+        assert_eq!(resolved.as_str(), "ms");
+    }
+
+    #[test]
+    fn money_keeps_the_bookings_own_currency_regardless_of_language() {
+        // Currency follows the booking, not the reader's interface language.
+        let source = source();
+        assert_eq!(source.money(Decimal::new(45000, 2)), "MYR 450.00");
+        let mut no_currency = source;
+        no_currency.currency = None;
+        assert_eq!(no_currency.money(Decimal::new(12550, 2)), "125.50");
     }
 }
