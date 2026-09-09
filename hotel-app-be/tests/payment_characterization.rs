@@ -3169,6 +3169,104 @@ async fn capture_paypal_payment_boundary_checks_without_network() {
     .await;
 }
 
+#[tokio::test]
+async fn stale_unstarted_paypal_attempt_is_voided_after_ten_minutes() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_350;
+    let room_type_id = 940_351;
+    let room_id = 940_352;
+    let guest_id = 940_353;
+    let booking_id = 940_354;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "pending_payment",
+            check_in: "2031-06-20",
+            check_out: "2031-06-21",
+            base_price: d("100.00"),
+            subtotal: d("100.00"),
+            total_amount: d("100.00"),
+        },
+    )
+    .await;
+
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "paypal",
+        "booking",
+        d("100.00"),
+        actor_id,
+    )
+    .await;
+    sqlx::query(
+        "UPDATE payments SET gateway_payment_intent_id = 'PAYPAL-STALE-ORDER', \
+         created_at = CURRENT_TIMESTAMP - INTERVAL '10 minutes' WHERE id = $1",
+    )
+    .bind(payment_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let processing_payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "paypal",
+        "booking",
+        d("100.00"),
+        actor_id,
+    )
+    .await;
+    sqlx::query(
+        "UPDATE payments SET gateway_payment_intent_id = 'PAYPAL-CAPTURE-IN-FLIGHT', \
+         created_at = CURRENT_TIMESTAMP - INTERVAL '10 minutes', status = 'processing' WHERE id = $1",
+    )
+    .bind(processing_payment_id)
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let rejected = payments::reject_expired_paypal_attempts(&pool)
+        .await
+        .expect("the stale-attempt sweep should succeed");
+    let payment_status = fetch_payment_status(&pool, payment_id).await;
+    let processing_status = fetch_payment_status(&pool, processing_payment_id).await;
+    let (booking_status, _) = fetch_booking_status(&pool, booking_id).await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert_eq!(rejected, 1);
+    assert_eq!(payment_status, "void");
+    assert_eq!(processing_status, "processing");
+    assert_eq!(booking_status, "pending_payment");
+}
+
 /// (6, KNOWN BUG -- ignored) `create_payment` must charge the booking's
 /// `billable_total()` (decided-correct total per the ledger/payment audit),
 /// not `calculate_payment_summary`'s room-only `base_price * nights`
@@ -3254,27 +3352,9 @@ async fn create_payment_should_charge_the_billable_total_not_the_room_recalculat
     );
 }
 
-/// (7, KNOWN BUG -- ignored) `approve_payment` must refuse to confirm a
-/// payment whose capture was never verified with the gateway. Currently it
-/// unconditionally marks any pending payment `completed` regardless of
-/// method or gateway evidence, so this assertion FAILS today -- do not
-/// assert the current (succeeds) behavior.
-///
-/// Verified in src that NO such guard exists anywhere today: `approve_payment`
-/// (`src/services/payments.rs:1409-1430`) only checks
-/// `review.status != "pending"` before calling `complete_and_confirm`, which
-/// itself (`src/services/payments.rs:1548-1607`) only guards against a second
-/// completed booking payment and a payment that is no longer pending -- grepped
-/// the whole crate for "verified"/"unverified" and found no gateway-capture
-/// guard on this path. This assertion therefore does not match an existing
-/// message; it pins the SPECIFICATION the fix must satisfy: the error must be
-/// an `ApiError::BadRequest` (never a permission-layer `Forbidden`, and never
-/// the generic `Internal`/`Database` variant a transaction failure would
-/// produce) whose message names the actual defect (mentions "captur" and
-/// "verif"), so a fix that merely starts failing for an unrelated reason
-/// cannot make this test pass by accident.
+/// `approve_payment` must refuse a PayPal row because only a verified gateway
+/// capture may move money and complete that booking.
 #[tokio::test]
-#[ignore = "approve_payment (src/services/payments.rs:1409) completes a pending payment without re-verifying the gateway capture, so it can confirm a payment for which no money was ever collected; decided-correct behavior is to refuse approval unless the capture is verified -- pending fix: re-query the gateway in approve_payment before confirming, returning ApiError::BadRequest with a message that mentions the capture not being verified"]
 async fn approve_payment_refuses_when_capture_is_not_verified() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
@@ -3328,8 +3408,8 @@ async fn approve_payment_refuses_when_capture_is_not_verified() {
 
     let result = payments::approve_payment(&pool, actor_id, payment_id).await;
 
-    // Clean up BEFORE asserting -- see the comment in the sibling ignored
-    // test above; this assertion is expected to fail today.
+    // Clean up before asserting so a regression cannot leak fixtures in a
+    // persistent development database.
     cleanup(
         &pool,
         &[room_type_id],

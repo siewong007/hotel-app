@@ -1,11 +1,11 @@
-//! Reject bank-transfer claims when a requested receipt is not supplied within a day.
+//! Reject overdue bank-transfer receipts and unstarted PayPal attempts.
 
 use std::time::Duration;
 
 use crate::core::db::DbPool;
 use crate::services::payments;
 
-const POLL_INTERVAL: Duration = Duration::from_secs(15 * 60);
+const POLL_INTERVAL: Duration = Duration::from_secs(60);
 
 pub fn spawn(pool: DbPool) {
     tokio::spawn(async move {
@@ -28,6 +28,10 @@ async fn tick(pool: &DbPool) -> Result<(), crate::core::error::ApiError> {
         log::info!(
             "Automatically rejected {rejected} payment claim(s) with overdue receipt requests"
         );
+    }
+    let expired_paypal = payments::reject_expired_paypal_attempts(pool).await?;
+    if expired_paypal > 0 {
+        log::info!("Automatically released {expired_paypal} stale PayPal payment attempt(s)");
     }
     Ok(())
 }
