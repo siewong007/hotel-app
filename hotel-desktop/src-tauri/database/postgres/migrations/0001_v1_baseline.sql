@@ -3887,6 +3887,64 @@ COMMENT ON COLUMN public.payments.payment_gateway IS 'Payment gateway used (stri
 
 
 --
+-- Name: payment_retry_capabilities; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payment_retry_capabilities (
+    id bigint NOT NULL,
+    booking_id bigint NOT NULL,
+    payment_id bigint,
+    token_hash character varying(80) NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone,
+    replacement_payment_id bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: TABLE payment_retry_capabilities; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.payment_retry_capabilities IS 'Short-lived capability letting a guest replace one rejected payment from an emailed link, with no guest-portal session. Only the token hash is stored, so a database copy cannot yield a working link, and the booking-access token stays separate.';
+
+
+--
+-- Name: COLUMN payment_retry_capabilities.token_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payment_retry_capabilities.token_hash IS 'SHA-256 of the emailed token, hex-encoded behind a sha256: prefix, matching the booking-access token scheme. The raw token exists only in the delivered mail.';
+
+
+--
+-- Name: COLUMN payment_retry_capabilities.consumed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payment_retry_capabilities.consumed_at IS 'Set when the capability is spent creating a replacement payment. Viewing the recovery page deliberately leaves it NULL, so an email scanner following the link cannot exhaust the guest''s one attempt.';
+
+
+--
+-- Name: COLUMN payment_retry_capabilities.replacement_payment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.payment_retry_capabilities.replacement_payment_id IS 'Payment created when this capability was consumed. A duplicate submission resolves to this row instead of creating a second payment, and it keeps an already-authorized PayPal order capturable after consumption.';
+
+
+--
+-- Name: payment_retry_capabilities_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.payment_retry_capabilities ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.payment_retry_capabilities_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: permissions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5857,6 +5915,14 @@ ALTER TABLE ONLY public.permissions
 
 
 --
+-- Name: payment_retry_capabilities payment_retry_capabilities_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_retry_capabilities
+    ADD CONSTRAINT payment_retry_capabilities_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7345,6 +7411,20 @@ CREATE INDEX idx_passkey_challenges_expires ON public.passkey_challenges USING b
 --
 
 CREATE INDEX idx_passkeys_user_id ON public.passkeys USING btree (user_id) WHERE (is_active = true);
+
+
+--
+-- Name: idx_payment_retry_capabilities_booking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_payment_retry_capabilities_booking ON public.payment_retry_capabilities USING btree (booking_id);
+
+
+--
+-- Name: idx_payment_retry_capabilities_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_payment_retry_capabilities_token ON public.payment_retry_capabilities USING btree (token_hash);
 
 
 --
@@ -9240,6 +9320,30 @@ ALTER TABLE ONLY public.payment_receipt_requests
 
 ALTER TABLE ONLY public.payment_receipt_requests
     ADD CONSTRAINT payment_receipt_requests_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payment_retry_capabilities payment_retry_capabilities_booking_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_retry_capabilities
+    ADD CONSTRAINT payment_retry_capabilities_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(id) ON DELETE CASCADE;
+
+
+--
+-- Name: payment_retry_capabilities payment_retry_capabilities_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_retry_capabilities
+    ADD CONSTRAINT payment_retry_capabilities_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES public.payments(id) ON DELETE SET NULL;
+
+
+--
+-- Name: payment_retry_capabilities payment_retry_capabilities_replacement_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_retry_capabilities
+    ADD CONSTRAINT payment_retry_capabilities_replacement_payment_id_fkey FOREIGN KEY (replacement_payment_id) REFERENCES public.payments(id) ON DELETE SET NULL;
 
 
 --

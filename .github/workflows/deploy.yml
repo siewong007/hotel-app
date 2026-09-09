@@ -166,6 +166,8 @@ jobs:
             "$bundle_dir/database/patches/0010_consent_records.sql"
           cp hotel-app-be/database/postgres/patches/0011_guest_nick_name.sql \
             "$bundle_dir/database/patches/0011_guest_nick_name.sql"
+          cp hotel-app-be/database/postgres/patches/0012_payment_retry_capabilities.sql \
+            "$bundle_dir/database/patches/0012_payment_retry_capabilities.sql"
 
           (
             cd "$bundle_dir"
@@ -191,6 +193,7 @@ jobs:
               database/patches/0009_unpaid_hold_release.sql \
               database/patches/0010_consent_records.sql \
               database/patches/0011_guest_nick_name.sql \
+              database/patches/0012_payment_retry_capabilities.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
