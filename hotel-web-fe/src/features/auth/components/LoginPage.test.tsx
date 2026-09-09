@@ -87,19 +87,16 @@ function renderPage() {
 describe('LoginPage username lookup gate', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
-    // Ensure WebAuthn is present so Next attempts passkey after a successful
-    // lookup; tests control the outcome via loginWithPasskey.
-    Object.defineProperty(window, 'PublicKeyCredential', {
-      configurable: true,
-      writable: true,
-      value: function PublicKeyCredential() {},
-    });
     mocks.navigate.mockReset();
     mocks.lookupLoginIdentifier.mockReset();
     mocks.login.mockReset();
     mocks.loginWithPasskey.mockReset();
     mocks.registerPasskey.mockReset();
     mocks.loginWithGoogle.mockReset();
+    // Default: passkey attempt fails so the page can fall through to password.
+    mocks.loginWithPasskey.mockImplementation(() =>
+      Promise.reject(new Error('no credentials available'))
+    );
     mocks.search = 'account=admin';
   });
 
@@ -110,20 +107,29 @@ describe('LoginPage username lookup gate', () => {
 
   it('shows the password step only after lookup confirms the account exists', async () => {
     mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
-    // Passkey unavailable → LoginPage falls through to the password field.
-    mocks.loginWithPasskey.mockRejectedValue(new Error('no credentials available'));
+    // Disable WebAuthn so Next skips passkey and opens the password field.
+    Object.defineProperty(window, 'PublicKeyCredential', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
     renderPage();
 
-    fireEvent.change(screen.getByLabelText(/Username or Email/i), {
-      target: { value: 'admin' },
-    });
+    const userField = screen.getByLabelText(/Username or Email/i);
+    fireEvent.change(userField, { target: { value: 'admin' } });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     await waitFor(() => {
       expect(mocks.lookupLoginIdentifier).toHaveBeenCalledWith('admin');
     });
-    expect(await screen.findByLabelText(/^Password$/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Sign In' })).toBeTruthy();
+    // Username step should advance.
+    expect(await screen.findByText('admin')).toBeTruthy();
+    expect(screen.getByText('Change')).toBeTruthy();
+    // Password field appears when WebAuthn is unavailable.
+    expect(
+      await screen.findByLabelText(/^Password$/i, {}, { timeout: 3000 })
+    ).toBeTruthy();
+    expect(mocks.loginWithPasskey).not.toHaveBeenCalled();
   });
 
   it('keeps the password field hidden when the username or email is unknown', async () => {
