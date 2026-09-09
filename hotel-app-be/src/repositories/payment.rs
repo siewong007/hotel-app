@@ -933,29 +933,42 @@ impl PaymentRepository {
             .map_err(ApiError::from)
     }
 
-    /// True when the booking already has a `booking`-type payment that is
-    /// `pending`, `processing`, or `completed`. Used to reject duplicate guest
-    /// payment attempts (a second bank-transfer claim / PayPal order) before a
-    /// new pending row is inserted, so staff cannot approve two full-amount
-    /// payments for one booking.
-    pub async fn has_active_or_completed_booking_payment_tx(
+    /// Claim a pending PayPal attempt before sending the capture request to the
+    /// gateway. Once claimed it cannot be released by the stale-attempt sweep.
+    pub async fn mark_payment_processing(pool: &DbPool, payment_id: i64) -> Result<bool, ApiError> {
+        let sql = format!(
+            "UPDATE payments SET status = 'processing' WHERE id = {} AND status = 'pending'",
+            crate::param!(1)
+        );
+        let result = sqlx::query(&sql)
+            .bind(payment_id)
+            .execute(pool)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// The active payment that prevents a guest from starting another booking
+    /// payment. Its method and state make the returned conflict actionable.
+    pub async fn active_or_completed_booking_payment_tx(
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
-    ) -> Result<bool, ApiError> {
+    ) -> Result<Option<(String, String)>, ApiError> {
         let sql = format!(
             r#"
-                SELECT EXISTS(
-                    SELECT 1 FROM payments
-                    WHERE booking_id = {}
-                      AND payment_type = 'booking'
-                      AND status IN ('pending', 'processing', 'completed')
-                )
+                SELECT payment_method, status
+                FROM payments
+                WHERE booking_id = {}
+                  AND payment_type = 'booking'
+                  AND status IN ('pending', 'processing', 'completed')
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
             "#,
             crate::param!(1)
         );
-        sqlx::query_scalar::<_, bool>(&sql)
+        sqlx::query_as::<_, (String, String)>(&sql)
             .bind(booking_id)
-            .fetch_one(&mut **tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)
     }
@@ -1151,6 +1164,17 @@ impl PaymentRepository {
     /// within the allowed 24-hour review window.
     pub async fn expired_receipt_request_payment_ids(pool: &DbPool) -> Result<Vec<i64>, ApiError> {
         let sql = "SELECT p.id FROM payments p JOIN payment_receipt_requests pr ON pr.payment_id = p.id WHERE p.status = 'pending' AND p.payment_method = 'bank_transfer' AND pr.uploaded_at IS NULL AND pr.requested_at <= CURRENT_TIMESTAMP - INTERVAL '1 day'";
+        sqlx::query_scalar(sql)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)
+    }
+
+    /// Pending PayPal orders that were created but never handed to capture.
+    /// `processing` is deliberately excluded because its capture result may be
+    /// unknown and must never be reopened automatically.
+    pub async fn expired_paypal_attempt_ids(pool: &DbPool) -> Result<Vec<i64>, ApiError> {
+        let sql = "SELECT id FROM payments WHERE status = 'pending' AND payment_method = 'paypal' AND gateway_payment_intent_id IS NOT NULL AND TRIM(gateway_payment_intent_id) <> '' AND created_at <= CURRENT_TIMESTAMP - INTERVAL '10 minutes'";
         sqlx::query_scalar(sql)
             .fetch_all(pool)
             .await

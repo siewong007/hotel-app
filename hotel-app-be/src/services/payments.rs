@@ -1026,12 +1026,23 @@ async fn ensure_no_active_booking_payment_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
 ) -> Result<(), ApiError> {
-    if PaymentRepository::has_active_or_completed_booking_payment_tx(tx, booking_id).await? {
-        return Err(ApiError::Conflict(
-            "A payment for this booking is already pending or completed.".to_string(),
-        ));
+    if let Some((payment_method, status)) =
+        PaymentRepository::active_or_completed_booking_payment_tx(tx, booking_id).await?
+    {
+        return Err(ApiError::Conflict(active_payment_conflict_message(
+            &payment_method,
+            &status,
+        )));
     }
     Ok(())
+}
+
+fn active_payment_conflict_message(payment_method: &str, status: &str) -> String {
+    if payment_method == PaymentMethod::Paypal.to_string() && status == "pending" {
+        "A PayPal payment for this booking is already pending. Please wait up to 10 minutes before trying again.".to_string()
+    } else {
+        "A payment for this booking is already pending or completed.".to_string()
+    }
 }
 
 /// Create a manual bank-transfer payment claim (no proof required). Inserts a
@@ -1214,6 +1225,14 @@ pub async fn capture_paypal_payment(
         });
     }
     if review.status != "pending" && review.status != "processing" {
+        return Err(ApiError::BadRequest(
+            "This PayPal payment is no longer available for capture.".to_string(),
+        ));
+    }
+
+    if review.status == "pending"
+        && !PaymentRepository::mark_payment_processing(pool, payment_id).await?
+    {
         return Err(ApiError::BadRequest(
             "This PayPal payment is no longer available for capture.".to_string(),
         ));
@@ -1734,6 +1753,12 @@ pub async fn approve_payment(
             "Only pending payments can be approved.".to_string(),
         ));
     }
+    if review.payment_method == PaymentMethod::Paypal.to_string() {
+        return Err(ApiError::BadRequest(
+            "PayPal payments cannot be approved manually because their capture has not been verified."
+                .to_string(),
+        ));
+    }
 
     let response = complete_and_confirm(
         pool,
@@ -2181,6 +2206,28 @@ pub async fn reject_expired_receipt_requests(pool: &DbPool) -> Result<usize, Api
     Ok(rejected)
 }
 
+/// Release PayPal orders that were never passed to capture within ten minutes.
+/// A capture claims its row as `processing` before it calls PayPal, so the
+/// scheduler only sees attempts for which no money-movement request began.
+pub async fn reject_expired_paypal_attempts(pool: &DbPool) -> Result<usize, ApiError> {
+    let ids = PaymentRepository::expired_paypal_attempt_ids(pool).await?;
+    let mut rejected = 0;
+    for payment_id in ids {
+        if reject_payment_by(
+            pool,
+            None,
+            payment_id,
+            "PayPal payment was not completed within 10 minutes. Please start a new payment attempt.",
+        )
+        .await
+        .is_ok()
+        {
+            rejected += 1;
+        }
+    }
+    Ok(rejected)
+}
+
 async fn reject_payment_by(
     pool: &DbPool,
     actor_user_id: Option<i64>,
@@ -2552,6 +2599,19 @@ mod paypal_capture_verification_tests {
         assert_eq!(
             verify_captured_against_stored(&outcome("450.00", "MYR"), "not-a-number", "MYR"),
             Err("Stored payment amount is unparseable.".to_string())
+        );
+    }
+}
+
+#[cfg(test)]
+mod paypal_expiry_tests {
+    use super::active_payment_conflict_message;
+
+    #[test]
+    fn tells_guests_when_a_pending_paypal_attempt_will_be_released() {
+        assert_eq!(
+            active_payment_conflict_message("paypal", "pending"),
+            "A PayPal payment for this booking is already pending. Please wait up to 10 minutes before trying again."
         );
     }
 }

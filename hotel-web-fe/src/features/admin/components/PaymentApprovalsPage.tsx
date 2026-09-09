@@ -144,7 +144,11 @@ const PaymentApprovalsPage: React.FC = () => {
         paymentId: rejectTarget.id,
         reason: rejectionReason.trim(),
       });
-      setSuccess(`Payment for booking ${rejectTarget.booking_number ?? rejectTarget.booking_id} was rejected.`);
+      setSuccess(
+        rejectTarget.payment_method === 'paypal'
+          ? `PayPal attempt for booking ${rejectTarget.booking_number ?? rejectTarget.booking_id} was cancelled.`
+          : `Payment for booking ${rejectTarget.booking_number ?? rejectTarget.booking_id} was rejected.`,
+      );
       setRejectTarget(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to reject this payment.');
@@ -202,9 +206,9 @@ const PaymentApprovalsPage: React.FC = () => {
           color: "text.secondary",
           mb: 3
         }}>
-        Review guest-submitted bank-transfer and PayPal payment claims. Approving a claim marks
-        the payment complete and confirms the booking. For bank transfers, request a receipt when
-        proof is needed; a claim without a receipt is automatically rejected after 24 hours.
+        Review guest-submitted bank-transfer and PayPal payment claims. Approving a bank-transfer
+        claim marks the payment complete and confirms the booking. A PayPal payment is completed
+        only after PayPal capture; unstarted attempts expire after 10 minutes.
       </Typography>
       {canViewConflicts && conflictEvents.length > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
@@ -281,6 +285,7 @@ const PaymentApprovalsPage: React.FC = () => {
             </TableHead>
             <TableBody>
               {items.map((entry) => {
+                const isPaypal = entry.payment_method === 'paypal';
                 const isBusy =
                   (approveMutation.isPending && approveMutation.variables === entry.id) ||
                   (rejectMutation.isPending && rejectMutation.variables?.paymentId === entry.id) ||
@@ -315,23 +320,25 @@ const PaymentApprovalsPage: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       {view === 'history' ? '—' : <>
-                      <Button
-                        size="small"
-                        color="success"
-                        variant="outlined"
-                        startIcon={
-                          isBusy && approveMutation.isPending ? (
-                            <CircularProgress size={16} color="inherit" />
-                          ) : (
-                            <CheckCircleOutlineIcon />
-                          )
-                        }
-                        disabled={isBusy}
-                        onClick={() => void handleApprove(entry)}
-                        sx={{ mr: 1 }}
-                      >
-                        Approve
-                      </Button>
+                      {!isPaypal ? (
+                        <Button
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          startIcon={
+                            isBusy && approveMutation.isPending ? (
+                              <CircularProgress size={16} color="inherit" />
+                            ) : (
+                              <CheckCircleOutlineIcon />
+                            )
+                          }
+                          disabled={isBusy}
+                          onClick={() => void handleApprove(entry)}
+                          sx={{ mr: 1 }}
+                        >
+                          Approve
+                        </Button>
+                      ) : null}
                       {entry.payment_method === 'bank_transfer' ? (
                         <>
                           <Button
@@ -353,7 +360,7 @@ const PaymentApprovalsPage: React.FC = () => {
                         disabled={isBusy}
                         onClick={() => openRejectDialog(entry)}
                       >
-                        Reject
+                        {isPaypal ? 'Cancel PayPal attempt' : 'Reject'}
                       </Button>
                       </>}
                     </TableCell>
@@ -408,10 +415,26 @@ const PaymentApprovalsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
       <Dialog open={Boolean(rejectTarget)} onClose={() => !rejectMutation.isPending && setRejectTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>Reject payment claim</DialogTitle>
+        <DialogTitle>
+          {rejectTarget?.payment_method === 'paypal'
+            ? 'Cancel PayPal attempt'
+            : 'Reject payment claim'}
+        </DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            Explain why the payment for booking <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong> was rejected. This message is sent to the guest.
+            {rejectTarget?.payment_method === 'paypal' ? (
+              <>
+                Cancel the uncompleted PayPal attempt for booking{' '}
+                <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong>. Only
+                do this when you know no funds were captured; this message is sent to the guest.
+              </>
+            ) : (
+              <>
+                Explain why the payment for booking{' '}
+                <strong>{rejectTarget?.booking_number ?? rejectTarget?.booking_id}</strong> was
+                rejected. This message is sent to the guest.
+              </>
+            )}
           </Typography>
           <TextField
             autoFocus
@@ -419,8 +442,12 @@ const PaymentApprovalsPage: React.FC = () => {
             required
             multiline
             minRows={3}
-            label="Rejection message"
-            placeholder="For example: The transfer amount does not match the booking total."
+            label={rejectTarget?.payment_method === 'paypal' ? 'Cancellation message' : 'Rejection message'}
+            placeholder={
+              rejectTarget?.payment_method === 'paypal'
+                ? 'For example: The PayPal attempt was cancelled before completion.'
+                : 'For example: The transfer amount does not match the booking total.'
+            }
             value={rejectionReason}
             onChange={(event) => setRejectionReason(event.target.value)}
             helperText={`${1_000 - rejectionReason.length} characters remaining`}
@@ -438,7 +465,13 @@ const PaymentApprovalsPage: React.FC = () => {
             disabled={!rejectionReason.trim() || rejectMutation.isPending}
             onClick={() => void handleReject()}
           >
-            {rejectMutation.isPending ? 'Rejecting…' : 'Reject payment'}
+            {rejectMutation.isPending
+              ? rejectTarget?.payment_method === 'paypal'
+                ? 'Cancelling…'
+                : 'Rejecting…'
+              : rejectTarget?.payment_method === 'paypal'
+                ? 'Cancel PayPal attempt'
+                : 'Reject payment'}
           </Button>
         </DialogActions>
       </Dialog>
