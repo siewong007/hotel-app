@@ -2,10 +2,10 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{Company, CompanyCreateRequest, CompanyListQuery, CompanyUpdateRequest};
 use crate::repositories::company::CompanyRepository;
 use crate::services::audit::AuditLog;
-use crate::models::AuditEvent;
 
 pub async fn list_companies(
     pool: &DbPool,

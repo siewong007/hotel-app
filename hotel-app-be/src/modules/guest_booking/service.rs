@@ -842,7 +842,7 @@ pub async fn create(
         .filter(|value| !value.trim().is_empty())
     {
         let (subject, body_html, body_text) = portal_booking_mail(PortalBookingMail {
-            guest_name: &contact.full_name,
+            guest_name: &contact.nick_name,
             booking_number: &booking_number,
             room_type_name: &quote.room_type_name,
             check_in: quote.check_in_date,
@@ -1091,7 +1091,7 @@ pub async fn create_anonymous(
     // The booking number and email are the only way back to this booking once
     // the access token lapses, so the confirmation must always carry both.
     let (subject, body_html, body_text) = portal_booking_mail(PortalBookingMail {
-        guest_name: &guest.full_name,
+        guest_name: &guest.nick_name,
         booking_number: &booking_number,
         room_type_name: &quote.room_type_name,
         check_in: quote.check_in_date,

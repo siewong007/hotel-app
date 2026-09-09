@@ -13,8 +13,8 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
     GuestPortalBookingSummary, GuestPortalGuestView, GuestPortalMembership,
-    GuestPortalPointsActivity, GuestPortalReward, GuestPortalRoomTypeCredit, GuestPortalTierBenefit,
-    GuestPortalTransaction,
+    GuestPortalPointsActivity, GuestPortalReward, GuestPortalRoomTypeCredit,
+    GuestPortalTierBenefit, GuestPortalTransaction,
 };
 use crate::{core::sql_compat::current_timestamp, param};
 
@@ -22,11 +22,17 @@ use crate::{core::sql_compat::current_timestamp, param};
 /// always describes the same rows the guest is being shown. `$2` is the
 /// already-wrapped `%term%`, or NULL to match everything.
 const BOOKING_SEARCH_PREDICATE: &str = concat!(
-    "(", param!(2), " IS NULL",
-    " OR b.booking_number ILIKE ", param!(2),
-    " OR b.status ILIKE ", param!(2),
-    " OR b.check_in_date::text ILIKE ", param!(2),
-    " OR b.check_out_date::text ILIKE ", param!(2),
+    "(",
+    param!(2),
+    " IS NULL",
+    " OR b.booking_number ILIKE ",
+    param!(2),
+    " OR b.status ILIKE ",
+    param!(2),
+    " OR b.check_in_date::text ILIKE ",
+    param!(2),
+    " OR b.check_out_date::text ILIKE ",
+    param!(2),
     ")"
 );
 
@@ -274,7 +280,7 @@ impl GuestPortalSessionRepository {
         guest_id: i64,
     ) -> Result<GuestPortalGuestView, ApiError> {
         let sql = format!(
-            "SELECT full_name, title, email, phone, alt_phone, ic_number, nationality, \
+            "SELECT nick_name, title, email, phone, alt_phone, ic_number, nationality, \
                         address_line_1 AS address_line1, city, state AS state_province, postal_code, country \
                  FROM guests WHERE id = {}",
             param!(1)
@@ -286,7 +292,7 @@ impl GuestPortalSessionRepository {
             .map_err(|e| ApiError::Database(format!("Failed to fetch guest profile: {}", e)))?;
 
         Ok(GuestPortalGuestView {
-            full_name: row.try_get("full_name").unwrap_or_default(),
+            nick_name: row.try_get("nick_name").unwrap_or_default(),
             title: row.try_get("title").ok().flatten(),
             email: row.try_get("email").ok().flatten(),
             phone: row.try_get("phone").ok().flatten(),
@@ -507,7 +513,9 @@ impl GuestPortalSessionRepository {
             .bind(guest_id)
             .fetch_all(pool)
             .await
-            .map_err(|e| ApiError::Database(format!("Complimentary credit lookup failed: {}", e)))?;
+            .map_err(|e| {
+                ApiError::Database(format!("Complimentary credit lookup failed: {}", e))
+            })?;
 
         Ok(rows
             .iter()

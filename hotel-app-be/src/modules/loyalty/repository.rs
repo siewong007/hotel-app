@@ -32,12 +32,12 @@ impl LoyaltyRepository {
         user_id: i64,
     ) -> Result<Option<LoyaltyGuestProfile>, ApiError> {
         let sql = r#"
-                SELECT g.id AS guest_id, g.full_name, g.email, g.phone
+                SELECT g.id AS guest_id, g.nick_name, g.email, g.phone
                 FROM users u
                 LEFT JOIN guests g ON g.id = u.guest_id
                 WHERE u.id = $1
                 UNION
-                SELECT g.id AS guest_id, g.full_name, g.email, g.phone
+                SELECT g.id AS guest_id, g.nick_name, g.email, g.phone
                 FROM users u
                 JOIN guests g ON lower(g.email) = lower(u.email)
                 WHERE u.id = $1 AND u.guest_id IS NULL
@@ -191,7 +191,7 @@ impl LoyaltyRepository {
             .is_some_and(|v| !v.trim().is_empty())
         {
             conditions.push(
-                "(lower(g.full_name) LIKE lower($1) OR lower(COALESCE(g.email, '')) LIKE lower($1) OR lower(lm.member_number) LIKE lower($1))",
+                "(lower(g.nick_name) LIKE lower($1) OR lower(COALESCE(g.email, '')) LIKE lower($1) OR lower(lm.member_number) LIKE lower($1))",
             );
             bind_search = true;
         }
@@ -828,7 +828,7 @@ fn member_summary_sql(where_clause: &str) -> String {
             lm.status,
             lm.enrolled_at,
             lm.closed_at,
-            g.full_name AS guest_name,
+            g.nick_name AS guest_name,
             g.email AS guest_email,
             g.phone AS guest_phone,
             la.id AS account_id,
@@ -852,7 +852,7 @@ fn member_summary_sql(where_clause: &str) -> String {
 fn row_to_guest_profile(row: &DbRow) -> LoyaltyGuestProfile {
     LoyaltyGuestProfile {
         guest_id: row.try_get("guest_id").unwrap_or_default(),
-        full_name: row.try_get("full_name").unwrap_or_default(),
+        nick_name: row.try_get("nick_name").unwrap_or_default(),
         email: row.try_get("email").ok(),
         phone: row.try_get("phone").ok(),
     }
@@ -1022,7 +1022,7 @@ fn redemption_select_sql() -> &'static str {
             lr.id,
             lr.member_id,
             lm.member_number,
-            g.full_name AS guest_name,
+            g.nick_name AS guest_name,
             g.email AS guest_email,
             lr.reward_id,
             rw.name AS reward_name,

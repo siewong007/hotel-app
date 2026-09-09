@@ -8,18 +8,19 @@ use axum::{
 use serde::Deserialize;
 use std::net::SocketAddr;
 
-use super::models::{DeliveryFeedQuery, DeliveryFeedResponse, AudienceCount, CampaignInput, CampaignListQuery, CampaignListResponse, ConsentStatusResponse,
-    DeliveryListResponse, EmailCampaign, EmailTemplate, PreferenceUpdateInput, PreferencesResponse,
-    PreviewResponse, ScheduleCampaignInput, SuppressionInput, SuppressionListResponse,
-    TemplateInput, TestSendInput, UnsubscribeApplyInput,
+use super::models::{
+    AudienceCount, CampaignInput, CampaignListQuery, CampaignListResponse, ConsentStatusResponse,
+    DeliveryFeedQuery, DeliveryFeedResponse, DeliveryListResponse, EmailCampaign, EmailTemplate,
+    PreferenceUpdateInput, PreferencesResponse, PreviewResponse, ScheduleCampaignInput,
+    SuppressionInput, SuppressionListResponse, TemplateInput, TestSendInput, UnsubscribeApplyInput,
 };
 use super::service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use axum::Extension;
 use crate::core::middleware::require_permission_helper;
 use crate::core::rate_limiter::RateLimiters;
 use crate::services::guest_portal;
+use axum::Extension;
 
 fn client_ip(headers: &HeaderMap, peer_addr: SocketAddr) -> Option<String> {
     Some(crate::routes::extract_client_ip(headers, peer_addr).to_string())

@@ -461,7 +461,7 @@ const CustomerLedgerPage: React.FC = () => {
   const loadGuests = async () => {
     try {
       const guestsData = await GuestsService.getAllGuests();
-      setGuests(guestsData.sort((a, b) => a.full_name.localeCompare(b.full_name)));
+      setGuests(guestsData.sort((a, b) => a.nick_name.localeCompare(b.nick_name)));
     } catch (err) {
       console.error('Failed to load guests:', err);
     }
@@ -647,7 +647,7 @@ const CustomerLedgerPage: React.FC = () => {
         await BookingsService.updateBooking(booking.id, { status: 'checked_out' });
       }
 
-      showSnackbar(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
+      showSnackbar(`Guest ${guestToUse.nick_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
 
       // Reset and close dialog
       setCheckInDialogOpen(false);

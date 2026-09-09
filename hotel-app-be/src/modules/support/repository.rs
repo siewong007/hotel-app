@@ -16,7 +16,7 @@ SELECT
     c.id,
     c.conversation_number,
     c.guest_id,
-    COALESCE(g.full_name, trim(g.first_name || ' ' || g.last_name), 'Guest') AS guest_name,
+    COALESCE(g.nick_name, trim(g.first_name || ' ' || g.last_name), 'Guest') AS guest_name,
     g.email AS guest_email,
     c.booking_id,
     b.booking_number AS booking_reference,
@@ -301,7 +301,7 @@ WHERE (
   AND ($5::bigint IS NULL OR c.assigned_to_user_id = $5)
   AND ($6::text IS NULL OR (
         lower(c.conversation_number) LIKE lower($6)
-        OR lower(COALESCE(g.full_name, g.first_name || ' ' || g.last_name, '')) LIKE lower($6)
+        OR lower(COALESCE(g.nick_name, g.first_name || ' ' || g.last_name, '')) LIKE lower($6)
         OR lower(COALESCE(b.booking_number, '')) LIKE lower($6)
   ))
 "#;
@@ -464,7 +464,7 @@ FROM support_conversations
         let sql = format!(
             r#"
 SELECT sm.id, sm.conversation_id, sm.author_type, sm.author_user_id, sm.author_guest_id,
-       COALESCE(u.full_name, g.full_name, trim(g.first_name || ' ' || g.last_name)) AS author_name,
+       COALESCE(u.full_name, g.nick_name, trim(g.first_name || ' ' || g.last_name)) AS author_name,
        sm.body, sm.created_at
 FROM support_messages sm
 LEFT JOIN users u ON u.id = sm.author_user_id

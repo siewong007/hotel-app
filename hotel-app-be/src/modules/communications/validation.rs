@@ -138,7 +138,12 @@ fn is_identifier(value: &str) -> bool {
 
 /// Delivery statuses allowed by `email_deliveries_status_check`.
 pub const DELIVERY_STATUSES: [&str; 6] = [
-    "queued", "sending", "sent", "failed", "suppressed", "cancelled",
+    "queued",
+    "sending",
+    "sent",
+    "failed",
+    "suppressed",
+    "cancelled",
 ];
 
 pub fn validate_delivery_status(status: &str) -> Result<String, ApiError> {

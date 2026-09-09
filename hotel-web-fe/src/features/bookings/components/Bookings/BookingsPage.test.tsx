@@ -201,7 +201,7 @@ vi.mock('../../../rooms/components/UnifiedBooking', () => ({
                 payment_method: 'cash',
                 created_at: '2026-01-01T00:00:00.000Z',
               },
-              { id: 99, full_name: 'New Guest', email: 'new@example.com' }
+              { id: 99, nick_name: 'New Guest', email: 'new@example.com' }
             );
           }}
         >
@@ -264,7 +264,7 @@ function buildRoom(overrides: Partial<Room> = {}): Room {
 function buildGuest(overrides: Partial<Guest> = {}): Guest {
   return {
     id: 1,
-    full_name: 'Jane Doe',
+    nick_name: 'Jane Doe',
     is_active: true,
     guest_type: 'member',
     ...overrides,

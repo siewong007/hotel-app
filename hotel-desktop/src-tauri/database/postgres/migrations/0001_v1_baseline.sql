@@ -1556,7 +1556,7 @@ ALTER TABLE public.bookings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 CREATE TABLE public.guests (
     id bigint NOT NULL,
     uuid uuid DEFAULT public.gen_uuidv7() NOT NULL,
-    full_name character varying(255) NOT NULL,
+    nick_name character varying(255) NOT NULL,
     first_name character varying(100),
     last_name character varying(100),
     email character varying(255),
@@ -1806,7 +1806,7 @@ CREATE VIEW public.booking_summary AS
     b.booking_number,
     b.status,
     b.payment_status,
-    g.full_name AS guest_name,
+    g.nick_name AS guest_name,
     g.email AS guest_email,
     g.phone AS guest_phone,
     r.room_number,
@@ -7054,27 +7054,6 @@ CREATE INDEX idx_guests_email_trgm ON public.guests USING gin (email public.gin_
 
 
 --
--- Name: idx_guests_full_name; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_guests_full_name ON public.guests USING btree (full_name);
-
-
---
--- Name: idx_guests_full_name_trgm; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_guests_full_name_trgm ON public.guests USING gin (full_name public.gin_trgm_ops) WHERE (deleted_at IS NULL);
-
-
---
--- Name: idx_guests_full_name_unique; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX idx_guests_full_name_unique ON public.guests USING btree (lower(TRIM(BOTH FROM full_name))) WHERE (deleted_at IS NULL);
-
-
---
 -- Name: idx_guests_guest_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7093,6 +7072,27 @@ CREATE INDEX idx_guests_ic_number ON public.guests USING btree (ic_number);
 --
 
 CREATE INDEX idx_guests_member_discount ON public.guests USING btree (guest_type, discount_percentage) WHERE (guest_type = 'member'::public.guest_type);
+
+
+--
+-- Name: idx_guests_nick_name; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guests_nick_name ON public.guests USING btree (nick_name);
+
+
+--
+-- Name: idx_guests_nick_name_trgm; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guests_nick_name_trgm ON public.guests USING gin (nick_name public.gin_trgm_ops) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: idx_guests_nick_name_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_guests_nick_name_unique ON public.guests USING btree (lower(TRIM(BOTH FROM nick_name))) WHERE (deleted_at IS NULL);
 
 
 --
@@ -9913,7 +9913,7 @@ ALTER TABLE ONLY public.vouchers
 CREATE PROPERTY GRAPH public.hotel_graph
     VERTEX TABLES (
         public.companies KEY (id) LABEL company PROPERTIES (company_name, id),
-        public.guests KEY (id) LABEL guest PROPERTIES (email, full_name, id),
+        public.guests KEY (id) LABEL guest PROPERTIES (email, id, nick_name),
         public.rooms KEY (id) LABEL room PROPERTIES (id, room_number),
         public.users KEY (id) LABEL staff PROPERTIES (id, username)
     )

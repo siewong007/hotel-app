@@ -85,10 +85,10 @@ fn jwt_that_has_expired_is_rejected() {
 mod postgres_tests {
     use super::{TEST_JWT_SECRET, ensure_jwt_secret};
     use chrono::{DateTime, Utc};
+    use hotel_app_be::AuthService;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::auth::{LoginRequest, RefreshTokenRequest};
     use hotel_app_be::services::auth as auth_service;
-    use hotel_app_be::AuthService;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
     /// `services::auth::login` hard-requires `core::config::get()` (for the
@@ -137,7 +137,13 @@ mod postgres_tests {
     /// Upserts a dedicated, fully-reset test user (never depends on the
     /// seeded admin's password) so reruns against the persistent dev DB are
     /// deterministic regardless of prior test runs.
-    async fn upsert_test_user(pool: &PgPool, user_id: i64, username: &str, email: &str, password: &str) {
+    async fn upsert_test_user(
+        pool: &PgPool,
+        user_id: i64,
+        username: &str,
+        email: &str,
+        password: &str,
+    ) {
         let password_hash = AuthService::hash_password(password)
             .await
             .expect("bcrypt hashing must succeed");
@@ -261,7 +267,10 @@ mod postgres_tests {
         assert!(!row.get::<bool, _>("is_revoked"));
         assert!(row.get::<Option<DateTime<Utc>>, _>("revoked_at").is_none());
         assert!(row.get::<bool, _>("not_expired"));
-        assert_eq!(row.get::<Option<String>, _>("ip_address"), Some("127.0.0.1".to_string()));
+        assert_eq!(
+            row.get::<Option<String>, _>("ip_address"),
+            Some("127.0.0.1".to_string())
+        );
         assert_eq!(
             row.get::<Option<String>, _>("user_agent"),
             Some("auth-session-test-agent".to_string())
@@ -351,7 +360,10 @@ mod postgres_tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-        assert_eq!(stored_hash, AuthService::hash_refresh_token(&refreshed.refresh_token));
+        assert_eq!(
+            stored_hash,
+            AuthService::hash_refresh_token(&refreshed.refresh_token)
+        );
 
         cleanup_auth_fixture(&pool, user_id).await;
     }
@@ -402,12 +414,16 @@ mod postgres_tests {
         .await
         .expect("logout should revoke the refresh token");
 
-        let row = sqlx::query("SELECT is_revoked, revoked_at FROM refresh_tokens WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert!(row.get::<bool, _>("is_revoked"), "logout must mark the session revoked");
+        let row =
+            sqlx::query("SELECT is_revoked, revoked_at FROM refresh_tokens WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(
+            row.get::<bool, _>("is_revoked"),
+            "logout must mark the session revoked"
+        );
         assert!(
             row.get::<Option<DateTime<Utc>>, _>("revoked_at").is_some(),
             "logout must stamp revoked_at"
@@ -420,11 +436,8 @@ mod postgres_tests {
             "a logged-out session must no longer be reported active"
         );
 
-        let refresh_after_logout = auth_service::refresh_token(
-            &pool,
-            RefreshTokenRequest { refresh_token },
-        )
-        .await;
+        let refresh_after_logout =
+            auth_service::refresh_token(&pool, RefreshTokenRequest { refresh_token }).await;
         assert!(
             matches!(refresh_after_logout, Err(ApiError::Unauthorized(_))),
             "refreshing with a logged-out token must fail, got: {refresh_after_logout:?}"

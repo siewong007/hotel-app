@@ -93,7 +93,9 @@ mod postgres_tests {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => {
-                eprintln!("Skipping PostgreSQL ledger-service test because DATABASE_URL is not set");
+                eprintln!(
+                    "Skipping PostgreSQL ledger-service test because DATABASE_URL is not set"
+                );
                 return None;
             }
         };
@@ -114,8 +116,7 @@ mod postgres_tests {
                 std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret");
             }
         }
-        hotel_app_be::core::config::init_from_env()
-            .expect("test config initialises from env");
+        hotel_app_be::core::config::init_from_env().expect("test config initialises from env");
 
         Some((pool, guard))
     }
@@ -305,9 +306,9 @@ mod postgres_tests {
         .unwrap();
 
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Ledger', $3, $4) \
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
         )
         .bind(guest_id)
         .bind(format!("Ledger Test Guest {guest_id}"))
@@ -468,7 +469,15 @@ mod postgres_tests {
             .execute(&pool)
             .await
             .unwrap();
-        cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id, company_name).await;
+        cleanup_booking_fixture(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+        )
+        .await;
 
         sqlx::query(
             "INSERT INTO companies (id, company_name, is_active, payment_terms_days, created_by) \
@@ -565,7 +574,10 @@ mod postgres_tests {
         )
         .await
         .expect("a rate-override edit after checkout should still succeed");
-        assert_eq!(booking_after_rate_change.total_amount, Decimal::new(30_000, 2));
+        assert_eq!(
+            booking_after_rate_change.total_amount,
+            Decimal::new(30_000, 2)
+        );
 
         let ledger_after_delta = ledgers::get_customer_ledger(&pool, ledger_id)
             .await
@@ -582,7 +594,15 @@ mod postgres_tests {
         );
         assert_eq!(ledger_after_delta.balance_due, Decimal::new(35_000, 2));
 
-        cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id, company_name).await;
+        cleanup_booking_fixture(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+        )
+        .await;
         sqlx::query("DELETE FROM companies WHERE id = $1")
             .bind(company_id)
             .execute(&pool)
@@ -752,7 +772,15 @@ mod postgres_tests {
         let company_name = "Lgr910 Void Co";
 
         ensure_test_actor(&pool, actor_id).await;
-        cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id, company_name).await;
+        cleanup_booking_fixture(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+        )
+        .await;
 
         let check_in = NaiveDate::from_ymd_opt(2031, 3, 10).unwrap();
         let check_out = NaiveDate::from_ymd_opt(2031, 3, 11).unwrap();
@@ -774,7 +802,7 @@ mod postgres_tests {
         )
         .await;
 
-let Json(_) = bookings::update_booking_handler(
+        let Json(_) = bookings::update_booking_handler(
             State(pool.clone()),
             Extension(actor_id),
             Path(booking_id),
@@ -791,15 +819,21 @@ let Json(_) = bookings::update_booking_handler(
             .await
             .expect("ledger row should exist before voiding");
 
-        bookings::void_booking(&pool, actor_id, booking_id, Some("Lgr910 test void".to_string()))
-            .await
-            .expect("voiding a checked-out, company-billed booking should succeed");
+        bookings::void_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            Some("Lgr910 test void".to_string()),
+        )
+        .await
+        .expect("voiding a checked-out, company-billed booking should succeed");
 
-        let booking_status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = $1")
-            .bind(booking_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+        let booking_status: String =
+            sqlx::query_scalar("SELECT status FROM bookings WHERE id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(booking_status, "voided");
 
         let after = ledgers::get_customer_ledger(&pool, ledger_id)
@@ -821,7 +855,15 @@ let Json(_) = bookings::update_booking_handler(
             "customer_ledgers.booking_id is left pointing at the now-voided booking"
         );
 
-        cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id, company_name).await;
+        cleanup_booking_fixture(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            company_name,
+        )
+        .await;
     }
 
     // -----------------------------------------------------------------
@@ -905,7 +947,9 @@ let Json(_) = bookings::update_booking_handler(
         .expect("first partial payment should succeed");
         assert_eq!(payment1.payment_amount, Decimal::new(20_000, 2));
 
-        let mid = ledgers::get_customer_ledger(&pool, ledger.id).await.unwrap();
+        let mid = ledgers::get_customer_ledger(&pool, ledger.id)
+            .await
+            .unwrap();
         assert_eq!(mid.paid_amount, Decimal::new(20_000, 2));
         assert_eq!(mid.balance_due, Decimal::new(30_000, 2));
         assert_eq!(mid.status, "partial");
@@ -936,8 +980,16 @@ let Json(_) = bookings::update_booking_handler(
         assert_eq!(with_payments.ledger.balance_due, Decimal::ZERO);
         assert_eq!(with_payments.ledger.status, "paid");
         assert_eq!(with_payments.payments.len(), 2);
-        let total_paid: Decimal = with_payments.payments.iter().map(|p| p.payment_amount).sum();
-        assert_eq!(total_paid, Decimal::new(50_000, 2), "exact decimal sum of the two payments");
+        let total_paid: Decimal = with_payments
+            .payments
+            .iter()
+            .map(|p| p.payment_amount)
+            .sum();
+        assert_eq!(
+            total_paid,
+            Decimal::new(50_000, 2),
+            "exact decimal sum of the two payments"
+        );
         for payment in &with_payments.payments {
             assert_recent_utc("payment created_at", payment.created_at);
         }

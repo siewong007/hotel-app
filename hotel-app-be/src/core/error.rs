@@ -34,6 +34,10 @@ pub enum ApiError {
     /// A guest tried to book before supplying the contact details bookings require.
     /// Carries the missing field names so the client can route them to completion.
     ProfileIncomplete(Vec<String>),
+    /// Anonymous booking nickname collides with `idx_guests_nick_name_unique`
+    /// (or the pre-rename `idx_guests_full_name_unique`). Stable `code` so the
+    /// public form can highlight the nickname without matching English text.
+    GuestNameTaken,
 }
 
 impl std::fmt::Display for ApiError {
@@ -54,6 +58,7 @@ impl std::fmt::Display for ApiError {
             ApiError::ProfileIncomplete(fields) => {
                 write!(f, "Profile incomplete: missing {}", fields.join(", "))
             }
+            ApiError::GuestNameTaken => write!(f, "Conflict: nickname taken"),
         }
     }
 }
@@ -158,6 +163,13 @@ impl IntoResponse for ApiError {
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Complete your profile before making a booking.".to_string(),
             ),
+            ApiError::GuestNameTaken => (
+                StatusCode::CONFLICT,
+                polish_message(
+                    "This nickname is already used. Please choose another.",
+                    "This nickname is already used. Please choose another.",
+                ),
+            ),
         };
 
         // Profile-incomplete errors carry the missing field names so the client
@@ -169,6 +181,14 @@ impl IntoResponse for ApiError {
                 "error": message,
                 "code": "profile_incomplete",
                 "missing_profile_fields": missing_fields
+            }));
+            return (status, body).into_response();
+        }
+
+        if let ApiError::GuestNameTaken = &self {
+            let body = Json(serde_json::json!({
+                "error": message,
+                "code": "guest_name_taken"
             }));
             return (status, body).into_response();
         }
@@ -202,5 +222,30 @@ impl From<sqlx::Error> for ApiError {
 impl From<std::io::Error> for ApiError {
     fn from(err: std::io::Error) -> Self {
         ApiError::Internal(err.to_string())
+    }
+}
+
+#[cfg(test)]
+mod guest_name_taken_tests {
+    use super::ApiError;
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+
+    #[tokio::test]
+    async fn guest_name_taken_is_conflict_with_stable_code() {
+        let response = ApiError::GuestNameTaken.into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+        assert_eq!(json["code"], "guest_name_taken");
+        assert!(
+            json["error"]
+                .as_str()
+                .unwrap()
+                .to_lowercase()
+                .contains("nickname")
+        );
     }
 }

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { HTTPError } from 'ky';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -116,6 +117,28 @@ const quote = {
   complimentary_discount: '0.00',
   credits_available: 0,
 };
+
+/**
+ * Build the HTTPError ky 2 throws, including the part that matters here: ky
+ * reads the body to populate `error.data` *before* throwing (`httpError.data =
+ * await ky.#getResponseData(currentResponse)` in ky's Ky.js), which leaves the
+ * response stream already used.
+ *
+ * A fixture that only sets `.data` and leaves the stream readable would let
+ * `error.response.json()` succeed here and could never catch this regression.
+ */
+async function buildKyHttpError(status: number, body: unknown): Promise<HTTPError> {
+  const response = new Response(JSON.stringify(body), {
+    status,
+    statusText: 'Unprocessable Entity',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const request = new Request('http://localhost/api/portal/bookings', { method: 'POST' });
+  const error = new HTTPError(response, request, {} as never);
+  // The read that consumes the stream, exactly as ky does before throwing.
+  (error as unknown as { data: unknown }).data = await response.json();
+  return error;
+}
 
 describe('PortalBookingPage voucher eligibility', () => {
   beforeEach(() => {
@@ -292,6 +315,52 @@ describe('PortalBookingPage profile completion guard', () => {
       expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fportal%2Fbook'),
     );
     expect(mocks.createBooking).not.toHaveBeenCalled();
+  });
+
+  it('redirects to complete-profile when the server rejects the booking as profile_incomplete', async () => {
+    // The race the client-side guard above cannot cover: the profile looked
+    // complete when this page loaded and the server disagrees at creation time.
+    mocks.me.mockReset().mockResolvedValue({ guest: {}, profile_complete: true });
+    mocks.createBooking.mockRejectedValueOnce(
+      await buildKyHttpError(422, {
+        error: 'Complete your profile before making a booking.',
+        code: 'profile_incomplete',
+        missing_profile_fields: ['phone', 'address'],
+      }),
+    );
+
+    render(<PortalBookingPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select' }));
+    await screen.findByText('Review your stay');
+    await waitFor(() => expect(mocks.me).toHaveBeenCalled());
+    acceptRequiredConsents();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() => expect(mocks.createBooking).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile?redirect=%2Fportal%2Fbook'),
+    );
+    // The guest is being sent away to finish their profile, so the generic
+    // create-failure path must not also run and re-price the stay behind them.
+    expect(mocks.quote).not.toHaveBeenCalled();
+  });
+
+  it('reproduces ky 2 consuming the error body, so the redirect test cannot silently pass', async () => {
+    const error = await buildKyHttpError(422, {
+      code: 'profile_incomplete',
+      missing_profile_fields: [],
+    });
+
+    // Guards the fixture, not the page: reading the code under test out of
+    // `error.response` is exactly the bug, and it only shows up when the
+    // stream really is spent.
+    expect(error.response.bodyUsed).toBe(true);
+    await expect(error.response.json()).rejects.toThrow();
+    expect((error as unknown as { data: unknown }).data).toMatchObject({
+      code: 'profile_incomplete',
+    });
   });
 });
 

@@ -7,6 +7,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::services::audit::AuditLog;
 use crate::services::payments::{PaypalWebhookEvent, PaypalWebhookKind};
 use crate::services::paypal_client::{self, PaypalWebhookHeaders};
@@ -14,7 +15,6 @@ use axum::Json;
 use axum::http::HeaderMap;
 use serde_json::Value;
 use std::net::IpAddr;
-use crate::models::AuditEvent;
 
 /// POST /api/webhooks/paypal — receive one PayPal webhook delivery.
 ///
@@ -209,7 +209,10 @@ mod tests {
     #[test]
     fn required_header_trims_and_rejects_blank() {
         let mut headers = HeaderMap::new();
-        headers.insert("paypal-cert-url", HeaderValue::from_static("  https://api.paypal.com/cert  "));
+        headers.insert(
+            "paypal-cert-url",
+            HeaderValue::from_static("  https://api.paypal.com/cert  "),
+        );
         assert_eq!(
             required_header(&headers, "paypal-cert-url").unwrap(),
             "https://api.paypal.com/cert"

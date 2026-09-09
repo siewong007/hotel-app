@@ -88,7 +88,19 @@ pub async fn insert_booking_invoice(
                 subtotal, total_amount, line_items, status, invoice_type
             )
             SELECT $1, b.id,
-                   COALESCE(g.full_name, ''),
+                   -- Must stay equivalent to models::guest::display_guest_name:
+                   -- the legal name once check-in has supplied BOTH halves, the
+                   -- booking nickname until then. An invoice is a legal
+                   -- document, so it does not print a nickname once it has a
+                   -- real name to print. `invoice_billing_name_matches_
+                   -- display_guest_name` in tests/invoice_numbering.rs fails if
+                   -- these two ever drift apart.
+                   CASE
+                       WHEN NULLIF(BTRIM(g.first_name), '') IS NOT NULL
+                        AND NULLIF(BTRIM(g.last_name), '') IS NOT NULL
+                       THEN BTRIM(g.first_name) || ' ' || BTRIM(g.last_name)
+                       ELSE COALESCE(BTRIM(g.nick_name), '')
+                   END,
                    g.email,
                    b.total_amount,
                    b.total_amount,

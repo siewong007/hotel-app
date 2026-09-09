@@ -11,6 +11,7 @@
 //! `housekeeping:*` permissions (see `database/postgres/seed.sql`), per the
 //! task's preference for reusing system permissions over inserting new ones.
 
+use hotel_app_be::AuthService;
 use hotel_app_be::core::error::ApiError;
 use hotel_app_be::core::middleware;
 use hotel_app_be::core::rbac_cache;
@@ -23,7 +24,6 @@ use hotel_app_be::services::auth as auth_service;
 use hotel_app_be::services::profile as profile_service;
 use hotel_app_be::services::rbac as rbac_service;
 use hotel_app_be::services::two_factor as two_factor_service;
-use hotel_app_be::AuthService;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use totp_rs::{Algorithm, Secret, TOTP};
 
@@ -73,7 +73,13 @@ async fn setup_pg_pool() -> Option<PgPool> {
 /// dev DB are deterministic regardless of prior runs (mirrors
 /// `auth_session.rs::upsert_test_user`, plus resetting the 2FA columns since
 /// this file also exercises the 2FA lifecycle on fixed ids).
-async fn upsert_test_user(pool: &PgPool, user_id: i64, username: &str, email: &str, password: &str) {
+async fn upsert_test_user(
+    pool: &PgPool,
+    user_id: i64,
+    username: &str,
+    email: &str,
+    password: &str,
+) {
     let password_hash = AuthService::hash_password(password)
         .await
         .expect("bcrypt hashing must succeed");
@@ -297,7 +303,8 @@ async fn postgres_manage_permission_implies_resource_actions() {
         read_via_manage.is_ok(),
         "housekeeping:manage must imply housekeeping:read, got {read_via_manage:?}"
     );
-    let create_via_manage = middleware::check_permission(&pool, user_id, "housekeeping:create").await;
+    let create_via_manage =
+        middleware::check_permission(&pool, user_id, "housekeeping:create").await;
     assert!(
         create_via_manage.is_ok(),
         "housekeeping:manage must imply housekeeping:create, got {create_via_manage:?}"
@@ -331,10 +338,12 @@ async fn postgres_role_and_permission_management_reflects_in_permission_checks()
     cleanup_rbac_fixture(&pool, &[actor_id, target_id], &[role_id]).await;
     // Leftover ad-hoc CRUD-test role from a prior crashed run (it has no
     // fixed id since `create_role` assigns one; clean it up by name).
-    sqlx::query("DELETE FROM roles WHERE name IN ('rbac920_crud_role', 'rbac920_crud_role_renamed')")
-        .execute(&pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "DELETE FROM roles WHERE name IN ('rbac920_crud_role', 'rbac920_crud_role_renamed')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     upsert_test_user(
         &pool,
@@ -479,7 +488,12 @@ async fn postgres_user_role_assignment_changes_effective_permissions() {
     let role_read_id = 920_104;
     let role_manage_id = 920_105;
 
-    cleanup_rbac_fixture(&pool, &[actor_id, target_id], &[role_read_id, role_manage_id]).await;
+    cleanup_rbac_fixture(
+        &pool,
+        &[actor_id, target_id],
+        &[role_read_id, role_manage_id],
+    )
+    .await;
     upsert_test_user(
         &pool,
         actor_id,
@@ -564,7 +578,12 @@ async fn postgres_user_role_assignment_changes_effective_permissions() {
         "the manage role from the bulk replace must imply housekeeping:create"
     );
 
-    cleanup_rbac_fixture(&pool, &[actor_id, target_id], &[role_read_id, role_manage_id]).await;
+    cleanup_rbac_fixture(
+        &pool,
+        &[actor_id, target_id],
+        &[role_read_id, role_manage_id],
+    )
+    .await;
 }
 
 // ---------------------------------------------------------------------------
@@ -608,11 +627,12 @@ async fn postgres_password_change_rejects_wrong_current_and_login_works_with_new
         "an incorrect current password must be rejected, got {wrong:?}"
     );
 
-    let unchanged_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+    let unchanged_hash: String =
+        sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(
         old_hash, unchanged_hash,
         "a rejected password change must not touch the stored hash"
@@ -666,7 +686,10 @@ async fn postgres_password_change_rejects_wrong_current_and_login_works_with_new
         None,
     )
     .await;
-    assert!(login_old.is_err(), "login with the old password must fail after the change");
+    assert!(
+        login_old.is_err(),
+        "login with the old password must fail after the change"
+    );
 
     cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }
@@ -732,12 +755,18 @@ async fn postgres_session_listing_and_revoke_removes_only_target_session() {
         .iter()
         .find(|s| s.id == sid_b)
         .expect("session b must be listed");
-    assert!(current.is_current, "the session matching current_session_id must be flagged is_current");
+    assert!(
+        current.is_current,
+        "the session matching current_session_id must be flagged is_current"
+    );
     let other = sessions
         .iter()
         .find(|s| s.id == sid_a)
         .expect("session a must be listed");
-    assert!(!other.is_current, "a session other than the current one must not be flagged is_current");
+    assert!(
+        !other.is_current,
+        "a session other than the current one must not be flagged is_current"
+    );
 
     profile_service::revoke_session(&pool, user_id, &sid_a)
         .await
@@ -746,8 +775,15 @@ async fn postgres_session_listing_and_revoke_removes_only_target_session() {
     let remaining = profile_service::list_sessions(&pool, user_id, Some(sid_b.as_str()))
         .await
         .expect("list_sessions after revoke should succeed");
-    assert_eq!(remaining.len(), 1, "only the target session should be removed");
-    assert_eq!(remaining[0].id, sid_b, "the untouched session must remain listed");
+    assert_eq!(
+        remaining.len(),
+        1,
+        "only the target session should be removed"
+    );
+    assert_eq!(
+        remaining[0].id, sid_b,
+        "the untouched session must remain listed"
+    );
 
     assert!(
         !AuthService::is_session_active(&pool, user_id, &sid_a)
@@ -788,8 +824,16 @@ fn build_totp(secret_base32: &str) -> TOTP {
     let secret_bytes = Secret::Encoded(secret_base32.to_string())
         .to_bytes()
         .expect("decoding the base32 TOTP secret must succeed");
-    TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes, None, "".to_string())
-        .expect("constructing a TOTP instance must succeed")
+    TOTP::new(
+        Algorithm::SHA1,
+        6,
+        1,
+        30,
+        secret_bytes,
+        None,
+        "".to_string(),
+    )
+    .expect("constructing a TOTP instance must succeed")
 }
 
 #[tokio::test]
@@ -832,7 +876,10 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
     let status = two_factor_service::get_2fa_status(&pool, user_id)
         .await
         .expect("get_2fa_status should succeed");
-    assert!(status.enabled, "2FA must be reported enabled once the secret + flag are set");
+    assert!(
+        status.enabled,
+        "2FA must be reported enabled once the secret + flag are set"
+    );
     assert!(status.has_backup_codes);
     assert_eq!(status.backup_codes_remaining, hashed_backup_codes.len());
 
@@ -853,11 +900,16 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
         &pool,
         user_id,
         TwoFactorVerifyRequest {
-            code: totp.generate_current().expect("generating a live TOTP code must succeed"),
+            code: totp
+                .generate_current()
+                .expect("generating a live TOTP code must succeed"),
         },
     )
     .await;
-    assert!(verify_result.is_ok(), "a valid live TOTP code should verify, got {verify_result:?}");
+    assert!(
+        verify_result.is_ok(),
+        "a valid live TOTP code should verify, got {verify_result:?}"
+    );
 
     let disable_wrong = two_factor_service::disable_2fa(
         &pool,
@@ -876,7 +928,9 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
         &pool,
         user_id,
         TwoFactorDisableRequest {
-            code: totp.generate_current().expect("generating a live TOTP code must succeed"),
+            code: totp
+                .generate_current()
+                .expect("generating a live TOTP code must succeed"),
         },
     )
     .await
@@ -885,8 +939,14 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
     let status_after = two_factor_service::get_2fa_status(&pool, user_id)
         .await
         .expect("get_2fa_status after disable should succeed");
-    assert!(!status_after.enabled, "2FA must be reported disabled after disable_2fa");
-    assert!(!status_after.has_backup_codes, "backup codes must be cleared after disable_2fa");
+    assert!(
+        !status_after.enabled,
+        "2FA must be reported disabled after disable_2fa"
+    );
+    assert!(
+        !status_after.has_backup_codes,
+        "backup codes must be cleared after disable_2fa"
+    );
 
     let (secret_after, codes_after): (Option<String>, Option<Vec<String>>) = sqlx::query_as(
         "SELECT two_factor_secret, two_factor_recovery_codes FROM users WHERE id = $1",
@@ -895,8 +955,14 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(secret_after.is_none(), "disable_2fa must clear the stored secret");
-    assert!(codes_after.is_none(), "disable_2fa must clear the stored recovery codes");
+    assert!(
+        secret_after.is_none(),
+        "disable_2fa must clear the stored secret"
+    );
+    assert!(
+        codes_after.is_none(),
+        "disable_2fa must clear the stored recovery codes"
+    );
 
     cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }
@@ -1053,7 +1119,11 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         .generate_current()
         .expect("generating a live TOTP code must succeed");
     let last_digit = wrong_code.pop().expect("TOTP codes are non-empty");
-    wrong_code.push(if last_digit == '9' { '0' } else { (last_digit as u8 + 1) as char });
+    wrong_code.push(if last_digit == '9' {
+        '0'
+    } else {
+        (last_digit as u8 + 1) as char
+    });
     let wrong_code_attempt = two_factor_service::enable_2fa(
         &pool,
         user_id,
@@ -1101,7 +1171,11 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         .as_array()
         .expect("enable_2fa must return backup_codes")
         .iter()
-        .map(|v| v.as_str().expect("backup codes must be strings").to_string())
+        .map(|v| {
+            v.as_str()
+                .expect("backup codes must be strings")
+                .to_string()
+        })
         .collect();
     assert_eq!(original_backup_codes.len(), 10);
 
@@ -1154,17 +1228,20 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         .as_array()
         .expect("regenerate must return backup_codes")
         .iter()
-        .map(|v| v.as_str().expect("backup codes must be strings").to_string())
+        .map(|v| {
+            v.as_str()
+                .expect("backup codes must be strings")
+                .to_string()
+        })
         .collect();
     assert_eq!(new_backup_codes.len(), 10);
 
-    let (rotated_hashes,): (Option<Vec<String>>,) = sqlx::query_as(
-        "SELECT two_factor_recovery_codes FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("reading rotated codes must succeed");
+    let (rotated_hashes,): (Option<Vec<String>>,) =
+        sqlx::query_as("SELECT two_factor_recovery_codes FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("reading rotated codes must succeed");
     let rotated_hashes = rotated_hashes.expect("rotation must leave recovery codes present");
     assert!(
         rotated_hashes.contains(&AuthService::hash_recovery_code(&new_backup_codes[0])),
@@ -1212,8 +1289,14 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         .await
         .expect("reading the disabled user row must succeed");
     assert!(!enabled_after, "disable_2fa must clear the enabled flag");
-    assert!(secret_after.is_none(), "disable_2fa must clear the stored secret");
-    assert!(codes_after.is_none(), "disable_2fa must clear the stored recovery codes");
+    assert!(
+        secret_after.is_none(),
+        "disable_2fa must clear the stored secret"
+    );
+    assert!(
+        codes_after.is_none(),
+        "disable_2fa must clear the stored recovery codes"
+    );
 
     cleanup_rbac_fixture(&pool, &[user_id], &[]).await;
 }
@@ -1317,7 +1400,8 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     let (totp_response, _refresh) = auth_service::login(
         &pool,
         login_req(Some(
-            totp.generate_current().expect("generating a live TOTP code must succeed"),
+            totp.generate_current()
+                .expect("generating a live TOTP code must succeed"),
         )),
         None,
         None,

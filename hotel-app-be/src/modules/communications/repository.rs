@@ -141,7 +141,7 @@ fn audience_guest_from_row(row: &DbRow) -> AudienceGuest {
         id: row.try_get("id").unwrap_or_default(),
         email: row.try_get("email").unwrap_or_default(),
         first_name: row.try_get("first_name").unwrap_or_default(),
-        full_name: row.try_get("full_name").unwrap_or_default(),
+        nick_name: row.try_get("nick_name").unwrap_or_default(),
     }
 }
 
@@ -777,7 +777,7 @@ impl CommunicationsRepository {
             SELECT b.id,
                    g.id AS guest_id,
                    b.booking_number,
-                   g.full_name AS guest_name,
+                   g.nick_name AS guest_name,
                    g.email AS guest_email,
                    b.check_in_date,
                    b.check_out_date,
@@ -913,7 +913,7 @@ impl CommunicationsRepository {
     ) -> Result<Vec<AudienceGuest>, ApiError> {
         let rows = query(
             r#"
-                SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
+                SELECT g.id, g.email, g.first_name, g.nick_name FROM guests g
                 WHERE g.is_active IS TRUE
                   AND g.email IS NOT NULL AND length(trim(g.email)) > 0
                   AND EXISTS (SELECT 1 FROM notification_subscriptions ns
@@ -957,7 +957,7 @@ impl CommunicationsRepository {
             limit,
         } = params;
         let rows = query(r#"
-                SELECT g.id, g.email, g.first_name, g.full_name FROM guests g
+                SELECT g.id, g.email, g.first_name, g.nick_name FROM guests g
                 WHERE g.is_active IS TRUE
                   AND g.email IS NOT NULL AND length(trim(g.email)) > 0
                   AND g.date_of_birth IS NOT NULL
@@ -1105,13 +1105,12 @@ impl CommunicationsRepository {
     /// require any `notification_subscriptions` row (see
     /// [`crate::modules::communications::validation::TRANSACTIONAL_KINDS`]).
     pub async fn is_guest_active(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
-        let count: i64 = query_scalar(
-            "SELECT COUNT(*) FROM guests g WHERE g.id = $1 AND g.is_active IS TRUE",
-        )
-        .bind(guest_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
+        let count: i64 =
+            query_scalar("SELECT COUNT(*) FROM guests g WHERE g.id = $1 AND g.is_active IS TRUE")
+                .bind(guest_id)
+                .fetch_one(pool)
+                .await
+                .map_err(ApiError::from)?;
         Ok(count > 0)
     }
 

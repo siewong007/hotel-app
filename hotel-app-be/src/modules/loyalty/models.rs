@@ -5,7 +5,7 @@ use validator::Validate;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoyaltyGuestProfile {
     pub guest_id: i64,
-    pub full_name: String,
+    pub nick_name: String,
     pub email: Option<String>,
     pub phone: Option<String>,
 }

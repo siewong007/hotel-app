@@ -24,9 +24,9 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
-pub mod users;
 pub mod search;
 pub mod two_factor;
+pub mod users;
 pub mod webhooks;
 
 // Re-export all handlers for convenience

@@ -143,6 +143,11 @@ pub struct GuestBookingVoucherOptions {
 #[derive(Debug, Clone, Deserialize)]
 pub struct AnonymousGuestDetails {
     pub first_name: String,
+    /// Accepted so an older client's payload still deserializes, then
+    /// deliberately discarded: `validate_anonymous_guest` forces the stored
+    /// last name to `None` rather than let a crafted body occupy the unique
+    /// identifier with "First Last". Never read on purpose.
+    #[allow(dead_code)]
     pub last_name: Option<String>,
     /// Required, unlike a front-desk booking: it is the only way to send the
     /// confirmation and the only factor (with the booking number) that lets the
@@ -236,7 +241,7 @@ pub struct VoucherPricing {
 #[derive(Debug, Clone)]
 pub struct GuestContact {
     pub actor_user_id: Option<i64>,
-    pub full_name: String,
+    pub nick_name: String,
     pub email: Option<String>,
 }
 

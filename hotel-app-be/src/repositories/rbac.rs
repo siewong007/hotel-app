@@ -548,11 +548,12 @@ impl RbacRepository {
             return Ok(HashSet::new());
         }
 
-        let names: Vec<String> = sqlx::query_scalar("SELECT name FROM permissions WHERE id = ANY($1)")
-            .bind(permission_ids)
-            .fetch_all(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+        let names: Vec<String> =
+            sqlx::query_scalar("SELECT name FROM permissions WHERE id = ANY($1)")
+                .bind(permission_ids)
+                .fetch_all(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(names.into_iter().collect())
     }
@@ -691,5 +692,4 @@ impl RbacRepository {
             .map(|_| ())
             .map_err(|e| ApiError::Database(e.to_string()))
     }
-
 }

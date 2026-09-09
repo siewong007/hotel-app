@@ -25,7 +25,7 @@ pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditP
         SELECT
             b.id as booking_id,
             b.booking_number,
-            COALESCE(g.full_name, COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) as guest_name,
+            COALESCE(g.nick_name, COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) as guest_name,
             r.room_number,
             b.check_in_date::text as check_in_date,
             b.check_out_date::text as check_out_date,
@@ -355,7 +355,7 @@ pub async fn audit_details(pool: &DbPool, audit_id: i64) -> Result<AuditDetailsR
         SELECT
             b.id as booking_id,
             b.booking_number,
-            COALESCE(g.full_name, COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) as guest_name,
+            COALESCE(g.nick_name, COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) as guest_name,
             r.room_number,
             COALESCE(rt.name, 'Unknown') as room_type,
             rt.code as room_type_code,

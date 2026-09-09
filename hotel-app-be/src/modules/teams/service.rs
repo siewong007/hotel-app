@@ -103,11 +103,7 @@ pub async fn update_team(
     Ok(team)
 }
 
-pub async fn delete_team(
-    pool: &DbPool,
-    actor_user_id: i64,
-    team_id: i64,
-) -> Result<(), ApiError> {
+pub async fn delete_team(pool: &DbPool, actor_user_id: i64, team_id: i64) -> Result<(), ApiError> {
     let before = TeamRepository::find(pool, team_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Team not found".to_string()))?;

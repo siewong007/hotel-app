@@ -340,7 +340,7 @@ impl PaymentRepository {
         sqlx::query_as(
             r#"
                 SELECT b.id AS booking_id, b.booking_number, b.guest_id,
-                       COALESCE(NULLIF(g.full_name, ''), 'Guest') AS guest_name,
+                       COALESCE(NULLIF(g.nick_name, ''), 'Guest') AS guest_name,
                        g.email AS guest_email, r.room_number,
                        rt.name AS room_type_name, b.check_in_date, b.check_out_date
                 FROM bookings b
@@ -994,7 +994,7 @@ impl PaymentRepository {
     ) -> Result<Option<PendingPaymentEntry>, ApiError> {
         let sql = r#"
                 SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
-                       g.full_name AS guest_name, p.amount::text AS amount,
+                       g.nick_name AS guest_name, p.amount::text AS amount,
                        p.payment_method, p.status,
                        p.gateway_payment_intent_id AS reference, p.notes AS notes,
                        p.created_at::text AS created_at,
@@ -1025,7 +1025,7 @@ impl PaymentRepository {
     ) -> Result<(Vec<PendingPaymentEntry>, i64), ApiError> {
         let list_sql = r#"
                 SELECT p.id, p.booking_id, b.booking_number, b.guest_id AS guest_id,
-                       g.full_name AS guest_name, p.amount::text AS amount,
+                       g.nick_name AS guest_name, p.amount::text AS amount,
                        p.payment_method, p.status,
                        p.gateway_payment_intent_id AS reference, p.notes AS notes,
                        p.created_at::text AS created_at,
@@ -1066,7 +1066,7 @@ impl PaymentRepository {
         offset: i64,
     ) -> Result<(Vec<PendingPaymentEntry>, i64), ApiError> {
         let list_sql = r#"
-                SELECT p.id, p.booking_id, b.booking_number, b.guest_id, g.full_name AS guest_name,
+                SELECT p.id, p.booking_id, b.booking_number, b.guest_id, g.nick_name AS guest_name,
                        p.amount::text AS amount, p.payment_method, p.status,
                        p.gateway_payment_intent_id AS reference, p.notes, p.created_at::text AS created_at,
                        EXISTS(SELECT 1 FROM payment_receipt_requests pr WHERE pr.payment_id = p.id) AS receipt_requested,
@@ -1351,7 +1351,7 @@ impl PaymentRepository {
 
         let booking_details: GeneratedInvoiceBookingDetailsRow = sqlx::query_as(
             r#"
-            SELECT b.id AS booking_id, b.guest_id, g.full_name AS customer_name,
+            SELECT b.id AS booking_id, b.guest_id, g.nick_name AS customer_name,
                    g.email AS customer_email, g.phone AS customer_phone,
                    b.check_in_date AS check_in, b.check_out_date AS check_out,
                    r.id AS room_id, r.room_number, rt.name AS room_type
@@ -1862,7 +1862,7 @@ impl PaymentRepository {
                     subtotal, total_amount, line_items, status, invoice_type, created_by
                 )
                 SELECT $1, b.id,
-                       COALESCE(g.full_name, ''),
+                       COALESCE(g.nick_name, ''),
                        g.email,
                        b.total_amount,
                        b.total_amount,

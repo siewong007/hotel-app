@@ -159,7 +159,7 @@ impl HttpFixture {
         .expect("room fixture must be inserted");
         sqlx::query(
             "INSERT INTO guests \
-             (id, full_name, first_name, last_name, email, tourism_type) \
+             (id, nick_name, first_name, last_name, email, tourism_type) \
              OVERRIDING SYSTEM VALUE \
              VALUES ($1, 'Payment HTTP Guest', 'Payment', 'HTTP', \
                      'payment-http-guest@hotel.local', 'local')",

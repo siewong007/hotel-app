@@ -18,7 +18,7 @@
 //! `HOTEL_APP_UPDATE_OPENAPI=1 cargo test --all-features --test openapi_drift`
 
 use regex::Regex;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -221,8 +221,12 @@ fn spec_path() -> PathBuf {
 }
 
 fn load_spec_routes() -> RouteSet {
-    let raw = fs::read_to_string(spec_path())
-        .unwrap_or_else(|e| panic!("read {}: {e} (generate it with HOTEL_APP_UPDATE_OPENAPI=1)", SPEC_RELATIVE_PATH));
+    let raw = fs::read_to_string(spec_path()).unwrap_or_else(|e| {
+        panic!(
+            "read {}: {e} (generate it with HOTEL_APP_UPDATE_OPENAPI=1)",
+            SPEC_RELATIVE_PATH
+        )
+    });
     let value: Value = serde_json::from_str(&raw).expect("docs/api/openapi.json is valid JSON");
     let mut routes = RouteSet::new();
     let Some(paths) = value.get("paths").and_then(Value::as_object) else {

@@ -6,11 +6,47 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+/// The name to print on a document that represents the guest legally: an
+/// invoice, a folio, or mail sent once they have checked in.
+///
+/// A booking only ever has a nickname — that is the whole point of the
+/// anonymous flow — and the legal first/last name arrives later, at check-in.
+/// So this returns the legal name once BOTH halves are present and falls back
+/// to the nickname until then. Requiring both is deliberate: a lone first name
+/// is not a legal name, and "Aisha" on an invoice is worse than the nickname
+/// the guest actually recognises.
+///
+/// Operational surfaces (the booking board, `booking_summary.guest_name`) stay
+/// on the nickname regardless — staff search for what the guest booked as.
+pub fn display_guest_name(
+    nick_name: &str,
+    first_name: Option<&str>,
+    last_name: Option<&str>,
+) -> String {
+    let present = |value: Option<&str>| {
+        value
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+    };
+    match (present(first_name), present(last_name)) {
+        (Some(first), Some(last)) => format!("{first} {last}"),
+        _ => nick_name.trim().to_string(),
+    }
+}
+
 /// Core guest entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Guest {
     pub id: i64,
-    pub full_name: String,
+    pub nick_name: String,
+    /// Legal name, collected at check-in rather than at booking. An anonymous
+    /// booker has a `nick_name` and no `last_name` until then, which is how
+    /// the check-in form knows it still has to ask. Deliberately NOT
+    /// `#[sqlx(default)]`: a SELECT that forgets these must fail loudly rather
+    /// than report every guest as still needing a legal name.
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub ic_number: Option<String>,
@@ -210,7 +246,7 @@ pub struct GuestUpdateState {
 /// Fully resolved guest update values.
 #[derive(Debug)]
 pub struct GuestUpdateValues {
-    pub full_name: String,
+    pub nick_name: String,
     pub first_name: String,
     pub last_name: String,
     pub email: Option<String>,
@@ -233,7 +269,7 @@ pub struct GuestUpdateValues {
 /// Fully resolved guest creation values.
 #[derive(Debug)]
 pub struct GuestCreateValues<'a> {
-    pub full_name: &'a str,
+    pub nick_name: &'a str,
     pub first_name: &'a str,
     pub last_name: &'a str,
     pub email: Option<&'a str>,
@@ -315,7 +351,7 @@ pub struct GuestCreditRow {
 #[derive(Debug, sqlx::FromRow)]
 pub struct LinkedGuestCreditRow {
     pub id: i64,
-    pub full_name: String,
+    pub nick_name: String,
     pub email: Option<String>,
     pub legacy_credits: i32,
 }
@@ -396,5 +432,53 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for GuestBookingRow {
             room_number: row.try_get("room_number")?,
             room_type: row.try_get("room_type")?,
         })
+    }
+}
+
+#[cfg(test)]
+mod display_guest_name_tests {
+    use super::display_guest_name;
+
+    #[test]
+    fn prefers_the_legal_name_once_both_halves_exist() {
+        assert_eq!(
+            display_guest_name("CoolAlex", Some("Aisha"), Some("Rahman")),
+            "Aisha Rahman"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_the_nickname_until_check_in_supplies_both_halves() {
+        // The anonymous booking case: nickname mirrored into first_name.
+        assert_eq!(
+            display_guest_name("CoolAlex", Some("CoolAlex"), None),
+            "CoolAlex"
+        );
+        assert_eq!(
+            display_guest_name("CoolAlex", None, Some("Rahman")),
+            "CoolAlex"
+        );
+        assert_eq!(display_guest_name("CoolAlex", None, None), "CoolAlex");
+    }
+
+    #[test]
+    fn treats_blank_and_whitespace_halves_as_absent() {
+        assert_eq!(
+            display_guest_name("CoolAlex", Some("  "), Some("Rahman")),
+            "CoolAlex"
+        );
+        assert_eq!(
+            display_guest_name("CoolAlex", Some("Aisha"), Some("")),
+            "CoolAlex"
+        );
+    }
+
+    #[test]
+    fn trims_what_it_returns() {
+        assert_eq!(display_guest_name("  CoolAlex  ", None, None), "CoolAlex");
+        assert_eq!(
+            display_guest_name("CoolAlex", Some(" Aisha "), Some(" Rahman ")),
+            "Aisha Rahman"
+        );
     }
 }

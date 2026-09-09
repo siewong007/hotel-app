@@ -218,7 +218,7 @@ export class GuestsService {
 
   static async getMyGuestsWithCredits(): Promise<{
     id: number;
-    full_name: string;
+    nick_name: string;
     email: string;
     total_complimentary_credits: number;
     credits_by_room_type: {

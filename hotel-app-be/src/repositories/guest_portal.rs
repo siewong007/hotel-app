@@ -103,7 +103,7 @@ impl GuestPortalRepository {
 
     pub async fn find_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> {
         let query = r#"
-                SELECT id, full_name, email, phone, ic_number, nationality,
+                SELECT id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, is_active,
                        guest_type, tourism_type,

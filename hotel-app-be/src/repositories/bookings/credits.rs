@@ -250,14 +250,14 @@ pub async fn get_guests_with_credits_handler(
     // Get room type specific credits
     let credits: Vec<serde_json::Value> = sqlx::query(
         r#"
-        SELECT gc.guest_id, g.full_name as guest_name, g.email,
+        SELECT gc.guest_id, g.nick_name as guest_name, g.email,
                gc.room_type_id, rt.name as room_type_name, rt.code as room_type_code,
                gc.nights_available, gc.notes
         FROM guest_complimentary_credits gc
         INNER JOIN guests g ON gc.guest_id = g.id
         INNER JOIN room_types rt ON gc.room_type_id = rt.id
         WHERE gc.nights_available > 0
-        ORDER BY g.full_name, rt.name
+        ORDER BY g.nick_name, rt.name
         "#,
     )
     .fetch_all(&pool)
@@ -349,7 +349,7 @@ pub async fn add_guest_credits_handler(
     // Get updated credit info
     let credit = sqlx::query(
         r#"
-        SELECT gc.guest_id, g.full_name as guest_name, gc.room_type_id, rt.name as room_type_name,
+        SELECT gc.guest_id, g.nick_name as guest_name, gc.room_type_id, rt.name as room_type_name,
                gc.nights_available, gc.notes
         FROM guest_complimentary_credits gc
         INNER JOIN guests g ON gc.guest_id = g.id
@@ -498,7 +498,7 @@ pub async fn update_guest_credits_handler(
     // Get updated credit info
     let credit = sqlx::query(
         r#"
-        SELECT gc.guest_id, g.full_name as guest_name, gc.room_type_id, rt.name as room_type_name,
+        SELECT gc.guest_id, g.nick_name as guest_name, gc.room_type_id, rt.name as room_type_name,
                gc.nights_available, gc.notes
         FROM guest_complimentary_credits gc
         INNER JOIN guests g ON gc.guest_id = g.id
@@ -534,7 +534,7 @@ pub async fn delete_guest_credits_handler(
     // Check if credit record exists
     let credit = sqlx::query(
         r#"
-        SELECT gc.nights_available, g.full_name as guest_name, rt.name as room_type_name
+        SELECT gc.nights_available, g.nick_name as guest_name, rt.name as room_type_name
         FROM guest_complimentary_credits gc
         INNER JOIN guests g ON gc.guest_id = g.id
         INNER JOIN room_types rt ON gc.room_type_id = rt.id

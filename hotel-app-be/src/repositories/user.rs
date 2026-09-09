@@ -393,5 +393,4 @@ impl UserRepository {
 
         Ok(())
     }
-
 }

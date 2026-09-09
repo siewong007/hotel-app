@@ -282,14 +282,15 @@ export default function EnhancedCheckInModal({
   const initializeFormData = useCallback(() => {
     if (!guest || !booking) return;
 
-    // Parse full_name into first and last name
-    const nameParts = guest.full_name?.split(' ') || [];
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    // The nickname is NOT a name to split. An anonymous booker's `first_name`
+    // just mirrors the nickname and `last_name` is empty, so splitting it would
+    // invent a legal name like "CoolAlex" / "" and check-in would stop asking.
+    // Prefill only when a real legal name is already on file (both halves).
+    const hasLegalName = Boolean(guest.first_name?.trim() && guest.last_name?.trim());
 
     setGuestData({
-      first_name: firstName,
-      last_name: lastName,
+      first_name: hasLegalName ? (guest.first_name ?? '') : '',
+      last_name: hasLegalName ? (guest.last_name ?? '') : '',
       email: guest.email,
       phone: guest.phone,
       ic_number: guest.ic_number,
@@ -436,6 +437,9 @@ export default function EnhancedCheckInModal({
         if (!value || !value.trim()) return 'First name is required';
         if (value.trim().length < 2) return 'First name must be at least 2 characters';
         return undefined;
+      case 'last_name':
+        if (!value || !value.trim()) return 'Last name is required';
+        return undefined;
       case 'email':
         return undefined;
       case 'phone':
@@ -461,9 +465,11 @@ export default function EnhancedCheckInModal({
   const validateForm = useCallback((): ValidationErrors => {
     const errors: ValidationErrors = {};
 
-    // Required field: first_name
+    // Check-in is where the legal name is collected, so both halves are required.
     const firstNameError = validateField('first_name', guestData.first_name || '');
     if (firstNameError) errors.first_name = firstNameError;
+    const lastNameError = validateField('last_name', guestData.last_name || '');
+    if (lastNameError) errors.last_name = lastNameError;
 
     // Optional field validations
     const emailError = validateField('email', guestData.email || '');
@@ -585,6 +591,7 @@ export default function EnhancedCheckInModal({
     // Mark all fields as touched
     setTouched({
       first_name: true,
+      last_name: true,
       email: true,
       phone: true,
       alt_phone: true,
@@ -597,7 +604,7 @@ export default function EnhancedCheckInModal({
     if (Object.keys(errors).length > 0) {
       setError('Please fix the validation errors before proceeding');
       // Switch to the tab with the first error
-      if (errors.first_name || errors.email || errors.phone || errors.alt_phone || errors.ic_number) {
+      if (errors.first_name || errors.last_name || errors.email || errors.phone || errors.alt_phone || errors.ic_number) {
         setActiveTab(0); // General Information tab
       } else if (errors.cardNumber || errors.cardExpiry) {
         setActiveTab(2); // Payment tab
@@ -805,7 +812,12 @@ export default function EnhancedCheckInModal({
                 }}>Guest</Typography>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
-                }}>{guest.full_name}</Typography>
+                }}>{guest.nick_name}</Typography>
+                {!guest.last_name?.trim() && (
+                  <Typography variant="caption" sx={{ color: "text.secondary", display: 'block' }}>
+                    Booked as: {guest.nick_name}
+                  </Typography>
+                )}
               </Grid>
               <Grid size={4}>
                 <Typography variant="caption" sx={{
@@ -929,23 +941,25 @@ export default function EnhancedCheckInModal({
               <Grid size={{ xs: 12, sm: 4.5 }}>
                 <TextField
                   fullWidth
+                  required
                   label="First Name"
                   value={guestData.first_name || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
+                  onChange={(e) => handleGuestChange('first_name', e.target.value)}
+                  onBlur={(e) => handleBlur('first_name', e.target.value)}
+                  error={Boolean(touched.first_name && validationErrors.first_name)}
+                  helperText={touched.first_name ? validationErrors.first_name : undefined}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 4.5 }}>
                 <TextField
                   fullWidth
+                  required
                   label="Last Name"
                   value={guestData.last_name || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
+                  onChange={(e) => handleGuestChange('last_name', e.target.value)}
+                  onBlur={(e) => handleBlur('last_name', e.target.value)}
+                  error={Boolean(touched.last_name && validationErrors.last_name)}
+                  helperText={touched.last_name ? validationErrors.last_name : undefined}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>

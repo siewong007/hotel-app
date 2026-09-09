@@ -421,7 +421,7 @@ const RoomManagementPage: React.FC = () => {
     // task report rather than invented here.
     const bwd = {
       ...booking,
-      guest_name: guest.full_name || `${guest.first_name || ''} ${guest.last_name || ''}`.trim(),
+      guest_name: guest.nick_name || `${guest.first_name || ''} ${guest.last_name || ''}`.trim(),
       guest_email: guest.email || '',
       guest_phone: guest.phone || '',
       room_number: booking.room_number || String(booking.room_id),
@@ -588,7 +588,7 @@ const RoomManagementPage: React.FC = () => {
 
         // Check for duplicate guest name
         const fullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
-        const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === fullName);
+        const existingGuestByName = guests.find(g => g.nick_name.toLowerCase().trim() === fullName);
         if (existingGuestByName) {
           showSnackbar(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'warning');
           setCreatingBooking(false);
@@ -687,7 +687,7 @@ const RoomManagementPage: React.FC = () => {
         post_type: createdBooking.post_type,
         created_at: createdBooking.created_at,
         updated_at: createdBooking.updated_at,
-        guest_name: guestToUse.full_name || '',
+        guest_name: guestToUse.nick_name || '',
         guest_email: guestToUse.email || '',
         guest_phone: guestToUse.phone || '',
         room_number: selectedRoom.room_number,
@@ -733,7 +733,7 @@ const RoomManagementPage: React.FC = () => {
         notes: `Walk-in via ${walkInBookingChannel}`,
       });
 
-      showSnackbar(`${walkInGuest.full_name} checked into room ${selectedRoom.room_number} (${walkInBookingChannel})`, 'success');
+      showSnackbar(`${walkInGuest.nick_name} checked into room ${selectedRoom.room_number} (${walkInBookingChannel})`, 'success');
       setWalkInDialogOpen(false);
       // Reset form
       setWalkInGuest(null);
@@ -840,7 +840,7 @@ const RoomManagementPage: React.FC = () => {
 
         // Check for duplicate guest name
         const onlineFullName = `${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}`.toLowerCase();
-        const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === onlineFullName);
+        const existingGuestByName = guests.find(g => g.nick_name.toLowerCase().trim() === onlineFullName);
         if (existingGuestByName) {
           showSnackbar(`A guest with the name '${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'warning');
           setCreatingBooking(false);
@@ -940,7 +940,7 @@ const RoomManagementPage: React.FC = () => {
 
       await BookingsService.createBooking(bookingData);
 
-      showSnackbar(`Reservation created for ${guestToUse.full_name} in Room ${selectedRoom.room_number}`, 'success');
+      showSnackbar(`Reservation created for ${guestToUse.nick_name} in Room ${selectedRoom.room_number}`, 'success');
       setOnlineCheckInDialogOpen(false);
 
       // Reset form state

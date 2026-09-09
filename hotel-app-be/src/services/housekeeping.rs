@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     CreateHousekeepingTaskRequest, HousekeepingBoardResponse, HousekeepingTask,
     HousekeepingTaskListResponse, HousekeepingTaskPatch, ListHousekeepingTasksQuery,
@@ -13,7 +14,6 @@ use crate::repositories::housekeeping::{self, NewHousekeepingTask};
 use crate::services::{audit::AuditLog, rooms};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
-use crate::models::AuditEvent;
 
 const VALID_PRIORITIES: &[&str] = &["low", "normal", "high", "urgent"];
 const VALID_TASK_TYPES: &[&str] = &[

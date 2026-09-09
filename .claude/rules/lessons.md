@@ -86,6 +86,24 @@ could fail:
 - Legacy schemas are unsupported: export data and rebuild from the current baseline rather than mutating in place.
 - **A CRLF checkout silently disables the entire patch catalog on Windows.** `core.autocrlf=true` with no `.gitattributes` checked every `*.sql` out with CRLF; both executors hash raw bytes (`patches.rs:359`), so all seven manifest checksums failed, the runner aborted at 0002, and a desktop DB sat on `v1-baseline` from 2026-07-17 while the shipped backend had moved on. Symptom was `POST /api/payments/record-payment -> 500`, `column "idempotency_fingerprint" does not exist` — patch 0003 never applied. `.gitattributes` now pins `*.sql`/`*.tsv` to `eol=lf`; verify with the manifest checksum loop, never by eye. The installer copies the working tree, so a CRLF tree ships CRLF patches.
 - **CRLF also gets baked into stored function bodies, and exact-match preflights then never pass.** `pg_get_functiondef` replays `prosrc` verbatim, so a baseline installed from a CRLF file leaves CR bytes in the body forever; `sync_room_status_with_booking()` was byte-identical to patch 0005's `current_definition` except for 73 CR bytes, and 0005 raised instead of no-opping. Constraints and indexes are immune (pg regenerates them from the parse tree) but hit the sibling problem — spelling. Three `email_deliveries` CHECKs were semantically identical to 0008's `*_old` constants yet rendered `ARRAY[...]::text[]` instead of per-element casts, and 0008 raised. Fix both by rewriting the object into the patch's exact expected text, then re-running; never edit the shipped patch.
+- **The V1 baseline checksum is a frozen lineage token, not a file hash.** It looks like
+  `sha256:1149266e…` and a plan said to "recompute the baseline sha256 and replace it" — but
+  `seed.sql` WRITES that literal into `hotel_schema_revisions` and `_begin.sql` compares the
+  DB's recorded value against the same literal. Nothing hashes the file. It was set once in
+  `8bed05c5` and never moved, while the baseline file itself changed many times (its real
+  sha is now completely different). Rotating it would make every installed database fail
+  `unsupported V1 baseline checksum`, blocking the whole catalog — and desktop treats that as
+  fatal, so the app goes offline. Leave it alone; verify with `git log -S` before "fixing" it.
+- **`ALTER TABLE … RENAME COLUMN` does not carry every dependent object, and only a pg_dump
+  convergence diff finds the ones it misses.** Renaming `guests.full_name` → `nick_name`
+  looked complete and passed every test, but the fresh-vs-patched dump differed twice:
+  PostgreSQL 19 keeps the GENERATED NOT NULL constraint's old name
+  (`guests_full_name_not_null` vs a fresh install's `guests_nick_name_not_null`, renamable
+  with `ALTER TABLE … RENAME CONSTRAINT`), and a SQL/PGQ `PROPERTY GRAPH` stores the exposed
+  PROPERTY NAME, so it silently re-rendered as `nick_name AS full_name` — there is no ALTER
+  for a property rename, so the graph must be dropped and recreated. Views are the exception:
+  they track by attnum and re-render themselves. pg_dump also SORTS graph properties by
+  property name, so write the baseline in that order.
 - **A preflight RAISE takes the whole app down, not just the patch.** Desktop startup treats patch failure as fatal, so the sidecar never launches and the app is fully offline until the catalog completes. Budget for that before restarting a live machine, and expect one restart per drifted object: each run surfaces only the next failure.
 
 ## 4. sqlx type mismatches are runtime-only, and they travel in packs

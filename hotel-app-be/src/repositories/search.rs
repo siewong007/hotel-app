@@ -63,14 +63,14 @@ impl SearchRepository {
         let (p, plim) = placeholders();
         let sql = format!(
             "SELECT b.id AS id, b.booking_number AS booking_number, \
-                    COALESCE(g.full_name, '') AS guest_name, \
+                    COALESCE(g.nick_name, '') AS guest_name, \
                     COALESCE(r.room_number, '') AS room_number, \
                     b.status AS status \
              FROM bookings b \
              LEFT JOIN guests g ON b.guest_id = g.id \
              LEFT JOIN rooms r ON b.room_id = r.id \
              WHERE b.status != 'voided' AND ( \
-                 b.booking_number {lk} {p} OR g.full_name {lk} {p} OR r.room_number {lk} {p}) \
+                 b.booking_number {lk} {p} OR g.nick_name {lk} {p} OR r.room_number {lk} {p}) \
              ORDER BY b.check_in_date DESC LIMIT {plim}"
         );
 
@@ -133,14 +133,14 @@ impl SearchRepository {
         let (p, plim) = placeholders();
         let sql = format!(
             "SELECT g.id AS id, \
-                    COALESCE(g.full_name, TRIM(COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')), '') AS full_name, \
+                    COALESCE(g.nick_name, TRIM(COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')), '') AS full_name, \
                     COALESCE(g.phone, '') AS phone, COALESCE(g.email, '') AS email, \
                     COALESCE(g.ic_number, '') AS ic_number, \
                     COALESCE(g.company_name, '') AS company_name \
              FROM guests g \
              WHERE g.deleted_at IS NULL AND ( \
                  CAST(g.id AS TEXT) {lk} {p} \
-                 OR COALESCE(g.full_name, '') {lk} {p} \
+                 OR COALESCE(g.nick_name, '') {lk} {p} \
                  OR COALESCE(g.first_name, '') {lk} {p} \
                  OR COALESCE(g.last_name, '') {lk} {p} \
                  OR TRIM(COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) {lk} {p} \

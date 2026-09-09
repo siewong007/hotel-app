@@ -198,5 +198,4 @@ impl SettingsRepository {
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
     }
-
 }

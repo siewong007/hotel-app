@@ -31,6 +31,7 @@
 //! decode paths can never silently regress again.
 
 use hotel_app_be::core::error::ApiError;
+use hotel_app_be::models::guest::display_guest_name;
 use hotel_app_be::repositories::invoice_numbers as invoice_repo;
 use hotel_app_be::services::invoice_numbers::{
     backfill_missing_booking_invoices, next_invoice_number,
@@ -56,9 +57,7 @@ async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
     let database_url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
         Err(_) => {
-            eprintln!(
-                "Skipping PostgreSQL invoice-numbering test because DATABASE_URL is not set"
-            );
+            eprintln!("Skipping PostgreSQL invoice-numbering test because DATABASE_URL is not set");
             return None;
         }
     };
@@ -137,9 +136,9 @@ async fn seed_booking(
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
          OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Invoice', $3, $4) \
-         ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
     )
     .bind(guest_id)
     .bind(format!("Invoice Test Guest {guest_id}"))
@@ -392,10 +391,7 @@ async fn concurrent_generation_never_commits_duplicate_numbers() {
     let second = generate_and_persist(&pool_b, booking_b);
     let (result_a, result_b) = tokio::join!(first, second);
 
-    let successes = [&result_a, &result_b]
-        .iter()
-        .filter(|r| r.is_ok())
-        .count();
+    let successes = [&result_a, &result_b].iter().filter(|r| r.is_ok()).count();
     assert!(
         successes >= 1,
         "at least one of the two concurrent invoice generations should succeed: {result_a:?} / {result_b:?}"
@@ -626,4 +622,85 @@ async fn generate_invoice_returns_enriched_invoice_and_is_idempotent() {
         actor_id,
     )
     .await;
+}
+
+/// The invoice's `billing_name` is built in SQL while every other surface uses
+/// `models::guest::display_guest_name`, so the two could drift silently. This
+/// drives real invoices through all three name states and asserts the stored
+/// value equals what the Rust helper would have produced.
+#[tokio::test]
+async fn invoice_billing_name_matches_display_guest_name() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 950_005;
+    let room_type_id = 950_105;
+    // (label, first_name, last_name)
+    let cases: [(&str, Option<&str>, Option<&str>); 4] = [
+        ("nickname only", None, None),
+        ("first name only", Some("Aisha"), None),
+        ("blank last name", Some("Aisha"), Some("   ")),
+        ("full legal name", Some("Aisha"), Some("Rahman")),
+    ];
+
+    for (index, (label, first_name, last_name)) in cases.iter().enumerate() {
+        let offset = index as i64;
+        let room_id = 950_500 + offset;
+        let guest_id = 950_510 + offset;
+        let booking_id = 950_520 + offset;
+
+        cleanup(
+            &pool,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+            actor_id,
+        )
+        .await;
+        ensure_admin_actor(&pool, actor_id).await;
+        seed_booking(&pool, room_type_id, room_id, guest_id, booking_id, actor_id).await;
+
+        let nick_name = format!("Inv950Nick{guest_id}");
+        sqlx::query(
+            "UPDATE guests SET nick_name = $2, first_name = $3, last_name = $4 WHERE id = $1",
+        )
+        .bind(guest_id)
+        .bind(&nick_name)
+        .bind(*first_name)
+        .bind(*last_name)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let invoice_number = format!("INV-950-{booking_id}");
+        invoice_repo::insert_booking_invoice(&pool, booking_id, &invoice_number)
+            .await
+            .expect("invoice insert should succeed");
+
+        let billing_name: String =
+            sqlx::query_scalar("SELECT billing_name FROM invoices WHERE booking_id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let expected = display_guest_name(&nick_name, *first_name, *last_name);
+
+        cleanup(
+            &pool,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+            actor_id,
+        )
+        .await;
+
+        assert_eq!(
+            billing_name, expected,
+            "{label}: invoice SQL and display_guest_name must agree"
+        );
+    }
 }

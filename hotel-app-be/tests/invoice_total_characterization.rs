@@ -300,9 +300,9 @@ async fn seed_disagreeing_booking(pool: &PgPool, ids: &FixtureIds) -> SeededBook
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email, tourism_type) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email, tourism_type) \
          OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Total', $3, $4, 'foreign') \
-         ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, tourism_type = 'foreign'",
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name, tourism_type = 'foreign'",
     )
     .bind(ids.guest_id)
     .bind(format!("Total Test Guest {}", ids.guest_id))
@@ -524,18 +524,18 @@ async fn generate_invoice_writes_an_audit_log_entry() {
 
     let invoice_result = payments::generate_invoice(&pool, ids.actor_id, ids.booking_id).await;
     let audit_row_result: AuditLogQueryResult = if invoice_result.is_ok() {
-            Some(
-                sqlx::query_as(
-                    "SELECT action, resource_type, resource_id FROM audit_logs \
+        Some(
+            sqlx::query_as(
+                "SELECT action, resource_type, resource_id FROM audit_logs \
                      WHERE resource_type = 'invoice' AND (details->>'booking_id')::bigint = $1",
-                )
-                .bind(ids.booking_id)
-                .fetch_one(&pool)
-                .await,
             )
-        } else {
-            None
-        };
+            .bind(ids.booking_id)
+            .fetch_one(&pool)
+            .await,
+        )
+    } else {
+        None
+    };
 
     cleanup_fixture(&pool, &ids).await;
 
@@ -593,8 +593,7 @@ async fn calculate_payment_summary_should_equal_billable_total() {
 
     let summary = summary_result.expect("calculate_payment_summary must succeed");
     assert_eq!(
-        summary.total_amount,
-        expected_billable_total,
+        summary.total_amount, expected_billable_total,
         "calculate_payment_summary must quote the booking's billable_total \
          (total_amount + tourism_tax_amount + extra_bed_charge), not base_price * nights"
     );
@@ -628,8 +627,7 @@ async fn generate_invoice_total_should_equal_billable_total() {
 
     let invoice = invoice_result.expect("generate_invoice must succeed");
     assert_eq!(
-        invoice.total_amount,
-        expected_billable_total,
+        invoice.total_amount, expected_billable_total,
         "generate_invoice's total_amount must equal the booking's billable_total \
          (total_amount + tourism_tax_amount + extra_bed_charge)"
     );
@@ -675,15 +673,13 @@ async fn checkout_invoice_total_should_equal_billable_total() {
 
     cleanup_fixture(&pool, &ids).await;
 
-    let _invoice_number =
-        invoice_number_result.expect("ensure_invoice_for_booking must succeed");
+    let _invoice_number = invoice_number_result.expect("ensure_invoice_for_booking must succeed");
     let total_amount = total_amount_result
         .expect("ensure_invoice_for_booking succeeded but the invoice row was never queried")
         .expect("checkout invoice row must exist");
 
     assert_eq!(
-        total_amount,
-        expected_billable_total,
+        total_amount, expected_billable_total,
         "the checkout invoice's total_amount must equal the booking's billable_total \
          (total_amount + tourism_tax_amount + extra_bed_charge)"
     );

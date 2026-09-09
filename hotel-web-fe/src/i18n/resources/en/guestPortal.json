@@ -65,9 +65,7 @@
     "staySummary": "{{checkIn}} to {{checkOut}} · {{nights}} · {{adults}} adults{{children}}",
     "childrenSuffix": " · {{count}} children",
     "yourDetails": "Your details",
-    "detailsHint": "We only need enough to hold the room and send your confirmation. The rest is collected at check-in.",
-    "firstName": "First name",
-    "lastName": "Last name",
+    "detailsHint": "A nickname holds the room and your email carries the confirmation. Your legal name is collected at check-in.",
     "email": "Email",
     "emailHint": "Your confirmation and booking number are sent here.",
     "phone": "Phone",
@@ -102,7 +100,6 @@
     "creditsAtLimit": "That is all {{count}} of your free nights for this room type. Uncheck one to move it to a different night.",
     "consentRequired": "Please read and accept the Booking Terms and the Privacy Notice to continue.",
     "errors": {
-      "firstName": "Please enter the guest first name.",
       "email": "Please enter a valid email address. Your confirmation is sent there.",
       "tourismType": "Please select whether the guest is a local or foreign tourist.",
       "noRooms": "No room types are available for those dates and guests.",
@@ -111,7 +108,9 @@
       "refreshPriceFailed": "Unable to refresh the price for this guest type.",
       "voucherFailed": "This voucher cannot be applied to the selected stay.",
       "creditsFailed": "Unable to apply your complimentary nights to this stay.",
-      "createFailed": "Unable to create the booking."
+      "createFailed": "Unable to create the booking.",
+      "nickname": "Please enter a nickname.",
+      "nicknameTaken": "This nickname is already used. Please choose another."
     },
     "availabilityChangedTitle": "Room availability changed",
     "availabilityChangedBody": "This room or its online availability changed while you were reviewing. We refreshed the options and cleared the previous quote so you can choose from the latest availability.",
@@ -119,6 +118,8 @@
     "checkingAccount": "Checking your account session…",
     "openingPortal": "Opening your guest portal…",
     "retry": "Retry",
-    "signInAgain": "Sign in again"
+    "signInAgain": "Sign in again",
+    "nickname": "Nickname",
+    "nicknameHint": "Any name you like — it holds the room and must not already be taken."
   }
 }

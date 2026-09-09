@@ -3,11 +3,11 @@ use super::repository::{LoyaltyRepository, NewTransaction};
 use super::validation;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::modules::promotions::repository::PromotionRepository;
 use crate::services::audit::AuditLog;
 use uuid::Uuid;
 use validator::Validate;
-use crate::models::AuditEvent;
 
 /// System-managed loyalty reward that issues a voucher immediately after points are redeemed.
 const JULY_DELUXE_VOUCHER_REWARD_NAME: &str = "July Deluxe Room 20% Voucher";

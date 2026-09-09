@@ -73,16 +73,6 @@ fn confirmation_from_row(row: &DbRow) -> GuestBookingConfirmation {
     }
 }
 
-/// `"Name"`, then `"Name (2)"`, `"Name (3)"`, … so staff can still read the
-/// intended name after `idx_guests_full_name_unique` forces a suffix.
-pub(crate) fn disambiguated_full_name(base: &str, attempt: u32) -> String {
-    if attempt <= 1 {
-        base.to_string()
-    } else {
-        format!("{base} ({attempt})")
-    }
-}
-
 /// Stay/pricing context used to test voucher eligibility.
 pub struct VoucherEligibilityQuery<'a> {
     pub guest_id: i64,
@@ -281,7 +271,7 @@ impl GuestBookingRepository {
     pub async fn guest_contact(pool: &DbPool, guest_id: i64) -> Result<GuestContact, ApiError> {
         let row = sqlx::query(
             r#"
-                SELECT g.full_name, g.email,
+                SELECT g.nick_name, g.email,
                        (SELECT u.id FROM users u
                         WHERE u.guest_id = g.id AND u.user_type::text = 'guest'
                         ORDER BY u.id LIMIT 1) AS actor_user_id
@@ -294,7 +284,7 @@ impl GuestBookingRepository {
         .map_err(ApiError::from)?;
         Ok(GuestContact {
             actor_user_id: row.try_get("actor_user_id").ok().flatten(),
-            full_name: row.try_get("full_name").unwrap_or_default(),
+            nick_name: row.try_get("nick_name").unwrap_or_default(),
             email: row.try_get("email").ok().flatten(),
         })
     }
@@ -844,66 +834,56 @@ impl GuestBookingRepository {
     /// keeps its `non_member` default, which is what withholds member pricing
     /// from an anonymous booking.
     ///
-    /// Name uniqueness is resolved inside this transaction: a concurrent
-    /// anonymous booker can take the same `full_name` between a pre-check and
-    /// this insert, so a unique-violation retries with `"Name (2)"` under a
-    /// SAVEPOINT (a failed statement would otherwise abort the whole booking
-    /// transaction).
+    /// Name uniqueness is enforced, not rewritten: a taken nickname fails the
+    /// booking. The SAVEPOINT keeps a unique-violation from aborting the rest
+    /// of the booking transaction so the caller can return `GuestNameTaken`.
     pub async fn insert_anonymous_guest_tx(
         tx: &mut DbTransaction<'_>,
         details: &ValidatedAnonymousGuest,
         language_preference: &str,
     ) -> Result<i64, ApiError> {
-        for attempt in 1u32..=50 {
-            let full_name = disambiguated_full_name(&details.full_name, attempt);
-            sqlx::query("SAVEPOINT anon_guest_name")
-                .execute(&mut **tx)
-                .await
-                .map_err(ApiError::from)?;
-            match sqlx::query_scalar(
-                r#"
-                    INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type, language_preference)
+        sqlx::query("SAVEPOINT anon_guest_name")
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        match sqlx::query_scalar(
+            r#"
+                    INSERT INTO guests (nick_name, first_name, last_name, email, phone, tourism_type, language_preference)
                     VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type, $7)
                     RETURNING id
                 "#,
-            )
-            .bind(&full_name)
-            .bind(details.first_name.as_str())
-            .bind(details.last_name.as_deref())
-            .bind(details.email.as_str())
-            .bind(details.phone.as_deref())
-            .bind(details.tourism_type.as_str())
-            .bind(language_preference)
-            .fetch_one(&mut **tx)
-            .await
-            {
-                Ok(guest_id) => {
-                    sqlx::query("RELEASE SAVEPOINT anon_guest_name")
-                        .execute(&mut **tx)
-                        .await
-                        .map_err(ApiError::from)?;
-                    return Ok(guest_id);
-                }
-                Err(error)
-                    if crate::repositories::auth::is_guest_name_unique_violation(&error) =>
-                {
-                    sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
-                        .execute(&mut **tx)
-                        .await
-                        .map_err(ApiError::from)?;
-                }
-                Err(error) => {
-                    let _ = sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
-                        .execute(&mut **tx)
-                        .await;
-                    return Err(ApiError::from(error));
-                }
+        )
+        .bind(&details.nick_name)
+        .bind(details.first_name.as_str())
+        .bind(details.last_name.as_deref())
+        .bind(details.email.as_str())
+        .bind(details.phone.as_deref())
+        .bind(details.tourism_type.as_str())
+        .bind(language_preference)
+        .fetch_one(&mut **tx)
+        .await
+        {
+            Ok(guest_id) => {
+                sqlx::query("RELEASE SAVEPOINT anon_guest_name")
+                    .execute(&mut **tx)
+                    .await
+                    .map_err(ApiError::from)?;
+                Ok(guest_id)
+            }
+            Err(error) if crate::repositories::auth::is_guest_name_unique_violation(&error) => {
+                sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
+                    .execute(&mut **tx)
+                    .await
+                    .map_err(ApiError::from)?;
+                Err(ApiError::GuestNameTaken)
+            }
+            Err(error) => {
+                let _ = sqlx::query("ROLLBACK TO SAVEPOINT anon_guest_name")
+                    .execute(&mut **tx)
+                    .await;
+                Err(ApiError::from(error))
             }
         }
-        Err(ApiError::Conflict(
-            "Too many guest profiles share this name. Please contact the hotel to book."
-                .to_string(),
-        ))
     }
 
     /// Attach a booking-scoped access token so an anonymous booker can pay and
@@ -932,21 +912,5 @@ impl GuestBookingRepository {
         .await
         .map_err(ApiError::from)?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod anonymous_guest_name_tests {
-    use super::disambiguated_full_name;
-
-    #[test]
-    fn first_candidate_is_the_supplied_name() {
-        assert_eq!(disambiguated_full_name("Jane Tan", 1), "Jane Tan");
-    }
-
-    #[test]
-    fn later_candidates_append_a_staff_readable_suffix() {
-        assert_eq!(disambiguated_full_name("Jane Tan", 2), "Jane Tan (2)");
-        assert_eq!(disambiguated_full_name("Jane Tan", 50), "Jane Tan (50)");
     }
 }

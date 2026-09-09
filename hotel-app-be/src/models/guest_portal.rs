@@ -62,7 +62,7 @@ impl From<Booking> for GuestPortalBookingView {
 /// account flags).
 #[derive(Debug, Serialize)]
 pub struct GuestPortalGuestView {
-    pub full_name: String,
+    pub nick_name: String,
     pub title: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
@@ -79,7 +79,7 @@ pub struct GuestPortalGuestView {
 impl From<Guest> for GuestPortalGuestView {
     fn from(guest: Guest) -> Self {
         GuestPortalGuestView {
-            full_name: guest.full_name,
+            nick_name: guest.nick_name,
             title: guest.title,
             email: guest.email,
             phone: guest.phone,

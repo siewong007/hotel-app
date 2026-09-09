@@ -278,7 +278,7 @@ pub async fn complete_guest_profile(
     };
 
     let full_name = format!("{} {}", input.first_name, input.last_name);
-    if GuestRepository::full_name_conflict_id(pool, &full_name, Some(guest_id))
+    if GuestRepository::nick_name_conflict_id(pool, &full_name, Some(guest_id))
         .await?
         .is_some()
     {

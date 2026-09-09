@@ -91,11 +91,11 @@ impl RateRepository {
              is_active, priority, created_at, updated_at \
              FROM rate_plans WHERE id = $1",
         )
-            .bind(rate_plan_id)
-            .fetch_one(pool)
-            .await
-            .map(|row| row_mappers::row_to_rate_plan(&row))
-            .map_err(map_not_found)
+        .bind(rate_plan_id)
+        .fetch_one(pool)
+        .await
+        .map(|row| row_mappers::row_to_rate_plan(&row))
+        .map_err(map_not_found)
     }
 
     pub async fn update_rate_plan(
@@ -232,12 +232,12 @@ impl RateRepository {
              is_active, priority, created_at, updated_at \
              FROM rate_plans WHERE id = $1",
         )
-            .bind(rate_plan_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(ApiError::from)?
-            .map(|row| row_mappers::row_to_rate_plan(&row))
-            .ok_or_else(|| ApiError::NotFound("Resource not found".to_string()))?;
+        .bind(rate_plan_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?
+        .map(|row| row_mappers::row_to_rate_plan(&row))
+        .ok_or_else(|| ApiError::NotFound("Resource not found".to_string()))?;
 
         let result = sqlx::query("DELETE FROM rate_plans WHERE id = $1")
             .bind(rate_plan_id)
@@ -462,11 +462,11 @@ impl RateRepository {
              extra_bed_charge, is_active, sort_order, created_at, updated_at \
              FROM room_types WHERE id = $1",
         )
-            .bind(room_type_id)
-            .fetch_one(pool)
-            .await
-            .map(|row| row_mappers::row_to_room_type(&row))
-            .map_err(map_not_found)
+        .bind(room_type_id)
+        .fetch_one(pool)
+        .await
+        .map(|row| row_mappers::row_to_room_type(&row))
+        .map_err(map_not_found)
     }
 }
 

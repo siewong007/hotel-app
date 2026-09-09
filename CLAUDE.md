@@ -95,10 +95,15 @@ checksum-verified catalog driven by `manifest.tsv`, so an additive schema change
 into the baseline (fresh installs) AND a new catalog patch (installed V1 databases).
 Nothing discovers loose SQL. A new `000N_*.sql` is dead until it is registered in FOUR
 places: `patches/manifest.tsv`, and by name in BOTH `.github/workflows/deploy.yml` and
-`deploy/deploy.sh` (`tests/postgres_patch_catalog.rs` enforces those three), plus the three
+`deploy/deploy.sh` (`tests/postgres_patch_catalog.rs` enforces those three), plus FOUR
 hardcoded spots in `tests/postgres_patch_lifecycle.rs` — two `version BETWEEN 2 AND <N>`
-bounds and the expected-revision list. A stale bound does not fail loudly; it silently drops
-the newest patch from coverage while the suite stays green. Catalog head is `0009`.
+bounds, the expected-revision list, and `assert_expected_revisions`' `revisions.len()`.
+A stale bound does not fail loudly; it silently drops the newest patch from coverage while
+the suite stays green. `deploy/deploy-staging.sh` and `.github/workflows/deploy-staging.yml`
+need the same two entries and NOTHING enforces them. Catalog head is `0011`.
+The V1 baseline checksum in `_begin.sql`/`seed.sql` is a FROZEN lineage token, not a hash of
+the baseline file (they diverged long ago). Never "recompute" it: `_begin.sql` compares it to
+what `seed.sql` recorded in each live database, so rotating it aborts every patch everywhere.
 Executors: `apply-patches.sh` (`make db-patch`, deploy) and `src-tauri/src/postgres/patches.rs`
 (desktop). Published versions/checksums are immutable — never edit a shipped patch, add
 a version. `seed.sql` is one self-validating transaction that `RAISE`s on re-apply; adding a

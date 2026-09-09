@@ -6,6 +6,7 @@
 
 mod postgres_tests {
     use chrono::Utc;
+    use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::guest::GuestUpdateInput;
     use hotel_app_be::modules::guest_booking::repository::GuestBookingRepository;
     use hotel_app_be::modules::guest_booking::validation::ValidatedAnonymousGuest;
@@ -40,7 +41,7 @@ mod postgres_tests {
             .unwrap_or_default()
             .unsigned_abs();
         let guest_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(format!("Guest Portal PG {suffix}"))
         .bind(format!("guest-portal-pg-{suffix}@hotel.test"))
@@ -98,7 +99,7 @@ mod postgres_tests {
             .unwrap_or_default()
             .unsigned_abs();
         let guest_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(format!("Precheckin Address {suffix}"))
         .bind(format!("precheckin-address-{suffix}@hotel.test"))
@@ -153,7 +154,7 @@ mod postgres_tests {
     async fn seed_booking(pool: &PgPool, suffix: u64) -> (i64, i64, i64, i64) {
         let tag = fixture_tag(suffix);
         let guest_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(format!("Token Guest {suffix}"))
         .bind(format!("token-guest-{suffix}@hotel.test"))
@@ -311,7 +312,7 @@ mod postgres_tests {
             .unsigned_abs();
         let base_name = format!("Anon Name {suffix}");
         let existing_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(&base_name)
         .bind(format!("anon-existing-{suffix}@hotel.test"))
@@ -320,7 +321,7 @@ mod postgres_tests {
         .expect("seed colliding guest name");
 
         let details = ValidatedAnonymousGuest {
-            full_name: base_name.clone(),
+            nick_name: base_name.clone(),
             first_name: "Anon".to_string(),
             last_name: Some(format!("Name {suffix}")),
             email: format!("anon-new-{suffix}@hotel.test"),
@@ -328,21 +329,15 @@ mod postgres_tests {
             tourism_type: "local".to_string(),
         };
         let mut tx = pool.begin().await.expect("begin");
-        let guest_id = GuestBookingRepository::insert_anonymous_guest_tx(&mut tx, &details, "en")
-            .await
-            .expect("insert must retry with a suffix instead of failing the transaction");
-        tx.commit().await.expect("commit");
+        let result =
+            GuestBookingRepository::insert_anonymous_guest_tx(&mut tx, &details, "en").await;
+        tx.rollback().await.expect("rollback");
+        assert!(
+            matches!(result, Err(ApiError::GuestNameTaken)),
+            "taken nickname must fail instead of storing a (2) suffix: {result:?}"
+        );
 
-        let stored_name: String = sqlx::query_scalar("SELECT full_name FROM guests WHERE id = $1")
-            .bind(guest_id)
-            .fetch_one(&pool)
-            .await
-            .expect("read disambiguated name");
-        assert_eq!(stored_name, format!("{base_name} (2)"));
-        assert_ne!(guest_id, existing_id);
-
-        sqlx::query("DELETE FROM guests WHERE id IN ($1, $2)")
-            .bind(guest_id)
+        sqlx::query("DELETE FROM guests WHERE id = $1")
             .bind(existing_id)
             .execute(&pool)
             .await

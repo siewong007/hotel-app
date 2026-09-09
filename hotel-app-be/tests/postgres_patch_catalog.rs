@@ -192,6 +192,10 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
             .windows(2)
             .all(|pair| pair[1].version == pair[0].version + 1)
     );
+    let last = entries.last().expect("manifest must have a last patch");
+    assert_eq!(last.version, 11);
+    assert_eq!(last.name, "guest-nick-name");
+    assert_eq!(last.file, "0011_guest_nick_name.sql");
     for entry in entries {
         let bytes = std::fs::read(postgres_dir().join("patches").join(&entry.file))
             .expect("manifest-listed patch must exist");
@@ -218,7 +222,11 @@ fn deployment_release_bundle_contains_the_complete_verified_patch_catalog() {
     let bundle_step = workflow
         .split("      - name: Create checksummed release bundle\n")
         .nth(1)
-        .and_then(|source| source.split("      - name: Configure pinned SSH access\n").next())
+        .and_then(|source| {
+            source
+                .split("      - name: Configure pinned SSH access\n")
+                .next()
+        })
         .expect("release workflow must define the checksummed bundle step");
     let bundle_lines = active_lines(bundle_step);
     let mut resources = vec![
@@ -328,9 +336,11 @@ fn deployment_starts_database_without_recreating_or_activating_application_servi
     assert!(preparation_lines.contains(&"compose up --detach --no-recreate postgres"));
     assert!(preparation_lines.contains(&"wait_for_healthy saliminn-db"));
     assert!(preparation_lines.contains(&"wait_for_database_baseline"));
-    assert!(!preparation_lines
-        .iter()
-        .any(|line| line.contains("backend") || line.contains("frontend")));
+    assert!(
+        !preparation_lines
+            .iter()
+            .any(|line| line.contains("backend") || line.contains("frontend"))
+    );
 }
 
 #[test]
@@ -427,10 +437,8 @@ fn deployment_backs_up_and_patches_before_application_activation() {
         .nth(1)
         .expect("deploy script must have an executable tail");
     let tail_lines = active_lines(executable_tail);
-    let previous_tag = active_line_position(
-        &tail_lines,
-        "read -r previous_tag < \"$CURRENT_TAG_FILE\"",
-    );
+    let previous_tag =
+        active_line_position(&tail_lines, "read -r previous_tag < \"$CURRENT_TAG_FILE\"");
     let install = active_line_position(&tail_lines, "install_release_files");
     let load_images = active_line_position(&tail_lines, "load_release_images");
     let start = active_line_position(&tail_lines, "start_database_for_release \"$TAG\"");
@@ -465,13 +473,14 @@ fn deployment_does_not_abort_when_the_host_cannot_enable_swap() {
 
     assert!(
         !lines.iter().any(|line| {
-            line.contains(r#"|| swapon "$swap_file""#)
-                || (*line == r#"swapon "$swap_file""#)
+            line.contains(r#"|| swapon "$swap_file""#) || (*line == r#"swapon "$swap_file""#)
         }),
         "a failed swapon must not be able to abort the deploy"
     );
     assert!(
-        lines.iter().any(|line| line.contains("systemd-detect-virt")),
+        lines
+            .iter()
+            .any(|line| line.contains("systemd-detect-virt")),
         "ensure_capacity must detect containers that cannot swapon"
     );
 }
@@ -516,8 +525,9 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
         .nth(1)
         .and_then(|source| source.split("\n\n").next())
         .expect("Makefile must define db-patch");
-    assert!(active_lines(patch_target)
-        .contains(&"hotel-app-be/database/postgres/apply-patches.sh"));
+    assert!(
+        active_lines(patch_target).contains(&"hotel-app-be/database/postgres/apply-patches.sh")
+    );
 }
 
 #[test]
@@ -567,20 +577,12 @@ fn deployment_local_database_targets_reject_empty_or_unset_url() {
 
 #[test]
 fn deployment_local_database_targets_reject_whitespace_only_url() {
-    for (whitespace, database_url) in [
-        ("spaces", "   "),
-        ("tabs", "\t\t"),
-        ("mixed", " \t \t"),
-    ] {
+    for (whitespace, database_url) in [("spaces", "   "), ("tabs", "\t\t"), ("mixed", " \t \t")] {
         for (invocation, command_line) in [("environment", false), ("command-line", true)] {
             for target in ["db-setup", "db-patch"] {
                 let case = format!("{whitespace}-{invocation}");
-                let (output, capture) = run_make_database_harness(
-                    &case,
-                    target,
-                    Some(database_url),
-                    command_line,
-                );
+                let (output, capture) =
+                    run_make_database_harness(&case, target, Some(database_url), command_line);
                 assert!(
                     !output.status.success(),
                     "{whitespace} {invocation} {target} must fail"
@@ -721,7 +723,15 @@ fn patch_runner_check_mode_rejects_corrupted_patch_bytes() {
 #[test]
 fn patch_runner_check_mode_rejects_complete_deployment_options() {
     let output = Command::new(postgres_dir().join("apply-patches.sh"))
-        .args(["--check", "--container", "postgres", "--user", "hotel", "--database", "hotel"])
+        .args([
+            "--check",
+            "--container",
+            "postgres",
+            "--user",
+            "hotel",
+            "--database",
+            "hotel",
+        ])
         .output()
         .expect("patch runner must start");
 
@@ -767,8 +777,11 @@ fn patch_runner_executes_the_validated_patch_snapshot() {
     )
     .expect("fake sha256sum must be written");
     let fake_psql = command_dir.join("psql");
-    std::fs::write(&fake_psql, "#!/usr/bin/env bash\ncat >> \"$PSQL_CAPTURE\"\n")
-        .expect("fake psql must be written");
+    std::fs::write(
+        &fake_psql,
+        "#!/usr/bin/env bash\ncat >> \"$PSQL_CAPTURE\"\n",
+    )
+    .expect("fake psql must be written");
     for command in [&fake_sha256sum, &fake_psql] {
         let mut permissions = std::fs::metadata(command)
             .expect("fake command metadata must be readable")
@@ -794,7 +807,8 @@ fn patch_runner_executes_the_validated_patch_snapshot() {
         .env("PSQL_CAPTURE", &capture_file)
         .output()
         .expect("patch runner must start");
-    let captured_input = std::fs::read_to_string(&capture_file).expect("fake psql input must exist");
+    let captured_input =
+        std::fs::read_to_string(&capture_file).expect("fake psql input must exist");
     std::fs::remove_dir_all(&temporary_dir).expect("temporary catalog directory must be removed");
 
     assert!(output.status.success());

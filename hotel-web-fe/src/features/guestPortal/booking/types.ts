@@ -82,8 +82,10 @@ export interface CreateGuestBookingRequest extends GuestBookingQuoteRequest {
 /** Contact details an anonymous booker supplies inline, standing in for the
  *  account a signed-in booking reads them from. */
 export interface AnonymousGuestDetails {
+  /** The unique nickname the guest books under. Sent as `first_name` because
+   *  that is the wire field the backend validates; the legal name is collected
+   *  at check-in, never here. */
   first_name: string;
-  last_name?: string;
   /** Required: the only way to send the confirmation, and (with the booking
    *  number) the only way back to the booking once its token lapses. */
   email: string;

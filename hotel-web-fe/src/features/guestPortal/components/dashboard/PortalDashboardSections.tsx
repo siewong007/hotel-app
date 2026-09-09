@@ -427,7 +427,7 @@ export function OverviewSection({
           component="h2"
           sx={{ color: FOREST, fontWeight: 700, mt: 0.5 }}
         >
-          Welcome back, {firstName(me?.guest.full_name)}.
+          Welcome back, {firstName(me?.guest.nick_name)}.
         </Typography>
         <Typography
           sx={{

@@ -111,13 +111,8 @@ pub async fn release_booking_handler(
     Json(input): Json<ReleaseBookingRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        booking_service::release_pending_payment_booking(
-            &pool,
-            user_id,
-            booking_id,
-            &input.reason,
-        )
-        .await?,
+        booking_service::release_pending_payment_booking(&pool, user_id, booking_id, &input.reason)
+            .await?,
     ))
 }
 

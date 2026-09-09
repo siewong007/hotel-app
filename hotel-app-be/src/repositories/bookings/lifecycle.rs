@@ -582,7 +582,7 @@ async fn auto_post_company_ledger(
     let nights = std::cmp::max((check_out - check_in).num_days(), 1);
 
     let detail: Option<(Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT r.room_number, g.full_name FROM bookings b \
+        "SELECT r.room_number, g.nick_name FROM bookings b \
          LEFT JOIN rooms r ON b.room_id = r.id \
          LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = $1",
     )
@@ -1998,7 +1998,9 @@ pub async fn update_booking_handler(
                 {
                     Ok(invoice_number) => {
                         if let Err(e) = crate::services::payments::queue_checkout_receipt_email(
-                            &pool, booking_id, &invoice_number,
+                            &pool,
+                            booking_id,
+                            &invoice_number,
                         )
                         .await
                         {

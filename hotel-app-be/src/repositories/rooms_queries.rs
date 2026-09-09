@@ -1451,7 +1451,7 @@ SELECT
     tr.room_number as to_room_number,
     trt.name as to_room_type,
     rc.guest_id,
-    g.full_name as guest_name,
+    g.nick_name as guest_name,
     rc.reason,
     rc.changed_by,
     u.full_name as changed_by_name,
@@ -1634,7 +1634,7 @@ pub async fn fetch_room_detailed_status(
 }
 
 const GET_CURRENT_BOOKING_FOR_ROOM: &str = r#"
-SELECT b.id, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+SELECT b.id, b.guest_id, g.nick_name as guest_name, g.email as guest_email,
        b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
        b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
        b.booking_number, NULL::VARCHAR as post_type, NULL::VARCHAR as rate_code, b.created_at
@@ -1663,7 +1663,7 @@ pub async fn fetch_current_booking_for_room(
 }
 
 const GET_NEXT_BOOKING_FOR_ROOM: &str = r#"
-SELECT b.id, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+SELECT b.id, b.guest_id, g.nick_name as guest_name, g.email as guest_email,
        b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
        b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
        b.booking_number, NULL::VARCHAR as post_type, NULL::VARCHAR as rate_code, b.created_at
@@ -1778,7 +1778,7 @@ const GET_ROOM_REVIEWS: &str = r#"
 SELECT
     gr.id,
     gr.guest_id,
-    g.full_name as guest_name,
+    g.nick_name as guest_name,
     gr.room_type_id,
     gr.overall_rating,
     gr.cleanliness_rating,

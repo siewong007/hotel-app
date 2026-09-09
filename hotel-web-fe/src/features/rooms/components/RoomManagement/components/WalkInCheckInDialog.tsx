@@ -122,14 +122,14 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
                 onChange={(_, newValue) => onSelectGuest(newValue)}
                 options={guests}
                 getOptionLabel={(option) =>
-                  option.email ? `${option.full_name} - ${option.email}` : option.full_name
+                  option.email ? `${option.nick_name} - ${option.email}` : option.nick_name
                 }
                 renderOption={(props, option) => {
                   const { key, ...otherProps } = props;
                   return (
                     <Box component="li" key={key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2">{option.full_name}</Typography>
+                        <Typography variant="body2">{option.nick_name}</Typography>
                         {option.email && <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>{option.email}</Typography>}
@@ -157,7 +157,7 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
               {selectedGuest?.guest_type === 'member' && (
                 <Alert severity="success" sx={{ mt: 1 }} icon={<GiftIcon />}>
                   <Typography variant="body2">
-                    <strong>{selectedGuest.full_name}</strong> is a Member — Room card deposit is <strong>waived</strong>
+                    <strong>{selectedGuest.nick_name}</strong> is a Member — Room card deposit is <strong>waived</strong>
                   </Typography>
                 </Alert>
               )}

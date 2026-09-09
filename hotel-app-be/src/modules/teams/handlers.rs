@@ -88,5 +88,7 @@ pub async fn replace_team_roles_handler(
     Json(input): Json<TeamRoleIdsInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let count = service::replace_team_roles(&pool, actor_user_id, team_id, input).await?;
-    Ok(Json(serde_json::json!({ "success": true, "role_count": count })))
+    Ok(Json(
+        serde_json::json!({ "success": true, "role_count": count }),
+    ))
 }

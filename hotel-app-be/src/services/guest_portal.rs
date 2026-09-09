@@ -75,12 +75,12 @@ fn normalize_person_name(value: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn guest_name_matches(stored_full_name: &str, requested_name: &str) -> bool {
+fn guest_name_matches(stored_nick_name: &str, requested_name: &str) -> bool {
     let requested = normalize_person_name(requested_name);
     if requested.is_empty() {
         return false;
     }
-    normalize_person_name(stored_full_name) == requested
+    normalize_person_name(stored_nick_name) == requested
 }
 
 pub async fn verify_guest_booking(
@@ -93,7 +93,7 @@ pub async fn verify_guest_booking(
             .ok_or_else(verify_booking_failure)?;
 
     let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
-    if !guest_name_matches(&guest.full_name, &request.name) {
+    if !guest_name_matches(&guest.nick_name, &request.name) {
         return Err(verify_booking_failure());
     }
 

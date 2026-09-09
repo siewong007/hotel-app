@@ -39,10 +39,14 @@ fn public_base_url() -> String {
 }
 
 /// Standard per-guest variables available to campaign templates.
+///
+/// The `full_name` KEY is a template contract: campaigns already in the
+/// database interpolate `{{full_name}}`, so it keeps its name even though the
+/// value it carries is now read from `guests.nick_name`.
 fn guest_vars(guest: &AudienceGuest) -> HashMap<String, String> {
     HashMap::from([
         ("first_name".to_string(), guest.first_name.clone()),
-        ("full_name".to_string(), guest.full_name.clone()),
+        ("full_name".to_string(), guest.nick_name.clone()),
         ("email".to_string(), guest.email.clone()),
     ])
 }
