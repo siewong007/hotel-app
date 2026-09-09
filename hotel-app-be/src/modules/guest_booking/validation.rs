@@ -127,9 +127,9 @@ pub fn validate_client_request_id(value: &str) -> Result<String, ApiError> {
 /// A validated anonymous booker, normalised for storage.
 #[derive(Debug, Clone)]
 pub struct ValidatedAnonymousGuest {
-    /// `"First Last"`, or just the first name when no last name was given.
-    /// Still subject to `idx_guests_full_name_unique` at insert time.
-    pub full_name: String,
+    /// Unique nickname stored as `guests.full_name` until the column rename,
+    /// then `guests.nick_name`. Never suffixed with `(2)`.
+    pub nick_name: String,
     pub first_name: String,
     pub last_name: Option<String>,
     pub email: String,
@@ -152,22 +152,12 @@ pub fn validate_anonymous_guest(
     let first_name = Sanitizer::sanitize_guest_name(&details.first_name);
     let first_name = first_name.as_str();
     if first_name.is_empty() || first_name.chars().count() > 100 {
-        return Err(ApiError::BadRequest(
-            "Please enter the guest's first name".to_string(),
-        ));
+        return Err(ApiError::BadRequest("Please enter a nickname".to_string()));
     }
 
-    let last_name = details
-        .last_name
-        .as_deref()
-        .map(Sanitizer::sanitize_guest_name)
-        .filter(|value| !value.is_empty());
-    if last_name
-        .as_deref()
-        .is_some_and(|value| value.chars().count() > 100)
-    {
-        return Err(ApiError::BadRequest("Last name is too long".to_string()));
-    }
+    // Legal last name is collected at check-in. Ignore anything sent here so a
+    // crafted body cannot occupy the unique identifier with "First Last".
+    let last_name = None;
 
     let email = crate::modules::communications::validation::validate_email(&details.email)?;
 
@@ -180,9 +170,7 @@ pub fn validate_anonymous_guest(
         .as_deref()
         .is_some_and(|value| value.chars().count() > 20)
     {
-        return Err(ApiError::BadRequest(
-            "Phone number is too long".to_string(),
-        ));
+        return Err(ApiError::BadRequest("Phone number is too long".to_string()));
     }
 
     let tourism_type = details.tourism_type.trim().to_ascii_lowercase();
@@ -192,16 +180,8 @@ pub fn validate_anonymous_guest(
         ));
     }
 
-    let full_name = match last_name.as_deref() {
-        Some(last) => format!("{first_name} {last}"),
-        None => first_name.to_string(),
-    };
-    if full_name.chars().count() > 200 {
-        return Err(ApiError::BadRequest("Guest name is too long".to_string()));
-    }
-
     Ok(ValidatedAnonymousGuest {
-        full_name,
+        nick_name: first_name.to_string(),
         first_name: first_name.to_string(),
         last_name,
         email,
@@ -297,6 +277,23 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn anonymous_guest_uses_first_name_as_nickname_without_last_name() {
+        let guest = validate_anonymous_guest(
+            &crate::modules::guest_booking::models::AnonymousGuestDetails {
+                first_name: "Alex".into(),
+                last_name: Some("   ".into()),
+                email: "alex@hotel.test".into(),
+                phone: None,
+                tourism_type: "local".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(guest.nick_name, "Alex");
+        assert_eq!(guest.first_name, "Alex");
+        assert!(guest.last_name.is_none());
     }
 
     #[test]
