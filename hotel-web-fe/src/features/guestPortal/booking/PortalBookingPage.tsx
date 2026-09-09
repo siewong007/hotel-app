@@ -72,9 +72,15 @@ const COMPLETE_PROFILE_REDIRECT = '/complete-profile?redirect=%2Fportal%2Fbook';
 // The backend re-checks completion at booking-creation time (`ApiError::ProfileIncomplete`,
 // 422 `code: "profile_incomplete"`) in case it changed after this page loaded. Detect that
 // exact shape rather than matching on the generic error message text.
+//
+// ky 2 pre-consumes the error body into `error.data`, so reading
+// `error.response.json()` here throws on an already-used stream — silently, since
+// the failure landed in a `.catch(() => null)` and read as "not a profile error",
+// stranding the guest on a generic message instead of profile completion.
+// See src/api/client.ts and lessons theme 13.
 async function readProfileIncompleteFields(error: unknown): Promise<string[] | null> {
   if (!(error instanceof HTTPError) || error.response.status !== 422) return null;
-  const body = await error.response.json().catch(() => null);
+  const body = (error as { data?: unknown }).data;
   if (!body || typeof body !== 'object' || (body as { code?: unknown }).code !== 'profile_incomplete') {
     return null;
   }
