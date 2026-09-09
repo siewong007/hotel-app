@@ -29,7 +29,12 @@ import {
   Typography,
 } from '@mui/material';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
+import {
+  PayPalScriptProvider,
+  PayPalButtons,
+  usePayPalScriptReducer,
+  type PayPalButtonsComponentProps,
+} from '@paypal/react-paypal-js';
 import { GuestPortalService } from '../../../api/guestPortal.service';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { formatCurrency, getCurrentCurrency } from '../../../utils/currency';
@@ -69,6 +74,22 @@ function formatAmount(amount: string | number | null | undefined, currency?: str
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function PayPalButtonContent(
+  props: Pick<PayPalButtonsComponentProps, 'createOrder' | 'onApprove' | 'onError' | 'onCancel'>,
+) {
+  const [{ isRejected }] = usePayPalScriptReducer();
+
+  if (isRejected) {
+    return (
+      <Alert severity="error">
+        PayPal could not load. Please disable content blockers and try again.
+      </Alert>
+    );
+  }
+
+  return <PayPalButtons style={{ layout: 'vertical' }} {...props} />;
 }
 
 export function GuestPaymentPanel({
@@ -386,8 +407,7 @@ export function GuestPaymentPanel({
             }}
           >
             {consent.allRequiredGranted ? (
-              <PayPalButtons
-                style={{ layout: 'vertical' }}
+              <PayPalButtonContent
                 createOrder={createOrder}
                 onApprove={onApprove}
                 onError={onPaypalError}

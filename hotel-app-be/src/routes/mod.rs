@@ -333,11 +333,12 @@ pub fn create_router(pool: DbPool) -> Router {
                 axum::http::header::CONTENT_SECURITY_POLICY,
                 axum::http::HeaderValue::from_static(
                     "default-src 'self'; \
-                     script-src 'self'; \
-                     style-src 'self'; \
+                     script-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
+                     style-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
                      img-src 'self' data: https:; \
                      font-src 'self' data:; \
-                     connect-src 'self'; \
+                     connect-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
+                     frame-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
                      frame-ancestors 'none';",
                 ),
             ))

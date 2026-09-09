@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   paypalButtons: vi.fn(),
 }));
 
+const paypalScriptState = vi.hoisted(() => ({ isRejected: false }));
+
 vi.mock('../../../api/guestPortal.service', () => ({
   GuestPortalService: {
     paymentConfig: (...args: unknown[]) => mocks.paymentConfig(...args),
@@ -46,6 +48,7 @@ const paypalPropsByRender: Record<string, unknown>[] = [];
 
 vi.mock('@paypal/react-paypal-js', () => ({
   PayPalScriptProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  usePayPalScriptReducer: () => [paypalScriptState, vi.fn()],
   PayPalButtons: (props: Record<string, unknown>) => {
     mocks.paypalButtons(props);
     paypalPropsByRender.push(props);
@@ -103,11 +106,15 @@ function configWith(overrides: Partial<typeof baseConfig> = {}) {
 describe('GuestPaymentPanel', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
+    paypalScriptState.isRejected = false;
     mocks.paymentConfig.mockResolvedValue(configWith());
     mocks.dashboardPaymentConfig.mockResolvedValue(configWith());
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    paypalPropsByRender.length = 0;
+    cleanup();
+  });
 
   it('shows a loading state until the payment config resolves', async () => {
     mocks.dashboardPaymentConfig.mockReturnValue(new Promise(() => {}));
@@ -191,6 +198,20 @@ describe('GuestPaymentPanel', () => {
     // A guest must not reach PayPal's own flow without having seen the terms.
     expect(screen.queryByTestId('paypal-pay')).toBeNull();
     expect(screen.getByText(/accept the Payment Terms above/i)).toBeTruthy();
+  });
+
+  it('explains when the PayPal SDK cannot load', async () => {
+    paypalScriptState.isRejected = true;
+    mocks.dashboardPaymentConfig.mockResolvedValue(
+      configWith({ paypal_enabled: true, paypal_client_id: 'test-client-id' }),
+    );
+
+    render(<GuestPaymentPanel mode="session" bookingId={7} token="portal-token" />);
+
+    fireEvent.click(await screen.findByText('PayPal or debit / credit card'));
+    acceptPaymentTerms();
+
+    expect(await screen.findByText(/PayPal could not load/i)).toBeTruthy();
   });
 
   it('routes pre-arrival (token mode) claims through the unauthenticated service', async () => {
