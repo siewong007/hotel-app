@@ -33,8 +33,7 @@ async fn pg_pool() -> Option<PgPool> {
             std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret");
         }
     }
-    hotel_app_be::core::config::init_from_env()
-        .expect("test config initialises from env");
+    hotel_app_be::core::config::init_from_env().expect("test config initialises from env");
 
     Some(pool)
 }
@@ -86,7 +85,7 @@ async fn set_setting(pool: &PgPool, key: &str, value: &str) {
 
 async fn seed_arrival(pool: &PgPool, check_in_date: &str, status: &str) {
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
          OVERRIDING SYSTEM VALUE VALUES ($1, 'Arrival Guest', 'Arrival', 'Guest', 'arrival-guest@hotel.local')",
     )
     .bind(GUEST_ID)
@@ -151,40 +150,44 @@ async fn pre_arrival_reminder_fires_once_inside_the_window_and_respects_the_togg
     cleanup(&pool).await;
 
     // Booking arriving tomorrow: inside every sensible window.
-    let tomorrow: chrono::NaiveDate =
-        sqlx::query_scalar("SELECT CURRENT_DATE + 1").fetch_one(&pool).await.unwrap();
+    let tomorrow: chrono::NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE + 1")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     seed_arrival(&pool, &tomorrow.format("%Y-%m-%d").to_string(), "confirmed").await;
 
     // Disabled (default): nothing queued.
     set_setting(&pool, "pre_arrival_reminder_enabled", "false").await;
-    let queued = hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
-        .await
-        .expect("disabled tick should not error");
+    let queued =
+        hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
+            .await
+            .expect("disabled tick should not error");
     assert_eq!(queued, 0);
     assert_eq!(reminder_delivery_count(&pool).await, 0);
 
     // Enabled: exactly one delivery with the booking-scoped key.
     set_setting(&pool, "pre_arrival_reminder_enabled", "true").await;
-    let queued = hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
-        .await
-        .expect("enabled tick should not error");
+    let queued =
+        hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
+            .await
+            .expect("enabled tick should not error");
     assert_eq!(queued, 1);
     assert_eq!(reminder_delivery_count(&pool).await, 1);
 
     // Second tick: the NOT EXISTS guard means no duplicate.
-    let queued = hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
-        .await
-        .expect("repeat tick should not error");
+    let queued =
+        hotel_app_be::modules::communications::scheduler::tick_pre_arrival_reminders(&pool)
+            .await
+            .expect("repeat tick should not error");
     assert_eq!(queued, 0);
     assert_eq!(reminder_delivery_count(&pool).await, 1);
 
-    let kind: String = sqlx::query_scalar(
-        "SELECT kind FROM email_deliveries WHERE idempotency_key = $1",
-    )
-    .bind(format!("pre-arrival:{BOOKING_ID}"))
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let kind: String =
+        sqlx::query_scalar("SELECT kind FROM email_deliveries WHERE idempotency_key = $1")
+            .bind(format!("pre-arrival:{BOOKING_ID}"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(kind, "pre_arrival_reminder");
 
     cleanup(&pool).await;

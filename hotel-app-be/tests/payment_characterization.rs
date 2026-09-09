@@ -122,9 +122,9 @@ async fn seed_guest(pool: &PgPool, guest_id: i64) {
     // for every fixture in this file -- see the invariant assertion at the end
     // of `seed_booking` below.
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email, tourism_type) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email, tourism_type) \
          OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Payment', $3, $4, 'local') \
-         ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, tourism_type = 'local'",
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name, tourism_type = 'local'",
     )
     .bind(guest_id)
     .bind(format!("Payment Test Guest {guest_id}"))

@@ -430,7 +430,7 @@ pub async fn personalized_report(
             r#"
             SELECT
                 b.id,
-                COALESCE(g.full_name, b.guest_name, 'Guest') as guest_name,
+                COALESCE(g.nick_name, b.guest_name, 'Guest') as guest_name,
                 r.room_number,
                 COALESCE(rt.name, 'Room') as room_type,
                 b.check_in_date::text as check_in,
@@ -455,7 +455,7 @@ pub async fn personalized_report(
             r#"
             SELECT
                 b.id,
-                COALESCE(g.full_name, b.guest_name, 'Guest') as guest_name,
+                COALESCE(g.nick_name, b.guest_name, 'Guest') as guest_name,
                 r.room_number,
                 COALESCE(rt.name, 'Room') as room_type,
                 b.check_in_date::text as check_in,
@@ -698,7 +698,7 @@ async fn generate_journal_by_type(
             r.room_number as room,
             b.total_amount,
             b.status,
-            g.full_name as guest_name
+            g.nick_name as guest_name
          FROM bookings b
          JOIN rooms r ON b.room_id = r.id
          LEFT JOIN guests g ON b.guest_id = g.id
@@ -768,7 +768,7 @@ async fn generate_shift_report(
             b.booking_number,
             b.check_in_date,
             b.check_out_date,
-            g.full_name as guest_name,
+            g.nick_name as guest_name,
             r.room_number,
             rt.name as room_type,
             b.total_amount,
@@ -887,7 +887,7 @@ async fn generate_rooms_sold_report(
             NULL::VARCHAR as rate_code,
             r.room_number,
             rt.name as room_type,
-            g.full_name as guest_name
+            g.nick_name as guest_name
          FROM bookings b
          JOIN rooms r ON b.room_id = r.id
          JOIN room_types rt ON r.room_type_id = rt.id
@@ -955,7 +955,7 @@ async fn generate_general_journal(
             COALESCE(b.deposit_amount, 0) as deposit_amount,
             b.deposit_paid,
             r.room_number,
-            g.full_name as guest_name
+            g.nick_name as guest_name
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         LEFT JOIN guests g ON b.guest_id = g.id
@@ -1282,7 +1282,7 @@ async fn generate_daily_operations_report(
     // Today's arrivals (expected check-ins)
     let arrivals: Vec<(i64, String, String, String, Option<String>)> = sqlx::query_as(
         r#"
-        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.payment_status
+        SELECT b.id, b.booking_number, g.nick_name, r.room_number, b.payment_status
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
@@ -1298,7 +1298,7 @@ async fn generate_daily_operations_report(
     // Today's departures (expected check-outs)
     let departures: Vec<(i64, String, String, String, Option<String>)> = sqlx::query_as(
         r#"
-        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.payment_status
+        SELECT b.id, b.booking_number, g.nick_name, r.room_number, b.payment_status
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
@@ -1314,7 +1314,7 @@ async fn generate_daily_operations_report(
     // In-house guests (currently occupied)
     let in_house: Vec<(i64, String, String, String, NaiveDate, NaiveDate)> = sqlx::query_as(
         r#"
-        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.check_in_date, b.check_out_date
+        SELECT b.id, b.booking_number, g.nick_name, r.room_number, b.check_in_date, b.check_out_date
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
@@ -1764,7 +1764,7 @@ async fn generate_payment_status_report(
     // Overdue payments (past check-out with unpaid status)
     let overdue = sqlx::query(
         r#"
-        SELECT b.id, b.booking_number, g.full_name AS guest_name, r.room_number,
+        SELECT b.id, b.booking_number, g.nick_name AS guest_name, r.room_number,
                b.total_amount, b.check_out_date, b.payment_status
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
@@ -1830,7 +1830,7 @@ async fn generate_complimentary_report(
     // All complimentary bookings
     let complimentary = sqlx::query(
         r#"
-        SELECT b.id, b.booking_number, g.full_name AS guest_name, r.room_number,
+        SELECT b.id, b.booking_number, g.nick_name AS guest_name, r.room_number,
                b.check_in_date, b.check_out_date,
                b.is_complimentary, b.complimentary_reason,
                b.complimentary_start_date, b.complimentary_end_date,
@@ -2052,12 +2052,12 @@ async fn generate_guest_statistics_report(
     // Top guests by bookings
     let top_guests = sqlx::query(
         r#"
-        SELECT g.id, g.full_name, COUNT(*) AS booking_count, SUM(b.total_amount) AS total_spent
+        SELECT g.id, g.nick_name, COUNT(*) AS booking_count, SUM(b.total_amount) AS total_spent
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
         AND b.status NOT IN ('voided')
-        GROUP BY g.id, g.full_name
+        GROUP BY g.id, g.nick_name
         ORDER BY COUNT(*) DESC
         LIMIT 10
         "#,
@@ -2074,7 +2074,7 @@ async fn generate_guest_statistics_report(
             let revenue = row_mappers::get_opt_decimal(row, "total_spent").unwrap_or(Decimal::ZERO);
             serde_json::json!({
                 "id": row.get::<i64, _>("id"),
-                "name": row.get::<String, _>("full_name"),
+                "name": row.get::<String, _>("nick_name"),
                 "bookings": row_i64(row, "booking_count"),
                 "total_spent": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })

@@ -135,9 +135,9 @@ mod postgres_tests {
     /// `is_active = false`) cannot self-submit.
     async fn seed_guest_and_user(pool: &PgPool, guest_id: i64, user_id: i64, active: bool) {
         sqlx::query(
-            "INSERT INTO guests (id, full_name, email) \
+            "INSERT INTO guests (id, nick_name, email) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3) \
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
         )
         .bind(guest_id)
         .bind(format!("Ekyc Guest {guest_id}"))

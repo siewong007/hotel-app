@@ -93,15 +93,15 @@ pub async fn create_guest(
 
     let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
     let last_name = Sanitizer::sanitize_guest_name(&input.last_name);
-    let full_name = format!("{} {}", first_name, last_name).trim().to_string();
+    let nick_name = format!("{} {}", first_name, last_name).trim().to_string();
     let tourism_type = resolve_guest_tourism_type(input.tourism_type);
 
     if let Some(conflicting_guest_id) =
-        GuestRepository::full_name_conflict_id(pool, &full_name, None).await?
+        GuestRepository::nick_name_conflict_id(pool, &nick_name, None).await?
     {
         return Err(ApiError::BadRequest(format!(
             "A guest with the name '{}' already exists (Guest ID #{}). Please select the existing guest instead of creating a new one.",
-            full_name, conflicting_guest_id
+            nick_name, conflicting_guest_id
         )));
     }
 
@@ -112,7 +112,7 @@ pub async fn create_guest(
     let guest = GuestRepository::create_detailed(
         pool,
         GuestCreateValues {
-            full_name: &full_name,
+            nick_name: &nick_name,
             first_name: &first_name,
             last_name: &last_name,
             email: email.as_deref(),
@@ -145,7 +145,7 @@ pub async fn create_guest(
             action: "guest_created",
             resource_type: "guest",
             resource_id: Some(guest.id),
-            details: Some(serde_json::json!({"name": &guest.full_name, "email": &guest.email})),
+            details: Some(serde_json::json!({"name": &guest.nick_name, "email": &guest.email})),
             ..Default::default()
         },
     )
@@ -185,21 +185,21 @@ pub async fn update_guest(
         None => existing.company_name,
     };
 
-    let full_name = format!("{} {}", first_name.trim(), last_name.trim())
+    let nick_name = format!("{} {}", first_name.trim(), last_name.trim())
         .trim()
         .to_string();
 
     if let Some(conflicting_guest_id) =
-        GuestRepository::full_name_conflict_id(pool, &full_name, Some(guest_id)).await?
+        GuestRepository::nick_name_conflict_id(pool, &nick_name, Some(guest_id)).await?
     {
         return Err(ApiError::BadRequest(format!(
             "A guest with the name '{}' already exists (Guest ID #{}). Guest names must be unique.",
-            full_name, conflicting_guest_id
+            nick_name, conflicting_guest_id
         )));
     }
 
     let values = GuestUpdateValues {
-        full_name,
+        nick_name,
         first_name,
         last_name,
         email,
@@ -231,7 +231,7 @@ pub async fn update_guest(
             action: "guest_updated",
             resource_type: "guest",
             resource_id: Some(guest_id),
-            details: Some(serde_json::json!({"name": &updated_guest.full_name})),
+            details: Some(serde_json::json!({"name": &updated_guest.nick_name})),
             ..Default::default()
         },
     )
@@ -555,7 +555,7 @@ pub async fn my_guests_with_credits(
 
         result.push(serde_json::json!({
             "id": guest.id,
-            "full_name": guest.full_name,
+            "nick_name": guest.nick_name,
             "email": guest.email,
             "legacy_complimentary_nights_credit": guest.legacy_credits,
             "total_complimentary_credits": total_credits,
@@ -634,7 +634,7 @@ async fn duplicate_candidates(
         .as_deref()
         .map(normalize_identity_document)
         .filter(|value| !value.is_empty());
-    let normalized_name = normalize_name(&guest.full_name);
+    let normalized_name = normalize_name(&guest.nick_name);
     let name_pattern = duplicate_name_pattern(&normalized_name);
 
     let candidates = GuestRepository::duplicate_candidate_pool(
@@ -643,7 +643,7 @@ async fn duplicate_candidates(
         normalized_email.as_deref(),
         phone_digits.as_deref(),
         identity_document.as_deref(),
-        &guest.full_name,
+        &guest.nick_name,
         &name_pattern,
     )
     .await?;
@@ -657,7 +657,7 @@ async fn duplicate_candidates(
         right
             .score
             .cmp(&left.score)
-            .then_with(|| left.guest.full_name.cmp(&right.guest.full_name))
+            .then_with(|| left.guest.nick_name.cmp(&right.guest.nick_name))
     });
     scored.truncate(10);
 
@@ -701,8 +701,8 @@ fn build_duplicate_candidate(target: &Guest, candidate: Guest) -> Option<GuestDu
         blocking_reasons.push("Conflicting identity document".to_string());
     }
 
-    let target_name = normalize_name(&target.full_name);
-    let candidate_name = normalize_name(&candidate.full_name);
+    let target_name = normalize_name(&target.nick_name);
+    let candidate_name = normalize_name(&candidate.nick_name);
     if !target_name.is_empty() && target_name == candidate_name {
         score += 25;
         match_reasons.push("Same full name".to_string());
@@ -806,14 +806,14 @@ mod tests {
 
     fn guest(
         id: i64,
-        full_name: &str,
+        nick_name: &str,
         email: Option<&str>,
         phone: Option<&str>,
         ic_number: Option<&str>,
     ) -> Guest {
         Guest {
             id,
-            full_name: full_name.to_string(),
+            nick_name: nick_name.to_string(),
             email: email.map(str::to_string),
             phone: phone.map(str::to_string),
             ic_number: ic_number.map(str::to_string),

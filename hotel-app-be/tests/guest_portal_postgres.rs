@@ -41,7 +41,7 @@ mod postgres_tests {
             .unwrap_or_default()
             .unsigned_abs();
         let guest_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(format!("Guest Portal PG {suffix}"))
         .bind(format!("guest-portal-pg-{suffix}@hotel.test"))
@@ -99,7 +99,7 @@ mod postgres_tests {
             .unwrap_or_default()
             .unsigned_abs();
         let guest_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(format!("Precheckin Address {suffix}"))
         .bind(format!("precheckin-address-{suffix}@hotel.test"))
@@ -154,7 +154,7 @@ mod postgres_tests {
     async fn seed_booking(pool: &PgPool, suffix: u64) -> (i64, i64, i64, i64) {
         let tag = fixture_tag(suffix);
         let guest_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(format!("Token Guest {suffix}"))
         .bind(format!("token-guest-{suffix}@hotel.test"))
@@ -312,7 +312,7 @@ mod postgres_tests {
             .unsigned_abs();
         let base_name = format!("Anon Name {suffix}");
         let existing_id: i64 = sqlx::query_scalar(
-            "INSERT INTO guests (full_name, email) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO guests (nick_name, email) VALUES ($1, $2) RETURNING id",
         )
         .bind(&base_name)
         .bind(format!("anon-existing-{suffix}@hotel.test"))

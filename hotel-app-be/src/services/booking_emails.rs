@@ -136,7 +136,7 @@ async fn load_source(
     let source = sqlx::query_as::<_, BookingEmailSource>(
         r#"
         SELECT g.id AS guest_id,
-               g.full_name AS guest_name,
+               g.nick_name AS guest_name,
                g.email AS guest_email,
                b.booking_number,
                b.check_in_date,

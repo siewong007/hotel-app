@@ -271,7 +271,7 @@ impl GuestBookingRepository {
     pub async fn guest_contact(pool: &DbPool, guest_id: i64) -> Result<GuestContact, ApiError> {
         let row = sqlx::query(
             r#"
-                SELECT g.full_name, g.email,
+                SELECT g.nick_name, g.email,
                        (SELECT u.id FROM users u
                         WHERE u.guest_id = g.id AND u.user_type::text = 'guest'
                         ORDER BY u.id LIMIT 1) AS actor_user_id
@@ -284,7 +284,7 @@ impl GuestBookingRepository {
         .map_err(ApiError::from)?;
         Ok(GuestContact {
             actor_user_id: row.try_get("actor_user_id").ok().flatten(),
-            full_name: row.try_get("full_name").unwrap_or_default(),
+            nick_name: row.try_get("nick_name").unwrap_or_default(),
             email: row.try_get("email").ok().flatten(),
         })
     }
@@ -848,7 +848,7 @@ impl GuestBookingRepository {
             .map_err(ApiError::from)?;
         match sqlx::query_scalar(
             r#"
-                    INSERT INTO guests (full_name, first_name, last_name, email, phone, tourism_type, language_preference)
+                    INSERT INTO guests (nick_name, first_name, last_name, email, phone, tourism_type, language_preference)
                     VALUES ($1, $2, $3, $4, $5, $6::public.tourism_type, $7)
                     RETURNING id
                 "#,

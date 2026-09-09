@@ -4,7 +4,7 @@
 
 pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
     SELECT
-        b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+        b.id, b.booking_number, b.folio_number, b.guest_id, g.nick_name as guest_name, g.email as guest_email,
         g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
@@ -53,7 +53,7 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
 
 pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
     SELECT
-        b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+        b.id, b.booking_number, b.folio_number, b.guest_id, g.nick_name as guest_name, g.email as guest_email,
         g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
@@ -104,4 +104,3 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
 // =============================================================================
 // Active Bookings Query
 // =============================================================================
-

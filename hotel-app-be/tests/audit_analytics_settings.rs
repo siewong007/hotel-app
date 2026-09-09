@@ -70,9 +70,9 @@ mod postgres_tests {
     /// `rust_decimal`'s optional feature set resolves to in this workspace.
     fn json_decimal(value: &serde_json::Value) -> Decimal {
         match value {
-            serde_json::Value::String(s) => {
-                s.parse().unwrap_or_else(|e| panic!("'{s}' is not decimal-shaped: {e}"))
-            }
+            serde_json::Value::String(s) => s
+                .parse()
+                .unwrap_or_else(|e| panic!("'{s}' is not decimal-shaped: {e}")),
             serde_json::Value::Number(n) => n
                 .to_string()
                 .parse()
@@ -403,9 +403,9 @@ mod postgres_tests {
         .expect("seeding the ledger report room must succeed");
 
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Aud990', 'Ledger Guest') \
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
         )
         .bind(guest_id)
         .bind("Aud990 Ledger Guest")
@@ -584,7 +584,10 @@ mod postgres_tests {
             "the status='void' row must be excluded from the company list \
              (filter must use 'void' -- 'voided' is not in valid_status and never matches)"
         );
-        assert_eq!(json_decimal(&my_company["total_balance"]), Decimal::new(30_000, 2));
+        assert_eq!(
+            json_decimal(&my_company["total_balance"]),
+            Decimal::new(30_000, 2)
+        );
 
         let statement_report = analytics_repo::generate_report(
             &pool,
@@ -610,8 +613,14 @@ mod postgres_tests {
         );
 
         assert_eq!(statement_report["type"].as_str(), Some("company_statement"));
-        assert_eq!(statement_report["company"]["name"].as_str(), Some(company_name));
-        assert_eq!(json_decimal(&statement_report["balance_due"]), Decimal::new(30_000, 2));
+        assert_eq!(
+            statement_report["company"]["name"].as_str(),
+            Some(company_name)
+        );
+        assert_eq!(
+            json_decimal(&statement_report["balance_due"]),
+            Decimal::new(30_000, 2)
+        );
         assert_eq!(
             json_decimal(&statement_report["totals"]["original_amount"]),
             Decimal::new(50_100, 2)
@@ -637,8 +646,14 @@ mod postgres_tests {
             .iter()
             .find(|transaction| transaction["invoice"].as_str() == Some(invoice_number))
             .expect("the linked ledger transaction must appear in the statement");
-        assert_eq!(linked_transaction["check_in_date"].as_str(), Some("10/05/31"));
-        assert_eq!(linked_transaction["check_out_date"].as_str(), Some("12/05/31"));
+        assert_eq!(
+            linked_transaction["check_in_date"].as_str(),
+            Some("10/05/31")
+        );
+        assert_eq!(
+            linked_transaction["check_out_date"].as_str(),
+            Some("12/05/31")
+        );
         let standalone_transaction = transactions
             .iter()
             .find(|transaction| transaction["invoice"].as_str() == Some(standalone_invoice_number))
@@ -720,9 +735,9 @@ mod postgres_tests {
         .expect("seeding rooms must succeed");
 
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Aud990', 'Guest') \
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
         )
         .bind(guest_id)
         .bind("Aud990 Guest")
@@ -801,12 +816,20 @@ mod postgres_tests {
             .as_array()
             .expect("by_payment_status must be a JSON array");
         assert_eq!(by_payment_status.len(), 1);
-        assert_eq!(by_payment_status[0]["payment_status"].as_str(), Some("unpaid"));
+        assert_eq!(
+            by_payment_status[0]["payment_status"].as_str(),
+            Some("unpaid")
+        );
         assert_eq!(by_payment_status[0]["revenue"].as_f64(), Some(275.50));
 
-        let daily = report["daily"].as_array().expect("daily must be a JSON array");
+        let daily = report["daily"]
+            .as_array()
+            .expect("daily must be a JSON array");
         assert_eq!(daily.len(), 1);
-        assert_eq!(daily[0]["date"].as_str(), Some(check_in.to_string().as_str()));
+        assert_eq!(
+            daily[0]["date"].as_str(),
+            Some(check_in.to_string().as_str())
+        );
         assert_eq!(daily[0]["revenue"].as_f64(), Some(275.50));
 
         cleanup_booking_fixture(&pool, booking_id, guest_id, room_id, room_type_id).await;
@@ -828,11 +851,13 @@ mod postgres_tests {
 
         async fn cleanup(pool: &PgPool, user_id: i64, audit_date: NaiveDate) {
             let _ = night_audit_service::reset_audit(pool, audit_date).await;
-            sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'night_audit' AND user_id = $1")
-                .bind(user_id)
-                .execute(pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "DELETE FROM audit_logs WHERE resource_type = 'night_audit' AND user_id = $1",
+            )
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .unwrap();
             sqlx::query("DELETE FROM users WHERE id = $1")
                 .bind(user_id)
                 .execute(pool)
@@ -898,7 +923,9 @@ mod postgres_tests {
                     "unexpected rejection message: {message}"
                 );
             }
-            other => panic!("expected a BadRequest rejection for a repeat non-forced run, got {other:?}"),
+            other => {
+                panic!("expected a BadRequest rejection for a repeat non-forced run, got {other:?}")
+            }
         }
 
         let third = night_audit_service::run(
@@ -1005,14 +1032,14 @@ mod postgres_tests {
         // record of what the value used to be.
         let (action, resource_id, details) =
             sqlx::query_as::<_, (String, Option<i64>, serde_json::Value)>(
-            "SELECT action, resource_id, details FROM audit_logs \
+                "SELECT action, resource_id, details FROM audit_logs \
              WHERE user_id = $1 AND resource_type = 'system_setting' \
              ORDER BY created_at DESC LIMIT 1",
-        )
-        .bind(user_id)
-        .fetch_one(&pool)
-        .await
-        .expect("updating a setting must write exactly one system_setting audit row");
+            )
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("updating a setting must write exactly one system_setting audit row");
 
         assert_eq!(action, "settings_changed");
         assert_eq!(resource_id, Some(updated.id));
@@ -1025,7 +1052,10 @@ mod postgres_tests {
         let after_cleanup = SettingsRepository::find_by_key(&pool, key)
             .await
             .expect("find_by_key must not error for a missing key");
-        assert!(after_cleanup.is_none(), "the scratch setting must not outlive the test");
+        assert!(
+            after_cleanup.is_none(),
+            "the scratch setting must not outlive the test"
+        );
     }
 
     // -----------------------------------------------------------------
@@ -1071,7 +1101,9 @@ mod postgres_tests {
         let hit = hits
             .iter()
             .find(|hit| hit.id == ledger_id)
-            .unwrap_or_else(|| panic!("the seeded ledger must appear in the search results: {hits:?}"));
+            .unwrap_or_else(|| {
+                panic!("the seeded ledger must appear in the search results: {hits:?}")
+            });
         assert_eq!(hit.title, invoice_number);
         assert!(
             hit.subtitle.contains(company_name),

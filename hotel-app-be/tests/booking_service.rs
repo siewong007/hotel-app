@@ -296,9 +296,9 @@ mod postgres_tests {
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Postgres', $3, $4) \
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, email = EXCLUDED.email",
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name, email = EXCLUDED.email",
         )
         .bind(guest_id)
         .bind(format!("Postgres Guest {guest_id}"))
@@ -541,7 +541,7 @@ mod postgres_tests {
         )
         .await;
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Conflict', $3, $4)",
         )
         .bind(conflicting_guest_id)
@@ -1294,8 +1294,8 @@ mod postgres_reactivation_tests {
         .unwrap();
 
         sqlx::query(
-            "INSERT INTO guests (id, full_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Reactivation Guest') \
-             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+            "INSERT INTO guests (id, nick_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Reactivation Guest') \
+             ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
         )
         .bind(guest_id)
         .execute(pool)
@@ -1540,7 +1540,7 @@ mod postgres_creation_tests {
         sqlx::query("INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'staff', true, true) ON CONFLICT DO NOTHING")
             .bind(actor_id).bind(format!("pg_creation_actor_{actor_id}")).bind(format!("pg-create-{actor_id}@hotel.local")).bind(format!("Actor {actor_id}")).execute(pool).await.unwrap();
 
-        sqlx::query("INSERT INTO guests (id, first_name, last_name, full_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Create', 'Guest', 'Create Guest') ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO guests (id, first_name, last_name, nick_name) OVERRIDING SYSTEM VALUE VALUES ($1, 'Create', 'Guest', 'Create Guest') ON CONFLICT DO NOTHING")
             .bind(guest_id).execute(pool).await.unwrap();
 
         sqlx::query("INSERT INTO room_types (id, name, code, base_price) OVERRIDING SYSTEM VALUE VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
@@ -1819,9 +1819,9 @@ mod postgres_guest_portal_race_tests {
         .unwrap();
         for guest_id in guest_ids {
             sqlx::query(
-                "INSERT INTO guests (id, first_name, last_name, full_name, email, phone) \
+                "INSERT INTO guests (id, first_name, last_name, nick_name, email, phone) \
                  OVERRIDING SYSTEM VALUE VALUES ($1, 'Portal', 'Guest', $2, $3, $4) \
-                 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, \
+                 ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name, \
                      email = EXCLUDED.email, phone = EXCLUDED.phone",
             )
             .bind(guest_id)

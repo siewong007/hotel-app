@@ -842,7 +842,7 @@ pub async fn create(
         .filter(|value| !value.trim().is_empty())
     {
         let (subject, body_html, body_text) = portal_booking_mail(PortalBookingMail {
-            guest_name: &contact.full_name,
+            guest_name: &contact.nick_name,
             booking_number: &booking_number,
             room_type_name: &quote.room_type_name,
             check_in: quote.check_in_date,

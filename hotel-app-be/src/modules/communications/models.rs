@@ -298,7 +298,7 @@ pub struct AudienceGuest {
     pub id: i64,
     pub email: String,
     pub first_name: String,
-    pub full_name: String,
+    pub nick_name: String,
 }
 
 /// Masks a recipient address for staff-facing delivery listings:

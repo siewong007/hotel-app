@@ -39,7 +39,7 @@ impl GuestRepository {
     /// Find guest by ID
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Guest>, ApiError> {
         let query = r#"
-                SELECT id, full_name, email, phone, ic_number, nationality,
+                SELECT id, nick_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, true as is_active,
                        guest_type, tourism_type,
@@ -133,7 +133,7 @@ impl GuestRepository {
             );
         }
 
-        let select_cols = r#"id, full_name, email, phone, ic_number, nationality,
+        let select_cols = r#"id, nick_name, email, phone, ic_number, nationality,
             address_line_1 as address_line1, city, state as state_province,
             postal_code, country, title, alt_phone, true as is_active,
             guest_type, tourism_type,
@@ -164,7 +164,7 @@ impl GuestRepository {
 
             let search_clause = format!(
                 "(CAST(id AS TEXT) {like_op} {p_search} \
-                 OR COALESCE(full_name, '') {like_op} {p_search} \
+                 OR COALESCE(nick_name, '') {like_op} {p_search} \
                  OR COALESCE(first_name, '') {like_op} {p_search} \
                  OR COALESCE(last_name, '') {like_op} {p_search} \
                  OR TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) {like_op} {p_search} \
@@ -185,7 +185,7 @@ impl GuestRepository {
             let data_sql = format!(
                 "SELECT {select_cols} FROM guests \
                  WHERE deleted_at IS NULL{filter_clause} AND {search_clause} \
-                 ORDER BY full_name LIMIT {p_limit} OFFSET {p_offset}"
+                 ORDER BY nick_name LIMIT {p_limit} OFFSET {p_offset}"
             );
 
             let total = sqlx::query_scalar(&count_sql)
@@ -210,7 +210,7 @@ impl GuestRepository {
             let data_sql = format!(
                 "SELECT {select_cols} FROM guests \
                  WHERE deleted_at IS NULL{filter_clause} \
-                 ORDER BY full_name \
+                 ORDER BY nick_name \
                  LIMIT {p_limit} OFFSET {p_offset}"
             );
 
@@ -230,25 +230,25 @@ impl GuestRepository {
         }
     }
 
-    pub async fn full_name_conflict_id(
+    pub async fn nick_name_conflict_id(
         pool: &DbPool,
-        full_name: &str,
+        nick_name: &str,
         exclude_guest_id: Option<i64>,
     ) -> Result<Option<i64>, ApiError> {
         let id: Option<i64> = if let Some(exclude_guest_id) = exclude_guest_id {
-            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1";
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(nick_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1";
 
             sqlx::query_scalar(query)
-                .bind(full_name)
+                .bind(nick_name)
                 .bind(exclude_guest_id)
                 .fetch_optional(pool)
                 .await
                 .map_err(ApiError::from)?
         } else {
-            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1";
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(nick_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1";
 
             sqlx::query_scalar(query)
-                .bind(full_name)
+                .bind(nick_name)
                 .fetch_optional(pool)
                 .await
                 .map_err(ApiError::from)?
@@ -265,11 +265,11 @@ impl GuestRepository {
             let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
             if let Some(conflicting_guest_id) =
-                Self::full_name_conflict_id_tx(&mut tx, values.full_name, None).await?
+                Self::nick_name_conflict_id_tx(&mut tx, values.nick_name, None).await?
             {
                 tx.rollback().await.map_err(ApiError::from)?;
                 return Err(Self::duplicate_guest_create_error(
-                    values.full_name,
+                    values.nick_name,
                     Some(conflicting_guest_id),
                 ));
             }
@@ -281,15 +281,15 @@ impl GuestRepository {
                 }
                 Err(error) => {
                     let is_name_conflict =
-                        unique_violation_matches(&error, "idx_guests_full_name_unique");
+                        unique_violation_matches(&error, "idx_guests_nick_name_unique");
                     let is_sequence_conflict = unique_violation_matches(&error, "guests_pkey");
                     let _ = tx.rollback().await;
 
                     if is_name_conflict {
                         let conflict_id =
-                            Self::full_name_conflict_id(pool, values.full_name, None).await?;
+                            Self::nick_name_conflict_id(pool, values.nick_name, None).await?;
                         return Err(Self::duplicate_guest_create_error(
-                            values.full_name,
+                            values.nick_name,
                             conflict_id,
                         ));
                     }
@@ -309,25 +309,25 @@ impl GuestRepository {
         ))
     }
 
-    async fn full_name_conflict_id_tx(
+    async fn nick_name_conflict_id_tx(
         tx: &mut DbTransaction<'_>,
-        full_name: &str,
+        nick_name: &str,
         exclude_guest_id: Option<i64>,
     ) -> Result<Option<i64>, ApiError> {
         let id: Option<i64> = if let Some(exclude_guest_id) = exclude_guest_id {
-            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1";
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(nick_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1";
 
             sqlx::query_scalar(query)
-                .bind(full_name)
+                .bind(nick_name)
                 .bind(exclude_guest_id)
                 .fetch_optional(&mut **tx)
                 .await
                 .map_err(ApiError::from)?
         } else {
-            let query = "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1";
+            let query = "SELECT id FROM guests WHERE LOWER(TRIM(nick_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1";
 
             sqlx::query_scalar(query)
-                .bind(full_name)
+                .bind(nick_name)
                 .fetch_optional(&mut **tx)
                 .await
                 .map_err(ApiError::from)?
@@ -341,9 +341,9 @@ impl GuestRepository {
         values: &GuestCreateValues<'_>,
     ) -> Result<Guest, sqlx::Error> {
         let query = r#"
-                INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
+                INSERT INTO guests (nick_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-                RETURNING id, full_name, email, phone, ic_number, nationality,
+                RETURNING id, nick_name, email, phone, ic_number, nationality,
                           address_line_1 as address_line1, city, state as state_province,
                           postal_code, country, title, alt_phone, true as is_active,
                           guest_type, tourism_type,
@@ -356,7 +356,7 @@ impl GuestRepository {
             "#;
 
         sqlx::query_as::<_, Guest>(query)
-            .bind(values.full_name)
+            .bind(values.nick_name)
             .bind(values.first_name)
             .bind(values.last_name)
             .bind(values.email)
@@ -411,14 +411,14 @@ impl GuestRepository {
         Ok(())
     }
 
-    fn duplicate_guest_create_error(full_name: &str, conflict_id: Option<i64>) -> ApiError {
+    fn duplicate_guest_create_error(nick_name: &str, conflict_id: Option<i64>) -> ApiError {
         let id_text = conflict_id
             .map(|id| format!(" (Guest ID #{})", id))
             .unwrap_or_default();
 
         ApiError::BadRequest(format!(
             "A guest with the name '{}' already exists{}. Please select the existing guest instead of creating a new one.",
-            full_name, id_text
+            nick_name, id_text
         ))
     }
 
@@ -450,7 +450,7 @@ impl GuestRepository {
         sqlx::query_as::<_, Guest>(
             r#"
             UPDATE guests
-            SET full_name = $1,
+            SET nick_name = $1,
                 first_name = $2,
                 last_name = $3,
                 email = $4,
@@ -470,10 +470,10 @@ impl GuestRepository {
                 company_name = $18,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $19
-            RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at, NULL::BIGINT as bookings_count, NULL::DATE as last_stay_date
+            RETURNING id, nick_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at, NULL::BIGINT as bookings_count, NULL::DATE as last_stay_date
             "#
         )
-        .bind(&values.full_name)
+        .bind(&values.nick_name)
         .bind(&values.first_name)
         .bind(&values.last_name)
         .bind(&values.email)
@@ -516,7 +516,7 @@ impl GuestRepository {
             UPDATE guests
             SET first_name = $1,
                 last_name = $2,
-                full_name = $3,
+                nick_name = $3,
                 phone = $4,
                 address_line_1 = COALESCE($5, address_line_1),
                 updated_at = CURRENT_TIMESTAMP
@@ -572,7 +572,7 @@ impl GuestRepository {
                 SET tourism_type = $1::tourism_type,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2 AND deleted_at IS NULL
-                RETURNING id, full_name, email, phone, ic_number, nationality,
+                RETURNING id, nick_name, email, phone, ic_number, nationality,
                           address_line_1 as address_line1, city, state as state_province,
                           postal_code, country, title, alt_phone, true as is_active,
                           guest_type, tourism_type,
@@ -868,11 +868,11 @@ impl GuestRepository {
         email: Option<&str>,
         phone_digits: Option<&str>,
         identity_document: Option<&str>,
-        full_name: &str,
+        nick_name: &str,
         name_pattern: &str,
     ) -> Result<Vec<Guest>, ApiError> {
         let query = r#"
-                SELECT id, full_name, email, phone, ic_number, nationality,
+                SELECT id, nick_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, true as is_active,
                        guest_type, tourism_type,
@@ -889,8 +889,8 @@ impl GuestRepository {
                     ($2::TEXT IS NOT NULL AND LOWER(TRIM(email)) = LOWER(TRIM($2)))
                     OR ($3::TEXT IS NOT NULL AND regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = $3)
                     OR ($4::TEXT IS NOT NULL AND LOWER(TRIM(ic_number)) = LOWER(TRIM($4)))
-                    OR LOWER(TRIM(full_name)) = LOWER(TRIM($5))
-                    OR LOWER(full_name) LIKE LOWER($6)
+                    OR LOWER(TRIM(nick_name)) = LOWER(TRIM($5))
+                    OR LOWER(nick_name) LIKE LOWER($6)
                   )
                 ORDER BY updated_at DESC
                 LIMIT 100
@@ -901,7 +901,7 @@ impl GuestRepository {
             .bind(email)
             .bind(phone_digits)
             .bind(identity_document)
-            .bind(full_name)
+            .bind(nick_name)
             .bind(name_pattern)
             .fetch_all(pool)
             .await
@@ -953,7 +953,7 @@ impl GuestRepository {
     pub async fn linked_guests(pool: &DbPool, user_id: i64) -> Result<Vec<Guest>, ApiError> {
         sqlx::query_as::<_, Guest>(
             r#"
-            SELECT DISTINCT g.id, g.full_name, g.email, g.phone, g.ic_number, g.nationality,
+            SELECT DISTINCT g.id, g.nick_name, g.email, g.phone, g.ic_number, g.nationality,
                    g.address_line_1 as address_line1, g.city, g.state as state_province, g.postal_code, g.country, g.title, g.alt_phone,
                    true as is_active,
                    g.guest_type,
@@ -964,7 +964,7 @@ impl GuestRepository {
             FROM guests g
             INNER JOIN user_guests ug ON g.id = ug.guest_id
             WHERE ug.user_id = $1 AND g.deleted_at IS NULL
-            ORDER BY g.full_name
+            ORDER BY g.nick_name
             "#,
         )
         .bind(user_id)
@@ -1106,7 +1106,7 @@ impl GuestRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Option<(i64, String)>, ApiError> {
-        sqlx::query_as("SELECT id, full_name FROM guests WHERE id = $1 AND deleted_at IS NULL")
+        sqlx::query_as("SELECT id, nick_name FROM guests WHERE id = $1 AND deleted_at IS NULL")
             .bind(guest_id)
             .fetch_optional(pool)
             .await
@@ -1152,11 +1152,11 @@ impl GuestRepository {
         user_id: i64,
     ) -> Result<Vec<LinkedGuestCreditRow>, ApiError> {
         let query = r#"
-                SELECT DISTINCT g.id, g.full_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
+                SELECT DISTINCT g.id, g.nick_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
                 FROM guests g
                 INNER JOIN user_guests ug ON g.id = ug.guest_id
                 WHERE ug.user_id = $1 AND g.deleted_at IS NULL
-                ORDER BY g.full_name
+                ORDER BY g.nick_name
             "#;
 
         sqlx::query_as::<_, LinkedGuestCreditRow>(query)
@@ -1170,7 +1170,7 @@ impl GuestRepository {
         pool: &DbPool,
     ) -> Result<Vec<LinkedGuestCreditRow>, ApiError> {
         let query = r#"
-                SELECT DISTINCT g.id, g.full_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
+                SELECT DISTINCT g.id, g.nick_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
                 FROM guests g
                 WHERE g.deleted_at IS NULL
                   AND EXISTS (
@@ -1178,7 +1178,7 @@ impl GuestRepository {
                       FROM guest_complimentary_credits gcc
                       WHERE gcc.guest_id = g.id AND gcc.nights_available > 0
                   )
-                ORDER BY g.full_name
+                ORDER BY g.nick_name
             "#;
 
         sqlx::query_as::<_, LinkedGuestCreditRow>(query)

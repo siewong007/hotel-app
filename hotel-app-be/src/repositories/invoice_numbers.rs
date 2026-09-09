@@ -88,7 +88,7 @@ pub async fn insert_booking_invoice(
                 subtotal, total_amount, line_items, status, invoice_type
             )
             SELECT $1, b.id,
-                   COALESCE(g.full_name, ''),
+                   COALESCE(g.nick_name, ''),
                    g.email,
                    b.total_amount,
                    b.total_amount,

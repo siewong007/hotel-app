@@ -56,9 +56,7 @@ async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
     let database_url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
         Err(_) => {
-            eprintln!(
-                "Skipping PostgreSQL invoice-numbering test because DATABASE_URL is not set"
-            );
+            eprintln!("Skipping PostgreSQL invoice-numbering test because DATABASE_URL is not set");
             return None;
         }
     };
@@ -137,9 +135,9 @@ async fn seed_booking(
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
          OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Invoice', $3, $4) \
-         ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
     )
     .bind(guest_id)
     .bind(format!("Invoice Test Guest {guest_id}"))
@@ -392,10 +390,7 @@ async fn concurrent_generation_never_commits_duplicate_numbers() {
     let second = generate_and_persist(&pool_b, booking_b);
     let (result_a, result_b) = tokio::join!(first, second);
 
-    let successes = [&result_a, &result_b]
-        .iter()
-        .filter(|r| r.is_ok())
-        .count();
+    let successes = [&result_a, &result_b].iter().filter(|r| r.is_ok()).count();
     assert!(
         successes >= 1,
         "at least one of the two concurrent invoice generations should succeed: {result_a:?} / {result_b:?}"

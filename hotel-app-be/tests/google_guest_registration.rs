@@ -131,7 +131,7 @@ async fn postgres_google_guest_link_race_returns_the_same_existing_guest() {
     cleanup_email(&pool, &identity.email).await;
 
     let guest_id: i64 = sqlx::query_scalar(
-        "INSERT INTO guests (full_name, email, is_active, guest_type) VALUES ($1, $2, true, 'non_member') RETURNING id",
+        "INSERT INTO guests (nick_name, email, is_active, guest_type) VALUES ($1, $2, true, 'non_member') RETURNING id",
     )
     .bind(format!("Linked Guest {}", &identity.subject))
     .bind(&identity.email)
@@ -229,7 +229,7 @@ async fn postgres_google_guest_creation_allows_an_unrelated_duplicate_display_na
     cleanup_email(&pool, &collision_email).await;
 
     sqlx::query(
-        "INSERT INTO guests (full_name, email, is_active, guest_type) VALUES ('Aisha Rahman', $1, true, 'non_member')",
+        "INSERT INTO guests (nick_name, email, is_active, guest_type) VALUES ('Aisha Rahman', $1, true, 'non_member')",
     )
     .bind(&collision_email)
     .execute(&pool)
@@ -241,7 +241,7 @@ async fn postgres_google_guest_creation_allows_an_unrelated_duplicate_display_na
         .expect("an unrelated same-name guest must not block Google registration")
         .user;
     let stored_guest_name: String = sqlx::query_scalar(
-        "SELECT g.full_name FROM guests g JOIN users u ON u.guest_id = g.id WHERE u.id = $1",
+        "SELECT g.nick_name FROM guests g JOIN users u ON u.guest_id = g.id WHERE u.id = $1",
     )
     .bind(user.id)
     .fetch_one(&pool)
@@ -265,7 +265,7 @@ async fn postgres_google_guest_rejects_an_email_held_by_a_soft_deleted_account()
     // in resolve_google_guest, which is exactly the case the reserved-email
     // guard exists for -- and the case the lost-race recovery must not swallow.
     let guest_id: i64 = sqlx::query_scalar(
-        "INSERT INTO guests (full_name, email, is_active, guest_type) VALUES ($1, $2, true, 'non_member') RETURNING id",
+        "INSERT INTO guests (nick_name, email, is_active, guest_type) VALUES ($1, $2, true, 'non_member') RETURNING id",
     )
     .bind(format!("Soft Deleted {}", &identity.subject))
     .bind(&identity.email)

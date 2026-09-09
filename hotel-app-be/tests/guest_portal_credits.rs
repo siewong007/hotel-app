@@ -97,9 +97,9 @@ mod postgres_tests {
 
         for guest_id in [fixture.guest_id, fixture.other_guest_id] {
             sqlx::query(
-                "INSERT INTO guests (id, full_name, email) \
+                "INSERT INTO guests (id, nick_name, email) \
                  OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3) \
-                 ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name",
+                 ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
             )
             .bind(guest_id)
             .bind(format!("Credit Guest {guest_id}"))

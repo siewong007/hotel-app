@@ -615,7 +615,7 @@ pub async fn register(
     }
 
     let full_name = format!("{} {}", req.first_name, req.last_name);
-    if GuestRepository::full_name_conflict_id(pool, &full_name, None)
+    if GuestRepository::nick_name_conflict_id(pool, &full_name, None)
         .await?
         .is_some()
     {

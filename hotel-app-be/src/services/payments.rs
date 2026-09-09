@@ -837,7 +837,7 @@ pub async fn queue_checkout_receipt_email(
     let source = sqlx::query_as::<_, ReceiptSource>(
         r#"
         SELECT g.id AS guest_id,
-               g.full_name AS guest_name,
+               g.nick_name AS guest_name,
                g.email AS guest_email,
                b.company_id,
                b.booking_number,

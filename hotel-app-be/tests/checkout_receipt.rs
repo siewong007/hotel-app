@@ -35,8 +35,7 @@ async fn pg_pool() -> Option<PgPool> {
             std::env::set_var("JWT_SECRET", "test-secret-test-secret-test-secret");
         }
     }
-    hotel_app_be::core::config::init_from_env()
-        .expect("test config initialises from env");
+    hotel_app_be::core::config::init_from_env().expect("test config initialises from env");
 
     Some(pool)
 }
@@ -57,14 +56,12 @@ async fn cleanup(pool: &PgPool) {
         .execute(pool)
         .await
         .unwrap();
-    sqlx::query(
-        "DELETE FROM bookings WHERE room_id = $1 AND id = $2",
-    )
-    .bind(ROOM_ID)
-    .bind(BOOKING_ID)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query("DELETE FROM bookings WHERE room_id = $1 AND id = $2")
+        .bind(ROOM_ID)
+        .bind(BOOKING_ID)
+        .execute(pool)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM rooms WHERE id = $1")
         .bind(ROOM_ID)
         .execute(pool)
@@ -97,7 +94,7 @@ async fn seed_fixture(pool: &PgPool, company_id: Option<i64>, guest_email: Optio
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
          OVERRIDING SYSTEM VALUE VALUES ($1, 'Receipt Guest', 'Receipt', 'Guest', $2)",
     )
     .bind(GUEST_ID)
@@ -186,13 +183,12 @@ async fn checkout_receipt_queues_once_per_invoice_and_skips_company_or_emailless
         .expect("idempotent re-queue should succeed");
     assert_eq!(delivery_count(&pool).await, 1);
 
-    let (kind, topic): (String, String) = sqlx::query_as(
-        "SELECT kind, topic FROM email_deliveries WHERE idempotency_key = $1",
-    )
-    .bind("checkout-receipt:INV-RCPT-1")
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let (kind, topic): (String, String) =
+        sqlx::query_as("SELECT kind, topic FROM email_deliveries WHERE idempotency_key = $1")
+            .bind("checkout-receipt:INV-RCPT-1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(kind, "checkout_receipt");
     assert_eq!(topic, "checkout_receipt");
 
@@ -202,7 +198,8 @@ async fn checkout_receipt_queues_once_per_invoice_and_skips_company_or_emailless
         &pool,
         Some(COMPANY_ID), // non-null company_id flips the skip rule
         Some("receipt-guest@hotel.local"),
-    ).await;
+    )
+    .await;
     hotel_app_be::services::payments::queue_checkout_receipt_email(&pool, BOOKING_ID, "INV-RCPT-2")
         .await
         .expect("company-billed skip should not error");

@@ -403,13 +403,11 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
-        sqlx::query(
-            "DELETE FROM audit_logs WHERE resource_type = 'room' AND resource_id = $1",
-        )
-        .bind(room_id)
-        .execute(pool)
-        .await
-        .unwrap();
+        sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'room' AND resource_id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM rooms WHERE id = $1")
             .bind(room_id)
             .execute(pool)
@@ -419,10 +417,10 @@ mod postgres_tests {
 
     async fn seed_guest(pool: &PgPool, guest_id: i64) {
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'RM980', $3, $4) \
              ON CONFLICT (id) DO UPDATE SET \
-                full_name = EXCLUDED.full_name, email = EXCLUDED.email, ic_number = NULL",
+                nick_name = EXCLUDED.nick_name, email = EXCLUDED.email, ic_number = NULL",
         )
         .bind(guest_id)
         .bind(format!("RM980 Guest {guest_id}"))
@@ -526,13 +524,11 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
-        sqlx::query(
-            "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1",
-        )
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .unwrap();
+        sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1")
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM bookings WHERE id = $1")
             .bind(booking_id)
             .execute(pool)
@@ -691,9 +687,10 @@ mod postgres_tests {
         )
         .await;
 
-        let result = bookings::void_booking(&pool, actor_id, booking_id, Some("rm980 void".to_string()))
-            .await
-            .expect("booking should void");
+        let result =
+            bookings::void_booking(&pool, actor_id, booking_id, Some("rm980 void".to_string()))
+                .await
+                .expect("booking should void");
         assert_eq!(result["booking_id"].as_i64(), Some(booking_id));
         assert_eq!(
             room_status_of(&pool, room_id).await,
@@ -784,13 +781,12 @@ mod postgres_tests {
             1,
             "dirty flip must auto-create a housekeeping task"
         );
-        let (task_type, task_status): (String, String) = sqlx::query_as(
-            "SELECT task_type, status FROM housekeeping_tasks WHERE room_id = $1",
-        )
-        .bind(room_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let (task_type, task_status): (String, String) =
+            sqlx::query_as("SELECT task_type, status FROM housekeeping_tasks WHERE room_id = $1")
+                .bind(room_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(task_type, "cleaning");
         assert_eq!(task_status, "pending");
 
@@ -1034,10 +1030,9 @@ mod postgres_tests {
         assert_eq!(task.status, "in_progress");
         assert!(task.started_at.is_some());
 
-        let complete_input: UpdateHousekeepingTaskRequest = serde_json::from_value(
-            serde_json::json!({"status": "completed", "notes": "All done"}),
-        )
-        .unwrap();
+        let complete_input: UpdateHousekeepingTaskRequest =
+            serde_json::from_value(serde_json::json!({"status": "completed", "notes": "All done"}))
+                .unwrap();
         let task = housekeeping::update_task(&pool, actor_id, task.id, complete_input)
             .await
             .expect(
@@ -1130,7 +1125,10 @@ mod postgres_tests {
             .await
             .expect("in_progress -> resolved must be a valid transition");
         assert_eq!(ticket.status, "resolved");
-        assert_eq!(ticket.resolution_notes.as_deref(), Some("Replaced the washer"));
+        assert_eq!(
+            ticket.resolution_notes.as_deref(),
+            Some("Replaced the washer")
+        );
         assert!(ticket.resolved_at.is_some());
 
         let close_input: UpdateMaintenanceTicketRequest =

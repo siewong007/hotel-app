@@ -10,7 +10,7 @@ use sqlx::FromRow;
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Guest {
     pub id: i64,
-    pub full_name: String,
+    pub nick_name: String,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub ic_number: Option<String>,
@@ -210,7 +210,7 @@ pub struct GuestUpdateState {
 /// Fully resolved guest update values.
 #[derive(Debug)]
 pub struct GuestUpdateValues {
-    pub full_name: String,
+    pub nick_name: String,
     pub first_name: String,
     pub last_name: String,
     pub email: Option<String>,
@@ -233,7 +233,7 @@ pub struct GuestUpdateValues {
 /// Fully resolved guest creation values.
 #[derive(Debug)]
 pub struct GuestCreateValues<'a> {
-    pub full_name: &'a str,
+    pub nick_name: &'a str,
     pub first_name: &'a str,
     pub last_name: &'a str,
     pub email: Option<&'a str>,
@@ -315,7 +315,7 @@ pub struct GuestCreditRow {
 #[derive(Debug, sqlx::FromRow)]
 pub struct LinkedGuestCreditRow {
     pub id: i64,
-    pub full_name: String,
+    pub nick_name: String,
     pub email: Option<String>,
     pub legacy_credits: i32,
 }

@@ -139,13 +139,7 @@ mod postgres_tests {
 
     /// Insert one outbox row straight through the repository so kind/topic
     /// vocabulary stays honest.
-    async fn seed_delivery(
-        pool: &PgPool,
-        suffix: &str,
-        kind: &str,
-        topic: &str,
-        status: &str,
-    ) {
+    async fn seed_delivery(pool: &PgPool, suffix: &str, kind: &str, topic: &str, status: &str) {
         let mut tx = pool.begin().await.unwrap();
         hotel_app_be::modules::communications::repository::CommunicationsRepository::insert_delivery_tx(
             &mut tx,
@@ -192,13 +186,11 @@ mod postgres_tests {
             .execute(pool)
             .await
             .unwrap();
-        sqlx::query(
-            "DELETE FROM roles WHERE name = $1 AND is_system_role = false",
-        )
-        .bind(format!("comms_center_role_{ACTOR_ID}"))
-        .execute(pool)
-        .await
-        .unwrap();
+        sqlx::query("DELETE FROM roles WHERE name = $1 AND is_system_role = false")
+            .bind(format!("comms_center_role_{ACTOR_ID}"))
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM guests WHERE id = $1")
             .bind(GUEST_ID)
             .execute(pool)
@@ -244,7 +236,10 @@ mod postgres_tests {
         grant_permissions(&pool, ACTOR_ID, &[]).await;
         let denied = call_feed(&pool, ACTOR_ID, None, None, None, None).await;
         assert!(
-            matches!(denied, Err(hotel_app_be::core::error::ApiError::Forbidden(_))),
+            matches!(
+                denied,
+                Err(hotel_app_be::core::error::ApiError::Forbidden(_))
+            ),
             "feed must deny actors without communications:read, got {denied:?}"
         );
 
@@ -255,7 +250,7 @@ mod postgres_tests {
 
         // Seed a guest plus a mixed-status spread across both tiers.
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+            "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
              OVERRIDING SYSTEM VALUE VALUES ($1, 'Center Guest', 'Center', 'Guest', 'center-guest@hotel.local')",
         )
         .bind(GUEST_ID)
@@ -263,12 +258,37 @@ mod postgres_tests {
         .await
         .unwrap();
 
-        seed_delivery(&pool, "tx-queued", "checkout_receipt", "checkout_receipt", "queued").await;
-        seed_delivery(&pool, "tx-sending", "booking_confirmation", "booking_confirmation", "sending").await;
-        seed_delivery(&pool, "mkt-done", "birthday_voucher", "birthday_voucher", "sent").await;
+        seed_delivery(
+            &pool,
+            "tx-queued",
+            "checkout_receipt",
+            "checkout_receipt",
+            "queued",
+        )
+        .await;
+        seed_delivery(
+            &pool,
+            "tx-sending",
+            "booking_confirmation",
+            "booking_confirmation",
+            "sending",
+        )
+        .await;
+        seed_delivery(
+            &pool,
+            "mkt-done",
+            "birthday_voucher",
+            "birthday_voucher",
+            "sent",
+        )
+        .await;
 
         // Unknown tier must be rejected outright.
-        assert!(call_feed(&pool, ACTOR_ID, Some("urgent"), None, None, None).await.is_err());
+        assert!(
+            call_feed(&pool, ACTOR_ID, Some("urgent"), None, None, None)
+                .await
+                .is_err()
+        );
 
         // ---- all ----
         let all = call_feed(&pool, ACTOR_ID, Some("all"), None, None, None)
@@ -308,10 +328,16 @@ mod postgres_tests {
         assert_eq!(marketing.items[0].summary.kind, "birthday_voucher");
 
         // Status filter narrows within a tier.
-        let queued_tx =
-            call_feed(&pool, ACTOR_ID, Some("transactional"), Some("queued"), None, None)
-                .await
-                .expect("status-filtered feed should succeed");
+        let queued_tx = call_feed(
+            &pool,
+            ACTOR_ID,
+            Some("transactional"),
+            Some("queued"),
+            None,
+            None,
+        )
+        .await
+        .expect("status-filtered feed should succeed");
         assert_eq!(queued_tx.total, 1);
         assert_eq!(queued_tx.items[0].summary.status, "queued");
 

@@ -28,6 +28,9 @@
 //! service itself must be the one to insert into.
 
 mod postgres_tests {
+    use axum::Json;
+    use axum::extract::{Extension, Path, State};
+    use axum::http::HeaderMap;
     use chrono::{Duration, NaiveDate, Utc};
     use hotel_app_be::constants::{GuestType, TourismType};
     use hotel_app_be::core::error::ApiError;
@@ -47,9 +50,6 @@ mod postgres_tests {
     use hotel_app_be::services::guests as guest_service;
     use hotel_app_be::services::rates as rate_service;
     use hotel_app_be::{AuthService, Claims};
-    use axum::Json;
-    use axum::extract::{Extension, Path, State};
-    use axum::http::HeaderMap;
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};
     use std::str::FromStr;
@@ -77,7 +77,13 @@ mod postgres_tests {
     // Fixture helpers
     // -----------------------------------------------------------------
 
-    async fn upsert_user(pool: &PgPool, user_id: i64, username: &str, email: &str, guest_id: Option<i64>) {
+    async fn upsert_user(
+        pool: &PgPool,
+        user_id: i64,
+        username: &str,
+        email: &str,
+        guest_id: Option<i64>,
+    ) {
         sqlx::query(
             "INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified, guest_id)
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4, 'staff', true, true, $5)
@@ -102,23 +108,23 @@ mod postgres_tests {
     async fn upsert_guest(
         pool: &PgPool,
         guest_id: i64,
-        full_name: &str,
+        nick_name: &str,
         email: Option<&str>,
         phone: Option<&str>,
         ic_number: Option<&str>,
     ) {
         sqlx::query(
-            "INSERT INTO guests (id, full_name, first_name, last_name, email, phone, ic_number, guest_type, tourism_type)
+            "INSERT INTO guests (id, nick_name, first_name, last_name, email, phone, ic_number, guest_type, tourism_type)
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, $2, $2, $3, $4, $5, 'non_member', 'local')
              ON CONFLICT (id) DO UPDATE SET
-                full_name = EXCLUDED.full_name,
+                nick_name = EXCLUDED.nick_name,
                 email = EXCLUDED.email,
                 phone = EXCLUDED.phone,
                 ic_number = EXCLUDED.ic_number,
                 deleted_at = NULL",
         )
         .bind(guest_id)
-        .bind(full_name)
+        .bind(nick_name)
         .bind(email)
         .bind(phone)
         .bind(ic_number)
@@ -127,7 +133,14 @@ mod postgres_tests {
         .unwrap();
     }
 
-    async fn seed_room_type(pool: &PgPool, id: i64, code: &str, name: &str, base_price: &str, max_occupancy: i32) {
+    async fn seed_room_type(
+        pool: &PgPool,
+        id: i64,
+        code: &str,
+        name: &str,
+        base_price: &str,
+        max_occupancy: i32,
+    ) {
         sqlx::query(
             "INSERT INTO room_types (id, code, name, base_price, max_occupancy)
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, $4::numeric, $5)
@@ -211,11 +224,13 @@ mod postgres_tests {
     /// redemptions off that member) -- all declared ON DELETE CASCADE from
     /// `guests.id` in the V1 baseline. This is the main cleanup lever used below.
     async fn delete_guests(pool: &PgPool, guest_ids: &[i64]) {
-        sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'guest' AND resource_id = ANY($1)")
-            .bind(guest_ids)
-            .execute(pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "DELETE FROM audit_logs WHERE resource_type = 'guest' AND resource_id = ANY($1)",
+        )
+        .bind(guest_ids)
+        .execute(pool)
+        .await
+        .unwrap();
         sqlx::query("DELETE FROM guests WHERE id = ANY($1)")
             .bind(guest_ids)
             .execute(pool)
@@ -368,7 +383,9 @@ mod postgres_tests {
         let mut headers = HeaderMap::new();
         headers.insert(
             "authorization",
-            format!("Bearer {token}").parse().expect("header value must be valid"),
+            format!("Bearer {token}")
+                .parse()
+                .expect("header value must be valid"),
         );
         headers
     }
@@ -383,14 +400,21 @@ mod postgres_tests {
             return;
         };
         let actor_id = 985_001;
-        let full_name = "Gst985create Guesty";
+        let nick_name = "Gst985create Guesty";
 
-        sqlx::query("DELETE FROM guests WHERE full_name = $1")
-            .bind(full_name)
+        sqlx::query("DELETE FROM guests WHERE nick_name = $1")
+            .bind(nick_name)
             .execute(&pool)
             .await
             .unwrap();
-        upsert_user(&pool, actor_id, "gst985_guest_create_actor", "gst985.guestcreateactor@hotel.local", None).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_guest_create_actor",
+            "gst985.guestcreateactor@hotel.local",
+            None,
+        )
+        .await;
 
         // Malformed email must be rejected and no row created.
         let bad_input = GuestInput {
@@ -416,8 +440,8 @@ mod postgres_tests {
             "malformed email must be rejected: {bad_result:?}"
         );
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM guests WHERE full_name = $1")
-            .bind(full_name)
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM guests WHERE nick_name = $1")
+            .bind(nick_name)
             .fetch_one(&pool)
             .await
             .unwrap();
@@ -446,11 +470,18 @@ mod postgres_tests {
             .await
             .expect("valid guest creation must succeed");
 
-        assert_eq!(guest.full_name, full_name, "control chars stripped, names trimmed and joined");
+        assert_eq!(
+            guest.nick_name, nick_name,
+            "control chars stripped, names trimmed and joined"
+        );
         assert_eq!(guest.email.as_deref(), Some("gst985.create@example.com"));
         assert_eq!(guest.phone.as_deref(), Some("+60123456788"));
         assert_eq!(guest.guest_type, GuestType::NonMember, "default guest_type");
-        assert_eq!(guest.tourism_type, Some(TourismType::Local), "default tourism_type");
+        assert_eq!(
+            guest.tourism_type,
+            Some(TourismType::Local),
+            "default tourism_type"
+        );
         assert_eq!(guest.discount_percentage, 0, "default discount_percentage");
         assert_eq!(guest.company_name, None);
 
@@ -468,10 +499,10 @@ mod postgres_tests {
             return;
         };
         let actor_id = 985_002;
-        let full_name = "Gst985fast";
+        let nick_name = "Gst985fast";
 
-        sqlx::query("DELETE FROM guests WHERE full_name = $1")
-            .bind(full_name)
+        sqlx::query("DELETE FROM guests WHERE nick_name = $1")
+            .bind(nick_name)
             .execute(&pool)
             .await
             .unwrap();
@@ -505,19 +536,20 @@ mod postgres_tests {
         }
 
         // Relaxing the last name must not relax the first name too.
-        let nameless = guest_service::create_guest(&pool, actor_id, fast_booking_input("   ", "")).await;
+        let nameless =
+            guest_service::create_guest(&pool, actor_id, fast_booking_input("   ", "")).await;
         assert!(
             matches!(nameless, Err(ApiError::BadRequest(_))),
             "a guest with no first name must still be rejected: {nameless:?}"
         );
 
-        let guest = guest_service::create_guest(&pool, actor_id, fast_booking_input(full_name, ""))
+        let guest = guest_service::create_guest(&pool, actor_id, fast_booking_input(nick_name, ""))
             .await
             .expect("a single-name guest with no contact details must be accepted");
 
         assert_eq!(
-            guest.full_name, full_name,
-            "full_name must not carry the trailing space left by the empty last name"
+            guest.nick_name, nick_name,
+            "nick_name must not carry the trailing space left by the empty last name"
         );
         assert_eq!(guest.email, None, "email stays unset");
         assert_eq!(guest.phone, None, "phone stays unset");
@@ -528,7 +560,7 @@ mod postgres_tests {
             "an explicitly chosen tourism type must be stored, not defaulted to local"
         );
 
-        // `Guest` exposes only `full_name`, so read the stored column directly.
+        // `Guest` exposes only `nick_name`, so read the stored column directly.
         let stored_last_name: Option<String> =
             sqlx::query_scalar("SELECT last_name FROM guests WHERE id = $1")
                 .bind(guest.id)
@@ -559,13 +591,21 @@ mod postgres_tests {
         let room_id = 985_302;
         let booking_id = 985_102;
 
-        async fn cleanup(pool: &PgPool, guest_id: i64, room_type_id: i64, room_id: i64, booking_id: i64) {
+        async fn cleanup(
+            pool: &PgPool,
+            guest_id: i64,
+            room_type_id: i64,
+            room_id: i64,
+            booking_id: i64,
+        ) {
             delete_room_status_log(pool, &[room_id]).await;
-            sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1")
-                .bind(booking_id)
-                .execute(pool)
-                .await
-                .unwrap();
+            sqlx::query(
+                "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1",
+            )
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .unwrap();
             sqlx::query("DELETE FROM bookings WHERE id = $1")
                 .bind(booking_id)
                 .execute(pool)
@@ -577,7 +617,15 @@ mod postgres_tests {
         }
 
         cleanup(&pool, guest_id, room_type_id, room_id, booking_id).await;
-        upsert_guest(&pool, guest_id, "Gst985 Update Target", Some("gst985.updatetarget@hotel.local"), None, None).await;
+        upsert_guest(
+            &pool,
+            guest_id,
+            "Gst985 Update Target",
+            Some("gst985.updatetarget@hotel.local"),
+            None,
+            None,
+        )
+        .await;
 
         let updated = guest_service::update_guest(
             &pool,
@@ -610,16 +658,36 @@ mod postgres_tests {
         .await
         .expect("update must succeed");
 
-        assert_eq!(updated.full_name, "Gst985Updated Target");
+        assert_eq!(updated.nick_name, "Gst985Updated Target");
         assert_eq!(updated.email.as_deref(), Some("gst985.updated@hotel.local"));
         assert_eq!(updated.phone.as_deref(), Some("+60111222333"));
         assert_eq!(updated.tourism_type, Some(TourismType::Foreign));
         assert_eq!(updated.discount_percentage, 10);
-        assert!(updated.is_active, "is_active is not wired into GuestUpdateValues; it must stay true");
+        assert!(
+            updated.is_active,
+            "is_active is not wired into GuestUpdateValues; it must stay true"
+        );
 
-        seed_room_type(&pool, room_type_id, "GST985RT3", "Gst985 Delete Block Type", "120.00", 2).await;
+        seed_room_type(
+            &pool,
+            room_type_id,
+            "GST985RT3",
+            "Gst985 Delete Block Type",
+            "120.00",
+            2,
+        )
+        .await;
         seed_room(&pool, room_id, "GST985R3", room_type_id, "occupied").await;
-        seed_booking(&pool, booking_id, guest_id, room_id, "2031-07-10", "2031-07-12", "checked_in").await;
+        seed_booking(
+            &pool,
+            booking_id,
+            guest_id,
+            room_id,
+            "2031-07-10",
+            "2031-07-12",
+            "checked_in",
+        )
+        .await;
 
         let blocked = guest_service::delete_guest(&pool, guest_id).await;
         assert!(
@@ -642,7 +710,10 @@ mod postgres_tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert!(!exists, "delete_guest hard-deletes the row (no soft-delete/restore is wired up)");
+        assert!(
+            !exists,
+            "delete_guest hard-deletes the row (no soft-delete/restore is wired up)"
+        );
 
         cleanup(&pool, guest_id, room_type_id, room_id, booking_id).await;
     }
@@ -696,15 +767,25 @@ mod postgres_tests {
             .iter()
             .find(|c| c.guest.id == 985_202);
         let flagged = flagged.expect("shared email/phone/ic guest must be flagged");
-        assert_eq!(flagged.score, 220, "60 phone + 60 email + 100 identity, no name match");
+        assert_eq!(
+            flagged.score, 220,
+            "60 phone + 60 email + 100 identity, no name match"
+        );
         assert_eq!(flagged.recommended_action, "high_confidence_review");
         assert_eq!(
             flagged.match_reasons,
-            vec!["Same normalized phone", "Same normalized email", "Same identity document"]
+            vec![
+                "Same normalized phone",
+                "Same normalized email",
+                "Same identity document"
+            ]
         );
 
         assert!(
-            !profile.duplicate_candidates.iter().any(|c| c.guest.id == 985_203),
+            !profile
+                .duplicate_candidates
+                .iter()
+                .any(|c| c.guest.id == 985_203),
             "a guest with no matching contact fields must not be flagged even if its name is a partial hit"
         );
 
@@ -728,9 +809,32 @@ mod postgres_tests {
         delete_room_types(&pool, &[room_type_id]).await;
         delete_users(&pool, &[actor_id]).await;
 
-        upsert_user(&pool, actor_id, "gst985_credits_actor", "gst985.creditsactor@hotel.local", None).await;
-        upsert_guest(&pool, guest_id, "Gst985 Credits Guest", Some("gst985.credits@hotel.local"), None, None).await;
-        seed_room_type(&pool, room_type_id, "GST985RT4", "Gst985 Credits Type", "80.00", 2).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_credits_actor",
+            "gst985.creditsactor@hotel.local",
+            None,
+        )
+        .await;
+        upsert_guest(
+            &pool,
+            guest_id,
+            "Gst985 Credits Guest",
+            Some("gst985.credits@hotel.local"),
+            None,
+            None,
+        )
+        .await;
+        seed_room_type(
+            &pool,
+            room_type_id,
+            "GST985RT4",
+            "Gst985 Credits Type",
+            "80.00",
+            2,
+        )
+        .await;
 
         let grant1 = add_guest_credits_handler(
             State(pool.clone()),
@@ -839,7 +943,13 @@ mod postgres_tests {
         let conflict_booking_id = 985_101;
         let actor_id = 985_004;
 
-        async fn cleanup(pool: &PgPool, guest_id: i64, room_type_id: i64, room_id: i64, actor_id: i64) {
+        async fn cleanup(
+            pool: &PgPool,
+            guest_id: i64,
+            room_type_id: i64,
+            room_id: i64,
+            actor_id: i64,
+        ) {
             delete_room_status_log(pool, &[room_id]).await;
             // Deleting the guest cascades away BOTH the fixed conflicting
             // booking and the dynamically-created COMP-* booking (and its
@@ -852,9 +962,32 @@ mod postgres_tests {
 
         cleanup(&pool, guest_id, room_type_id, room_id, actor_id).await;
 
-        upsert_user(&pool, actor_id, "gst985_bwc_actor", "gst985.bwcactor@hotel.local", None).await;
-        upsert_guest(&pool, guest_id, "Gst985 BookWithCredits Guest", Some("gst985.bwc@hotel.local"), None, None).await;
-        seed_room_type(&pool, room_type_id, "GST985RT1", "Gst985 BWC Type", "100.00", 2).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_bwc_actor",
+            "gst985.bwcactor@hotel.local",
+            None,
+        )
+        .await;
+        upsert_guest(
+            &pool,
+            guest_id,
+            "Gst985 BookWithCredits Guest",
+            Some("gst985.bwc@hotel.local"),
+            None,
+            None,
+        )
+        .await;
+        seed_room_type(
+            &pool,
+            room_type_id,
+            "GST985RT1",
+            "Gst985 BWC Type",
+            "100.00",
+            2,
+        )
+        .await;
         seed_room(&pool, room_id, "GST985R1", room_type_id, "available").await;
 
         // Ownership link grants `can_book_with_credits_for_guest` access
@@ -879,7 +1012,16 @@ mod postgres_tests {
         .await
         .expect("grant must succeed");
 
-        seed_booking(&pool, conflict_booking_id, guest_id, room_id, "2031-08-10", "2031-08-12", "confirmed").await;
+        seed_booking(
+            &pool,
+            conflict_booking_id,
+            guest_id,
+            room_id,
+            "2031-08-10",
+            "2031-08-12",
+            "confirmed",
+        )
+        .await;
 
         let conflict_attempt = book_with_credits_handler(
             State(pool.clone()),
@@ -934,7 +1076,11 @@ mod postgres_tests {
         assert_eq!(success["paid_nights"].as_i64(), Some(0));
         assert_eq!(success["is_free_gift"].as_bool(), Some(true));
         let total_amount = Decimal::from_str(success["total_amount"].as_str().unwrap()).unwrap();
-        assert_eq!(total_amount, Decimal::ZERO, "fully complimentary stay must bill nothing");
+        assert_eq!(
+            total_amount,
+            Decimal::ZERO,
+            "fully complimentary stay must bill nothing"
+        );
 
         let remaining_nights: i32 = sqlx::query_scalar(
             "SELECT nights_available FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2",
@@ -966,8 +1112,23 @@ mod postgres_tests {
         delete_room_types(&pool, &[room_type_id]).await;
         delete_users(&pool, &[actor_id]).await;
 
-        upsert_user(&pool, actor_id, "gst985_rates_actor", "gst985.ratesactor@hotel.local", None).await;
-        seed_room_type(&pool, room_type_id, "GST985RT2", "Gst985 Rates CRUD Type", "60.00", 2).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_rates_actor",
+            "gst985.ratesactor@hotel.local",
+            None,
+        )
+        .await;
+        seed_room_type(
+            &pool,
+            room_type_id,
+            "GST985RT2",
+            "Gst985 Rates CRUD Type",
+            "60.00",
+            2,
+        )
+        .await;
 
         // Created through the real service, passing blackout_dates to
         // exercise the jsonb bind that was broken until 2026-07-26.
@@ -980,9 +1141,14 @@ mod postgres_tests {
             Some(vec!["2031-12-24".to_string(), "2031-12-25".to_string()]),
         )
         .await;
-        let plan = rate_service::get_rate_plan(&pool, plan_id).await.expect("created plan must be readable");
+        let plan = rate_service::get_rate_plan(&pool, plan_id)
+            .await
+            .expect("created plan must be readable");
         assert_eq!(plan.code, code);
-        assert!(plan.is_active, "is_active defaults to true when unspecified");
+        assert!(
+            plan.is_active,
+            "is_active defaults to true when unspecified"
+        );
         assert_eq!(plan.priority, 1);
 
         // RatePlan doesn't expose blackout_dates, so verify the stored jsonb
@@ -999,7 +1165,9 @@ mod postgres_tests {
             serde_json::json!(["2031-12-24", "2031-12-25"])
         );
 
-        let with_rates_before = rate_service::get_rate_plan_with_rates(&pool, plan.id).await.unwrap();
+        let with_rates_before = rate_service::get_rate_plan_with_rates(&pool, plan.id)
+            .await
+            .unwrap();
         assert!(with_rates_before.rates.is_empty());
 
         let room_rate = rate_service::create_room_rate(
@@ -1017,7 +1185,9 @@ mod postgres_tests {
         .expect("room rate create must succeed");
         assert_eq!(room_rate.price, Decimal::from_str("88.50").unwrap());
 
-        let with_rates_after = rate_service::get_rate_plan_with_rates(&pool, plan.id).await.unwrap();
+        let with_rates_after = rate_service::get_rate_plan_with_rates(&pool, plan.id)
+            .await
+            .unwrap();
         assert_eq!(with_rates_after.rates.len(), 1);
 
         let updated_plan = rate_service::update_rate_plan(
@@ -1088,12 +1258,16 @@ mod postgres_tests {
         let missing_plan = rate_service::get_rate_plan(&pool, plan.id).await;
         assert!(matches!(missing_plan, Err(ApiError::NotFound(_))));
 
-        let remaining_rates: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM room_rates WHERE rate_plan_id = $1")
-            .bind(plan.id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-        assert_eq!(remaining_rates, 0, "deleting the rate plan must cascade its room_rates");
+        let remaining_rates: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM room_rates WHERE rate_plan_id = $1")
+                .bind(plan.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            remaining_rates, 0,
+            "deleting the rate plan must cascade its room_rates"
+        );
 
         cleanup_rate_plan_by_code(&pool, code).await;
         delete_room_types(&pool, &[room_type_id]).await;
@@ -1119,15 +1293,38 @@ mod postgres_tests {
         delete_room_types(&pool, &[room_type_id]).await;
         delete_users(&pool, &[actor_id]).await;
 
-        upsert_user(&pool, actor_id, "gst985_rates_priority_actor", "gst985.ratespriority@hotel.local", None).await;
-        seed_room_type(&pool, room_type_id, "GST985RT5", "Gst985 Priority Type", "50.00", 2).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_rates_priority_actor",
+            "gst985.ratespriority@hotel.local",
+            None,
+        )
+        .await;
+        seed_room_type(
+            &pool,
+            room_type_id,
+            "GST985RT5",
+            "Gst985 Priority Type",
+            "50.00",
+            2,
+        )
+        .await;
 
         // Created through the real service with blackout_dates: None,
         // covering the SQL-NULL side of the fixed jsonb bind.
         let low_plan_id =
-            create_rate_plan_via_service(&pool, actor_id, low_code, "Gst985 Low Priority", 5, None).await;
-        let high_plan_id =
-            create_rate_plan_via_service(&pool, actor_id, high_code, "Gst985 High Priority", 20, None).await;
+            create_rate_plan_via_service(&pool, actor_id, low_code, "Gst985 Low Priority", 5, None)
+                .await;
+        let high_plan_id = create_rate_plan_via_service(
+            &pool,
+            actor_id,
+            high_code,
+            "Gst985 High Priority",
+            20,
+            None,
+        )
+        .await;
 
         // None must land as SQL NULL, not the jsonb value `null`.
         let stored_blackouts: Option<serde_json::Value> =
@@ -1136,7 +1333,10 @@ mod postgres_tests {
                 .fetch_one(&pool)
                 .await
                 .expect("blackout_dates must be readable");
-        assert_eq!(stored_blackouts, None, "blackout_dates None must store SQL NULL");
+        assert_eq!(
+            stored_blackouts, None,
+            "blackout_dates None must store SQL NULL"
+        );
 
         rate_service::create_room_rate(
             &pool,
@@ -1175,7 +1375,11 @@ mod postgres_tests {
         .await
         .unwrap();
         let matched_price = Decimal::from_str(in_window["price"].as_str().unwrap()).unwrap();
-        assert_eq!(matched_price, Decimal::from_str("175.00").unwrap(), "higher-priority plan must win");
+        assert_eq!(
+            matched_price,
+            Decimal::from_str("175.00").unwrap(),
+            "higher-priority plan must win"
+        );
         assert_eq!(in_window["rate_plan_code"].as_str(), Some(high_code));
         assert!(
             in_window.get("is_base_rate").is_none(),
@@ -1193,8 +1397,7 @@ mod postgres_tests {
         .unwrap();
         assert_eq!(outside_window["is_base_rate"].as_bool(), Some(true));
         assert_eq!(outside_window["rate_plan_code"].as_str(), Some("BASE"));
-        let fallback_price =
-            Decimal::from_str(outside_window["price"].as_str().unwrap()).unwrap();
+        let fallback_price = Decimal::from_str(outside_window["price"].as_str().unwrap()).unwrap();
         assert_eq!(
             fallback_price,
             Decimal::from_str("50.00").unwrap(),
@@ -1223,18 +1426,43 @@ mod postgres_tests {
 
         cleanup_loyalty_fixture(&pool, guest_id, &[enrolling_user_id, actor_id]).await;
 
-        upsert_user(&pool, actor_id, "gst985_loyalty_actor1", "gst985.loyaltyactor1@hotel.local", None).await;
-        upsert_guest(&pool, guest_id, "Gst985 Loyalty Member", Some(email), None, None).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_loyalty_actor1",
+            "gst985.loyaltyactor1@hotel.local",
+            None,
+        )
+        .await;
+        upsert_guest(
+            &pool,
+            guest_id,
+            "Gst985 Loyalty Member",
+            Some(email),
+            None,
+            None,
+        )
+        .await;
         // `find_guest_for_user` resolves an unlinked user (guest_id IS NULL)
         // to a guest by matching email, case-insensitively.
-        upsert_user(&pool, enrolling_user_id, "gst985_loyalty_user1", email, None).await;
+        upsert_user(
+            &pool,
+            enrolling_user_id,
+            "gst985_loyalty_user1",
+            email,
+            None,
+        )
+        .await;
 
         let enrollment = loyalty_service::enroll(&pool, enrolling_user_id)
             .await
             .expect("enroll must succeed");
         assert_eq!(enrollment.member.guest_id, guest_id);
         assert_eq!(enrollment.member.status, "active");
-        assert_eq!(enrollment.member.available_points, 0, "a fresh member has no transactions yet");
+        assert_eq!(
+            enrollment.member.available_points, 0,
+            "a fresh member has no transactions yet"
+        );
         let member_id = enrollment.member.id;
 
         let repeat_enroll = loyalty_service::enroll(&pool, enrolling_user_id).await;
@@ -1290,7 +1518,10 @@ mod postgres_tests {
         let detail = loyalty_service::admin_member_detail(&pool, member_id)
             .await
             .expect("read-back must succeed");
-        assert_eq!(detail.member.available_points, 300, "the rejected adjustment must not change the balance");
+        assert_eq!(
+            detail.member.available_points, 300,
+            "the rejected adjustment must not change the balance"
+        );
 
         cleanup_loyalty_fixture(&pool, guest_id, &[enrolling_user_id, actor_id]).await;
     }
@@ -1314,9 +1545,31 @@ mod postgres_tests {
         cleanup_loyalty_fixture(&pool, guest_id, &[enrolling_user_id, actor_id]).await;
         delete_loyalty_rewards(&pool, reward_name_prefix).await;
 
-        upsert_user(&pool, actor_id, "gst985_loyalty_actor2", "gst985.loyaltyactor2@hotel.local", None).await;
-        upsert_guest(&pool, guest_id, "Gst985 Reward Member", Some(email), None, None).await;
-        upsert_user(&pool, enrolling_user_id, "gst985_loyalty_user2", email, None).await;
+        upsert_user(
+            &pool,
+            actor_id,
+            "gst985_loyalty_actor2",
+            "gst985.loyaltyactor2@hotel.local",
+            None,
+        )
+        .await;
+        upsert_guest(
+            &pool,
+            guest_id,
+            "Gst985 Reward Member",
+            Some(email),
+            None,
+            None,
+        )
+        .await;
+        upsert_user(
+            &pool,
+            enrolling_user_id,
+            "gst985_loyalty_user2",
+            email,
+            None,
+        )
+        .await;
 
         let enrollment = loyalty_service::enroll(&pool, enrolling_user_id)
             .await
@@ -1362,12 +1615,17 @@ mod postgres_tests {
         // The redemption's pending/approved status depends on the (mutable,
         // globally-configured) redemption_approval_required flag; read it
         // fresh so this assertion holds regardless of current configuration.
-        let global_requires_approval: bool =
-            sqlx::query_scalar("SELECT redemption_approval_required FROM loyalty_program_rules WHERE id = 1")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
-        let expected_status = if global_requires_approval { "pending" } else { "approved" };
+        let global_requires_approval: bool = sqlx::query_scalar(
+            "SELECT redemption_approval_required FROM loyalty_program_rules WHERE id = 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let expected_status = if global_requires_approval {
+            "pending"
+        } else {
+            "approved"
+        };
 
         let redemption = loyalty_service::redeem_reward_for_guest(
             &pool,
@@ -1387,7 +1645,10 @@ mod postgres_tests {
         let detail = loyalty_service::admin_member_detail(&pool, member_id)
             .await
             .expect("read-back must succeed");
-        assert_eq!(detail.member.available_points, 50, "150 granted minus 100 redeemed");
+        assert_eq!(
+            detail.member.available_points, 50,
+            "150 granted minus 100 redeemed"
+        );
 
         cleanup_loyalty_fixture(&pool, guest_id, &[enrolling_user_id, actor_id]).await;
         delete_loyalty_rewards(&pool, reward_name_prefix).await;

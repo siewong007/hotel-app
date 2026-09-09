@@ -56,10 +56,10 @@ pub(crate) fn is_guest_name_unique_violation(error: &sqlx::Error) -> bool {
             .message()
             .contains("UNIQUE constraint failed");
     let is_guest_name_constraint = database_error.constraint()
-        == Some("idx_guests_full_name_unique")
+        == Some("idx_guests_nick_name_unique")
         || database_error
             .message()
-            .contains("idx_guests_full_name_unique");
+            .contains("idx_guests_nick_name_unique");
 
     is_unique_violation && is_guest_name_constraint
 }
@@ -247,11 +247,11 @@ impl AuthRepository {
         let full_name = format!("{} {}", req.first_name, req.last_name);
         let guest_query = r#"
                 INSERT INTO guests (
-                    first_name, last_name, full_name, email, phone, address_line_1,
+                    first_name, last_name, nick_name, email, phone, address_line_1,
                     is_active, guest_type, language_preference, created_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, true, 'non_member', $7, CURRENT_TIMESTAMP)
-                RETURNING id, full_name, email, phone, ic_number, nationality,
+                RETURNING id, nick_name, email, phone, ic_number, nationality,
                           address_line_1 AS address_line1, city, state AS state_province,
                           postal_code, country, title, alt_phone, is_active, guest_type,
                           tourism_type, COALESCE(discount_percentage, 0) AS discount_percentage,
@@ -498,7 +498,7 @@ impl AuthRepository {
         let guest_full_name = google_guest_full_name(identity, attempt);
         let display_name = google_display_name(identity);
         let guest_id = sqlx::query_scalar::<_, i64>(
-            "INSERT INTO guests (first_name, last_name, full_name, email, is_active, guest_type, language_preference, created_at) VALUES ($1, $2, $3, $4, true, 'non_member', $5, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING RETURNING id",
+            "INSERT INTO guests (first_name, last_name, nick_name, email, is_active, guest_type, language_preference, created_at) VALUES ($1, $2, $3, $4, true, 'non_member', $5, CURRENT_TIMESTAMP) ON CONFLICT DO NOTHING RETURNING id",
         )
         .bind(identity.given_name.as_deref())
         .bind(identity.family_name.as_deref())

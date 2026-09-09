@@ -127,8 +127,7 @@ pub fn validate_client_request_id(value: &str) -> Result<String, ApiError> {
 /// A validated anonymous booker, normalised for storage.
 #[derive(Debug, Clone)]
 pub struct ValidatedAnonymousGuest {
-    /// Unique nickname stored as `guests.full_name` until the column rename,
-    /// then `guests.nick_name`. Never suffixed with `(2)`.
+    /// Unique nickname stored as `guests.nick_name`. Never suffixed with `(2)`.
     pub nick_name: String,
     pub first_name: String,
     pub last_name: Option<String>,

@@ -65,7 +65,7 @@ async fn booking_confirmation_passes_the_gate_without_any_subscription_row() {
 
     // Active guest with an email but ZERO subscription rows of any kind.
     sqlx::query(
-        "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+        "INSERT INTO guests (id, nick_name, first_name, last_name, email) \
          OVERRIDING SYSTEM VALUE VALUES ($1, 'Consent Gate Guest', 'Consent', 'Gate', 'consent-gate@hotel.local')",
     )
     .bind(GUEST_ID)
@@ -85,7 +85,9 @@ async fn booking_confirmation_passes_the_gate_without_any_subscription_row() {
     );
 
     // Worker decision inputs for a transactional kind:
-    assert!(!validation::requires_topic_subscription("booking_confirmation"));
+    assert!(!validation::requires_topic_subscription(
+        "booking_confirmation"
+    ));
     assert!(
         Repo::is_guest_active(&pool, GUEST_ID).await.unwrap(),
         "active guest must pass the transactional gate"

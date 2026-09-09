@@ -78,7 +78,7 @@ pub fn build_booking_list_query(
         let p = param_placeholder(param_idx);
         conditions.push(format!(
             "(CAST(b.id AS TEXT) {like_op} {p} \
-              OR g.full_name {like_op} {p} \
+              OR g.nick_name {like_op} {p} \
               OR b.booking_number {like_op} {p} \
               OR b.folio_number {like_op} {p} \
               OR r.room_number {like_op} {p} \
@@ -282,7 +282,7 @@ pub fn build_booking_list_query(
     let sort_col = match params.sort_by.as_deref() {
         Some("check_in_date") => "b.check_in_date",
         Some("check_out_date") => "b.check_out_date",
-        Some("guest_name") => "g.full_name",
+        Some("guest_name") => "g.nick_name",
         Some("room_number") => "r.room_number",
         Some("status") => "b.status",
         Some("invoice_number") => "invoice_number",
@@ -427,7 +427,7 @@ mod tests {
                 .contains(&format!("b.status = {}", param_placeholder(1)))
         );
         assert!(query.count_sql.contains(&format!(
-            "g.full_name {} {}",
+            "g.nick_name {} {}",
             like_operator(),
             param_placeholder(2)
         )));
@@ -734,7 +734,7 @@ mod tests {
         assert!(
             query
                 .data_sql
-                .ends_with("ORDER BY g.full_name ASC LIMIT 50 OFFSET 0")
+                .ends_with("ORDER BY g.nick_name ASC LIMIT 50 OFFSET 0")
         );
 
         params.sort_by = Some("created_at; DROP TABLE bookings".to_string());
