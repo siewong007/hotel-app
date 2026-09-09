@@ -178,6 +178,8 @@ jobs:
             "$bundle_dir/database/patches/0009_unpaid_hold_release.sql"
           cp hotel-app-be/database/postgres/patches/0010_consent_records.sql \
             "$bundle_dir/database/patches/0010_consent_records.sql"
+          cp hotel-app-be/database/postgres/patches/0011_guest_nick_name.sql \
+            "$bundle_dir/database/patches/0011_guest_nick_name.sql"
 
           (
             cd "$bundle_dir"
@@ -202,6 +204,7 @@ jobs:
               database/patches/0008_notifications_email_triggers.sql \
               database/patches/0009_unpaid_hold_release.sql \
               database/patches/0010_consent_records.sql \
+              database/patches/0011_guest_nick_name.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
