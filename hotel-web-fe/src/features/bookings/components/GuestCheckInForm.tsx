@@ -149,7 +149,7 @@ export const GuestCheckInForm: React.FC = () => {
           </Alert>
         )}
 
-        {(booking?.booking_number || guest?.full_name) && (
+        {(booking?.booking_number || guest?.nick_name) && (
           <Box sx={{ mb: 3 }}>
             {booking?.booking_number && (
               <Typography variant="body1">
@@ -161,9 +161,9 @@ export const GuestCheckInForm: React.FC = () => {
                 {booking.check_in_date} to {booking.check_out_date}
               </Typography>
             )}
-            {guest?.full_name && (
+            {guest?.nick_name && (
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {guest.full_name}
+                {guest.nick_name}
               </Typography>
             )}
           </Box>

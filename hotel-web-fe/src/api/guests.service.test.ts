@@ -42,7 +42,7 @@ function buildHttpError(status: number, body: unknown, url = 'http://localhost/a
 function buildGuest(overrides: Partial<Guest> = {}): Guest {
   return {
     id: 1,
-    full_name: 'Jane Doe',
+    nick_name: 'Jane Doe',
     is_active: true,
     guest_type: 'non_member',
     created_at: '2026-01-01T00:00:00Z',
@@ -263,7 +263,7 @@ describe('GuestsService', () => {
 
   describe('updateGuest', () => {
     it('patches guests/<id> with the partial input as json', async () => {
-      const updated = buildGuest({ id: 3, full_name: 'Updated Name' });
+      const updated = buildGuest({ id: 3, nick_name: 'Updated Name' });
       patch.mockReturnValue(mockJsonResponse(updated));
 
       const result = await GuestsService.updateGuest(3, { first_name: 'Updated' });
@@ -349,7 +349,7 @@ describe('GuestsService', () => {
 
   describe('getMyGuestsWithCredits', () => {
     it('calls GET guests/my-guests-with-credits', async () => {
-      const guests = [{ id: 1, full_name: 'Jane', email: 'a@b.com', total_complimentary_credits: 2, credits_by_room_type: [] }];
+      const guests = [{ id: 1, nick_name: 'Jane', email: 'a@b.com', total_complimentary_credits: 2, credits_by_room_type: [] }];
       get.mockReturnValue(mockJsonResponse(guests));
 
       const result = await GuestsService.getMyGuestsWithCredits();

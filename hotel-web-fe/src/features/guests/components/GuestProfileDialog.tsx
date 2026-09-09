@@ -223,7 +223,7 @@ const DuplicatesTab = ({ candidates }: { candidates: GuestDuplicateCandidate[] }
             }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                {candidate.guest.full_name}
+                {candidate.guest.nick_name}
               </Typography>
               <Typography
                 variant="body2"
@@ -323,7 +323,7 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({ open, guestId, 
               }}>
                 <Box sx={{ minWidth: 0 }}>
                   <Typography variant="h5" sx={{ fontWeight: 900, overflowWrap: 'anywhere' }}>
-                    {guest.full_name}
+                    {guest.nick_name}
                   </Typography>
                   <Stack
                     direction="row"

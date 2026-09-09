@@ -10,7 +10,13 @@ export type TourismType = 'local' | 'foreign';
 
 export interface Guest {
   id: number;
-  full_name: string;
+  /** Unique display name the guest booked under. For an anonymous booking this
+   *  is all the hotel has until check-in; it is never overwritten afterwards. */
+  nick_name: string;
+  /** Legal name, collected at check-in. `last_name` being empty is how the
+   *  check-in form knows it still has to ask. */
+  first_name?: string | null;
+  last_name?: string | null;
   email?: string;
   phone?: string;
   ic_number?: string;

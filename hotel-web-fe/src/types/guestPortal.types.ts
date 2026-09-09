@@ -5,7 +5,7 @@
 
 /** Guest-safe profile returned by the guest portal login/me endpoints. */
 export interface GuestPortalGuest {
-  full_name: string;
+  nick_name: string;
   title?: string | null;
   email?: string | null;
   phone?: string | null;

@@ -418,7 +418,7 @@ const GuestConfigurationPage: React.FC = () => {
     ];
     const rows = visibleGuests.map((guest) => [
       guest.id,
-      guest.full_name,
+      guest.nick_name,
       guest.email,
       guest.phone,
       guest.ic_number,
@@ -449,7 +449,7 @@ const GuestConfigurationPage: React.FC = () => {
   const guestsByLetter = React.useMemo(() => {
     const groups = new Map<string, Guest[]>();
     visibleGuests.forEach((g) => {
-      const letter = (g.full_name?.[0] || '#').toUpperCase();
+      const letter = (g.nick_name?.[0] || '#').toUpperCase();
       if (!groups.has(letter)) groups.set(letter, []);
       groups.get(letter)!.push(g);
     });
@@ -505,10 +505,16 @@ const GuestConfigurationPage: React.FC = () => {
   const handleEditClick = (guest: Guest) => {
     setEditingGuest(guest);
     setDialogError(null);
-    const [firstName, ...lastNameParts] = guest.full_name.split(' ');
+    // Prefer the legal name the API now returns. Splitting the nickname is a
+    // fallback for rows predating that, where `nick_name` was the only name
+    // held; it must never win over a real first/last, or editing a guest who
+    // booked as "CoolAlex" and checked in as "Aisha Rahman" would show
+    // "CoolAlex" and write it back.
+    const hasLegalName = Boolean(guest.first_name?.trim() && guest.last_name?.trim());
+    const [splitFirstName, ...splitLastNameParts] = guest.nick_name.split(' ');
     setFormData({
-      first_name: firstName || '',
-      last_name: lastNameParts.join(' ') || '',
+      first_name: hasLegalName ? (guest.first_name ?? '') : (splitFirstName || ''),
+      last_name: hasLegalName ? (guest.last_name ?? '') : (splitLastNameParts.join(' ') || ''),
       email: guest.email || '',
       phone: guest.phone || '',
       ic_number: guest.ic_number || '',
@@ -688,7 +694,7 @@ const GuestConfigurationPage: React.FC = () => {
       const tourismLabel = response.guest.tourism_type === 'foreign' ? 'Tourist' : 'Local';
       const bookingLabel = response.source.booking_number || `#${response.source.booking_id}`;
       emitApiNotification({
-        message: `${guest.full_name} marked ${tourismLabel} from booking ${bookingLabel}`,
+        message: `${guest.nick_name} marked ${tourismLabel} from booking ${bookingLabel}`,
         severity: 'success',
       });
       await loadGuests();
@@ -1005,7 +1011,7 @@ const GuestConfigurationPage: React.FC = () => {
                           fontSize: 13,
                           border: '1px solid rgba(0,0,0,0.05)',
                         }}>
-                          {initialsOf(g.full_name)}
+                          {initialsOf(g.nick_name)}
                         </Box>
                         {isMember && (
                           <Box sx={{
@@ -1030,7 +1036,7 @@ const GuestConfigurationPage: React.FC = () => {
                       <Box sx={{ minWidth: 0 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.4 }}>
                           <Typography sx={{ fontSize: 14.5, fontWeight: 700, color: GUEST_DESIGN.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {g.full_name}
+                            {g.nick_name}
                           </Typography>
                           {isMember && (
                             <Box sx={{
@@ -1171,7 +1177,7 @@ const GuestConfigurationPage: React.FC = () => {
                 : completionPct >= 50
                   ? GUEST_DESIGN.amber
                   : GUEST_DESIGN.rose;
-              const firstName = g.full_name.split(' ')[0];
+              const firstName = g.nick_name.split(' ')[0];
               return (
                 <Box sx={{
                   bgcolor: 'background.paper',
@@ -1206,7 +1212,7 @@ const GuestConfigurationPage: React.FC = () => {
                           fontWeight: 700,
                           fontSize: 18,
                         }}>
-                          {initialsOf(g.full_name)}
+                          {initialsOf(g.nick_name)}
                         </Box>
                         {isMember && (
                           <Box sx={{
@@ -1229,7 +1235,7 @@ const GuestConfigurationPage: React.FC = () => {
                       </Box>
                       <Box sx={{ minWidth: 0, flex: 1 }}>
                         <Typography sx={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
-                          {g.full_name}
+                          {g.nick_name}
                         </Typography>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.6, flexWrap: 'wrap' }}>
                           {isMember ? (
@@ -1541,7 +1547,7 @@ const GuestConfigurationPage: React.FC = () => {
       <GuestFormDialog
         open={editDialogOpen}
         mode="edit"
-        guestName={editingGuest?.full_name}
+        guestName={editingGuest?.nick_name}
         formData={formData}
         setFormData={setFormData}
         error={dialogError}
@@ -1559,7 +1565,7 @@ const GuestConfigurationPage: React.FC = () => {
         <DialogTitle>Transfer Guest Portal Account</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            This reassigns the portal login and its guest-portal access to <strong>{selectedGuest?.full_name}</strong>.
+            This reassigns the portal login and its guest-portal access to <strong>{selectedGuest?.nick_name}</strong>.
           </Alert>
           {portalAccountTransferError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPortalAccountTransferError(null)}>
@@ -1594,7 +1600,7 @@ const GuestConfigurationPage: React.FC = () => {
         <DialogTitle>Delete Guest</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            Are you sure you want to delete guest <strong>{deletingGuest?.full_name}</strong>?
+            Are you sure you want to delete guest <strong>{deletingGuest?.nick_name}</strong>?
           </Alert>
           <Typography variant="body2" sx={{
             color: "text.secondary"
@@ -1618,7 +1624,7 @@ const GuestConfigurationPage: React.FC = () => {
       </Dialog>
       {/* Booking History Dialog */}
       <Dialog open={bookingsDialogOpen} onClose={() => setBookingsDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Booking History: {viewingGuest?.full_name}</DialogTitle>
+        <DialogTitle>Booking History: {viewingGuest?.nick_name}</DialogTitle>
         <DialogContent>
           {bookingsLoading ? (
             <Box
@@ -1700,7 +1706,7 @@ const GuestConfigurationPage: React.FC = () => {
       <Dialog open={creditsDialogOpen} onClose={() => setCreditsDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <GiftIcon color="secondary" />
-          Free Gift Credits: {viewingGuest?.full_name}
+          Free Gift Credits: {viewingGuest?.nick_name}
         </DialogTitle>
         <DialogContent>
           {creditsLoading ? (

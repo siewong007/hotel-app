@@ -2227,7 +2227,7 @@ const BookingsPage: React.FC = () => {
             booking_number: booking.folio_number || '',
             folio_number: booking.folio_number,
             guest_id: String(guest.id),
-            guest_name: guest.full_name,
+            guest_name: guest.nick_name,
             guest_email: guest.email || '',
             guest_type: guest.guest_type,
             room_id: booking.room_id,

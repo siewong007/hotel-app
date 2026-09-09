@@ -30,7 +30,7 @@ import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayO
 import { useAvailabilitySocket } from './useAvailabilitySocket';
 
 const EMPTY_GUEST_DETAILS: AnonymousGuestDetails = {
-  first_name: '', last_name: '', email: '', phone: '', tourism_type: '',
+  first_name: '', email: '', phone: '', tourism_type: '',
 };
 
 /** Client-side check only; the server validates these again and is authoritative. */
@@ -38,7 +38,7 @@ function guestDetailsError(
   details: AnonymousGuestDetails,
   t: (key: string) => string,
 ): string | null {
-  if (!details.first_name.trim()) return t('book.errors.firstName');
+  if (!details.first_name.trim()) return t('book.errors.nickname');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email.trim())) return t('book.errors.email');
   // Tourism type decides whether tourism tax applies, so it is never defaulted.
   if (details.tourism_type !== 'local' && details.tourism_type !== 'foreign') return t('book.errors.tourismType');
@@ -82,6 +82,19 @@ async function readProfileIncompleteFields(error: unknown): Promise<string[] | n
   return Array.isArray(missing) ? missing.filter((field): field is string => typeof field === 'string') : [];
 }
 
+// The backend rejects a duplicate nickname with 409 `code: "guest_name_taken"`
+// (`ApiError::GuestNameTaken`). Match that exact shape rather than the message
+// text, which is localised and may be rewritten.
+//
+// ky 2 pre-consumes the error body into `error.data`, so reading
+// `error.response.json()` here would throw on an already-used stream —
+// see src/api/client.ts and lessons theme 13.
+function readGuestNameTaken(error: unknown): boolean {
+  if (!(error instanceof HTTPError) || error.response.status !== 409) return false;
+  const body = (error as { data?: unknown }).data;
+  return Boolean(body && typeof body === 'object' && (body as { code?: unknown }).code === 'guest_name_taken');
+}
+
 function offerImage(offer: GuestBookingOffer): string | null {
   return offer.images?.find((image) => typeof image === 'string' && image.trim().length > 0) ?? null;
 }
@@ -91,6 +104,7 @@ const PortalBookingPage: React.FC = () => {
   const { token, status: sessionStatus, error: sessionError, canRetry, needsLogin, isStaffAccount, retry, restartSignIn } = usePortalSessionBootstrap();
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [search, setSearch] = useState<GuestBookingSearch>({ check_in_date: calendarDateInput(1), check_out_date: calendarDateInput(2), adults: 1, children: 0 });
+  const [nicknameTaken, setNicknameTaken] = useState(false);
   const [offers, setOffers] = useState<GuestBookingOffer[]>([]);
   const [selectedOffer, setSelectedOffer] = useState<GuestBookingOffer | null>(null);
   const [quote, setQuote] = useState<GuestBookingQuote | null>(null);
@@ -255,6 +269,7 @@ const PortalBookingPage: React.FC = () => {
 
   const submitAnonymousBooking = useCallback(async () => {
     if (!quote) return;
+    setNicknameTaken(false);
     const detailsError = guestDetailsError(guestDetails, t);
     if (detailsError) { setError(detailsError); return; }
     // Mirrors the server check so the guest sees which box they missed rather
@@ -278,7 +293,6 @@ const PortalBookingPage: React.FC = () => {
         marketing_opt_in: consentPayload.marketing_opt_in,
         guest: {
           first_name: guestDetails.first_name.trim(),
-          last_name: guestDetails.last_name?.trim() || undefined,
           email: guestDetails.email.trim(),
           phone: guestDetails.phone?.trim() || undefined,
           tourism_type: guestDetails.tourism_type,
@@ -286,6 +300,14 @@ const PortalBookingPage: React.FC = () => {
       });
       setConfirmation(result);
     } catch (createError) {
+      // A taken nickname is the guest's to fix in the form: the stay, the room
+      // and therefore the price are all unchanged, so re-quoting here would
+      // churn the total (and risk losing the offer) over a name collision.
+      if (readGuestNameTaken(createError)) {
+        setError(t('book.errors.nicknameTaken'));
+        setNicknameTaken(true);
+        return;
+      }
       setError(errorMessage(createError, t('book.errors.createFailed')));
       // Re-price so the guest is never left looking at a total the server has
       // moved on from; if the room itself is gone, fall back to a fresh search.
@@ -378,7 +400,7 @@ const PortalBookingPage: React.FC = () => {
         <Box sx={{ mt: 3 }}><Typography variant="h5" sx={{ mb: 2 }}>{t('book.chooseRoom')}</Typography><Grid container spacing={3}>{offers.map((offer) => <Grid key={offer.room_type_id} size={{ xs: 12, md: 6 }}><OfferCard offer={offer} onSelect={() => void selectOffer(offer)} /></Grid>)}</Grid></Box>
       </Collapse>
       <Collapse in={Boolean(selectedOffer)} timeout={animationTimeout} unmountOnExit>
-        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
+        <Box sx={{ mt: 3 }}>{!quote ? <LoadingQuote /> : <ReviewStage isAnonymous={isAnonymous} consent={consent} guestDetails={guestDetails} onGuestDetails={setGuestDetails} nicknameTaken={nicknameTaken} quote={quote} search={search} vouchers={vouchers} voucherId={voucherId} selectedOffer={selectedOffer!} selectedVoucher={selectedVoucher} eligibleVoucherIds={eligibleVoucherIds} ineligibleVoucherKeys={ineligibleVoucherKeys} specialRequests={specialRequests} cleaningPreference={cleaningPreference} isSubmitting={isSubmitting || isQuoting} onVoucher={(value) => void applyVoucher(value)} onComplimentaryDates={(value) => void applyComplimentaryDates(value)} onRequests={setSpecialRequests} onCleaning={setCleaningPreference} onBack={() => { setSelectedOffer(null); setQuote(null); setEligibleVoucherIds(new Set()); setComplimentaryDates([]); }} onConfirm={() => void submitBooking()} />}</Box>
       </Collapse>
       <Dialog open={availabilityLost} onClose={() => setAvailabilityLost(false)}><DialogTitle>{t('book.availabilityChangedTitle')}</DialogTitle><DialogContent><Typography>{t('book.availabilityChangedBody')}</Typography></DialogContent><DialogActions><Button variant="contained" onClick={() => setAvailabilityLost(false)}>{t('book.viewAvailable')}</Button></DialogActions></Dialog>
     </Container>
@@ -458,15 +480,15 @@ function LoadingQuote() {
   );
 }
 
-function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
+function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guestDetails: AnonymousGuestDetails; onGuestDetails: (value: AnonymousGuestDetails) => void; nicknameTaken: boolean; quote: GuestBookingQuote; search: GuestBookingSearch; vouchers: Voucher[]; voucherId: number | ''; selectedOffer: GuestBookingOffer; selectedVoucher?: Voucher; eligibleVoucherIds: Set<number>; ineligibleVoucherKeys: Set<string>; specialRequests: string; cleaningPreference: boolean; isSubmitting: boolean; onVoucher: (value: number | '') => void; onComplimentaryDates: (value: string[]) => void; onRequests: (value: string) => void; onCleaning: (value: boolean) => void; onBack: () => void; onConfirm: () => void }) {
   const { t } = useTranslation('guestPortal');
-  const { isAnonymous, consent, guestDetails, onGuestDetails, quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
+  const { isAnonymous, consent, guestDetails, onGuestDetails, nicknameTaken, quote, search, vouchers, voucherId, selectedOffer, selectedVoucher, eligibleVoucherIds, ineligibleVoucherKeys, specialRequests, cleaningPreference, isSubmitting, onVoucher, onComplimentaryDates, onRequests, onCleaning, onBack, onConfirm } = props;
   const nightsLabel = t('common:count.nights', { count: countStayNights(search) });
   const childrenLabel = quote.children > 0 ? t('book.childrenSuffix', { count: quote.children }) : '';
   return (
     <Paper component="section" aria-labelledby="review-heading" sx={{ p: { xs: 2, sm: 3 }, border: '1px solid', borderColor: 'divider' }}><Grid container spacing={4}><Grid size={{ xs: 12, md: 7 }}><Typography id="review-heading" variant="h5">{t('book.reviewStay')}</Typography><Typography sx={{ mt: 1, fontWeight: 700 }}>{quote.room_type_name}</Typography><Typography sx={{
         color: "text.secondary"
-      }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
+      }}>{t('book.staySummary', { checkIn: quote.check_in_date, checkOut: quote.check_out_date, nights: nightsLabel, adults: quote.adults, children: childrenLabel })}</Typography>{isAnonymous ? <GuestDetailsForm details={guestDetails} onChange={onGuestDetails} nicknameTaken={nicknameTaken} /> : <><ComplimentaryNights quote={quote} onChange={onComplimentaryDates} /><FormControl fullWidth sx={{ mt: 3 }}><InputLabel id="voucher-label">{t('book.voucher')}</InputLabel><Select labelId="voucher-label" label={t('book.voucher')} value={voucherId} onChange={(event) => { const value = String(event.target.value); onVoucher(value === '' ? '' : Number(value)); }}><MenuItem value="">{t('book.noVoucher')}</MenuItem>{vouchers.map((voucher) => { const isIneligible = !eligibleVoucherIds.has(voucher.id) || ineligibleVoucherKeys.has(voucherStayEligibilityKey(voucher.id, selectedOffer.room_type_id, search)); return <MenuItem key={voucher.id} value={voucher.id} disabled={isIneligible}>{voucher.promotion_name} ({voucher.code ?? voucher.code_masked}){isIneligible ? t('book.notEligible') : ''}</MenuItem>; })}</Select></FormControl>{selectedVoucher && quote.voucher_name && <Alert severity="success" sx={{ mt: 2 }}>{t('book.voucherApplied', { name: quote.voucher_name })}</Alert>}</>}<ConsentBlock prompts={BOOKING_CONSENTS} state={consent} /><TextField label={t('book.specialRequests')} value={specialRequests} onChange={(event) => onRequests(event.target.value)} fullWidth multiline minRows={3} sx={{ mt: 3 }} slotProps={{
         htmlInput: { maxLength: 1000 }
       }} /><FormControlLabel sx={{ mt: 1 }} control={<Checkbox checked={cleaningPreference} onChange={(event) => onCleaning(event.target.checked)} />} label={t('book.dailyCleaning')} /></Grid><Grid size={{ xs: 12, md: 5 }}><PriceSummary quote={quote} isSubmitting={isSubmitting} onBack={onBack} onConfirm={onConfirm} /></Grid></Grid></Paper>
   );
@@ -479,7 +501,7 @@ function ReviewStage(props: { isAnonymous: boolean; consent: ConsentState; guest
  * stay eventually needs (IC, address, full party details) is collected at
  * check-in, so the booking itself stays fast.
  */
-function GuestDetailsForm({ details, onChange }: { details: AnonymousGuestDetails; onChange: (value: AnonymousGuestDetails) => void }) {
+function GuestDetailsForm({ details, onChange, nicknameTaken }: { details: AnonymousGuestDetails; onChange: (value: AnonymousGuestDetails) => void; nicknameTaken: boolean }) {
   const { t } = useTranslation('guestPortal');
   const set = (patch: Partial<AnonymousGuestDetails>) => onChange({ ...details, ...patch });
   return (
@@ -489,11 +511,17 @@ function GuestDetailsForm({ details, onChange }: { details: AnonymousGuestDetail
         {t('book.detailsHint')}
       </Typography>
       <Grid container spacing={2}>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <TextField label={t('book.firstName')} required fullWidth value={details.first_name} onChange={(event) => set({ first_name: event.target.value })} slotProps={{ htmlInput: { maxLength: 100, autoComplete: 'given-name' } }} />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <TextField label={t('book.lastName')} fullWidth value={details.last_name ?? ''} onChange={(event) => set({ last_name: event.target.value })} slotProps={{ htmlInput: { maxLength: 100, autoComplete: 'family-name' } }} />
+        <Grid size={{ xs: 12, sm: 12 }}>
+          <TextField
+            label={t('book.nickname')}
+            required
+            fullWidth
+            value={details.first_name}
+            onChange={(event) => set({ first_name: event.target.value })}
+            error={nicknameTaken}
+            helperText={nicknameTaken ? t('book.errors.nicknameTaken') : t('book.nicknameHint')}
+            slotProps={{ htmlInput: { maxLength: 100, autoComplete: 'nickname' } }}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField label={t('book.email')} type="email" required fullWidth value={details.email} onChange={(event) => set({ email: event.target.value })} helperText={t('book.emailHint')} slotProps={{ htmlInput: { maxLength: 255, autoComplete: 'email' } }} />

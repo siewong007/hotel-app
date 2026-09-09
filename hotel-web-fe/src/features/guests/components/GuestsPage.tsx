@@ -165,7 +165,7 @@ const GuestsPage: React.FC = () => {
               guests.map((guest) => (
                 <TableRow key={guest.id} hover>
                   <TableCell>{guest.id}</TableCell>
-                  <TableCell>{guest.full_name || 'N/A'}</TableCell>
+                  <TableCell>{guest.nick_name || 'N/A'}</TableCell>
                   <TableCell>{guest.email}</TableCell>
                   <TableCell>{guest.phone || 'N/A'}</TableCell>
                   <TableCell>
@@ -212,7 +212,7 @@ const GuestsPage: React.FC = () => {
                         size="small"
                         color="primary"
                         onClick={() => setSelectedGuestId(guest.id)}
-                        aria-label={`Open profile for ${guest.full_name || `guest ${guest.id}`}`}
+                        aria-label={`Open profile for ${guest.nick_name || `guest ${guest.id}`}`}
                       >
                         <VisibilityIcon fontSize="small" />
                       </IconButton>

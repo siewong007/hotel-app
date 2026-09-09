@@ -106,7 +106,7 @@ export default function ComplimentaryManagementPage() {
         bookings: (bookingsData || []) as BookingWithDetails[],
         guestCredits: (creditsData?.credits || []) as GuestCredit[],
         summary: summaryData as ComplimentarySummary | null,
-        guests: (guestsData || []) as Array<{ id: number; full_name: string; email?: string }>,
+        guests: (guestsData || []) as Array<{ id: number; nick_name: string; email?: string }>,
         roomTypes: (roomTypesData || []) as Array<{ id: number; name: string; code?: string }>,
       };
     },
@@ -910,7 +910,7 @@ export default function ComplimentaryManagementPage() {
               <Grid size={12}>
                 <Autocomplete
                   options={guests}
-                  getOptionLabel={(option) => `${option.full_name}${option.email ? ` (${option.email})` : ''}`}
+                  getOptionLabel={(option) => `${option.nick_name}${option.email ? ` (${option.email})` : ''}`}
                   value={guests.find(g => g.id === creditFormData.guest_id) || null}
                   onChange={(_, newValue) => setCreditFormData({ ...creditFormData, guest_id: newValue?.id || 0 })}
                   renderInput={(params) => <TextField {...params} label="Select Guest *" />}

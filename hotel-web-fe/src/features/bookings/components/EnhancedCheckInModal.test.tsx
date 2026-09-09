@@ -81,9 +81,14 @@ const booking: Booking = {
   deposit_amount: 0,
 } as Booking;
 
+// A guest who has already supplied a legal name, so the payment suite below
+// is not blocked by check-in's name validation. The nickname-only case is
+// covered by the legal-name suite at the bottom of this file.
 const guest: Guest = {
   id: 7,
-  full_name: 'Jane Doe',
+  nick_name: 'Jane Doe',
+  first_name: 'Jane',
+  last_name: 'Doe',
   email: 'jane@example.com',
   phone: '0123456789',
   ic_number: '990101-01-1234',
@@ -157,5 +162,104 @@ describe('EnhancedCheckInModal payment idempotency', () => {
       // restoreAllMocks in afterEach does not restore timers.
       vi.useRealTimers();
     }
+  });
+});
+
+describe('EnhancedCheckInModal legal name collection', () => {
+  beforeEach(() => {
+    mocks.checkInGuest.mockReset().mockResolvedValue(undefined);
+    mocks.recordPayment.mockReset();
+    mocks.onClose.mockReset();
+    mocks.onCheckInSuccess.mockReset();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const renderWith = async (overrides: Partial<Guest>) => {
+    render(
+      <EnhancedCheckInModal
+        open
+        booking={booking}
+        guest={{ ...guest, ...overrides } as Guest}
+        onClose={mocks.onClose}
+        onCheckInSuccess={mocks.onCheckInSuccess}
+      />,
+    );
+    return screen.findByRole('dialog');
+  };
+
+  it('asks for legal names on a nickname-only guest and does not split the nickname', async () => {
+    const dialog = await renderWith({
+      nick_name: 'CoolAlex',
+      first_name: 'CoolAlex',
+      last_name: null,
+    });
+
+    // The nickname is shown for orientation, never split into a legal name.
+    expect(within(dialog).getByText(/Booked as:\s*CoolAlex/)).toBeDefined();
+
+    const firstName = within(dialog).getByLabelText(/First Name/i) as HTMLInputElement;
+    const lastName = within(dialog).getByLabelText(/Last Name/i) as HTMLInputElement;
+    expect(firstName.value).toBe('');
+    expect(lastName.value).toBe('');
+    expect(firstName.disabled).toBe(false);
+    expect(lastName.disabled).toBe(false);
+  });
+
+  it('prefills the legal name once it exists and drops the booked-as hint', async () => {
+    const dialog = await renderWith({
+      nick_name: 'CoolAlex',
+      first_name: 'Aisha',
+      last_name: 'Rahman',
+    });
+
+    const firstName = within(dialog).getByLabelText(/First Name/i) as HTMLInputElement;
+    const lastName = within(dialog).getByLabelText(/Last Name/i) as HTMLInputElement;
+    expect(firstName.value).toBe('Aisha');
+    expect(lastName.value).toBe('Rahman');
+    expect(within(dialog).queryByText(/Booked as:/)).toBeNull();
+  });
+
+  it('blocks check-in until both halves of the legal name are supplied', async () => {
+    const dialog = await renderWith({
+      nick_name: 'CoolAlex',
+      first_name: 'CoolAlex',
+      last_name: null,
+    });
+
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Check In' })).toBeDefined(),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
+
+    await waitFor(() => expect(within(dialog).getByText('First name is required')).toBeDefined());
+    expect(within(dialog).getByText('Last name is required')).toBeDefined();
+    expect(mocks.checkInGuest).not.toHaveBeenCalled();
+  });
+
+  it('never sends the nickname back in the guest update', async () => {
+    const dialog = await renderWith({
+      nick_name: 'CoolAlex',
+      first_name: 'CoolAlex',
+      last_name: null,
+    });
+
+    fireEvent.change(within(dialog).getByLabelText(/First Name/i), {
+      target: { value: 'Aisha' },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Last Name/i), {
+      target: { value: 'Rahman' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Check In' }));
+
+    await waitFor(() => expect(mocks.checkInGuest).toHaveBeenCalledTimes(1));
+    const request = mocks.checkInGuest.mock.calls[0][1];
+    expect(request.guest_update.first_name).toBe('Aisha');
+    expect(request.guest_update.last_name).toBe('Rahman');
+    expect('nick_name' in request.guest_update).toBe(false);
   });
 });

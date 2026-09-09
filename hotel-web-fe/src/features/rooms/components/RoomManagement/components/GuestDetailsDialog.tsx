@@ -128,7 +128,7 @@ const GuestDetailsDialog: React.FC<GuestDetailsDialogProps> = ({
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <PersonIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-            {guest?.full_name || 'Guest Details'}
+            {guest?.nick_name || 'Guest Details'}
           </Typography>
         </Box>
       </DialogTitle>

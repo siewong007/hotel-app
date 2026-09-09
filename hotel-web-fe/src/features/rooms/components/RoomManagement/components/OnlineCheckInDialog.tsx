@@ -135,7 +135,7 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                 onChange={(_, newValue) => onSelectGuest(newValue)}
                 options={guests}
                 getOptionLabel={(option) =>
-                  option.email ? `${option.full_name} - ${option.email}` : option.full_name
+                  option.email ? `${option.nick_name} - ${option.email}` : option.nick_name
                 }
                 renderInput={(params) => (
                   <TextField

@@ -234,14 +234,14 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 value={checkInGuest}
                 onChange={(event, newValue) => setCheckInGuest(newValue)}
                 options={guests}
-                getOptionLabel={(option) => option.full_name}
+                getOptionLabel={(option) => option.nick_name}
                 isOptionEqualToValue={(option, value) => option.id === value.id}
                 renderOption={(props, option) => {
                   const { key, ...otherProps } = props;
                   return (
                     <li key={key} {...otherProps}>
                       <Box>
-                        <Typography>{option.full_name}</Typography>
+                        <Typography>{option.nick_name}</Typography>
                         <Typography variant="caption" sx={{
                           color: "text.secondary"
                         }}>
@@ -518,7 +518,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
               <Alert severity="success">
                 <Typography variant="subtitle2">Ready to Check-In</Typography>
                 <Typography variant="body2">
-                  Guest: {isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.full_name}
+                  Guest: {isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.nick_name}
                 </Typography>
                 <Typography variant="body2">
                   Email: {isCreatingNewCheckInGuest ? newCheckInGuestForm.email : checkInGuest?.email}

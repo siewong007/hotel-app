@@ -134,7 +134,7 @@ export const GuestCheckInVerify: React.FC = () => {
               <Typography variant="body2" sx={{
                 fontWeight: "bold"
               }}>
-                {guest.full_name}
+                {guest.nick_name}
               </Typography>
             </Grid>
             <Grid size={6}>

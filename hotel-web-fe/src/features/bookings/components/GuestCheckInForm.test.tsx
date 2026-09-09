@@ -60,7 +60,7 @@ describe('GuestCheckInForm', () => {
       },
       guest: {
         id: 3,
-        full_name: 'Deeplink Retest',
+        nick_name: 'Deeplink Retest',
       },
     });
 
@@ -86,7 +86,7 @@ describe('GuestCheckInForm', () => {
         check_in_date: '2026-10-12',
         check_out_date: '2026-10-14',
       },
-      guest: { id: 3, full_name: 'Paid Guest' },
+      guest: { id: 3, nick_name: 'Paid Guest' },
     });
 
     render(<GuestCheckInForm />);
@@ -107,7 +107,7 @@ describe('GuestCheckInForm', () => {
         check_in_date: '2026-09-10',
         check_out_date: '2026-09-11',
       },
-      guest: { id: 8, full_name: 'zz' },
+      guest: { id: 8, nick_name: 'zz' },
       receipt_request_payment_id: 42,
       receipt_request_message: 'Please upload a clear receipt showing the transfer reference and date.',
       receipt_uploaded: false,

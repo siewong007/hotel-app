@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { HTTPError } from 'ky';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLocaleStoreForTests, setActiveLocale } from '../../../i18n/localeStore';
 
@@ -114,7 +115,7 @@ async function reachReviewStep() {
 }
 
 function fillContactDetails() {
-  fireEvent.change(screen.getByRole('textbox', { name: /First name/ }), {
+  fireEvent.change(screen.getByRole('textbox', { name: /Nickname/ }), {
     target: { value: 'Ahmad' },
   });
   fireEvent.change(screen.getByRole('textbox', { name: /Email/ }), {
@@ -197,7 +198,7 @@ describe('PortalBookingPage anonymous checkout', () => {
   it('collects contact details in place of the account profile', async () => {
     await reachReviewStep();
 
-    expect(screen.getByRole('textbox', { name: /First name/ })).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: /Nickname/ })).toBeTruthy();
     expect(screen.getByRole('textbox', { name: /Email/ })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: /Guest type/ })).toBeTruthy();
   });
@@ -218,7 +219,7 @@ describe('PortalBookingPage anonymous checkout', () => {
 
   it('refuses to book without a usable email address', async () => {
     await reachReviewStep();
-    fireEvent.change(screen.getByRole('textbox', { name: /First name/ }), {
+    fireEvent.change(screen.getByRole('textbox', { name: /Nickname/ }), {
       target: { value: 'Ahmad' },
     });
     fireEvent.change(screen.getByRole('textbox', { name: /Email/ }), {
@@ -322,5 +323,66 @@ describe('PortalBookingPage anonymous checkout', () => {
     expect(
       screen.getByText(/if it is not in Primary, check Spam and Promotions/i),
     ).toBeTruthy();
+  });
+
+  /** Reaches review with everything valid and the tourism re-quote settled, so
+   *  the only thing left to fail is the nickname. Returns the quote-call count
+   *  at that point. */
+  async function reachSubmittableReview() {
+    await reachReviewStep();
+    fillContactDetails();
+    acceptRequiredConsents();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /Guest type/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Foreign tourist/ }));
+    await waitFor(() =>
+      expect(mocks.publicQuote.mock.calls.some((call) => {
+        const body = call[0] as { tourism_type?: string };
+        return body.tourism_type === 'foreign';
+      })).toBe(true),
+    );
+    return mocks.publicQuote.mock.calls.length;
+  }
+
+  it('keeps the guest on review when the nickname is taken, without re-quoting', async () => {
+    const quotesBeforeSubmit = await reachSubmittableReview();
+
+    // ky 2 pre-parses the error body onto `error.data` (see ky's Ky.js, which
+    // assigns `httpError.data` before throwing), so mirror that here rather
+    // than leaving the body only on the response stream.
+    const body = {
+      error: 'This nickname is already used. Please choose another.',
+      code: 'guest_name_taken',
+    };
+    const taken = new HTTPError(
+      new Response(JSON.stringify(body), { status: 409, statusText: 'Conflict' }),
+      new Request('http://localhost/api/booking/reservations', { method: 'POST' }),
+      {} as never,
+    );
+    (taken as unknown as { data: unknown }).data = body;
+    mocks.publicCreate.mockRejectedValueOnce(taken);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    // Shown twice on purpose: the banner says what happened, and the field
+    // says which box to fix.
+    expect((await screen.findAllByText(/already used/i)).length).toBeGreaterThan(1);
+    // The stay and room have not changed, so a name collision must not churn
+    // the price the guest is looking at.
+    expect(mocks.publicQuote.mock.calls.length).toBe(quotesBeforeSubmit);
+    // Still on review, with the nickname box flagged and ready to correct.
+    const nickname = screen.getByRole('textbox', { name: /Nickname/ });
+    expect(nickname.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('sends the nickname as first_name and never a last name', async () => {
+    await reachSubmittableReview();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to payment' }));
+
+    await waitFor(() => expect(mocks.publicCreate).toHaveBeenCalledTimes(1));
+    const payload = mocks.publicCreate.mock.calls[0][0] as { guest: Record<string, unknown> };
+    expect(payload.guest.first_name).toBe('Ahmad');
+    // The legal name belongs to check-in; the booking form must not send one.
+    expect('last_name' in payload.guest).toBe(false);
   });
 });

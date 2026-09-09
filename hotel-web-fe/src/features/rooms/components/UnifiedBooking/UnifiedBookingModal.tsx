@@ -418,7 +418,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           .filter(Boolean)
           .join(' ');
         const modalFullName = modalDisplayName.toLowerCase();
-        const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === modalFullName);
+        const existingGuestByName = guests.find(g => g.nick_name.toLowerCase().trim() === modalFullName);
         if (existingGuestByName) {
           reportError(`A guest with the name '${modalDisplayName}' already exists. Please select the existing guest instead.`);
           setProcessing(false);
@@ -736,8 +736,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           onSuccess(
             roomCount > 1
-              ? `Reservations created for ${guestToUse!.full_name} in Rooms ${selectedRoomNumbers}`
-              : `Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`
+              ? `Reservations created for ${guestToUse!.nick_name} in Rooms ${selectedRoomNumbers}`
+              : `Reservation created for ${guestToUse!.nick_name} in Room ${room.room_number}`
           );
           onClose();
           await onRefreshData();
@@ -772,8 +772,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           onSuccess(
             roomCount > 1
-              ? `Reservations created for ${guestToUse!.full_name} in Rooms ${selectedRoomNumbers}`
-              : `Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`
+              ? `Reservations created for ${guestToUse!.nick_name} in Rooms ${selectedRoomNumbers}`
+              : `Reservation created for ${guestToUse!.nick_name} in Room ${room.room_number}`
           );
           onClose();
           await onRefreshData();
@@ -817,8 +817,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           const complimentaryNights = bookingResults.reduce((sum, result) => sum + (result.complimentary_nights || 0), 0);
           onSuccess(
             roomCount > 1
-              ? `Complimentary reservations created for ${selectedGuestWithCredits.full_name} in Rooms ${selectedRoomNumbers} (${complimentaryNights} nights used)`
-              : `Complimentary reservation created for ${selectedGuestWithCredits.full_name} in Room ${room.room_number} (${complimentaryNights} nights used)`
+              ? `Complimentary reservations created for ${selectedGuestWithCredits.nick_name} in Rooms ${selectedRoomNumbers} (${complimentaryNights} nights used)`
+              : `Complimentary reservation created for ${selectedGuestWithCredits.nick_name} in Room ${room.room_number} (${complimentaryNights} nights used)`
           );
           onClose();
           await onRefreshData();
@@ -912,7 +912,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     : 'No guests with free room credits found';
 
   const roomPickerEmptyText = isComplimentaryFlow && selectedGuestWithCredits
-    ? `No available rooms match ${selectedGuestWithCredits.full_name}'s complimentary room type${selectedGuestCreditRoomTypes ? ` (${selectedGuestCreditRoomTypes})` : ''}.`
+    ? `No available rooms match ${selectedGuestWithCredits.nick_name}'s complimentary room type${selectedGuestCreditRoomTypes ? ` (${selectedGuestCreditRoomTypes})` : ''}.`
     : isComplimentaryFlow && !loadingGuestsWithCredits && guestsWithCredits.length > 0 && availableRooms.length > 0
       ? 'No available rooms match any guest complimentary credit room type for the selected dates.'
       : 'No rooms available for the selected dates. Pick different dates below.';
@@ -997,9 +997,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Selected guest display (handles new/existing)
   const summaryGuestName = (() => {
-    if (effectiveType === 'complimentary') return selectedGuestWithCredits?.full_name || '—';
+    if (effectiveType === 'complimentary') return selectedGuestWithCredits?.nick_name || '—';
     if (isCreatingNewGuest) return [newGuestForm.first_name, newGuestForm.last_name].filter(Boolean).join(' ') || '—';
-    return selectedGuest?.full_name || '—';
+    return selectedGuest?.nick_name || '—';
   })();
 
   // Top-right "active mode/type" pill colors used in the summary aside
