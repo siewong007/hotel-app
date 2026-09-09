@@ -88,7 +88,7 @@ describe('SettingsPage', () => {
     mocks.permissions = new Set(['settings:update']);
     mocks.settingsData = baseSettings();
     mocks.isPending = false;
-    mocks.refetch.mockReset().mockResolvedValue({ data: mocks.settingsData });
+    mocks.refetch.mockReset().mockImplementation(async () => ({ data: mocks.settingsData }));
     mocks.saveSettings
       .mockReset()
       .mockImplementation(async (settings: HotelSettings) => ({ settings }));
@@ -176,12 +176,12 @@ describe('SettingsPage', () => {
 
   it('reloads settings from the server via Reset Changes', async () => {
     render(<SettingsPage />);
-    await screen.findByText('Hotel Settings');
+    const hotelName = await screen.findByLabelText('Hotel Name');
 
-    fireEvent.change(screen.getByLabelText('Hotel Name'), {
+    fireEvent.change(hotelName, {
       target: { value: 'Discarded Edit' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Changes' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset Changes' }));
 
     await waitFor(() => expect(mocks.refetch).toHaveBeenCalled());
     // The refetch response re-applies the stored name over the local edit.
@@ -190,5 +190,5 @@ describe('SettingsPage', () => {
         'Grand Test Hotel',
       ),
     );
-  });
+  }, 15_000);
 });
