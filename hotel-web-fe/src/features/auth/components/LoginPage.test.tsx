@@ -93,7 +93,7 @@ describe('LoginPage username lookup gate', () => {
     mocks.loginWithPasskey.mockReset();
     mocks.registerPasskey.mockReset();
     mocks.loginWithGoogle.mockReset();
-    // Default: passkey attempt fails so the page can fall through to password.
+    // Keep passkey from "succeeding" and navigating away after a valid lookup.
     mocks.loginWithPasskey.mockImplementation(() =>
       Promise.reject(new Error('no credentials available'))
     );
@@ -105,31 +105,23 @@ describe('LoginPage username lookup gate', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows the password step only after lookup confirms the account exists', async () => {
+  it('advances past the username step only after lookup confirms the account exists', async () => {
     mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
-    // Disable WebAuthn so Next skips passkey and opens the password field.
-    Object.defineProperty(window, 'PublicKeyCredential', {
-      configurable: true,
-      writable: true,
-      value: undefined,
-    });
     renderPage();
 
-    const userField = screen.getByLabelText(/Username or Email/i);
-    fireEvent.change(userField, { target: { value: 'admin' } });
+    fireEvent.change(screen.getByLabelText(/Username or Email/i), {
+      target: { value: 'admin' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
 
     await waitFor(() => {
       expect(mocks.lookupLoginIdentifier).toHaveBeenCalledWith('admin');
     });
-    // Username step should advance.
+    // Gate passed: username step is replaced by the account chip.
     expect(await screen.findByText('admin')).toBeTruthy();
     expect(screen.getByText('Change')).toBeTruthy();
-    // Password field appears when WebAuthn is unavailable.
-    expect(
-      await screen.findByLabelText(/^Password$/i, {}, { timeout: 3000 })
-    ).toBeTruthy();
-    expect(mocks.loginWithPasskey).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/Username or Email/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
   });
 
   it('keeps the password field hidden when the username or email is unknown', async () => {
@@ -145,6 +137,7 @@ describe('LoginPage username lookup gate', () => {
       await screen.findByText('No account found with that username or email')
     ).toBeTruthy();
     expect(screen.queryByLabelText(/^Password$/i)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy();
     expect(mocks.loginWithPasskey).not.toHaveBeenCalled();
   });
 });
