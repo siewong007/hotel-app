@@ -43,6 +43,7 @@ mod postgres_tests {
         GiftPointsInput, ManualAdjustmentInput, RedeemRewardInput, RewardInput,
     };
     use hotel_app_be::modules::loyalty::service as loyalty_service;
+    use hotel_app_be::repositories::guest::GuestRepository;
     use hotel_app_be::repositories::bookings::{
         add_guest_credits_handler, book_with_credits_handler, delete_guest_credits_handler,
         update_guest_credits_handler,
@@ -1652,5 +1653,63 @@ mod postgres_tests {
 
         cleanup_loyalty_fixture(&pool, guest_id, &[enrolling_user_id, actor_id]).await;
         delete_loyalty_rewards(&pool, reward_name_prefix).await;
+    }
+
+    /// The check-in form decides whether it still has to collect a legal name
+    /// by looking at `last_name`, so `find_by_id` has to actually carry those
+    /// columns. They are deliberately not `#[sqlx(default)]`: a SELECT that
+    /// forgets them must fail here rather than silently report every guest as
+    /// still needing a legal name.
+    #[tokio::test]
+    async fn find_by_id_returns_the_legal_name_columns_alongside_the_nickname() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let guest_id = 985_901;
+        delete_guests(&pool, &[guest_id]).await;
+
+        // An anonymous booker: a nickname holds the room, no legal name yet.
+        sqlx::query(
+            "INSERT INTO guests (id, nick_name, first_name, last_name, guest_type, tourism_type)
+             OVERRIDING SYSTEM VALUE
+             VALUES ($1, 'Gst985Nickonly', 'Gst985Nickonly', NULL, 'non_member', 'local')",
+        )
+        .bind(guest_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let guest = GuestRepository::find_by_id(&pool, guest_id)
+            .await
+            .unwrap()
+            .expect("guest must be readable");
+        assert_eq!(guest.nick_name, "Gst985Nickonly");
+        assert_eq!(guest.first_name.as_deref(), Some("Gst985Nickonly"));
+        assert_eq!(
+            guest.last_name, None,
+            "a nickname-only guest must report no legal last name, or check-in stops asking"
+        );
+
+        // Check-in supplies the legal name; the booking nickname must survive it.
+        sqlx::query("UPDATE guests SET first_name = $2, last_name = $3 WHERE id = $1")
+            .bind(guest_id)
+            .bind("Aisha")
+            .bind("Rahman")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let updated = GuestRepository::find_by_id(&pool, guest_id)
+            .await
+            .unwrap()
+            .expect("guest must still be readable");
+        assert_eq!(updated.first_name.as_deref(), Some("Aisha"));
+        assert_eq!(updated.last_name.as_deref(), Some("Rahman"));
+        assert_eq!(
+            updated.nick_name, "Gst985Nickonly",
+            "collecting the legal name must not overwrite the booking nickname"
+        );
+
+        delete_guests(&pool, &[guest_id]).await;
     }
 }

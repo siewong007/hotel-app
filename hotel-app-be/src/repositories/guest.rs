@@ -39,7 +39,7 @@ impl GuestRepository {
     /// Find guest by ID
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Guest>, ApiError> {
         let query = r#"
-                SELECT id, nick_name, email, phone, ic_number, nationality,
+                SELECT id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, true as is_active,
                        guest_type, tourism_type,
@@ -133,7 +133,7 @@ impl GuestRepository {
             );
         }
 
-        let select_cols = r#"id, nick_name, email, phone, ic_number, nationality,
+        let select_cols = r#"id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
             address_line_1 as address_line1, city, state as state_province,
             postal_code, country, title, alt_phone, true as is_active,
             guest_type, tourism_type,
@@ -343,7 +343,7 @@ impl GuestRepository {
         let query = r#"
                 INSERT INTO guests (nick_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-                RETURNING id, nick_name, email, phone, ic_number, nationality,
+                RETURNING id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
                           address_line_1 as address_line1, city, state as state_province,
                           postal_code, country, title, alt_phone, true as is_active,
                           guest_type, tourism_type,
@@ -470,7 +470,7 @@ impl GuestRepository {
                 company_name = $18,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $19
-            RETURNING id, nick_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at, NULL::BIGINT as bookings_count, NULL::DATE as last_stay_date
+            RETURNING id, nick_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at, NULL::BIGINT as bookings_count, NULL::DATE as last_stay_date
             "#
         )
         .bind(&values.nick_name)
@@ -572,7 +572,7 @@ impl GuestRepository {
                 SET tourism_type = $1::tourism_type,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2 AND deleted_at IS NULL
-                RETURNING id, nick_name, email, phone, ic_number, nationality,
+                RETURNING id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
                           address_line_1 as address_line1, city, state as state_province,
                           postal_code, country, title, alt_phone, true as is_active,
                           guest_type, tourism_type,
@@ -872,7 +872,7 @@ impl GuestRepository {
         name_pattern: &str,
     ) -> Result<Vec<Guest>, ApiError> {
         let query = r#"
-                SELECT id, nick_name, email, phone, ic_number, nationality,
+                SELECT id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
                        address_line_1 as address_line1, city, state as state_province,
                        postal_code, country, title, alt_phone, true as is_active,
                        guest_type, tourism_type,
@@ -953,7 +953,7 @@ impl GuestRepository {
     pub async fn linked_guests(pool: &DbPool, user_id: i64) -> Result<Vec<Guest>, ApiError> {
         sqlx::query_as::<_, Guest>(
             r#"
-            SELECT DISTINCT g.id, g.nick_name, g.email, g.phone, g.ic_number, g.nationality,
+            SELECT DISTINCT g.id, g.nick_name, g.first_name, g.last_name, g.email, g.phone, g.ic_number, g.nationality,
                    g.address_line_1 as address_line1, g.city, g.state as state_province, g.postal_code, g.country, g.title, g.alt_phone,
                    true as is_active,
                    g.guest_type,

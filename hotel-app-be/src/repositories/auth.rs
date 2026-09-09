@@ -251,7 +251,7 @@ impl AuthRepository {
                     is_active, guest_type, language_preference, created_at
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, true, 'non_member', $7, CURRENT_TIMESTAMP)
-                RETURNING id, nick_name, email, phone, ic_number, nationality,
+                RETURNING id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
                           address_line_1 AS address_line1, city, state AS state_province,
                           postal_code, country, title, alt_phone, is_active, guest_type,
                           tourism_type, COALESCE(discount_percentage, 0) AS discount_percentage,

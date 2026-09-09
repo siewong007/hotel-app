@@ -11,6 +11,13 @@ use sqlx::FromRow;
 pub struct Guest {
     pub id: i64,
     pub nick_name: String,
+    /// Legal name, collected at check-in rather than at booking. An anonymous
+    /// booker has a `nick_name` and no `last_name` until then, which is how
+    /// the check-in form knows it still has to ask. Deliberately NOT
+    /// `#[sqlx(default)]`: a SELECT that forgets these must fail loudly rather
+    /// than report every guest as still needing a legal name.
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub ic_number: Option<String>,
