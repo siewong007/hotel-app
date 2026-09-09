@@ -13,6 +13,7 @@ import {
   useLocation as useTanstackLocation,
   useRouter,
 } from '@tanstack/react-router';
+import { hrefFromAppPath, shouldUseDocumentNavigation } from '../guest/guestDocumentPaths';
 
 type NavigateInput = string | number;
 interface CompatNavigateOptions {
@@ -46,6 +47,15 @@ export function useNavigate(): CompatNavigateFn {
       // literal route with a question mark, which falls through to the index
       // page instead of opening the intended screen.
       const target = new URL(to, window.location.origin);
+      if (shouldUseDocumentNavigation(target.pathname, window.location.pathname)) {
+        const href = hrefFromAppPath(to);
+        if (options?.replace) {
+          window.location.replace(href);
+        } else {
+          window.location.assign(href);
+        }
+        return;
+      }
       tsNavigate({
         to: target.pathname as any,
         search: Object.fromEntries(target.searchParams.entries()) as any,
@@ -146,6 +156,16 @@ export interface CompatNavigateProps {
   replace?: boolean;
 }
 
-export const Navigate: React.FC<CompatNavigateProps> = ({ to, replace }) => (
-  <TanstackNavigate to={to as any} replace={replace} />
-);
+export const Navigate: React.FC<CompatNavigateProps> = ({ to, replace }) => {
+  const target = new URL(to, window.location.origin);
+  if (shouldUseDocumentNavigation(target.pathname, window.location.pathname)) {
+    const href = hrefFromAppPath(to);
+    if (replace) {
+      window.location.replace(href);
+    } else {
+      window.location.assign(href);
+    }
+    return null;
+  }
+  return <TanstackNavigate to={to as any} replace={replace} />;
+};

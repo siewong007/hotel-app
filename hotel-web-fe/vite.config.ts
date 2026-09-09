@@ -1,8 +1,9 @@
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { resolve } from 'node:path';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import { isGuestDocumentPath } from './src/guest/guestDocumentPaths.ts';
 
 const TAURI_MODES = new Set(['tauri', 'desktop']);
 const DEFAULT_BACKEND_TARGET = 'http://127.0.0.1:3030';
@@ -16,6 +17,32 @@ const DEFAULT_BACKEND_TARGET = 'http://127.0.0.1:3030';
 // top-level API prefixes must also be merged in
 // hotel-app-be/src/routes/mod.rs::create_router. See .claude/rules/00-diagnosis.md Leak #3.
 const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
+
+function guestHtmlFallback(): Plugin {
+  const rewrite = (url: string | undefined): string | undefined => {
+    if (!url) return url;
+    const [path, query] = url.split('?');
+    if (!path || path.includes('.') || path.startsWith('/@') || path.startsWith('/src') || path.startsWith('/node_modules')) {
+      return url;
+    }
+    if (path === '/guest.html' || !isGuestDocumentPath(path)) return url;
+    return query ? `/guest.html?${query}` : '/guest.html';
+  };
+  const middleware = (req: { url?: string }, _res: unknown, next: () => void) => {
+    const nextUrl = rewrite(req.url);
+    if (nextUrl) req.url = nextUrl;
+    next();
+  };
+  return {
+    name: 'guest-html-fallback',
+    configureServer(server) {
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
+    },
+  };
+}
 
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
@@ -32,6 +59,7 @@ export default defineConfig(({ mode, command }) => {
 
   return {
     plugins: [
+      guestHtmlFallback(),
       // Must come before React plugin to inject the generated route tree before TSX transform
       tanstackRouter({
         target: 'react',
@@ -77,6 +105,7 @@ export default defineConfig(({ mode, command }) => {
       rolldownOptions: {
         input: {
           app: resolve(__dirname, 'index.html'),
+          guest: resolve(__dirname, 'guest.html'),
           salimInn: resolve(__dirname, 'salim-inn/index.html'),
         },
         external: (id: string) => id === '@tauri-apps/api' || id.startsWith('@tauri-apps/api/'),

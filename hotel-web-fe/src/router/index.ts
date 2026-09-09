@@ -1,4 +1,3 @@
-export { router } from './router';
 export { ThemeModeContext, useThemeMode } from './ThemeModeContext';
 export type { ThemeModeContextValue } from './ThemeModeContext';
 export { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
