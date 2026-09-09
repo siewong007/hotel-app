@@ -18,6 +18,7 @@ pub mod ledger;
 pub mod maintenance;
 pub mod night_audit;
 pub mod payment;
+pub mod payment_retry;
 pub mod rate;
 pub mod rbac;
 pub mod room;

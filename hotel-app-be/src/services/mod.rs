@@ -26,6 +26,7 @@ pub mod night_audit_scheduler;
 pub mod passkey;
 pub mod payment_receipt_scheduler;
 pub mod payments;
+pub mod payment_retry;
 pub mod paypal_client;
 pub mod profile;
 pub mod promotion_pricing;
