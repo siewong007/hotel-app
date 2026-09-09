@@ -56,7 +56,9 @@ async fn require_public_capacity(
         Ok(())
     } else {
         Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many {what} from this connection. Please try again in {retry_after} seconds."),
+            format!(
+                "Too many {what} from this connection. Please try again in {retry_after} seconds."
+            ),
             retry_after,
         ))
     }

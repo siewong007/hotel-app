@@ -4,6 +4,7 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
+use crate::models::AuditEvent;
 use crate::models::{
     RegenerateBackupCodesRequest, TwoFactorDisableRequest, TwoFactorEnableRequest,
     TwoFactorSetupRequest, TwoFactorStatusResponse, TwoFactorVerifyRequest, User,
@@ -12,7 +13,6 @@ use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
 use serde_json::Value;
 use validator::Validate;
-use crate::models::AuditEvent;
 
 pub async fn setup_2fa(
     pool: &DbPool,
@@ -245,8 +245,7 @@ pub async fn verify_2fa_code(
     let stored = user
         .two_factor_secret
         .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
-    let secret =
-        AuthService::decrypt_stored_totp_secret(&stored).map_err(ApiError::Internal)?;
+    let secret = AuthService::decrypt_stored_totp_secret(&stored).map_err(ApiError::Internal)?;
     let valid = AuthService::verify_totp_code(&secret, &req.code)
         .map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
 

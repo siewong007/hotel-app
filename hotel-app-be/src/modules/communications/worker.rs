@@ -125,8 +125,7 @@ async fn process_delivery(
     // still apply), while marketing kinds additionally require a live
     // per-topic subscription.
     let suppressed = Repo::is_email_suppressed(pool, &delivery.recipient_email).await?;
-    let transactional =
-        !validation::requires_topic_subscription(&delivery.kind);
+    let transactional = !validation::requires_topic_subscription(&delivery.kind);
     let deliverable = if transactional {
         Repo::is_guest_active(pool, delivery.guest_id).await?
     } else {

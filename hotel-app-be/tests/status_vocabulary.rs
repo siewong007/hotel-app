@@ -91,7 +91,10 @@ fn postgres_schema_uses_identity_columns_not_serial_sequences() {
         "baseline must not use serial-style nextval defaults"
     );
     assert!(
-        POSTGRES_SCHEMA.matches("ADD GENERATED ALWAYS AS IDENTITY").count() >= 70,
+        POSTGRES_SCHEMA
+            .matches("ADD GENERATED ALWAYS AS IDENTITY")
+            .count()
+            >= 70,
         "every bigint surrogate key must be a GENERATED ALWAYS identity column"
     );
     assert!(
@@ -185,8 +188,7 @@ fn postgres_permission_constraint_accepts_seeded_refund_action() {
 
 #[test]
 fn postgres_initialization_has_baseline_seed_and_ordered_patches() {
-    let postgres_dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres");
+    let postgres_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("database/postgres");
     assert!(
         postgres_dir
             .join("migrations/0001_v1_baseline.sql")

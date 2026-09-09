@@ -2,6 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     ApplicableRateQuery, RatePlan, RatePlanCreateValues, RatePlanInput, RatePlanUpdateInput,
     RatePlanUpdateValues, RatePlanWithRates, RoomRate, RoomRateCreateValues, RoomRateInput,
@@ -12,7 +13,6 @@ use crate::services::audit::AuditLog;
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
 use serde_json::json;
-use crate::models::AuditEvent;
 
 pub async fn create_rate_plan(
     pool: &DbPool,

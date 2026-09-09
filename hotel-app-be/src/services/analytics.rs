@@ -1,11 +1,11 @@
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::ReportQuery;
 use crate::repositories::analytics;
 use crate::services::audit::AuditLog;
 use std::collections::HashMap;
-use crate::models::AuditEvent;
 
 pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
     analytics::occupancy_report(pool).await

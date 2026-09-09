@@ -4,7 +4,6 @@
 //! exclusively from environment variables — never from system_settings or any
 //! client-visible surface.
 
-
 use lettre::message::{Mailbox, MultiPart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};

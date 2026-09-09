@@ -584,10 +584,10 @@ impl EkycRepository {
             FROM ekyc_verifications WHERE id = $1
             "#,
         )
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     pub async fn list_admin(

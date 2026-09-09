@@ -4,6 +4,7 @@ use chrono::NaiveDate;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     AuditDetailsResponse, ListAuditsQuery, NightAuditListResponse, NightAuditPreview,
     NightAuditResponse, NightAuditRunWithUser, RunNightAuditRequest,
@@ -11,7 +12,6 @@ use crate::models::{
 use crate::repositories::night_audit as repo;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
-use crate::models::AuditEvent;
 
 pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditPreview, ApiError> {
     repo::preview(pool, audit_date).await

@@ -2,6 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{
     CreateMaintenanceTicketRequest, ListMaintenanceTicketsQuery, MaintenanceTicket,
     MaintenanceTicketListResponse, MaintenanceTicketPatch, UpdateMaintenanceTicketRequest,
@@ -11,7 +12,6 @@ use crate::repositories::maintenance::{self, NewMaintenanceTicket};
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
-use crate::models::AuditEvent;
 
 const VALID_PRIORITIES: &[&str] = &["low", "medium", "high", "critical"];
 const VALID_STATUSES: &[&str] = &["open", "in_progress", "on_hold", "resolved", "closed"];

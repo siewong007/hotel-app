@@ -117,4 +117,3 @@ pub async fn get_positive_decimal(pool: &DbPool, key: &str, default: Decimal) ->
 pub fn invalidate_key(key: &str) {
     CACHE.entries.lock().unwrap().remove(key);
 }
-

@@ -1,14 +1,14 @@
 use super::config;
 use super::db::DbPool;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64URL;
 use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{Duration, Utc};
 use hex;
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64URL;
 use rand::RngExt;
-use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 use regex::Regex;
+use ring::aead::{AES_256_GCM, Aad, LessSafeKey, Nonce, UnboundKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{FromRow, Row};
@@ -125,7 +125,6 @@ const WEAK_PASSWORDS: &[&str] = &[
 ];
 
 impl AuthService {
-
     // ---- TOTP secret encryption-at-rest (L4) -------------------------------
     //
     // The column previously stored the base32 TOTP seed in plaintext, making a
@@ -168,7 +167,9 @@ impl AuthService {
         if raw.len() >= 32 {
             return Some(Sha256::digest(raw.as_bytes()).into());
         }
-        log::error!("TOTP_ENCRYPTION_KEY must be base64/hex of 32 bytes, or an ASCII string of at least 32 characters");
+        log::error!(
+            "TOTP_ENCRYPTION_KEY must be base64/hex of 32 bytes, or an ASCII string of at least 32 characters"
+        );
         None
     }
 
@@ -208,7 +209,8 @@ impl AuthService {
         let plain = opening_key
             .open_in_place(nonce, Aad::empty(), in_out)
             .map_err(|_| "encrypted TOTP secret failed authentication".to_string())?;
-        String::from_utf8(plain.to_vec()).map_err(|_| "decrypted TOTP secret is not UTF-8".to_string())
+        String::from_utf8(plain.to_vec())
+            .map_err(|_| "decrypted TOTP secret is not UTF-8".to_string())
     }
 
     /// Encrypt for storage. Without a configured key this is the identity
@@ -1195,5 +1197,4 @@ mod tests {
             );
         }
     }
-
 }

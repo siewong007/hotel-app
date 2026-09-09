@@ -13,12 +13,12 @@ use super::repository::PromotionRepository;
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::modules::loyalty::models::RedeemRewardInput;
 use crate::modules::loyalty::repository::LoyaltyRepository;
 use crate::modules::loyalty::service as loyalty_service;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
-use crate::models::AuditEvent;
 
 /// System-managed campaign used when a guest portal account is activated.
 pub const WELCOME_DELUXE_PROMOTION_SLUG: &str = "welcome-deluxe-10";
@@ -556,7 +556,9 @@ async fn transition_admin_promotion(
             action: &format!("promotion.{next_status}"),
             resource_type: "promotion",
             resource_id: Some(promotion_id),
-            details: Some(json!({"previous_status": current.status, "previous_version": current.version})),
+            details: Some(
+                json!({"previous_status": current.status, "previous_version": current.version}),
+            ),
             ip_address,
             user_agent,
         },

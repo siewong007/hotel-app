@@ -374,7 +374,6 @@ async fn get_document(
         .map_err(|e| ApiError::Internal(format!("Failed to build document response: {}", e)))
 }
 
-
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     headers
         .get(header::USER_AGENT)

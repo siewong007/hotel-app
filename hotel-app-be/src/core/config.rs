@@ -176,18 +176,9 @@ impl AppConfig {
                 webhook_id: env_opt("PAYPAL_WEBHOOK_ID"),
             },
             bank_details: BankDetails {
-                bank_name: env_or_nonempty(
-                    "HOTEL_BANK_NAME",
-                    "Maybank",
-                )?,
-                account_name: env_or_nonempty(
-                    "HOTEL_BANK_ACCOUNT_NAME",
-                    "Salim Inn",
-                )?,
-                account_number: env_or_nonempty(
-                    "HOTEL_BANK_ACCOUNT_NUMBER",
-                    "511270052595",
-                )?,
+                bank_name: env_or_nonempty("HOTEL_BANK_NAME", "Maybank")?,
+                account_name: env_or_nonempty("HOTEL_BANK_ACCOUNT_NAME", "Salim Inn")?,
+                account_number: env_or_nonempty("HOTEL_BANK_ACCOUNT_NUMBER", "511270052595")?,
             },
         };
         config.validate_security()?;

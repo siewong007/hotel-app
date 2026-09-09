@@ -86,9 +86,7 @@ async fn enforce_ekyc_write_limit(
         Ok(())
     } else {
         Err(ApiError::TooManyRequestsRetryAfter(
-            format!(
-                "Too many verification attempts. Please try again in {retry_after} seconds."
-            ),
+            format!("Too many verification attempts. Please try again in {retry_after} seconds."),
             retry_after,
         ))
     }

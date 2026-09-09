@@ -7,12 +7,12 @@ use chrono::{DateTime, Utc};
 use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
+use crate::models::AuditEvent;
 use crate::models::{Booking, CheckInRequest};
 use crate::repositories::bookings as booking_repo;
 use crate::services::audit::AuditLog;
 use crate::services::booking as booking_service;
 use crate::services::payments;
-use crate::models::AuditEvent;
 use crate::utils::sanitization::Sanitizer;
 use rust_decimal::Decimal;
 
@@ -374,8 +374,7 @@ pub async fn release_stale_unpaid_holds(pool: &DbPool) -> Result<u64, ApiError> 
 
     let candidates =
         booking_repo::stale_unpaid_hold_ids(pool, hold_hours, MAX_RELEASES_PER_SWEEP).await?;
-    let reason =
-        format!("Automatically released: unpaid for more than {hold_hours} hour(s)");
+    let reason = format!("Automatically released: unpaid for more than {hold_hours} hour(s)");
 
     let mut released = 0_u64;
     for booking_id in candidates {
@@ -402,7 +401,9 @@ pub async fn release_stale_unpaid_holds(pool: &DbPool) -> Result<u64, ApiError> 
             Ok(collected) if collected > Decimal::ZERO => continue,
             Ok(_) => {}
             Err(error) => {
-                log::warn!("Auto-release could not verify payments on booking {booking_id}: {error}");
+                log::warn!(
+                    "Auto-release could not verify payments on booking {booking_id}: {error}"
+                );
                 continue;
             }
         }
