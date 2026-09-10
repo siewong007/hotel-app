@@ -1,5 +1,22 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+// Self-hosted Inter. Google Fonts is a cross-origin stylesheet, which the
+// production CSP blocks outright (style-src has no fonts.googleapis.com) and
+// which the packaged desktop app cannot reach at all when it is offline --
+// so the site has been falling back to system fonts everywhere. Serving the
+// files ourselves needs no CSP entry: font-src already allows 'self'.
+// Latin subsets only: the interface ships in English and Malay, so the
+// Cyrillic, Greek and Vietnamese faces would be ~1.2MB of image nothing renders.
+import '@fontsource/inter/latin-300.css';
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import '@fontsource/inter/latin-ext-300.css';
+import '@fontsource/inter/latin-ext-400.css';
+import '@fontsource/inter/latin-ext-500.css';
+import '@fontsource/inter/latin-ext-600.css';
+import '@fontsource/inter/latin-ext-700.css';
 import './index.css';
 import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
