@@ -227,6 +227,17 @@ pub struct AuthResponse {
     /// The guest-contact fields still missing when `profile_complete` is
     /// `false` (e.g. `"first_name"`, `"last_name"`, `"phone"`).
     pub missing_profile_fields: Vec<String>,
+    /// This account's role requires two-factor authentication, no factor is
+    /// enrolled yet, and the grace period has not expired. The session is
+    /// valid; the client must route the user to 2FA enrolment. Once the
+    /// deadline passes the sign-in fails with
+    /// `ApiError::TwoFactorEnrollmentRequired` instead.
+    #[serde(default)]
+    pub two_factor_enrollment_required: bool,
+    /// When that grace period ends. Set only alongside
+    /// `two_factor_enrollment_required`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub two_factor_enrollment_deadline: Option<DateTime<Utc>>,
 }
 
 /// Current user's dynamic access snapshot.

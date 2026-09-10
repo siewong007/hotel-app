@@ -3,6 +3,7 @@
 use super::models::{PublicSetting, SystemSetting};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use chrono::{DateTime, Utc};
 
 pub struct SettingsRepository;
 
@@ -62,6 +63,20 @@ impl SettingsRepository {
             .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// When this setting last changed. `None` when the key has never been
+    /// written. Used as a policy-effective-from stamp by callers that must
+    /// date a rule from the moment an administrator turned it on.
+    pub async fn updated_at(pool: &DbPool, key: &str) -> Result<Option<DateTime<Utc>>, ApiError> {
+        sqlx::query_scalar(concat!(
+            "SELECT updated_at FROM system_settings WHERE key = ",
+            crate::param!(1)
+        ))
+        .bind(key)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     /// Update setting value and stamp the user that changed it.

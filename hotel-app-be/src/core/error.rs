@@ -34,6 +34,11 @@ pub enum ApiError {
     /// A guest tried to book before supplying the contact details bookings require.
     /// Carries the missing field names so the client can route them to completion.
     ProfileIncomplete(Vec<String>),
+    /// A sign-in succeeded but the account's role requires two-factor
+    /// authentication and no factor is enrolled, with the enrolment grace
+    /// period already expired. Stable `code` so the sign-in page can route to
+    /// enrolment without matching English text.
+    TwoFactorEnrollmentRequired,
     /// Anonymous booking nickname collides with `idx_guests_nick_name_unique`
     /// (or the pre-rename `idx_guests_full_name_unique`). Stable `code` so the
     /// public form can highlight the nickname without matching English text.
@@ -59,6 +64,9 @@ impl std::fmt::Display for ApiError {
                 write!(f, "Profile incomplete: missing {}", fields.join(", "))
             }
             ApiError::GuestNameTaken => write!(f, "Conflict: nickname taken"),
+            ApiError::TwoFactorEnrollmentRequired => {
+                write!(f, "Forbidden: two-factor enrolment required")
+            }
         }
     }
 }
@@ -163,6 +171,12 @@ impl IntoResponse for ApiError {
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Complete your profile before making a booking.".to_string(),
             ),
+            ApiError::TwoFactorEnrollmentRequired => (
+                StatusCode::FORBIDDEN,
+                "Your role requires two-factor authentication. Ask an administrator to \
+                 help you finish setting it up."
+                    .to_string(),
+            ),
             ApiError::GuestNameTaken => (
                 StatusCode::CONFLICT,
                 polish_message(
@@ -181,6 +195,14 @@ impl IntoResponse for ApiError {
                 "error": message,
                 "code": "profile_incomplete",
                 "missing_profile_fields": missing_fields
+            }));
+            return (status, body).into_response();
+        }
+
+        if let ApiError::TwoFactorEnrollmentRequired = &self {
+            let body = Json(serde_json::json!({
+                "error": message,
+                "code": "two_factor_enrollment_required"
             }));
             return (status, body).into_response();
         }

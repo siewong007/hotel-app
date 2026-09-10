@@ -3,6 +3,7 @@
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::models::{
     AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginLookupRequest,
@@ -13,14 +14,16 @@ use crate::modules::communications::service as communications_service;
 use crate::modules::consent::models::{ConsentDocument, ConsentSource};
 use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
 use crate::modules::consent::validation as consent_validation;
+use crate::modules::settings::repository::SettingsRepository;
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::guest::GuestRepository;
+use crate::repositories::passkey::PasskeyRepository;
 use crate::repositories::rbac::RbacRepository;
 use crate::services::account_emails;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity;
 use crate::utils::sanitization::Sanitizer;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use validator::Validate;
 
@@ -416,6 +419,85 @@ pub async fn login_with_google(
     Ok(response)
 }
 
+/// Comma-separated role names whose members must have a second factor
+/// enrolled. Empty — the default — disables the policy entirely.
+const REQUIRE_TWO_FACTOR_ROLES: &str = "require_two_factor_roles";
+/// Days an in-scope account may keep signing in before enrolment is enforced.
+const REQUIRE_TWO_FACTOR_GRACE_DAYS: &str = "require_two_factor_grace_days";
+
+/// Whether a sign-in satisfies the role-based two-factor enrolment policy.
+enum TwoFactorPolicy {
+    /// Out of scope, or a factor is already enrolled.
+    Satisfied,
+    /// In scope and unenrolled, inside a grace window ending at this instant.
+    Grace(DateTime<Utc>),
+    /// In scope, unenrolled, and out of time.
+    Expired,
+}
+
+/// Applies the `require_two_factor_roles` policy to one sign-in.
+///
+/// The grace window runs from the later of the account's creation and the
+/// moment an administrator last wrote `require_two_factor_roles`, so existing
+/// staff get a full window when the policy is switched on and a new hire gets
+/// one from their own start date. Editing the setting therefore restarts every
+/// unenrolled user's window. That is deliberate: widening the policy must not
+/// lock out a shift that never had a chance to enrol.
+///
+/// `Utc::now()` is right here despite the hotel-business-day rule — this is an
+/// absolute security deadline, not a business date.
+async fn two_factor_policy(
+    pool: &DbPool,
+    user: &User,
+    roles: &[String],
+) -> Result<TwoFactorPolicy, ApiError> {
+    let configured = settings_cache::get_string(pool, REQUIRE_TWO_FACTOR_ROLES, "").await;
+    let required: Vec<&str> = configured
+        .split(',')
+        .map(str::trim)
+        .filter(|role| !role.is_empty())
+        .collect();
+    // Policy off: the common path costs nothing beyond one cached read.
+    if required.is_empty() {
+        return Ok(TwoFactorPolicy::Satisfied);
+    }
+
+    let in_scope = roles
+        .iter()
+        .any(|role| required.iter().any(|want| want.eq_ignore_ascii_case(role)))
+        // A super admin bypasses RBAC outright, so omitting them would leave the
+        // policy decorative on the most privileged account in the system.
+        || crate::core::middleware::is_super_admin(pool, user.id).await?;
+    if !in_scope {
+        return Ok(TwoFactorPolicy::Satisfied);
+    }
+
+    // A passkey is a second factor in its own right — `services::passkey`
+    // already treats one as satisfying 2FA — so demanding TOTP on top would
+    // push users off a phishing-resistant credential onto a weaker one.
+    if user.two_factor_enabled.unwrap_or(false)
+        || PasskeyRepository::passkey_count(pool, user.id).await? > 0
+    {
+        return Ok(TwoFactorPolicy::Satisfied);
+    }
+
+    let grace_days = i64::from(
+        settings_cache::get_i32(pool, REQUIRE_TWO_FACTOR_GRACE_DAYS, 14)
+            .await
+            .max(0),
+    );
+    let policy_since = SettingsRepository::updated_at(pool, REQUIRE_TWO_FACTOR_ROLES)
+        .await?
+        .unwrap_or_else(Utc::now);
+    let deadline = policy_since.max(user.created_at) + Duration::days(grace_days);
+
+    if Utc::now() < deadline {
+        Ok(TwoFactorPolicy::Grace(deadline))
+    } else {
+        Ok(TwoFactorPolicy::Expired)
+    }
+}
+
 pub(crate) async fn issue_authenticated_response(
     pool: &DbPool,
     user: &User,
@@ -425,6 +507,39 @@ pub(crate) async fn issue_authenticated_response(
     let roles = AuthService::get_user_roles(pool, user.id)
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
+
+    // Enforced here rather than inside `login` so every door — password, Google
+    // and passkey — is covered by construction: this is the only place a
+    // session is minted. Checked before the refresh token and JWT exist, so a
+    // refused sign-in leaves nothing behind to revoke.
+    let two_factor_enrollment_deadline = match two_factor_policy(pool, user, &roles).await? {
+        TwoFactorPolicy::Satisfied => None,
+        TwoFactorPolicy::Grace(deadline) => {
+            log::info!(
+                "User {} signed in without an enrolled second factor; enrolment due {}",
+                user.id,
+                deadline
+            );
+            Some(deadline)
+        }
+        TwoFactorPolicy::Expired => {
+            let _ = AuditLog::log_event(
+                pool,
+                AuditEvent {
+                    user_id: Some(user.id),
+                    action: "two_factor_enrollment_blocked",
+                    resource_type: "user",
+                    resource_id: Some(user.id),
+                    ip_address: ip_address.map(str::to_string),
+                    user_agent: user_agent.map(str::to_string),
+                    ..Default::default()
+                },
+            )
+            .await;
+            return Err(ApiError::TwoFactorEnrollmentRequired);
+        }
+    };
+
     let permissions = AuthService::get_user_permissions(pool, user.id)
         .await
         .map_err(|error| ApiError::Database(error.to_string()))?;
@@ -466,6 +581,8 @@ pub(crate) async fn issue_authenticated_response(
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
+            two_factor_enrollment_required: two_factor_enrollment_deadline.is_some(),
+            two_factor_enrollment_deadline,
         },
         refresh_token,
     ))
