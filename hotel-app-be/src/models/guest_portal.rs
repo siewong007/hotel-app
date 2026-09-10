@@ -2,6 +2,7 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use super::{Booking, Guest, GuestEkycStatusSummary};
 
@@ -120,6 +121,66 @@ pub struct GuestPortalLoginResponse {
     pub token: String,
     pub expires_at: DateTime<Utc>,
     pub guest: GuestPortalGuestView,
+}
+
+/// Create a portal account for the guest a booking access token already
+/// authenticates, without inserting a second `guests` row.
+///
+/// `POST /auth/register` cannot serve this case: it always inserts a new guest
+/// profile and rejects the request when one already carries that name
+/// (`nick_name_conflict_id`), which every guest who has booked does. The
+/// account minted here is bound to `bookings.guest_id`, so the eKYC domain —
+/// keyed on `users.id` and resolved back through `guest_id` — sees the same
+/// guest the booking does.
+#[derive(Debug, Deserialize, Validate)]
+pub struct GuestPortalClaimAccountRequest {
+    /// Re-typed by the guest. The access token alone already authenticates the
+    /// booking, but it lives in an email that can be forwarded; asking for the
+    /// booking number and the name on the booking means a leaked link is not
+    /// by itself enough to mint an account over that guest profile.
+    #[validate(length(min = 1, max = 50, message = "Booking number is required"))]
+    pub booking_number: String,
+    #[validate(length(min = 1, max = 200, message = "Guest name is required"))]
+    pub guest_name: String,
+    #[validate(regex(
+        path = *super::auth::USERNAME_PATTERN,
+        message = "Username may only contain letters, digits, dots, underscores and dashes"
+    ))]
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
+    pub username: String,
+    #[validate(length(
+        min = 8,
+        max = 100,
+        message = "Password must be at least 8 characters long"
+    ))]
+    pub password: String,
+    #[validate(email(message = "Invalid email format"))]
+    pub email: Option<String>,
+    /// Same mandatory set as registration — `consent::validation` rejects the
+    /// request when the Booking Terms or Privacy Notice is missing, refused or
+    /// pinned to a superseded version, so this path cannot create an account
+    /// with weaker consent than `/auth/register`.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
+    #[serde(default)]
+    pub marketing_opt_in: bool,
+}
+
+/// Result of a successful account claim.
+#[derive(Debug, Serialize)]
+pub struct GuestPortalClaimAccountResponse {
+    /// Portal session for the new account, so pre-check-in and eKYC continue
+    /// in the same visit rather than waiting on an email round-trip.
+    pub session: GuestPortalLoginResponse,
+    pub username: String,
+    /// True when a verification link was mailed. Password login stays blocked
+    /// until the guest clicks it (`services::auth::login` refuses unverified
+    /// accounts); the portal session above is unaffected.
+    pub email_verification_required: bool,
 }
 
 /// Wrapper for GET /guest-portal/me.

@@ -245,12 +245,25 @@ impl GuestPortalRepository {
             .map_err(|e| ApiError::Database(format!("Failed to update guest: {}", e)))
     }
 
+    /// Mark a booking pre-checked-in.
+    ///
+    /// `pre_checkin_completed_at` is written with the SQL clock, not a bound
+    /// value: `values` is a homogeneous `Vec<String>`, so an RFC3339 timestamp
+    /// pushed into it bound as `text` against a `timestamptz` column and the
+    /// whole statement failed at runtime with "is of type timestamp with time
+    /// zone but expression is of type text". Every connection carries the
+    /// hotel's timezone (`core::db`), so CURRENT_TIMESTAMP is the business
+    /// clock here.
+    ///
+    /// The booking access token is deliberately NOT cleared. The same token
+    /// also authorizes payment, receipt upload and the account claim, and its
+    /// own expiry already bounds it — revoking it here locked an anonymous
+    /// guest out of paying for the booking they had just pre-checked into.
     pub async fn update_booking_precheckin(
         pool: &DbPool,
         booking_id: i64,
         market_code: Option<String>,
         special_requests: Option<String>,
-        completed_at: String,
     ) -> Result<(), ApiError> {
         let mut updates = Vec::new();
         let mut values = Vec::new();
@@ -270,11 +283,8 @@ impl GuestPortalRepository {
         updates.push("pre_checkin_completed = true".to_string());
         updates.push(format!(
             "pre_checkin_completed_at = {}",
-            parameter(values.len() + 1)
+            crate::core::sql_compat::current_timestamp()
         ));
-        values.push(completed_at);
-        updates.push("pre_checkin_token = NULL".to_string());
-        updates.push("pre_checkin_token_expires_at = NULL".to_string());
 
         let query = format!(
             "UPDATE bookings SET {} WHERE id = {}",

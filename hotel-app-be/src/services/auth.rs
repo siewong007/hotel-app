@@ -16,6 +16,7 @@ use crate::modules::consent::validation as consent_validation;
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::guest::GuestRepository;
 use crate::repositories::rbac::RbacRepository;
+use crate::services::account_emails;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity;
 use crate::utils::sanitization::Sanitizer;
@@ -415,7 +416,7 @@ pub async fn login_with_google(
     Ok(response)
 }
 
-async fn issue_authenticated_response(
+pub(crate) async fn issue_authenticated_response(
     pool: &DbPool,
     user: &User,
     ip_address: Option<&str>,
@@ -658,10 +659,11 @@ pub async fn register(
     )
     .await?;
 
+    // Mints the token AND queues the mail carrying it. Best-effort: the account
+    // is already committed, so a mail failure must not fail the registration —
+    // the guest can ask for another link.
     if req.email.is_some() {
-        AuthService::create_email_verification_token(pool, user.id)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+        account_emails::try_send_email_verification(pool, user.id).await;
     }
 
     let message = if req.email.is_some() {
@@ -723,9 +725,10 @@ pub async fn resend_verification(
         return Ok(generic_verification_response());
     }
 
-    AuthService::create_email_verification_token(pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // The response is deliberately generic (it must not reveal whether an
+    // address is registered), which is exactly why this used to be able to
+    // claim "a new email has been sent" while sending nothing.
+    account_emails::try_send_email_verification(pool, user.id).await;
 
     Ok(generic_verification_response())
 }

@@ -81,6 +81,15 @@ export interface EkycApplicationSummary {
   updated_at: string;
   nearing_sla: boolean;
   overdue_sla: boolean;
+  /**
+   * Earliest upcoming check-in across the applicant's active bookings, or null
+   * when they have no stay ahead of them. Decided in SQL against the hotel's
+   * timezone — an approval that lands after the guest arrives is worthless, so
+   * this is what the queue should be worked by.
+   */
+  next_arrival_date: string | null;
+  /** That arrival is near enough to make this review urgent. */
+  arrival_imminent: boolean;
   version: number;
 }
 

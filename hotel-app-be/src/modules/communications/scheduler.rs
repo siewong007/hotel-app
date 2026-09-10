@@ -119,7 +119,24 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
             "Your stay at {hotel} begins soon · {}",
             booking.booking_number
         );
-        let checkin = email_layout::absolute_url("/guest-checkin");
+        // Deep-link into the wizard with a booking token. Without one the CTA
+        // lands on the lookup page and the guest has to retype their booking
+        // number and name — the reminder exists to remove that friction. The
+        // token is minted for guests WITH an account too: the wizard reads the
+        // booking through the booking token, not a portal session, so an
+        // account holder without one cannot use it either.
+        let checkin = match crate::services::guest_portal::issue_booking_access_token(
+            pool,
+            booking.id,
+            booking.check_in_date,
+        )
+        .await
+        {
+            Some(token) => {
+                email_layout::absolute_url(&format!("/guest-checkin/form?token={token}"))
+            }
+            None => email_layout::absolute_url("/guest-checkin"),
+        };
         let stay_in = booking.check_in_date.format("%d %b %Y").to_string();
         let stay_out = booking.check_out_date.format("%d %b %Y").to_string();
         let room = format!(
@@ -137,14 +154,14 @@ pub async fn tick_pre_arrival_reminders(pool: &DbPool) -> Result<usize, ApiError
             "<p>Dear {},</p>\
              <p>We look forward to welcoming you. Your stay <strong>{}</strong> starts on <strong>{}</strong>.</p>\
              {}\
-             <p>You can complete online check-in from your guest portal to skip the front desk.</p>",
+             <p>You can complete online check-in from the link below to skip the front desk.</p>",
             html_escape(&booking.guest_name),
             html_escape(&booking.booking_number),
             html_escape(&stay_in),
             details,
         );
         let inner_text = format!(
-            "Dear {},\nYour stay {} starts on {}. Room: {}. Check-out: {}.\nYou can complete online check-in from your guest portal.",
+            "Dear {},\nYour stay {} starts on {}. Room: {}. Check-out: {}.\nYou can complete online check-in from the link in this email.",
             booking.guest_name, booking.booking_number, stay_in, room, stay_out,
         );
         let rendered = email_layout::render(GuestEmail {

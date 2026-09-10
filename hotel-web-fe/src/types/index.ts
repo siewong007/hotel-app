@@ -181,6 +181,11 @@ export * from './payment.types';
 
 // Guest portal (customer self-service) types
 export type {
+  ConsentAcceptancePayload,
+  GuestEkycStatusSummary,
+  GuestPortalAutoCheckinResponse,
+  GuestPortalClaimAccountRequest,
+  GuestPortalClaimAccountResponse,
   GuestPortalGuest,
   GuestPortalLoginResponse,
   GuestPortalMeResponse,

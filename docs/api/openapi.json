@@ -425,6 +425,9 @@
     "/api/guest-portal/booking/{token}/payments/{payment_id}/receipt": {
       "POST": {}
     },
+    "/api/guest-portal/claim-account": {
+      "POST": {}
+    },
     "/api/guest-portal/logout": {
       "POST": {}
     },

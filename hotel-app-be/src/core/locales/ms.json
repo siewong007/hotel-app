@@ -20,7 +20,9 @@
       "text": "Tempahan: {{booking}}\nBilik: {{room}} ({{roomType}})\nPenginapan: {{from}} hingga {{to}} ({{nights}} malam)\nJumlah: {{total}}"
     },
     "cta": {
-      "viewBooking": "Lihat tempahan anda"
+      "viewBooking": "Lihat tempahan anda",
+      "preCheckIn": "Mula daftar masuk dalam talian",
+      "verifyEmail": "Sahkan e-mel saya"
     },
     "bookingConfirmed": {
       "subject": "Tempahan {{hotel}} disahkan {{booking}}",
@@ -52,6 +54,13 @@
       "10": "Okt",
       "11": "Nov",
       "12": "Dis"
+    },
+    "verifyEmail": {
+      "subject": "Sahkan e-mel anda · {{hotel}}",
+      "preheader": "Sahkan alamat e-mel anda untuk melengkapkan akaun {{hotel}} anda.",
+      "heading": "Sahkan e-mel anda",
+      "bodyHtml": "Sila sahkan bahawa ini alamat e-mel anda supaya anda boleh log masuk ke akaun anda. Pautan di bawah sah selama 24 jam.",
+      "bodyText": "Sila sahkan bahawa ini alamat e-mel anda supaya anda boleh log masuk ke akaun anda. Pautan di bawah sah selama 24 jam."
     }
   }
 }

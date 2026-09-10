@@ -1996,17 +1996,8 @@ async fn issue_anonymous_receipt_upload_token(
     guest_id: i64,
     booking_id: i64,
 ) -> Option<String> {
-    match crate::repositories::guest_portal_session::GuestPortalSessionRepository::find_guest_user_id(
-        pool, guest_id,
-    )
-    .await
-    {
-        Ok(None) => {}
-        Ok(Some(_)) => return None,
-        Err(error) => {
-            log::error!("Failed to resolve portal account for receipt request: {error}");
-            return None;
-        }
+    if crate::services::guest_portal::guest_has_portal_account(pool, guest_id).await {
+        return None;
     }
     let booking = match GuestPortalRepository::find_booking_by_id(pool, booking_id).await {
         Ok(booking) => booking,
@@ -2015,18 +2006,12 @@ async fn issue_anonymous_receipt_upload_token(
             return None;
         }
     };
-    let token = crate::services::guest_portal::generate_session_token();
-    let expires_at = crate::modules::guest_booking::service::anonymous_access_token_expiry(
-        chrono::Utc::now(),
+    crate::services::guest_portal::issue_booking_access_token(
+        pool,
+        booking_id,
         booking.check_in_date,
-    );
-    if let Err(error) =
-        GuestPortalRepository::update_precheckin_token(pool, booking_id, &token, expires_at).await
-    {
-        log::error!("Failed to issue receipt-upload token for booking {booking_id}: {error}");
-        return None;
-    }
-    Some(token)
+    )
+    .await
 }
 
 /// Notify the guest each time staff request or re-request proof of a bank transfer.

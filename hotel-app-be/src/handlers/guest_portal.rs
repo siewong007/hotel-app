@@ -13,10 +13,12 @@ use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::{
     AutoCheckinResponse, GuestPortalBenefitsResponse, GuestPortalBookingResponse,
-    GuestPortalBookingSummary, GuestPortalCreditsResponse, GuestPortalMeResponse,
-    GuestPortalMembershipResponse, GuestPortalPage, GuestPortalPageQuery, GuestPortalTransaction,
-    GuestPortalVerifyRequest, GuestPortalVerifyResponse, PreCheckInUpdateRequest,
+    GuestPortalBookingSummary, GuestPortalClaimAccountRequest, GuestPortalClaimAccountResponse,
+    GuestPortalCreditsResponse, GuestPortalMeResponse, GuestPortalMembershipResponse,
+    GuestPortalPage, GuestPortalPageQuery, GuestPortalTransaction, GuestPortalVerifyRequest,
+    GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
+use crate::modules::consent::service::ConsentContext;
 use crate::services::guest_portal as guest_portal_service;
 
 /// POST /guest-portal/verify
@@ -57,6 +59,22 @@ pub async fn auto_checkin_by_token(
 ) -> Result<Json<AutoCheckinResponse>, ApiError> {
     Ok(Json(
         guest_portal_service::auto_checkin_by_token(&pool, &token).await?,
+    ))
+}
+
+/// POST /guest-portal/claim-account
+///
+/// Token in `X-Booking-Access-Token` only — this request carries a password, so
+/// it is never accepted with the token in the URL.
+pub async fn claim_account(
+    State(pool): State<DbPool>,
+    token: String,
+    consent_context: ConsentContext,
+    Json(request): Json<GuestPortalClaimAccountRequest>,
+) -> Result<Json<GuestPortalClaimAccountResponse>, ApiError> {
+    Ok(Json(
+        guest_portal_service::claim_booking_account(&pool, &token, request, &consent_context)
+            .await?,
     ))
 }
 

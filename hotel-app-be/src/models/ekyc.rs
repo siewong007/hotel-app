@@ -185,6 +185,13 @@ pub struct EkycApplicationSummaryRow {
     pub verified_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
     pub version: i32,
+    /// Earliest upcoming check-in across the guest's active bookings, or
+    /// `None` when they have no stay ahead of them.
+    pub next_arrival_date: Option<chrono::NaiveDate>,
+    /// Whether that arrival is near enough to make this review urgent.
+    /// Decided in SQL against the connection's hotel timezone, never from a
+    /// process clock.
+    pub arrival_imminent: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -218,6 +225,11 @@ pub struct EkycApplicationSummary {
     pub updated_at: DateTime<Utc>,
     pub nearing_sla: bool,
     pub overdue_sla: bool,
+    /// When the guest next arrives, so the queue can be worked in the order
+    /// arrivals actually happen rather than the order applications landed.
+    pub next_arrival_date: Option<chrono::NaiveDate>,
+    /// That arrival is close enough to make this review urgent.
+    pub arrival_imminent: bool,
     pub version: i32,
 }
 

@@ -44,6 +44,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
         .route("/guest-portal/auto-checkin", post(auto_checkin_header))
         .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
+        .route("/guest-portal/claim-account", post(claim_account))
         .route("/guest-portal/session", post(create_session))
         .route("/guest-portal/logout", post(handlers::guest_portal::logout))
         .route("/guest-portal/me", get(handlers::guest_portal::get_me))
@@ -267,6 +268,43 @@ async fn token_paypal_capture(
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
     handlers::guest_portal::token_paypal_capture(State(pool), Path(token), body).await
+}
+
+/// Header-only: this body carries a password, so the token is never taken from
+/// the URL (access logs, browser history, Referer).
+///
+/// Carries the registration IP budget on top of the token-gated write budget.
+/// The per-token limit alone bounds repeats against ONE booking; an attacker
+/// working through many leaked or guessed links would otherwise mint accounts
+/// at the token budget times the number of links, and this endpoint creates
+/// real `users` rows exactly as `/auth/register` does.
+async fn claim_account(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(input): Json<models::GuestPortalClaimAccountRequest>,
+) -> Result<Json<models::GuestPortalClaimAccountResponse>, ApiError> {
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.register.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many registration attempts. Please try again in {retry_after} seconds."),
+            retry_after,
+        ));
+    }
+
+    let token = require_booking_token_for_write(
+        &limiters,
+        &headers,
+        peer_addr,
+        None,
+        "Too many account attempts for this booking. Please try again in",
+    )
+    .await?;
+    let consent_context =
+        crate::modules::consent::service::ConsentContext::from_request(&headers, peer_addr);
+    handlers::guest_portal::claim_account(State(pool), token, consent_context, Json(input)).await
 }
 
 async fn create_session(

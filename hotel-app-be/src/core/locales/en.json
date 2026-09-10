@@ -20,7 +20,9 @@
       "text": "Booking: {{booking}}\nRoom: {{room}} ({{roomType}})\nStay: {{from}} to {{to}} ({{nights}} night(s))\nTotal: {{total}}"
     },
     "cta": {
-      "viewBooking": "View your booking"
+      "viewBooking": "View your booking",
+      "preCheckIn": "Start online check-in",
+      "verifyEmail": "Verify my email"
     },
     "bookingConfirmed": {
       "subject": "{{hotel}} reservation confirmed {{booking}}",
@@ -52,6 +54,13 @@
       "10": "Oct",
       "11": "Nov",
       "12": "Dec"
+    },
+    "verifyEmail": {
+      "subject": "Verify your email · {{hotel}}",
+      "preheader": "Confirm your email address to finish setting up your {{hotel}} account.",
+      "heading": "Verify your email",
+      "bodyHtml": "Please confirm this is your email address so you can sign in to your account. The link below works for 24 hours.",
+      "bodyText": "Please confirm this is your email address so you can sign in to your account. The link below works for 24 hours."
     }
   }
 }

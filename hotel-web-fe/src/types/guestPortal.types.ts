@@ -27,6 +27,81 @@ export interface GuestPortalLoginResponse {
   guest: GuestPortalGuest;
 }
 
+/** One consent decision, in the shape `useConsent().buildPayload` produces. */
+export interface ConsentAcceptancePayload {
+  document: string;
+  version: string;
+  granted: boolean;
+  locale: string;
+}
+
+/**
+ * Body for `POST /guest-portal/claim-account` — creating a login for the guest
+ * a booking access token already authenticates.
+ *
+ * Distinct from `/auth/register`, which always creates a NEW guest profile and
+ * refuses when the name is taken.
+ *
+ * `booking_number` and `guest_name` are sent from the loaded booking rather
+ * than re-typed. They are not a second factor — the same token authorizes
+ * `GET /guest-portal/booking`, which returns both — so asking the guest to copy
+ * them off the screen would be ceremony. What actually bounds a leaked link is
+ * that the account cannot password-login until its email is verified, and that
+ * a guest who already has a login gets a conflict rather than a takeover.
+ */
+export interface GuestPortalClaimAccountRequest {
+  booking_number: string;
+  guest_name: string;
+  username: string;
+  password: string;
+  email?: string;
+  consents: ConsentAcceptancePayload[];
+  marketing_opt_in: boolean;
+}
+
+export interface GuestPortalClaimAccountResponse {
+  /** Portal session for the new account — eKYC continues in the same visit. */
+  session: GuestPortalLoginResponse;
+  username: string;
+  /**
+   * True when a verification mail went out. Password login stays blocked until
+   * the guest clicks it; the session above works regardless, so pre-check-in
+   * and identity verification are not held up by an email round-trip.
+   */
+  email_verification_required: boolean;
+}
+
+/**
+ * Result of `POST /guest-portal/auto-checkin` — the guest checking themselves
+ * in on approved eKYC (`AutoCheckinResponse` in
+ * `hotel-app-be/src/models/booking.rs`).
+ */
+export interface GuestPortalAutoCheckinResponse {
+  success: boolean;
+  booking_id: number;
+  room_number: string;
+  digital_key_sent: boolean;
+  checked_in_at: string;
+  ekyc_summary: GuestEkycStatusSummary;
+  message: string;
+}
+
+/**
+ * eKYC/auto-check-in eligibility carried on every portal booking response
+ * (`GuestEkycStatusSummary` in `hotel-app-be/src/models/guest.rs`).
+ * `auto_checkin_block_reason` is the guest-facing explanation of why check-in
+ * is not open yet — booking status, stay dates, room readiness, or eKYC state.
+ */
+export interface GuestEkycStatusSummary {
+  guest_id: number;
+  ekyc_verification_id?: number | null;
+  status: string;
+  self_checkin_enabled: boolean;
+  verified_at?: string | null;
+  can_auto_checkin: boolean;
+  auto_checkin_block_reason?: string | null;
+}
+
 export interface GuestPortalMeResponse {
   guest: GuestPortalGuest;
   /**

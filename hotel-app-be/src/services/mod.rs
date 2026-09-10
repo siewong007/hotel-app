@@ -2,6 +2,7 @@
 //!
 //! Services that encapsulate complex business logic.
 
+pub mod account_emails;
 pub mod analytics;
 pub mod audit;
 pub mod auth;

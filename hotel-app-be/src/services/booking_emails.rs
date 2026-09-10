@@ -29,6 +29,7 @@ use crate::core::settings_cache;
 use crate::modules::communications::email_layout::{self, Cta, GuestEmail};
 use crate::modules::communications::repository::{CommunicationsRepository, DeliveryValues};
 use crate::modules::communications::validation::html_escape;
+use crate::services::guest_portal;
 
 /// Booking + guest fields shared by both emails.
 #[derive(sqlx::FromRow)]
@@ -308,6 +309,28 @@ pub async fn try_queue_booking_confirmation_email(pool: &DbPool, booking_id: i64
 
 /// Guest-facing notification that a payment has been confirmed against a
 /// booking, with the resulting paid/outstanding position.
+/// Where the payment-confirmation mail's single call-to-action points.
+///
+/// With a booking token the guest goes straight into the pre-check-in wizard;
+/// without one they go to the portal. The split follows the account, not the
+/// booking: `/portal` is a sign-in wall to someone who never made an account,
+/// and the wizard is the only pre-arrival surface reachable without one.
+fn payment_confirmation_cta(locale: Locale, access_token: Option<&str>) -> (String, &'static str) {
+    match access_token
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+    {
+        Some(token) => (
+            email_layout::absolute_url(&format!("/guest-checkin/form?token={token}")),
+            locale.message("email.cta.preCheckIn"),
+        ),
+        None => (
+            email_layout::absolute_url("/portal"),
+            locale.message("email.cta.viewBooking"),
+        ),
+    }
+}
+
 pub async fn queue_payment_confirmation_email(
     pool: &DbPool,
     booking_id: i64,
@@ -367,7 +390,16 @@ pub async fn queue_payment_confirmation_email(
         "email.paymentConfirmed.subject",
         &[("hotel", &hotel), ("booking", booking)],
     );
-    let portal = email_layout::absolute_url("/portal");
+    // A guest with no portal account cannot use `/portal` at all — they would
+    // arrive at a sign-in wall for an account they never created. Mint a
+    // booking token for them instead; `payment_confirmation_cta` turns it into
+    // a link to the one surface that works without an account.
+    let access_token = if guest_portal::guest_has_portal_account(pool, source.guest_id).await {
+        None
+    } else {
+        guest_portal::issue_booking_access_token(pool, booking_id, source.check_in_date).await
+    };
+    let (cta_url, cta_label) = payment_confirmation_cta(locale, access_token.as_deref());
     let paid_label = source.money(paid);
     let balance_label = source.money(balance);
     let amount_label = source.money(payment.amount);
@@ -423,8 +455,8 @@ pub async fn queue_payment_confirmation_email(
         inner_html: &inner_html,
         inner_text: &inner_text,
         cta: Some(Cta {
-            label: locale.message("email.cta.viewBooking"),
-            url: &portal,
+            label: cta_label,
+            url: &cta_url,
         }),
     });
 
@@ -581,5 +613,36 @@ mod tests {
         let mut no_currency = source;
         no_currency.currency = None;
         assert_eq!(no_currency.money(Decimal::new(12550, 2)), "125.50");
+    }
+
+    #[test]
+    fn payment_confirmation_sends_an_account_holder_to_the_portal() {
+        let (url, label) = payment_confirmation_cta(locale("en"), None);
+        assert!(url.ends_with("/portal"), "unexpected CTA url: {url}");
+        assert_eq!(label, "View your booking");
+    }
+
+    #[test]
+    fn payment_confirmation_sends_an_accountless_guest_into_pre_check_in() {
+        let (url, label) = payment_confirmation_cta(locale("en"), Some("deadbeefcafebabe"));
+        assert!(
+            url.ends_with("/guest-checkin/form?token=deadbeefcafebabe"),
+            "an accountless guest must land in the wizard, not a sign-in wall: {url}"
+        );
+        assert_eq!(label, "Start online check-in");
+    }
+
+    #[test]
+    fn payment_confirmation_cta_is_localised() {
+        let (_, label) = payment_confirmation_cta(locale("ms"), Some("deadbeefcafebabe"));
+        assert_eq!(label, "Mula daftar masuk dalam talian");
+    }
+
+    #[test]
+    fn payment_confirmation_ignores_a_blank_token() {
+        // A blank token would render `?token=` and send the guest to a page
+        // that can only fail; the portal link is the safer fallback.
+        let (url, _) = payment_confirmation_cta(locale("en"), Some("   "));
+        assert!(url.ends_with("/portal"), "unexpected CTA url: {url}");
     }
 }

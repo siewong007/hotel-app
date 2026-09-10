@@ -987,6 +987,8 @@ fn summary_from_row(row: EkycApplicationSummaryRow) -> EkycApplicationSummary {
         overdue_sla: submitted_at.is_some_and(|at| {
             Utc::now().signed_duration_since(at).num_hours() >= validation::REVIEW_SLA_HOURS
         }),
+        next_arrival_date: row.next_arrival_date,
+        arrival_imminent: row.arrival_imminent.unwrap_or(false),
         version: row.version,
     }
 }
@@ -997,6 +999,11 @@ async fn detail_from_record(
     include_provider_raw: bool,
 ) -> Result<EkycApplicationDetail, ApiError> {
     let summary = summary_from_row(EkycApplicationSummaryRow {
+        // Arrival urgency is a review-queue concern: this builds the detail
+        // view from an already-selected record, where the reviewer is looking
+        // at one application rather than choosing which to work next.
+        next_arrival_date: None,
+        arrival_imminent: None,
         id: record.id,
         user_id: record.user_id,
         guest_id: record.guest_id,

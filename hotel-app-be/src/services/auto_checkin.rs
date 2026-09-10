@@ -303,6 +303,22 @@ async fn apply_booking_constraints(
         && let Some(reason) = room_status_block_reason(&room_status)
     {
         block(summary, reason);
+        return Ok(());
+    }
+
+    // `checkin_booking_flow` refuses to complete check-in without an identity
+    // document on file, and the auto path sends no check-in patch that could
+    // supply one. Without this the summary reports check-in as open, offers the
+    // button, and every press fails with a message the guest cannot act on from
+    // there — the eligibility preview has to enforce the same gate the flow does.
+    let has_identity_document = booking_repo::fetch_guest_ic_number(pool, summary.guest_id)
+        .await?
+        .is_some_and(|value| !value.trim().is_empty());
+    if !has_identity_document {
+        block(
+            summary,
+            "Add your IC or passport number to your details to check in online.".to_string(),
+        );
     }
 
     Ok(())

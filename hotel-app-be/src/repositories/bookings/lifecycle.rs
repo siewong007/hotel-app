@@ -2486,6 +2486,26 @@ pub async fn fetch_room_status_tx(
         .map_err(|e| ApiError::Database(e.to_string()))
 }
 
+/// Read the guest's current IC / passport number outside a transaction.
+///
+/// The pool-based twin of [`fetch_guest_ic_number_tx`], for the eligibility
+/// preview: `checkin_booking_flow` refuses check-in without an identity
+/// document, so a summary that does not consult the same column reports
+/// check-in as open and then fails on every attempt.
+pub async fn fetch_guest_ic_number(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<Option<String>, ApiError> {
+    let query = "SELECT ic_number FROM guests WHERE id = $1";
+
+    sqlx::query_scalar(query)
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map(Option::flatten)
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
+
 /// Read the guest's current IC / passport number within the check-in transaction
 /// so the caller can enforce that one is on file before completing check-in.
 pub async fn fetch_guest_ic_number_tx(

@@ -549,6 +549,10 @@ pub fn sort_column(sort_by: Option<&str>) -> &'static str {
         "full_name" => "e.full_name",
         "assigned_reviewer" => "reviewer.full_name",
         "updated_at" => "e.updated_at",
+        // Select-list alias from `list_query`. Ascending puts the guest
+        // arriving soonest at the top, and PostgreSQL sorts NULLs last there,
+        // so applications with no upcoming stay fall to the bottom on their own.
+        "next_arrival" | "next_arrival_date" => "next_arrival_date",
         _ => "e.submitted_at",
     }
 }

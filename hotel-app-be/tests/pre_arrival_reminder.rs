@@ -182,13 +182,51 @@ async fn pre_arrival_reminder_fires_once_inside_the_window_and_respects_the_togg
     assert_eq!(queued, 0);
     assert_eq!(reminder_delivery_count(&pool).await, 1);
 
-    let kind: String =
-        sqlx::query_scalar("SELECT kind FROM email_deliveries WHERE idempotency_key = $1")
-            .bind(format!("pre-arrival:{BOOKING_ID}"))
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let (kind, body_html, body_text): (String, String, String) = sqlx::query_as(
+        "SELECT kind, body_html, body_text FROM email_deliveries WHERE idempotency_key = $1",
+    )
+    .bind(format!("pre-arrival:{BOOKING_ID}"))
+    .fetch_one(&pool)
+    .await
+    .unwrap();
     assert_eq!(kind, "pre_arrival_reminder");
+
+    // The reminder exists to remove friction, so its CTA must open the wizard
+    // directly. A bare `/guest-checkin` link makes the guest retype their
+    // booking number and name — the exact step this email is meant to skip.
+    let token = body_html
+        .split("/guest-checkin/form?token=")
+        .nth(1)
+        .and_then(|rest| rest.split(['"', '&', '\'', ' ']).next())
+        .map(str::to_owned)
+        .expect("the reminder must deep-link into the pre-check-in wizard");
+    assert_eq!(token.len(), 64, "expected a full booking access token");
+    assert!(
+        body_text.contains("/guest-checkin/form?token="),
+        "the plain-text part must carry the same link, not a lookup-page URL"
+    );
+
+    // The emailed token has to actually authenticate, not merely look right:
+    // it is stored hashed, so a mint that never landed would still render a
+    // perfectly plausible URL.
+    let booking =
+        hotel_app_be::repositories::guest_portal::GuestPortalRepository::find_booking_by_token(
+            &pool, &token,
+        )
+        .await
+        .expect("look up the emailed token")
+        .expect("the emailed token must authenticate the booking");
+    assert_eq!(booking.id, BOOKING_ID);
+
+    let stored: String = sqlx::query_scalar("SELECT pre_checkin_token FROM bookings WHERE id = $1")
+        .bind(BOOKING_ID)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(
+        stored.starts_with("sha256:"),
+        "the token must be stored hashed, not in plaintext: {stored}"
+    );
 
     cleanup(&pool).await;
 }

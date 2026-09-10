@@ -11,7 +11,6 @@ use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::{self, ProfileCompletion};
 use crate::utils::sanitization::Sanitizer;
-use chrono::{Duration, Utc};
 use validator::Validate;
 
 const UNCONFIGURED_EMAIL_SUFFIX: &str = "@no-email.invalid";
@@ -80,20 +79,17 @@ pub async fn update_user_profile(
                 ));
             }
 
-            let verification_token = AuthService::generate_email_verification_token();
-            let configured = UserRepository::configure_guest_email(
-                pool,
-                user_id,
-                &email,
-                &verification_token,
-                Utc::now() + Duration::hours(24),
-            )
-            .await?;
+            let configured = UserRepository::configure_guest_email(pool, user_id, &email).await?;
             if !configured {
                 return Err(ApiError::Conflict(
                     "Email has already been configured".to_string(),
                 ));
             }
+            // The address is now on the account and unverified, so `login` will
+            // refuse it until the guest clicks the link. Sending that link is
+            // not optional decoration: without it, configuring an email locks
+            // the guest out of the account they just completed.
+            crate::services::account_emails::try_send_email_verification(pool, user_id).await;
         } else if email_changed {
             UserRepository::update_email(pool, user_id, &email).await?;
         }

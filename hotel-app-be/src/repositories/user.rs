@@ -1,7 +1,5 @@
 //! User repository for database operations
 
-use chrono::{DateTime, Utc};
-
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{User, UserCreateInput, UserProfile, UserUpdateInput};
@@ -244,28 +242,30 @@ impl UserRepository {
 
     /// Configure a guest account's first real email and mirror it to the linked
     /// guest record. The placeholder guard makes this a one-time transition.
+    ///
+    /// Deliberately writes NO verification token. It used to store the RAW
+    /// token while `AuthService::verify_email_token` matches on the SHA-256
+    /// hash, so the stored value could never match and the address could never
+    /// be verified — on top of which nothing ever sent the guest a link. The
+    /// caller now hands the account to `services::account_emails`, which mints,
+    /// hashes and mails the token in one step; the columns are cleared here so
+    /// no unusable token outlives this call.
     pub async fn configure_guest_email(
         pool: &DbPool,
         user_id: i64,
         email: &str,
-        verification_token: &str,
-        token_expires_at: DateTime<Utc>,
     ) -> Result<bool, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
         let update_user = format!(
-            "UPDATE users SET email = {}, is_verified = false, email_verification_token = {}, \
-             email_token_expires_at = {}, updated_at = CURRENT_TIMESTAMP \
+            "UPDATE users SET email = {}, is_verified = false, email_verification_token = NULL, \
+             email_token_expires_at = NULL, updated_at = CURRENT_TIMESTAMP \
              WHERE id = {} AND user_type = 'guest' AND email LIKE {}",
             param!(1),
             param!(2),
-            param!(3),
-            param!(4),
-            param!(5)
+            param!(3)
         );
         let result = sqlx::query(&update_user)
             .bind(email)
-            .bind(verification_token)
-            .bind(token_expires_at)
             .bind(user_id)
             .bind(UNCONFIGURED_EMAIL_PATTERN)
             .execute(&mut *tx)

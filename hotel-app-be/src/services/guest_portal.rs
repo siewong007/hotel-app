@@ -6,20 +6,29 @@ use rand::RngExt;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
+use crate::core::auth::AuthService;
 use crate::core::db::{DbPool, hotel_today};
 use crate::core::error::ApiError;
 use crate::core::rate_limiter::RateLimiters;
 use crate::models::AuditEvent;
 use crate::models::{
     Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
-    GuestPortalCreditsResponse, GuestPortalLoginResponse, GuestPortalMeResponse,
-    GuestPortalMembershipResponse, GuestPortalPage, GuestPortalTransaction,
-    GuestPortalVerifyRequest, GuestPortalVerifyResponse, PreCheckInUpdateRequest,
+    GuestPortalClaimAccountRequest, GuestPortalClaimAccountResponse, GuestPortalCreditsResponse,
+    GuestPortalLoginResponse, GuestPortalMeResponse, GuestPortalMembershipResponse,
+    GuestPortalPage, GuestPortalTransaction, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
+    PreCheckInUpdateRequest,
 };
+use crate::modules::communications::service as communications_service;
+use crate::modules::consent::models::{ConsentDocument, ConsentSource};
+use crate::modules::consent::service::{self as consent_service, ConsentContext, ConsentSubject};
+use crate::modules::consent::validation as consent_validation;
+use crate::repositories::auth::{AuthRepository, ClaimGuestAccountValues};
 use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
 use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
+use crate::utils::sanitization::Sanitizer;
+use validator::Validate;
 
 /// Generate a 256-bit random token as a hex string.
 pub(crate) fn generate_session_token() -> String {
@@ -135,6 +144,57 @@ pub async fn verify_guest_booking(
     })
 }
 
+/// Mint a fresh booking access token so an outbound email can deep-link into
+/// the pre-check-in wizard, or `None` if it could not be issued.
+///
+/// **This rotates the booking's token**: `bookings.pre_checkin_token` holds one
+/// hashed value, so a link in an older email stops working the moment a newer
+/// one is sent. That is the only option available — the stored value is a hash
+/// and cannot be turned back into a URL — so the rule is that the most recent
+/// email is the live one. The expiry is the same `anonymous_access_token_expiry`
+/// the booking flow uses, which always reaches past the stay, so rotating never
+/// shortens the window a guest has to pay.
+///
+/// Returns `None` rather than an error on failure: an email must still go out
+/// with a lookup-page link if token issuance fails.
+pub async fn issue_booking_access_token(
+    pool: &DbPool,
+    booking_id: i64,
+    check_in_date: chrono::NaiveDate,
+) -> Option<String> {
+    let token = generate_session_token();
+    let expires_at = crate::modules::guest_booking::service::anonymous_access_token_expiry(
+        Utc::now(),
+        check_in_date,
+    );
+    match GuestPortalRepository::update_precheckin_token(pool, booking_id, &token, expires_at).await
+    {
+        Ok(()) => Some(token),
+        Err(error) => {
+            log::error!("Failed to issue booking access token for booking {booking_id}: {error}");
+            None
+        }
+    }
+}
+
+/// Whether this guest can sign in to the portal.
+///
+/// Callers use it to decide between a portal link and a booking-token deep
+/// link: a guest with no account cannot use `/portal` at all, so sending them
+/// there is a dead end.
+pub async fn guest_has_portal_account(pool: &DbPool, guest_id: i64) -> bool {
+    match GuestPortalSessionRepository::find_guest_user_id(pool, guest_id).await {
+        Ok(account) => account.is_some(),
+        Err(error) => {
+            log::error!("Failed to resolve portal account for guest {guest_id}: {error}");
+            // Assume an account exists: the fallback is the portal link, which
+            // is merely unhelpful, where a wrongly-minted token would rotate a
+            // live one out from under the guest.
+            true
+        }
+    }
+}
+
 pub async fn get_booking_by_token(
     pool: &DbPool,
     token: &str,
@@ -159,7 +219,6 @@ pub async fn submit_precheckin_update(
         booking.id,
         request.market_code,
         request.special_requests,
-        Utc::now().to_rfc3339(),
     )
     .await?;
 
@@ -200,6 +259,182 @@ pub async fn auto_checkin_by_token(
     )
     .await?;
     Ok(response)
+}
+
+/// Create a portal account for the guest of a token-authenticated booking.
+///
+/// This is the only path that can give a booked guest a login. `auth::register`
+/// always inserts a new `guests` row and refuses when one already carries that
+/// name, so the guest a booking created can never register as themselves. The
+/// account minted here is bound to `bookings.guest_id`, which is what later
+/// lets eKYC (keyed on `users.id`, resolved back through `guest_id`) and
+/// `auto_checkin_for_guest_portal` see the same guest as the booking.
+///
+/// Claimable exactly once: an account that already has a password ends the
+/// path with a conflict, so a forwarded link cannot take over an account that
+/// is already in use. The booking token itself stays valid until it expires —
+/// revoking it here would also kill the guest's own payment and receipt links,
+/// which ride the same token.
+pub async fn claim_booking_account(
+    pool: &DbPool,
+    token: &str,
+    mut request: GuestPortalClaimAccountRequest,
+    consent_context: &ConsentContext,
+) -> Result<GuestPortalClaimAccountResponse, ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
+
+    // The token proves possession of the booking link; these prove the holder
+    // knows what is on the booking. Same generic failure as `verify_guest_booking`
+    // so a probe cannot learn which half was wrong.
+    let booking_number_matches = request
+        .booking_number
+        .trim()
+        .eq_ignore_ascii_case(booking.booking_number.trim());
+    if !booking_number_matches || !guest_name_matches(&guest.nick_name, &request.guest_name) {
+        return Err(verify_booking_failure());
+    }
+
+    request.email = request
+        .email
+        .take()
+        .map(|email| Sanitizer::sanitize_email(&email))
+        .filter(|email| !email.is_empty());
+    request.username = request.username.trim().to_string();
+    request
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    AuthService::validate_password(&request.password).map_err(ApiError::BadRequest)?;
+
+    // Consent is checked before any row is written, matching `auth::register`:
+    // there must be no path that creates an account without provable consent.
+    consent_validation::validate_locales(&request.consents)?;
+    consent_validation::require_consents(
+        &request.consents,
+        consent_validation::REGISTRATION_REQUIRED,
+    )?;
+
+    if AuthRepository::username_or_email_exists(pool, &request.username, request.email.as_deref())
+        .await?
+    {
+        return Err(ApiError::BadRequest(
+            "Username or email already exists".to_string(),
+        ));
+    }
+
+    let password_hash = AuthService::hash_password(&request.password)
+        .await
+        .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
+
+    // Mirrors registration: `users.email` is NOT NULL, so an account without a
+    // real address gets a reserved, non-deliverable one and skips verification
+    // rather than being blocked from logging in forever.
+    let account_email = request
+        .email
+        .clone()
+        .unwrap_or_else(|| format!("{}@no-email.invalid", request.username));
+    let email_verification_required = request.email.is_some();
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    AuthRepository::lock_guest_for_claim(&mut tx, booking.guest_id).await?;
+
+    let existing = AuthRepository::find_guest_account(&mut tx, booking.guest_id).await?;
+    let existing_user_id = match existing {
+        Some(account) if account.is_deleted || (account.has_password && !account.is_active) => {
+            return Err(ApiError::Conflict(
+                "This guest profile has a disabled account. Please contact the front desk."
+                    .to_string(),
+            ));
+        }
+        // Deliberately does NOT echo the existing username: the caller proved
+        // they hold the booking link and know the booking details, which is not
+        // the same as being the account owner.
+        Some(account) if account.has_password => {
+            return Err(ApiError::Conflict(
+                "An account already exists for this booking. Please sign in, or use \
+                 'forgot password' if you cannot get in."
+                    .to_string(),
+            ));
+        }
+        // A login-disabled anchor from front-desk eKYC: upgrade it in place.
+        Some(account) => Some(account.id),
+        None => None,
+    };
+
+    let user = AuthRepository::claim_guest_account(
+        &mut tx,
+        ClaimGuestAccountValues {
+            existing_user_id,
+            guest_id: booking.guest_id,
+            username: &request.username,
+            email: &account_email,
+            password_hash: &password_hash,
+            full_name: Some(guest.nick_name.as_str()),
+            phone: guest.phone.as_deref(),
+            is_verified: !email_verification_required,
+        },
+    )
+    .await?;
+
+    consent_service::record_tx(
+        &mut tx,
+        ConsentSubject::user(user.id).with_guest(booking.guest_id),
+        &request.consents,
+        ConsentSource::Registration,
+        consent_context,
+    )
+    .await?;
+    tx.commit().await.map_err(ApiError::from)?;
+
+    // Post-commit and best-effort, exactly as registration does it: neither a
+    // marketing-ledger write nor a verification mail may undo an account the
+    // guest has already been told they have.
+    communications_service::record_signup_marketing_consent(
+        pool,
+        booking.guest_id,
+        request.marketing_opt_in,
+        "guest_portal_claim",
+        Some(ConsentDocument::PrivacyNotice.current_version()),
+        consent_context.ip_address.clone(),
+        consent_context.user_agent.clone(),
+    )
+    .await?;
+
+    if email_verification_required {
+        crate::services::account_emails::try_send_email_verification(pool, user.id).await;
+    }
+
+    AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user.id),
+            action: "guest_portal.account_claimed",
+            resource_type: "booking",
+            resource_id: Some(booking.id),
+            details: Some(serde_json::json!({
+                "guest_id": booking.guest_id,
+                "user_id": user.id,
+                "upgraded_anchor_account": existing_user_id.is_some(),
+            })),
+            ip_address: consent_context.ip_address.clone(),
+            user_agent: consent_context.user_agent.clone(),
+        },
+    )
+    .await?;
+
+    let session = create_authenticated_guest_portal_session(
+        pool,
+        user.id,
+        consent_context.ip_address.clone(),
+        consent_context.user_agent.clone(),
+    )
+    .await?;
+
+    Ok(GuestPortalClaimAccountResponse {
+        session,
+        username: user.username,
+        email_verification_required,
+    })
 }
 
 async fn require_valid_token(pool: &DbPool, token: &str) -> Result<Booking, ApiError> {

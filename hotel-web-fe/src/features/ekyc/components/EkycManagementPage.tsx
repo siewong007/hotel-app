@@ -58,6 +58,7 @@ import {
   ZoomOut as ZoomOutIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import { formatCalendarDate } from '../utils/reviewQueue';
 import {
   EkycActionPayload,
   EkycApplicationDetail,
@@ -544,6 +545,31 @@ const EkycManagementPage: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
+                <InputLabel>Order by</InputLabel>
+                <Select
+                  label="Order by"
+                  value={filters.sort_by ?? 'submitted_at'}
+                  onChange={(event) => {
+                    const sortBy = event.target.value;
+                    // Arrival order is ascending — soonest first — where every
+                    // other key reads newest-first. Sorting arrivals descending
+                    // would bury the guest landing tomorrow behind next month's.
+                    setFilters(current => ({
+                      ...current,
+                      page: 1,
+                      sort_by: sortBy,
+                      sort_order: sortBy === 'next_arrival' ? 'asc' : 'desc',
+                    }));
+                  }}
+                >
+                  <MenuItem value="submitted_at">Newest submission</MenuItem>
+                  <MenuItem value="next_arrival">Soonest arrival</MenuItem>
+                  <MenuItem value="risk_score">Highest risk</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 6, md: 2 }}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Risk</InputLabel>
                 <Select label="Risk" value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
                   <MenuItem value="all">All</MenuItem>
@@ -590,18 +616,19 @@ const EkycManagementPage: React.FC = () => {
                   <TableCell>Risk</TableCell>
                   <TableCell>Reviewer</TableCell>
                   <TableCell>Submitted</TableCell>
+                  <TableCell>Arrives</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {listQuery.isLoading && Array.from({ length: 5 }).map((_, index) => (
                   <TableRow key={index}>
-                    <TableCell colSpan={8}><Skeleton /></TableCell>
+                    <TableCell colSpan={9}><Skeleton /></TableCell>
                   </TableRow>
                 ))}
                 {!listQuery.isLoading && (listData?.data.length ?? 0) === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={9} align="center">
                       <Typography
                         variant="body2"
                         sx={{
@@ -649,6 +676,16 @@ const EkycManagementPage: React.FC = () => {
                     </TableCell>
                     <TableCell>{application.assigned_reviewer_name ?? application.assigned_reviewer_id ?? '-'}</TableCell>
                     <TableCell>{formatDate(application.submitted_at)}</TableCell>
+                    <TableCell>
+                      <Stack spacing={0.5}>
+                        <Typography variant="body2">
+                          {formatCalendarDate(application.next_arrival_date)}
+                        </Typography>
+                        {application.arrival_imminent && (
+                          <Chip size="small" color="warning" label="Arriving soon" />
+                        )}
+                      </Stack>
+                    </TableCell>
                     <TableCell align="right">
                       <Tooltip title="View">
                         <IconButton size="small" onClick={() => setSelectedId(application.id)}>

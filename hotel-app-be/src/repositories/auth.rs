@@ -31,6 +31,32 @@ pub struct GoogleGuestResolution {
     pub guest_id: Option<i64>,
 }
 
+/// The portal account attached to a guest profile, as the claim path needs to
+/// judge it: whether it can still be claimed, or whether the guest already has
+/// a real login and should be told to sign in instead.
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuestAccountRow {
+    pub id: i64,
+    pub is_active: bool,
+    /// False for the login-disabled anchor account front-desk eKYC provisions,
+    /// which exists only to satisfy `ekyc_verifications.user_id`.
+    pub has_password: bool,
+    pub is_deleted: bool,
+}
+
+/// Column values for [`AuthRepository::claim_guest_account`].
+pub struct ClaimGuestAccountValues<'a> {
+    /// Set to upgrade an existing anchor account in place; `None` inserts one.
+    pub existing_user_id: Option<i64>,
+    pub guest_id: i64,
+    pub username: &'a str,
+    pub email: &'a str,
+    pub password_hash: &'a str,
+    pub full_name: Option<&'a str>,
+    pub phone: Option<&'a str>,
+    pub is_verified: bool,
+}
+
 fn existing_google_user(user: User) -> GoogleGuestResolution {
     GoogleGuestResolution {
         user,
@@ -316,20 +342,146 @@ impl AuthRepository {
             .await
             .map_err(ApiError::from)?;
 
+        Self::grant_guest_role(tx, user.id).await?;
+
+        Ok((guest, user))
+    }
+
+    /// Grant the `guest` role to a portal account.
+    ///
+    /// Shared by registration and by `claim_guest_account` so the two paths
+    /// cannot drift on what a guest account is allowed to do. `ON CONFLICT DO
+    /// NOTHING` because a claimed anchor account provisioned by front-desk
+    /// eKYC may already hold the role.
+    async fn grant_guest_role(tx: &mut DbTransaction<'_>, user_id: i64) -> Result<(), ApiError> {
         let guest_role_id: i64 =
             sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")
                 .fetch_one(&mut **tx)
                 .await
                 .map_err(|e| ApiError::Database(format!("Guest role not found: {}", e)))?;
 
-        sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)")
-            .bind(user.id)
-            .bind(guest_role_id)
-            .execute(&mut **tx)
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(user_id)
+        .bind(guest_role_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok(())
+    }
+
+    /// Serialize concurrent claims for one guest.
+    ///
+    /// Two claim requests arriving together would each see "no account yet" and
+    /// each insert one, and `find_guest_user`/`find_guest_user_id` both resolve
+    /// `ORDER BY id LIMIT 1` — so the loser's account would be permanently
+    /// shadowed, including for the eKYC `user_id` it is the anchor for. The
+    /// row lock makes the second claim observe the first one's account and fail
+    /// the already-claimed check instead.
+    pub async fn lock_guest_for_claim(
+        tx: &mut DbTransaction<'_>,
+        guest_id: i64,
+    ) -> Result<(), ApiError> {
+        sqlx::query("SELECT id FROM guests WHERE id = $1 FOR UPDATE")
+            .bind(guest_id)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)?;
+        Ok(())
+    }
 
-        Ok((guest, user))
+    /// The portal account currently attached to a guest profile, if any.
+    ///
+    /// Mirrors `EkycRepository::find_guest_user`'s `ORDER BY id LIMIT 1` so the
+    /// claim decides about the same row eKYC would later resolve. Soft-deleted
+    /// accounts are returned rather than skipped: a claim must refuse them, not
+    /// silently mint a second account beside one someone deactivated.
+    pub async fn find_guest_account(
+        tx: &mut DbTransaction<'_>,
+        guest_id: i64,
+    ) -> Result<Option<GuestAccountRow>, ApiError> {
+        sqlx::query_as::<_, GuestAccountRow>(
+            "SELECT id, is_active, (password_hash IS NOT NULL) AS has_password, \
+             (deleted_at IS NOT NULL) AS is_deleted \
+             FROM users WHERE guest_id = $1 AND user_type::text = 'guest' ORDER BY id LIMIT 1",
+        )
+        .bind(guest_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// Bind a login-capable portal account to an EXISTING guest profile.
+    ///
+    /// Never touches `guests`: the profile already exists (the booking created
+    /// it), and inserting another would both duplicate the guest and trip
+    /// `idx_guests_full_name_unique`.
+    ///
+    /// When `existing_user_id` is set, the row is upgraded in place. That row is
+    /// the login-disabled anchor `EkycRepository::provision_guest_user` creates
+    /// for a front-desk eKYC — inserting a second account beside it would
+    /// shadow it for every `ORDER BY id LIMIT 1` lookup, orphaning the eKYC
+    /// verification that points at it.
+    pub async fn claim_guest_account(
+        tx: &mut DbTransaction<'_>,
+        values: ClaimGuestAccountValues<'_>,
+    ) -> Result<User, ApiError> {
+        let ClaimGuestAccountValues {
+            existing_user_id,
+            guest_id,
+            username,
+            email,
+            password_hash,
+            full_name,
+            phone,
+            is_verified,
+        } = values;
+
+        const RETURNING: &str = "RETURNING id, username, email, full_name, phone, is_active, \
+             is_verified, user_type, two_factor_enabled, two_factor_secret, \
+             two_factor_recovery_codes, created_at, updated_at";
+
+        let user = match existing_user_id {
+            Some(user_id) => sqlx::query_as::<_, User>(&format!(
+                "UPDATE users SET username = $1, email = $2, password_hash = $3, \
+                     full_name = COALESCE($4, full_name), phone = COALESCE($5, phone), \
+                     is_active = true, is_verified = $6, \
+                     password_changed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP \
+                     WHERE id = $7 {RETURNING}"
+            ))
+            .bind(username)
+            .bind(email)
+            .bind(password_hash)
+            .bind(full_name)
+            .bind(phone)
+            .bind(is_verified)
+            .bind(user_id)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(ApiError::from)?,
+            None => sqlx::query_as::<_, User>(&format!(
+                "INSERT INTO users (username, email, password_hash, full_name, phone, \
+                     user_type, guest_id, is_active, is_verified, created_at) \
+                     VALUES ($1, $2, $3, $4, $5, 'guest', $6, true, $7, CURRENT_TIMESTAMP) \
+                     {RETURNING}"
+            ))
+            .bind(username)
+            .bind(email)
+            .bind(password_hash)
+            .bind(full_name)
+            .bind(phone)
+            .bind(guest_id)
+            .bind(is_verified)
+            .fetch_one(&mut **tx)
+            .await
+            .map_err(ApiError::from)?,
+        };
+
+        Self::grant_guest_role(tx, user.id).await?;
+
+        Ok(user)
     }
 
     /// Resolves a verified Google identity to an active guest account. The

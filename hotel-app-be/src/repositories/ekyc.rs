@@ -600,15 +600,20 @@ impl EkycRepository {
     ) -> Result<(i64, Vec<EkycApplicationSummaryRow>), ApiError> {
         let count_query = list_query("COUNT(*) AS count", "", "");
         let data_query = list_query(
-            r#"
+            &format!(
+                r#"
             e.id, e.user_id, e.guest_id, e.status, e.assigned_reviewer_id,
             reviewer.full_name AS assigned_reviewer_name, e.full_name, e.email, e.phone,
             e.id_type, e.id_number, e.nationality, e.id_issuing_country, e.provider_name,
             e.provider_verification_result, e.manual_review_required, e.risk_level,
             e.risk_score, e.risk_flags, e.recommended_action, e.potential_duplicate,
             e.fraud_suspected, e.self_checkin_enabled, e.submitted_at, e.verified_at,
-            e.updated_at, e.version
-            "#,
+            e.updated_at, e.version,
+            arrival.check_in_date AS next_arrival_date,
+            (arrival.check_in_date IS NOT NULL
+             AND arrival.check_in_date <= CURRENT_DATE + {ARRIVAL_URGENT_DAYS}) AS arrival_imminent
+            "#
+            ),
             &format!("ORDER BY {sort_column} {sort_direction}, e.id DESC"),
             "LIMIT $14 OFFSET $15",
         );
@@ -983,12 +988,33 @@ impl EkycRepository {
     }
 }
 
+/// How near an arrival has to be for the review queue to call it urgent.
+/// Matches the pre-arrival reminder's shipped default (48 hours), so a guest
+/// prompted to pre-check-in is flagged for review from the same moment.
+const ARRIVAL_URGENT_DAYS: i64 = 2;
+
 fn list_query(select_clause: &str, order_clause: &str, page_clause: &str) -> String {
     format!(
         r#"
         SELECT {select_clause}
         FROM ekyc_verifications e
         LEFT JOIN users reviewer ON reviewer.id = e.assigned_reviewer_id
+        -- The soonest stay this verification is holding up, so the queue can be
+        -- worked in arrival order: a guest who submitted at T-24h needs a
+        -- decision before they land, however recent their application is.
+        --
+        -- LATERAL rather than a plain join: an aggregate with no GROUP BY
+        -- always yields exactly one row, so `COUNT(*)` — which shares this
+        -- clause — cannot be inflated by a guest with several bookings. Only
+        -- forward-looking, still-active stays count; a past or cancelled one
+        -- makes nothing urgent.
+        LEFT JOIN LATERAL (
+            SELECT MIN(b.check_in_date) AS check_in_date
+            FROM bookings b
+            WHERE b.guest_id = e.guest_id
+              AND b.check_in_date >= CURRENT_DATE
+              AND b.status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')
+        ) arrival ON TRUE
         WHERE ($1 IS NULL OR e.status = $1)
           AND ($2 IS NULL OR DATE(e.submitted_at) >= $2)
           AND ($3 IS NULL OR DATE(e.submitted_at) <= $3)
