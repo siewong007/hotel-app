@@ -227,6 +227,90 @@ describe('AuthContext', () => {
     });
   });
 
+  describe('loginWithPasskey', () => {
+    /** A minimal WebAuthn assertion of the shape navigator.credentials.get resolves. */
+    function stubPasskeyAssertion() {
+      const bytes = (n: number) => new Uint8Array([n, n + 1, n + 2]).buffer;
+      vi.stubGlobal('navigator', {
+        ...globalThis.navigator,
+        credentials: {
+          get: vi.fn().mockResolvedValue({
+            id: 'credential-id',
+            rawId: bytes(1),
+            type: 'public-key',
+            response: {
+              clientDataJSON: bytes(4),
+              authenticatorData: bytes(7),
+              signature: bytes(10),
+              userHandle: null,
+            },
+          }),
+        },
+      });
+    }
+
+    function passkeyResponses() {
+      // start -> challenge, finish -> the same AuthResponse shape every door returns.
+      mocks.apiPost.mockImplementation((path: string) => ({
+        json: async () =>
+          path === 'auth/passkey/login/start'
+            ? { challenge: btoa('challenge'), allowCredentials: [{ id: 'Y3JlZA', type: 'public-key' }] }
+            : {
+                access_token: 'passkey-access-1',
+                user: { id: '7', username: 'clerk', email: 'clerk@example.com', is_active: true },
+                roles: ['front_desk'],
+                permissions: ['bookings:read'],
+                route_policies: [],
+                is_first_login: false,
+                profile_complete: true,
+                missing_profile_fields: [],
+              },
+      }));
+    }
+
+    // Regression: this path used to hand-roll the session write-through and had
+    // drifted from applyAuthSession, leaving the previous account's
+    // command-palette history readable after a passkey sign-in on a shared
+    // machine. Reverting loginWithPasskey to its own copy fails this assertion.
+    it('clears the previous account command-palette history', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      stubPasskeyAssertion();
+      passkeyResponses();
+
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      localStorage.setItem('cmdRecents', JSON.stringify([{ label: 'Booking 4021' }]));
+
+      await act(async () => {
+        await result.current.loginWithPasskey('clerk');
+      });
+
+      expect(result.current.isAuthenticated).toBe(true);
+      expect(localStorage.getItem('cmdRecents')).toBeNull();
+    });
+
+    it('authenticates and reports whether this is a first login', async () => {
+      mocks.refreshAccessToken.mockResolvedValue(null);
+      stubPasskeyAssertion();
+      passkeyResponses();
+
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useAuth(), { wrapper });
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      let isFirstLogin: boolean | undefined;
+      await act(async () => {
+        isFirstLogin = await result.current.loginWithPasskey('clerk');
+      });
+
+      expect(isFirstLogin).toBe(false);
+      expect(result.current.user?.username).toBe('clerk');
+      expect(result.current.roles).toEqual(['front_desk']);
+    });
+  });
+
   describe('loginWithGoogle', () => {
     it('authenticates and populates the user with the profile completion status', async () => {
       mocks.refreshAccessToken.mockResolvedValue(null);

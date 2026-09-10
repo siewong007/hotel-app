@@ -653,46 +653,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       }).json<AuthLoginResponse>();
 
-      const {
-        access_token,
-        user: responseUser,
-        roles,
-        permissions,
-        route_policies,
-        is_first_login,
-        profile_complete,
-        missing_profile_fields,
-      } = finishResponse;
-      const user = normalizeAuthUser({ ...responseUser, profile_complete, missing_profile_fields }, roles);
-
-      // Access token to memory only; refresh token arrives as an HttpOnly cookie.
-      setAccessToken(access_token);
-
-      // Cache non-sensitive profile data
-      storage.setItems({
-        user,
-        roles,
-        permissions,
-        routePolicies: route_policies,
-      });
-
-      // Invalidate cache to ensure immediate availability
-      storage.invalidateCache();
-      queryClient.clear();
-
-      // Set authenticated state
-      setAuthState({
-        user,
-        roles,
-        permissions,
-        routePolicies: route_policies,
-        accessToken: access_token,
-        isAuthenticated: true,
-        isLoading: false,
-        shouldPromptPasskey: false,
-      });
-
-      return is_first_login;
+      // Shares the session write-through with the password and Google doors.
+      // Hand-rolling it here let the two copies drift: this path was missing
+      // the `cmdRecents` clear, so the previous account's command-palette
+      // history survived a passkey sign-in on a shared machine.
+      return applyAuthSession(finishResponse).isFirstLogin;
     } catch (error) {
       const name = webAuthnErrorName(error);
       // Handle different error types
@@ -720,7 +685,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(message);
     }
-  }, [queryClient]);
+  }, [applyAuthSession]);
 
   const authContextValue = useMemo<AuthContextType>(() => ({
     ...authState,
