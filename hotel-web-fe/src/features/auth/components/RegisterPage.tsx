@@ -66,7 +66,9 @@ const RegisterPage: React.FC = () => {
   const consent = useConsent(REGISTRATION_CONSENTS);
   const { locale: legalLocale } = useLegalLocale();
   const { t } = useTranslation('auth');
-  const { getToken: getTurnstileToken } = useTurnstile();
+  const turnstile = useTurnstile();
+  // See LoginPage: hold the button while the inline widget is still verifying.
+  const awaitingTurnstile = turnstile.enabled && !turnstile.token && !turnstile.error;
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -170,16 +172,18 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    setLoading(true);
-
-    let turnstileToken: string | undefined;
-    try {
-      turnstileToken = await getTurnstileToken();
-    } catch (err) {
-      setError(turnstileErrorMessage(err, t));
-      setLoading(false);
+    // The inline widget below the submit button normally solves while the form
+    // is being filled in; a missing token means it failed or is not finished.
+    if (turnstile.enabled && !turnstile.token) {
+      setError(
+        turnstile.error
+          ? turnstileErrorMessage(new Error(turnstile.error), t)
+          : t('turnstile.incomplete')
+      );
       return;
     }
+
+    setLoading(true);
 
     try {
       const consentPayload = consent.buildPayload(legalLocale);
@@ -193,7 +197,9 @@ const RegisterPage: React.FC = () => {
         address_line1: formData.addressLine1.trim() || undefined,
         consents: consentPayload.consents,
         marketing_opt_in: consentPayload.marketing_opt_in,
-      }, turnstileToken);
+      }, turnstile.token);
+      // Single-use: re-solve so a resubmit cannot replay a spent token.
+      turnstile.reset();
 
       const requiresEmailVerification = Boolean(formData.email.trim());
       setSuccess(requiresEmailVerification
@@ -204,6 +210,7 @@ const RegisterPage: React.FC = () => {
         setRedirectCountdown(GUEST_LOGIN_REDIRECT_SECONDS);
       }
     } catch (err) {
+      turnstile.reset();
       setError(errorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
@@ -496,10 +503,17 @@ const RegisterPage: React.FC = () => {
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2, py: 1.5 }}
-              disabled={loading || redirectCountdown !== null}
+              disabled={loading || awaitingTurnstile || redirectCountdown !== null}
             >
               {loading ? <LoadingSpinner size={24} /> : t('register.submit')}
             </Button>
+
+            {turnstile.enabled && (
+              <Box
+                ref={turnstile.setContainer}
+                sx={{ display: 'flex', justifyContent: 'center', mb: 2, minHeight: 65 }}
+              />
+            )}
           </form>
 
           {!success && isGoogleSignInAvailable() && (

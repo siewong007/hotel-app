@@ -1,41 +1,43 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { shouldUseDesktopRuntime } from '../../../desktop/runtimeApi';
 
 /**
  * Cloudflare Turnstile, guarding `POST /auth/login` and `POST /auth/register`.
  *
- * The widget runs in **execute mode**: nothing is challenged on page load, and
- * a token is minted at the moment of submit. That matters because Turnstile
- * tokens are single-use and expire after ~5 minutes — a token issued when the
- * login page painted would routinely be dead by the time a user finished
- * typing, and would be *definitely* dead on the second `/auth/login` call that
- * carries the 2FA code. Minting per attempt makes every retry path correct:
- * wrong password, the 2FA leg, and a resubmit after a server error.
+ * The widget renders **inline**, in the form, below the submit button: guests
+ * get the familiar "Verify you are human" box rather than something that takes
+ * over the screen. It solves on mount, so by the time a visitor has finished
+ * typing there is normally already a token waiting and submitting costs them
+ * nothing extra.
  *
- * The widget mounts into a container this hook attaches to `document.body`,
- * NOT into the React tree. The login page returns early for its 2FA step and
- * its first-login prompt, so a container rendered inside that tree would be
- * torn out of the DOM on a step change while Cloudflare still held a widget id
- * pointing at the removed node — `execute()` would then never call back, and
- * the 2FA leg would hang until the timeout. Owning the node sidesteps that
- * entire class of bug and keeps callers down to `const { getToken } = ...`.
+ * Two details carry the design:
+ *
+ * * **The container is a callback ref, not a stable node.** `LoginPage` returns
+ *   early for its 2FA step and its first-login prompt, so the form holding the
+ *   widget is unmounted whenever the flow changes step. A widget rendered into
+ *   a node React has since discarded is dead — Cloudflare still holds an id
+ *   pointing at detached DOM, and no token ever arrives. Re-rendering whenever
+ *   the node changes is what makes the 2FA leg work.
+ * * **Tokens are single-use.** `reset()` must be called after every submit that
+ *   actually reached the network, or the next attempt replays a spent token and
+ *   Cloudflare rejects it as `timeout-or-duplicate`. Wrong password, the 2FA
+ *   leg, and a resubmit after a server error all depend on this.
  */
 
 interface TurnstileRenderOptions {
   sitekey: string;
-  execution?: 'render' | 'execute';
-  appearance?: 'always' | 'execute' | 'interaction-only';
   callback?: (token: string) => void;
   'error-callback'?: (code?: string) => void;
   'expired-callback'?: () => void;
   'timeout-callback'?: () => void;
-  'before-interactive-callback'?: () => void;
-  'after-interactive-callback'?: () => void;
+  /** Re-solve automatically when a token expires while the form sits open. */
+  'refresh-expired'?: 'auto' | 'manual' | 'never';
+  theme?: 'auto' | 'light' | 'dark';
+  size?: 'normal' | 'flexible' | 'compact';
 }
 
 interface TurnstileApi {
   render: (element: HTMLElement, options: TurnstileRenderOptions) => string | undefined;
-  execute: (widgetId: string) => void;
   reset: (widgetId: string) => void;
   remove: (widgetId: string) => void;
 }
@@ -49,27 +51,15 @@ declare global {
 const TURNSTILE_SCRIPT_SRC =
   'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 const TURNSTILE_SCRIPT_ID = 'cloudflare-turnstile-script';
-const TURNSTILE_CONTAINER_ID = 'cloudflare-turnstile-container';
 
-/** How long to wait for Cloudflare to hand back a token before giving up. */
-export const TURNSTILE_TOKEN_TIMEOUT_MS = 30_000;
-
-/**
- * Reasons `getToken` can reject, as stable codes rather than English text so
- * the caller translates them. Every one of them is a "we could not verify you"
- * outcome — none of them should be treated as a pass.
- */
-export type TurnstileFailure =
-  | 'turnstile-unavailable'
-  | 'turnstile-error'
-  | 'turnstile-expired'
-  | 'turnstile-timeout';
+/** Stable codes rather than English, so the caller translates them. */
+export type TurnstileFailure = 'turnstile-error' | 'turnstile-expired' | 'turnstile-timeout';
 
 /**
- * Whether this build can challenge at all.
+ * Whether this build challenges at all.
  *
  * Mirrors `isGoogleSignInAvailable`: desktop builds never challenge (the app
- * runs on a hotel's own machine against a local sidecar, and the packaged CSP
+ * runs on the hotel's own machine against a local sidecar, and the packaged CSP
  * does not allow Cloudflare), and a build with no site key treats the feature
  * as absent rather than broken.
  */
@@ -77,108 +67,106 @@ export const isTurnstileEnabled = (): boolean =>
   !shouldUseDesktopRuntime() && Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
 
 export interface UseTurnstileResult {
-  /** False when this build does not challenge. */
+  /** False when this build does not challenge; callers should skip the box. */
   enabled: boolean;
-  /**
-   * Mints a FRESH token for one request. Resolves `undefined` when Turnstile is
-   * disabled, so callers can pass the result straight through unconditionally.
-   * Rejects with a `TurnstileFailure` code as the message when it cannot.
-   */
-  getToken: () => Promise<string | undefined>;
+  /** Attach to the element the inline widget should occupy. */
+  setContainer: (node: HTMLDivElement | null) => void;
+  /** The current unspent token, once the visitor has been verified. */
+  token: string | undefined;
+  /** Set when the widget could not verify; translate via `turnstileErrorMessage`. */
+  error: TurnstileFailure | undefined;
+  /** Discard the spent token and re-run. Call after every submit that hit the network. */
+  reset: () => void;
 }
-
-/** The always-present, normally-hidden host node for the invisible widget. */
-const ensureContainer = (): HTMLElement => {
-  const existing = document.getElementById(TURNSTILE_CONTAINER_ID);
-  if (existing) {
-    return existing;
-  }
-  const container = document.createElement('div');
-  container.id = TURNSTILE_CONTAINER_ID;
-  // Hidden until an interactive challenge actually needs to be shown, and
-  // never able to swallow a click while hidden.
-  container.style.position = 'fixed';
-  container.style.inset = '0';
-  container.style.display = 'none';
-  container.style.alignItems = 'center';
-  container.style.justifyContent = 'center';
-  container.style.zIndex = '2000';
-  container.style.background = 'rgba(0, 0, 0, 0.4)';
-  document.body.appendChild(container);
-  return container;
-};
-
-const setContainerVisible = (visible: boolean): void => {
-  const container = document.getElementById(TURNSTILE_CONTAINER_ID);
-  if (container) {
-    container.style.display = visible ? 'flex' : 'none';
-  }
-};
 
 export const useTurnstile = (): UseTurnstileResult => {
   const widgetIdRef = useRef<string | null>(null);
-  const pendingRef = useRef<{
-    resolve: (token: string) => void;
-    reject: (error: Error) => void;
-  } | null>(null);
+  const nodeRef = useRef<HTMLDivElement | null>(null);
+  const [token, setToken] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<TurnstileFailure | undefined>(undefined);
+  const [scriptReady, setScriptReady] = useState<boolean>(
+    typeof window !== 'undefined' && Boolean(window.turnstile),
+  );
 
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined;
   const enabled = isTurnstileEnabled();
 
-  const settle = useCallback((outcome: { token: string } | { failure: string }) => {
-    const pending = pendingRef.current;
-    pendingRef.current = null;
-    setContainerVisible(false);
-    if (!pending) {
-      return;
-    }
-    if ('token' in outcome) {
-      pending.resolve(outcome.token);
-    } else {
-      pending.reject(new Error(outcome.failure));
+  /** Puts a widget into `node`, replacing any previous one. */
+  const renderInto = useCallback(
+    (node: HTMLDivElement) => {
+      if (!window.turnstile || !siteKey || widgetIdRef.current !== null) {
+        return;
+      }
+      const id = window.turnstile.render(node, {
+        sitekey: siteKey,
+        'refresh-expired': 'auto',
+        callback: (value: string) => {
+          setToken(value);
+          setError(undefined);
+        },
+        'error-callback': () => {
+          setToken(undefined);
+          setError('turnstile-error');
+        },
+        'expired-callback': () => {
+          // Not an error the guest needs to see: refresh-expired re-solves.
+          setToken(undefined);
+        },
+        'timeout-callback': () => {
+          setToken(undefined);
+          setError('turnstile-timeout');
+        },
+      });
+      if (id !== undefined && id !== null) {
+        widgetIdRef.current = id;
+      }
+    },
+    [siteKey],
+  );
+
+  const teardown = useCallback(() => {
+    const id = widgetIdRef.current;
+    widgetIdRef.current = null;
+    setToken(undefined);
+    if (id !== null && window.turnstile) {
+      window.turnstile.remove(id);
     }
   }, []);
 
-  useEffect(() => {
-    if (!enabled || !siteKey) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const renderWidget = () => {
-      // StrictMode double-invokes effects; a second render() would leave an
-      // orphaned widget whose callbacks still fire into this hook.
-      if (cancelled || widgetIdRef.current !== null || !window.turnstile) {
+  /**
+   * Callback ref. React hands us `null` for the outgoing node and then the new
+   * one, so a step change tears the old widget down and builds a fresh one —
+   * which also mints the fresh token that leg needs.
+   */
+  const setContainer = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node === nodeRef.current) {
         return;
       }
-      const widgetId = window.turnstile.render(ensureContainer(), {
-        sitekey: siteKey,
-        execution: 'execute',
-        appearance: 'interaction-only',
-        callback: (token: string) => settle({ token }),
-        'error-callback': () => settle({ failure: 'turnstile-error' }),
-        'expired-callback': () => settle({ failure: 'turnstile-expired' }),
-        'timeout-callback': () => settle({ failure: 'turnstile-timeout' }),
-        // The overlay appears ONLY when Cloudflare decides this visitor has to
-        // interact. The common case resolves silently in well under a second,
-        // and flashing a full-screen scrim on every login would be worse than
-        // no challenge at all.
-        'before-interactive-callback': () => setContainerVisible(true),
-        'after-interactive-callback': () => setContainerVisible(false),
-      });
-      if (widgetId !== undefined && widgetId !== null) {
-        widgetIdRef.current = widgetId;
+      teardown();
+      nodeRef.current = node;
+      if (node && scriptReady) {
+        renderInto(node);
+      }
+    },
+    [renderInto, teardown, scriptReady],
+  );
+
+  // Load Cloudflare's script once per document.
+  useEffect(() => {
+    if (!enabled || !siteKey || scriptReady) {
+      return;
+    }
+    if (window.turnstile) {
+      setScriptReady(true);
+      return;
+    }
+    let cancelled = false;
+    const onLoad = () => {
+      if (!cancelled) {
+        setScriptReady(true);
       }
     };
-
-    if (window.turnstile) {
-      renderWidget();
-      return () => {
-        cancelled = true;
-      };
-    }
-
     let script = document.getElementById(TURNSTILE_SCRIPT_ID) as HTMLScriptElement | null;
     if (!script) {
       script = document.createElement('script');
@@ -188,58 +176,31 @@ export const useTurnstile = (): UseTurnstileResult => {
       script.defer = true;
       document.head.appendChild(script);
     }
-    script.addEventListener('load', renderWidget);
-
+    script.addEventListener('load', onLoad);
     return () => {
       cancelled = true;
-      script?.removeEventListener('load', renderWidget);
-      const widgetId = widgetIdRef.current;
-      widgetIdRef.current = null;
-      settle({ failure: 'turnstile-unavailable' });
-      if (widgetId !== null && window.turnstile) {
-        window.turnstile.remove(widgetId);
-      }
+      script?.removeEventListener('load', onLoad);
     };
-  }, [enabled, siteKey, settle]);
+  }, [enabled, siteKey, scriptReady]);
 
-  const getToken = useCallback((): Promise<string | undefined> => {
-    if (!enabled) {
-      return Promise.resolve(undefined);
+  // The node can be attached before the script finishes loading; render then.
+  useEffect(() => {
+    if (scriptReady && nodeRef.current && widgetIdRef.current === null) {
+      renderInto(nodeRef.current);
     }
-    const widgetId = widgetIdRef.current;
-    if (widgetId === null || !window.turnstile) {
-      // The script is blocked (ad blocker, offline, CSP) or still loading.
-      // Fail closed and say so — the backend would reject the request anyway,
-      // and "verification unavailable" beats an unexplained 400.
-      return Promise.reject(new Error('turnstile-unavailable'));
+  }, [scriptReady, renderInto]);
+
+  // Remove the widget when the owning component goes away.
+  useEffect(() => () => teardown(), [teardown]);
+
+  const reset = useCallback(() => {
+    setToken(undefined);
+    setError(undefined);
+    const id = widgetIdRef.current;
+    if (id !== null && window.turnstile) {
+      window.turnstile.reset(id);
     }
+  }, []);
 
-    // Abandon any attempt still in flight so its callback cannot resolve this one.
-    settle({ failure: 'turnstile-unavailable' });
-
-    return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(
-        () => settle({ failure: 'turnstile-timeout' }),
-        TURNSTILE_TOKEN_TIMEOUT_MS,
-      );
-
-      pendingRef.current = {
-        resolve: (token: string) => {
-          clearTimeout(timer);
-          resolve(token);
-        },
-        reject: (error: Error) => {
-          clearTimeout(timer);
-          reject(error);
-        },
-      };
-
-      // reset() discards the previous single-use token, so execute() always
-      // produces a new one rather than replaying a spent challenge.
-      window.turnstile?.reset(widgetId);
-      window.turnstile?.execute(widgetId);
-    });
-  }, [enabled, settle]);
-
-  return { enabled, getToken };
+  return { enabled, setContainer, token, error, reset };
 };

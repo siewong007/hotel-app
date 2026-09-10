@@ -67,7 +67,12 @@ const LoginPage: React.FC = () => {
   const [usernameSubmitted, setUsernameSubmitted] = useState(false);
   const { login, loginWithPasskey, loginWithGoogle } = useAuth();
   const { t } = useTranslation('auth');
-  const { getToken: getTurnstileToken } = useTurnstile();
+  const turnstile = useTurnstile();
+  // The inline widget solves on mount, but a guest can still out-run it -- most
+  // easily on the 2FA step, where it remounts and the code is only six digits.
+  // Holding the button beats rejecting a submit the guest cannot yet fix; an
+  // outright widget failure leaves it enabled so the error explains itself.
+  const awaitingTurnstile = turnstile.enabled && !turnstile.token && !turnstile.error;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -116,18 +121,21 @@ const LoginPage: React.FC = () => {
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
-    // Minted per attempt, not per page load: Turnstile tokens are single-use,
-    // so the 2FA leg (which re-enters this function) needs its own.
-    let turnstileToken: string | undefined;
-    try {
-      turnstileToken = await getTurnstileToken();
-    } catch (err) {
-      setError(turnstileErrorMessage(err, t));
-      setLoading(false);
+    // The inline widget normally solves while the guest is still typing, so a
+    // missing token means it either failed or has not finished. Say which,
+    // rather than sending a request the backend rejects with a 400 that reads
+    // like the password was wrong.
+    if (turnstile.enabled && !turnstile.token) {
+      setError(
+        turnstile.error
+          ? turnstileErrorMessage(new Error(turnstile.error), t)
+          : t('turnstile.incomplete')
+      );
       return;
     }
+
+    setLoading(true);
 
     try {
       const {
@@ -139,8 +147,12 @@ const LoginPage: React.FC = () => {
         username,
         password,
         totpCode || undefined,
-        turnstileToken
+        turnstile.token
       );
+      // The token was spent the moment that request went out. Re-solve now so a
+      // 2FA leg, or a retry after a wrong password, never replays it --
+      // Cloudflare rejects a replay as timeout-or-duplicate.
+      turnstile.reset();
       if (recoveryCodesRemaining !== undefined) {
         notifyRecoveryCodeUsed(recoveryCodesRemaining);
       }
@@ -163,6 +175,8 @@ const LoginPage: React.FC = () => {
         completeSignIn();
       }
     } catch (err) {
+      // Spent on the way out regardless of the outcome.
+      turnstile.reset();
       const loginError = errorMessage(err, t('login.failed'));
 
       // Enrolment is overdue, so the backend refused this sign-in outright.
@@ -442,11 +456,18 @@ const LoginPage: React.FC = () => {
                   type="submit"
                   variant="contained"
                   size="large"
-                  disabled={loading || !isCompleteTwoFactorCode(totpCode)}
+                  disabled={loading || awaitingTurnstile || !isCompleteTwoFactorCode(totpCode)}
                   sx={{ mb: 1.5, py: 1.5 }}
                 >
                   {loading ? <LoadingSpinner size={24} /> : t('twoFactor.verify')}
                 </Button>
+
+                {turnstile.enabled && (
+                  <Box
+                    ref={turnstile.setContainer}
+                    sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
+                  />
+                )}
 
                 <Button
                   fullWidth
@@ -649,10 +670,17 @@ const LoginPage: React.FC = () => {
                       fullWidth
                       variant="contained"
                       sx={{ mt: 2, mb: 1.5, py: 1.5 }}
-                      disabled={loading}
+                      disabled={loading || awaitingTurnstile}
                     >
                       {loading ? <LoadingSpinner size={24} color="inherit" /> : t('login.submit')}
                     </Button>
+
+                    {turnstile.enabled && (
+                      <Box
+                        ref={turnstile.setContainer}
+                        sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
+                      />
+                    )}
 
                     {/* Apple WebKit skips the automatic passkey attempt, so
                         passkey users land here with their credential unused.
