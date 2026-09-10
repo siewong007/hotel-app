@@ -202,6 +202,8 @@ jobs:
             "$bundle_dir/database/patches/0011_guest_nick_name.sql"
           cp hotel-app-be/database/postgres/patches/0012_payment_retry_capabilities.sql \
             "$bundle_dir/database/patches/0012_payment_retry_capabilities.sql"
+          cp hotel-app-be/database/postgres/patches/0013_two_factor_enrollment_policy.sql \
+            "$bundle_dir/database/patches/0013_two_factor_enrollment_policy.sql"
 
           (
             cd "$bundle_dir"
@@ -228,6 +230,7 @@ jobs:
               database/patches/0010_consent_records.sql \
               database/patches/0011_guest_nick_name.sql \
               database/patches/0012_payment_retry_capabilities.sql \
+              database/patches/0013_two_factor_enrollment_policy.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

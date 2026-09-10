@@ -205,6 +205,8 @@ VALUES
     ('report_heading_font_size'),
     ('report_section_heading_font_size'),
     ('report_table_font_size'),
+    ('require_two_factor_grace_days'),
+    ('require_two_factor_roles'),
     ('service_tax_rate'),
     ('session_timeout'),
     ('support_categories'),
@@ -1050,6 +1052,18 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
         'Send guests a pre-arrival reminder email before check-in', false),
 ('pre_arrival_reminder_hours_before', '48', 'number', 'general',
         'Hours before check-in to send the pre-arrival reminder (2-168)', false)
+ON CONFLICT (key) DO NOTHING;
+
+-- Role-based two-factor enrolment policy, read by services::auth on every
+-- sign-in. Ships disabled: an empty role list means no account is in scope.
+-- Mirrored by patch 0013 for databases installed before it existed. The grace
+-- window is dated from require_two_factor_roles' own updated_at, so this row
+-- must never be rewritten once a hotel has set it — hence DO NOTHING.
+INSERT INTO system_settings (key, value, value_type, category, description, is_public) VALUES
+('require_two_factor_roles', '', 'string', 'security',
+        'Comma-separated role names whose members must have two-factor authentication enrolled, either an authenticator app or a passkey. Empty disables the requirement.', false),
+('require_two_factor_grace_days', '14', 'number', 'security',
+        'Days a member of a role listed in require_two_factor_roles may sign in before two-factor enrolment is enforced. 0 enforces immediately.', false)
 ON CONFLICT (key) DO NOTHING;
 
 -- This policy is part of the required route-policy set, so it must be present
