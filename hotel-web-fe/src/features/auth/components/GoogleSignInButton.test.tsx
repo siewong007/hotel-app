@@ -53,11 +53,11 @@ describe('GoogleSignInButton', () => {
   });
 });
 
-describe('sign-up vs sign-in framing', () => {
-  const mountAndLoad = async (props: { context?: 'signin' | 'signup' }) => {
+describe('one door, one label', () => {
+  const mountAndLoad = async () => {
     vi.stubEnv('VITE_APP_TARGET', 'web');
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
-    render(<GoogleSignInButton onCredential={vi.fn()} {...props} />);
+    render(<GoogleSignInButton onCredential={vi.fn()} />);
     const script = document.getElementById(GSI_SCRIPT_ID) as HTMLScriptElement | null;
     const { initialize, renderButton } = installGoogleIdentityStub();
     script?.dispatchEvent(new Event('load'));
@@ -65,25 +65,33 @@ describe('sign-up vs sign-in framing', () => {
     return { initialize, renderButton };
   };
 
-  it('asks Google for sign-UP wording on the registration page', async () => {
-    // Without this the registration page renders "Sign in with Google", or
-    // worse "Sign in as <name>", on a page whose only purpose is creating an
-    // account.
-    const { initialize, renderButton } = await mountAndLoad({ context: 'signup' });
-    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ context: 'signup' }));
+  it('says "Continue with Google", because the same button signs in and signs up', async () => {
+    // The credential is identical either way and the backend decides which it
+    // is, so a signin_with/signup_with split would label half the visitors
+    // wrongly -- and this button is now the only Google door.
+    const { initialize, renderButton } = await mountAndLoad();
+
     expect(renderButton).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ text: 'signup_with' })
+      expect.objectContaining({ text: 'continue_with', type: 'standard' })
     );
+    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ context: 'use' }));
   });
 
-  it('defaults to sign-in wording everywhere else', async () => {
-    const { initialize, renderButton } = await mountAndLoad({});
-    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ context: 'signin' }));
-    expect(renderButton).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ text: 'signin_with' })
-    );
+  it('draws the icon variant square, without the container width', async () => {
+    vi.stubEnv('VITE_APP_TARGET', 'web');
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+    render(<GoogleSignInButton onCredential={vi.fn()} type="icon" />);
+    const script = document.getElementById(GSI_SCRIPT_ID) as HTMLScriptElement | null;
+    const { renderButton } = installGoogleIdentityStub();
+    script?.dispatchEvent(new Event('load'));
+
+    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    const options = renderButton.mock.calls[0][1] as { type?: string; width?: unknown };
+    expect(options.type).toBe('icon');
+    // Stretching a square button to the container is what draws a G logo in a
+    // wide empty box.
+    expect('width' in options).toBe(false);
   });
 });
 

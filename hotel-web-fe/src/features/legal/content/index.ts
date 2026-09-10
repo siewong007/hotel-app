@@ -1,6 +1,7 @@
 export * from './types';
 export * from './hotelIdentity';
 export * from './consentPrompts';
+export * from './consentNotice';
 export { termsOfService, TERMS_OF_SERVICE_VERSION } from './termsOfService';
 export { privacyNotice, PRIVACY_NOTICE_VERSION } from './privacyNotice';
 export { paymentTerms, PAYMENT_TERMS_VERSION, PAYMENT_KEY_POINTS } from './paymentTerms';

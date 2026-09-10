@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONSENT_DOCUMENT_VERSIONS } from '../../legal/content';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -312,18 +313,56 @@ describe('LoginPage unified sign-in', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/register');
   });
 
-  it('signs an existing Google account in from the shared form', async () => {
+  it('sends the consent payload with every Google attempt, so this door can also create the account', async () => {
+    // The options argument is optional on loginWithGoogle, so nothing but this
+    // test stops the single Google door from quietly reverting to sign-in-only
+    // -- which would 400 for every first-time Google guest.
     mocks.loginWithGoogle.mockResolvedValue({});
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
 
     await waitFor(() => {
-      expect(mocks.loginWithGoogle).toHaveBeenCalledWith('google-id-token');
+      expect(mocks.loginWithGoogle).toHaveBeenCalledWith('google-id-token', {
+        consents: [
+          {
+            document: 'terms_of_service',
+            version: CONSENT_DOCUMENT_VERSIONS.terms_of_service,
+            granted: true,
+            locale: 'en',
+          },
+          {
+            document: 'privacy_notice',
+            version: CONSENT_DOCUMENT_VERSIONS.privacy_notice,
+            granted: true,
+            locale: 'en',
+          },
+        ],
+        marketing_opt_in: false,
+      });
     });
   });
 
-  it('sends first-time Google users to sign up when the account does not exist yet', async () => {
+  it('shows the notice that governs account creation against the button', () => {
+    // No checkbox stands between the guest and the account, so the sentence is
+    // the whole record of what they were shown. It has to be on this page.
+    renderPage();
+
+    expect(
+      screen.getByText(/By creating an account and using this service, you agree to the/)
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('link', { name: 'Booking Terms and Conditions' }).getAttribute('href')
+    ).toBe('/legal/terms');
+    expect(screen.getByRole('link', { name: 'Privacy Notice' }).getAttribute('href')).toBe(
+      '/legal/privacy'
+    );
+  });
+
+  it('steers a 400-consent back to this page rather than to a sign-up that has no Google door', async () => {
+    // Unreachable from this button now that it always sends consents; it is One
+    // Tap and automatic sign-in that produce this 400, because neither can show
+    // the notice. The message must therefore point here, not at /register.
     const err = Object.assign(
       new Error(
         'Consent to the Booking Terms and Conditions is required before this request can be accepted'
@@ -337,7 +376,7 @@ describe('LoginPage unified sign-in', () => {
 
     expect(
       await screen.findByText(
-        'No account is linked to this Google login yet. Sign up to create one.'
+        'To use this Google account for the first time, open the sign-in page and continue with Google there.'
       )
     ).toBeTruthy();
     expect(mocks.navigate).not.toHaveBeenCalled();

@@ -1,6 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONSENT_DOCUMENT_VERSIONS } from '../../legal/content';
 import { resetLocaleStoreForTests } from '../../../i18n/localeStore';
 
 const mocks = vi.hoisted(() => ({
@@ -8,8 +7,6 @@ const mocks = vi.hoisted(() => ({
   search: '',
   setSearchParams: vi.fn(),
   register: vi.fn(),
-  loginWithGoogle: vi.fn(),
-  googleAvailable: true,
 }));
 
 function createLocalStorageStub() {
@@ -36,28 +33,16 @@ vi.mock('../../../router', () => ({
 vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => ({
     register: (...args: unknown[]) => mocks.register(...args),
-    loginWithGoogle: (...args: unknown[]) => mocks.loginWithGoogle(...args),
   }),
-}));
-
-vi.mock('./GoogleSignInButton', () => ({
-  isGoogleSignInAvailable: () => mocks.googleAvailable,
-  GoogleSignInButton: ({ onCredential }: { onCredential: (credential: string) => void }) => (
-    <button type="button" onClick={() => onCredential('google-id-token')}>
-      Continue with Google
-    </button>
-  ),
 }));
 
 import RegisterPage from './RegisterPage';
 
-describe('RegisterPage Google registration', () => {
+describe('RegisterPage consent notice', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
     mocks.register.mockReset();
-    mocks.loginWithGoogle.mockReset();
-    mocks.googleAvailable = true;
     mocks.search = '';
     resetLocaleStoreForTests();
   });
@@ -67,52 +52,38 @@ describe('RegisterPage Google registration', () => {
     vi.unstubAllGlobals();
   });
 
-  it('offers Google as a way to create an account', () => {
+  it('states which documents signing up agrees to, with both linked', () => {
+    // There is no tick to point at afterwards, so this sentence is the entire
+    // record of what the guest was shown before the account was created.
     render(<RegisterPage />);
-
-    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy();
-  });
-
-  it('does not register with Google until Booking Terms and Privacy Notice are accepted', async () => {
-    render(<RegisterPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
 
     expect(
-      await screen.findByText(
-        'Please read and accept the Booking Terms and the Privacy Notice before continuing with Google.'
-      )
+      screen.getByText(/By creating an account and using this service, you agree to the/)
     ).toBeTruthy();
-    expect(mocks.loginWithGoogle).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('link', { name: 'Booking Terms and Conditions' }).getAttribute('href')
+    ).toBe('/legal/terms');
+    expect(screen.getByRole('link', { name: 'Privacy Notice' }).getAttribute('href')).toBe(
+      '/legal/privacy'
+    );
   });
 
-  it('creates the guest account with Google after the required consents are accepted', async () => {
-    mocks.loginWithGoogle.mockResolvedValue({});
+  it('asks for no consent tick, and does not smuggle marketing into the notice', () => {
     render(<RegisterPage />);
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /Booking Terms and Conditions/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: /Privacy Notice/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
+    expect(screen.queryAllByRole('checkbox')).toEqual([]);
+    // Marketing is a separate purpose asked for after sign-in: a guest must be
+    // able to decline it without declining an account, so it cannot ride along
+    // inside a notice covering the act of signing up.
+    expect(screen.queryByText(/offers, news and birthday rewards/)).toBeNull();
+  });
 
-    await waitFor(() => {
-      expect(mocks.loginWithGoogle).toHaveBeenCalledWith('google-id-token', {
-        consents: [
-          {
-            document: 'terms_of_service',
-            version: CONSENT_DOCUMENT_VERSIONS.terms_of_service,
-            granted: true,
-            locale: 'en',
-          },
-          {
-            document: 'privacy_notice',
-            version: CONSENT_DOCUMENT_VERSIONS.privacy_notice,
-            granted: true,
-            locale: 'en',
-          },
-        ],
-        marketing_opt_in: false,
-      });
-    });
+  it('no longer offers a second Google door of its own', () => {
+    // Google account creation happens on the sign-in page, which is where the
+    // notice governing it is rendered.
+    render(<RegisterPage />);
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
   });
 });
 
@@ -120,7 +91,6 @@ describe('RegisterPage return control', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
-    mocks.googleAvailable = true;
     mocks.search = '';
     resetLocaleStoreForTests();
     vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
@@ -148,13 +118,5 @@ describe('RegisterPage return control', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
 
     expect(mocks.navigate).toHaveBeenCalledWith('/');
-  });
-
-  it('drops the "or" divider with the button when Google is not configured', () => {
-    mocks.googleAvailable = false;
-    render(<RegisterPage />);
-
-    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
-    expect(screen.queryByText('or')).toBeNull();
   });
 });

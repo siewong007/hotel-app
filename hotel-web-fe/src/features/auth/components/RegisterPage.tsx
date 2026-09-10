@@ -12,7 +12,6 @@ import {
   Fade,
   Collapse,
   CircularProgress,
-  Divider,
   IconButton,
   InputAdornment,
 } from '@mui/material';
@@ -25,18 +24,16 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import { LoadingSpinner } from '../../../components';
-import { storage } from '../../../utils/storage';
-import { GoogleSignInButton, isGoogleSignInAvailable } from './GoogleSignInButton';
 import { errorMessage } from '../../../utils/errorMessage';
 import { returnFromAuthPage, safeGuestRedirect } from '../guestRedirect';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 import { useTurnstile } from '../turnstile/useTurnstile';
 import { turnstileErrorMessage } from '../turnstile/turnstileError';
-import { ConsentBlock } from '../../legal/components/ConsentBlock';
-import { REGISTRATION_CONSENTS } from '../../legal/content';
+import { ConsentNotice } from '../../legal/components/ConsentNotice';
+import { REGISTRATION_NOTICE } from '../../legal/content';
+import { buildNoticeConsentPayload } from '../../legal/noticeConsent';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
-import { useConsent } from '../../legal/useConsent';
 
 const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
@@ -59,11 +56,9 @@ const RegisterPage: React.FC = () => {
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const { register, loginWithGoogle } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [googleError, setGoogleError] = useState('');
-  const consent = useConsent(REGISTRATION_CONSENTS);
   const { locale: legalLocale } = useLegalLocale();
   const { t } = useTranslation('auth');
   const turnstile = useTurnstile();
@@ -163,15 +158,6 @@ const RegisterPage: React.FC = () => {
       return;
     }
 
-    // Consent is checked here as well as on the server. The server is what
-    // makes it binding; this is only so the guest sees which box they missed
-    // instead of a generic API error.
-    if (!consent.allRequiredGranted) {
-      consent.setShowErrors(true);
-      setError(t('register.consentRequired'));
-      return;
-    }
-
     // The inline widget below the submit button normally solves while the form
     // is being filled in; a missing token means it failed or is not finished.
     if (turnstile.enabled && !turnstile.token) {
@@ -186,7 +172,11 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const consentPayload = consent.buildPayload(legalLocale);
+      // The notice under the submit button is the consent: pressing the button
+      // is the act it governs, so the payload is built from the notice rather
+      // than from ticked boxes. Nothing here can be submitted without the
+      // sentence having been on screen.
+      const consentPayload = buildNoticeConsentPayload(REGISTRATION_NOTICE, legalLocale);
       await register({
         username: formData.username,
         email: formData.email.trim() || undefined,
@@ -214,47 +204,6 @@ const RegisterPage: React.FC = () => {
       setError(errorMessage(err, 'Registration failed'));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleCredential = async (credential: string) => {
-    setGoogleError('');
-    setError('');
-
-    if (!consent.allRequiredGranted) {
-      consent.setShowErrors(true);
-      setGoogleError(t('register.googleNeedsConsent'));
-      return;
-    }
-
-    try {
-      await loginWithGoogle(credential, consent.buildPayload(legalLocale));
-
-      const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
-      const redirectParam = safeGuestRedirect(searchParams.get('redirect'));
-      if (storedUser?.profile_complete === false) {
-        navigate(
-          redirectParam
-            ? `/complete-profile?redirect=${encodeURIComponent(redirectParam)}`
-            : '/complete-profile',
-          { replace: true }
-        );
-        return;
-      }
-
-      navigate(redirectParam ?? '/guest-portal', { replace: true });
-    } catch (err) {
-      const message = errorMessage(err, t('login.googleFailed'));
-      // Same 503-on-status contract as LoginPage.tsx's Google handler — see
-      // hotel-app-be/src/services/google_identity.rs.
-      const googleStatus = (err as { statusCode?: number }).statusCode;
-      setGoogleError(
-        googleStatus === 503
-          ? t('login.googleUnavailable')
-          : googleStatus === 409
-            ? t('login.googleStaffOnly')
-            : message
-      );
     }
   };
 
@@ -496,7 +445,7 @@ const RegisterPage: React.FC = () => {
               </Grid>
             </Grid>
 
-            <ConsentBlock prompts={REGISTRATION_CONSENTS} state={consent} />
+            <ConsentNotice notice={REGISTRATION_NOTICE} />
 
             <Button
               type="submit"
@@ -515,18 +464,6 @@ const RegisterPage: React.FC = () => {
               />
             )}
           </form>
-
-          {!success && isGoogleSignInAvailable() && (
-            <>
-              <Divider sx={{ my: 3 }}>{t('register.orCreate')}</Divider>
-              <Collapse in={!!googleError}>
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGoogleError('')}>
-                  {googleError}
-                </Alert>
-              </Collapse>
-              <GoogleSignInButton onCredential={handleGoogleCredential} context="signup" />
-            </>
-          )}
 
           <Box sx={{ mt: 3, textAlign: 'center' }}>
             <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>

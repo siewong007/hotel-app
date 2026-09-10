@@ -33,6 +33,10 @@ import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDa
 import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
 import { GoogleSignInButton, isGoogleSignInAvailable } from './GoogleSignInButton';
 import { googleSignInErrorMessage } from '../google/googleSignInError';
+import { ConsentNotice } from '../../legal/components/ConsentNotice';
+import { REGISTRATION_NOTICE } from '../../legal/content';
+import { buildNoticeConsentPayload } from '../../legal/noticeConsent';
+import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import {
   isCompleteTwoFactorCode,
   notifyRecoveryCodeUsed,
@@ -77,6 +81,7 @@ const LoginPage: React.FC = () => {
   const [totpCode, setTotpCode] = useState('');
   const { login, loginWithGoogle } = useAuth();
   const { t } = useTranslation('auth');
+  const { locale: legalLocale } = useLegalLocale();
   const turnstile = useTurnstile();
   // The inline widget solves on mount, but a guest can still out-run it -- most
   // easily on the 2FA step, where it remounts and the code is only six digits.
@@ -279,7 +284,13 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await loginWithGoogle(credential);
+      // Sends the consent payload on every attempt, which is what makes this
+      // the single Google door: the backend only reads it when the identity has
+      // no account yet, so an existing guest is unaffected and a first-time one
+      // is created here instead of being bounced to a second page. The notice
+      // under the button is what the payload records, and it cannot be pressed
+      // without that sentence on screen.
+      await loginWithGoogle(credential, buildNoticeConsentPayload(REGISTRATION_NOTICE, legalLocale));
 
       // Route by the freshly-stored account, same as completeSignIn() does —
       // Google sign-in is guest-only, but a guest whose profile is still
@@ -583,6 +594,10 @@ const LoginPage: React.FC = () => {
                 <>
                   <Divider sx={{ my: 2 }}>{t('login.or')}</Divider>
                   <GoogleSignInButton onCredential={handleGoogleCredential} />
+                  {/* Continuing with Google creates the account when there is
+                      none, so the notice governing that belongs here, against
+                      the button, not on a page the guest never reaches. */}
+                  <ConsentNotice notice={REGISTRATION_NOTICE} />
                 </>
               )}
             </form>

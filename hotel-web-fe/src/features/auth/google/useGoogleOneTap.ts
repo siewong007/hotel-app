@@ -13,6 +13,15 @@
  * `logout()` calls `disableAutoSelect()` — that is the same call that stops the
  * button rendering the previous guest's name, and it governs these two as well.
  *
+ * This door signs in EXISTING guests only, and deliberately sends no consent
+ * payload. Account creation is governed by a notice that has to be visible at
+ * the moment of the act, and neither of these mechanisms has a surface to show
+ * it on: One Tap's confirmation happens inside Google's own UI, and automatic
+ * sign-in shows nothing at all. So a first-time Google identity gets the
+ * backend's 400 and a message pointing at the sign-in page, where the notice
+ * sits under the button. Anything else would be recording an agreement to text
+ * the guest was never shown.
+ *
  * Deliberately prompts **once per mount**. A visitor lands on the booking page
  * with an empty form, which is the moment where signing in costs them nothing;
  * re-prompting as they move through the steps would interrupt a booking that is
@@ -120,6 +129,9 @@ export function useGoogleOneTap({
                 );
               }
             } catch (error) {
+              // A first-time Google identity lands here, on the 400 the missing
+              // consent payload produces — googleSignInErrorMessage turns that
+              // into the "continue on the sign-in page" sentence.
               emitApiNotification({
                 message: googleSignInErrorMessage(error, translateRef.current),
                 severity: 'warning',

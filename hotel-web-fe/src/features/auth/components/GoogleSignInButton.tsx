@@ -15,12 +15,6 @@ export { isGoogleSignInAvailable, disableGoogleAutoSelect } from '../google/goog
 export interface GoogleSignInButtonProps {
   onCredential: (credential: string) => void | Promise<void>;
   /**
-   * Which journey this button belongs to. Registration must pass 'signup', or
-   * Google labels it "Sign in with Google" / "Sign in as <name>" on a page
-   * whose whole purpose is creating an account.
-   */
-  context?: 'signin' | 'signup';
-  /**
    * Google's button type. `standard` is the labelled button, and at this size
    * it is the one that becomes the personalised "Sign in as <name>" variant
    * once Google holds an approved session. `icon` is the G logo alone — no
@@ -30,14 +24,13 @@ export interface GoogleSignInButtonProps {
 }
 
 /**
- * Renders Google's own "Sign in with Google" button via the Google Identity
+ * Renders Google's own "Continue with Google" button via the Google Identity
  * Services (GSI) script. Never rendered for desktop builds — Google sign-in
  * is a web-only, guest-facing feature — and a no-op when the backend hasn't
  * configured a client id (treat as "feature unavailable", not an error).
  */
 export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   onCredential,
-  context = 'signin',
   type = 'standard',
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -59,7 +52,10 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: ({ credential }) => void onCredentialRef.current(credential),
-        context,
+        // 'use' rather than 'signin'/'signup': there is one Google door now, and
+        // it both signs in and creates the account. Asking Google to pick a side
+        // would have it label half its visitors wrongly.
+        context: 'use',
       });
       window.google.accounts.id.renderButton(containerRef.current, {
         theme: 'outline',
@@ -70,10 +66,13 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         ...(type === 'icon'
           ? {}
           : { width: containerRef.current.clientWidth }),
-        text: context === 'signup' ? 'signup_with' : 'signin_with',
+        // "Continue with Google" — the same credential signs in an existing
+        // guest and creates a new one, so a sign-in/sign-up split would be a
+        // distinction the flow no longer makes.
+        text: 'continue_with',
       });
     });
-  }, [clientId, disabled, context, type]);
+  }, [clientId, disabled, type]);
 
   if (disabled) {
     return null;

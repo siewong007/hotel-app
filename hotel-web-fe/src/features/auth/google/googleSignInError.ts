@@ -21,8 +21,10 @@ export function googleSignInErrorMessage(error: unknown, t: Translate): string {
   // 409 is ensure_active_google_guest rejecting a staff or deactivated
   // account. The raw backend sentence does not say what to do instead.
   if (status === 409) return t('login.googleStaffOnly');
-  // First-time Google guests must accept Booking Terms + Privacy Notice on
-  // /register. Existing Google sessions do not send consents and still work.
+  // 400-consent means a first-time Google identity arrived through a door that
+  // sends no consent payload — only One Tap and automatic sign-in do, because
+  // neither can show the notice that governs account creation. The sign-in page
+  // can, so that is where this points.
   if (status === 400 && /consent/i.test(message)) return t('login.googleNeedsAccount');
   return message;
 }
