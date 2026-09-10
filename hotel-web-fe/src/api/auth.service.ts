@@ -46,9 +46,13 @@ export class AuthService {
      *  to a superseded version. */
     consents: ConsentAcceptance[];
     marketing_opt_in: boolean;
-  }): Promise<void> {
+  }, turnstileToken?: string): Promise<void> {
     try {
-      await api.post('auth/register', { json: data });
+      await api.post('auth/register', {
+        json: data,
+        // Cloudflare Turnstile token, when this build challenges.
+        ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
+      });
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = readErrorData(error);

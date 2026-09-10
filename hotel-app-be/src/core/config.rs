@@ -34,6 +34,7 @@ pub struct AppConfig {
     pub totp_encryption_key: Option<String>,
     pub paypal: PaypalConfig,
     pub bank_details: BankDetails,
+    pub turnstile: TurnstileConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -97,6 +98,85 @@ impl PaypalConfig {
     pub fn public_client_id(&self) -> Option<String> {
         if self.is_configured() {
             self.client_id.clone()
+        } else {
+            None
+        }
+    }
+}
+
+/// Cloudflare Turnstile bot-protection configuration for the public,
+/// unauthenticated auth surfaces (login and registration).
+///
+/// Both halves come from the Cloudflare dashboard and are NOT interchangeable:
+/// the site key is public by design (it ships inside the page HTML and is also
+/// baked into the frontend image as `VITE_TURNSTILE_SITE_KEY`), while the
+/// secret key never leaves this process — it is the only thing that makes the
+/// `siteverify` call trustworthy. A deployment that sets them to the same value
+/// has copied one over the other and is not protected; `is_configured` rejects
+/// that outright rather than letting siteverify fail closed on every login.
+#[derive(Debug, Clone)]
+pub struct TurnstileConfig {
+    pub enabled: bool,
+    /// Held by the backend only so `keys_are_identical` can catch the
+    /// site-key-pasted-over-the-secret mistake at startup. The browser gets its
+    /// copy from `VITE_TURNSTILE_SITE_KEY`, baked into the frontend image.
+    pub site_key: Option<String>,
+    pub secret_key: Option<String>,
+    /// Cloudflare's verification endpoint. Overridable so tests can point at a
+    /// local stub without reaching the network.
+    pub verify_url: String,
+}
+
+impl TurnstileConfig {
+    pub const DEFAULT_VERIFY_URL: &'static str =
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+    fn from_env() -> Result<Self, String> {
+        let config = Self {
+            enabled: env_bool("TURNSTILE_ENABLED", false)?,
+            site_key: env_opt("TURNSTILE_SITE_KEY"),
+            secret_key: env_opt("TURNSTILE_SECRET_KEY"),
+            verify_url: env_or_string("TURNSTILE_VERIFY_URL", Self::DEFAULT_VERIFY_URL)?
+                .trim()
+                .to_string(),
+        };
+        if config.enabled && config.keys_are_identical() {
+            return Err(
+                "TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY must not be the same value —                  Cloudflare issues two distinct keys per widget"
+                    .to_string(),
+            );
+        }
+        Ok(config)
+    }
+
+    fn trimmed(value: &Option<String>) -> Option<&str> {
+        value.as_deref().map(str::trim).filter(|v| !v.is_empty())
+    }
+
+    /// True when the same string was supplied for both keys — the single most
+    /// likely operator mistake, and one that silently disables the protection.
+    pub fn keys_are_identical(&self) -> bool {
+        match (
+            Self::trimmed(&self.site_key),
+            Self::trimmed(&self.secret_key),
+        ) {
+            (Some(site), Some(secret)) => site == secret,
+            _ => false,
+        }
+    }
+
+    /// True only when the challenge is turned on AND both distinct keys exist.
+    pub fn is_configured(&self) -> bool {
+        self.enabled
+            && Self::trimmed(&self.site_key).is_some()
+            && Self::trimmed(&self.secret_key).is_some()
+            && !self.keys_are_identical()
+    }
+
+    /// The secret used to sign the `siteverify` call, only when usable.
+    pub fn active_secret(&self) -> Option<&str> {
+        if self.is_configured() {
+            Self::trimmed(&self.secret_key)
         } else {
             None
         }
@@ -180,6 +260,7 @@ impl AppConfig {
                 account_name: env_or_nonempty("HOTEL_BANK_ACCOUNT_NAME", "Salim Inn")?,
                 account_number: env_or_nonempty("HOTEL_BANK_ACCOUNT_NUMBER", "511270052595")?,
             },
+            turnstile: TurnstileConfig::from_env()?,
         };
         config.validate_security()?;
         Ok(config)
@@ -211,6 +292,17 @@ impl AppConfig {
         }
         if self.passkey_rp_id == "localhost" {
             return Err("PASSKEY_RP_ID must be a production domain in production".to_string());
+        }
+        // Turnstile is the only bot control in front of login and registration;
+        // IP rate limiting alone does not survive a distributed credential stuffing
+        // run. Half-configured is worse than off, because the operator believes
+        // they are covered — so refuse to boot rather than serve an open door.
+        if self.turnstile.enabled && !self.turnstile.is_configured() {
+            return Err(
+                "TURNSTILE_ENABLED is true but TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY are \
+                 missing or identical"
+                    .to_string(),
+            );
         }
         Ok(())
     }
@@ -377,7 +469,59 @@ fn parse_allowed_origins(value: &str) -> Result<AllowedOrigins, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AllowedOrigins, Environment, parse_allowed_origins, validate_jwt_secret};
+    use super::{
+        AllowedOrigins, Environment, TurnstileConfig, parse_allowed_origins, validate_jwt_secret,
+    };
+
+    fn turnstile(site: Option<&str>, secret: Option<&str>, enabled: bool) -> TurnstileConfig {
+        TurnstileConfig {
+            enabled,
+            site_key: site.map(str::to_string),
+            secret_key: secret.map(str::to_string),
+            verify_url: TurnstileConfig::DEFAULT_VERIFY_URL.to_string(),
+        }
+    }
+
+    #[test]
+    fn turnstile_rejects_identical_site_and_secret_keys() {
+        // The exact operator mistake this guard exists for: one key pasted into
+        // both variables. Without it the widget renders and every siteverify
+        // call fails with invalid-input-secret, locking out real users.
+        let same = "0x4AAAAAAEuac28XgcpK8ydqMDHjXde-4_M";
+        let config = turnstile(Some(same), Some(same), true);
+        assert!(config.keys_are_identical());
+        assert!(!config.is_configured());
+        assert_eq!(config.active_secret(), None);
+    }
+
+    #[test]
+    fn turnstile_ignores_surrounding_whitespace_when_comparing_keys() {
+        let config = turnstile(Some(" dup "), Some("dup"), true);
+        assert!(config.keys_are_identical());
+        assert!(!config.is_configured());
+    }
+
+    #[test]
+    fn turnstile_is_configured_with_two_distinct_keys() {
+        let config = turnstile(Some("site-key"), Some("secret-key"), true);
+        assert!(!config.keys_are_identical());
+        assert!(config.is_configured());
+        assert_eq!(config.active_secret(), Some("secret-key"));
+    }
+
+    #[test]
+    fn turnstile_disabled_never_verifies_even_with_valid_keys() {
+        let config = turnstile(Some("site-key"), Some("secret-key"), false);
+        assert!(!config.is_configured());
+        assert_eq!(config.active_secret(), None);
+    }
+
+    #[test]
+    fn turnstile_half_configured_is_not_configured() {
+        assert!(!turnstile(Some("site-key"), None, true).is_configured());
+        assert!(!turnstile(None, Some("secret-key"), true).is_configured());
+        assert!(!turnstile(Some("site-key"), Some("  "), true).is_configured());
+    }
 
     #[test]
     fn jwt_secret_validation_enforces_minimum_length() {

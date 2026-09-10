@@ -29,11 +29,21 @@ ARG VITE_ENVIRONMENT=production
 # verification rejects the audience. A client id is public by design and ships
 # in the bundle either way, so it is not a secret.
 ARG VITE_GOOGLE_CLIENT_ID
+# Cloudflare Turnstile SITE key -- the public half, which ships inside the page
+# HTML by design and is not a secret. Empty by default, which makes the auth
+# pages skip the challenge entirely. Like every VITE_* value this is inlined at
+# build time, so changing it needs an image rebuild, not a restart. The SECRET
+# half never appears here: it belongs only to the backend, which is the only
+# side that calls siteverify. Supplying the same string for both is the one
+# mistake that silently disables the protection -- the backend refuses to boot
+# on it rather than serving an open door.
+ARG VITE_TURNSTILE_SITE_KEY
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ENVIRONMENT=$VITE_ENVIRONMENT
 ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ENV VITE_TURNSTILE_SITE_KEY=$VITE_TURNSTILE_SITE_KEY
 ENV NODE_ENV=production
 
 # Build the application

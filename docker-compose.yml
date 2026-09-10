@@ -53,6 +53,14 @@ services:
       # frontend hides the button. Must be the same OAuth client as the
       # frontend's VITE_GOOGLE_CLIENT_ID build argument below.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Cloudflare Turnstile on /auth/login and /auth/register. Off unless
+      # TURNSTILE_ENABLED is true; when on, BOTH keys must be present and
+      # DIFFERENT or the backend refuses to start. The site key is repeated as
+      # the frontend's VITE_TURNSTILE_SITE_KEY build argument below so the two
+      # halves cannot drift; the secret key never leaves the backend.
+      TURNSTILE_ENABLED: ${TURNSTILE_ENABLED:-false}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,6 +84,9 @@ services:
         # Inlined into the bundle at build time; rebuild the image after
         # changing it. Empty leaves the Google sign-in button hidden.
         VITE_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+        # Public half of the Turnstile pair. Empty leaves the auth pages
+        # unchallenged; it must match the backend's TURNSTILE_SITE_KEY.
+        VITE_TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
     container_name: hotel-frontend
     restart: unless-stopped
     ports:

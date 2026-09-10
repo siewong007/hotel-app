@@ -34,7 +34,12 @@ export interface LoginResult {
 }
 
 interface AuthContextType extends AuthState {
-  login: (username: string, password: string, totpCode?: string) => Promise<LoginResult>;
+  login: (
+    username: string,
+    password: string,
+    totpCode?: string,
+    turnstileToken?: string,
+  ) => Promise<LoginResult>;
   loginWithGoogle: (
     credential: string,
     options?: { consents: ConsentAcceptance[]; marketing_opt_in: boolean },
@@ -44,7 +49,7 @@ interface AuthContextType extends AuthState {
   // trip or a full-page reload. See applyAuthSession for the same
   // state+storage write-through pattern this mirrors.
   applyProfileUpdate: (profile: UserProfile) => void;
-  register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }) => Promise<void>;
+  register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }, turnstileToken?: string) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -232,9 +237,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener('auth:tokens-refreshed', handleTokensRefreshed);
   }, []);
 
-  const register = useCallback(async (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }) => {
+  const register = useCallback(async (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string; consents: ConsentAcceptance[]; marketing_opt_in: boolean }, turnstileToken?: string) => {
     try {
-      await AuthService.register(data);
+      await AuthService.register(data, turnstileToken);
     } catch (error) {
       console.error('Registration error:', error);
       throw new Error(await extractHttpErrorMessage(error, 'Registration failed'));
@@ -318,7 +323,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return { isFirstLogin: is_first_login, recoveryCodesRemaining: recovery_codes_remaining };
   }, [checkPasskeys, queryClient]);
 
-  const login = useCallback(async (username: string, password: string, totpCode?: string): Promise<LoginResult> => {
+  const login = useCallback(async (
+    username: string,
+    password: string,
+    totpCode?: string,
+    turnstileToken?: string,
+  ): Promise<LoginResult> => {
     try {
       // A user can sign back in before Safari finishes the previous logout
       // request. Always let that request settle first so it cannot revoke the
@@ -327,6 +337,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = await api.post('auth/login', {
         json: { username, password, totp_code: totpCode },
+        // Cloudflare Turnstile token, when this build challenges. Single-use:
+        // the 2FA leg calls login() a second time and must carry a fresh one.
+        ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
       }).json<AuthLoginResponse>();
 
       return applyAuthSession(data);

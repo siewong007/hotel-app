@@ -41,6 +41,8 @@ import { AuthService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
+import { useTurnstile } from '../turnstile/useTurnstile';
+import { turnstileErrorMessage } from '../turnstile/turnstileError';
 
 const isAppleWebKitBrowser = () =>
   typeof navigator !== 'undefined' && navigator.vendor === 'Apple Computer, Inc.';
@@ -61,6 +63,7 @@ const LoginPage: React.FC = () => {
   const [usernameSubmitted, setUsernameSubmitted] = useState(false);
   const { login, loginWithPasskey, loginWithGoogle } = useAuth();
   const { t } = useTranslation('auth');
+  const { getToken: getTurnstileToken } = useTurnstile();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -111,11 +114,23 @@ const LoginPage: React.FC = () => {
     setError('');
     setLoading(true);
 
+    // Minted per attempt, not per page load: Turnstile tokens are single-use,
+    // so the 2FA leg (which re-enters this function) needs its own.
+    let turnstileToken: string | undefined;
+    try {
+      turnstileToken = await getTurnstileToken();
+    } catch (err) {
+      setError(turnstileErrorMessage(err, t));
+      setLoading(false);
+      return;
+    }
+
     try {
       const { isFirstLogin, recoveryCodesRemaining } = await login(
         username,
         password,
-        totpCode || undefined
+        totpCode || undefined,
+        turnstileToken
       );
       if (recoveryCodesRemaining !== undefined) {
         notifyRecoveryCodeUsed(recoveryCodesRemaining);

@@ -35,6 +35,7 @@ pub mod rates;
 pub mod rbac;
 pub mod rooms;
 pub mod search;
+pub mod turnstile;
 pub mod two_factor;
 pub mod unpaid_hold_scheduler;
 pub mod users;

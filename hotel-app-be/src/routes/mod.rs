@@ -228,6 +228,13 @@ pub fn create_router(pool: DbPool) -> Router {
                     axum::http::header::AUTHORIZATION,
                     axum::http::header::CONTENT_TYPE,
                     axum::http::header::ACCEPT,
+                    // Turnstile token on /auth/login and /auth/register. Omitting
+                    // it breaks the preflight for cross-origin deployments only —
+                    // the development branch above allows any header, so this is
+                    // the kind of gap that ships green and 403s in production.
+                    axum::http::HeaderName::from_static(
+                        crate::services::turnstile::TURNSTILE_HEADER,
+                    ),
                 ])
                 .allow_methods([
                     Method::GET,
@@ -335,12 +342,12 @@ pub fn create_router(pool: DbPool) -> Router {
                 axum::http::header::CONTENT_SECURITY_POLICY,
                 axum::http::HeaderValue::from_static(
                     "default-src 'self'; \
-                     script-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
+                     script-src 'self' https://challenges.cloudflare.com https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
                      style-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
                      img-src 'self' data: https:; \
                      font-src 'self' data:; \
                      connect-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
-                     frame-src 'self' https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
+                     frame-src 'self' https://challenges.cloudflare.com https://*.paypal.com https://*.paypalobjects.com https://*.venmo.com; \
                      frame-ancestors 'none';",
                 ),
             ))

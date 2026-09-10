@@ -90,6 +90,13 @@ jobs:
       # leaves the Google button hidden rather than breaking the build. Must
       # match GOOGLE_CLIENT_ID in the backend's secrets.env on the host.
       GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID || secrets.GOOGLE_CLIENT_ID }}
+      # Public half of the Cloudflare Turnstile pair, inlined into the bundle
+      # at build time. A repository variable is the natural home. Empty leaves
+      # the auth pages unchallenged rather than breaking the build. Must match
+      # TURNSTILE_SITE_KEY in the backend's secrets.env on the host -- and note
+      # the SECRET key is deliberately absent here: it belongs only to the
+      # host's secrets.env, never to a frontend build argument.
+      TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
 
     steps:
       - name: Check out the tested commit
@@ -120,6 +127,7 @@ jobs:
             --pull \
             --build-arg VITE_API_URL= \
             --build-arg VITE_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
+            --build-arg VITE_TURNSTILE_SITE_KEY="$TURNSTILE_SITE_KEY" \
             --label "org.opencontainers.image.revision=$DEPLOY_SHA" \
             --tag "saliminn-frontend:$DEPLOY_SHA" \
             hotel-web-fe

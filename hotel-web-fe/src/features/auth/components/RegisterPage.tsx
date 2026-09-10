@@ -31,6 +31,8 @@ import { errorMessage } from '../../../utils/errorMessage';
 import { returnFromAuthPage, safeGuestRedirect } from '../guestRedirect';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
+import { useTurnstile } from '../turnstile/useTurnstile';
+import { turnstileErrorMessage } from '../turnstile/turnstileError';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { REGISTRATION_CONSENTS } from '../../legal/content';
 import { useLegalLocale } from '../../legal/LegalLocaleContext';
@@ -64,6 +66,7 @@ const RegisterPage: React.FC = () => {
   const consent = useConsent(REGISTRATION_CONSENTS);
   const { locale: legalLocale } = useLegalLocale();
   const { t } = useTranslation('auth');
+  const { getToken: getTurnstileToken } = useTurnstile();
 
   useEffect(() => {
     if (redirectCountdown === null) {
@@ -169,6 +172,15 @@ const RegisterPage: React.FC = () => {
 
     setLoading(true);
 
+    let turnstileToken: string | undefined;
+    try {
+      turnstileToken = await getTurnstileToken();
+    } catch (err) {
+      setError(turnstileErrorMessage(err, t));
+      setLoading(false);
+      return;
+    }
+
     try {
       const consentPayload = consent.buildPayload(legalLocale);
       await register({
@@ -181,7 +193,7 @@ const RegisterPage: React.FC = () => {
         address_line1: formData.addressLine1.trim() || undefined,
         consents: consentPayload.consents,
         marketing_opt_in: consentPayload.marketing_opt_in,
-      });
+      }, turnstileToken);
 
       const requiresEmailVerification = Boolean(formData.email.trim());
       setSuccess(requiresEmailVerification

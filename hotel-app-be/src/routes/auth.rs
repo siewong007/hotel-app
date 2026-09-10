@@ -97,6 +97,11 @@ async fn login(
             retry_after,
         ));
     }
+    // After the rate limiter (cheap, local) and before any password work, so a
+    // bot never reaches the hashing path. Tokens are single-use, so the client
+    // must mint a fresh one per attempt — including the second `/auth/login`
+    // call that carries the 2FA code.
+    crate::services::turnstile::verify_request(&headers, ip, "login").await?;
     let user_agent = headers
         .get(axum::http::header::USER_AGENT)
         .and_then(|value| value.to_str().ok())
@@ -192,6 +197,7 @@ async fn register(
             retry_after,
         ));
     }
+    crate::services::turnstile::verify_request(&headers, ip, "register").await?;
     handlers::auth::register_handler(State(pool), headers, peer_addr, Json(req)).await
 }
 

@@ -251,6 +251,30 @@ ensure_secrets() {
     log "  To enable: append GOOGLE_CLIENT_ID to $SECRETS_FILE, set the GOOGLE_CLIENT_ID"
     log "  repository variable to the same value, and redeploy so the bundle is rebuilt."
   fi
+
+  # Turnstile is optional and, like Google sign-in, never auto-generated: only
+  # the operator can create the widget. Report the state rather than failing.
+  # The two keys are DIFFERENT halves of one widget; a deployment that sets
+  # them to the same string is the common failure, so catch it here as well as
+  # at backend startup -- here it is a readable deploy-log line instead of a
+  # container that will not come up.
+  if [[ "${TURNSTILE_ENABLED:-false}" == "true" ]]; then
+    if [[ -z "${TURNSTILE_SITE_KEY:-}" || -z "${TURNSTILE_SECRET_KEY:-}" ]]; then
+      die "TURNSTILE_ENABLED=true but TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY are missing from $SECRETS_FILE"
+    fi
+    if [[ "$TURNSTILE_SITE_KEY" == "$TURNSTILE_SECRET_KEY" ]]; then
+      die "TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are identical in $SECRETS_FILE -- Cloudflare issues two DIFFERENT keys per widget; copy the secret key from the dashboard"
+    fi
+    log "Turnstile ENABLED on login and registration (site key ${TURNSTILE_SITE_KEY})"
+    log "  The frontend image must be built with the SAME site key as VITE_TURNSTILE_SITE_KEY,"
+    log "  and this site's hostname must be listed on the widget in the Cloudflare dashboard."
+  else
+    log "Turnstile DISABLED (TURNSTILE_ENABLED is not true in $SECRETS_FILE)."
+    log "  Login and registration are protected by IP rate limiting only."
+    log "  To enable: append TURNSTILE_ENABLED, TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY"
+    log "  to $SECRETS_FILE, set the TURNSTILE_SITE_KEY repository variable to the same site"
+    log "  key, and redeploy so the bundle is rebuilt."
+  fi
 }
 
 install_release_files() {

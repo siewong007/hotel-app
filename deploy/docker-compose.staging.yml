@@ -104,6 +104,16 @@ services:
       # the VITE_GOOGLE_CLIENT_ID baked into the frontend image, or the
       # audience check rejects every credential.
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      # Cloudflare Turnstile on /api/auth/login and /api/auth/register.
+      # Optional: with TURNSTILE_ENABLED unset or false both endpoints behave
+      # exactly as today. When true, BOTH keys must be present and DIFFERENT or
+      # the backend refuses to start -- pasting one key into both variables
+      # leaves the widget rendering while every siteverify call fails, which
+      # locks out real users. The site key must be the SAME one baked into the
+      # frontend image as VITE_TURNSTILE_SITE_KEY; the secret key stays here.
+      TURNSTILE_ENABLED: "${TURNSTILE_ENABLED:-false}"
+      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
+      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
       # All optional: Transport::from_env() returns None unless BOTH SMTP_HOST
       # and SMTP_FROM_EMAIL are set, and the delivery worker then stays inert
       # rather than failing startup. Setting them is what enables guest email
