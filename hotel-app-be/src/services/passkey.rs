@@ -1,6 +1,5 @@
 //! Passkey/WebAuthn business workflows.
 
-use crate::core::auth::AuthService;
 use crate::core::config;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -8,11 +7,9 @@ use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::models::{
     AuthResponse, PasskeyInfo, PasskeyLoginFinish, PasskeyLoginStart, PasskeyRegistrationFinish,
-    PasskeyRegistrationStart, PasskeyUpdateInput, UserResponse,
+    PasskeyRegistrationStart, PasskeyUpdateInput,
 };
-use crate::repositories::auth::AuthRepository;
 use crate::repositories::passkey::PasskeyRepository;
-use crate::repositories::rbac::RbacRepository;
 use crate::services::audit::AuditLog;
 use base64::Engine;
 use base64::engine::general_purpose;
@@ -364,51 +361,9 @@ pub async fn login_finish(
     )
     .await;
 
-    let roles = AuthService::get_user_roles(pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    let permissions = AuthService::get_user_permissions(pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
-    let refresh_token = AuthService::generate_refresh_token();
-    let is_first_login = AuthRepository::is_first_login(pool, user.id)
-        .await
-        .unwrap_or(false);
-
-    let session_id =
-        AuthService::store_refresh_token(pool, user.id, &refresh_token, 30, ip_address, user_agent)
-            .await
-            .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
-    let access_token = AuthService::generate_session_jwt(
-        user.id,
-        user.username.clone(),
-        roles.clone(),
-        session_id,
-    )
-    .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
-    let _ = AuthRepository::update_last_login(pool, user.id).await;
-
-    let profile_completion = crate::services::profile::completion_for_user(pool, user.id).await?;
-
-    Ok((
-        AuthResponse {
-            access_token,
-            user: UserResponse::from(user),
-            roles,
-            permissions,
-            route_policies,
-            is_first_login,
-            recovery_codes_remaining: None,
-            profile_complete: profile_completion.complete,
-            missing_profile_fields: profile_completion
-                .missing_fields
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
-        },
-        refresh_token,
-    ))
+    // The session-minting sequence is shared with the password and Google
+    // doors so all three stay in step; see `services::auth`.
+    crate::services::auth::issue_authenticated_response(pool, &user, ip_address, user_agent).await
 }
 
 fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {
