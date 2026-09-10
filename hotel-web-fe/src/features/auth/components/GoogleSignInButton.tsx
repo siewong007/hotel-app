@@ -31,6 +31,18 @@ export interface GoogleSignInButtonProps {
 }
 
 /**
+ * Whether this build can offer Google sign-in at all.
+ *
+ * The button hides itself when it cannot render, but a caller that frames it —
+ * an "or" divider, a heading, a surrounding section — has to make the same
+ * decision or it is left pointing at nothing. That is exactly what shipped:
+ * production has no client id, so both auth pages drew a bare "or" rule with
+ * empty space beneath it.
+ */
+export const isGoogleSignInAvailable = (): boolean =>
+  !shouldUseDesktopRuntime() && Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
+
+/**
  * Renders Google's own "Sign in with Google" button via the Google Identity
  * Services (GSI) script. Never rendered for desktop builds — Google sign-in
  * is a web-only, guest-facing feature — and a no-op when the backend hasn't
@@ -42,7 +54,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({ onCreden
   onCredentialRef.current = onCredential;
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-  const disabled = shouldUseDesktopRuntime() || !clientId;
+  const disabled = !isGoogleSignInAvailable();
 
   useEffect(() => {
     if (disabled || !clientId) {

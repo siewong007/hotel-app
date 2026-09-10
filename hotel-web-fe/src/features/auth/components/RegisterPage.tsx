@@ -17,6 +17,7 @@ import {
   InputAdornment,
 } from '@mui/material';
 import {
+  ArrowBack as ArrowBackIcon,
   PersonAdd as RegisterIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
@@ -25,9 +26,9 @@ import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import { LoadingSpinner } from '../../../components';
 import { storage } from '../../../utils/storage';
-import { GoogleSignInButton } from './GoogleSignInButton';
+import { GoogleSignInButton, isGoogleSignInAvailable } from './GoogleSignInButton';
 import { errorMessage } from '../../../utils/errorMessage';
-import { safeGuestRedirect } from '../guestRedirect';
+import { returnFromAuthPage, safeGuestRedirect } from '../guestRedirect';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
@@ -89,6 +90,8 @@ const RegisterPage: React.FC = () => {
 
     return () => window.clearTimeout(timer);
   }, [navigate, redirectCountdown, searchParams]);
+
+  const handleBack = () => returnFromAuthPage(navigate, searchParams.get('redirect'));
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -222,45 +225,22 @@ const RegisterPage: React.FC = () => {
 
       navigate(redirectParam ?? '/guest-portal', { replace: true });
     } catch (err) {
-      const message = errorMessage(err, 'Google sign-in failed');
+      const message = errorMessage(err, t('login.googleFailed'));
       // Same 503-on-status contract as LoginPage.tsx's Google handler — see
       // hotel-app-be/src/services/google_identity.rs.
       const googleStatus = (err as { statusCode?: number }).statusCode;
       setGoogleError(
         googleStatus === 503
-          ? 'Google sign-in is unavailable right now. Please create an account below instead.'
-          : message
+          ? t('login.googleUnavailable')
+          : googleStatus === 409
+            ? t('login.googleStaffOnly')
+            : message
       );
     }
   };
 
   return (
-    <Box
-      className="auth-page auth-page--register"
-      sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--hotel-page-bg)',
-        position: 'relative',
-        overflow: 'hidden',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: '-50%',
-          left: '-50%',
-          width: '200%',
-          height: '200%',
-          background: 'var(--hotel-soft-glow)',
-          animation: 'rotate 20s linear infinite',
-        },
-        '@keyframes rotate': {
-          '0%': { transform: 'rotate(0deg)' },
-          '100%': { transform: 'rotate(360deg)' },
-        },
-      }}
-    >
+    <Box className="auth-page auth-page--register">
       <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>
         <LanguageSwitcher color="default" size="small" />
       </Box>
@@ -268,54 +248,23 @@ const RegisterPage: React.FC = () => {
         <Fade in timeout={800}>
           <Paper
             className="auth-card"
-            elevation={0}
-            sx={{
-              p: { xs: 4, sm: 6 },
-              width: '100%',
-              borderRadius: 4,
-              background: 'var(--hotel-panel-bg)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid var(--hotel-divider)',
-              overflow: 'hidden',
-              boxShadow: '0 20px 60px var(--hotel-shadow-color)',
-            }}
+            sx={{ p: { xs: 4, sm: 6 }, width: '100%', display: 'flex', flexDirection: 'column' }}
           >
+            <Button
+              startIcon={<ArrowBackIcon />}
+              onClick={handleBack}
+              sx={{ mb: 2, ml: -1, alignSelf: 'flex-start', color: 'var(--hotel-text-secondary)' }}
+            >
+              {t('common.back')}
+            </Button>
             {/* Header - Modern Bold Typography */}
-            <Box className="auth-heading" sx={{ textAlign: 'left', mb: { xs: 2.5, sm: 5 } }}>
-              <Typography
-                variant="h1"
-                sx={{
-                  fontSize: { xs: '2.75rem', sm: '4rem', md: '5rem' },
-                  fontWeight: 900,
-                  letterSpacing: '-0.02em',
-                  lineHeight: 0.9,
-                  color: 'var(--hotel-text-primary)',
-                  mb: { xs: 0.75, sm: 1 },
-                  textTransform: 'uppercase',
-                  background: 'var(--hotel-action-gradient)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
+            <Box className="auth-heading" sx={{ mb: { xs: 3, sm: 4 } }}>
+              <Typography variant="h1" sx={{ fontSize: { xs: '2.75rem', sm: '3.5rem' } }}>
                 {t('register.title')}
               </Typography>
-              {/* The hotel name is already the card's eyebrow (.auth-card::before,
-                  fed by --auth-brand-eyebrow from the same settings), so it is
-                  deliberately not repeated here. */}
-              <Box sx={{
-                width: '60px',
-                height: '4px',
-                background: 'var(--hotel-action-gradient)',
-                mb: { xs: 1.25, sm: 2 },
-              }} />
               <Typography
                 variant="body2"
-                sx={{
-                  color: 'var(--hotel-text-secondary)',
-                  fontSize: '0.875rem',
-                  letterSpacing: '0.02em',
-                }}
+                sx={{ mt: 1, color: 'var(--hotel-text-secondary)' }}
               >
                 {t('register.subtitle')}
               </Typography>
@@ -401,14 +350,6 @@ const RegisterPage: React.FC = () => {
                   onChange={handleInputChange}
                   required
                   autoFocus
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
 
@@ -423,14 +364,6 @@ const RegisterPage: React.FC = () => {
                   onBlur={() => handleBlur('email')}
                   error={!!emailError}
                   helperText={emailError}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
 
@@ -442,14 +375,6 @@ const RegisterPage: React.FC = () => {
                   value={formData.firstName}
                   onChange={handleInputChange}
                   required
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
 
@@ -461,14 +386,6 @@ const RegisterPage: React.FC = () => {
                   value={formData.lastName}
                   onChange={handleInputChange}
                   required
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
 
@@ -483,14 +400,6 @@ const RegisterPage: React.FC = () => {
                   error={!!phoneError}
                   helperText={phoneError}
                   required
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
 
@@ -503,14 +412,6 @@ const RegisterPage: React.FC = () => {
                   onChange={handleInputChange}
                   multiline
                   minRows={2}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                   slotProps={{
                     htmlInput: { maxLength: 255 }
                   }}
@@ -543,14 +444,6 @@ const RegisterPage: React.FC = () => {
                       ),
                     },
                   }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
 
@@ -580,14 +473,6 @@ const RegisterPage: React.FC = () => {
                       ),
                     },
                   }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        transform: 'translateY(-2px)',
-                      },
-                    },
-                  }}
                 />
               </Grid>
             </Grid>
@@ -598,31 +483,14 @@ const RegisterPage: React.FC = () => {
               type="submit"
               fullWidth
               variant="contained"
-              sx={{
-                mt: 3,
-                mb: 2,
-                py: 1.5,
-                background: 'var(--hotel-action-gradient)',
-                color: 'var(--hotel-on-accent)',
-                fontWeight: 600,
-                fontSize: '1rem',
-                transition: 'all 0.3s',
-                '&:hover': {
-                  background: 'var(--hotel-action-gradient-hover)',
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px var(--hotel-shadow-color)',
-                },
-                '&:active': {
-                  transform: 'translateY(0)',
-                },
-              }}
+              sx={{ mt: 3, mb: 2, py: 1.5 }}
               disabled={loading || redirectCountdown !== null}
             >
               {loading ? <LoadingSpinner size={24} /> : t('register.submit')}
             </Button>
           </form>
 
-          {!success && (
+          {!success && isGoogleSignInAvailable() && (
             <>
               <Divider sx={{ my: 3 }}>{t('register.orCreate')}</Divider>
               <Collapse in={!!googleError}>

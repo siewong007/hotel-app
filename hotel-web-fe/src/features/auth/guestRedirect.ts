@@ -1,3 +1,5 @@
+import { returnToPreviousPage } from '../../utils/returnNavigation';
+
 /**
  * Where a guest may be sent after signing in, when a `redirect` query parameter
  * asks for somewhere other than the portal dashboard.
@@ -19,4 +21,31 @@ export const GUEST_BOOKING_REDIRECT = '/guest-portal?view=booking';
 /** The redirect to honour, or `null` to fall back to the portal dashboard. */
 export function safeGuestRedirect(value: string | null | undefined): string | null {
   return value && ALLOWED_GUEST_REDIRECTS.has(value) ? value : null;
+}
+
+/**
+ * Sends the reader back out of a sign-in or registration page.
+ *
+ * A guest who reached sign-in from the booking flow carries that intent in
+ * `?redirect=`, and returning them anywhere else abandons the booking they were
+ * part-way through — the same failure the redirect parameter exists to prevent
+ * on the way in. So an allowlisted redirect wins over browser history. Every
+ * allowlisted destination is a public route, so this cannot bounce a
+ * signed-out reader back into the sign-in page it just left.
+ *
+ * Everything else falls through to ordinary back-navigation, which lands on
+ * the hotel home page when the reader arrived directly — from a bookmark, an
+ * email link, or the session-expiry redirect, none of which leave anything
+ * useful in history.
+ */
+export function returnFromAuthPage(
+  navigate: (to: string) => void,
+  redirectParam: string | null | undefined
+): void {
+  const booking = safeGuestRedirect(redirectParam);
+  if (booking) {
+    navigate(booking);
+    return;
+  }
+  returnToPreviousPage(navigate);
 }

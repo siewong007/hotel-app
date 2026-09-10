@@ -23,6 +23,7 @@ import {
   type LegalLocale,
 } from '../content';
 import { useLegalLocale } from '../LegalLocaleContext';
+import { returnToPreviousPage } from '../../../utils/returnNavigation';
 
 const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }[] = [
   { id: 'terms_of_service', label: { en: 'Booking Terms', ms: 'Terma Tempahan' } },
@@ -42,19 +43,6 @@ const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }
  * checkbox that links somewhere you need to log in to read is not informed
  * consent.
  */
-function returnToPreviousPage(navigate: (to: string) => void) {
-  const referrer = document.referrer;
-  try {
-    if (referrer && new URL(referrer).origin === window.location.origin) {
-      window.history.back();
-      return;
-    }
-  } catch {
-    // Malformed referrer — treat as no in-app history.
-  }
-  navigate('/');
-}
-
 export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ documentId }) => {
   const { locale, setLocale } = useLegalLocale();
   const navigate = useNavigate();

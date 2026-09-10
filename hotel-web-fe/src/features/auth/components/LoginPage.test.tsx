@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   loginWithPasskey: vi.fn(),
   registerPasskey: vi.fn(),
   loginWithGoogle: vi.fn(),
+  googleAvailable: true,
 }));
 
 function createLocalStorageStub() {
@@ -50,6 +51,7 @@ vi.mock('../../../api', () => ({
 }));
 
 vi.mock('./GoogleSignInButton', () => ({
+  isGoogleSignInAvailable: () => mocks.googleAvailable,
   GoogleSignInButton: ({ onCredential }: { onCredential: (credential: string) => void }) => (
     <button type="button" onClick={() => onCredential('google-id-token')}>
       Continue with Google
@@ -93,6 +95,7 @@ describe('LoginPage username lookup gate', () => {
     mocks.loginWithPasskey.mockReset();
     mocks.registerPasskey.mockReset();
     mocks.loginWithGoogle.mockReset();
+    mocks.googleAvailable = true;
     // Keep passkey from "succeeding" and navigating away after a valid lookup.
     mocks.loginWithPasskey.mockImplementation(() =>
       Promise.reject(new Error('no credentials available'))
@@ -112,7 +115,7 @@ describe('LoginPage username lookup gate', () => {
     fireEvent.change(screen.getByLabelText(/Username or Email/i), {
       target: { value: 'admin' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     await waitFor(() => {
       expect(mocks.lookupLoginIdentifier).toHaveBeenCalledWith('admin');
@@ -121,7 +124,7 @@ describe('LoginPage username lookup gate', () => {
     expect(await screen.findByText('admin')).toBeTruthy();
     expect(screen.getByText('Change')).toBeTruthy();
     expect(screen.queryByLabelText(/Username or Email/i)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
   });
 
   it('keeps the password field hidden when the username or email is unknown', async () => {
@@ -131,13 +134,13 @@ describe('LoginPage username lookup gate', () => {
     fireEvent.change(screen.getByLabelText(/Username or Email/i), {
       target: { value: 'nobody' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(
       await screen.findByText('No account found with that username or email')
     ).toBeTruthy();
     expect(screen.queryByLabelText(/^Password$/i)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
     expect(mocks.loginWithPasskey).not.toHaveBeenCalled();
   });
 });
@@ -151,6 +154,7 @@ describe('LoginPage unified sign-in', () => {
     mocks.loginWithPasskey.mockReset();
     mocks.registerPasskey.mockReset();
     mocks.loginWithGoogle.mockReset();
+    mocks.googleAvailable = true;
     mocks.loginWithPasskey.mockImplementation(() =>
       Promise.reject(new Error('no credentials available'))
     );
@@ -216,5 +220,121 @@ describe('LoginPage unified sign-in', () => {
       )
     ).toBeTruthy();
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoginPage Google availability', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createLocalStorageStub());
+    mocks.navigate.mockReset();
+    mocks.loginWithPasskey.mockImplementation(() =>
+      Promise.reject(new Error('no credentials available'))
+    );
+    mocks.googleAvailable = true;
+    mocks.search = '';
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('drops the "or" divider along with the button when Google is not configured', () => {
+    // Production ships without a client id, so this is the state real users
+    // see. The divider used to stay behind, labelling nothing.
+    mocks.googleAvailable = false;
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+    expect(screen.queryByText('or')).toBeNull();
+  });
+
+  it('shows the divider when the button is there to introduce', () => {
+    renderPage();
+
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy();
+    expect(screen.getByText('or')).toBeTruthy();
+  });
+
+  it('tells a staff member to use their password when Google rejects the account', async () => {
+    mocks.loginWithGoogle.mockRejectedValue(
+      Object.assign(new Error('Google sign-in is available only for active guest accounts.'), {
+        statusCode: 409,
+      })
+    );
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }));
+
+    expect(
+      await screen.findByText(
+        'Google sign-in is for guest accounts. Staff should sign in with a username and password.'
+      )
+    ).toBeTruthy();
+  });
+});
+
+describe('LoginPage return control', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createLocalStorageStub());
+    mocks.navigate.mockReset();
+    mocks.loginWithPasskey.mockImplementation(() =>
+      Promise.reject(new Error('no credentials available'))
+    );
+    mocks.googleAvailable = true;
+    mocks.search = '';
+    vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
+  });
+
+  it('returns a guest to the booking flow they signed in from', () => {
+    mocks.search = 'redirect=%2Fguest-portal%3Fview%3Dbooking';
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/guest-portal?view=booking');
+    expect(window.history.back).not.toHaveBeenCalled();
+  });
+
+  it('ignores a redirect that is not on the allowlist', () => {
+    // Same open-redirect guard the post-sign-in path uses; a crafted value must
+    // not become a navigation target just because it arrived in the URL.
+    mocks.search = 'redirect=https%3A%2F%2Felsewhere.example%2Fphish';
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/');
+  });
+
+  it('goes back through history when the reader came from inside the app', () => {
+    Object.defineProperty(document, 'referrer', {
+      configurable: true,
+      value: `${window.location.origin}/offers`,
+    });
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(window.history.back).toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the hotel home when sign-in was opened directly', () => {
+    // A session-expiry redirect replaces the history entry, and an emailed link
+    // has no in-app history at all.
+    renderPage();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(window.history.back).not.toHaveBeenCalled();
+    expect(mocks.navigate).toHaveBeenCalledWith('/');
   });
 });

@@ -20,10 +20,33 @@ html, body, #root {
   height: 100%;
 }
 
-/* Public account experience — shared across sign in and registration. */
+/* Public account experience — shared across sign in and registration.
+   The page frame lives here rather than in each page's `sx` so the two cannot
+   drift apart, and so the mobile overrides at the bottom of this block have
+   something to override. */
 .auth-page {
   isolation: isolate;
   padding: max(24px, env(safe-area-inset-top)) 0 max(24px, env(safe-area-inset-bottom));
+  position: relative;
+  display: flex;
+  justify-content: center;
+  /* Not `align-items: center`. A card taller than the viewport centred that way
+     overflows equally in both directions, and the overflow above the container
+     cannot be scrolled to — it measured 162px of the registration card, taking
+     the hotel eyebrow and part of the back control with it. Auto margins
+     centre while there is room to spare and collapse to zero when there is
+     not, so the top of a tall card always stays reachable. */
+  align-items: flex-start;
+  min-height: 100vh;
+  background: var(--hotel-page-bg);
+}
+
+.auth-container { margin-block: auto !important; }
+
+/* Mobile browsers count the collapsing URL bar in 100vh, which pushes the
+   sign-in button under the toolbar. dvh tracks the visible viewport. */
+@supports (min-height: 100dvh) {
+  .auth-page { min-height: 100dvh; }
 }
 
 .auth-page::after {
@@ -71,7 +94,6 @@ html, body, #root {
   -webkit-text-fill-color: currentColor !important;
 }
 
-.auth-heading > div { border-radius: 999px; }
 .auth-choice-card { border-radius: 18px !important; border: 1px solid rgba(18, 58, 46, .12) !important; box-shadow: none !important; }
 .auth-choice-card:focus-within { outline: 3px solid rgba(32, 114, 87, .28); outline-offset: 2px; }
 
@@ -81,7 +103,8 @@ html, body, #root {
 .auth-card :focus-visible { outline: 3px solid rgba(32, 114, 87, .32); outline-offset: 2px; }
 
 @media (max-width: 600px) {
-  .auth-page { align-items: flex-start !important; padding-inline: 8px; }
+  .auth-page { padding-inline: 8px; }
+  .auth-container { margin-block: 0 !important; }
   .auth-card { border-radius: 22px !important; padding: 22px 20px !important; }
   .auth-card::before { margin-bottom: 14px; }
   .auth-heading h1 { font-size: 2.75rem !important; }

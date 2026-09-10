@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   setSearchParams: vi.fn(),
   register: vi.fn(),
   loginWithGoogle: vi.fn(),
+  googleAvailable: true,
 }));
 
 function createLocalStorageStub() {
@@ -40,6 +41,7 @@ vi.mock('../../../auth/AuthContext', () => ({
 }));
 
 vi.mock('./GoogleSignInButton', () => ({
+  isGoogleSignInAvailable: () => mocks.googleAvailable,
   GoogleSignInButton: ({ onCredential }: { onCredential: (credential: string) => void }) => (
     <button type="button" onClick={() => onCredential('google-id-token')}>
       Continue with Google
@@ -55,6 +57,7 @@ describe('RegisterPage Google registration', () => {
     mocks.navigate.mockReset();
     mocks.register.mockReset();
     mocks.loginWithGoogle.mockReset();
+    mocks.googleAvailable = true;
     mocks.search = '';
     resetLocaleStoreForTests();
   });
@@ -110,5 +113,48 @@ describe('RegisterPage Google registration', () => {
         marketing_opt_in: false,
       });
     });
+  });
+});
+
+describe('RegisterPage return control', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createLocalStorageStub());
+    mocks.navigate.mockReset();
+    mocks.googleAvailable = true;
+    mocks.search = '';
+    resetLocaleStoreForTests();
+    vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    Object.defineProperty(document, 'referrer', { configurable: true, value: '' });
+  });
+
+  it('returns a guest to the booking flow they came from', () => {
+    mocks.search = 'redirect=%2Fguest-portal%3Fview%3Dbooking';
+    render(<RegisterPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/guest-portal?view=booking');
+  });
+
+  it('falls back to the hotel home when opened directly', () => {
+    render(<RegisterPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/');
+  });
+
+  it('drops the "or" divider with the button when Google is not configured', () => {
+    mocks.googleAvailable = false;
+    render(<RegisterPage />);
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
+    expect(screen.queryByText('or')).toBeNull();
   });
 });
