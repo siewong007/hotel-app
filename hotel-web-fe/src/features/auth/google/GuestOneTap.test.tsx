@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -22,6 +22,8 @@ vi.mock('../../../auth/AuthContext', () => ({
 
 vi.mock('../../../i18n', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+  // ConsentNotice reads the shared legal locale, which is the interface locale.
+  useLocale: () => 'en',
 }));
 
 vi.mock('../../../utils/storage', () => ({
@@ -183,6 +185,91 @@ describe('GuestOneTap', () => {
     await waitFor(() =>
       expect(mocks.navigate).toHaveBeenCalledWith('/complete-profile', { replace: true })
     );
+  });
+
+  it('offers the notice instead of a dead end when the Google identity is new', async () => {
+    // The first attempt sends no consents by design, so a first-time identity
+    // always 400s here. Reporting that as a failure is what made One Tap
+    // useless for exactly the visitors it is best at catching.
+    mocks.loginWithGoogle.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          'Consent to the Booking Terms and Conditions is required before this request can be accepted'
+        ),
+        { statusCode: 400 }
+      )
+    );
+    const { initialize } = installGoogleIdentityStub();
+    render(<GuestOneTap pathname="/offers" search="" />);
+    await waitFor(() => expect(initialize).toHaveBeenCalled());
+
+    deliverCredential(initialize, 'user');
+
+    expect(
+      await screen.findByText(/By creating an account and using this service, you agree to the/)
+    ).toBeTruthy();
+    // Not reported as an error: it is a step, not a failure.
+    expect(mocks.notifications).toEqual([]);
+  });
+
+  it('creates the account once the notice has been shown and accepted', async () => {
+    mocks.loginWithGoogle
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Consent is required'), { statusCode: 400 })
+      )
+      .mockResolvedValueOnce(undefined);
+    const { initialize } = installGoogleIdentityStub();
+    render(<GuestOneTap pathname="/offers" search="" />);
+    await waitFor(() => expect(initialize).toHaveBeenCalled());
+    deliverCredential(initialize, 'user');
+    await screen.findByRole('button', { name: 'login.googleFirstTimeConfirm' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'login.googleFirstTimeConfirm' }));
+
+    await waitFor(() =>
+      expect(mocks.loginWithGoogle).toHaveBeenLastCalledWith('google-id-token', {
+        consents: [
+          { document: 'terms_of_service', version: expect.any(String), granted: true, locale: 'en' },
+          { document: 'privacy_notice', version: expect.any(String), granted: true, locale: 'en' },
+        ],
+        marketing_opt_in: false,
+      })
+    );
+  });
+
+  it('creates nothing when the notice is declined', async () => {
+    mocks.loginWithGoogle.mockRejectedValueOnce(
+      Object.assign(new Error('Consent is required'), { statusCode: 400 })
+    );
+    const { initialize } = installGoogleIdentityStub();
+    render(<GuestOneTap pathname="/offers" search="" />);
+    await waitFor(() => expect(initialize).toHaveBeenCalled());
+    deliverCredential(initialize, 'user');
+    await screen.findByRole('button', { name: 'login.googleFirstTimeCancel' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'login.googleFirstTimeCancel' }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/By creating an account and using this service/)
+      ).toBeNull()
+    );
+    expect(mocks.loginWithGoogle).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not announce an automatic sign-in that has not happened yet', async () => {
+    // select_by 'auto' plus a pending notice is not a completed sign-in.
+    mocks.loginWithGoogle.mockRejectedValueOnce(
+      Object.assign(new Error('Consent is required'), { statusCode: 400 })
+    );
+    const { initialize } = installGoogleIdentityStub();
+    render(<GuestOneTap pathname="/offers" search="" />);
+    await waitFor(() => expect(initialize).toHaveBeenCalled());
+
+    deliverCredential(initialize, 'auto');
+
+    await screen.findByRole('button', { name: 'login.googleFirstTimeConfirm' });
+    expect(mocks.notifications).toEqual([]);
   });
 
   it('reports a staff account through the global notification host', async () => {

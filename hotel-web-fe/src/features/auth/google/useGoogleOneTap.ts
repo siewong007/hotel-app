@@ -13,14 +13,15 @@
  * `logout()` calls `disableAutoSelect()` — that is the same call that stops the
  * button rendering the previous guest's name, and it governs these two as well.
  *
- * This door signs in EXISTING guests only, and deliberately sends no consent
- * payload. Account creation is governed by a notice that has to be visible at
- * the moment of the act, and neither of these mechanisms has a surface to show
- * it on: One Tap's confirmation happens inside Google's own UI, and automatic
- * sign-in shows nothing at all. So a first-time Google identity gets the
- * backend's 400 and a message pointing at the sign-in page, where the notice
- * sits under the button. Anything else would be recording an agreement to text
- * the guest was never shown.
+ * The first attempt deliberately sends NO consent payload. Account creation is
+ * governed by a notice that has to be visible at the moment of the act, and
+ * neither mechanism has a surface to show it on: One Tap confirms inside
+ * Google's own UI and automatic sign-in shows nothing. So a first-time identity
+ * comes back as the backend's 400-consent, and that is treated as a recoverable
+ * step rather than a failure — `consentPending` asks the caller to show the
+ * notice, and `confirmConsent` retries with the payload once it has been shown.
+ * Sending consents on the first attempt instead would record an agreement to
+ * text the guest was never shown.
  *
  * Deliberately prompts **once per mount**. A visitor lands on the booking page
  * with an empty form, which is the moment where signing in costs them nothing;
@@ -30,19 +31,22 @@
  * over the next screen.
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
 import { storage } from '../../../utils/storage';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { REGISTRATION_NOTICE } from '../../legal/content';
+import { useLegalLocale } from '../../legal/LegalLocaleContext';
+import { buildNoticeConsentPayload } from '../../legal/noticeConsent';
 import {
   cancelGoogleOneTap,
   googleClientId,
   isGoogleSignInAvailable,
   whenGoogleIdentityReady,
 } from './googleIdentity';
-import { googleSignInErrorMessage } from './googleSignInError';
+import { googleSignInErrorMessage, isGoogleConsentRequired } from './googleSignInError';
 
 export interface UseGoogleOneTapOptions {
   /** False on any page that must not raise the prompt. */
@@ -55,13 +59,27 @@ export interface UseGoogleOneTapOptions {
   completeProfileRedirect?: string | null;
 }
 
+export interface GoogleOneTapState {
+  /**
+   * A first-time Google identity is waiting on the notice. The caller MUST show
+   * the registration notice while this is true — it is the only thing the guest
+   * sees before the account is created.
+   */
+  consentPending: boolean;
+  /** Creates the account, having shown the notice. */
+  confirmConsent: () => void;
+  /** Discards the credential without creating anything. */
+  dismissConsent: () => void;
+}
+
 export function useGoogleOneTap({
   enabled,
   completeProfileRedirect = null,
-}: UseGoogleOneTapOptions): void {
+}: UseGoogleOneTapOptions): GoogleOneTapState {
   const { isAuthenticated, isLoading, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation('auth');
+  const { locale: legalLocale } = useLegalLocale();
 
   // Kept in refs so a re-render caused by any of them cannot re-fire the
   // prompt: the effect below depends only on whether prompting is allowed.
@@ -71,10 +89,65 @@ export function useGoogleOneTap({
   navigateRef.current = navigate;
   const translateRef = useRef(t);
   translateRef.current = t;
+  const localeRef = useRef(legalLocale);
+  localeRef.current = legalLocale;
   const redirectRef = useRef(completeProfileRedirect);
   redirectRef.current = completeProfileRedirect;
 
   const promptedRef = useRef(false);
+  const [pendingCredential, setPendingCredential] = useState<string | null>(null);
+
+  /**
+   * Signs in with a credential, optionally carrying the consent payload.
+   *
+   * `withConsent` is false for everything Google hands us unprompted, and true
+   * only after the notice has been on screen. The no-consent call passes one
+   * argument rather than an explicit `undefined` so the request body is the same
+   * shape a sign-in-only client would send.
+   */
+  const signIn = useCallback(async (credential: string, withConsent: boolean) => {
+    try {
+      if (withConsent) {
+        await loginWithGoogleRef.current(
+          credential,
+          buildNoticeConsentPayload(REGISTRATION_NOTICE, localeRef.current)
+        );
+      } else {
+        await loginWithGoogleRef.current(credential);
+      }
+      setPendingCredential(null);
+
+      // Route by the freshly-stored account, same as the sign-in page does — a
+      // guest whose profile is still missing required fields must finish that
+      // step before anything else. Otherwise stay exactly where they were: not
+      // moving the reader is the whole point of signing in without leaving the
+      // page.
+      const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
+      if (storedUser?.profile_complete === false) {
+        const redirect = redirectRef.current;
+        navigateRef.current(
+          redirect
+            ? `/complete-profile?redirect=${encodeURIComponent(redirect)}`
+            : '/complete-profile',
+          { replace: true }
+        );
+      }
+      return true;
+    } catch (error) {
+      // A first-time Google identity lands here on the first attempt. It is not
+      // a failure to report — it is the point at which the notice is owed.
+      if (!withConsent && isGoogleConsentRequired(error)) {
+        setPendingCredential(credential);
+        return false;
+      }
+      setPendingCredential(null);
+      emitApiNotification({
+        message: googleSignInErrorMessage(error, translateRef.current),
+        severity: 'warning',
+      });
+      return false;
+    }
+  }, []);
 
   const allowed =
     enabled && !isLoading && !isAuthenticated && isGoogleSignInAvailable();
@@ -99,42 +172,17 @@ export function useGoogleOneTap({
         use_fedcm_for_prompt: true,
         callback: ({ credential, select_by: selectBy }) => {
           void (async () => {
-            try {
-              await loginWithGoogleRef.current(credential);
+            const signedIn = await signIn(credential, false);
 
-              // Automatic sign-in shows nothing at all, so without this the
-              // guest's name simply appears in the header with no explanation
-              // of what just happened. One Tap needs no such note — they
-              // clicked "Continue as", so they know.
-              if (selectBy === 'auto') {
-                emitApiNotification({
-                  message: translateRef.current('login.googleAutoSignedIn'),
-                  severity: 'success',
-                });
-              }
-
-              // Route by the freshly-stored account, same as the sign-in page
-              // does — a guest whose profile is still missing required fields
-              // must finish that step before anything else. Otherwise stay
-              // exactly where they were: not moving the reader is the whole
-              // point of signing in without leaving the page.
-              const storedUser = storage.getItem<{ profile_complete?: boolean }>('user');
-              if (storedUser?.profile_complete === false) {
-                const redirect = redirectRef.current;
-                navigateRef.current(
-                  redirect
-                    ? `/complete-profile?redirect=${encodeURIComponent(redirect)}`
-                    : '/complete-profile',
-                  { replace: true }
-                );
-              }
-            } catch (error) {
-              // A first-time Google identity lands here, on the 400 the missing
-              // consent payload produces — googleSignInErrorMessage turns that
-              // into the "continue on the sign-in page" sentence.
+            // Automatic sign-in shows nothing at all, so without this the
+            // guest's name simply appears in the header with no explanation of
+            // what just happened. One Tap needs no such note — they clicked
+            // "Continue as", so they know. Only on success: a pending notice is
+            // not a completed sign-in.
+            if (signedIn && selectBy === 'auto') {
               emitApiNotification({
-                message: googleSignInErrorMessage(error, translateRef.current),
-                severity: 'warning',
+                message: translateRef.current('login.googleAutoSignedIn'),
+                severity: 'success',
               });
             }
           })();
@@ -147,5 +195,17 @@ export function useGoogleOneTap({
       cancelLoad();
       cancelGoogleOneTap();
     };
-  }, [allowed]);
+  }, [allowed, signIn]);
+
+  const confirmConsent = useCallback(() => {
+    if (pendingCredential) void signIn(pendingCredential, true);
+  }, [pendingCredential, signIn]);
+
+  const dismissConsent = useCallback(() => setPendingCredential(null), []);
+
+  return {
+    consentPending: pendingCredential !== null,
+    confirmConsent,
+    dismissConsent,
+  };
 }

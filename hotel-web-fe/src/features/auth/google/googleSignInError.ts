@@ -11,6 +11,21 @@ import { errorMessage } from '../../../utils/errorMessage';
 
 type Translate = (key: string) => string;
 
+/**
+ * Whether this failure is "a first-time Google identity arrived with no consent
+ * payload", which is the backend's signal that the account does not exist yet
+ * and creating it needs the notice agreed to first.
+ *
+ * Matches on the status plus the word the backend uses, because 400 alone also
+ * covers ordinary validation failures. Shared so the message mapper and the
+ * caller that recovers from it cannot drift apart on what the signal is.
+ */
+export function isGoogleConsentRequired(error: unknown): boolean {
+  const status = (error as { statusCode?: number }).statusCode;
+  if (status !== 400) return false;
+  return /consent/i.test(errorMessage(error, ''));
+}
+
 export function googleSignInErrorMessage(error: unknown, t: Translate): string {
   const message = errorMessage(error, t('login.googleFailed'));
   const status = (error as { statusCode?: number }).statusCode;
@@ -21,10 +36,9 @@ export function googleSignInErrorMessage(error: unknown, t: Translate): string {
   // 409 is ensure_active_google_guest rejecting a staff or deactivated
   // account. The raw backend sentence does not say what to do instead.
   if (status === 409) return t('login.googleStaffOnly');
-  // 400-consent means a first-time Google identity arrived through a door that
-  // sends no consent payload — only One Tap and automatic sign-in do, because
-  // neither can show the notice that governs account creation. The sign-in page
-  // can, so that is where this points.
-  if (status === 400 && /consent/i.test(message)) return t('login.googleNeedsAccount');
+  // 400-consent reaching a message at all means the recovery step failed or was
+  // never offered — One Tap now answers it with the notice in a dialog. The
+  // sign-in page always sends consents, so this is the last-resort sentence.
+  if (isGoogleConsentRequired(error)) return t('login.googleNeedsAccount');
   return message;
 }
