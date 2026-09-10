@@ -23,6 +23,7 @@ import { Route as ComplimentaryRouteImport } from './routes/complimentary'
 import { Route as DataTransferRouteImport } from './routes/data-transfer'
 import { Route as EkycRouteImport } from './routes/ekyc'
 import { Route as EkycAdminRouteImport } from './routes/ekyc-admin'
+import { Route as EnrollTwoFactorRouteImport } from './routes/enroll-two-factor'
 import { Route as GuestConfigRouteImport } from './routes/guest-config'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as HelpRouteImport } from './routes/help'
@@ -126,6 +127,11 @@ const EkycRoute = EkycRouteImport.update({
 const EkycAdminRoute = EkycAdminRouteImport.update({
   id: '/ekyc-admin',
   path: '/ekyc-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnrollTwoFactorRoute = EnrollTwoFactorRouteImport.update({
+  id: '/enroll-two-factor',
+  path: '/enroll-two-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuestConfigRoute = GuestConfigRouteImport.update({
@@ -316,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/data-transfer': typeof DataTransferRoute
   '/ekyc': typeof EkycRoute
   '/ekyc-admin': typeof EkycAdminRoute
+  '/enroll-two-factor': typeof EnrollTwoFactorRoute
   '/guest-config': typeof GuestConfigRoute
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/data-transfer': typeof DataTransferRoute
   '/ekyc': typeof EkycRoute
   '/ekyc-admin': typeof EkycAdminRoute
+  '/enroll-two-factor': typeof EnrollTwoFactorRoute
   '/guest-config': typeof GuestConfigRoute
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRoute
@@ -417,6 +425,7 @@ export interface FileRoutesById {
   '/data-transfer': typeof DataTransferRoute
   '/ekyc': typeof EkycRoute
   '/ekyc-admin': typeof EkycAdminRoute
+  '/enroll-two-factor': typeof EnrollTwoFactorRoute
   '/guest-config': typeof GuestConfigRoute
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRoute
@@ -469,6 +478,7 @@ export interface FileRouteTypes {
     | '/data-transfer'
     | '/ekyc'
     | '/ekyc-admin'
+    | '/enroll-two-factor'
     | '/guest-config'
     | '/guest-portal'
     | '/help'
@@ -519,6 +529,7 @@ export interface FileRouteTypes {
     | '/data-transfer'
     | '/ekyc'
     | '/ekyc-admin'
+    | '/enroll-two-factor'
     | '/guest-config'
     | '/guest-portal'
     | '/help'
@@ -569,6 +580,7 @@ export interface FileRouteTypes {
     | '/data-transfer'
     | '/ekyc'
     | '/ekyc-admin'
+    | '/enroll-two-factor'
     | '/guest-config'
     | '/guest-portal'
     | '/help'
@@ -620,6 +632,7 @@ export interface RootRouteChildren {
   DataTransferRoute: typeof DataTransferRoute
   EkycRoute: typeof EkycRoute
   EkycAdminRoute: typeof EkycAdminRoute
+  EnrollTwoFactorRoute: typeof EnrollTwoFactorRoute
   GuestConfigRoute: typeof GuestConfigRoute
   GuestPortalRoute: typeof GuestPortalRoute
   HelpRoute: typeof HelpRoute
@@ -754,6 +767,13 @@ declare module '@tanstack/react-router' {
       path: '/ekyc-admin'
       fullPath: '/ekyc-admin'
       preLoaderRoute: typeof EkycAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/enroll-two-factor': {
+      id: '/enroll-two-factor'
+      path: '/enroll-two-factor'
+      fullPath: '/enroll-two-factor'
+      preLoaderRoute: typeof EnrollTwoFactorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guest-config': {
@@ -1012,6 +1032,7 @@ const rootRouteChildren: RootRouteChildren = {
   DataTransferRoute: DataTransferRoute,
   EkycRoute: EkycRoute,
   EkycAdminRoute: EkycAdminRoute,
+  EnrollTwoFactorRoute: EnrollTwoFactorRoute,
   GuestConfigRoute: GuestConfigRoute,
   GuestPortalRoute: GuestPortalRoute,
   HelpRoute: HelpRoute,

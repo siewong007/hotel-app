@@ -39,6 +39,10 @@ import {
 } from '../utils/twoFactorCode';
 import { AuthService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
+import {
+  isTwoFactorEnrollmentRequired,
+  TWO_FACTOR_ENROLLMENT_PATH,
+} from '../twoFactorEnrollment';
 import { LanguageSwitcher } from '../../../components/common/LanguageSwitcher';
 import { useTranslation } from '../../../i18n';
 import { useTurnstile } from '../turnstile/useTurnstile';
@@ -126,7 +130,12 @@ const LoginPage: React.FC = () => {
     }
 
     try {
-      const { isFirstLogin, recoveryCodesRemaining } = await login(
+      const {
+        isFirstLogin,
+        recoveryCodesRemaining,
+        twoFactorEnrollmentRequired,
+        twoFactorEnrollmentDeadline,
+      } = await login(
         username,
         password,
         totpCode || undefined,
@@ -134,6 +143,18 @@ const LoginPage: React.FC = () => {
       );
       if (recoveryCodesRemaining !== undefined) {
         notifyRecoveryCodeUsed(recoveryCodesRemaining);
+      }
+      // The session is valid, but this account's role requires a second factor
+      // and the grace window is running. Enrolment comes before the workspace;
+      // once that window closes the backend refuses the sign-in outright.
+      if (twoFactorEnrollmentRequired) {
+        navigate(
+          twoFactorEnrollmentDeadline
+            ? `${TWO_FACTOR_ENROLLMENT_PATH}?deadline=${encodeURIComponent(twoFactorEnrollmentDeadline)}`
+            : TWO_FACTOR_ENROLLMENT_PATH,
+          { replace: true }
+        );
+        return;
       }
       if (isFirstLogin) {
         setShowFirstLoginPrompt(true);
@@ -143,6 +164,15 @@ const LoginPage: React.FC = () => {
       }
     } catch (err) {
       const loginError = errorMessage(err, t('login.failed'));
+
+      // Enrolment is overdue, so the backend refused this sign-in outright.
+      // Matched on the stable body code, never the message: that copy is
+      // user-facing prose and is translated.
+      if (isTwoFactorEnrollmentRequired(err)) {
+        setError(t('twoFactorEnrollment.blocked'));
+        setLoading(false);
+        return;
+      }
 
       // Check if 2FA is required
       if (loginError.includes('2FA required') || loginError.includes('TOTP code')) {

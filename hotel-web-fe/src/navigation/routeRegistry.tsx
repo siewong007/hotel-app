@@ -66,6 +66,7 @@ const LoginPage = lazyRoute(() => import('../features/auth/components/LoginPage'
 const RegisterPage = lazyRoute(() => import('../features/auth/components/RegisterPage'));
 const EmailVerificationPage = lazyRoute(() => import('../features/auth/components/EmailVerificationPage'));
 const CompleteProfilePage = lazyRoute(() => import('../features/auth/components/CompleteProfilePage'));
+const EnrollTwoFactorPage = lazyRoute(() => import('../features/auth/components/EnrollTwoFactorPage'));
 const FirstLoginPasskeyPrompt = lazyRoute(() => import('../features/auth/components/FirstLoginPasskeyPrompt'));
 const RoomReservationTimeline = lazyRoute(() => import('../features/rooms/components/RoomReservationTimeline'));
 const RoomConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomConfigurationPage'));
@@ -101,6 +102,7 @@ const routeDefinitions: AppRouteDefinition[] = [
   { id: 'register', path: '/register', component: RegisterPage, animationType: 'fade', visibility: 'unauth' },
   { id: 'verify-email', path: '/verify-email', component: EmailVerificationPage, animationType: 'fade', visibility: 'unauth' },
   { id: 'complete-profile', path: '/complete-profile', component: CompleteProfilePage, animationType: 'fade', visibility: 'public' },
+  { id: 'enroll-two-factor', path: '/enroll-two-factor', component: EnrollTwoFactorPage, animationType: 'fade', visibility: 'auth' },
   { id: 'guest-checkin', path: '/guest-checkin', component: GuestCheckInLanding, animationType: 'fade', visibility: 'unauth' },
   { id: 'guest-checkin-verify', path: '/guest-checkin/verify', component: GuestCheckInVerify, animationType: 'fade', visibility: 'unauth' },
   { id: 'guest-checkin-form', path: '/guest-checkin/form', component: GuestCheckInForm, animationType: 'fade', visibility: 'unauth' },

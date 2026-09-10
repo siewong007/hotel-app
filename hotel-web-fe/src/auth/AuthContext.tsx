@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { useQueryClient } from '@tanstack/react-query';
 import { api, refreshAccessToken, APIError, readErrorData } from '../api/client';
 import { HTTPError } from 'ky';
+import { TWO_FACTOR_ENROLLMENT_REQUIRED_CODE } from '../features/auth/twoFactorEnrollment';
 import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
@@ -31,6 +32,11 @@ export interface LoginResult {
   // Set only when the submitted 2FA code was a recovery code, which the backend
   // consumes; the caller warns the user to regenerate their codes.
   recoveryCodesRemaining?: number;
+  // Set while the account is inside its two-factor enrolment grace window: the
+  // session works, but the caller must route the reader to enrolment. Past the
+  // deadline the sign-in fails instead — see isTwoFactorEnrollmentRequired.
+  twoFactorEnrollmentRequired?: boolean;
+  twoFactorEnrollmentDeadline?: string;
 }
 
 interface AuthContextType extends AuthState {
@@ -117,6 +123,11 @@ type AuthLoginResponse = {
   // src/auth/authUser.ts::normalizeAuthUser for the client-side defaulting.
   profile_complete?: boolean;
   missing_profile_fields?: string[];
+  // Set when this account's role requires a second factor, none is enrolled,
+  // and the grace window is still open. The session is valid; the caller must
+  // route the reader to enrolment. See features/auth/twoFactorEnrollment.ts.
+  two_factor_enrollment_required?: boolean;
+  two_factor_enrollment_deadline?: string;
 };
 
 const EMPTY_AUTH_STATE: AuthState = {
@@ -271,6 +282,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       recovery_codes_remaining,
       profile_complete,
       missing_profile_fields,
+      two_factor_enrollment_required,
+      two_factor_enrollment_deadline,
     } = data;
     const user = normalizeAuthUser({ ...responseUser, profile_complete, missing_profile_fields }, roles);
 
@@ -320,7 +333,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.warn('Failed to check passkeys, skipping passkey prompt:', error);
       });
 
-    return { isFirstLogin: is_first_login, recoveryCodesRemaining: recovery_codes_remaining };
+    return {
+      isFirstLogin: is_first_login,
+      recoveryCodesRemaining: recovery_codes_remaining,
+      twoFactorEnrollmentRequired: two_factor_enrollment_required,
+      twoFactorEnrollmentDeadline: two_factor_enrollment_deadline,
+    };
   }, [checkPasskeys, queryClient]);
 
   const login = useCallback(async (
@@ -345,7 +363,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return applyAuthSession(data);
     } catch (error) {
       console.error('Login error:', error);
-      throw new Error(await extractHttpErrorMessage(error, 'Login failed'));
+      // An overdue two-factor enrolment is refused with a stable body code.
+      // Preserve it as APIError.details so the sign-in page can route to
+      // enrolment instead of matching translated message text — the same
+      // reasoning as loginWithGoogle preserving `statusCode` below.
+      const message = await extractHttpErrorMessage(error, 'Login failed');
+      if (error instanceof HTTPError) {
+        const body = readErrorData(error);
+        if (body.code === TWO_FACTOR_ENROLLMENT_REQUIRED_CODE) {
+          throw new APIError(message, error.response?.status, body);
+        }
+      }
+      throw new Error(message);
     }
   }, [applyAuthSession]);
 
