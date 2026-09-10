@@ -108,7 +108,11 @@ jobs:
       # TURNSTILE_SITE_KEY in the backend's secrets.env on the host -- and note
       # the SECRET key is deliberately absent here: it belongs only to the
       # host's secrets.env, never to a frontend build argument.
-      TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
+      # Staging takes its own key when one is set, so the challenge can be
+      # exercised on staging.saliminn.my without arming production: the
+      # production workflow reads TURNSTILE_SITE_KEY only, which stays unset
+      # until staging has proved the widget actually works in a real browser.
+      TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY_STAGING || vars.TURNSTILE_SITE_KEY || secrets.TURNSTILE_SITE_KEY }}
 
     steps:
       - name: Check out the selected commit
