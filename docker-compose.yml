@@ -49,6 +49,10 @@ services:
       HOTEL_BANK_NAME: ${HOTEL_BANK_NAME:-Maybank}
       HOTEL_BANK_ACCOUNT_NAME: ${HOTEL_BANK_ACCOUNT_NAME:-Salim Inn}
       HOTEL_BANK_ACCOUNT_NUMBER: ${HOTEL_BANK_ACCOUNT_NUMBER:-511270052595}
+      # Google sign-in. Empty disables it: the backend answers 503 and the
+      # frontend hides the button. Must be the same OAuth client as the
+      # frontend's VITE_GOOGLE_CLIENT_ID build argument below.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +73,9 @@ services:
         # Leave empty for runtime same-origin routing through Caddy. An explicit
         # value remains available for deployments with a separate API origin.
         VITE_API_URL: "${VITE_API_URL:-}"
+        # Inlined into the bundle at build time; rebuild the image after
+        # changing it. Empty leaves the Google sign-in button hidden.
+        VITE_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
     container_name: hotel-frontend
     restart: unless-stopped
     ports:

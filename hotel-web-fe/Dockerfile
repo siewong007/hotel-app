@@ -21,10 +21,19 @@ COPY . .
 # proxy forwards API paths. Set this only for an intentional API-origin override.
 ARG VITE_API_URL
 ARG VITE_ENVIRONMENT=production
+# Google Identity Services client id. Empty by default, which makes
+# GoogleSignInButton render nothing -- "Google sign-in unavailable", not an
+# error. Vite inlines VITE_* at build time, so this must be supplied here as a
+# build argument; setting it in the container environment has no effect. It
+# must be the same OAuth client as the backend's GOOGLE_CLIENT_ID, or token
+# verification rejects the audience. A client id is public by design and ships
+# in the bundle either way, so it is not a secret.
+ARG VITE_GOOGLE_CLIENT_ID
 
 # Set environment variables for build
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ENVIRONMENT=$VITE_ENVIRONMENT
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 ENV NODE_ENV=production
 
 # Build the application

@@ -234,6 +234,23 @@ ensure_secrets() {
     log "  Guest email stays queued in email_deliveries and operational alerting cannot send."
     log "  To enable: append SMTP_HOST/SMTP_PORT/SMTP_USERNAME/SMTP_PASSWORD/SMTP_FROM_EMAIL to $SECRETS_FILE and redeploy."
   fi
+
+  # Google sign-in is optional and, like SMTP, never auto-generated: only the
+  # operator can create an OAuth client. Report the state rather than failing,
+  # since an unset value disables the feature cleanly on both sides. The
+  # frontend half is baked into the image by the build workflow and cannot be
+  # inspected from here, so a value present here but missing from the build
+  # (or vice versa) still has to be checked by signing in once.
+  if [[ -n "${GOOGLE_CLIENT_ID:-}" ]]; then
+    log "Google sign-in ENABLED (client id ${GOOGLE_CLIENT_ID})"
+    log "  The frontend image must be built with the SAME id as VITE_GOOGLE_CLIENT_ID,"
+    log "  and this site's origin must be an Authorized JavaScript origin on that client."
+  else
+    log "Google sign-in DISABLED (no GOOGLE_CLIENT_ID in $SECRETS_FILE)."
+    log "  The backend answers 503 for /api/auth/google and the button stays hidden."
+    log "  To enable: append GOOGLE_CLIENT_ID to $SECRETS_FILE, set the GOOGLE_CLIENT_ID"
+    log "  repository variable to the same value, and redeploy so the bundle is rebuilt."
+  fi
 }
 
 install_release_files() {

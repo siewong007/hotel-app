@@ -97,6 +97,13 @@ services:
       # Optional: encrypt TOTP secrets at rest (AES-256-GCM). Generate with:
       #   openssl rand -base64 32
       TOTP_ENCRYPTION_KEY: "${TOTP_ENCRYPTION_KEY:-}"
+      # Google sign-in. Optional: verify_id_token() fails closed with a 503
+      # ("Google sign-in is not configured") when this is empty, and the
+      # frontend hides the button, so an unset value disables the feature
+      # cleanly rather than breaking startup. Must be the SAME OAuth client as
+      # the VITE_GOOGLE_CLIENT_ID baked into the frontend image, or the
+      # audience check rejects every credential.
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
       # All optional: Transport::from_env() returns None unless BOTH SMTP_HOST
       # and SMTP_FROM_EMAIL are set, and the delivery worker then stays inert
       # rather than failing startup. Setting them is what enables guest email

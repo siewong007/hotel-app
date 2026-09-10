@@ -83,6 +83,13 @@ jobs:
     environment: production
     env:
       DEPLOY_SHA: ${{ needs.gate.outputs.sha }}
+      # Google sign-in client id, inlined into the frontend bundle at build
+      # time. Public by design (it ships in the JS either way), so a repository
+      # variable is the natural home; a secret of the same name also works and
+      # takes over when no variable is set. Empty when neither exists, which
+      # leaves the Google button hidden rather than breaking the build. Must
+      # match GOOGLE_CLIENT_ID in the backend's secrets.env on the host.
+      GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID || secrets.GOOGLE_CLIENT_ID }}
 
     steps:
       - name: Check out the tested commit
@@ -112,6 +119,7 @@ jobs:
             --platform linux/amd64 \
             --pull \
             --build-arg VITE_API_URL= \
+            --build-arg VITE_GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID" \
             --label "org.opencontainers.image.revision=$DEPLOY_SHA" \
             --tag "saliminn-frontend:$DEPLOY_SHA" \
             hotel-web-fe
