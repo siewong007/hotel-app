@@ -7,6 +7,7 @@ import { errorMessage } from '../utils';
 import { AuthService } from '../api/auth.service';
 import { UsersService } from '../api/users.service';
 import { storage } from '../utils/storage';
+import { disableGoogleAutoSelect } from '../features/auth/components/GoogleSignInButton';
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy, UserProfile } from '../types';
 import { normalizeAuthUser, type AuthUserShape } from './authUser';
@@ -432,6 +433,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       .catch(() => {
         // Ignore network/401 errors; the local session is being torn down anyway.
       });
+    // Google keeps its own account association independently of our session.
+    // Without this the next person to open the sign-in or registration page is
+    // greeted by the previous guest's name and email in the Google button.
+    disableGoogleAutoSelect();
     resetAuthState();
     clearStoredAuth();
     queryClient.clear();

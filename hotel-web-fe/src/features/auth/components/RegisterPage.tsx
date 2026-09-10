@@ -524,7 +524,7 @@ const RegisterPage: React.FC = () => {
                   {googleError}
                 </Alert>
               </Collapse>
-              <GoogleSignInButton onCredential={handleGoogleCredential} />
+              <GoogleSignInButton onCredential={handleGoogleCredential} context="signup" />
             </>
           )}
 

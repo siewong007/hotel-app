@@ -1,6 +1,6 @@
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { GoogleSignInButton } from './GoogleSignInButton';
+import { GoogleSignInButton, disableGoogleAutoSelect } from './GoogleSignInButton';
 
 const GSI_SCRIPT_ID = 'google-identity-services-script';
 
@@ -24,7 +24,9 @@ describe('GoogleSignInButton', () => {
 
     const initialize = vi.fn();
     const renderButton = vi.fn();
-    window.google = { accounts: { id: { initialize, renderButton } } };
+    window.google = {
+      accounts: { id: { initialize, renderButton, disableAutoSelect: vi.fn() } },
+    };
     script?.dispatchEvent(new Event('load'));
 
     await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
@@ -51,5 +53,78 @@ describe('GoogleSignInButton', () => {
     render(<GoogleSignInButton onCredential={vi.fn()} />);
 
     expect(document.querySelectorAll(`#${GSI_SCRIPT_ID}`).length).toBe(1);
+  });
+});
+
+describe('sign-up vs sign-in framing', () => {
+  const mountAndLoad = async (props: { context?: 'signin' | 'signup' }) => {
+    vi.stubEnv('VITE_APP_TARGET', 'web');
+    vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
+    render(<GoogleSignInButton onCredential={vi.fn()} {...props} />);
+    const script = document.getElementById(GSI_SCRIPT_ID) as HTMLScriptElement | null;
+    const initialize = vi.fn();
+    const renderButton = vi.fn();
+    window.google = {
+      accounts: { id: { initialize, renderButton, disableAutoSelect: vi.fn() } },
+    };
+    script?.dispatchEvent(new Event('load'));
+    await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
+    return { initialize, renderButton };
+  };
+
+  it('asks Google for sign-UP wording on the registration page', async () => {
+    // Without this the registration page renders "Sign in with Google", or
+    // worse "Sign in as <name>", on a page whose only purpose is creating an
+    // account.
+    const { initialize, renderButton } = await mountAndLoad({ context: 'signup' });
+    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ context: 'signup' }));
+    expect(renderButton).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ text: 'signup_with' })
+    );
+  });
+
+  it('defaults to sign-in wording everywhere else', async () => {
+    const { initialize, renderButton } = await mountAndLoad({});
+    expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ context: 'signin' }));
+    expect(renderButton).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ text: 'signin_with' })
+    );
+  });
+});
+
+describe('disableGoogleAutoSelect', () => {
+  it('tells Google to forget the bound account', () => {
+    const disableAutoSelect = vi.fn();
+    window.google = {
+      accounts: { id: { initialize: vi.fn(), renderButton: vi.fn(), disableAutoSelect } },
+    };
+
+    disableGoogleAutoSelect();
+
+    expect(disableAutoSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when the GSI script never loaded', () => {
+    // A guest whose network or extensions blocked Google must still be able to
+    // sign out of our app.
+    delete (window as { google?: unknown }).google;
+    expect(() => disableGoogleAutoSelect()).not.toThrow();
+  });
+
+  it('swallows a throwing Google SDK rather than breaking sign-out', () => {
+    window.google = {
+      accounts: {
+        id: {
+          initialize: vi.fn(),
+          renderButton: vi.fn(),
+          disableAutoSelect: () => {
+            throw new Error('gsi exploded');
+          },
+        },
+      },
+    };
+    expect(() => disableGoogleAutoSelect()).not.toThrow();
   });
 });

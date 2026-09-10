@@ -10,6 +10,12 @@ const mocks = vi.hoisted(() => ({
   getAccessSnapshot: vi.fn(),
   listPasskeys: vi.fn(),
   loginWithGoogle: vi.fn(),
+  disableGoogleAutoSelect: vi.fn(),
+}));
+
+// Google keeps an account association of its own, independent of our session.
+vi.mock('../features/auth/components/GoogleSignInButton', () => ({
+  disableGoogleAutoSelect: () => mocks.disableGoogleAutoSelect(),
 }));
 
 // AuthContext talks to the network only through these two modules — mock both
@@ -473,6 +479,25 @@ describe('AuthContext', () => {
 
       expect(result.current.isAuthenticated).toBe(false);
       expect(result.current.user).toBeNull();
+    });
+  });
+
+  describe('logout clears the Google account association', () => {
+    it('tells Google to forget the bound account', async () => {
+      // The bug this pins: signing out left Google's association intact, so the
+      // sign-in AND registration pages greeted the next visitor with a
+      // personalised "Sign in as <previous guest>" button -- leaking the last
+      // person's name and email on a shared or public machine.
+      const { result } = await renderAuthenticated();
+      mocks.apiPost.mockResolvedValue(undefined);
+
+      act(() => {
+        result.current.logout();
+      });
+
+      await waitFor(() =>
+        expect(mocks.disableGoogleAutoSelect).toHaveBeenCalledTimes(1)
+      );
     });
   });
 });
