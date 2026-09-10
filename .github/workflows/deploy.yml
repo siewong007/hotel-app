@@ -276,6 +276,42 @@ jobs:
             "$RUNNER_TEMP/saliminn-$DEPLOY_SHA.tar.gz" \
             "$VPS_USER@$VPS_HOST:/tmp/saliminn-$DEPLOY_SHA.tar.gz.part"
 
+      # Turnstile's secret key cannot live on the host by hand -- reaching
+      # /opt/saliminn/secrets.env needs an interactive root shell, which is
+      # exactly what this pipeline exists to avoid. The values go over STDIN,
+      # never as arguments, so the secret never appears in the runner's command
+      # line or in the host's process list; deploy.sh consumes the fragment and
+      # deletes it. Skipped entirely when no secret is configured, so a
+      # deployment without Turnstile is unaffected rather than provisioned blank.
+      - name: Provision operator secrets on the VPS
+        shell: bash
+        env:
+          TURNSTILE_ENABLED: ${{ vars.TURNSTILE_ENABLED }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TURNSTILE_SECRET_KEY:-}" || -z "${TURNSTILE_SITE_KEY:-}" ]]; then
+            echo "No Turnstile secret/site key configured; skipping provisioning."
+            exit 0
+          fi
+          printf 'TURNSTILE_ENABLED=%s\nTURNSTILE_SITE_KEY=%s\nTURNSTILE_SECRET_KEY=%s\n' \
+            "${TURNSTILE_ENABLED:-false}" "$TURNSTILE_SITE_KEY" "$TURNSTILE_SECRET_KEY" \
+          | ssh \
+              -i "$RUNNER_TEMP/vps-key" \
+              -p "$VPS_PORT" \
+              -o BatchMode=yes \
+              -o ConnectTimeout=15 \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=yes \
+              -o "UserKnownHostsFile=$RUNNER_TEMP/vps-known-hosts" \
+              "$VPS_USER@$VPS_HOST" \
+              "set -euo pipefail
+               sudo install -d -m 0750 -o root -g root /opt/saliminn
+               sudo tee /opt/saliminn/ci-provisioned.env >/dev/null
+               sudo chmod 0600 /opt/saliminn/ci-provisioned.env
+               sudo chown root:root /opt/saliminn/ci-provisioned.env"
+          echo "Provisioned Turnstile configuration (enabled=${TURNSTILE_ENABLED:-false})."
+
       - name: Deploy and wait for health checks
         shell: bash
         run: |

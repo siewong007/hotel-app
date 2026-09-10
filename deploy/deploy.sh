@@ -213,6 +213,44 @@ ensure_secrets() {
   ensure_secret_default HOTEL_BANK_ACCOUNT_NAME "Salim Inn"
   ensure_secret_default HOTEL_BANK_ACCOUNT_NUMBER "511270052595"
 
+  # Replaces a key outright, unlike ensure_secret_default which only fills a
+  # blank. Rewrites through a temp file rather than sed -i because secret values
+  # legitimately contain characters sed treats as delimiters or backreferences
+  # (today's Turnstile secret carries '-' and '_'; a rotation could carry '&').
+  upsert_secret() {
+    local key="$1" value="$2" tmp
+    tmp=$(mktemp "$APP_DIR/.secrets.env.XXXXXX")
+    chmod 0600 "$tmp"
+    grep -vE "^${key}=" "$SECRETS_FILE" > "$tmp" 2>/dev/null || true
+    printf '%s=%s\n' "$key" "$value" >> "$tmp"
+    mv "$tmp" "$SECRETS_FILE"
+    chmod 0600 "$SECRETS_FILE"
+  }
+
+  # Values provisioned by the deploy workflow from GitHub secrets/variables.
+  # The workflow writes this root-only fragment over stdin immediately before
+  # invoking this script, so a secret never appears in a command line or in the
+  # host's process list. CI is the source of truth for the keys listed here: a
+  # value edited by hand on the host is overwritten on the next deploy, which is
+  # the point -- it keeps what runs equal to what the repository says. The
+  # fragment is consumed and deleted so a rotated value cannot linger on disk.
+  local ci_env="$APP_DIR/ci-provisioned.env"
+  if [[ -f "$ci_env" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ci_env"
+    set +a
+    local ci_key ci_value
+    for ci_key in TURNSTILE_ENABLED TURNSTILE_SITE_KEY TURNSTILE_SECRET_KEY; do
+      ci_value="${!ci_key:-}"
+      if [[ -n "$ci_value" ]]; then
+        upsert_secret "$ci_key" "$ci_value"
+        log "Provisioned ${ci_key} from the deploy workflow"
+      fi
+    done
+    rm -f "$ci_env"
+  fi
+
   set -a
   # shellcheck disable=SC1090
   source "$SECRETS_FILE"
