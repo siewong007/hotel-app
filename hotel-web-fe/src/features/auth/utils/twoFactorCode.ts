@@ -1,24 +1,31 @@
 import { emitApiNotification } from '../../../utils/apiNotifications';
 
 // Login accepts either an authenticator TOTP code or a 2FA recovery code in the
-// same field, so the input has to tolerate both shapes.
+// same request field, but the sign-in form now asks which one the user is
+// holding before it asks for the code. Each shape gets its own sanitiser and
+// completeness rule so the input can reject the other shape's characters
+// outright instead of accepting anything the backend might refuse.
+export type TwoFactorMethod = 'totp' | 'recovery';
+
 export const TOTP_CODE_LENGTH = 6;
 // XXXXX-XXXXX-XXXXX-XXXXX — uppercase hex in four groups of five.
 export const RECOVERY_CODE_LENGTH = 23;
-const MAX_CODE_LENGTH = 25;
 
-/** Keeps only characters either code shape can contain, and uppercases hex so a
- *  pasted recovery code renders like the printed one (the backend compares
+/** Keeps only characters the chosen code shape can contain, and uppercases hex
+ *  so a pasted recovery code renders like the printed one (the backend compares
  *  case-insensitively either way). */
-export function sanitizeTwoFactorCode(value: string): string {
+export function sanitizeTwoFactorCode(value: string, method: TwoFactorMethod): string {
+  if (method === 'totp') {
+    return value.replace(/[^0-9]/g, '').slice(0, TOTP_CODE_LENGTH);
+  }
   return value
     .replace(/[^0-9A-Fa-f-]/g, '')
     .toUpperCase()
-    .slice(0, MAX_CODE_LENGTH);
+    .slice(0, RECOVERY_CODE_LENGTH);
 }
 
-export function isCompleteTwoFactorCode(code: string): boolean {
-  return code.length === TOTP_CODE_LENGTH || code.length === RECOVERY_CODE_LENGTH;
+export function isCompleteTwoFactorCode(code: string, method: TwoFactorMethod): boolean {
+  return code.length === (method === 'totp' ? TOTP_CODE_LENGTH : RECOVERY_CODE_LENGTH);
 }
 
 /** A recovery code is spent once used, so say so and point at where to make more.

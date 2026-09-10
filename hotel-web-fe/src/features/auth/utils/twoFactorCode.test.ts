@@ -8,38 +8,56 @@ import {
 
 describe('sanitizeTwoFactorCode', () => {
   it('keeps a 6-digit authenticator code intact', () => {
-    expect(sanitizeTwoFactorCode('123456')).toBe('123456');
+    expect(sanitizeTwoFactorCode('123456', 'totp')).toBe('123456');
+  });
+
+  it('drops everything a TOTP code cannot contain', () => {
+    // The hex letters and dashes belong to the recovery shape; once the user
+    // has said "authenticator app", they are typos.
+    expect(sanitizeTwoFactorCode('1a2-3 4b5!6', 'totp')).toBe('123456');
+  });
+
+  it('caps an authenticator code at six digits', () => {
+    expect(sanitizeTwoFactorCode('1234567890', 'totp')).toBe('123456');
   });
 
   it('keeps hex and dashes, and uppercases a recovery code', () => {
-    expect(sanitizeTwoFactorCode('a1b2c-3d4e5-f6a7b-8c9d0')).toBe('A1B2C-3D4E5-F6A7B-8C9D0');
+    expect(sanitizeTwoFactorCode('a1b2c-3d4e5-f6a7b-8c9d0', 'recovery')).toBe(
+      'A1B2C-3D4E5-F6A7B-8C9D0'
+    );
   });
 
-  it('drops whitespace and characters neither code shape can contain', () => {
+  it('drops whitespace and characters a recovery code cannot contain', () => {
     // g and z are outside hex; the spaces come from pasting a printed code.
-    expect(sanitizeTwoFactorCode(' 12 34g!z56 ')).toBe('123456');
+    expect(sanitizeTwoFactorCode(' 12 34g!z56 ', 'recovery')).toBe('123456');
   });
 
-  it('caps input at 25 characters so a full recovery code still fits', () => {
+  it('caps a recovery code at its full printed length', () => {
     const pasted = 'A1B2C-3D4E5-F6A7B-8C9D0-EXTRA-TAIL';
-    expect(sanitizeTwoFactorCode(pasted)).toHaveLength(25);
+    expect(sanitizeTwoFactorCode(pasted, 'recovery')).toHaveLength(23);
   });
 });
 
 describe('isCompleteTwoFactorCode', () => {
   it('accepts a 6-character authenticator code', () => {
-    expect(isCompleteTwoFactorCode('123456')).toBe(true);
+    expect(isCompleteTwoFactorCode('123456', 'totp')).toBe(true);
   });
 
   it('accepts a 23-character recovery code', () => {
-    expect(isCompleteTwoFactorCode('A1B2C-3D4E5-F6A7B-8C9D0')).toBe(true);
+    expect(isCompleteTwoFactorCode('A1B2C-3D4E5-F6A7B-8C9D0', 'recovery')).toBe(true);
   });
 
-  it('rejects partial and over-long input', () => {
-    expect(isCompleteTwoFactorCode('')).toBe(false);
-    expect(isCompleteTwoFactorCode('12345')).toBe(false);
-    expect(isCompleteTwoFactorCode('A1B2C-3D4E5-F6A7B-8C9D')).toBe(false);
-    expect(isCompleteTwoFactorCode('A1B2C-3D4E5-F6A7B-8C9D0-EX')).toBe(false);
+  it('rejects partial input for either method', () => {
+    expect(isCompleteTwoFactorCode('', 'totp')).toBe(false);
+    expect(isCompleteTwoFactorCode('12345', 'totp')).toBe(false);
+    expect(isCompleteTwoFactorCode('A1B2C-3D4E5-F6A7B-8C9D', 'recovery')).toBe(false);
+  });
+
+  it('holds each method to its own length', () => {
+    // The old single-field form accepted either length in one box; now a
+    // recovery code typed on the authenticator step is not "complete".
+    expect(isCompleteTwoFactorCode('A1B2C-3D4E5-F6A7B-8C9D0', 'totp')).toBe(false);
+    expect(isCompleteTwoFactorCode('123456', 'recovery')).toBe(false);
   });
 });
 

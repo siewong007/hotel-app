@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   setSearchParams: vi.fn(),
   lookupLoginIdentifier: vi.fn(),
   login: vi.fn(),
-  loginWithPasskey: vi.fn(),
   registerPasskey: vi.fn(),
   loginWithGoogle: vi.fn(),
   googleAvailable: true,
@@ -38,7 +37,6 @@ vi.mock('../../../router', () => ({
 vi.mock('../../../auth/AuthContext', () => ({
   useAuth: () => ({
     login: (...args: unknown[]) => mocks.login(...args),
-    loginWithPasskey: (...args: unknown[]) => mocks.loginWithPasskey(...args),
     registerPasskey: (...args: unknown[]) => mocks.registerPasskey(...args),
     loginWithGoogle: (...args: unknown[]) => mocks.loginWithGoogle(...args),
   }),
@@ -86,20 +84,22 @@ function renderPage() {
   );
 }
 
-describe('LoginPage username lookup gate', () => {
+const fillCredentials = (identifier = 'admin', secret = 'hunter2!') => {
+  fireEvent.change(screen.getByLabelText(/Username or Email/i), {
+    target: { value: identifier },
+  });
+  fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: secret } });
+};
+
+describe('LoginPage single-step form', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
     mocks.lookupLoginIdentifier.mockReset();
     mocks.login.mockReset();
-    mocks.loginWithPasskey.mockReset();
     mocks.registerPasskey.mockReset();
     mocks.loginWithGoogle.mockReset();
     mocks.googleAvailable = true;
-    // Keep passkey from "succeeding" and navigating away after a valid lookup.
-    mocks.loginWithPasskey.mockImplementation(() =>
-      Promise.reject(new Error('no credentials available'))
-    );
     mocks.search = 'account=admin';
   });
 
@@ -108,40 +108,165 @@ describe('LoginPage username lookup gate', () => {
     vi.unstubAllGlobals();
   });
 
-  it('advances past the username step only after lookup confirms the account exists', async () => {
-    mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
+  it('shows the password field straight away, with no step to get past first', () => {
     renderPage();
 
-    fireEvent.change(screen.getByLabelText(/Username or Email/i), {
-      target: { value: 'admin' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByLabelText(/Username or Email/i)).toBeTruthy();
+    expect(screen.getByLabelText(/^Password/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('offers no passkey sign-in on the form', () => {
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: /passkey/i })).toBeNull();
+  });
+
+  it('signs in with both fields in one submit, once lookup confirms the account', async () => {
+    mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
+    mocks.login.mockResolvedValue({ isFirstLogin: false });
+    renderPage();
+
+    fillCredentials();
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
 
     await waitFor(() => {
       expect(mocks.lookupLoginIdentifier).toHaveBeenCalledWith('admin');
     });
-    // Gate passed: username step is replaced by the account chip.
-    expect(await screen.findByText('admin')).toBeTruthy();
-    expect(screen.getByText('Change')).toBeTruthy();
-    expect(screen.queryByLabelText(/Username or Email/i)).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+    await waitFor(() => {
+      expect(mocks.login).toHaveBeenCalledWith('admin', 'hunter2!', undefined, undefined);
+    });
+    expect(mocks.navigate).toHaveBeenCalledWith('/admin-portal', { replace: true });
   });
 
-  it('keeps the password field hidden when the username or email is unknown', async () => {
+  it('never sends the password when the username or email is unknown', async () => {
     mocks.lookupLoginIdentifier.mockResolvedValue({ exists: false });
     renderPage();
 
-    fireEvent.change(screen.getByLabelText(/Username or Email/i), {
-      target: { value: 'nobody' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fillCredentials('nobody');
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
 
     expect(
       await screen.findByText('No account found with that username or email')
     ).toBeTruthy();
-    expect(screen.queryByLabelText(/^Password$/i)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
-    expect(mocks.loginWithPasskey).not.toHaveBeenCalled();
+    expect(mocks.login).not.toHaveBeenCalled();
+    // The form stays put -- nothing to navigate back from.
+    expect(screen.getByLabelText(/^Password/i)).toBeTruthy();
+  });
+
+  it('holds the button until both fields carry something usable', () => {
+    renderPage();
+
+    const submit = () => screen.getByRole('button', { name: 'Login' }) as HTMLButtonElement;
+    expect(submit().disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText(/Username or Email/i), {
+      target: { value: 'admin' },
+    });
+    expect(submit().disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: 'hunter2!' } });
+    expect(submit().disabled).toBe(false);
+  });
+});
+
+describe('LoginPage two-factor method choice', () => {
+  const TWO_FACTOR_REQUIRED = '2FA required. Please provide a TOTP code or recovery code.';
+
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createLocalStorageStub());
+    mocks.navigate.mockReset();
+    mocks.lookupLoginIdentifier.mockReset();
+    mocks.login.mockReset();
+    mocks.loginWithGoogle.mockReset();
+    mocks.googleAvailable = false;
+    mocks.search = '';
+    mocks.lookupLoginIdentifier.mockResolvedValue({ exists: true });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  /** Sign in far enough that the backend asks for a second factor. */
+  const reachTwoFactorStep = async () => {
+    mocks.login.mockRejectedValueOnce(new Error(TWO_FACTOR_REQUIRED));
+    renderPage();
+    fillCredentials();
+    fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+    expect(await screen.findByText('Choose how you want to finish signing in:')).toBeTruthy();
+  };
+
+  it('asks which second factor to use instead of assuming an authenticator app', async () => {
+    await reachTwoFactorStep();
+
+    expect(screen.getByRole('button', { name: /Use your authenticator app/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Use a recovery code/ })).toBeTruthy();
+    // No code box until a method is picked.
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+    expect(screen.queryByLabelText('Recovery code')).toBeNull();
+  });
+
+  it('verifies an authenticator code against the credentials already entered', async () => {
+    await reachTwoFactorStep();
+    mocks.login.mockResolvedValue({ isFirstLogin: false });
+
+    fireEvent.click(screen.getByRole('button', { name: /Use your authenticator app/ }));
+    fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+    await waitFor(() => {
+      expect(mocks.login).toHaveBeenLastCalledWith('admin', 'hunter2!', '123456', undefined);
+    });
+  });
+
+  it('takes a full recovery code on the recovery path, and only a full one', async () => {
+    await reachTwoFactorStep();
+    mocks.login.mockResolvedValue({ isFirstLogin: false });
+
+    fireEvent.click(screen.getByRole('button', { name: /Use a recovery code/ }));
+    const field = screen.getByLabelText('Recovery code');
+    const verify = () => screen.getByRole('button', { name: 'Verify' }) as HTMLButtonElement;
+
+    // Six digits satisfy the authenticator step but are not a recovery code.
+    fireEvent.change(field, { target: { value: '123456' } });
+    expect(verify().disabled).toBe(true);
+
+    fireEvent.change(field, { target: { value: 'a1b2c-3d4e5-f6a7b-8c9d0' } });
+    expect(verify().disabled).toBe(false);
+    fireEvent.click(verify());
+
+    await waitFor(() => {
+      expect(mocks.login).toHaveBeenLastCalledWith(
+        'admin',
+        'hunter2!',
+        'A1B2C-3D4E5-F6A7B-8C9D0',
+        undefined
+      );
+    });
+  });
+
+  it('lets the user go back and pick the other method', async () => {
+    await reachTwoFactorStep();
+
+    fireEvent.click(screen.getByRole('button', { name: /Use your authenticator app/ }));
+    expect(screen.getByLabelText('6-digit code')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose another way' }));
+
+    expect(screen.getByRole('button', { name: /Use a recovery code/ })).toBeTruthy();
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+  });
+
+  it('returns to the sign-in form when the second factor is cancelled', async () => {
+    await reachTwoFactorStep();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.getByLabelText(/^Password/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
   });
 });
 
@@ -151,13 +276,9 @@ describe('LoginPage unified sign-in', () => {
     mocks.navigate.mockReset();
     mocks.lookupLoginIdentifier.mockReset();
     mocks.login.mockReset();
-    mocks.loginWithPasskey.mockReset();
     mocks.registerPasskey.mockReset();
     mocks.loginWithGoogle.mockReset();
     mocks.googleAvailable = true;
-    mocks.loginWithPasskey.mockImplementation(() =>
-      Promise.reject(new Error('no credentials available'))
-    );
     mocks.search = '';
   });
 
@@ -227,9 +348,6 @@ describe('LoginPage Google availability', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
-    mocks.loginWithPasskey.mockImplementation(() =>
-      Promise.reject(new Error('no credentials available'))
-    );
     mocks.googleAvailable = true;
     mocks.search = '';
   });
@@ -278,9 +396,6 @@ describe('LoginPage return control', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
     mocks.navigate.mockReset();
-    mocks.loginWithPasskey.mockImplementation(() =>
-      Promise.reject(new Error('no credentials available'))
-    );
     mocks.googleAvailable = true;
     mocks.search = '';
     vi.spyOn(window.history, 'back').mockImplementation(() => undefined);

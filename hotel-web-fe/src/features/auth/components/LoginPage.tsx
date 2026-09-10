@@ -19,8 +19,9 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  Fingerprint as FingerprintIcon,
-  Person as PersonIcon,
+  ChevronRight as ChevronRightIcon,
+  PhonelinkLock as PhonelinkLockIcon,
+  VpnKey as VpnKeyIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
@@ -36,6 +37,7 @@ import {
   notifyRecoveryCodeUsed,
   sanitizeTwoFactorCode,
   TOTP_CODE_LENGTH,
+  type TwoFactorMethod,
 } from '../utils/twoFactorCode';
 import { AuthService } from '../../../api';
 import { errorMessage } from '../../../utils/errorMessage';
@@ -48,8 +50,17 @@ import { useTranslation } from '../../../i18n';
 import { useTurnstile } from '../turnstile/useTurnstile';
 import { turnstileErrorMessage } from '../turnstile/turnstileError';
 
-const isAppleWebKitBrowser = () =>
-  typeof navigator !== 'undefined' && navigator.vendor === 'Apple Computer, Inc.';
+/** The ways a second factor can be satisfied at sign-in. Both end up in the
+ *  same request field — the backend tries TOTP first and falls back to the
+ *  recovery codes — but a user holding one of them should not have to work out
+ *  that a single box accepts both shapes. */
+const TWO_FACTOR_METHODS: ReadonlyArray<{
+  method: TwoFactorMethod;
+  Icon: typeof PhonelinkLockIcon;
+}> = [
+  { method: 'totp', Icon: PhonelinkLockIcon },
+  { method: 'recovery', Icon: VpnKeyIcon },
+];
 
 const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -60,12 +71,10 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showFirstLoginPrompt, setShowFirstLoginPrompt] = useState(false);
   const [show2FAPrompt, setShow2FAPrompt] = useState(false);
+  // null while the user is still choosing how to complete the second factor.
+  const [twoFactorMethod, setTwoFactorMethod] = useState<TwoFactorMethod | null>(null);
   const [totpCode, setTotpCode] = useState('');
-  const [passkeyAttempted, setPasskeyAttempted] = useState(false);
-  const [showPasswordField, setShowPasswordField] = useState(false);
-  const [passkeyCheckInProgress, setPasskeyCheckInProgress] = useState(false);
-  const [usernameSubmitted, setUsernameSubmitted] = useState(false);
-  const { login, loginWithPasskey, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { t } = useTranslation('auth');
   const turnstile = useTurnstile();
   // The inline widget solves on mount, but a guest can still out-run it -- most
@@ -118,10 +127,9 @@ const LoginPage: React.FC = () => {
     completeSignIn();
   };
 
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
+  /** The one call that actually signs in. `code` is set only on the second
+   *  leg, once the user has picked a method and entered it. */
+  const submitCredentials = async (identifier: string, code?: string) => {
     // The inline widget normally solves while the guest is still typing, so a
     // missing token means it either failed or has not finished. Say which,
     // rather than sending a request the backend rejects with a 400 that reads
@@ -132,6 +140,7 @@ const LoginPage: React.FC = () => {
           ? turnstileErrorMessage(new Error(turnstile.error), t)
           : t('turnstile.incomplete')
       );
+      setLoading(false);
       return;
     }
 
@@ -143,12 +152,7 @@ const LoginPage: React.FC = () => {
         recoveryCodesRemaining,
         twoFactorEnrollmentRequired,
         twoFactorEnrollmentDeadline,
-      } = await login(
-        username,
-        password,
-        totpCode || undefined,
-        turnstile.token
-      );
+      } = await login(identifier, password, code || undefined, turnstile.token);
       // The token was spent the moment that request went out. Re-solve now so a
       // 2FA leg, or a retry after a wrong password, never replays it --
       // Cloudflare rejects a replay as timeout-or-duplicate.
@@ -188,9 +192,13 @@ const LoginPage: React.FC = () => {
         return;
       }
 
-      // Check if 2FA is required
+      // The password was right and this account carries a second factor. Ask
+      // how the user wants to satisfy it rather than assuming an authenticator
+      // app they may no longer have.
       if (loginError.includes('2FA required') || loginError.includes('TOTP code')) {
         setShow2FAPrompt(true);
+        setTwoFactorMethod(null);
+        setTotpCode('');
         setError('');
         setLoading(false);
         return;
@@ -201,36 +209,68 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  const handle2FASubmit = async (e: React.FormEvent) => {
+  /** Single-step sign-in: the account is confirmed to exist, then the password
+   *  it was typed with is submitted straight away. */
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isCompleteTwoFactorCode(totpCode)) {
-      setError(t('twoFactor.incomplete'));
-      return;
-    }
-    await handlePasswordLogin(e);
-  };
-
-  const handlePasskeyLogin = async () => {
-    if (!username) {
-      setError(t('login.usernameRequired'));
-      return;
-    }
-
     setError('');
+
+    const identifier = username.trim();
+    if (!identifier || identifier.length < 3) {
+      setError(t('login.usernameInvalid'));
+      return;
+    }
+
     setLoading(true);
 
+    // Kept from the two-step form: an unknown username gets its own message
+    // instead of the generic credential rejection, which reads like a typo in
+    // the password.
+    let exists: boolean;
     try {
-      const isFirstLogin = await loginWithPasskey(username);
-      if (isFirstLogin) {
-        setShowFirstLoginPrompt(true);
-        setLoading(false);
-      } else {
-        completeSignIn();
-      }
+      ({ exists } = await AuthService.lookupLoginIdentifier(identifier));
     } catch (err) {
-      setError(errorMessage(err, t('login.passkeyFailed')));
+      setError(errorMessage(err, t('login.lookupFailed')));
       setLoading(false);
+      return;
     }
+
+    if (!exists) {
+      setError(t('login.accountNotFound'));
+      setLoading(false);
+      return;
+    }
+
+    if (identifier !== username) {
+      setUsername(identifier);
+    }
+
+    await submitCredentials(identifier);
+  };
+
+  const handle2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twoFactorMethod) {
+      return;
+    }
+    if (!isCompleteTwoFactorCode(totpCode, twoFactorMethod)) {
+      setError(t(`twoFactor.${twoFactorMethod}Incomplete`));
+      return;
+    }
+    await submitCredentials(username.trim(), totpCode);
+  };
+
+  const handleChooseTwoFactorMethod = (method: TwoFactorMethod) => {
+    setTwoFactorMethod(method);
+    setTotpCode('');
+    setError('');
+  };
+
+  const handleCancelTwoFactor = () => {
+    setShow2FAPrompt(false);
+    setTwoFactorMethod(null);
+    setTotpCode('');
+    setError('');
   };
 
   const handleGoogleCredential = async (credential: string) => {
@@ -280,113 +320,6 @@ const LoginPage: React.FC = () => {
     }
   };
 
-  // Handle username submission (Gmail-style): require an active account before password.
-  const handleUsernameSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const identifier = username.trim();
-    if (!identifier || identifier.length < 3) {
-      setError(t('login.usernameInvalid'));
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const { exists } = await AuthService.lookupLoginIdentifier(identifier);
-      if (!exists) {
-        setError(t('login.accountNotFound'));
-        setUsernameSubmitted(false);
-        setShowPasswordField(false);
-        return;
-      }
-
-      if (identifier !== username) {
-        setUsername(identifier);
-      }
-
-      setUsernameSubmitted(true);
-
-      // Safari can leave an automatic WebAuthn request pending without showing
-      // a usable prompt, trapping password users on "Checking for passkey".
-      // Keep the explicit passkey button available, but make Continue reliably
-      // open the password step in Apple WebKit browsers. passkeyAttempted stays
-      // false here — no WebAuthn call was made, so the password step must still
-      // offer the passkey as a choice rather than claiming it is unavailable.
-      if (isAppleWebKitBrowser()) {
-        setShowPasswordField(true);
-        return;
-      }
-
-      // Attempt passkey authentication first
-      await attemptPasskeyAuth();
-    } catch (err) {
-      setError(errorMessage(err, t('login.lookupFailed')));
-      setUsernameSubmitted(false);
-      setShowPasswordField(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const attemptPasskeyAuth = async () => {
-    if (!username || passkeyCheckInProgress) {
-      return;
-    }
-
-    setPasskeyCheckInProgress(true);
-    setPasskeyAttempted(false);
-    setError('');
-
-    try {
-      // Check if WebAuthn is supported
-      if (!window.PublicKeyCredential) {
-        setShowPasswordField(true);
-        setPasskeyAttempted(true);
-        setPasskeyCheckInProgress(false);
-        return;
-      }
-
-      // Attempt passkey login
-      const isFirstLogin = await loginWithPasskey(username);
-      setPasskeyAttempted(true);
-
-      if (isFirstLogin) {
-        setShowFirstLoginPrompt(true);
-      } else {
-        completeSignIn();
-      }
-    } catch (err) {
-      // Passkey failed or not available - show password field
-      setPasskeyAttempted(true);
-      setShowPasswordField(true);
-
-      // Don't show error for normal "no passkey" scenarios
-      const isNormalFailure =
-        err.message?.toLowerCase().includes('no credentials') ||
-        err.message?.toLowerCase().includes('not found') ||
-        err.message?.toLowerCase().includes('not allowed') ||
-        err.message?.toLowerCase().includes('cancelled');
-
-      if (!isNormalFailure) {
-        console.error('Unexpected passkey error:', err);
-      }
-    } finally {
-      setPasskeyCheckInProgress(false);
-    }
-  };
-
-  // Handle going back to edit username
-  const handleEditUsername = () => {
-    setUsernameSubmitted(false);
-    setShowPasswordField(false);
-    setShowPassword(false);
-    setPasskeyAttempted(false);
-    setPassword('');
-    setError('');
-  };
-
   if (showFirstLoginPrompt) {
     return (
       <FirstLoginPasskeyPrompt
@@ -408,6 +341,8 @@ const LoginPage: React.FC = () => {
   );
 
   if (show2FAPrompt) {
+    const isRecovery = twoFactorMethod === 'recovery';
+
     return (
       <Box className="auth-page auth-page--2fa">
         <Container className="auth-container" maxWidth="sm">
@@ -418,69 +353,135 @@ const LoginPage: React.FC = () => {
                   {t('twoFactor.title')}
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 1, color: 'var(--hotel-text-secondary)' }}>
-                  {t('twoFactor.subtitle')}
+                  {twoFactorMethod
+                    ? t(`twoFactor.${twoFactorMethod}Subtitle`)
+                    : t('twoFactor.chooseSubtitle')}
                 </Typography>
               </Box>
 
-              <form onSubmit={handle2FASubmit}>
-                <TextField
-                  fullWidth
-                  label={t('twoFactor.codeLabel')}
-                  value={totpCode}
-                  onChange={(e) => setTotpCode(sanitizeTwoFactorCode(e.target.value))}
-                  placeholder="000000"
-                  helperText={t('twoFactor.codeHelp')}
-                  sx={{ mb: 3 }}
-                  autoFocus
-                  slotProps={{
-                    htmlInput: {
-                      maxLength: 25,
-                      // Recovery codes are nearly four times as long as a TOTP code,
-                      // so the wide-tracked display used for six digits overflows.
-                      style:
-                        totpCode.length > TOTP_CODE_LENGTH
+              <Collapse in={!!error}>
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                  {error}
+                </Alert>
+              </Collapse>
+
+              {/* Step 1: pick the second factor. A user who lost their phone
+                  needs the recovery path offered, not hidden behind a hint
+                  under a box labelled for an authenticator code. */}
+              {!twoFactorMethod && (
+                <Box>
+                  {TWO_FACTOR_METHODS.map(({ method, Icon }, index) => (
+                    <React.Fragment key={method}>
+                      {index > 0 && <Divider />}
+                      <ButtonBase
+                        onClick={() => handleChooseTwoFactorMethod(method)}
+                        sx={{
+                          width: '100%',
+                          px: 1,
+                          py: 2,
+                          gap: 2,
+                          justifyContent: 'flex-start',
+                          textAlign: 'left',
+                          borderRadius: 2,
+                        }}
+                      >
+                        <Icon sx={{ fontSize: 24, color: 'var(--hotel-primary)' }} />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: '1rem', fontWeight: 500 }}>
+                            {t(`twoFactor.${method}Method`)}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'var(--hotel-text-secondary)' }}
+                          >
+                            {t(`twoFactor.${method}MethodDescription`)}
+                          </Typography>
+                        </Box>
+                        <ChevronRightIcon
+                          sx={{ fontSize: 20, color: 'var(--hotel-text-secondary)' }}
+                        />
+                      </ButtonBase>
+                    </React.Fragment>
+                  ))}
+
+                  <Button
+                    fullWidth
+                    variant="text"
+                    sx={{ mt: 3 }}
+                    onClick={handleCancelTwoFactor}
+                  >
+                    {t('twoFactor.cancel')}
+                  </Button>
+                </Box>
+              )}
+
+              {/* Step 2: enter the code for the method that was picked. */}
+              {twoFactorMethod && (
+                <form onSubmit={handle2FASubmit}>
+                  <TextField
+                    fullWidth
+                    label={t(`twoFactor.${twoFactorMethod}Label`)}
+                    value={totpCode}
+                    onChange={(e) =>
+                      setTotpCode(sanitizeTwoFactorCode(e.target.value, twoFactorMethod))
+                    }
+                    placeholder={isRecovery ? 'XXXXX-XXXXX-XXXXX-XXXXX' : '000000'}
+                    helperText={t(`twoFactor.${twoFactorMethod}Help`)}
+                    sx={{ mb: 3 }}
+                    autoFocus
+                    slotProps={{
+                      htmlInput: {
+                        maxLength: isRecovery ? 23 : TOTP_CODE_LENGTH,
+                        inputMode: isRecovery ? 'text' : 'numeric',
+                        // Recovery codes are nearly four times as long as a TOTP
+                        // code, so the wide-tracked display used for six digits
+                        // overflows.
+                        style: isRecovery
                           ? { textAlign: 'center', fontSize: '18px', letterSpacing: '2px' }
                           : { textAlign: 'center', fontSize: '24px', letterSpacing: '8px' },
-                    }
-                  }}
-                />
-
-                <Collapse in={!!error}>
-                  <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-                    {error}
-                  </Alert>
-                </Collapse>
-
-                <Button
-                  fullWidth
-                  type="submit"
-                  variant="contained"
-                  size="large"
-                  disabled={loading || awaitingTurnstile || !isCompleteTwoFactorCode(totpCode)}
-                  sx={{ mb: 1.5, py: 1.5 }}
-                >
-                  {loading ? <LoadingSpinner size={24} /> : t('twoFactor.verify')}
-                </Button>
-
-                {turnstile.enabled && (
-                  <Box
-                    ref={turnstile.setContainer}
-                    sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
+                      },
+                    }}
                   />
-                )}
 
-                <Button
-                  fullWidth
-                  variant="text"
-                  onClick={() => {
-                    setShow2FAPrompt(false);
-                    setTotpCode('');
-                    setError('');
-                  }}
-                >
-                  {t('twoFactor.cancel')}
-                </Button>
-              </form>
+                  <Button
+                    fullWidth
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={
+                      loading ||
+                      awaitingTurnstile ||
+                      !isCompleteTwoFactorCode(totpCode, twoFactorMethod)
+                    }
+                    sx={{ mb: 1.5, py: 1.5 }}
+                  >
+                    {loading ? <LoadingSpinner size={24} /> : t('twoFactor.verify')}
+                  </Button>
+
+                  {turnstile.enabled && (
+                    <Box
+                      ref={turnstile.setContainer}
+                      sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
+                    />
+                  )}
+
+                  <Button
+                    fullWidth
+                    variant="text"
+                    onClick={() => {
+                      setTwoFactorMethod(null);
+                      setTotpCode('');
+                      setError('');
+                    }}
+                  >
+                    {t('twoFactor.chooseAnother')}
+                  </Button>
+
+                  <Button fullWidth variant="text" onClick={handleCancelTwoFactor}>
+                    {t('twoFactor.cancel')}
+                  </Button>
+                </form>
+              )}
             </Paper>
           </Fade>
         </Container>
@@ -523,192 +524,83 @@ const LoginPage: React.FC = () => {
               </Alert>
             </Collapse>
 
-            {/* Step 1: identify the account */}
-            {!usernameSubmitted && !passkeyCheckInProgress && (
-              <form onSubmit={handleUsernameSubmit}>
-                <TextField
-                  fullWidth
-                  label={t('login.usernameLabel')}
-                  name="username"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  margin="dense"
-                  required
-                  autoFocus
+            {/* Username and password together: one screen, one submit. The
+                password box used to appear only after the account had been
+                looked up, which cost a round trip before a user could even
+                start typing the thing they came here to type. */}
+            <form onSubmit={handleLogin}>
+              <TextField
+                fullWidth
+                label={t('login.usernameLabel')}
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                margin="dense"
+                required
+                autoFocus
+              />
+
+              <TextField
+                fullWidth
+                label={t('login.passwordLabel')}
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                margin="dense"
+                required
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label={
+                            showPassword ? t('login.hidePassword') : t('login.showPassword')
+                          }
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          edge="end"
+                          size="small"
+                        >
+                          {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
+              />
+
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                sx={{ mt: 2, mb: 1.5, py: 1.5 }}
+                disabled={
+                  loading || awaitingTurnstile || !username || username.length < 3 || !password
+                }
+              >
+                {loading ? <LoadingSpinner size={24} color="inherit" /> : t('login.submit')}
+              </Button>
+
+              {turnstile.enabled && (
+                <Box
+                  ref={turnstile.setContainer}
+                  sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
                 />
+              )}
 
-                <Button
-                  type="submit"
-                  fullWidth
-                  variant="contained"
-                  sx={{ mt: 2, mb: 1.5, py: 1.5 }}
-                  disabled={!username || username.length < 3}
-                >
-                  {t('login.next')}
-                </Button>
-                <Button
-                  type="button"
-                  fullWidth
-                  variant="outlined"
-                  startIcon={<FingerprintIcon />}
-                  onClick={handlePasskeyLogin}
-                  disabled={!username || username.length < 3 || loading}
-                >
-                  {t('login.passkeyButton')}
-                </Button>
-
-                {/* The divider only earns its place when something follows it.
-                    Without this the page drew a bare "or" rule over empty
-                    space wherever Google sign-in is not configured. */}
-                {isGoogleSignInAvailable() && (
-                  <>
-                    <Divider sx={{ my: 2 }}>{t('login.or')}</Divider>
-                    <GoogleSignInButton onCredential={handleGoogleCredential} />
-                  </>
-                )}
-              </form>
-            )}
-
-            {/* Step 2: passkey check, then password */}
-            {(usernameSubmitted || passkeyCheckInProgress) && (
-              <Box>
-                {/* Account chip — the whole row is the "use a different
-                    account" control, so it costs one line instead of a
-                    two-line panel plus a separate button. */}
-                <ButtonBase
-                  onClick={handleEditUsername}
-                  disabled={passkeyCheckInProgress}
-                  aria-label={t('login.changeAccountAria', { username })}
-                  sx={{
-                    width: '100%',
-                    mb: 2,
-                    px: 1.5,
-                    py: 1,
-                    gap: 1,
-                    borderRadius: 2,
-                    justifyContent: 'flex-start',
-                    textAlign: 'left',
-                    background: 'var(--hotel-muted-bg)',
-                    border: '1px solid var(--hotel-divider)',
-                  }}
-                >
-                  <PersonIcon sx={{ fontSize: 20, color: 'var(--hotel-text-secondary)' }} />
-                  <Typography
-                    noWrap
-                    sx={{ flex: 1, minWidth: 0, fontSize: '0.95rem' }}
-                  >
-                    {username}
-                  </Typography>
-                  {!passkeyCheckInProgress && (
-                    <Typography
-                      component="span"
-                      sx={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--hotel-primary)' }}
-                    >
-                      {t('login.changeAccount')}
-                    </Typography>
-                  )}
-                </ButtonBase>
-
-                {passkeyCheckInProgress && (
-                  <Box sx={{ textAlign: 'center', py: 4 }}>
-                    <LoadingSpinner size={40} />
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 2, color: 'var(--hotel-text-secondary)' }}
-                    >
-                      {t('login.checkingPasskey')}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: 'var(--hotel-text-secondary)' }}
-                    >
-                      {t('login.passkeyPrompt')}
-                    </Typography>
-                  </Box>
-                )}
-
-                {/* Password form (shown after passkey attempt) */}
-                {!passkeyCheckInProgress && showPasswordField && (
-                  <form onSubmit={handlePasswordLogin}>
-                    <TextField
-                      fullWidth
-                      label={t('login.passwordLabel')}
-                      type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      margin="dense"
-                      required
-                      autoFocus
-                      slotProps={{
-                        input: {
-                          endAdornment: (
-                            <InputAdornment position="end">
-                              <IconButton
-                                aria-label={
-                                  showPassword
-                                    ? t('login.hidePassword')
-                                    : t('login.showPassword')
-                                }
-                                onClick={() => setShowPassword((prev) => !prev)}
-                                onMouseDown={(e) => e.preventDefault()}
-                                edge="end"
-                                size="small"
-                              >
-                                {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                              </IconButton>
-                            </InputAdornment>
-                          ),
-                        },
-                      }}
-                    />
-
-                    <Button
-                      type="submit"
-                      fullWidth
-                      variant="contained"
-                      sx={{ mt: 2, mb: 1.5, py: 1.5 }}
-                      disabled={loading || awaitingTurnstile}
-                    >
-                      {loading ? <LoadingSpinner size={24} color="inherit" /> : t('login.submit')}
-                    </Button>
-
-                    {turnstile.enabled && (
-                      <Box
-                        ref={turnstile.setContainer}
-                        sx={{ display: 'flex', justifyContent: 'center', mb: 1.5, minHeight: 65 }}
-                      />
-                    )}
-
-                    {/* Apple WebKit skips the automatic passkey attempt, so
-                        passkey users land here with their credential unused.
-                        Offer it as an action instead of declaring it absent. */}
-                    <Box sx={{ textAlign: 'center' }}>
-                      {passkeyAttempted ? (
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'var(--hotel-text-secondary)' }}
-                        >
-                          {t('login.passkeyUnavailable')}
-                        </Typography>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="text"
-                          startIcon={<FingerprintIcon />}
-                          onClick={handlePasskeyLogin}
-                          disabled={loading}
-                        >
-                          {t('login.usePasskeyInstead')}
-                        </Button>
-                      )}
-                    </Box>
-                  </form>
-                )}
-              </Box>
-            )}
+              {/* The divider only earns its place when something follows it.
+                  Without this the page drew a bare "or" rule over empty
+                  space wherever Google sign-in is not configured. */}
+              {isGoogleSignInAvailable() && (
+                <>
+                  <Divider sx={{ my: 2 }}>{t('login.or')}</Divider>
+                  <GoogleSignInButton onCredential={handleGoogleCredential} />
+                </>
+              )}
+            </form>
 
             <Box sx={{ mt: 3, textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>
