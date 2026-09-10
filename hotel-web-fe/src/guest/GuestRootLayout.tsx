@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { getHotelSettings } from '../utils/hotelSettings';
 import { LoadingFallback } from '../router/RouteFallbacks';
 import { isPublicGuestPath } from './guestDocumentPaths';
+import { GuestOneTap } from '../features/auth/google/GuestOneTap';
 import { CrossAppRedirect } from './CrossAppRedirect';
 
 const GuestPortalShell = lazy(
@@ -51,26 +52,42 @@ export function GuestRootLayout() {
     </ErrorBoundary>
   );
 
+  // Rendered above every branch below, and rendering nothing itself: One Tap
+  // decides for itself which guest pages it may appear on, and mounting it once
+  // here keeps an open prompt alive across in-app navigation.
+  const oneTap = <GuestOneTap pathname={pathname} search={search} />;
+
   if (isPortal && !publicPath) {
     if (isLoading) return <LoadingFallback />;
     if (!isAuthenticated) return <CrossAppRedirect to="/login" />;
     if (user?.user_type !== 'guest') return <CrossAppRedirect to="/" />;
     return (
-      <Suspense fallback={<LoadingFallback />}>
-        <GuestPortalShell showAccountNav>{page}</GuestPortalShell>
-      </Suspense>
+      <>
+        {oneTap}
+        <Suspense fallback={<LoadingFallback />}>
+          <GuestPortalShell showAccountNav>{page}</GuestPortalShell>
+        </Suspense>
+      </>
     );
   }
 
   if (isPortal) {
     return (
-      <Suspense fallback={null}>
-        <GuestPortalShell showAccountNav={Boolean(isAuthenticated && user?.user_type === 'guest')}>
-          {page}
-        </GuestPortalShell>
-      </Suspense>
+      <>
+        {oneTap}
+        <Suspense fallback={null}>
+          <GuestPortalShell showAccountNav={Boolean(isAuthenticated && user?.user_type === 'guest')}>
+            {page}
+          </GuestPortalShell>
+        </Suspense>
+      </>
     );
   }
 
-  return page;
+  return (
+    <>
+      {oneTap}
+      {page}
+    </>
+  );
 }

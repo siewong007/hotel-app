@@ -32,6 +32,7 @@ import { LoadingSpinner } from '../../../components';
 import { GuestPortalDashboardService } from '../../guestPortal/api/guestPortalDashboard.service';
 import { setPortalToken } from '../../guestPortal/api/portalTokenStore';
 import { GoogleSignInButton, isGoogleSignInAvailable } from './GoogleSignInButton';
+import { googleSignInErrorMessage } from '../google/googleSignInError';
 import {
   isCompleteTwoFactorCode,
   notifyRecoveryCodeUsed,
@@ -297,25 +298,9 @@ const LoginPage: React.FC = () => {
 
       completeSignIn();
     } catch (err) {
-      const message = errorMessage(err, t('login.googleFailed'));
-      // The backend reports a missing/misconfigured client id or a Google API
-      // outage as a 503 (see hotel-app-be/src/services/google_identity.rs) —
-      // branch on the status AuthContext's loginWithGoogle preserves, not the
-      // message text, which can be reworded without breaking this check.
-      const googleStatus = (err as { statusCode?: number }).statusCode;
-      // First-time Google guests must accept Booking Terms + Privacy Notice on
-      // /register. Existing Google sessions do not send consents and still work.
-      setError(
-        googleStatus === 503
-          ? t('login.googleUnavailable')
-          // 409 is ensure_active_google_guest rejecting a staff or deactivated
-          // account. The raw backend sentence does not say what to do instead.
-          : googleStatus === 409
-            ? t('login.googleStaffOnly')
-            : googleStatus === 400 && /consent/i.test(message)
-              ? t('login.googleNeedsAccount')
-              : message
-      );
+      // Shared with the One Tap prompt on the public guest pages — same
+      // endpoint, same four failure shapes.
+      setError(googleSignInErrorMessage(err, t));
       setLoading(false);
     }
   };

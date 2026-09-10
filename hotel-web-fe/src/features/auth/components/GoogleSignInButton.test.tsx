@@ -1,6 +1,7 @@
 import { cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GoogleSignInButton, disableGoogleAutoSelect } from './GoogleSignInButton';
+import { installGoogleIdentityStub } from '../google/testSupport/googleIdentityStub';
 
 const GSI_SCRIPT_ID = 'google-identity-services-script';
 
@@ -22,11 +23,7 @@ describe('GoogleSignInButton', () => {
     expect(script).toBeTruthy();
     expect(script?.src).toBe('https://accounts.google.com/gsi/client');
 
-    const initialize = vi.fn();
-    const renderButton = vi.fn();
-    window.google = {
-      accounts: { id: { initialize, renderButton, disableAutoSelect: vi.fn() } },
-    };
+    const { initialize, renderButton } = installGoogleIdentityStub();
     script?.dispatchEvent(new Event('load'));
 
     await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
@@ -62,11 +59,7 @@ describe('sign-up vs sign-in framing', () => {
     vi.stubEnv('VITE_GOOGLE_CLIENT_ID', 'test-client-id');
     render(<GoogleSignInButton onCredential={vi.fn()} {...props} />);
     const script = document.getElementById(GSI_SCRIPT_ID) as HTMLScriptElement | null;
-    const initialize = vi.fn();
-    const renderButton = vi.fn();
-    window.google = {
-      accounts: { id: { initialize, renderButton, disableAutoSelect: vi.fn() } },
-    };
+    const { initialize, renderButton } = installGoogleIdentityStub();
     script?.dispatchEvent(new Event('load'));
     await waitFor(() => expect(renderButton).toHaveBeenCalledTimes(1));
     return { initialize, renderButton };
@@ -96,10 +89,7 @@ describe('sign-up vs sign-in framing', () => {
 
 describe('disableGoogleAutoSelect', () => {
   it('tells Google to forget the bound account', () => {
-    const disableAutoSelect = vi.fn();
-    window.google = {
-      accounts: { id: { initialize: vi.fn(), renderButton: vi.fn(), disableAutoSelect } },
-    };
+    const { disableAutoSelect } = installGoogleIdentityStub();
 
     disableGoogleAutoSelect();
 
@@ -114,17 +104,11 @@ describe('disableGoogleAutoSelect', () => {
   });
 
   it('swallows a throwing Google SDK rather than breaking sign-out', () => {
-    window.google = {
-      accounts: {
-        id: {
-          initialize: vi.fn(),
-          renderButton: vi.fn(),
-          disableAutoSelect: () => {
-            throw new Error('gsi exploded');
-          },
-        },
+    installGoogleIdentityStub({
+      disableAutoSelect: () => {
+        throw new Error('gsi exploded');
       },
-    };
+    });
     expect(() => disableGoogleAutoSelect()).not.toThrow();
   });
 });
