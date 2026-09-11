@@ -189,6 +189,7 @@ VALUES
     ('enable_email_verification'),
     ('guest_titles'),
     ('hotel_address'),
+    ('hotel_business_number'),
     ('hotel_email'),
     ('hotel_name'),
     ('hotel_phone'),
@@ -814,6 +815,12 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('hotel_address', '123 Main Street, City', 'string', 'general', 'Hotel address', true),
 ('hotel_phone', '+1-555-0123', 'string', 'general', 'Hotel contact phone', true),
 ('hotel_email', 'info@grandhotel.com', 'string', 'general', 'Hotel contact email', true),
+-- The registered business (SSM) number of the operating entity. Malaysian
+-- e-commerce disclosure (Electronic Commerce Act 2006 s.10 and the Consumer
+-- Protection (Electronic Trade Transactions) Regulations 2012 r.3) requires the
+-- supplier's registration number to be shown to an online buyer, so the booking
+-- terms render it. Public because those terms are readable before sign-in.
+('hotel_business_number', 'SA2012724', 'string', 'general', 'Business registration (SSM) number shown in the booking terms and other legal disclosures', true),
 ('auto_checkin_requires_ekyc', 'true', 'boolean', 'frontdesk', 'Require approved guest eKYC before scheduled auto check-in', false),
 ('check_in_time', '15:00', 'string', 'general', 'Standard check-in time', true),
 ('check_out_time', '11:00', 'string', 'general', 'Standard check-out time', true),

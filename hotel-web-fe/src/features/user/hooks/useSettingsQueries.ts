@@ -20,6 +20,7 @@ const DB_SETTING_KEYS = [
   'hotel_address',
   'hotel_phone',
   'hotel_email',
+  'hotel_business_number',
   'check_in_time',
   'check_out_time',
   'night_shift_time',
@@ -131,6 +132,11 @@ const mergeSystemSettings = (
     hotel_address: values.get('hotel_address') ?? localSettings.hotel_address,
     hotel_phone: values.get('hotel_phone') ?? localSettings.hotel_phone,
     hotel_email: values.get('hotel_email') ?? localSettings.hotel_email,
+    // A blank row must not erase the number the booking terms print, so an
+    // empty value falls through to the compiled-in default the same way a
+    // missing row does.
+    hotel_business_number:
+      values.get('hotel_business_number')?.trim() || localSettings.hotel_business_number,
     check_in_time: values.get('check_in_time') ?? localSettings.check_in_time,
     check_out_time: values.get('check_out_time') ?? localSettings.check_out_time,
     night_shift_time: values.get('night_shift_time') ?? localSettings.night_shift_time,

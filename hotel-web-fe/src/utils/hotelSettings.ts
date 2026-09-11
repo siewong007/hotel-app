@@ -28,6 +28,7 @@ export interface HotelSettings {
   hotel_address: string;
   hotel_phone: string;
   hotel_email: string;
+  hotel_business_number: string; // Registered business (SSM) number shown in the booking terms
   check_in_time: string;
   check_out_time: string;
   night_shift_time: string; // Time when night audit runs and data gets posted for reporting
@@ -72,6 +73,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   hotel_address: '123 Main Street, City',
   hotel_phone: '+60-3-1234-5678',
   hotel_email: 'info@grandhotel.com',
+  hotel_business_number: 'SA2012724',
   check_in_time: '15:00',
   check_out_time: '11:00',
   night_shift_time: '23:00', // Default night audit time at 11 PM

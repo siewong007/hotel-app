@@ -155,6 +155,7 @@ const SettingsPage: React.FC = () => {
   const [hotelAddress, setHotelAddress] = useState("");
   const [hotelPhone, setHotelPhone] = useState("");
   const [hotelEmail, setHotelEmail] = useState("");
+  const [hotelBusinessNumber, setHotelBusinessNumber] = useState("");
 
   // Operational Settings
   const [checkInTime, setCheckInTime] = useState("15:00");
@@ -229,6 +230,7 @@ const SettingsPage: React.FC = () => {
     setHotelAddress(settings.hotel_address);
     setHotelPhone(settings.hotel_phone);
     setHotelEmail(settings.hotel_email);
+    setHotelBusinessNumber(settings.hotel_business_number);
     setCheckInTime(settings.check_in_time);
     setCheckOutTime(settings.check_out_time);
     setNightShiftTime(settings.night_shift_time || "23:00");
@@ -302,6 +304,7 @@ const SettingsPage: React.FC = () => {
         hotel_address: hotelAddress,
         hotel_phone: hotelPhone,
         hotel_email: hotelEmail,
+        hotel_business_number: hotelBusinessNumber,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         night_shift_time: nightShiftTime,
@@ -471,6 +474,16 @@ const SettingsPage: React.FC = () => {
                 value={hotelAddress}
                 onChange={(e) => setHotelAddress(e.target.value)}
                 helperText="Full hotel address"
+                disabled={!isAdmin}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                label="Business Registration Number"
+                value={hotelBusinessNumber}
+                onChange={(e) => setHotelBusinessNumber(e.target.value)}
+                helperText="SSM number printed in the guest booking terms"
                 disabled={!isAdmin}
               />
             </Grid>

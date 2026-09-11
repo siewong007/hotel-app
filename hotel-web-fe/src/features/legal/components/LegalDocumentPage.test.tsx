@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetLocaleStoreForTests } from '../../../i18n/localeStore';
+import { getHotelSettings, saveHotelSettings } from '../../../utils/hotelSettings';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -52,5 +53,55 @@ describe('LegalDocumentPage return control', () => {
 
     expect(window.history.back).not.toHaveBeenCalled();
     expect(mocks.navigate).toHaveBeenCalledWith('/');
+  });
+});
+
+describe('LegalDocumentPage business registration number', () => {
+  beforeEach(() => {
+    resetLocaleStoreForTests();
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      removeItem: (key: string) => {
+        store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('discloses the configured number in the booking terms', () => {
+    saveHotelSettings({ ...getHotelSettings(), hotel_business_number: 'SA5551234' });
+
+    render(<LegalDocumentPage documentId="terms_of_service" />);
+
+    expect(screen.getByText(/SA5551234/)).toBeTruthy();
+  });
+
+  // The boot-time `settings/public` fetch can land after this page has mounted.
+  // If the document were resolved once at module import, the reader would be
+  // left on the compiled-in fallback for the life of the tab.
+  it('picks up a number that arrives after mount', () => {
+    render(<LegalDocumentPage documentId="terms_of_service" />);
+    expect(screen.getByText(/SA2012724/)).toBeTruthy();
+
+    const settings = { ...getHotelSettings(), hotel_business_number: 'SA7770001' };
+    saveHotelSettings(settings);
+    act(() => {
+      window.dispatchEvent(new CustomEvent('hotelSettingsChange', { detail: settings }));
+    });
+
+    expect(screen.getByText(/SA7770001/)).toBeTruthy();
+    expect(screen.queryByText(/SA2012724/)).toBeNull();
   });
 });

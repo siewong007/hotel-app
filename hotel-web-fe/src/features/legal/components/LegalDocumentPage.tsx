@@ -15,10 +15,10 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from '../../../router';
 import {
   HOTEL_LEGAL_IDENTITY,
-  LEGAL_DOCUMENTS,
   LEGAL_DOCUMENT_PATHS,
   LEGAL_LOCALES,
   LEGAL_LOCALE_LABELS,
+  getLegalDocuments,
   type LegalDocumentId,
   type LegalLocale,
 } from '../content';
@@ -46,7 +46,17 @@ const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }
 export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ documentId }) => {
   const { locale, setLocale } = useLegalLocale();
   const navigate = useNavigate();
-  const document = LEGAL_DOCUMENTS[documentId];
+  // The terms disclose the configured business registration number, which the
+  // boot-time `settings/public` fetch may deliver after this page has already
+  // mounted. Re-resolving on `hotelSettingsChange` keeps a reader from being
+  // left looking at the compiled-in fallback.
+  const [documents, setDocuments] = React.useState(getLegalDocuments);
+  React.useEffect(() => {
+    const refresh = () => setDocuments(getLegalDocuments());
+    window.addEventListener('hotelSettingsChange', refresh);
+    return () => window.removeEventListener('hotelSettingsChange', refresh);
+  }, []);
+  const document = documents[documentId];
   const backLabel = locale === 'ms' ? 'Kembali' : 'Back';
 
   if (!document) {
