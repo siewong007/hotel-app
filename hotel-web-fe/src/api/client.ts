@@ -78,6 +78,21 @@ const REFRESH_TIMEOUT_MS = 10_000;
  * `{ request }` from a Request yields `undefined`, then `request.url`
  * throws "Cannot read properties of undefined (reading 'url')" on login.
  */
+/**
+ * The browser's IANA timezone, or `undefined` where it cannot be read.
+ *
+ * `Intl` is present in every supported browser but not in every environment
+ * this module is imported into (tests, SSR-style tooling), and a locked-down
+ * browser can throw rather than return, so the whole read is guarded.
+ */
+function resolveClientTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function requestFromKyHook(input: unknown): Request {
   if (input instanceof Request) {
     return input;
@@ -285,6 +300,17 @@ export const api = ky.create({
         // set the header itself (a staff member acting on a guest's behalf) wins.
         if (!apiRequest.headers.has('Accept-Language')) {
           apiRequest.headers.set('Accept-Language', getActiveLocale());
+        }
+        // Approximate sign-in location for the "signed-in devices" list. The
+        // backend reads this only on the sign-in routes, where it is stored
+        // against the new session; nothing geolocates the IP. Sent on every
+        // request for the same reason Accept-Language is: one place to set it,
+        // and no per-endpoint list to keep in step.
+        if (!apiRequest.headers.has('X-Client-Timezone')) {
+          const timeZone = resolveClientTimezone();
+          if (timeZone) {
+            apiRequest.headers.set('X-Client-Timezone', timeZone);
+          }
         }
         // Requests that set their own Authorization header (e.g. the guest
         // portal's session token) must not be overwritten with the staff token.

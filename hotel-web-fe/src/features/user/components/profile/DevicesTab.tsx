@@ -13,6 +13,7 @@ import {
 import { Logout as LogoutIcon } from '@mui/icons-material';
 import type { UserSessionInfo } from '../../../../types';
 import { DeviceIcon, detectDeviceType } from './deviceIcons';
+import { sessionActivityLine } from './sessionLocation';
 
 interface DevicesTabProps {
   sessions: UserSessionInfo[];
@@ -31,7 +32,8 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
           color: "text.secondary",
           mb: 2
         }}>
-        Log out devices you no longer use. Their access ends immediately.
+        Log out devices you no longer use. Their access ends immediately. Locations come from
+        each device's time zone, so they are approximate.
       </Typography>
       {sessions.length === 0 ? (
         <Typography sx={{
@@ -57,9 +59,9 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
                     )}
                   </Box>
                 }
-                secondary={`Last active: ${new Date(
-                  session.last_used_at || session.created_at
-                ).toLocaleString()}${session.ip_address ? ` · ${session.ip_address}` : ''}`}
+                secondary={`${sessionActivityLine(session)}${
+                  session.ip_address ? ` · ${session.ip_address}` : ''
+                }`}
               />
               {!session.is_current && (
                 <IconButton

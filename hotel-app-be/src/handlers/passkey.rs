@@ -80,9 +80,16 @@ pub async fn passkey_login_finish_handler(
     Json(req): Json<PasskeyLoginFinish>,
     ip_address: Option<String>,
     user_agent: Option<String>,
+    client_timezone: Option<String>,
 ) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
-    let (response, refresh_token) =
-        svc::login_finish(&pool, req, ip_address.as_deref(), user_agent.as_deref()).await?;
+    let (response, refresh_token) = svc::login_finish(
+        &pool,
+        req,
+        ip_address.as_deref(),
+        user_agent.as_deref(),
+        client_timezone.as_deref(),
+    )
+    .await?;
     let jar = jar.add(build_refresh_cookie(refresh_token));
     Ok((jar, Json(response)))
 }

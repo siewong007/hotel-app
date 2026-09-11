@@ -62,6 +62,46 @@ pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap, peer_addr: Sock
     extract_client_ip_with(config::get().trust_proxy_headers, headers, peer_addr)
 }
 
+/// Header carrying the browser's IANA timezone, used as the approximate
+/// location shown against a signed-in device. Must stay in the CORS
+/// `allow_headers` list below or the preflight fails for cross-origin
+/// deployments only — green locally, broken in production.
+pub(crate) const CLIENT_TIMEZONE_HEADER: &str = "x-client-timezone";
+
+/// Reads the client-reported IANA timezone, or `None` when absent or malformed.
+pub(crate) fn extract_client_timezone(headers: &axum::http::HeaderMap) -> Option<String> {
+    headers
+        .get(CLIENT_TIMEZONE_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(sanitize_client_timezone)
+}
+
+/// Accepts only IANA-zone-shaped values. This string is client-supplied and is
+/// rendered back to the account owner, so it is validated rather than
+/// truncated: anything unexpected is dropped instead of stored.
+fn sanitize_client_timezone(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || value.len() > 64 {
+        return None;
+    }
+    // "UTC" and "Asia/Kuala_Lumpur" are both valid; "America/Argentina/Salta"
+    // is the deepest real shape, so cap at three segments.
+    let segments: Vec<&str> = value.split('/').collect();
+    if segments.len() > 3 {
+        return None;
+    }
+    let segment_ok = |segment: &&str| {
+        !segment.is_empty()
+            && segment
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '+'))
+    };
+    if !segments.iter().all(segment_ok) {
+        return None;
+    }
+    Some(value.to_string())
+}
+
 /// Pure core of [`extract_client_ip`], split out so the proxy-trust decision
 /// has a deterministic unit test despite the process-global config.
 fn extract_client_ip_with(
@@ -235,6 +275,7 @@ pub fn create_router(pool: DbPool) -> Router {
                     axum::http::HeaderName::from_static(
                         crate::services::turnstile::TURNSTILE_HEADER,
                     ),
+                    axum::http::HeaderName::from_static(CLIENT_TIMEZONE_HEADER),
                 ])
                 .allow_methods([
                     Method::GET,
@@ -356,6 +397,44 @@ pub fn create_router(pool: DbPool) -> Router {
                 axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
             )),
     )
+}
+
+#[cfg(test)]
+mod client_timezone_tests {
+    use super::sanitize_client_timezone;
+
+    #[test]
+    fn accepts_real_zone_shapes() {
+        for zone in ["UTC", "Asia/Kuala_Lumpur", "America/Argentina/Salta", "Etc/GMT+8"] {
+            assert_eq!(sanitize_client_timezone(zone).as_deref(), Some(zone));
+        }
+    }
+
+    #[test]
+    fn trims_surrounding_whitespace() {
+        assert_eq!(
+            sanitize_client_timezone("  Europe/London  ").as_deref(),
+            Some("Europe/London")
+        );
+    }
+
+    #[test]
+    fn rejects_anything_not_zone_shaped() {
+        // The value is stored and rendered back to the account owner, so
+        // free-text, markup and over-long input are dropped, not truncated.
+        for value in [
+            "",
+            "   ",
+            "<script>alert(1)</script>",
+            "Asia/Kuala Lumpur",
+            "a/b/c/d",
+            "Asia//Tokyo",
+            "/Tokyo",
+        ] {
+            assert_eq!(sanitize_client_timezone(value), None, "accepted {value:?}");
+        }
+        assert_eq!(sanitize_client_timezone(&"A".repeat(65)), None);
+    }
 }
 
 #[cfg(test)]

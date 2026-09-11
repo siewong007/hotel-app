@@ -69,9 +69,16 @@ pub async fn login_handler(
     Json(req): Json<LoginRequest>,
     ip_address: Option<String>,
     user_agent: Option<String>,
+    client_timezone: Option<String>,
 ) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
-    let (response, refresh_token) =
-        svc::login(&pool, req, ip_address.as_deref(), user_agent.as_deref()).await?;
+    let (response, refresh_token) = svc::login(
+        &pool,
+        req,
+        ip_address.as_deref(),
+        user_agent.as_deref(),
+        client_timezone.as_deref(),
+    )
+    .await?;
     let jar = jar.add(build_refresh_cookie(refresh_token));
     Ok((jar, Json(response)))
 }
@@ -84,6 +91,7 @@ pub async fn google_login_handler(
     Json(req): Json<GoogleLoginRequest>,
     ip_address: Option<String>,
     user_agent: Option<String>,
+    client_timezone: Option<String>,
 ) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
@@ -92,6 +100,7 @@ pub async fn google_login_handler(
         &req.credential,
         ip_address.as_deref(),
         user_agent.as_deref(),
+        client_timezone.as_deref(),
         &req.consents,
         req.marketing_opt_in,
     )

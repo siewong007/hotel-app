@@ -98,7 +98,7 @@ impl CompleteGuestProfileRequest {
     }
 }
 
-fn validate_trimmed_guest_name(value: &str) -> Result<(), ValidationError> {
+pub(crate) fn validate_trimmed_guest_name(value: &str) -> Result<(), ValidationError> {
     if Sanitizer::sanitize_guest_name(value).is_empty() {
         return Err(ValidationError::new("required"));
     }
@@ -106,7 +106,7 @@ fn validate_trimmed_guest_name(value: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-fn validate_guest_phone(value: &str) -> Result<(), ValidationError> {
+pub(crate) fn validate_guest_phone(value: &str) -> Result<(), ValidationError> {
     let value = value.trim();
     if value.is_empty()
         || !value.chars().all(|character| {
@@ -271,7 +271,7 @@ pub struct RefreshTokenResponse {
 
 /// A currently active login session, backed by a rotating refresh-token record.
 /// The refresh-token value itself is never included in this response.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSessionInfo {
     pub id: String,
     pub user_agent: Option<String>,
@@ -280,6 +280,14 @@ pub struct UserSessionInfo {
     pub last_used_at: Option<DateTime<Utc>>,
     pub expires_at: DateTime<Utc>,
     pub is_current: bool,
+    /// Human-readable approximate place, derived from the timezone the browser
+    /// reported at sign-in (`Asia/Kuala_Lumpur` -> `Kuala Lumpur`). NOT an IP
+    /// geolocation — there is no such lookup anywhere in this codebase, and the
+    /// IP itself is masked before it leaves the server.
+    pub location: Option<String>,
+    /// The raw IANA zone behind `location`, so a caller can render the precise
+    /// value rather than re-deriving it from the label.
+    pub timezone: Option<String>,
 }
 
 /// Registration request

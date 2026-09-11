@@ -570,7 +570,7 @@ async fn revision_snapshot(pool: &PgPool) -> RevisionSnapshot {
         r#"
         SELECT version, name, checksum, applied_at::text
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 13 -- keep upper bound in sync with newest catalog patch
+        WHERE generation = 1 AND version BETWEEN 2 AND 14 -- keep upper bound in sync with newest catalog patch
         ORDER BY version
         "#,
     )
@@ -600,7 +600,8 @@ async fn object_snapshot(pool: &PgPool) -> ObjectSnapshot {
                   ('payments', 'idempotency_key'),
                   ('payments', 'idempotency_fingerprint'),
                   ('customer_ledger_payments', 'idempotency_key'),
-                  ('customer_ledger_payments', 'idempotency_fingerprint')
+                  ('customer_ledger_payments', 'idempotency_fingerprint'),
+                  ('refresh_tokens', 'client_timezone')
               )
             UNION ALL
             SELECT
@@ -653,7 +654,7 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
 }
 
 fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 12);
+    assert_eq!(revisions.len(), 13);
     assert_eq!(
         revisions
             .iter()
@@ -716,13 +717,18 @@ fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checks
                 "two-factor-enrollment-policy",
                 "sha256:5e46f0c9cbf8b5a9871e64fe3b6bcccfd2bca55e6449cafd2d95ebee6f8c28c7",
             ),
+            (
+                14,
+                "session-client-timezone",
+                "sha256:35d9d7143804344d62ccadebf3aa4c0b9025e777828c4089ad24dc471ee881da",
+            ),
         ]
     );
 }
 
 fn assert_expected_objects(objects: &ObjectSnapshot) {
     let definitions = object_definitions(objects);
-    assert_eq!(definitions.len(), 12);
+    assert_eq!(definitions.len(), 13);
     for expected in [
         (
             "column",
@@ -749,6 +755,7 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
             "users.google_subject",
             "character varying(255) NULL",
         ),
+        ("column", "refresh_tokens.client_timezone", "text NULL"),
     ] {
         assert!(
             definitions.contains(&expected),
@@ -1694,7 +1701,7 @@ async fn postgres_v1_patch_runners_serialize() {
         r#"
         SELECT version, COUNT(*)
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 13 -- keep upper bound in sync with newest catalog patch
+        WHERE generation = 1 AND version BETWEEN 2 AND 14 -- keep upper bound in sync with newest catalog patch
         GROUP BY version
         ORDER BY version
         "#,

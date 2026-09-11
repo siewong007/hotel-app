@@ -152,6 +152,7 @@ impl Fixture {
             1,
             Some("127.0.0.1"),
             Some("guest-isolation-test"),
+            Some("Asia/Kuala_Lumpur"),
         )
         .await
         .expect("active session fixture must be inserted");

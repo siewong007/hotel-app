@@ -121,6 +121,7 @@ async fn login_finish(
         Json(req),
         Some(ip.to_string()),
         user_agent,
+        super::extract_client_timezone(&headers),
     )
     .await
 }

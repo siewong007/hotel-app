@@ -270,6 +270,7 @@ pub async fn login_finish(
     req: PasskeyLoginFinish,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
+    client_timezone: Option<&str>,
 ) -> Result<(AuthResponse, String), ApiError> {
     let user = PasskeyRepository::find_active_user_by_username(pool, &req.username)
         .await?
@@ -363,7 +364,14 @@ pub async fn login_finish(
 
     // The session-minting sequence is shared with the password and Google
     // doors so all three stay in step; see `services::auth`.
-    crate::services::auth::issue_authenticated_response(pool, &user, ip_address, user_agent).await
+    crate::services::auth::issue_authenticated_response(
+        pool,
+        &user,
+        ip_address,
+        user_agent,
+        client_timezone,
+    )
+    .await
 }
 
 fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {

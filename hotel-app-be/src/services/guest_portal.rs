@@ -624,6 +624,36 @@ pub async fn get_me(pool: &DbPool, guest_id: i64) -> Result<GuestPortalMeRespons
     })
 }
 
+/// PATCH /guest-portal/me/profile
+pub async fn update_my_profile(
+    pool: &DbPool,
+    guest_id: i64,
+    mut input: crate::models::GuestPortalProfileUpdate,
+) -> Result<GuestPortalMeResponse, ApiError> {
+    input
+        .normalize_and_validate()
+        .map_err(|error| ApiError::BadRequest(error.to_string()))?;
+
+    crate::repositories::guest::GuestRepository::update_contact_profile(pool, guest_id, &input)
+        .await?;
+
+    // Which fields moved is not recorded: the values are the guest's own
+    // contact details, and the audit trail only needs to show that the guest
+    // edited their profile, not to hold a second copy of their address.
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            action: "guest_profile_updated",
+            resource_type: "guest",
+            resource_id: Some(guest_id),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    get_me(pool, guest_id).await
+}
+
 /// GET /guest-portal/me/bookings
 pub async fn get_my_bookings(
     pool: &DbPool,

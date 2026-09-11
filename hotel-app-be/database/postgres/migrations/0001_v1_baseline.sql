@@ -4173,7 +4173,8 @@ CREATE TABLE public.refresh_tokens (
     last_used_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     is_revoked boolean DEFAULT false,
     revoked_at timestamp with time zone,
-    revoked_by bigint
+    revoked_by bigint,
+    client_timezone text
 );
 
 
@@ -4182,6 +4183,13 @@ CREATE TABLE public.refresh_tokens (
 --
 
 COMMENT ON TABLE public.refresh_tokens IS 'JWT refresh tokens for session management';
+
+
+--
+-- Name: COLUMN refresh_tokens.client_timezone; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.refresh_tokens.client_timezone IS 'IANA timezone reported by the client when the session was created; approximate location only.';
 
 
 --

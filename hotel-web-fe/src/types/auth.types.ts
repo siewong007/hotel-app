@@ -85,6 +85,15 @@ export interface UserSessionInfo {
   last_used_at?: string;
   expires_at: string;
   is_current: boolean;
+  /**
+   * Approximate place, derived server-side from the timezone the browser
+   * reported at sign-in ("Asia/Kuala_Lumpur" -> "Kuala Lumpur"). NOT an IP
+   * geolocation. Absent for sessions minted before the field existed, and for
+   * zones that name no place (UTC, Etc/GMT+8) — present it as approximate.
+   */
+  location?: string | null;
+  /** The raw IANA zone behind `location`. */
+  timezone?: string | null;
 }
 
 // 2FA Types

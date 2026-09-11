@@ -143,6 +143,7 @@ pub async fn login(
     req: LoginRequest,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
+    client_timezone: Option<&str>,
 ) -> Result<(AuthResponse, String), ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
@@ -345,7 +346,7 @@ pub async fn login(
         "password"
     };
     let (mut response, refresh_token) =
-        issue_authenticated_response(pool, &user, ip_address, user_agent).await?;
+        issue_authenticated_response(pool, &user, ip_address, user_agent, client_timezone).await?;
     response.recovery_codes_remaining = recovery_codes_remaining;
     let _ = AuditLog::log_login_success(pool, user.id, login_method, audit_ip(), audit_ua()).await;
 
@@ -362,6 +363,7 @@ pub async fn login_with_google(
     credential: &str,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
+    client_timezone: Option<&str>,
     consents: &[crate::modules::consent::models::ConsentAcceptance],
     marketing_opt_in: bool,
 ) -> Result<(AuthResponse, String), ApiError> {
@@ -406,7 +408,7 @@ pub async fn login_with_google(
 
     ensure_not_locked(pool, user.id, &user.username, ip_address, user_agent).await?;
     let _ = AuthRepository::reset_login_attempts(pool, user.id).await;
-    let response = issue_authenticated_response(pool, &user, ip_address, user_agent).await?;
+    let response = issue_authenticated_response(pool, &user, ip_address, user_agent, client_timezone).await?;
     let _ = AuditLog::log_login_success(
         pool,
         user.id,
@@ -503,6 +505,7 @@ pub(crate) async fn issue_authenticated_response(
     user: &User,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
+    client_timezone: Option<&str>,
 ) -> Result<(AuthResponse, String), ApiError> {
     let roles = AuthService::get_user_roles(pool, user.id)
         .await
@@ -548,12 +551,17 @@ pub(crate) async fn issue_authenticated_response(
     let is_first_login = AuthRepository::is_first_login(pool, user.id)
         .await
         .unwrap_or(false);
-    let session_id =
-        AuthService::store_refresh_token(pool, user.id, &refresh_token, 30, ip_address, user_agent)
-            .await
-            .map_err(|error| {
-                ApiError::Database(format!("Failed to store refresh token: {error}"))
-            })?;
+    let session_id = AuthService::store_refresh_token(
+        pool,
+        user.id,
+        &refresh_token,
+        30,
+        ip_address,
+        user_agent,
+        client_timezone,
+    )
+    .await
+    .map_err(|error| ApiError::Database(format!("Failed to store refresh token: {error}")))?;
     let access_token = AuthService::generate_session_jwt(
         user.id,
         user.username.clone(),

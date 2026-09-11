@@ -41,6 +41,9 @@ pub struct ActiveSessionRecord {
     pub created_at: chrono::DateTime<Utc>,
     pub last_used_at: Option<chrono::DateTime<Utc>>,
     pub expires_at: chrono::DateTime<Utc>,
+    /// IANA zone the browser reported at sign-in, e.g. `Asia/Kuala_Lumpur`.
+    /// Approximate location only — nothing here geolocates an IP.
+    pub client_timezone: Option<String>,
 }
 
 const ACCESS_TOKEN_TTL_MINUTES: i64 = 30;
@@ -373,14 +376,15 @@ impl AuthService {
         expires_in_days: i64,
         ip_address: Option<&str>,
         user_agent: Option<&str>,
+        client_timezone: Option<&str>,
     ) -> Result<String, sqlx::Error> {
         let session_id = crate::core::db::generate_uuid();
         let token_hash = Self::hash_refresh_token(token);
         let expires_at = Utc::now() + Duration::days(expires_in_days);
 
         let query = r#"
-                INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at)
-                VALUES ($1::uuid, $2, $3, $4::inet, $5, $6)
+                INSERT INTO refresh_tokens (id, user_id, token_hash, ip_address, user_agent, expires_at, client_timezone)
+                VALUES ($1::uuid, $2, $3, $4::inet, $5, $6, $7)
             "#;
         sqlx::query(query)
             .bind(&session_id)
@@ -389,6 +393,7 @@ impl AuthService {
             .bind(ip_address)
             .bind(user_agent)
             .bind(expires_at)
+            .bind(client_timezone)
             .execute(pool)
             .await?;
 
@@ -489,7 +494,7 @@ impl AuthService {
     ) -> Result<Vec<ActiveSessionRecord>, sqlx::Error> {
         let query = r#"
                 SELECT id::text AS id, user_agent, host(ip_address) AS ip_address,
-                       created_at, last_used_at, expires_at
+                       created_at, last_used_at, expires_at, client_timezone
                 FROM refresh_tokens
                 WHERE user_id = $1 AND expires_at > CURRENT_TIMESTAMP
                   AND revoked_at IS NULL AND is_revoked = false

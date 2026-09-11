@@ -189,6 +189,7 @@ export type {
   GuestPortalGuest,
   GuestPortalLoginResponse,
   GuestPortalMeResponse,
+  GuestPortalProfileUpdate,
   GuestPortalBookingSummary,
   GuestPortalPagedResponse,
   GuestPortalTransactionKind,
