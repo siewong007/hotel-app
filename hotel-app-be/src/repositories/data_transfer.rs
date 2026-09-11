@@ -293,12 +293,13 @@ impl DataTransferRepository {
         let rows: Vec<(String, String, String, String)> = sqlx::query_as(
             r#"
             SELECT child_namespace.nspname, child.relname, parent_namespace.nspname, parent.relname
-            FROM pg_constraint constraint
-            JOIN pg_class child ON child.oid = constraint.conrelid
+            -- `constraint` is a reserved word; it cannot be used as an unquoted alias.
+            FROM pg_constraint foreign_key
+            JOIN pg_class child ON child.oid = foreign_key.conrelid
             JOIN pg_namespace child_namespace ON child_namespace.oid = child.relnamespace
-            JOIN pg_class parent ON parent.oid = constraint.confrelid
+            JOIN pg_class parent ON parent.oid = foreign_key.confrelid
             JOIN pg_namespace parent_namespace ON parent_namespace.oid = parent.relnamespace
-            WHERE constraint.contype = 'f'
+            WHERE foreign_key.contype = 'f'
             "#,
         )
         .fetch_all(pool)
