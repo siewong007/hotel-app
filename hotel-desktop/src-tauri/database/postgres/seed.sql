@@ -836,8 +836,12 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('session_timeout', '3600', 'number', 'security', 'Session timeout in seconds', false),
 ('enable_2fa', 'false', 'boolean', 'security', 'Enable two-factor authentication', false),
 ('enable_email_verification', 'true', 'boolean', 'security', 'Require email verification', false),
-('totp_issuer_name', 'Hotel Management System', 'string', 'security', 'Issuer name shown in authenticator apps during TOTP setup', false),
-('passkey_relying_party_name', 'Hotel Management System', 'string', 'security', 'Display name shown by passkey authenticators during registration', false),
+-- Both ship EMPTY, which means "use hotel_name". They used to ship the product
+-- label 'Hotel Management System', so that is the brand every staff member's
+-- authenticator app displayed instead of the hotel's own name. An administrator
+-- can still type an explicit override in Settings when the two should differ.
+('totp_issuer_name', '', 'string', 'security', 'Issuer name shown in authenticator apps during TOTP setup. Empty uses hotel_name.', false),
+('passkey_relying_party_name', '', 'string', 'security', 'Display name shown by passkey authenticators during registration. Empty uses hotel_name.', false),
 ('rate_codes', '["RACK","OVR","CORP","GOVT","WKII","PKG","GRP","AAA","PROMO"]', 'json', 'rates', 'Available rate codes', true),
 ('market_codes', '["WKII","CORP","GOVT","OTA","DIRECT","GROUP","EVENTS","LEISURE"]', 'json', 'sales', 'Market segment codes', true),
 ('booking_channels', '[{"name":"Booking.com","abbreviation":"B.C"},{"name":"Agoda","abbreviation":"A.C"},{"name":"Traveloka","abbreviation":"T.C"},{"name":"Expedia","abbreviation":"E.C"},{"name":"Hotels.com","abbreviation":"H.C"},{"name":"Airbnb","abbreviation":"AB"},{"name":"Trip.com","abbreviation":"TR"},{"name":"Direct Website","abbreviation":"DW"},{"name":"Other OTA","abbreviation":"OT"}]', 'json', 'sales', 'Online and direct booking channels available to front desk workflows', true),

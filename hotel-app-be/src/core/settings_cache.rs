@@ -86,6 +86,19 @@ pub async fn get_string(pool: &DbPool, key: &str, default: &str) -> String {
         .unwrap_or_else(|| default.to_string())
 }
 
+/// Name an external authenticator shows for this hotel — the override stored
+/// under `key` when an administrator set one, otherwise the hotel's own name.
+///
+/// Both call sites used to default to the product label "Hotel Management
+/// System", which is what every staff member's authenticator app ended up
+/// displaying. `hotel_name` is the name the hotel already maintains (it brands
+/// outbound email the same way), so following it keeps the two in step with no
+/// second field to remember.
+pub async fn get_hotel_display_name(pool: &DbPool, key: &str) -> String {
+    let hotel_name = get_string(pool, "hotel_name", "Hotel").await;
+    get_string(pool, key, &hotel_name).await
+}
+
 pub async fn get_i32(pool: &DbPool, key: &str, default: i32) -> i32 {
     get_optional_string(pool, key)
         .await

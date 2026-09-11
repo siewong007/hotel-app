@@ -99,12 +99,7 @@ pub async fn register_start(
     )
     .await?;
 
-    let rp_name = settings_cache::get_string(
-        pool,
-        "passkey_relying_party_name",
-        "Hotel Management System",
-    )
-    .await;
+    let rp_name = settings_cache::get_hotel_display_name(pool, "passkey_relying_party_name").await;
 
     Ok(json!({
         "challenge": challenge_b64,

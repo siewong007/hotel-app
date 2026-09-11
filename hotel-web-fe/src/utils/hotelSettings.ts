@@ -47,8 +47,8 @@ export interface HotelSettings {
   report_caption_font_size: number; // Report captions and secondary labels in pixels
   report_chip_font_size: number; // Report status chip text size in pixels
   max_login_attempts: number; // Failed login attempts before lockout
-  totp_issuer_name: string; // Issuer shown in authenticator apps
-  passkey_relying_party_name: string; // Display name shown by passkey authenticators
+  totp_issuer_name: string; // Issuer shown in authenticator apps; empty falls back to hotel_name
+  passkey_relying_party_name: string; // Display name shown by passkey authenticators; empty falls back to hotel_name
   support_enabled: boolean; // Whether guests can start support conversations in the portal
   guest_booking_cancellation_enabled: boolean;
   support_categories: string[]; // Guest-selectable support intake categories
@@ -91,8 +91,8 @@ const DEFAULT_SETTINGS: HotelSettings = {
   report_caption_font_size: 13,
   report_chip_font_size: 12,
   max_login_attempts: 5,
-  totp_issuer_name: 'Hotel Management System',
-  passkey_relying_party_name: 'Hotel Management System',
+  totp_issuer_name: '', // Empty means the backend uses hotel_name
+  passkey_relying_party_name: '', // Empty means the backend uses hotel_name
   support_enabled: true,
   guest_booking_cancellation_enabled: false,
   support_categories: ['booking', 'stay', 'billing', 'loyalty', 'technical', 'other'],

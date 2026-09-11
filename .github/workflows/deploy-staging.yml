@@ -206,6 +206,8 @@ jobs:
             "$bundle_dir/database/patches/0013_two_factor_enrollment_policy.sql"
           cp hotel-app-be/database/postgres/patches/0014_session_client_timezone.sql \
             "$bundle_dir/database/patches/0014_session_client_timezone.sql"
+          cp hotel-app-be/database/postgres/patches/0015_authenticator_hotel_name.sql \
+            "$bundle_dir/database/patches/0015_authenticator_hotel_name.sql"
 
           (
             cd "$bundle_dir"
@@ -234,6 +236,7 @@ jobs:
               database/patches/0012_payment_retry_capabilities.sql \
               database/patches/0013_two_factor_enrollment_policy.sql \
               database/patches/0014_session_client_timezone.sql \
+              database/patches/0015_authenticator_hotel_name.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

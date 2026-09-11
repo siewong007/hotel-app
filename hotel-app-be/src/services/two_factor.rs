@@ -30,8 +30,7 @@ pub async fn setup_2fa(
     }
 
     let username = user.username.clone();
-    let issuer_name =
-        settings_cache::get_string(pool, "totp_issuer_name", "Hotel Management System").await;
+    let issuer_name = settings_cache::get_hotel_display_name(pool, "totp_issuer_name").await;
     let (secret, qr_code_url) = AuthService::generate_totp_secret(&username, &issuer_name)
         .map_err(|error| {
             log::error!("Failed to generate TOTP secret: {}", error);

@@ -185,12 +185,9 @@ const SettingsPage: React.FC = () => {
 
   // Security Settings
   const [maxLoginAttempts, setMaxLoginAttempts] = useState(5);
-  const [totpIssuerName, setTotpIssuerName] = useState(
-    "Hotel Management System",
-  );
-  const [passkeyRelyingPartyName, setPasskeyRelyingPartyName] = useState(
-    "Hotel Management System",
-  );
+  // Both default to empty, which the backend reads as "use the hotel name".
+  const [totpIssuerName, setTotpIssuerName] = useState("");
+  const [passkeyRelyingPartyName, setPasskeyRelyingPartyName] = useState("");
 
   // Guest support workflow settings
   const [supportEnabled, setSupportEnabled] = useState(true);
@@ -1038,7 +1035,8 @@ const SettingsPage: React.FC = () => {
                 label="Authenticator Issuer"
                 value={totpIssuerName}
                 onChange={(e) => setTotpIssuerName(e.target.value)}
-                helperText="Name shown in TOTP authenticator apps"
+                placeholder={hotelName}
+                helperText="Name shown in TOTP authenticator apps. Leave empty to use the hotel name."
                 disabled={!isAdmin}
               />
             </Grid>
@@ -1048,7 +1046,8 @@ const SettingsPage: React.FC = () => {
                 label="Passkey Display Name"
                 value={passkeyRelyingPartyName}
                 onChange={(e) => setPasskeyRelyingPartyName(e.target.value)}
-                helperText="Name shown during passkey registration"
+                placeholder={hotelName}
+                helperText="Name shown during passkey registration. Leave empty to use the hotel name."
                 disabled={!isAdmin}
               />
             </Grid>
