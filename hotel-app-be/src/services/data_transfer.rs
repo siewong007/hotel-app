@@ -545,16 +545,29 @@ async fn import_full_data(
         .collect();
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    if mode == ImportMode::Overwrite {
-        let clear_tables: Vec<_> = ordered_tables.iter().rev().cloned().collect();
-        DataTransferRepository::clear_transfer_tables(&mut tx, &clear_tables).await?;
-    }
 
+    // The clear and the insert both walk a foreign-key cycle (`users` <->
+    // `guests`), which no ordering can satisfy while the constraints are
+    // checked per statement -- deleting `users` first strands
+    // `guests.created_by`, and inserting it first strands `users.guest_id`.
+    // Deferring to COMMIT is what makes either direction possible. This must
+    // happen before the clear, not just before the inserts.
+    let relaxed = DataTransferRepository::relax_foreign_keys(&mut tx, &ordered_tables).await?;
     DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, false).await?;
+
+    // Every ALTER TABLE above has to happen before anything queues a deferred
+    // trigger event, because PostgreSQL refuses to alter a table that has any
+    // pending. Deferring only after the schema is settled keeps the clear and
+    // the inserts inside the window where ordering does not matter.
     sqlx::query("SET CONSTRAINTS ALL DEFERRED")
         .execute(&mut *tx)
         .await
         .map_err(ApiError::from)?;
+
+    if mode == ImportMode::Overwrite {
+        let clear_tables: Vec<_> = ordered_tables.iter().rev().cloned().collect();
+        DataTransferRepository::clear_transfer_tables(&mut tx, &clear_tables).await?;
+    }
 
     let mut counts = serde_json::Map::new();
     for table in &ordered_tables {
@@ -573,8 +586,25 @@ async fn import_full_data(
         counts.insert(name, Value::Number(inserted.into()));
     }
 
+    // Deferring moved the foreign-key checks to COMMIT. Force them now, while
+    // the transaction is still ours to roll back, so a violation fails the
+    // import instead of surfacing as a failed commit after the handler has
+    // already decided the import succeeded.
+    //
+    // This must also come before the ALTER TABLE statements below: PostgreSQL
+    // refuses to alter a table that still has pending trigger events, so
+    // re-enabling triggers while the deferred checks were outstanding failed
+    // the whole import with "cannot ALTER TABLE ... because it has pending
+    // trigger events".
+    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
     DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, true).await?;
+    DataTransferRepository::restore_foreign_keys(&mut tx, &relaxed).await?;
     DataTransferRepository::reset_transfer_sequences(&mut tx, &ordered_tables).await?;
+
     tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({

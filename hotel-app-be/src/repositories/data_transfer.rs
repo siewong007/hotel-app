@@ -25,6 +25,14 @@ pub struct TransferTable {
     pub dependencies: HashSet<String>,
 }
 
+/// A foreign key that an import temporarily made deferrable, so it can be put
+/// back exactly as it was once the rows are in.
+#[derive(Debug, Clone)]
+pub struct RelaxedForeignKey {
+    table: QualifiedTable,
+    constraint: String,
+}
+
 impl TransferTable {
     fn source(&self) -> String {
         if self.is_partitioned {
@@ -74,6 +82,30 @@ fn is_identifier(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
+/// Whether `start` can reach itself through the still-unresolved dependency
+/// edges -- that is, whether it sits on a cycle rather than merely behind one.
+fn reaches_itself(start: &str, unresolved: &HashMap<String, BTreeSet<String>>) -> bool {
+    let mut stack: Vec<&str> = unresolved
+        .get(start)
+        .into_iter()
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    let mut seen: HashSet<&str> = HashSet::new();
+    while let Some(table) = stack.pop() {
+        if table == start {
+            return true;
+        }
+        if !seen.insert(table) {
+            continue;
+        }
+        if let Some(dependencies) = unresolved.get(table) {
+            stack.extend(dependencies.iter().map(String::as_str));
+        }
+    }
+    false
+}
+
 pub fn transfer_order(
     selected: &[String],
     dependencies: &HashMap<String, HashSet<String>>,
@@ -97,15 +129,41 @@ pub fn transfer_order(
     let mut ordered = Vec::with_capacity(selected.len());
 
     while !unresolved.is_empty() {
-        let ready: Vec<String> = unresolved
+        let mut ready: Vec<String> = unresolved
             .iter()
             .filter(|(_, dependencies)| dependencies.is_empty())
             .map(|(table, _)| table.clone())
             .collect();
+        // `unresolved` is a HashMap, so without this the relative order of
+        // independent tables changes between runs and the result is untestable.
+        ready.sort();
         if ready.is_empty() {
-            return Err(ApiError::BadRequest(
-                "Selected transfer tables contain a circular foreign-key dependency".to_string(),
-            ));
+            // A cycle. `users.guest_id` references `guests` while
+            // `guests.created_by` references `users`, both since the V1
+            // baseline, so this is the ordinary shape of this schema rather
+            // than a corrupt selection -- refusing here made every full import
+            // impossible. No order satisfies a cycle, so break it
+            // deterministically; the import defers the constraints for exactly
+            // this reason (see `relax_foreign_keys`). Taking the table with the
+            // fewest outstanding dependencies keeps the result as close to
+            // parents-before-children as a cycle allows.
+            // Only a table that is genuinely *on* a cycle may be forced out.
+            // Picking any blocked table would emit children before parents --
+            // `bookings` is blocked by `guests` without being part of the
+            // `users` <-> `guests` cycle, and releasing it first would order it
+            // ahead of its own parent for no reason.
+            let victim = unresolved
+                .keys()
+                .filter(|table| reaches_itself(table, &unresolved))
+                .min_by(|left, right| {
+                    unresolved[*left]
+                        .len()
+                        .cmp(&unresolved[*right].len())
+                        .then_with(|| left.cmp(right))
+                })
+                .cloned()
+                .expect("no table has zero dependencies, so some table is on a cycle");
+            ready.push(victim);
         }
 
         for table in ready {
@@ -440,6 +498,85 @@ impl DataTransferRepository {
             sqlx::query(&format!(
                 "ALTER TABLE {} {action} TRIGGER USER",
                 table.table.quoted()
+            ))
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        }
+        Ok(())
+    }
+
+    /// Make every immediate foreign key on `tables` deferrable for the rest of
+    /// the transaction, returning the ones actually changed.
+    ///
+    /// `DISABLE TRIGGER USER` does not touch the system triggers that enforce
+    /// referential integrity, and `SET CONSTRAINTS ALL DEFERRED` only moves
+    /// constraints that are already declared DEFERRABLE -- none of this
+    /// schema's are. So foreign keys were checked per statement throughout an
+    /// import, which no insert order can satisfy across a cycle like
+    /// `users.guest_id` -> `guests` -> `guests.created_by` -> `users`.
+    ///
+    /// Deferring moves the check to COMMIT; it does not skip it. The import
+    /// forces the checks with `SET CONSTRAINTS ALL IMMEDIATE` before it
+    /// finishes, so bad data still fails the import.
+    pub async fn relax_foreign_keys(
+        tx: &mut DbTransaction<'_>,
+        tables: &[TransferTable],
+    ) -> Result<Vec<RelaxedForeignKey>, ApiError> {
+        let keys: Vec<String> = tables.iter().map(|table| table.table.key()).collect();
+        let rows: Vec<(String, String, String)> = sqlx::query_as(
+            r#"
+            SELECT namespace.nspname, child.relname, foreign_key.conname
+            FROM pg_constraint foreign_key
+            JOIN pg_class child ON child.oid = foreign_key.conrelid
+            JOIN pg_namespace namespace ON namespace.oid = child.relnamespace
+            WHERE foreign_key.contype = 'f'
+              AND NOT foreign_key.condeferrable
+              AND namespace.nspname || '.' || child.relname = ANY($1)
+            ORDER BY 1, 2, 3
+            "#,
+        )
+        .bind(&keys)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        let relaxed: Vec<RelaxedForeignKey> = rows
+            .into_iter()
+            .map(|(schema, name, constraint)| RelaxedForeignKey {
+                table: QualifiedTable { schema, name },
+                constraint,
+            })
+            .collect();
+
+        for key in &relaxed {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ALTER CONSTRAINT {} DEFERRABLE INITIALLY DEFERRED",
+                key.table.quoted(),
+                quote_identifier(&key.constraint)
+            ))
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        }
+        Ok(relaxed)
+    }
+
+    /// Return the foreign keys from [`Self::relax_foreign_keys`] to immediate
+    /// checking, so an import leaves the schema exactly as it found it.
+    ///
+    /// Only constraints that were immediate to begin with are passed back here,
+    /// so a genuinely DEFERRABLE constraint keeps its declared behaviour. A
+    /// rollback restores these on its own -- this is the success path.
+    pub async fn restore_foreign_keys(
+        tx: &mut DbTransaction<'_>,
+        relaxed: &[RelaxedForeignKey],
+    ) -> Result<(), ApiError> {
+        for key in relaxed {
+            sqlx::query(&format!(
+                "ALTER TABLE {} ALTER CONSTRAINT {} NOT DEFERRABLE INITIALLY IMMEDIATE",
+                key.table.quoted(),
+                quote_identifier(&key.constraint)
             ))
             .execute(&mut **tx)
             .await
@@ -1070,6 +1207,72 @@ mod tests {
         assert!(QualifiedTable::parse("public.users").is_ok());
         assert!(QualifiedTable::parse("public.users; DROP TABLE users").is_err());
         assert!(QualifiedTable::parse("users").is_err());
+    }
+
+    /// `users` and `guests` reference each other in the V1 baseline, so every
+    /// full import selected a cyclic graph and was rejected outright. Ordering
+    /// must now succeed and still account for every selected table; the import
+    /// defers the constraints so the unavoidable violation inside the cycle is
+    /// checked at COMMIT instead of per statement.
+    #[test]
+    fn breaks_the_users_guests_cycle_instead_of_refusing_to_order() {
+        let selected = vec![
+            "public.bookings".to_string(),
+            "public.guests".to_string(),
+            "public.users".to_string(),
+        ];
+        let dependencies = HashMap::from([
+            (
+                "public.guests".to_string(),
+                HashSet::from(["public.users".to_string()]),
+            ),
+            (
+                "public.users".to_string(),
+                HashSet::from(["public.guests".to_string()]),
+            ),
+            (
+                "public.bookings".to_string(),
+                HashSet::from(["public.guests".to_string()]),
+            ),
+        ]);
+
+        let order = transfer_order(&selected, &dependencies).expect("a cycle must still order");
+
+        let mut sorted = order.clone();
+        sorted.sort();
+        assert_eq!(sorted, selected, "every selected table must be emitted once");
+        // The cycle is broken, but edges outside it are still honoured.
+        let position = |table: &str| order.iter().position(|name| name == table).unwrap();
+        assert!(
+            position("public.guests") < position("public.bookings"),
+            "acyclic edges must still order parents first; got {order:?}"
+        );
+    }
+
+    /// A second call must produce the same order, or an import that works once
+    /// fails the next time for no visible reason.
+    #[test]
+    fn cycle_breaking_is_deterministic() {
+        let selected = vec![
+            "public.guests".to_string(),
+            "public.users".to_string(),
+        ];
+        let dependencies = HashMap::from([
+            (
+                "public.guests".to_string(),
+                HashSet::from(["public.users".to_string()]),
+            ),
+            (
+                "public.users".to_string(),
+                HashSet::from(["public.guests".to_string()]),
+            ),
+        ]);
+
+        let first = transfer_order(&selected, &dependencies).expect("cycle must order");
+        for _ in 0..16 {
+            let again = transfer_order(&selected, &dependencies).expect("cycle must order");
+            assert_eq!(first, again, "cycle breaking must not vary between runs");
+        }
     }
 
     #[test]
