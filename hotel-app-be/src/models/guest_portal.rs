@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use validator::Validate;
 
 use super::{Booking, Guest, GuestEkycStatusSummary};
+use crate::utils::sanitization::Sanitizer;
 
 /// Request for verifying a guest booking.
 #[derive(Debug, Deserialize)]
@@ -64,6 +65,11 @@ impl From<Booking> for GuestPortalBookingView {
 #[derive(Debug, Serialize)]
 pub struct GuestPortalGuestView {
     pub nick_name: String,
+    /// Split name parts. The portal's profile form edits these directly;
+    /// `nick_name` is the derived display name kept in sync alongside them
+    /// (see `GuestRepository::update_contact_profile`).
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
     pub title: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
@@ -81,6 +87,8 @@ impl From<Guest> for GuestPortalGuestView {
     fn from(guest: Guest) -> Self {
         GuestPortalGuestView {
             nick_name: guest.nick_name,
+            first_name: guest.first_name,
+            last_name: guest.last_name,
             title: guest.title,
             email: guest.email,
             phone: guest.phone,
@@ -94,6 +102,109 @@ impl From<Guest> for GuestPortalGuestView {
             country: guest.country,
         }
     }
+}
+
+/// Body for `PATCH /guest-portal/me/profile` — the contact details a signed-in
+/// guest may maintain themselves.
+///
+/// Deliberately excludes `email` and `ic_number`: email is the login identifier
+/// (changing it is an account operation with its own verification), and the IC
+/// number is identity data the hotel verifies through eKYC. `nick_name` is not
+/// accepted either — it is derived from the name parts so the display name can
+/// never drift from them.
+#[derive(Debug, Deserialize, Validate)]
+pub struct GuestPortalProfileUpdate {
+    #[validate(
+        length(max = 50, message = "First name must be at most 50 characters"),
+        custom(function = "crate::models::auth::validate_trimmed_guest_name")
+    )]
+    pub first_name: String,
+    #[validate(
+        length(max = 50, message = "Last name must be at most 50 characters"),
+        custom(function = "crate::models::auth::validate_trimmed_guest_name")
+    )]
+    pub last_name: String,
+    #[validate(custom(function = "crate::models::auth::validate_guest_phone"))]
+    pub phone: String,
+    #[validate(custom(function = "validate_optional_guest_phone"))]
+    pub alt_phone: Option<String>,
+    #[validate(length(max = 20, message = "Title is too long"))]
+    pub title: Option<String>,
+    #[validate(length(max = 100, message = "Nationality is too long"))]
+    pub nationality: Option<String>,
+    #[validate(length(max = 255, message = "Address is too long"))]
+    pub address_line1: Option<String>,
+    #[validate(length(max = 100, message = "City is too long"))]
+    pub city: Option<String>,
+    #[validate(length(max = 100, message = "State or province is too long"))]
+    pub state_province: Option<String>,
+    #[validate(length(max = 20, message = "Postal code is too long"))]
+    pub postal_code: Option<String>,
+    #[validate(length(max = 100, message = "Country is too long"))]
+    pub country: Option<String>,
+}
+
+/// An absent or blank alternate phone clears the field; a present one must be
+/// as valid as the primary.
+fn validate_optional_guest_phone(value: &str) -> Result<(), validator::ValidationError> {
+    if value.trim().is_empty() {
+        return Ok(());
+    }
+    crate::models::auth::validate_guest_phone(value)
+}
+
+impl GuestPortalProfileUpdate {
+    /// Validates, then sanitizes, then re-validates — the same order as
+    /// `CompleteGuestProfileRequest::normalize_and_validate`, so sanitizing can
+    /// never turn an accepted value into one that violates its own rule.
+    pub fn normalize_and_validate(&mut self) -> Result<(), validator::ValidationErrors> {
+        self.validate()?;
+
+        self.first_name = Sanitizer::sanitize_guest_name(&self.first_name);
+        self.last_name = Sanitizer::sanitize_guest_name(&self.last_name);
+        self.phone = Sanitizer::sanitize_phone(&self.phone);
+        self.alt_phone = take_optional(&mut self.alt_phone, |value| {
+            Sanitizer::sanitize_phone(value.trim())
+        });
+        for (field, limit) in [
+            (&mut self.title, 20usize),
+            (&mut self.nationality, 100),
+            (&mut self.address_line1, 255),
+            (&mut self.city, 100),
+            (&mut self.state_province, 100),
+            (&mut self.postal_code, 20),
+            (&mut self.country, 100),
+        ] {
+            // Truncation is by CHARACTER, not byte: these map to varchar(N)
+            // columns, and a byte slice would both overshoot the limit for
+            // multi-byte names and be able to split one mid-character.
+            *field = take_optional(field, |value| {
+                Sanitizer::sanitize_text(value.trim())
+                    .chars()
+                    .take(limit)
+                    .collect()
+            });
+        }
+
+        self.validate()
+    }
+
+    /// The display name kept in step with the name parts.
+    pub fn nick_name(&self) -> String {
+        format!("{} {}", self.first_name, self.last_name)
+    }
+}
+
+/// Applies `transform` to a present value and drops it when the result is empty,
+/// so a cleared field becomes `NULL` rather than an empty string.
+fn take_optional(
+    field: &mut Option<String>,
+    transform: impl Fn(&str) -> String,
+) -> Option<String> {
+    field
+        .take()
+        .map(|value| transform(&value))
+        .filter(|value| !value.is_empty())
 }
 
 /// Response for guest portal booking details.

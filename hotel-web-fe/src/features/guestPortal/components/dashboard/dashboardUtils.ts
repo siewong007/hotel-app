@@ -10,6 +10,7 @@ export const PORTAL_SECTIONS = [
   'vouchers',
   'credits',
   'identity',
+  'profile',
   'security',
   'support',
   'preferences',

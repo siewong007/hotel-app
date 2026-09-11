@@ -490,6 +490,9 @@
     "/api/guest-portal/me/payments/{payment_id}/receipt": {
       "POST": {}
     },
+    "/api/guest-portal/me/profile": {
+      "PATCH": {}
+    },
     "/api/guest-portal/me/promotions": {
       "GET": {}
     },

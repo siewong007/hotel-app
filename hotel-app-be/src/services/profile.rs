@@ -185,6 +185,11 @@ pub async fn list_sessions(
             created_at: session.created_at,
             last_used_at: session.last_used_at,
             expires_at: session.expires_at,
+            location: session
+                .client_timezone
+                .as_deref()
+                .and_then(location_from_timezone),
+            timezone: session.client_timezone,
         })
         .collect())
 }
@@ -302,6 +307,25 @@ pub async fn complete_guest_profile(
     get_user_profile(pool, user_id).await
 }
 
+/// Turns an IANA zone into the place name a person recognises:
+/// `Asia/Kuala_Lumpur` -> `Kuala Lumpur`, `America/Argentina/Salta` -> `Salta`.
+///
+/// Deliberately coarse. The zone is the only location signal stored (see
+/// `refresh_tokens.client_timezone`), so the label is an approximation of where
+/// the device was, not a position — callers must present it as such.
+fn location_from_timezone(timezone: &str) -> Option<String> {
+    let city = timezone.rsplit('/').next()?.trim();
+    if city.is_empty() {
+        return None;
+    }
+    // `Etc/GMT+8` and friends name no place; showing "GMT+8" as a location
+    // would be worse than showing nothing.
+    if timezone.starts_with("Etc/") || city.eq_ignore_ascii_case("UTC") {
+        return None;
+    }
+    Some(city.replace('_', " "))
+}
+
 fn mask_ip_address(ip: String) -> String {
     if let Some((prefix, _)) = ip.rsplit_once('.') {
         return format!("{prefix}.•••");
@@ -310,6 +334,38 @@ fn mask_ip_address(ip: String) -> String {
         return format!("{prefix}:••••");
     }
     "•••".to_string()
+}
+
+#[cfg(test)]
+mod location_from_timezone_tests {
+    use super::location_from_timezone;
+
+    #[test]
+    fn renders_the_city_segment_of_a_zone() {
+        assert_eq!(
+            location_from_timezone("Asia/Kuala_Lumpur").as_deref(),
+            Some("Kuala Lumpur")
+        );
+        assert_eq!(
+            location_from_timezone("Europe/London").as_deref(),
+            Some("London")
+        );
+    }
+
+    #[test]
+    fn uses_the_last_segment_of_a_three_part_zone() {
+        assert_eq!(
+            location_from_timezone("America/Argentina/Salta").as_deref(),
+            Some("Salta")
+        );
+    }
+
+    #[test]
+    fn declines_zones_that_name_no_place() {
+        assert_eq!(location_from_timezone("UTC"), None);
+        assert_eq!(location_from_timezone("Etc/GMT+8"), None);
+        assert_eq!(location_from_timezone(""), None);
+    }
 }
 
 #[cfg(test)]

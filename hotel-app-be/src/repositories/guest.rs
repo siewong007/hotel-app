@@ -5,8 +5,8 @@ use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
     CompleteGuestProfileRequest, Guest, GuestBookingRow, GuestCreateValues, GuestCreditRow,
-    GuestPaginationParams, GuestProfileBooking, GuestRoomCreditRow, GuestSummary,
-    GuestTourismTaxSignal, GuestUpdateState, GuestUpdateValues, LinkGuestInput,
+    GuestPaginationParams, GuestPortalProfileUpdate, GuestProfileBooking, GuestRoomCreditRow,
+    GuestSummary, GuestTourismTaxSignal, GuestUpdateState, GuestUpdateValues, LinkGuestInput,
     LinkedGuestCreditRow,
 };
 use crate::repositories::auth::is_guest_name_unique_violation;
@@ -548,6 +548,83 @@ impl GuestRepository {
         .bind(&full_name)
         .bind(&input.phone)
         .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(())
+    }
+
+    /// Updates the contact details a guest maintains through the portal.
+    ///
+    /// Mirrors `complete_profile`'s two-table write: `guests` holds the profile,
+    /// but `users.full_name`/`users.phone` must move with it or the login
+    /// identity drifts from the guest record. `completion_for_guest` reads only
+    /// the guest columns and has no `users` fallback, so a one-table update here
+    /// would leave the two disagreeing.
+    pub async fn update_contact_profile(
+        pool: &DbPool,
+        guest_id: i64,
+        input: &GuestPortalProfileUpdate,
+    ) -> Result<(), ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        let nick_name = input.nick_name();
+
+        sqlx::query(
+            r#"
+            UPDATE guests
+            SET first_name = $1,
+                last_name = $2,
+                nick_name = $3,
+                phone = $4,
+                alt_phone = $5,
+                title = $6,
+                nationality = $7,
+                address_line_1 = $8,
+                city = $9,
+                state = $10,
+                postal_code = $11,
+                country = $12,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $13
+            "#,
+        )
+        .bind(&input.first_name)
+        .bind(&input.last_name)
+        .bind(&nick_name)
+        .bind(&input.phone)
+        .bind(&input.alt_phone)
+        .bind(&input.title)
+        .bind(&input.nationality)
+        .bind(&input.address_line1)
+        .bind(&input.city)
+        .bind(&input.state_province)
+        .bind(&input.postal_code)
+        .bind(&input.country)
+        .bind(guest_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| {
+            if is_guest_name_unique_violation(&error) {
+                ApiError::Conflict(
+                    "Another guest profile already uses this name. Please contact the hotel for help."
+                        .to_string(),
+                )
+            } else {
+                ApiError::from(error)
+            }
+        })?;
+
+        // Keyed on the guest, not a user id: the portal session resolves only a
+        // guest. A guest with no linked login updates zero rows, which is correct.
+        sqlx::query(
+            "UPDATE users SET full_name = $1, phone = $2, updated_at = CURRENT_TIMESTAMP WHERE guest_id = $3",
+        )
+        .bind(&nick_name)
+        .bind(&input.phone)
+        .bind(guest_id)
         .execute(&mut *tx)
         .await
         .map_err(ApiError::from)?;

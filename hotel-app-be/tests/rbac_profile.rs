@@ -668,6 +668,7 @@ async fn postgres_password_change_rejects_wrong_current_and_login_works_with_new
         },
         None,
         None,
+        None,
     )
     .await;
     assert!(
@@ -682,6 +683,7 @@ async fn postgres_password_change_rejects_wrong_current_and_login_works_with_new
             password: old_password.to_string(),
             totp_code: None,
         },
+        None,
         None,
         None,
     )
@@ -721,6 +723,7 @@ async fn postgres_session_listing_and_revoke_removes_only_target_session() {
         },
         Some("127.0.0.1"),
         Some("rbac-profile-test-agent-a"),
+        None,
     )
     .await
     .expect("first login should succeed");
@@ -733,6 +736,7 @@ async fn postgres_session_listing_and_revoke_removes_only_target_session() {
         },
         Some("127.0.0.2"),
         Some("rbac-profile-test-agent-b"),
+        None,
     )
     .await
     .expect("second login should succeed");
@@ -1360,7 +1364,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
 
     // (a) Correct password but no code: rejected, and the error must now
     // advertise the recovery-code option.
-    let missing = auth_service::login(&pool, login_req(None), None, None).await;
+    let missing = auth_service::login(&pool, login_req(None), None, None, None).await;
     match missing {
         Err(ApiError::Unauthorized(message)) => assert!(
             message.contains("recovery code"),
@@ -1375,6 +1379,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     let wrong = auth_service::login(
         &pool,
         login_req(Some("ZZZZZ-ZZZZZ-ZZZZZ-ZZZZZ".to_string())),
+        None,
         None,
         None,
     )
@@ -1405,6 +1410,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
         )),
         None,
         None,
+        None,
     )
     .await
     .expect("a live TOTP login must succeed");
@@ -1417,7 +1423,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     // reports the remaining count.
     let used_code = backup_codes[0].clone();
     let (recovery_response, _refresh) =
-        auth_service::login(&pool, login_req(Some(used_code.clone())), None, None)
+        auth_service::login(&pool, login_req(Some(used_code.clone())), None, None, None)
             .await
             .expect("an unused recovery code must log the user in");
     assert_eq!(
@@ -1471,7 +1477,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     );
 
     // (e) Replaying the SAME recovery code must fail -- it was consumed.
-    let replay = auth_service::login(&pool, login_req(Some(used_code)), None, None).await;
+    let replay = auth_service::login(&pool, login_req(Some(used_code)), None, None, None).await;
     assert!(
         matches!(replay, Err(ApiError::Unauthorized(_))),
         "a consumed recovery code must be rejected on reuse, got {replay:?}"

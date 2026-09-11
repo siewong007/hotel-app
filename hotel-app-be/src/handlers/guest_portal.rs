@@ -98,6 +98,20 @@ pub async fn get_me(
     Ok(Json(guest_portal_service::get_me(&pool, guest_id).await?))
 }
 
+/// PATCH /guest-portal/me/profile
+pub async fn update_my_profile(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
+    Json(input): Json<crate::models::GuestPortalProfileUpdate>,
+) -> Result<Json<GuestPortalMeResponse>, ApiError> {
+    let guest_id =
+        guest_portal_service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
+    Ok(Json(
+        guest_portal_service::update_my_profile(&pool, guest_id, input).await?,
+    ))
+}
+
 /// GET /guest-portal/me/bookings
 pub async fn get_my_bookings(
     State(pool): State<DbPool>,

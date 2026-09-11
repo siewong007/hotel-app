@@ -280,7 +280,7 @@ impl GuestPortalSessionRepository {
         guest_id: i64,
     ) -> Result<GuestPortalGuestView, ApiError> {
         let sql = format!(
-            "SELECT nick_name, title, email, phone, alt_phone, ic_number, nationality, \
+            "SELECT nick_name, first_name, last_name, title, email, phone, alt_phone, ic_number, nationality, \
                         address_line_1 AS address_line1, city, state AS state_province, postal_code, country \
                  FROM guests WHERE id = {}",
             param!(1)
@@ -293,6 +293,8 @@ impl GuestPortalSessionRepository {
 
         Ok(GuestPortalGuestView {
             nick_name: row.try_get("nick_name").unwrap_or_default(),
+            first_name: row.try_get("first_name").ok().flatten(),
+            last_name: row.try_get("last_name").ok().flatten(),
             title: row.try_get("title").ok().flatten(),
             email: row.try_get("email").ok().flatten(),
             phone: row.try_get("phone").ok().flatten(),

@@ -29,6 +29,7 @@ import type {
   GuestPortalLoginResponse,
   GuestPortalMeResponse,
   GuestPortalMembershipResponse,
+  GuestPortalProfileUpdate,
   GuestPortalPagedResponse,
   GuestPortalTransaction,
   GuestPaymentConfig,
@@ -75,6 +76,20 @@ export class GuestPortalDashboardService {
   static async me(token?: string): Promise<GuestPortalMeResponse> {
     return await api
       .get('guest-portal/me', { headers: authHeaders(token) })
+      .json();
+  }
+
+  /**
+   * Saves the guest's own contact details and returns the refreshed `/me`
+   * payload, so the caller updates `profile_complete` from the server's verdict
+   * rather than guessing it from the fields it just sent.
+   */
+  static async updateProfile(
+    input: GuestPortalProfileUpdate,
+    token?: string
+  ): Promise<GuestPortalMeResponse> {
+    return await api
+      .patch('guest-portal/me/profile', { headers: authHeaders(token), json: input })
       .json();
   }
 

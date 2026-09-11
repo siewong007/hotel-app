@@ -112,6 +112,7 @@ async fn login(
         Json(req),
         Some(ip.to_string()),
         user_agent,
+        super::extract_client_timezone(&headers),
     )
     .await
 }
@@ -145,6 +146,7 @@ async fn google_login(
         Json(req),
         Some(ip.to_string()),
         user_agent,
+        super::extract_client_timezone(&headers),
     )
     .await
 }

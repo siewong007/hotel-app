@@ -91,6 +91,7 @@ impl HttpFixture {
             1,
             Some("127.0.0.1"),
             Some("payment-http-contract-test"),
+            None,
         )
         .await
         .expect("active session fixture must be inserted");

@@ -6,6 +6,12 @@
 /** Guest-safe profile returned by the guest portal login/me endpoints. */
 export interface GuestPortalGuest {
   nick_name: string;
+  /**
+   * Split name parts. The portal's profile form edits these; `nick_name` is the
+   * display name the backend derives from them and is never sent back.
+   */
+  first_name?: string | null;
+  last_name?: string | null;
   title?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -111,6 +117,27 @@ export interface GuestPortalMeResponse {
    */
   profile_complete?: boolean;
   missing_profile_fields?: string[];
+}
+
+/**
+ * Body for `PATCH /guest-portal/me/profile`.
+ *
+ * `email` and `ic_number` are absent by design: email is the login identifier,
+ * and the IC number is identity data the hotel verifies through eKYC. Both are
+ * shown read-only in the portal.
+ */
+export interface GuestPortalProfileUpdate {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  alt_phone?: string | null;
+  title?: string | null;
+  nationality?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  state_province?: string | null;
+  postal_code?: string | null;
+  country?: string | null;
 }
 
 export interface GuestPortalBookingSummary {

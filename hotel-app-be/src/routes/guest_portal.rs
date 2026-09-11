@@ -14,7 +14,7 @@ use axum::{
     extract::{ConnectInfo, Extension, Multipart, Path, State},
     http::HeaderMap,
     response::Json,
-    routing::{get, post},
+    routing::{get, patch, post},
 };
 use std::net::SocketAddr;
 
@@ -48,6 +48,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/guest-portal/session", post(create_session))
         .route("/guest-portal/logout", post(handlers::guest_portal::logout))
         .route("/guest-portal/me", get(handlers::guest_portal::get_me))
+        .route(
+            "/guest-portal/me/profile",
+            patch(handlers::guest_portal::update_my_profile),
+        )
         .route(
             "/guest-portal/me/bookings",
             get(handlers::guest_portal::get_my_bookings)

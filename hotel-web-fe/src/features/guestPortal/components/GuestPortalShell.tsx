@@ -24,6 +24,7 @@ import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined';
 import ConfirmationNumberOutlinedIcon from '@mui/icons-material/ConfirmationNumberOutlined';
 import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined';
 import OpenInNewOutlinedIcon from '@mui/icons-material/OpenInNewOutlined';
@@ -71,6 +72,7 @@ const primarySections = [
 ] as const;
 
 const secondarySections = [
+  { label: 'Profile', section: 'profile', to: '/guest-portal?section=profile', icon: <PersonOutlineOutlinedIcon /> },
   { label: 'Offers', section: 'offers', to: '/guest-portal?section=offers', icon: <LocalOfferOutlinedIcon /> },
   { label: 'Vouchers', section: 'vouchers', to: '/guest-portal?section=vouchers', icon: <ConfirmationNumberOutlinedIcon /> },
   { label: 'Free nights', section: 'credits', to: '/guest-portal?section=credits', icon: <CardGiftcardOutlinedIcon /> },
