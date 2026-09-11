@@ -9,6 +9,7 @@ use crate::models::{
     RegenerateBackupCodesRequest, TwoFactorDisableRequest, TwoFactorEnableRequest,
     TwoFactorSetupRequest, TwoFactorStatusResponse, TwoFactorVerifyRequest, User,
 };
+use crate::repositories::audit::AuditRepository;
 use crate::repositories::user::UserRepository;
 use crate::services::audit::AuditLog;
 use serde_json::Value;
@@ -220,10 +221,19 @@ pub async fn get_2fa_status(
             .await
             .map_err(|error| ApiError::Database(error.to_string()))?;
 
+    // Only meaningful while 2FA is on: disabling it discards the codes, so a
+    // stale issue date would imply codes that no longer exist.
+    let backup_codes_generated_at = if enabled {
+        AuditRepository::latest_backup_code_issue(pool, user_id).await?
+    } else {
+        None
+    };
+
     Ok(TwoFactorStatusResponse {
         enabled,
         has_backup_codes: backup_codes_remaining > 0,
         backup_codes_remaining: backup_codes_remaining as usize,
+        backup_codes_generated_at,
     })
 }
 

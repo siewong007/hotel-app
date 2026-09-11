@@ -88,6 +88,7 @@ mod postgres_tests {
     use hotel_app_be::AuthService;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::auth::{LoginRequest, RefreshTokenRequest};
+    use hotel_app_be::repositories::audit::AuditRepository;
     use hotel_app_be::services::auth as auth_service;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
@@ -225,6 +226,7 @@ mod postgres_tests {
             },
             Some("127.0.0.1"),
             Some("auth-session-test-agent"),
+            Some("Asia/Kuala_Lumpur"),
         )
         .await
         .expect("login with correct credentials should succeed");
@@ -299,6 +301,7 @@ mod postgres_tests {
                 password: password.to_string(),
                 totp_code: None,
             },
+            None,
             None,
             None,
         )
@@ -390,6 +393,7 @@ mod postgres_tests {
             },
             None,
             None,
+            None,
         )
         .await
         .expect("login should succeed");
@@ -453,5 +457,86 @@ mod postgres_tests {
         );
 
         cleanup_auth_fixture(&pool, user_id).await;
+    }
+
+    /// The recovery-code issue date shown in the guest portal is read from the
+    /// audit trail, whose `created_at` is `timestamp with time zone`. This
+    /// codebase uses plain `sqlx::query`, so decoding that as the wrong Rust
+    /// type compiles cleanly and panics in production — only a live round trip
+    /// proves it.
+    ///
+    /// Both enabling 2FA and regenerating the codes mint a fresh set, so the
+    /// answer is the LATER of those two. A 2FA event that does not mint codes
+    /// must not win, even when it is the most recent thing on the account.
+    #[tokio::test]
+    async fn postgres_backup_code_issue_date_is_the_latest_minting_event() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let user_id = 970_004;
+        upsert_test_user(
+            &pool,
+            user_id,
+            "auth_session_backup_code_history",
+            "auth_session_backup_code_history@example.test",
+            "BackupCodeHistory!234",
+        )
+        .await;
+
+        let regenerated_at = Utc::now() - chrono::Duration::days(2);
+        for (action, at) in [
+            (
+                "two_factor_enabled",
+                Utc::now() - chrono::Duration::days(30),
+            ),
+            ("two_factor_backup_codes_regenerated", regenerated_at),
+            ("two_factor_recovery_code_used", Utc::now()),
+        ] {
+            sqlx::query(
+                "INSERT INTO audit_logs (user_id, action, resource_type, resource_id, created_at)
+                 VALUES ($1, $2, 'user', $3, $4)",
+            )
+            .bind(user_id)
+            .bind(action)
+            .bind(user_id)
+            .bind(at)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        let found = AuditRepository::latest_backup_code_issue(&pool, user_id).await;
+
+        // Cleaned up before any assertion that can panic, so a failure here
+        // does not poison later runs against this persistent database.
+        cleanup_auth_fixture(&pool, user_id).await;
+
+        let found: DateTime<Utc> = found
+            .expect("the query must execute and decode a timestamptz")
+            .expect("a user with minting events must have an issue date");
+        assert!(
+            (found - regenerated_at).num_seconds().abs() < 2,
+            "expected the regeneration at {regenerated_at}, got {found}"
+        );
+    }
+
+    /// An account with no minting events reads as "unknown" rather than
+    /// erroring, which is what lets the UI degrade to a plain count when the
+    /// issuing event has aged out of the retained audit partitions.
+    #[tokio::test]
+    async fn postgres_backup_code_issue_date_is_absent_without_minting_events() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+
+        // A user id no fixture uses, so this needs no setup and no cleanup.
+        let found = AuditRepository::latest_backup_code_issue(&pool, -970_004)
+            .await
+            .expect("the query must execute");
+
+        assert!(
+            found.is_none(),
+            "an account with no minting events must read as unknown, got {found:?}"
+        );
     }
 }

@@ -170,6 +170,39 @@ impl AuditRepository {
         Ok((total, rows))
     }
 
+    /// When the user's current recovery-code set was issued.
+    ///
+    /// Both enabling 2FA and regenerating the codes mint a fresh set, so the
+    /// later of those two events is the answer. Read from the audit trail
+    /// rather than a new column on `users`: the events are already recorded,
+    /// so every account that enrolled before this feature existed gets a real
+    /// date instead of a backfilled guess.
+    ///
+    /// `audit_logs` is RANGE-partitioned by month and old partitions may be
+    /// pruned, so an enrolment older than the retained window reads as `None`.
+    /// That degrades to "date unknown" in the UI, never to a wrong date.
+    pub async fn latest_backup_code_issue(
+        pool: &DbPool,
+        user_id: i64,
+    ) -> Result<Option<DateTime<Utc>>, ApiError> {
+        // `created_at` is `timestamp with time zone`; decoding it as
+        // NaiveDateTime would panic at runtime rather than fail to compile.
+        sqlx::query_scalar::<_, DateTime<Utc>>(
+            r#"
+            SELECT created_at
+            FROM audit_logs
+            WHERE user_id = $1
+              AND action IN ('two_factor_enabled', 'two_factor_backup_codes_regenerated')
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to read backup code history: {}", e)))
+    }
+
     pub async fn list_actions(pool: &DbPool) -> Result<Vec<String>, ApiError> {
         sqlx::query_scalar::<_, String>("SELECT DISTINCT action FROM audit_logs ORDER BY action")
             .fetch_all(pool)

@@ -15,6 +15,19 @@ import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export interface User extends AuthUserShape {}
 
+/**
+ * Step-up re-authentication for registering a passkey.
+ *
+ * The API (`services::auth::ensure_step_up`) refuses to mint a passkey from a
+ * bare session: a passkey satisfies 2FA on its own, so a hijacked session
+ * would otherwise become a durable, 2FA-bypassing account takeover. Callers
+ * must collect the account password, or a TOTP code when 2FA is enabled.
+ */
+export interface PasskeyStepUp {
+  password?: string;
+  totpCode?: string;
+}
+
 export interface AuthState {
   user: User | null;
   roles: string[];
@@ -61,7 +74,7 @@ interface AuthContextType extends AuthState {
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   getRoutePolicy: (routeId: string) => RouteAccessPolicy | undefined;
-  registerPasskey: (username: string) => Promise<void>;
+  registerPasskey: (username: string, stepUp?: PasskeyStepUp) => Promise<void>;
   loginWithPasskey: (username: string) => Promise<boolean>;
   dismissPasskeyPrompt: () => void;
   checkPasskeys: () => Promise<boolean>;
@@ -490,11 +503,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     [routePolicyMap]
   );
 
-  const registerPasskey = useCallback(async (username: string) => {
+  const registerPasskey = useCallback(async (username: string, stepUp?: PasskeyStepUp) => {
     try {
-      // Start passkey registration
+      // Start passkey registration. The step-up credential is required by the
+      // API; each key is omitted rather than sent empty, because the backend
+      // reads them as `Option` and an empty string is a failed check, not an
+      // absent one.
       const startResponse = await api.post('auth/passkey/register/start', {
-        json: { username },
+        json: {
+          username,
+          ...(stepUp?.password ? { password: stepUp.password } : {}),
+          ...(stepUp?.totpCode ? { totp_code: stepUp.totpCode } : {}),
+        },
       }).json<{
         challenge: string;
         rp: { name: string; id: string };

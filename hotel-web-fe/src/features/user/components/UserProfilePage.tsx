@@ -119,7 +119,7 @@ const UserProfilePage: React.FC = () => {
     if (!profile) return;
 
     try {
-      await addPasskey.mutateAsync(profile.username);
+      await addPasskey.mutateAsync({ username: profile.username });
       notify('Passkey registered successfully', 'success');
     } catch (error) {
       notify(errorMessage(error, 'Failed to register passkey'), 'error');

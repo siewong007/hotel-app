@@ -188,7 +188,13 @@ export class AuthService {
     await api.post('profile/2fa/disable', { json: { code } });
   }
 
-  static async getTwoFactorStatus(): Promise<{ enabled: boolean; backup_codes_remaining: number }> {
+  static async getTwoFactorStatus(): Promise<{
+    enabled: boolean;
+    backup_codes_remaining: number;
+    /** When the current set of recovery codes was issued. Null when 2FA is
+     *  off, or when the issuing event has aged out of the audit partitions. */
+    backup_codes_generated_at?: string | null;
+  }> {
     return await api.get('auth/2fa/status').json();
   }
 

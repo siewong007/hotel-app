@@ -47,6 +47,7 @@ import {
   useRegisterPasskeyMutation,
   useRenamePasskeyMutation,
 } from '../../../user/hooks/useProfileQueries';
+import { formatHotelDate } from '../../../../utils/date';
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
@@ -190,7 +191,7 @@ function RecoveryCodesDialog({
  * names a new passkey by its creation date, so renaming is offered right in
  * the list rather than behind a separate screen.
  */
-function PasskeysCard() {
+function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
   const confirm = useConfirm();
   const { registerPasskey, user } = useAuth();
   const passkeysQuery = usePasskeysQuery();
@@ -200,22 +201,51 @@ function PasskeysCard() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  const [stepUpPassword, setStepUpPassword] = useState('');
+  const [stepUpCode, setStepUpCode] = useState('');
+  const [stepUpError, setStepUpError] = useState<string | null>(null);
 
   const passkeys: PasskeyInfo[] = passkeysQuery.data ?? [];
   const atLimit = passkeys.length >= MAX_PASSKEYS;
   const browserSupported = supportsPasskeys();
   const username = user?.username ?? '';
 
-  const handleAdd = async () => {
+  const closeStepUp = () => {
+    setStepUpOpen(false);
+    setStepUpPassword('');
+    setStepUpCode('');
+    setStepUpError(null);
+  };
+
+  const handleAdd = () => {
     if (!username) {
       notify('We could not read your account name. Please sign in again.', 'error');
       return;
     }
+    setStepUpError(null);
+    setStepUpOpen(true);
+  };
+
+  /**
+   * Runs the WebAuthn ceremony with the step-up secret the guest just supplied.
+   *
+   * The failure is shown inside the dialog rather than as a toast: a wrong
+   * password is a retry, and the field to retry in is right here. The API
+   * treats a passkey registration 401 as an auth-endpoint failure, so it does
+   * not refresh-and-logout on a mistyped password.
+   */
+  const submitStepUp = async () => {
+    setStepUpError(null);
     try {
-      await addPasskey.mutateAsync(username);
+      await addPasskey.mutateAsync({
+        username,
+        stepUp: { password: stepUpPassword || undefined, totpCode: stepUpCode || undefined },
+      });
+      closeStepUp();
       notify('Passkey added. You can now sign in with this device.', 'success');
     } catch (error) {
-      notify(errorMessage(error, 'We could not add that passkey.'), 'error');
+      setStepUpError(errorMessage(error, 'We could not add that passkey.'));
     }
   };
 
@@ -376,10 +406,63 @@ function PasskeysCard() {
         variant="contained"
         startIcon={<FingerprintOutlinedIcon />}
         disabled={atLimit || !browserSupported || addPasskey.isPending}
-        onClick={() => void handleAdd()}
+        onClick={handleAdd}
       >
         {addPasskey.isPending ? 'Waiting for your device…' : 'Add a passkey'}
       </Button>
+
+      <Dialog open={stepUpOpen} onClose={closeStepUp} maxWidth="xs" fullWidth>
+        <DialogTitle>Confirm it is you</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            A passkey is a permanent way into your account, so we ask you to confirm before adding
+            one.
+          </Typography>
+          {stepUpError ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {stepUpError}
+            </Alert>
+          ) : null}
+          <TextField
+            fullWidth
+            autoFocus
+            type="password"
+            label="Your password"
+            autoComplete="current-password"
+            value={stepUpPassword}
+            onChange={(event) => setStepUpPassword(event.target.value)}
+          />
+          {/* Only when 2FA is on: `ensure_step_up` accepts a TOTP code as an
+              alternative to the password, and a guest who signed in with Google
+              may not have a password at all. */}
+          {twoFactorEnabled ? (
+            <>
+              <Typography variant="body2" sx={{ color: 'text.secondary', my: 1.5 }}>
+                or use a code from your authenticator app
+              </Typography>
+              <TextField
+                fullWidth
+                label="6-digit code"
+                value={stepUpCode}
+                onChange={(event) =>
+                  setStepUpCode(event.target.value.replace(/\D/g, '').slice(0, TOTP_CODE_LENGTH))
+                }
+                slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: TOTP_CODE_LENGTH } }}
+              />
+            </>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeStepUp}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={(!stepUpPassword && !stepUpCode) || addPasskey.isPending}
+            onClick={() => void submitStepUp()}
+          >
+            {addPasskey.isPending ? 'Waiting for your device…' : 'Continue'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </CredentialCard>
   );
 }
@@ -595,10 +678,12 @@ function AuthenticatorCard({
 function RecoveryCodesCard({
   enabled,
   remaining,
+  generatedAt,
   onCodesIssued,
 }: {
   enabled: boolean;
   remaining: number;
+  generatedAt: string | null;
   onCodesIssued: (codes: string[]) => void;
 }) {
   const regenerate = useRegenerateBackupCodes();
@@ -651,9 +736,22 @@ function RecoveryCodesCard({
               set is a good idea.
             </Alert>
           ) : null}
+          {/* Which set these are. A guest with codes saved in two places needs
+              to know whether the ones in front of them are the live set — the
+              count alone cannot tell them that. `formatHotelDate` is used
+              rather than the portal's date helper because this value is a
+              zoned timestamp, not a business date. */}
           <Typography sx={{ color: 'text.secondary' }}>
-            Each code works once. Generating a new set replaces every code you have now.
+            {generatedAt
+              ? `This set was issued on ${formatHotelDate(generatedAt)}. Each code works once, and generating a new set replaces every code you have now.`
+              : 'Each code works once. Generating a new set replaces every code you have now.'}
           </Typography>
+          {enabled && !generatedAt ? (
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              We no longer have a record of when this set was issued. If you are unsure the codes
+              you saved are still the current ones, generate a new set.
+            </Typography>
+          ) : null}
           <Button variant="outlined" onClick={() => setOpen(true)}>
             Generate new codes
           </Button>
@@ -717,7 +815,7 @@ export function SecuritySection() {
       />
 
       <Stack spacing={3}>
-        <PasskeysCard />
+        <PasskeysCard twoFactorEnabled={enabled} />
 
         {statusQuery.isPending ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 4 }}>
@@ -737,6 +835,7 @@ export function SecuritySection() {
             <RecoveryCodesCard
               enabled={enabled}
               remaining={remaining}
+              generatedAt={statusQuery.data?.backup_codes_generated_at ?? null}
               onCodesIssued={setIssuedCodes}
             />
           </>

@@ -109,6 +109,36 @@ describe('SecuritySection', () => {
     expect(screen.getByRole('button', { name: 'Generate new codes' })).toBeTruthy();
   });
 
+  // The count alone cannot tell a guest whether the codes they have saved are
+  // the live set; the issue date can.
+  it('says when the current set of recovery codes was issued', async () => {
+    mocks.getTwoFactorStatus.mockResolvedValue({
+      enabled: true,
+      backup_codes_remaining: 8,
+      backup_codes_generated_at: '2026-08-12T04:30:00Z',
+    });
+
+    renderSection();
+
+    expect(await screen.findByText(/This set was issued on/)).toBeTruthy();
+    expect(screen.getByText(/Aug 12, 2026/)).toBeTruthy();
+  });
+
+  // The issuing event ages out with the audit partitions. Saying so beats
+  // showing nothing, and beats inventing a date.
+  it('admits it when the issue date is no longer on record', async () => {
+    mocks.getTwoFactorStatus.mockResolvedValue({
+      enabled: true,
+      backup_codes_remaining: 8,
+      backup_codes_generated_at: null,
+    });
+
+    renderSection();
+
+    expect(await screen.findByText(/no longer have a record of when this set was issued/)).toBeTruthy();
+    expect(screen.queryByText(/This set was issued on/)).toBeNull();
+  });
+
   it('tells the guest when every recovery code is spent', async () => {
     mocks.getTwoFactorStatus.mockResolvedValue({ enabled: true, backup_codes_remaining: 0 });
 
@@ -127,14 +157,79 @@ describe('SecuritySection', () => {
     expect(screen.getByText('2 saved')).toBeTruthy();
   });
 
-  it('registers a passkey against the signed-in account', async () => {
+  // `ensure_step_up` refuses to mint a passkey from a bare session, so the
+  // ceremony must not start until the guest has re-authenticated.
+  it('asks the guest to confirm before starting the passkey ceremony', async () => {
+    renderSection();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a passkey' }));
+
+    expect(await screen.findByText('Confirm it is you')).toBeTruthy();
+    expect(mocks.registerPasskey).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Continue' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('registers a passkey with the password the guest re-entered', async () => {
     mocks.registerPasskey.mockResolvedValue(undefined);
 
     renderSection();
 
     fireEvent.click(await screen.findByRole('button', { name: 'Add a passkey' }));
+    fireEvent.change(await screen.findByLabelText('Your password'), {
+      target: { value: 'correct horse battery staple' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    await waitFor(() => expect(mocks.registerPasskey).toHaveBeenCalledWith('ada.guest'));
+    await waitFor(() =>
+      expect(mocks.registerPasskey).toHaveBeenCalledWith('ada.guest', {
+        password: 'correct horse battery staple',
+        totpCode: undefined,
+      }),
+    );
+  });
+
+  // A wrong password is a retry, and the field to retry in is in the dialog —
+  // so the failure belongs there, not in a toast behind a closed dialog.
+  it('keeps the dialog open and shows why, when the confirmation is rejected', async () => {
+    mocks.registerPasskey.mockRejectedValue(
+      new Error('Re-enter your password (or a two-factor code) to register a passkey.'),
+    );
+
+    renderSection();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a passkey' }));
+    fireEvent.change(await screen.findByLabelText('Your password'), {
+      target: { value: 'wrong' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByText(/Re-enter your password/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeTruthy();
+  });
+
+  // The API takes a TOTP code instead of the password, which matters for a
+  // guest who signed in with Google and has no password to re-enter.
+  it('offers the authenticator code as an alternative only when 2FA is on', async () => {
+    renderSection();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a passkey' }));
+    await screen.findByLabelText('Your password');
+    expect(screen.queryByLabelText('6-digit code')).toBeNull();
+
+    cleanup();
+    mocks.getTwoFactorStatus.mockResolvedValue({ enabled: true, backup_codes_remaining: 8 });
+    mocks.registerPasskey.mockResolvedValue(undefined);
+    renderSection();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add a passkey' }));
+    fireEvent.change(await screen.findByLabelText('6-digit code'), { target: { value: '424242' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await waitFor(() =>
+      expect(mocks.registerPasskey).toHaveBeenCalledWith('ada.guest', {
+        password: undefined,
+        totpCode: '424242',
+      }),
+    );
   });
 
   // The backend refuses an eleventh passkey, so the UI must not invite one.

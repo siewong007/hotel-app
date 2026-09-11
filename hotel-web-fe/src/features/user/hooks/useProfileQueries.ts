@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AuthService } from '../../../api/auth.service';
 import { UsersService } from '../../../api/users.service';
 import { queryKeys } from '../../../api/queryKeys';
+import type { PasskeyStepUp } from '../../../auth/AuthContext';
 import type { PasskeyInfo, UserProfile, UserProfileUpdate, UserSessionInfo } from '../../../types';
 
 export function useProfileQuery() {
@@ -62,12 +63,26 @@ export function useRenamePasskeyMutation() {
   );
 }
 
+export interface RegisterPasskeyInput {
+  username: string;
+  /**
+   * Step-up re-authentication. The API refuses to mint a passkey from a bare
+   * session, so a caller that omits this gets a 401 telling the user to
+   * re-enter their password or a two-factor code.
+   */
+  stepUp?: PasskeyStepUp;
+}
+
 /**
  * Registration runs through `AuthContext.registerPasskey` (it owns the WebAuthn
  * ceremony), so this only refreshes the list afterwards.
  */
-export function useRegisterPasskeyMutation(registerPasskey: (username: string) => Promise<unknown>) {
-  return usePasskeyMutation((username: string) => registerPasskey(username));
+export function useRegisterPasskeyMutation(
+  registerPasskey: (username: string, stepUp?: PasskeyStepUp) => Promise<unknown>
+) {
+  return usePasskeyMutation(({ username, stepUp }: RegisterPasskeyInput) =>
+    registerPasskey(username, stepUp)
+  );
 }
 
 export function useRevokeSessionMutation() {

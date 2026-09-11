@@ -380,6 +380,11 @@ pub struct TwoFactorStatusResponse {
     pub enabled: bool,
     pub has_backup_codes: bool,
     pub backup_codes_remaining: usize,
+    /// When the current set of recovery codes was issued, so the holder can
+    /// tell a set they saved recently from one they can no longer find.
+    /// `None` when 2FA is off, or when the issuing event has aged out of the
+    /// retained audit partitions.
+    pub backup_codes_generated_at: Option<DateTime<Utc>>,
 }
 
 /// 2FA verification request
