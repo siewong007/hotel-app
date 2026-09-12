@@ -11,20 +11,3 @@ export const bulkUpdateOnlineInventory = (cells: CellUpdateInput[]) =>
     .put('admin/online-inventory/bulk', { json: { cells } })
     .json<OnlineInventoryAllocation[]>();
 
-// --- Compatibility shims for the legacy single-date page; removed with it ---
-
-export const getOnlineInventory = (stayDate: string) =>
-  getOnlineInventoryRange(stayDate, stayDate);
-
-export const updateOnlineInventory = (
-  roomTypeId: number,
-  stayDate: string,
-  input: {
-    walk_in_reserved_rooms: number;
-    online_booking_enabled: boolean;
-    custom_price: string | null;
-  },
-) =>
-  api
-    .put(`admin/online-inventory/${roomTypeId}/${stayDate}`, { json: input })
-    .json<OnlineInventoryAllocation>();

@@ -5,66 +5,81 @@ import {
   Button,
   CircularProgress,
   Container,
-  IconButton,
   Paper,
   Snackbar,
   Stack,
-  TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SettingsSuggestOutlinedIcon from '@mui/icons-material/SettingsSuggestOutlined';
 
 import { formatLocalDate } from '../../../utils/date';
-import { InventoryRoomCard } from '../components/InventoryRoomCard';
-import { InventorySummary } from '../components/InventorySummary';
-import { useLegacyOnlineInventory as useOnlineInventory } from '../hooks/useLegacyOnlineInventory';
+import { useCurrency } from '../../../hooks/useCurrency';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
-
-const shiftDate = (date: string, days: number) => {
-  const [year, month, day] = date.split('-').map(Number);
-  const shifted = new Date(year, month - 1, day);
-  shifted.setDate(shifted.getDate() + days);
-  return formatLocalDate(shifted);
-};
-
-const formatStayDate = (date: string) =>
-  new Intl.DateTimeFormat(undefined, {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(`${date}T12:00:00`));
+import { GRID_DAYS } from '../constants';
+import type { CellKey, GridCellView } from '../types';
+import { dateRange, summarizeEdits } from '../utils';
+import { useOnlineInventory } from '../hooks/useOnlineInventory';
+import { useGridSelection } from '../hooks/useGridSelection';
+import { BulkEditPanel } from '../components/BulkEditPanel';
+import { CellEditorPopover } from '../components/CellEditorPopover';
+import { GridToolbar } from '../components/GridToolbar';
+import { InventoryGrid } from '../components/InventoryGrid';
+import { InventorySummary } from '../components/InventorySummary';
+import { ReviewChangesDialog } from '../components/ReviewChangesDialog';
 
 const OnlineInventoryPage = () => {
   const today = formatLocalDate();
   const confirm = useConfirm();
-  const [stayDate, setStayDate] = useState(today);
-  const {
-    items,
-    changedRoomTypeIds,
-    changedCount,
-    isLoading,
-    isSaving,
-    error,
-    successMessage,
-    clearSuccessMessage,
-    updateItem,
-    discardChanges,
-    saveChanges,
-    reload,
-  } = useOnlineInventory(stayDate);
+  const { format } = useCurrency();
+  const formatPrice = (value: string) => format(Number(value));
 
-  const openRoomTypeCount = useMemo(
-    () => items.filter((item) => item.online_booking_enabled).length,
-    [items],
+  const [start, setStart] = useState(today);
+  const dates = useMemo(() => dateRange(start, GRID_DAYS), [start]);
+  const inv = useOnlineInventory(start, dates[GRID_DAYS - 1]);
+
+  const [overridesOnly, setOverridesOnly] = useState(false);
+  const visibleDates = useMemo(() => {
+    if (!overridesOnly) return dates;
+    const flagged = dates.filter((date) =>
+      inv.roomTypes.some((room) => {
+        const view = inv.cells.get(`${room.room_type_id}:${date}`);
+        return view !== undefined && (view.is_override || view.changed);
+      }),
+    );
+    // Never collapse to zero columns — an empty filter shows everything.
+    return flagged.length > 0 ? flagged : dates;
+  }, [overridesOnly, dates, inv.roomTypes, inv.cells]);
+
+  const roomTypeIds = useMemo(
+    () => inv.roomTypes.map((room) => room.room_type_id),
+    [inv.roomTypes],
   );
+  const sel = useGridSelection(roomTypeIds, visibleDates);
+
+  const [editorKey, setEditorKey] = useState<CellKey | null>(null);
+  const [editorAnchor, setEditorAnchor] = useState<HTMLElement | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  const selectedViews = useMemo<GridCellView[]>(
+    () =>
+      [...sel.selected]
+        .map((key) => inv.cells.get(key))
+        .filter((view): view is GridCellView => view !== undefined),
+    [sel.selected, inv.cells],
+  );
+
+  const summaryCells = useMemo(() => {
+    const scope = selectedViews.length > 0 ? selectedViews : [...inv.cells.values()];
+    return scope.map((view) => ({
+      physical: view.physical,
+      held: view.current.walk_in_reserved_rooms,
+      online: view.online_available,
+    }));
+  }, [selectedViews, inv.cells]);
+
+  // Cheap enough to compute in render (≤500 staged edits).
+  const reviewGroups = summarizeEdits(inv.edits, inv.savedCells, formatPrice);
 
   const confirmDiscard = (message: string) =>
     confirm({
@@ -74,180 +89,150 @@ const OnlineInventoryPage = () => {
       severity: 'warning',
     });
 
-  const changeDate = async (nextDate: string) => {
-    if (!nextDate) return;
-    if (changedCount > 0 && !(await confirmDiscard('Change the stay date and discard your unsaved inventory changes?'))) return;
-    setStayDate(nextDate);
+  const changeStart = async (next: string) => {
+    if (!next || next === start) return;
+    if (
+      inv.changedCount > 0 &&
+      !(await confirmDiscard('Move the window and discard your unsaved inventory changes?'))
+    ) {
+      return;
+    }
+    sel.clear();
+    setStart(next);
   };
 
   const refreshInventory = async () => {
-    if (changedCount > 0 && !(await confirmDiscard('Refresh availability and discard your unsaved inventory changes?'))) return;
-    void reload();
+    if (
+      inv.changedCount > 0 &&
+      !(await confirmDiscard('Refresh availability and discard your unsaved inventory changes?'))
+    ) {
+      return;
+    }
+    void inv.reload();
+  };
+
+  const openEditor = (key: CellKey, anchor: HTMLElement) => {
+    setEditorKey(key);
+    setEditorAnchor(anchor);
+  };
+
+  const closeEditor = () => {
+    setEditorKey(null);
+    setEditorAnchor(null);
+  };
+
+  const confirmSave = async () => {
+    if (await inv.saveChanges()) setReviewOpen(false);
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3.5 }, pb: { xs: 12, md: 4 } }}>
-      <Stack spacing={3}>
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          sx={{
-            justifyContent: "space-between",
-            alignItems: { md: 'center' },
-            gap: 2
-          }}>
-          <Box>
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{
-                alignItems: "center",
-                color: "primary.main",
-                mb: 0.75
-              }}>
-              <SettingsSuggestOutlinedIcon fontSize="small" />
-              <Typography
-                variant="overline"
-                sx={{
-                  fontWeight: 800,
-                  letterSpacing: 1.2
-                }}>Inventory settings</Typography>
-            </Stack>
-            <Typography
-              variant="h4"
-              component="h1"
-              sx={{
-                fontWeight: 850,
-                letterSpacing: -0.7
-              }}>
-              Online availability
-            </Typography>
-            <Typography
-              sx={{
-                color: "text.secondary",
-                mt: 0.75,
-                maxWidth: 640
-              }}>
-              Choose how many rooms to keep for walk-ins, set a custom online price, or close a room type for the selected date.
-            </Typography>
-          </Box>
-
-          <Paper variant="outlined" sx={{ p: 0.75, borderRadius: 3, alignSelf: { xs: 'stretch', md: 'auto' } }}>
-            <Stack direction="row" spacing={0.5} sx={{
-              alignItems: "center"
-            }}>
-              <Tooltip title="Previous day">
-                <IconButton aria-label="Previous stay date" onClick={() => void changeDate(shiftDate(stayDate, -1))}>
-                  <ArrowBackIosNewIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <TextField
-                type="date"
-                value={stayDate}
-                onChange={(event) => void changeDate(event.target.value)}
-                size="small"
-                sx={{ flex: 1, minWidth: 150, '& fieldset': { border: 0 } }}
-                slotProps={{
-                  htmlInput: { 'aria-label': 'Stay date' }
-                }}
-              />
-              <Tooltip title="Next day">
-                <IconButton aria-label="Next stay date" onClick={() => void changeDate(shiftDate(stayDate, 1))}>
-                  <ArrowForwardIosIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              {stayDate !== today && (
-                <Button size="small" onClick={() => void changeDate(today)} sx={{ whiteSpace: 'nowrap' }}>Today</Button>
-              )}
-            </Stack>
-          </Paper>
-        </Stack>
-
-        {error && <Alert severity="error">{error}</Alert>}
-
+    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3.5 }, pb: { xs: 14, md: 6 } }}>
+      <Stack spacing={2.5}>
         <Box>
           <Stack
-            direction={{ xs: 'column', sm: 'row' }}
-            sx={{
-              justifyContent: "space-between",
-              alignItems: { sm: 'center' },
-              gap: 1,
-              mb: 1.5
-            }}>
-            <Stack direction="row" spacing={1} sx={{
-              alignItems: "center"
-            }}>
-              <CalendarMonthOutlinedIcon color="action" />
-              <Box>
-                <Typography variant="h6" sx={{
-                  fontWeight: 800
-                }}>{formatStayDate(stayDate)}</Typography>
-                {!isLoading && (
-                  <Typography variant="body2" sx={{
-                    color: "text.secondary"
-                  }}>
-                    {openRoomTypeCount} of {items.length} room types are open online
-                  </Typography>
-                )}
-              </Box>
-            </Stack>
-            <Tooltip title="Reload physical availability">
-              <span>
-                <Button startIcon={<RefreshIcon />} onClick={() => void refreshInventory()} disabled={isLoading || isSaving}>
-                  Refresh
-                </Button>
-              </span>
-            </Tooltip>
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'center', color: 'primary.main', mb: 0.75 }}
+          >
+            <SettingsSuggestOutlinedIcon fontSize="small" />
+            <Typography variant="overline" sx={{ fontWeight: 800, letterSpacing: 1.2 }}>
+              Inventory settings
+            </Typography>
           </Stack>
-
-          {!isLoading && items.length > 0 && (
-            <InventorySummary
-              cells={items.map((item) => ({
-                physical: item.physical_available_rooms,
-                held: item.walk_in_reserved_rooms,
-                online: item.online_booking_enabled
-                  ? Math.max(0, item.physical_available_rooms - item.walk_in_reserved_rooms)
-                  : 0,
-              }))}
-            />
-          )}
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 850, letterSpacing: -0.7 }}>
+            Online availability
+          </Typography>
+          <Typography sx={{ color: 'text.secondary', mt: 0.75, maxWidth: 720 }}>
+            Control {GRID_DAYS} days of online inventory at once — click cells to select, open the
+            editor to stage changes, then review and apply everything in one safe save.
+          </Typography>
         </Box>
 
-        {isLoading ? (
-          <Paper variant="outlined" sx={{ display: 'grid', placeItems: 'center', minHeight: 280, borderRadius: 3 }}>
-            <Stack spacing={1.5} sx={{
-              alignItems: "center"
-            }}>
+        <GridToolbar
+          start={start}
+          onStartChange={(next) => void changeStart(next)}
+          onRefresh={() => void refreshInventory()}
+          refreshing={inv.isLoading}
+          overridesOnly={overridesOnly}
+          onToggleOverrides={() => {
+            setOverridesOnly((current) => !current);
+            sel.clear();
+          }}
+          selectedCount={sel.selected.size}
+        />
+
+        {inv.error && <Alert severity="error">{inv.error}</Alert>}
+
+        {inv.isLoading ? (
+          <Paper
+            variant="outlined"
+            sx={{ display: 'grid', placeItems: 'center', minHeight: 280, borderRadius: 3 }}
+          >
+            <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
               <CircularProgress size={32} />
-              <Typography sx={{
-                color: "text.secondary"
-              }}>Loading room availability…</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>Loading room availability…</Typography>
             </Stack>
           </Paper>
-        ) : items.length === 0 ? (
+        ) : inv.roomTypes.length === 0 ? (
           <Paper variant="outlined" sx={{ p: 5, textAlign: 'center', borderRadius: 3 }}>
             <CloudDoneOutlinedIcon sx={{ fontSize: 44, color: 'text.secondary', mb: 1 }} />
-            <Typography variant="h6" sx={{
-              fontWeight: 750
-            }}>No room types to configure</Typography>
-            <Typography sx={{
-              color: "text.secondary"
-            }}>Add a room type before setting its online availability.</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 750 }}>
+              No room types to configure
+            </Typography>
+            <Typography sx={{ color: 'text.secondary' }}>
+              Add a room type before setting its online availability.
+            </Typography>
           </Paper>
         ) : (
-          <Stack spacing={2}>
-            {items.map((item) => (
-              <InventoryRoomCard
-                key={item.room_type_id}
-                item={item}
-                isChanged={changedRoomTypeIds.has(item.room_type_id)}
-                isDisabled={isSaving}
-                onChange={(patch) => updateItem(item.room_type_id, patch)}
-              />
-            ))}
-          </Stack>
+          <>
+            <InventorySummary
+              cells={summaryCells}
+              label={selectedViews.length > 0 ? 'Selected cells' : 'Visible window'}
+            />
+            <InventoryGrid
+              roomTypes={inv.roomTypes}
+              dates={visibleDates}
+              cells={inv.cells}
+              selected={sel.selected}
+              focused={sel.focused}
+              today={today}
+              onSelectCell={sel.selectCell}
+              onMoveFocus={sel.moveFocus}
+              onSelectRange={sel.selectRange}
+              onSelectRow={sel.selectRow}
+              onSelectColumn={sel.selectColumn}
+              onSelectAll={() => sel.setSelected(inv.cells.keys())}
+              onOpenEditor={openEditor}
+              onClearSelection={sel.clear}
+              formatPrice={formatPrice}
+            />
+            <BulkEditPanel
+              targets={selectedViews}
+              onApply={inv.stageMany}
+              onClear={sel.clear}
+            />
+          </>
         )}
       </Stack>
-      {changedCount > 0 && (
+
+      <CellEditorPopover
+        view={editorKey !== null ? inv.cells.get(editorKey) ?? null : null}
+        anchorEl={editorAnchor}
+        onClose={closeEditor}
+        onApply={inv.stageCell}
+        formatPrice={formatPrice}
+      />
+
+      <ReviewChangesDialog
+        open={reviewOpen}
+        groups={reviewGroups}
+        totalCount={inv.changedCount}
+        isSaving={inv.isSaving}
+        onClose={() => setReviewOpen(false)}
+        onConfirm={() => void confirmSave()}
+      />
+
+      {inv.changedCount > 0 && (
         <Paper
           elevation={8}
           sx={{
@@ -264,34 +249,31 @@ const OnlineInventoryPage = () => {
             border: 1,
             borderColor: 'divider',
           }}
+          aria-live="polite"
         >
-          <Stack direction="row" spacing={1.5} sx={{
-            alignItems: "center"
-          }}>
-            <Typography
-              sx={{
-                fontWeight: 750,
-                flex: 1
-              }}>
-              {changedCount} unsaved {changedCount === 1 ? 'change' : 'changes'}
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+            <Typography sx={{ fontWeight: 750, flex: 1 }}>
+              {inv.changedCount} {inv.changedCount === 1 ? 'cell' : 'cells'} changed
             </Typography>
-            <Button onClick={discardChanges} disabled={isSaving} color="inherit">Discard</Button>
+            <Button onClick={inv.discardChanges} disabled={inv.isSaving} color="inherit">
+              Discard
+            </Button>
             <Button
               variant="contained"
-              startIcon={isSaving ? <CircularProgress size={18} color="inherit" /> : <SaveOutlinedIcon />}
-              onClick={() => void saveChanges()}
-              disabled={isSaving}
+              onClick={() => setReviewOpen(true)}
+              disabled={inv.isSaving}
             >
-              {isSaving ? 'Saving…' : 'Save changes'}
+              Review &amp; apply
             </Button>
           </Stack>
         </Paper>
       )}
+
       <Snackbar
-        open={Boolean(successMessage)}
+        open={Boolean(inv.successMessage)}
         autoHideDuration={4000}
-        onClose={clearSuccessMessage}
-        message={successMessage}
+        onClose={inv.clearSuccessMessage}
+        message={inv.successMessage}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Container>

@@ -141,6 +141,7 @@ export const useOnlineInventory = (from: string, to: string) => {
     dates,
     cells,
     edits,
+    savedCells,
     changedCount: edits.size,
     isLoading,
     isSaving,

@@ -81,7 +81,11 @@ export const ReviewChangesDialog = ({
         onClick={onConfirm}
         disabled={isSaving || totalCount === 0}
         startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : undefined}
-        aria-label={isSaving ? 'Saving' : `Apply ${totalCount} changes`}
+        aria-label={
+          isSaving
+            ? 'Saving'
+            : `Apply ${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`
+        }
       >
         {isSaving ? 'Saving…' : `Apply ${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`}
       </Button>
