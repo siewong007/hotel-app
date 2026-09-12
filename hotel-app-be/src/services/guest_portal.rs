@@ -655,6 +655,11 @@ pub async fn update_my_profile(
 }
 
 /// GET /guest-portal/me/bookings
+///
+/// `guest_booking_cancellation_enabled` gates only the unpaid instant-cancel
+/// path: a paid booking can never be voided by the guest directly, so the
+/// button on a paid stay always means "ask staff to cancel", which stays
+/// available regardless of the toggle.
 pub async fn get_my_bookings(
     pool: &DbPool,
     guest_id: i64,
@@ -662,29 +667,76 @@ pub async fn get_my_bookings(
     offset: i64,
     search: Option<&str>,
 ) -> Result<GuestPortalPage<GuestPortalBookingSummary>, ApiError> {
+    let portal_cancel_enabled = portal_cancellation_enabled(pool).await;
     let (mut items, total) =
         GuestPortalSessionRepository::list_bookings(pool, guest_id, limit, offset, search).await?;
     for booking in &mut items {
         if booking.cancellation_unavailable_reason.is_none() {
-            booking.cancellation_unavailable_reason = if !matches!(
-                booking.status.as_str(),
-                "pending" | "pending_payment" | "pending_confirmation" | "confirmed"
-            ) {
-                Some("Only upcoming bookings can be cancelled online.".to_string())
-            } else {
-                None
-            };
+            booking.cancellation_unavailable_reason = cancellation_block_reason(
+                &booking.status,
+                booking.cancellation_pending,
+                booking.completed_payment_id.is_some(),
+                portal_cancel_enabled,
+            );
         }
         booking.can_cancel = booking.cancellation_unavailable_reason.is_none();
     }
     Ok(GuestPortalPage { items, total })
 }
 
+async fn portal_cancellation_enabled(pool: &DbPool) -> bool {
+    matches!(
+        crate::core::settings_cache::get_string(
+            pool,
+            "guest_booking_cancellation_enabled",
+            "true",
+        )
+        .await
+        .trim()
+        .to_ascii_lowercase()
+        .as_str(),
+        "true" | "1" | "yes" | "on"
+    )
+}
+
+/// Why a booking cannot be acted on from the portal, in display order.
+///
+/// Pure so the portal copy and the cancel endpoint never disagree: both go
+/// through this function.
+fn cancellation_block_reason(
+    status: &str,
+    cancellation_pending: bool,
+    has_completed_payment: bool,
+    portal_cancel_enabled: bool,
+) -> Option<String> {
+    if cancellation_pending {
+        return Some(
+            "A cancellation request for this booking is already being reviewed.".to_string(),
+        );
+    }
+    if !matches!(
+        status,
+        "pending" | "pending_payment" | "pending_confirmation" | "confirmed"
+    ) {
+        return Some("Only upcoming bookings can be cancelled online.".to_string());
+    }
+    if !has_completed_payment && !portal_cancel_enabled {
+        return Some(
+            "Online cancellation is currently unavailable. Please contact us to cancel."
+                .to_string(),
+        );
+    }
+    None
+}
+
 pub async fn cancel_my_booking(
     pool: &DbPool,
+    hub: &crate::modules::support::hub::SupportHub,
     guest_id: i64,
     booking_id: i64,
     reason: Option<String>,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
 ) -> Result<serde_json::Value, ApiError> {
     let reason = reason
         .map(|value| value.trim().to_string())
@@ -710,6 +762,33 @@ pub async fn cancel_my_booking(
                 .cancellation_unavailable_reason
                 .unwrap_or_else(|| "This booking cannot be cancelled.".to_string()),
         ));
+    }
+    // A paid booking is never voided by a guest click: money has moved, so the
+    // booking stays intact and the request goes to the staff queue, where the
+    // first-night-charge decision the terms leave to the hotel is made.
+    if booking.completed_payment_id.is_some() {
+        let (_conversation_id, conversation_number) =
+            crate::modules::support::service::open_cancellation_request(
+                pool,
+                hub,
+                crate::modules::support::service::CancellationRequest {
+                    guest_id,
+                    booking_id: booking.id,
+                    booking_number: &booking.booking_number,
+                    check_in_date: booking.check_in_date,
+                    check_out_date: booking.check_out_date,
+                    reason,
+                    ip_address,
+                    user_agent,
+                },
+            )
+            .await?;
+        return Ok(serde_json::json!({
+            "cancellation_requested": true,
+            "conversation_number": conversation_number,
+            "booking_id": booking_id,
+            "message": "Cancellation request submitted. Our team will review it and email you the outcome."
+        }));
     }
     let user_id = GuestPortalSessionRepository::find_guest_user_id(pool, guest_id)
         .await?
@@ -811,12 +890,38 @@ async fn resolve_owned_booking(
     Ok(booking)
 }
 
+/// Validate and persist the payment-terms consent the payment form collects.
+///
+/// Recorded BEFORE the payment artefact exists on purpose: if claim/order
+/// creation then fails, the consent row is still truthful (the guest did agree
+/// at the attempt), while a payment row with no consent would be evidence the
+/// terms were never shown.
+async fn record_payment_consent(
+    pool: &DbPool,
+    subject: ConsentSubject,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
+) -> Result<(), ApiError> {
+    consent_validation::validate_locales(consents)?;
+    consent_validation::require_consents(consents, consent_validation::PAYMENT_REQUIRED)?;
+    consent_service::record(pool, subject, consents, ConsentSource::Payment, context).await
+}
+
 pub async fn session_bank_transfer(
     pool: &DbPool,
     guest_id: i64,
     booking_id: i64,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
 ) -> Result<crate::models::PaymentActionResponse, ApiError> {
     let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(guest_id).with_booking(booking_id),
+        consents,
+        context,
+    )
+    .await?;
     crate::services::payments::create_bank_transfer_claim(pool, &booking).await
 }
 
@@ -842,8 +947,17 @@ pub async fn session_create_paypal_order(
     pool: &DbPool,
     guest_id: i64,
     booking_id: i64,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
 ) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
     let booking = resolve_owned_booking(pool, guest_id, booking_id).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(guest_id).with_booking(booking_id),
+        consents,
+        context,
+    )
+    .await?;
     crate::services::payments::create_paypal_order(pool, &booking).await
 }
 
@@ -861,8 +975,17 @@ pub async fn session_capture_paypal(
 pub async fn token_bank_transfer(
     pool: &DbPool,
     token: &str,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
 ) -> Result<crate::models::PaymentActionResponse, ApiError> {
     let booking = require_valid_token(pool, token).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(booking.guest_id).with_booking(booking.id),
+        consents,
+        context,
+    )
+    .await?;
     crate::services::payments::create_bank_transfer_claim(pool, &booking).await
 }
 
@@ -888,8 +1011,17 @@ pub async fn token_upload_payment_receipt(
 pub async fn token_create_paypal_order(
     pool: &DbPool,
     token: &str,
+    consents: &[crate::modules::consent::models::ConsentAcceptance],
+    context: &ConsentContext,
 ) -> Result<crate::models::PaypalCreateOrderResponse, ApiError> {
     let booking = require_valid_token(pool, token).await?;
+    record_payment_consent(
+        pool,
+        ConsentSubject::guest(booking.guest_id).with_booking(booking.id),
+        consents,
+        context,
+    )
+    .await?;
     crate::services::payments::create_paypal_order(pool, &booking).await
 }
 
@@ -1028,5 +1160,25 @@ mod tests {
         }
         .limit_offset();
         assert_eq!(offset, 40);
+    }
+
+    #[test]
+    fn cancellation_block_reason_matrix() {
+        // An in-flight request wins over every other state.
+        assert!(
+            cancellation_block_reason("confirmed", true, true, true)
+                .is_some_and(|reason| reason.contains("already being reviewed"))
+        );
+        // Past/cancelled stays are never actionable.
+        assert!(cancellation_block_reason("checked_out", false, false, true).is_some());
+        assert!(cancellation_block_reason("void", false, false, true).is_some());
+        // Unpaid self-service follows the admin toggle...
+        assert!(cancellation_block_reason("pending_payment", false, false, true).is_none());
+        assert!(cancellation_block_reason("pending_payment", false, false, false).is_some());
+        // ...while a paid booking always reaches the staff-request path —
+        // the toggle only switches off instant cancellation, not the right to
+        // ask for one.
+        assert!(cancellation_block_reason("confirmed", false, true, true).is_none());
+        assert!(cancellation_block_reason("confirmed", false, true, false).is_none());
     }
 }

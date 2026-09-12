@@ -2,9 +2,11 @@
 //!
 //! Handles guest self-service features including pre-check-in.
 
+use std::net::SocketAddr;
+
 use axum::{
     Json,
-    extract::{Extension, Multipart, Path, Query, State},
+    extract::{ConnectInfo, Extension, Multipart, Path, Query, State},
     http::HeaderMap,
 };
 
@@ -137,14 +139,26 @@ pub async fn get_my_bookings(
 pub async fn cancel_my_booking(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    Extension(hub): Extension<crate::modules::support::hub::SupportHub>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
     Json(input): Json<crate::models::GuestBookingCancellationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let guest_id =
         guest_portal_service::require_guest_session_for_read(&headers, &pool, &limiters).await?;
+    let ip = crate::routes::extract_client_ip(&headers, peer_addr).to_string();
     Ok(Json(
-        guest_portal_service::cancel_my_booking(&pool, guest_id, booking_id, input.reason).await?,
+        guest_portal_service::cancel_my_booking(
+            &pool,
+            &hub,
+            guest_id,
+            booking_id,
+            input.reason,
+            Some(ip),
+            user_agent(&headers),
+        )
+        .await?,
     ))
 }
 
@@ -242,13 +256,22 @@ async fn check_guest_payment_rate_limit(
 pub async fn session_bank_transfer(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<crate::models::GuestBookingPaymentRequest>,
 ) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
     let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
     check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    let context = ConsentContext::from_request(&headers, peer_addr);
     Ok(Json(
-        guest_portal_service::session_bank_transfer(&pool, guest_id, input.booking_id).await?,
+        guest_portal_service::session_bank_transfer(
+            &pool,
+            guest_id,
+            input.booking_id,
+            &input.consents,
+            &context,
+        )
+        .await?,
     ))
 }
 
@@ -257,9 +280,7 @@ pub async fn session_bank_transfer(
 /// Shared with the emailed recovery path so both routes agree on what counts
 /// as a receipt upload; the size, type and payment-state checks live further
 /// in, in `save_payment_receipt`.
-pub(crate) async fn receipt_upload_bytes(
-    mut multipart: Multipart,
-) -> Result<Vec<u8>, ApiError> {
+pub(crate) async fn receipt_upload_bytes(mut multipart: Multipart) -> Result<Vec<u8>, ApiError> {
     while let Some(mut field) = multipart
         .next_field()
         .await
@@ -278,8 +299,7 @@ pub(crate) async fn receipt_upload_bytes(
                 .await
                 .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()))?
             {
-                if bytes.len() + chunk.len()
-                    > crate::services::payments::MAX_PAYMENT_RECEIPT_BYTES
+                if bytes.len() + chunk.len() > crate::services::payments::MAX_PAYMENT_RECEIPT_BYTES
                 {
                     return Err(ApiError::BadRequest(
                         "Receipt file size must be between 1 byte and 10MB".to_string(),
@@ -312,14 +332,22 @@ pub async fn session_upload_payment_receipt(
 pub async fn session_paypal_create_order(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<crate::models::GuestBookingPaymentRequest>,
 ) -> Result<Json<crate::models::PaypalCreateOrderResponse>, ApiError> {
     let guest_id = guest_portal_service::require_guest_session(&headers, &pool).await?;
     check_guest_payment_rate_limit(&limiters, guest_id).await?;
+    let context = ConsentContext::from_request(&headers, peer_addr);
     Ok(Json(
-        guest_portal_service::session_create_paypal_order(&pool, guest_id, input.booking_id)
-            .await?,
+        guest_portal_service::session_create_paypal_order(
+            &pool,
+            guest_id,
+            input.booking_id,
+            &input.consents,
+            &context,
+        )
+        .await?,
     ))
 }
 
@@ -347,10 +375,14 @@ pub async fn session_paypal_capture(
 /// POST /guest-portal/booking/{token}/payments/bank-transfer
 pub async fn token_bank_transfer(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Path(token): Path<String>,
+    Json(input): Json<crate::models::TokenPaymentRequest>,
 ) -> Result<Json<crate::models::PaymentActionResponse>, ApiError> {
+    let context = ConsentContext::from_request(&headers, peer_addr);
     Ok(Json(
-        guest_portal_service::token_bank_transfer(&pool, &token).await?,
+        guest_portal_service::token_bank_transfer(&pool, &token, &input.consents, &context).await?,
     ))
 }
 
@@ -367,10 +399,15 @@ pub async fn token_upload_payment_receipt(
 /// POST /guest-portal/booking/{token}/payments/paypal/create-order
 pub async fn token_paypal_create_order(
     State(pool): State<DbPool>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Path(token): Path<String>,
+    Json(input): Json<crate::models::TokenPaymentRequest>,
 ) -> Result<Json<crate::models::PaypalCreateOrderResponse>, ApiError> {
+    let context = ConsentContext::from_request(&headers, peer_addr);
     Ok(Json(
-        guest_portal_service::token_create_paypal_order(&pool, &token).await?,
+        guest_portal_service::token_create_paypal_order(&pool, &token, &input.consents, &context)
+            .await?,
     ))
 }
 
@@ -389,6 +426,13 @@ pub async fn token_paypal_capture(
         )
         .await?,
     ))
+}
+
+fn user_agent(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(ToOwned::to_owned)
 }
 
 #[cfg(test)]

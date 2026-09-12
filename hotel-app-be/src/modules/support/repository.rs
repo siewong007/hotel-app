@@ -556,6 +556,37 @@ ORDER BY name ASC
             .map_err(ApiError::from)
     }
 
+    /// An open cancellation request already filed against this booking, if any.
+    ///
+    /// Cancellation requests are support conversations carrying the
+    /// `cancellation_request` marker in their `created` event details; matching
+    /// on the marker rather than the subject keeps the lookup stable if the
+    /// subject wording is ever translated or edited.
+    pub async fn find_open_cancellation_request(
+        pool: &DbPool,
+        booking_id: i64,
+        guest_id: i64,
+    ) -> Result<Option<(i64, String)>, ApiError> {
+        let sql = r#"
+SELECT sc.id, sc.conversation_number
+FROM support_conversations sc
+JOIN support_events se ON se.conversation_id = sc.id
+WHERE sc.booking_id = $1
+  AND sc.guest_id = $2
+  AND sc.status IN ('waiting_for_staff', 'waiting_for_guest')
+  AND se.event_type = 'created'
+  AND se.details->>'kind' = 'cancellation_request'
+ORDER BY sc.id DESC
+LIMIT 1
+"#;
+        sqlx::query_as::<_, (i64, String)>(sql)
+            .bind(booking_id)
+            .bind(guest_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)
+    }
+
     pub async fn insert_conversation<'e, E>(
         executor: E,
         conversation: &NewConversation<'_>,

@@ -55,14 +55,24 @@ export function renderLabel(text: string, locale: LegalLocale): React.ReactNode 
   return parts.map((part, index) => {
     const target = PLACEHOLDER_TARGETS[part];
     if (!target) return <React.Fragment key={index}>{part}</React.Fragment>;
+    const href = LEGAL_DOCUMENT_PATHS[target];
     return (
       <Link
         key={index}
-        href={LEGAL_DOCUMENT_PATHS[target]}
+        href={href}
         target="_blank"
         rel="noopener noreferrer"
         underline="always"
         sx={{ fontWeight: 600 }}
+        // The link sits inside the checkbox's <label>: label activation would
+        // otherwise forward the click to the control and toggle consent, so the
+        // default is prevented and the document opened by hand — agreeing by
+        // accident is not agreement.
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          window.open(href, '_blank', 'noopener,noreferrer');
+        }}
       >
         {PLACEHOLDER_LABELS[part][locale]}
       </Link>

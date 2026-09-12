@@ -11,7 +11,7 @@ use super::models::{
 use super::validation::ValidatedAnonymousGuest;
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
-use crate::models::row_mappers::{get_decimal, get_opt_decimal};
+use crate::models::row_mappers::{get_bool, get_decimal, get_opt_decimal};
 
 const ACTIVE_BOOKING_STATUSES: &str = "'reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation'";
 
@@ -225,9 +225,14 @@ impl GuestBookingRepository {
         stay_date: NaiveDate,
     ) -> Result<(), ApiError> {
         Self::lock_room_type_tx(tx, room_type_id).await?;
-        sqlx::query("DELETE FROM online_inventory_allocations WHERE room_type_id = $1 AND stay_date = $2")
-            .bind(room_type_id).bind(stay_date)
-            .execute(&mut **tx).await.map_err(ApiError::from)?;
+        sqlx::query(
+            "DELETE FROM online_inventory_allocations WHERE room_type_id = $1 AND stay_date = $2",
+        )
+        .bind(room_type_id)
+        .bind(stay_date)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
         Ok(())
     }
 
@@ -405,7 +410,8 @@ impl GuestBookingRepository {
         let row = sqlx::query(r#"
                 SELECT v.id AS voucher_id, p.id AS promotion_id, p.name AS promotion_name,
                        p.discount_type, p.discount_value::text AS discount_value,
-                       p.max_discount_amount::text AS max_discount_amount
+                       p.max_discount_amount::text AS max_discount_amount,
+                       p.is_cancellable
                 FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
                 WHERE v.id = $1 AND v.guest_id = $2 AND v.status = 'available'
                   AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)
@@ -440,6 +446,7 @@ impl GuestBookingRepository {
             discount_type: row.try_get("discount_type").unwrap_or_default(),
             discount_value: get_decimal(&row, "discount_value"),
             max_discount_amount: get_opt_decimal(&row, "max_discount_amount"),
+            is_cancellable: get_bool(&row, "is_cancellable"),
         })
     }
 

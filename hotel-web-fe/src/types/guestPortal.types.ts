@@ -153,6 +153,8 @@ export interface GuestPortalBookingSummary {
   completed_payment_amount?: string | number | null;
   can_cancel: boolean;
   cancellation_unavailable_reason?: string | null;
+  /** A staff-review cancellation request is already open for this booking. */
+  cancellation_pending?: boolean;
   /** Reason from the most recently rejected payment claim, if the booking is still awaiting payment. */
   payment_rejection_reason?: string | null;
   receipt_request_payment_id?: number | null;

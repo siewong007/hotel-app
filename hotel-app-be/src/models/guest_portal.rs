@@ -197,10 +197,7 @@ impl GuestPortalProfileUpdate {
 
 /// Applies `transform` to a present value and drops it when the result is empty,
 /// so a cleared field becomes `NULL` rather than an empty string.
-fn take_optional(
-    field: &mut Option<String>,
-    transform: impl Fn(&str) -> String,
-) -> Option<String> {
+fn take_optional(field: &mut Option<String>, transform: impl Fn(&str) -> String) -> Option<String> {
     field
         .take()
         .map(|value| transform(&value))
@@ -321,6 +318,10 @@ pub struct GuestPortalBookingSummary {
     pub completed_payment_amount: Option<rust_decimal::Decimal>,
     pub can_cancel: bool,
     pub cancellation_unavailable_reason: Option<String>,
+    /// An open staff-review cancellation request exists for this booking. Paid
+    /// bookings are never voided directly — the portal files a support request
+    /// instead — so this is what tells the guest their request is in flight.
+    pub cancellation_pending: bool,
     /// Reason from the most recently rejected payment claim on this booking,
     /// if any. The frontend only renders it while the booking is still
     /// awaiting payment, so a rejection reason from before a later successful

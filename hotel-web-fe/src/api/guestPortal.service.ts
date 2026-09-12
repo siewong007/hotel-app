@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { ConsentAcceptance } from '../features/legal/useConsent';
 import {
   Booking,
   Guest,
@@ -93,12 +94,18 @@ export class GuestPortalService {
 
   /**
    * Unauthenticated pre-arrival token flow: the booking token travels in
-   * `X-Booking-Access-Token`, never in the URL.
+   * `X-Booking-Access-Token`, never in the URL. `consents` carries the
+   * payment-terms agreement the panel collected — the API refuses the call
+   * without it.
    */
-  static async submitBankTransfer(token: string): Promise<PaymentActionResponse> {
+  static async submitBankTransfer(
+    token: string,
+    consents: ConsentAcceptance[]
+  ): Promise<PaymentActionResponse> {
     return await api
       .post('guest-portal/booking/payments/bank-transfer', {
         headers: bookingTokenHeaders(token),
+        json: { consents },
       })
       .json();
   }
@@ -112,10 +119,14 @@ export class GuestPortalService {
     });
   }
 
-  static async createPaypalOrder(token: string): Promise<PaypalCreateOrderResponse> {
+  static async createPaypalOrder(
+    token: string,
+    consents: ConsentAcceptance[]
+  ): Promise<PaypalCreateOrderResponse> {
     return await api
       .post('guest-portal/booking/payments/paypal/create-order', {
         headers: bookingTokenHeaders(token),
+        json: { consents },
       })
       .json();
   }

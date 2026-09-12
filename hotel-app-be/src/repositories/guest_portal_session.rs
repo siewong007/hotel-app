@@ -178,6 +178,11 @@ impl GuestPortalSessionRepository {
                         ORDER BY cp.id DESC LIMIT 1) AS completed_payment_amount, \
                     EXISTS(SELECT 1 FROM voucher_redemptions vr JOIN promotions p ON p.id = vr.promotion_id \
                            WHERE vr.booking_id = b.id AND vr.status = 'applied' AND p.is_cancellable = {}) AS has_non_cancellable_voucher, \
+                    EXISTS(SELECT 1 FROM support_conversations sc JOIN support_events se \
+                           ON se.conversation_id = sc.id AND se.event_type = 'created' \
+                           WHERE sc.booking_id = b.id AND sc.guest_id = {} \
+                           AND sc.status IN ('waiting_for_staff', 'waiting_for_guest') \
+                           AND se.details->>'kind' = 'cancellation_request') AS cancellation_pending, \
                     (SELECT rp.{rejection_reason_col} FROM payments rp WHERE rp.booking_id = b.id \
                             AND rp.status = 'void' ORDER BY rp.{rejected_at_col} DESC, rp.id DESC LIMIT 1) \
                             AS payment_rejection_reason, \
@@ -194,6 +199,7 @@ impl GuestPortalSessionRepository {
              FROM bookings b WHERE b.guest_id = {} AND {} \
              ORDER BY b.check_in_date DESC, b.id DESC LIMIT {} OFFSET {}",
             false,
+            param!(1),
             param!(1),
             BOOKING_SEARCH_PREDICATE,
             param!(3),
@@ -234,6 +240,9 @@ impl GuestPortalSessionRepository {
                     "completed_payment_amount",
                 ),
                 can_cancel: false,
+                cancellation_pending: row
+                    .try_get::<bool, _>("cancellation_pending")
+                    .unwrap_or(false),
                 cancellation_unavailable_reason: if row
                     .try_get::<bool, _>("has_non_cancellable_voucher")
                     .unwrap_or(false)

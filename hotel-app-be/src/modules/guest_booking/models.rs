@@ -173,6 +173,13 @@ pub struct GuestBookingQuote {
     pub complimentary_discount: Decimal,
     /// Credits the guest currently holds for this room type (not this quote).
     pub credits_available: i32,
+    /// Hours an unpaid online booking keeps its room before the hold is
+    /// released (`None` when auto-release is off). Shown at the review step so
+    /// the terms' "holding period shown at the time of booking" is real.
+    pub hold_release_hours: Option<i32>,
+    /// Whether the applied voucher permits cancelling the booking
+    /// (`None` when no voucher is applied). The review step warns on `false`.
+    pub voucher_is_cancellable: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -279,6 +286,10 @@ pub struct VoucherPricing {
     pub discount_type: String,
     pub discount_value: Decimal,
     pub max_discount_amount: Option<Decimal>,
+    /// `promotions.is_cancellable` — `false` means redeeming this voucher
+    /// locks the booking against cancellation. Surfaced on the quote so the
+    /// review step can warn before the guest commits.
+    pub is_cancellable: bool,
 }
 
 #[derive(Debug, Clone)]

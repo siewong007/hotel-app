@@ -61,14 +61,46 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
 
   if (!document) {
     return (
-      <Container maxWidth="md" sx={{ py: 6 }}>
-        <Typography variant="h5">Document not found</Typography>
+      <Container maxWidth="md" sx={{ py: { xs: 4, md: 8 } }}>
+        <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, border: 1, borderColor: 'divider' }}>
+          <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+            {HOTEL_LEGAL_IDENTITY.tradingName}
+          </Typography>
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
+            {locale === 'ms' ? 'Dokumen tidak dijumpai' : 'Document not found'}
+          </Typography>
+          <Typography sx={{ color: 'text.secondary', mt: 1.5 }}>
+            {locale === 'ms'
+              ? 'Dokumen yang anda cari tidak wujud atau telah dialihkan. Dokumen undang-undang kami yang lain tersedia di bawah.'
+              : 'The document you are looking for does not exist or has moved. Our other legal documents are below.'}
+          </Typography>
+          <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2, mt: 3, alignItems: 'center' }}>
+            <Button
+              startIcon={<ArrowBackIcon />}
+              onClick={() => returnToPreviousPage(navigate)}
+            >
+              {backLabel}
+            </Button>
+            {SIBLING_LINKS.map((entry) => (
+              <Link key={entry.id} href={LEGAL_DOCUMENT_PATHS[entry.id]} variant="body2">
+                {entry.label[locale]}
+              </Link>
+            ))}
+          </Stack>
+        </Paper>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="md" sx={{ py: { xs: 3, md: 6 } }}>
+    <Container
+      maxWidth="md"
+      sx={{ py: { xs: 3, md: 6 } }}
+      // The language toggle swaps the prose client-side, so `lang` has to live
+      // on the page — a screen reader that keeps announcing Malay pronunciation
+      // over English text is how "accessible" becomes unusable.
+      lang={locale}
+    >
       <Paper elevation={0} sx={{ p: { xs: 2.5, md: 5 }, border: 1, borderColor: 'divider' }}>
         <Button
           startIcon={<ArrowBackIcon />}
@@ -114,11 +146,32 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
           {document.summary[locale]}
         </Typography>
 
+        {document.sections.length > 1 ? (
+          <Box
+            component="nav"
+            aria-label={locale === 'ms' ? 'Kandungan dokumen' : 'Document contents'}
+            sx={{ mt: 3, p: 2, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'action.hover' }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+              {locale === 'ms' ? 'Kandungan' : 'Contents'}
+            </Typography>
+            <Stack component="ol" sx={{ m: 0, pl: 3, gap: 0.5 }}>
+              {document.sections.map((section) => (
+                <Typography key={section.id} component="li" variant="body2">
+                  <Link href={`#${section.id}`} underline="hover">
+                    {section.heading[locale]}
+                  </Link>
+                </Typography>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
+
         <Divider sx={{ my: 4 }} />
 
         <Stack sx={{ gap: 4 }}>
           {document.sections.map((section) => (
-            <Box key={section.id} id={section.id} component="section">
+            <Box key={section.id} id={section.id} component="section" sx={{ scrollMarginTop: 12 }}>
               <Typography variant="h6" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
                 {section.heading[locale]}
               </Typography>

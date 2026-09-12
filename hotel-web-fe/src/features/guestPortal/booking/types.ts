@@ -64,6 +64,11 @@ export interface GuestBookingQuote {
   complimentary_discount: string | number;
   /** Credits the guest holds for this room type right now. */
   credits_available: number;
+  /** Hours an unpaid booking keeps its room before the hold is released
+   *  (`null`/absent when auto-release is off). */
+  hold_release_hours?: number | null;
+  /** `false` when the applied voucher locks the booking against cancellation. */
+  voucher_is_cancellable?: boolean | null;
 }
 
 export interface GuestBookingVoucherOptions {

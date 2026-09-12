@@ -186,20 +186,38 @@ async fn require_payment_booking_token(
 async fn token_bank_transfer_header(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
+    body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::guest_portal::token_bank_transfer(State(pool), Path(token)).await
+    handlers::guest_portal::token_bank_transfer(
+        State(pool),
+        ConnectInfo(peer_addr),
+        headers,
+        Path(token),
+        body,
+    )
+    .await
 }
 
 async fn token_bank_transfer(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     path: Path<String>,
+    body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaymentActionResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
-    handlers::guest_portal::token_bank_transfer(State(pool), Path(token)).await
+    handlers::guest_portal::token_bank_transfer(
+        State(pool),
+        ConnectInfo(peer_addr),
+        headers,
+        Path(token),
+        body,
+    )
+    .await
 }
 
 async fn token_upload_payment_receipt_header(
@@ -237,20 +255,38 @@ async fn token_upload_payment_receipt(
 async fn token_paypal_create_order_header(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
+    body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, None).await?;
-    handlers::guest_portal::token_paypal_create_order(State(pool), Path(token)).await
+    handlers::guest_portal::token_paypal_create_order(
+        State(pool),
+        ConnectInfo(peer_addr),
+        headers,
+        Path(token),
+        body,
+    )
+    .await
 }
 
 async fn token_paypal_create_order(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     path: Path<String>,
+    body: Json<models::TokenPaymentRequest>,
 ) -> Result<Json<models::PaypalCreateOrderResponse>, ApiError> {
     let token = require_payment_booking_token(&limiters, &headers, Some(&path.0)).await?;
-    handlers::guest_portal::token_paypal_create_order(State(pool), Path(token)).await
+    handlers::guest_portal::token_paypal_create_order(
+        State(pool),
+        ConnectInfo(peer_addr),
+        headers,
+        Path(token),
+        body,
+    )
+    .await
 }
 
 async fn token_paypal_capture_header(

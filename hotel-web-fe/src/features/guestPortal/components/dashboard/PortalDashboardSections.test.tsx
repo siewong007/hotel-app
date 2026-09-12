@@ -66,7 +66,7 @@ describe('BookingsSection cancellation', () => {
       items: [{ ...booking, completed_payment_id: null }],
       total: 1,
     });
-    mocks.cancelBooking.mockResolvedValue(undefined);
+    mocks.cancelBooking.mockResolvedValue({});
     render(<BookingsSection token="guest-token" />);
 
     fireEvent.click((await screen.findAllByRole('button', { name: 'Cancel booking' }))[0]);
@@ -77,37 +77,41 @@ describe('BookingsSection cancellation', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(mocks.cancelBooking).toHaveBeenCalledWith(7, 'Plans changed', 'guest-token');
-    expect(screen.getByText('Cancellation request for booking SI-1007 was submitted.')).toBeTruthy();
+    expect(screen.getByText('Booking SI-1007 was cancelled.')).toBeTruthy();
   });
 
-  it('keeps the selected refund reason open after a request failure', async () => {
+  it('keeps the selected cancellation reason open after a request failure', async () => {
     mocks.cancelBooking.mockRejectedValue(new Error('Cancellation window has closed'));
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Refund' }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Request cancellation' }))[0]);
     fireEvent.click(screen.getByLabelText('Other'));
-    fireEvent.change(screen.getByLabelText('Custom refund reason'), { target: { value: 'Plans changed' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Refund' }));
+    fireEvent.change(screen.getByLabelText('Custom cancellation reason'), { target: { value: 'Plans changed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
 
     await waitFor(() => expect(screen.getByText('Cancellation window has closed')).toBeTruthy());
-    expect((screen.getByLabelText('Custom refund reason') as HTMLTextAreaElement).value).toBe('Plans changed');
+    expect((screen.getByLabelText('Custom cancellation reason') as HTMLTextAreaElement).value).toBe('Plans changed');
     expect(mocks.cancelBooking).toHaveBeenCalledWith(7, 'Plans changed', 'guest-token');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refund' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
     await waitFor(() => expect(mocks.cancelBooking).toHaveBeenCalledTimes(2));
-    expect((screen.getByLabelText('Custom refund reason') as HTMLTextAreaElement).value).toBe('Plans changed');
+    expect((screen.getByLabelText('Custom cancellation reason') as HTMLTextAreaElement).value).toBe('Plans changed');
   });
 
-  it('closes after submitting a refund request and announces success', async () => {
-    mocks.cancelBooking.mockResolvedValue(undefined);
+  it('closes after submitting a cancellation request and announces the staff review', async () => {
+    mocks.cancelBooking.mockResolvedValue({ cancellation_requested: true });
     render(<BookingsSection token="guest-token" />);
 
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Refund' }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Request cancellation' }))[0]);
+    // The dialog must make clear this is a request, not an instant void.
+    expect(screen.getByRole('heading', { name: 'Request cancellation for SI-1007?' })).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Change of plans'));
-    fireEvent.click(screen.getByRole('button', { name: 'Refund' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.getByText('Refund request for booking SI-1007 was submitted.')).toBeTruthy();
+    expect(
+      screen.getByText("Cancellation request for booking SI-1007 was submitted. We'll email you once our team has reviewed it."),
+    ).toBeTruthy();
   });
 
   it('explains when online cancellation is unavailable', async () => {
@@ -117,9 +121,25 @@ describe('BookingsSection cancellation', () => {
     });
     render(<BookingsSection token="guest-token" />);
 
-    expect((await screen.findAllByText('Refund unavailable')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Cancellation unavailable')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('This rate is non-refundable.').length).toBeGreaterThan(0);
-    expect(screen.queryByRole('button', { name: 'Refund' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request cancellation' })).toBeNull();
+  });
+
+  it('shows a paid booking with an open request as under review, not actionable', async () => {
+    mocks.bookings.mockResolvedValue({
+      items: [{
+        ...booking,
+        can_cancel: false,
+        cancellation_pending: true,
+        cancellation_unavailable_reason: 'A cancellation request for this booking is already being reviewed.',
+      }],
+      total: 1,
+    });
+    render(<BookingsSection token="guest-token" />);
+
+    expect((await screen.findAllByText('Cancellation under review')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Request cancellation' })).toBeNull();
   });
 
   it('calls an unpaid unavailable action a cancellation', async () => {

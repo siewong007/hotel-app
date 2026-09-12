@@ -89,14 +89,18 @@ describe('GuestPortalService', () => {
   });
 
   describe('submitBankTransfer', () => {
-    it('posts bank-transfer with the token in a header, not the path', async () => {
+    it('posts bank-transfer with the consents body and token in a header, not the path', async () => {
       const response = { payment_id: 9, status: 'pending', booking_status: 'confirmed' };
+      const consents = [
+        { document: 'payment_terms' as const, version: '2026-09-09', granted: true, locale: 'en' as const },
+      ];
       post.mockReturnValue(mockJsonResponse(response));
 
-      const result = await GuestPortalService.submitBankTransfer('tok_abc');
+      const result = await GuestPortalService.submitBankTransfer('tok_abc', consents);
 
       expect(post).toHaveBeenCalledWith('guest-portal/booking/payments/bank-transfer', {
         headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        json: { consents },
       });
       expect(result).toEqual(response);
     });
@@ -119,14 +123,18 @@ describe('GuestPortalService', () => {
   });
 
   describe('createPaypalOrder', () => {
-    it('posts paypal create-order with the token in a header, not the path', async () => {
+    it('posts paypal create-order with the consents body and token in a header, not the path', async () => {
       const response = { order_id: 'ord_1', payment_id: 9 };
+      const consents = [
+        { document: 'payment_terms' as const, version: '2026-09-09', granted: true, locale: 'en' as const },
+      ];
       post.mockReturnValue(mockJsonResponse(response));
 
-      const result = await GuestPortalService.createPaypalOrder('tok_abc');
+      const result = await GuestPortalService.createPaypalOrder('tok_abc', consents);
 
       expect(post).toHaveBeenCalledWith('guest-portal/booking/payments/paypal/create-order', {
         headers: { 'X-Booking-Access-Token': 'tok_abc' },
+        json: { consents },
       });
       expect(result).toEqual(response);
     });

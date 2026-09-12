@@ -348,7 +348,11 @@ fn parse_hold_window_hours(raw: &str) -> Option<i32> {
 }
 
 /// The configured hold window, or `None` when auto-release is off.
-async fn unpaid_hold_window_hours(pool: &DbPool) -> Option<i32> {
+///
+/// `pub(crate)` so the booking quote can disclose the same window the sweep
+/// enforces — the terms promise this figure is "shown at the time of booking",
+/// which is only honest if both read one source.
+pub(crate) async fn unpaid_hold_window_hours(pool: &DbPool) -> Option<i32> {
     let raw = crate::modules::settings::service::get_setting_value(pool, UNPAID_HOLD_SETTING)
         .await
         .ok()?;

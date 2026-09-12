@@ -889,6 +889,124 @@ pub async fn create_guest_conversation(
     get_guest_conversation(pool, guest_id, conversation_id).await
 }
 
+/// Everything needed to file a paid-booking cancellation request.
+pub struct CancellationRequest<'a> {
+    pub guest_id: i64,
+    pub booking_id: i64,
+    pub booking_number: &'a str,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub reason: Option<String>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+}
+
+/// Open a cancellation request in the support queue for a paid booking.
+///
+/// Paid bookings are never voided by the guest directly: the booking stays
+/// intact and the request lands in the staff inbox, where the call the booking
+/// terms leave to the hotel — refund in full, or keep the first night's charge
+/// on short notice — is actually made. Returns `(conversation_id, number)`; a
+/// repeat request on the same booking returns the open conversation instead of
+/// filing a second one.
+///
+/// Deliberately bypasses `support_enabled` and the enabled-category list: this
+/// is the cancellation workflow surfaced through the inbox, not the guest-chat
+/// feature those settings switch off.
+pub async fn open_cancellation_request(
+    pool: &DbPool,
+    hub: &SupportHub,
+    request: CancellationRequest<'_>,
+) -> Result<(i64, String), ApiError> {
+    let CancellationRequest {
+        guest_id,
+        booking_id,
+        booking_number,
+        check_in_date,
+        check_out_date,
+        reason,
+        ip_address,
+        user_agent,
+    } = request;
+    if let Some(existing) =
+        SupportRepository::find_open_cancellation_request(pool, booking_id, guest_id).await?
+    {
+        return Ok(existing);
+    }
+    let reason = validation::sanitize_optional_reason(reason)?;
+    let priority = "high";
+    let (first_sla, resolution_sla) = priority_sla(pool, priority).await;
+    let now = Utc::now();
+    let number = conversation_number();
+    let subject = format!("Cancellation request — {booking_number}");
+    let mut body = format!(
+        "Please cancel booking {booking_number} ({check_in_date} to {check_out_date}). \
+         The stay is paid — please review against the cancellation policy and advise on the refund."
+    );
+    if let Some(reason) = reason.as_deref() {
+        body.push_str(&format!("\n\nGuest's reason: {reason}"));
+    }
+    let new_conversation = NewConversation {
+        conversation_number: &number,
+        guest_id,
+        booking_id: Some(booking_id),
+        subject: &subject,
+        category: "booking",
+        priority,
+        first_response_due_at: now + first_sla,
+        resolution_due_at: now + resolution_sla,
+    };
+    let mut transaction = pool.begin().await.map_err(ApiError::from)?;
+    let conversation_id =
+        SupportRepository::insert_conversation(&mut *transaction, &new_conversation).await?;
+    SupportRepository::insert_message(
+        &mut *transaction,
+        conversation_id,
+        "guest",
+        Some(guest_id),
+        None,
+        &body,
+        None,
+    )
+    .await?;
+    SupportRepository::insert_event(
+        &mut *transaction,
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: Some(guest_id),
+            actor_user_id: None,
+            event_type: "created",
+            from_status: None,
+            to_status: Some("waiting_for_staff"),
+            details: Some(json!({
+                "kind": "cancellation_request",
+                "category": "booking",
+                "booking_id": booking_id,
+            })),
+        },
+    )
+    .await?;
+    transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(
+        guest_id,
+        conversation_id,
+    ));
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: None,
+            action: "guest_portal.cancellation_requested",
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({"guest_id": guest_id, "booking_id": booking_id})),
+            ip_address,
+            user_agent,
+        },
+    )
+    .await;
+    Ok((conversation_id, number))
+}
+
 pub async fn send_guest_message(
     pool: &DbPool,
     hub: &SupportHub,

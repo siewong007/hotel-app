@@ -131,6 +131,19 @@ pub struct PaypalCaptureRequest {
 #[derive(Debug, Deserialize)]
 pub struct GuestBookingPaymentRequest {
     pub booking_id: i64,
+    /// Payment-terms consent taken on the payment form. The request is refused
+    /// before any payment row is written if it is missing, refused, or pinned
+    /// to a superseded version.
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
+}
+
+/// Request body for the token-scoped guest payment routes. The booking comes
+/// from the path token, so the body carries only the consent evidence.
+#[derive(Debug, Deserialize)]
+pub struct TokenPaymentRequest {
+    #[serde(default)]
+    pub consents: Vec<crate::modules::consent::models::ConsentAcceptance>,
 }
 
 /// Request body for capturing a PayPal order on the session-authenticated flow.

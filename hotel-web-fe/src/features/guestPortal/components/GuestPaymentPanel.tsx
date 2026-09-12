@@ -41,6 +41,7 @@ import { formatCurrency, getCurrentCurrency } from '../../../utils/currency';
 import type { GuestPaymentConfig, PaymentActionResponse } from '../../../types';
 import { ConsentBlock } from '../../legal/components/ConsentBlock';
 import { PAYMENT_CONSENTS, PAYMENT_KEY_POINTS } from '../../legal/content';
+import { useLegalLocale } from '../../legal/LegalLocaleContext';
 import { useConsent } from '../../legal/useConsent';
 
 export interface GuestPaymentPanelProps {
@@ -113,6 +114,7 @@ export function GuestPaymentPanel({
   const [result, setResult] = useState<PaymentActionResponse | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'paypal' | null>(null);
   const consent = useConsent(PAYMENT_CONSENTS);
+  const { locale: legalLocale } = useLegalLocale();
   // React state updates are asynchronous, so it cannot by itself prevent two
   // clicks in the same render from creating two payment claims.
   const paymentAttemptInFlight = useRef(false);
@@ -150,10 +152,11 @@ export function GuestPaymentPanel({
     setBankSubmitting(true);
     setBankError(null);
     try {
+      const consents = consent.buildPayload(legalLocale).consents;
       const response =
         mode === 'session'
-          ? await GuestPortalDashboardService.submitBankTransfer(bookingId!, token)
-          : await GuestPortalService.submitBankTransfer(token!);
+          ? await GuestPortalDashboardService.submitBankTransfer(bookingId!, consents, token)
+          : await GuestPortalService.submitBankTransfer(token!, consents);
       if (receiptFile) {
         if (mode === 'session') {
           await GuestPortalDashboardService.uploadPaymentReceipt(response.payment_id, receiptFile, token);
@@ -169,7 +172,7 @@ export function GuestPaymentPanel({
       paymentAttemptInFlight.current = false;
       setBankSubmitting(false);
     }
-  }, [bankSubmitting, result, mode, bookingId, token, onPaid, receiptFile]);
+  }, [bankSubmitting, result, mode, bookingId, token, onPaid, receiptFile, consent, legalLocale]);
 
   const createOrder = useCallback(async (): Promise<string> => {
     if (paymentAttemptInFlight.current) {
@@ -178,10 +181,11 @@ export function GuestPaymentPanel({
     paymentAttemptInFlight.current = true;
     setPaypalError(null);
     try {
+      const consents = consent.buildPayload(legalLocale).consents;
       const response =
         mode === 'session'
-          ? await GuestPortalDashboardService.createPaypalOrder(bookingId!, token)
-          : await GuestPortalService.createPaypalOrder(token!);
+          ? await GuestPortalDashboardService.createPaypalOrder(bookingId!, consents, token)
+          : await GuestPortalService.createPaypalOrder(token!, consents);
       setPendingPaypalPaymentId(response.payment_id);
       return response.order_id;
     } catch (error) {
@@ -189,7 +193,7 @@ export function GuestPaymentPanel({
       paymentAttemptInFlight.current = false;
       throw error;
     }
-  }, [mode, bookingId, token]);
+  }, [mode, bookingId, token, consent, legalLocale]);
 
   const onApprove = useCallback(
     async (data: { orderID: string }): Promise<void> => {

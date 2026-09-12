@@ -25,6 +25,13 @@ pub const BOOKING_REQUIRED: &[ConsentDocument] = &[
 /// Explicit consent required before any biometric data is processed (PDPA s.40).
 pub const EKYC_REQUIRED: &[ConsentDocument] = &[ConsentDocument::EkycBiometric];
 
+/// Documents a guest must actively agree to before a payment action is taken.
+///
+/// The guest is committing money against the booking terms here, so the
+/// payment terms consent is what later proves the charge was authorised under
+/// the wording that governed refunds and settlement.
+pub const PAYMENT_REQUIRED: &[ConsentDocument] = &[ConsentDocument::PaymentTerms];
+
 /// Check that every required document appears in `submitted`, is granted, and
 /// pins the version the server currently publishes.
 ///
@@ -179,5 +186,18 @@ mod tests {
     fn ekyc_requires_explicit_biometric_consent() {
         let submitted = vec![accept(ConsentDocument::TermsOfService, true)];
         assert!(require_consents(&submitted, EKYC_REQUIRED).is_err());
+    }
+
+    #[test]
+    fn payment_requires_payment_terms_consent() {
+        let submitted = vec![
+            accept(ConsentDocument::TermsOfService, true),
+            accept(ConsentDocument::PrivacyNotice, true),
+        ];
+        let error = require_consents(&submitted, PAYMENT_REQUIRED).unwrap_err();
+        assert!(matches!(error, ApiError::BadRequest(ref m) if m.contains("Payment Terms")));
+
+        let granted = vec![accept(ConsentDocument::PaymentTerms, true)];
+        assert!(require_consents(&granted, PAYMENT_REQUIRED).is_ok());
     }
 }

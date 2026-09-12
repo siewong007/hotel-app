@@ -147,6 +147,9 @@ pub struct Voucher {
     pub code_masked: String,
     pub status: String,
     pub source: String,
+    /// `promotions.is_cancellable` — a non-cancellable voucher locks the
+    /// booking against cancellation, so the guest must see it before applying.
+    pub is_cancellable: bool,
     pub expires_at: Option<DateTime<Utc>>,
     pub claimed_at: Option<DateTime<Utc>>,
     pub redeemed_at: Option<DateTime<Utc>>,

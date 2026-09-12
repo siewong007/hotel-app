@@ -46,7 +46,7 @@ impl ConsentDocument {
     /// `hotel-web-fe/src/features/legal/content/index.ts`.
     pub fn current_version(self) -> &'static str {
         match self {
-            Self::TermsOfService => "2026-09-09",
+            Self::TermsOfService => "2026-09-13",
             Self::PrivacyNotice => "2026-09-09",
             Self::PaymentTerms => "2026-09-09",
             Self::EkycBiometric => "2026-09-09",

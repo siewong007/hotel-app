@@ -328,6 +328,9 @@ async fn quote_for_inventory(
         _ => Decimal::ZERO,
     };
     let total_amount = room_total + tax_amount;
+    // The window the unpaid-hold sweep actually enforces, surfaced so the
+    // review step can tell the guest how long an unpaid booking keeps its room.
+    let hold_release_hours = crate::services::bookings::unpaid_hold_window_hours(pool).await;
     Ok(GuestBookingQuote {
         room_type_id: room_type.id,
         room_type_code: room_type.code,
@@ -343,11 +346,15 @@ async fn quote_for_inventory(
         tax_amount,
         total_amount,
         voucher_id: voucher.as_ref().map(|voucher| voucher.voucher_id),
-        voucher_name: voucher.map(|voucher| voucher.promotion_name),
+        voucher_name: voucher
+            .as_ref()
+            .map(|voucher| voucher.promotion_name.clone()),
+        voucher_is_cancellable: voucher.as_ref().map(|voucher| voucher.is_cancellable),
         complimentary_nights: complimentary.dates.len() as i32,
         complimentary_dates: complimentary.dates.clone(),
         complimentary_discount,
         credits_available: complimentary.credits_available,
+        hold_release_hours,
     })
 }
 
@@ -543,10 +550,7 @@ pub async fn quote_with_eligible_vouchers(
 /// grid ever asks for.
 pub const MAX_ONLINE_INVENTORY_SPAN_DAYS: i64 = 30;
 
-fn parse_online_inventory_range(
-    from: &str,
-    to: &str,
-) -> Result<(NaiveDate, NaiveDate), ApiError> {
+fn parse_online_inventory_range(from: &str, to: &str) -> Result<(NaiveDate, NaiveDate), ApiError> {
     let from = NaiveDate::parse_from_str(from.trim(), "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid 'from' date. Use YYYY-MM-DD".to_string()))?;
     let to = NaiveDate::parse_from_str(to.trim(), "%Y-%m-%d")
@@ -592,10 +596,7 @@ pub async fn list_online_inventory(
     Repository::list_online_inventory_range(pool, from, to).await
 }
 
-fn validate_inventory_fields(
-    reserved: i32,
-    custom_price: Option<Decimal>,
-) -> Result<(), ApiError> {
+fn validate_inventory_fields(reserved: i32, custom_price: Option<Decimal>) -> Result<(), ApiError> {
     if reserved < 0 {
         return Err(ApiError::BadRequest(
             "Walk-in reserve cannot be negative".to_string(),
@@ -759,9 +760,7 @@ pub async fn bulk_update_online_inventory(
             ResolvedCell::Reset {
                 room_type_id,
                 stay_date,
-            } => {
-                Repository::delete_online_inventory_tx(&mut tx, room_type_id, stay_date).await?
-            }
+            } => Repository::delete_online_inventory_tx(&mut tx, room_type_id, stay_date).await?,
         }
     }
 
@@ -812,8 +811,7 @@ pub async fn bulk_update_online_inventory(
     .await?;
     tx.commit().await.map_err(ApiError::from)?;
 
-    let room_type_ids: std::collections::HashSet<i64> =
-        span_by_room_type.keys().copied().collect();
+    let room_type_ids: std::collections::HashSet<i64> = span_by_room_type.keys().copied().collect();
     let allocations = Repository::list_online_inventory_range(pool, min_date, max_date)
         .await?
         .into_iter()
@@ -1691,6 +1689,7 @@ mod tests {
             discount_type: "percentage".to_string(),
             discount_value: Decimal::from(25),
             max_discount_amount: Some(Decimal::from(10)),
+            is_cancellable: true,
         };
         assert_eq!(
             voucher_discount(Decimal::from(100), &voucher),
@@ -1707,6 +1706,7 @@ mod tests {
             discount_type: "fixed_amount".to_string(),
             discount_value: Decimal::from(250),
             max_discount_amount: None,
+            is_cancellable: true,
         };
         assert_eq!(
             voucher_discount(Decimal::from(100), &voucher),
@@ -1762,6 +1762,7 @@ mod tests {
             discount_type: "percentage".to_string(),
             discount_value: Decimal::from(25),
             max_discount_amount: None,
+            is_cancellable: true,
         };
         let (discount, total) = settlement(Decimal::from(400), Decimal::from(300), Some(&voucher));
         assert_eq!(discount, Decimal::from(325));
@@ -1777,6 +1778,7 @@ mod tests {
             discount_type: "fixed_amount".to_string(),
             discount_value: Decimal::from(500),
             max_discount_amount: None,
+            is_cancellable: true,
         };
         let (discount, total) = settlement(Decimal::from(400), Decimal::from(300), Some(&voucher));
         assert_eq!(discount, Decimal::from(400));
@@ -1792,6 +1794,7 @@ mod tests {
             discount_type: "percentage".to_string(),
             discount_value: Decimal::from(10),
             max_discount_amount: None,
+            is_cancellable: true,
         };
         let (discount, total) = settlement(Decimal::from(400), Decimal::ZERO, Some(&voucher));
         assert_eq!(discount, Decimal::from(40));
@@ -1911,7 +1914,11 @@ mod tests {
         assert!(parse_online_inventory_range("2026-09-01", "tomorrow").is_err());
     }
 
-    fn query(from: Option<&str>, to: Option<&str>, stay_date: Option<&str>) -> OnlineInventoryQuery {
+    fn query(
+        from: Option<&str>,
+        to: Option<&str>,
+        stay_date: Option<&str>,
+    ) -> OnlineInventoryQuery {
         OnlineInventoryQuery {
             from: from.map(str::to_string),
             to: to.map(str::to_string),
@@ -1962,8 +1969,9 @@ mod tests {
     #[test]
     fn bulk_rejects_empty_over_cap_and_duplicates() {
         assert!(resolve_bulk_cells(vec![]).is_err());
-        let too_many: Vec<OnlineInventoryCellUpdate> =
-            (0..=MAX_BULK_INVENTORY_CELLS).map(|i| bulk_cell(i as i64, "2026-09-01")).collect();
+        let too_many: Vec<OnlineInventoryCellUpdate> = (0..=MAX_BULK_INVENTORY_CELLS)
+            .map(|i| bulk_cell(i as i64, "2026-09-01"))
+            .collect();
         assert!(resolve_bulk_cells(too_many).is_err());
         let dup = vec![bulk_cell(1, "2026-09-01"), bulk_cell(1, "2026-09-01")];
         assert!(resolve_bulk_cells(dup).is_err());

@@ -18,6 +18,7 @@
  * known risk.
  */
 import { api } from '../../../api/client';
+import type { ConsentAcceptance } from '../../legal/useConsent';
 import { getPortalToken } from './portalTokenStore';
 import type {
   GuestPortalBenefitsResponse,
@@ -123,11 +124,22 @@ export class GuestPortalDashboardService {
       .json();
   }
 
-  static async cancelBooking(bookingId: number, reason: string, token?: string): Promise<void> {
-    await api.post(`guest-portal/me/bookings/${bookingId}/cancel`, {
-      headers: authHeaders(token),
-      json: { reason: reason.trim() || null },
-    });
+  /**
+   * Cancels an unpaid booking immediately, or files a staff-review request on
+   * a paid one. `cancellation_requested` in the response distinguishes the
+   * two — a paid booking is never voided by this call.
+   */
+  static async cancelBooking(
+    bookingId: number,
+    reason: string,
+    token?: string
+  ): Promise<{ cancellation_requested?: boolean; message?: string }> {
+    return await api
+      .post(`guest-portal/me/bookings/${bookingId}/cancel`, {
+        headers: authHeaders(token),
+        json: { reason: reason.trim() || null },
+      })
+      .json();
   }
 
   static async membership(token?: string): Promise<GuestPortalMembershipResponse> {
@@ -150,12 +162,13 @@ export class GuestPortalDashboardService {
 
   static async submitBankTransfer(
     bookingId: number,
+    consents: ConsentAcceptance[],
     token?: string
   ): Promise<PaymentActionResponse> {
     return await api
       .post('guest-portal/me/payments/bank-transfer', {
         headers: authHeaders(token),
-        json: { booking_id: bookingId },
+        json: { booking_id: bookingId, consents },
       })
       .json();
   }
@@ -175,12 +188,13 @@ export class GuestPortalDashboardService {
 
   static async createPaypalOrder(
     bookingId: number,
+    consents: ConsentAcceptance[],
     token?: string
   ): Promise<PaypalCreateOrderResponse> {
     return await api
       .post('guest-portal/me/payments/paypal/create-order', {
         headers: authHeaders(token),
-        json: { booking_id: bookingId },
+        json: { booking_id: bookingId, consents },
       })
       .json();
   }

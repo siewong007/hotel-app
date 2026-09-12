@@ -24,6 +24,10 @@ export function GuestRootLayout() {
   const search = location.searchStr ? `?${location.searchStr.replace(/^\?+/, '')}` : '';
   const publicPath = isPublicGuestPath(pathname, search);
   const isPortal = pathname === '/guest-portal' || pathname === '/portal';
+  // Legal documents are part of the guest experience — they should carry the
+  // same shell and theme as the booking funnel that links to them, not fall
+  // back to the bare document chrome.
+  const isLegal = pathname.startsWith('/legal/');
 
   const [hotelName, setHotelName] = useState(() => getHotelSettings().hotel_name);
 
@@ -71,7 +75,7 @@ export function GuestRootLayout() {
     );
   }
 
-  if (isPortal) {
+  if (isPortal || isLegal) {
     return (
       <>
         {oneTap}

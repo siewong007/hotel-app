@@ -180,6 +180,9 @@ function CancellationUnavailable({
   const reason =
     booking.cancellation_unavailable_reason ??
     "This booking cannot be cancelled online.";
+  const label = booking.cancellation_pending
+    ? "Cancellation under review"
+    : "Cancellation unavailable";
   return (
     <Box role="status" aria-describedby={reasonId}>
       <Typography
@@ -188,7 +191,7 @@ function CancellationUnavailable({
           color: "text.secondary",
           fontWeight: 600
         }}>
-        {booking.completed_payment_id != null ? "Refund" : "Cancellation"} unavailable
+        {label}
       </Typography>
       <Typography id={reasonId} variant="caption" sx={{
         color: "text.secondary"
@@ -232,7 +235,7 @@ function RefundBookingDialog({
   if (!booking) return null;
 
   const isRefund = booking.completed_payment_id != null;
-  const actionLabel = isRefund ? "Refund" : "Cancel booking";
+  const actionLabel = isRefund ? "Submit request" : "Cancel booking";
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -258,7 +261,7 @@ function RefundBookingDialog({
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
         <DialogTitle sx={{ color: FOREST, fontWeight: 700 }}>
-          {isRefund ? "Request refund" : "Cancel booking"} for {booking.booking_number}?
+          {isRefund ? "Request cancellation" : "Cancel booking"} for {booking.booking_number}?
         </DialogTitle>
         <DialogContent>
           <Typography id="refund-booking-details" sx={{
@@ -268,18 +271,26 @@ function RefundBookingDialog({
             {formatPortalDate(booking.check_out_date)} ·{" "}
             {formatPortalCurrency(booking.total_amount)}
           </Typography>
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            Your booking will be cancelled and this request cannot be undone online.
-          </Alert>
+          {isRefund ? (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              This booking is paid, so cancellation is reviewed by our team —
+              your booking stays active in the meantime. Requests made at least
+              3 days before arrival are refunded in full; later requests may be
+              charged the first night&apos;s stay.
+            </Alert>
+          ) : (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              Your booking will be cancelled immediately and this cannot be
+              undone online.
+            </Alert>
+          )}
           {error ? (
             <Alert severity="error" role="alert" sx={{ mt: 2 }}>
               {error}
             </Alert>
           ) : null}
           <FormControl component="fieldset" fullWidth sx={{ mt: 2 }}>
-            <FormLabel component="legend">
-              Reason for {isRefund ? "refund" : "cancellation"}
-            </FormLabel>
+            <FormLabel component="legend">Reason for cancellation</FormLabel>
             <RadioGroup
               value={selectedReason}
               onChange={(event) => setSelectedReason(event.target.value)}
@@ -300,7 +311,7 @@ function RefundBookingDialog({
               fullWidth
               multiline
               minRows={3}
-              label={`Custom ${isRefund ? "refund" : "cancellation"} reason`}
+              label="Custom cancellation reason"
               value={customReason}
               onChange={(event) => setCustomReason(event.target.value)}
               helperText={`${1000 - customReason.length} characters remaining`}
@@ -821,13 +832,15 @@ export function BookingsSection({ token }: { token: string }) {
     setIsCancelling(true);
     setCancellationError(null);
     try {
-      await GuestPortalDashboardService.cancelBooking(
+      const response = await GuestPortalDashboardService.cancelBooking(
         bookingToCancel.id,
         reason,
         token,
       );
       setCancellationSuccess(
-        `${bookingToCancel.completed_payment_id != null ? "Refund" : "Cancellation"} request for booking ${bookingToCancel.booking_number} was submitted.`,
+        response.cancellation_requested
+          ? `Cancellation request for booking ${bookingToCancel.booking_number} was submitted. We'll email you once our team has reviewed it.`
+          : `Booking ${bookingToCancel.booking_number} was cancelled.`,
       );
       setBookingToCancel(null);
       void load();
@@ -835,7 +848,7 @@ export function BookingsSection({ token }: { token: string }) {
       setCancellationError(
         caught instanceof Error
           ? caught.message
-          : `Unable to submit this ${bookingToCancel.completed_payment_id != null ? "refund" : "cancellation"} request.`,
+          : "Unable to submit this cancellation request.",
       );
       if (caught instanceof HTTPError && caught.response.status === 409) {
         void load();
@@ -1013,7 +1026,7 @@ export function BookingsSection({ token }: { token: string }) {
                             }}
                             sx={{ minHeight: 44 }}
                           >
-                            {booking.completed_payment_id != null ? "Refund" : "Cancel booking"}
+                            {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
                           </Button>
                         ) : (
                           <CancellationUnavailable
@@ -1095,7 +1108,7 @@ export function BookingsSection({ token }: { token: string }) {
                         }}
                         sx={{ mt: 1, minHeight: 44 }}
                       >
-                        {booking.completed_payment_id != null ? "Refund" : "Cancel booking"}
+                        {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
                       </Button>
                     ) : (
                       <Box sx={{ mt: 1.5 }}>

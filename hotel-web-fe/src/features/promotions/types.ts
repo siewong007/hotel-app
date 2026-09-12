@@ -107,6 +107,9 @@ export interface Voucher {
   code_masked?: string;
   status: VoucherStatus;
   source: string;
+  /** `false` means redeeming this voucher locks the booking against
+   *  cancellation — the picker badges it before the guest applies it. */
+  is_cancellable?: boolean;
   guest_id?: number | null;
   guest_name?: string | null;
   expires_at?: string | null;

@@ -81,6 +81,7 @@ const VOUCHER_COLUMNS: &str = r#"
     v.guest_id,
     p.name AS promotion_name,
     p.slug AS promotion_slug,
+    p.is_cancellable,
     v.code,
     v.status,
     v.source,
@@ -219,6 +220,7 @@ fn voucher_from_row(row: &DbRow, include_code: bool) -> Voucher {
         code_masked: mask_voucher_code(&raw_code),
         status: row.try_get("status").unwrap_or_default(),
         source: row.try_get("source").unwrap_or_default(),
+        is_cancellable: get_bool(row, "is_cancellable"),
         expires_at: row
             .try_get::<Option<DateTime<Utc>>, _>("expires_at")
             .ok()
