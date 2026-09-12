@@ -260,17 +260,34 @@ pub async fn session_bank_transfer(
 pub(crate) async fn receipt_upload_bytes(
     mut multipart: Multipart,
 ) -> Result<Vec<u8>, ApiError> {
-    while let Some(field) = multipart
+    while let Some(mut field) = multipart
         .next_field()
         .await
         .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()))?
     {
         if field.name() == Some("file") {
-            return field
-                .bytes()
+            // Stream the field in chunks and abort past the size cap. The
+            // `Multipart` extractor ignores `DefaultBodyLimit`, so `field.bytes()`
+            // would buffer the whole upload before `save_payment_receipt` could
+            // reject it — an unbounded memory sink on an authenticated route.
+            // The cap mirrors the service check so the client-visible error is
+            // identical either way.
+            let mut bytes = Vec::new();
+            while let Some(chunk) = field
+                .chunk()
                 .await
-                .map(|bytes| bytes.to_vec())
-                .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()));
+                .map_err(|_| ApiError::BadRequest("Unable to read receipt upload.".to_string()))?
+            {
+                if bytes.len() + chunk.len()
+                    > crate::services::payments::MAX_PAYMENT_RECEIPT_BYTES
+                {
+                    return Err(ApiError::BadRequest(
+                        "Receipt file size must be between 1 byte and 10MB".to_string(),
+                    ));
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            return Ok(bytes);
         }
     }
     Err(ApiError::BadRequest(
@@ -372,4 +389,77 @@ pub async fn token_paypal_capture(
         )
         .await?,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::extract::FromRequest;
+    use axum::http::Request;
+
+    async fn receipt_multipart(payload: &[u8]) -> Multipart {
+        let boundary = "testboundary";
+        let mut body = format!(
+            "--{boundary}\r\ncontent-disposition: form-data; name=\"file\"; \
+             filename=\"receipt.bin\"\r\ncontent-type: application/octet-stream\r\n\r\n"
+        )
+        .into_bytes();
+        body.extend_from_slice(payload);
+        body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+        let request = Request::builder()
+            .method("POST")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(Body::from(body))
+            .unwrap();
+        // `()` satisfies the state bound; Multipart never reads it.
+        Multipart::from_request(request, &()).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn receipt_upload_accepts_small_file() {
+        let bytes = receipt_upload_bytes(receipt_multipart(b"tiny").await)
+            .await
+            .unwrap();
+        assert_eq!(bytes, b"tiny");
+    }
+
+    #[tokio::test]
+    async fn receipt_upload_rejects_oversized_field() {
+        // Past the cap the read must fail rather than buffer the whole field —
+        // `field.bytes()` used to allow unbounded memory growth. In this
+        // harness the request carries no DefaultBodyLimit extension, so
+        // axum's 2MB multipart default trips first; on the real routes the
+        // 10MB route layer and the per-field MAX_PAYMENT_RECEIPT_BYTES check
+        // bound it identically.
+        let payload = vec![b'x'; crate::services::payments::MAX_PAYMENT_RECEIPT_BYTES + 1];
+        let err = receipt_upload_bytes(receipt_multipart(&payload).await)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ApiError::BadRequest(_)),
+            "expected BadRequest, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn receipt_upload_missing_file_field() {
+        let boundary = "testboundary";
+        let body = format!("--{boundary}--\r\n");
+        let request = Request::builder()
+            .method("POST")
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={boundary}"),
+            )
+            .body(Body::from(body))
+            .unwrap();
+        let multipart = Multipart::from_request(request, &()).await.unwrap();
+        let err = receipt_upload_bytes(multipart).await.unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)));
+    }
 }

@@ -219,16 +219,18 @@ async fn normalize_error_response(response: Response) -> Response {
         _ => "Something went wrong on our end. Please try again.",
     };
 
+    let mut body = serde_json::json!({ "error": message });
+    if let Ok(id) = crate::core::error::REQUEST_ID.try_with(|id| id.clone()) {
+        body["request_id"] = serde_json::Value::String(id);
+    }
+
     let (mut parts, _) = response.into_parts();
     parts.headers.remove(axum::http::header::CONTENT_LENGTH);
     parts.headers.insert(
         axum::http::header::CONTENT_TYPE,
         axum::http::HeaderValue::from_static("application/json"),
     );
-    Response::from_parts(
-        parts,
-        axum::body::Body::from(serde_json::json!({ "error": message }).to_string()),
-    )
+    Response::from_parts(parts, axum::body::Body::from(body.to_string()))
 }
 
 /// Count every request's status and latency into `core::metrics`.
@@ -243,19 +245,44 @@ async fn normalize_error_response(response: Response) -> Response {
 ///
 /// A 5xx is additionally logged at WARN so it survives production filtering and
 /// leaves a line an operator can correlate with the counter.
+///
+/// Also mints the request's correlation id: an inbound `x-request-id` is
+/// honored when it is short and printable, otherwise a UUID is generated. The
+/// id rides the `REQUEST_ID` task-local so `ApiError` bodies and
+/// `normalize_error_response` echo it, and it goes out as the `x-request-id`
+/// response header — support can hand us the id from any error and find the
+/// matching WARN line.
 async fn record_request_metrics(request: Request, next: Next) -> Response {
+    let request_id = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| {
+            !value.is_empty()
+                && value.len() <= 64
+                && value
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        })
+        .map(str::to_string)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let method = request.method().clone();
     let path = request.uri().path().to_string();
     let started = std::time::Instant::now();
 
-    let response = next.run(request).await;
+    let mut response = crate::core::error::REQUEST_ID
+        .scope(request_id.clone(), next.run(request))
+        .await;
+    if let Ok(value) = axum::http::HeaderValue::from_str(&request_id) {
+        response.headers_mut().insert("x-request-id", value);
+    }
 
     let status = response.status();
     let elapsed_ms = started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
     crate::core::metrics::record_response(status.as_u16(), elapsed_ms);
 
     if status.is_server_error() {
-        log::warn!("{method} {path} -> {} in {elapsed_ms}ms", status.as_u16());
+        log::warn!("{method} {path} -> {} in {elapsed_ms}ms request_id={request_id}", status.as_u16());
     }
 
     response

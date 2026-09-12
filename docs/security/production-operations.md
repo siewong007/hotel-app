@@ -12,10 +12,16 @@ security update without its normal test suite.
 
 The production backend must set `ENVIRONMENT=production` (or
 `APP_ENV=production`), use HTTPS-only non-localhost `ALLOWED_ORIGINS`, set a
-real `PASSKEY_RP_ID`, and leave `SKIP_EMAIL_VERIFICATION=false`. Startup now
+real `PASSKEY_RP_ID`, set `TOTP_ENCRYPTION_KEY` (without it TOTP seeds are
+stored unencrypted), and leave `SKIP_EMAIL_VERIFICATION=false`. Startup now
 refuses the insecure combinations above. Staff API tokens are session-bound;
 password resets, password changes, lockouts, deactivation, and deletion revoke
 their sessions.
+
+The backend's `DATABASE_URL` role must not be a superuser. The shipped
+`hotel_admin` role is one; run `deploy/db-least-privilege.sql` once to create
+the DML-only `hotel_app` runtime role, then point the backend at it. Keep
+`hotel_admin` for `apply-patches.sh` and `seed.sql` only.
 
 Protect the GitHub `production` environment with required reviewers and limit
 deployment-secret access to the release maintainers. Rotate the AIC VPS SSH

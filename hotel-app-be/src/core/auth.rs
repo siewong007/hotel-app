@@ -147,7 +147,7 @@ impl AuthService {
         )
     }
 
-    fn totp_encryption_key_from_config(raw: Option<String>) -> Option<[u8; 32]> {
+    pub(crate) fn totp_encryption_key_from_config(raw: Option<String>) -> Option<[u8; 32]> {
         let raw = raw.as_deref()?.trim();
         if raw.is_empty() {
             return None;

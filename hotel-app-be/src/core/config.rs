@@ -304,6 +304,20 @@ impl AppConfig {
                     .to_string(),
             );
         }
+        // Without this key TOTP seeds are stored in plaintext (the fallback
+        // exists so dev and pre-key deployments keep booting). In production a
+        // database leak must not hand out live second factors — refuse to boot.
+        if crate::core::auth::AuthService::totp_encryption_key_from_config(
+            self.totp_encryption_key.clone(),
+        )
+        .is_none()
+        {
+            return Err(
+                "TOTP_ENCRYPTION_KEY must be set to base64/hex of 32 bytes, or an ASCII \
+                 string of at least 32 characters, in production"
+                    .to_string(),
+            );
+        }
         Ok(())
     }
 }
@@ -541,6 +555,75 @@ mod tests {
 
         let origins = parse_allowed_origins("http://localhost:3000,http://localhost:5173").unwrap();
         assert!(matches!(origins, AllowedOrigins::List(values) if values.len() == 2));
+    }
+
+    fn production_config(totp_key: Option<&str>) -> super::AppConfig {
+        use super::{AppConfig, BankDetails, DatabaseConfig, LogLevelConfig, PaypalConfig};
+        AppConfig {
+            database: DatabaseConfig {
+                acquire_timeout_secs: 30,
+                idle_timeout_secs: 60,
+                max_connections: 10,
+                max_lifetime_secs: 3600,
+                min_connections: 1,
+                slow_statement_ms: 500,
+                url: "postgres://localhost/test".to_string(),
+            },
+            allowed_origins: AllowedOrigins::List(vec![
+                axum::http::HeaderValue::from_static("https://hotel.example.com"),
+            ]),
+            backend_port: 3030,
+            desktop_mode: false,
+            environment: Environment::Production,
+            google_client_id: None,
+            hotel_log_dir: None,
+            jwt_secret: "x".repeat(32),
+            jwt_issuer: "test".to_string(),
+            jwt_audience: "test".to_string(),
+            passkey_rp_id: "hotel.example.com".to_string(),
+            rbac_cache_ttl_secs: 60,
+            rust_log: LogLevelConfig::Info,
+            settings_cache_ttl_secs: 60,
+            skip_email_verification: false,
+            trust_proxy_headers: false,
+            totp_encryption_key: totp_key.map(str::to_string),
+            paypal: PaypalConfig {
+                enabled: false,
+                client_id: None,
+                client_secret: None,
+                api_base: String::new(),
+                webhook_id: None,
+            },
+            bank_details: BankDetails {
+                bank_name: "b".to_string(),
+                account_name: "a".to_string(),
+                account_number: "n".to_string(),
+            },
+            turnstile: turnstile(None, None, false),
+        }
+    }
+
+    #[test]
+    fn production_requires_totp_encryption_key() {
+        // Without the key, TOTP seeds persist as plaintext — the fallback exists
+        // for dev only. Production must refuse to boot rather than silently
+        // store live second factors unencrypted.
+        let missing = production_config(None).validate_security();
+        assert!(missing.is_err());
+        assert!(missing.unwrap_err().contains("TOTP_ENCRYPTION_KEY"));
+
+        let malformed = production_config(Some("too-short")).validate_security();
+        assert!(malformed.is_err());
+    }
+
+    #[test]
+    fn production_accepts_valid_totp_encryption_key() {
+        let ascii = production_config(Some("a-32-plus-character-ascii-secret!!"));
+        assert!(ascii.validate_security().is_ok());
+
+        let hex_key = "ab".repeat(32);
+        let hexed = production_config(Some(&hex_key));
+        assert!(hexed.validate_security().is_ok());
     }
 
     #[test]

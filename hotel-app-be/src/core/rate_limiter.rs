@@ -3,6 +3,11 @@
 //! Uses a sliding window counter approach keyed by IP address.
 //! Suitable for single-instance deployments (hotel PMS).
 //!
+//! Deployment boundary (SEC-05): counters live in process memory, so a restart
+//! resets all buckets and N replicas multiply every limit by N. The current
+//! single-node deploy behind Caddy makes this exact; if the backend ever
+//! scales out, move this to a shared store rather than dividing the limits.
+//!
 //! Categories:
 //! - `auth`: Login attempts (strict)
 //! - `register`: Account creation (strict)

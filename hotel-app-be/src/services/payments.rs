@@ -20,7 +20,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const PAYMENT_RECEIPT_UPLOAD_DIR: &str = "private_uploads/payment_receipts";
-const MAX_PAYMENT_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
+pub(crate) const MAX_PAYMENT_RECEIPT_BYTES: usize = 10 * 1024 * 1024;
 
 #[allow(dead_code)] // Reused by ledger payment validation in the next task.
 pub(crate) fn normalized_idempotency_key(value: &str) -> Result<&str, ApiError> {

@@ -7,6 +7,27 @@ use axum::{
     response::{IntoResponse, Json, Response},
 };
 
+tokio::task_local! {
+    /// Correlation id of the in-flight request, set by the outermost
+    /// application middleware (`record_request_metrics` in `routes/mod.rs`).
+    /// `IntoResponse` echoes it into error bodies so a client-reported failure
+    /// can be matched to server-side log lines; unset outside request scope
+    /// (tests, schedulers) where the field is simply omitted.
+    pub(crate) static REQUEST_ID: String
+}
+
+/// Echo the in-flight request's correlation id into an error body, when one is
+/// in scope. No-op outside request scope.
+fn with_request_id(body: Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let Json(mut value) = body;
+    if let Some(object) = value.as_object_mut()
+        && let Ok(id) = REQUEST_ID.try_with(|id| id.clone())
+    {
+        object.insert("request_id".to_string(), serde_json::Value::String(id));
+    }
+    Json(value)
+}
+
 /// API Error type used across all handlers
 #[derive(Debug)]
 pub enum ApiError {
@@ -191,33 +212,33 @@ impl IntoResponse for ApiError {
         // uniform `{"error": ...}` body the same way TooManyRequestsRetryAfter
         // deviates below to add its own header.
         if let ApiError::ProfileIncomplete(missing_fields) = &self {
-            let body = Json(serde_json::json!({
+            let body = with_request_id(Json(serde_json::json!({
                 "error": message,
                 "code": "profile_incomplete",
                 "missing_profile_fields": missing_fields
-            }));
+            })));
             return (status, body).into_response();
         }
 
         if let ApiError::TwoFactorEnrollmentRequired = &self {
-            let body = Json(serde_json::json!({
+            let body = with_request_id(Json(serde_json::json!({
                 "error": message,
                 "code": "two_factor_enrollment_required"
-            }));
+            })));
             return (status, body).into_response();
         }
 
         if let ApiError::GuestNameTaken = &self {
-            let body = Json(serde_json::json!({
+            let body = with_request_id(Json(serde_json::json!({
                 "error": message,
                 "code": "guest_name_taken"
-            }));
+            })));
             return (status, body).into_response();
         }
 
-        let body = Json(serde_json::json!({
+        let body = with_request_id(Json(serde_json::json!({
             "error": message
-        }));
+        })));
 
         // Add Retry-After header for rate limit errors
         if let ApiError::TooManyRequestsRetryAfter(_, secs) = &self {

@@ -22,8 +22,9 @@
 	# on the host "localhost" applies to EVERY port, force-upgrading the plain
 	# HTTP Vite dev server on :3000 to https and breaking it (notably in
 	# Safari). Unset (production/VPS) the default below preserves the original
-	# hardened value byte-for-byte. (Note: the backend does NOT send HSTS
-	# itself — verified 2026-07-19 — this edge header is the only source.)
+	# hardened value byte-for-byte. The backend also sets HSTS on API responses
+	# (routes/mod.rs); this edge header covers the frontend host, and '?' keeps
+	# the two from duplicating the value.
 	header ?Strict-Transport-Security "{$HSTS_VALUE:max-age=31536000; includeSubDomains}"
 	header {
 		-Server
