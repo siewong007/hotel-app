@@ -562,11 +562,31 @@ fn parse_online_inventory_range(
     Ok((from, to))
 }
 
+/// `?stay_date=` is the legacy single-date form; `?from=&to=` is the range
+/// form. Exactly one must be present and complete.
+fn resolve_online_inventory_range(
+    query: &OnlineInventoryQuery,
+) -> Result<(NaiveDate, NaiveDate), ApiError> {
+    match (&query.stay_date, &query.from, &query.to) {
+        (Some(stay_date), None, None) => parse_online_inventory_range(stay_date, stay_date),
+        (None, Some(from), Some(to)) => parse_online_inventory_range(from, to),
+        (Some(_), _, _) => Err(ApiError::BadRequest(
+            "Provide either 'stay_date' or 'from'/'to', not both".to_string(),
+        )),
+        (None, None, None) => Err(ApiError::BadRequest(
+            "Provide 'stay_date' or both 'from' and 'to'".to_string(),
+        )),
+        _ => Err(ApiError::BadRequest(
+            "Provide both 'from' and 'to' dates".to_string(),
+        )),
+    }
+}
+
 pub async fn list_online_inventory(
     pool: &DbPool,
     query: OnlineInventoryQuery,
 ) -> Result<Vec<OnlineInventoryAllocation>, ApiError> {
-    let (from, to) = parse_online_inventory_range(&query.from, &query.to)?;
+    let (from, to) = resolve_online_inventory_range(&query)?;
     Repository::list_online_inventory_range(pool, from, to).await
 }
 
@@ -1887,6 +1907,43 @@ mod tests {
     fn range_rejects_malformed_dates() {
         assert!(parse_online_inventory_range("01/09/2026", "2026-09-14").is_err());
         assert!(parse_online_inventory_range("2026-09-01", "tomorrow").is_err());
+    }
+
+    fn query(from: Option<&str>, to: Option<&str>, stay_date: Option<&str>) -> OnlineInventoryQuery {
+        OnlineInventoryQuery {
+            from: from.map(str::to_string),
+            to: to.map(str::to_string),
+            stay_date: stay_date.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn range_query_accepts_legacy_stay_date_alias() {
+        // Deployed frontends predating the grid still send ?stay_date= — the
+        // alias keeps them working until the new build ships.
+        let (from, to) = resolve_online_inventory_range(&query(None, None, Some("2026-09-13")))
+            .expect("stay_date must resolve to a one-day range");
+        assert_eq!(from, NaiveDate::from_ymd_opt(2026, 9, 13).unwrap());
+        assert_eq!(to, from);
+    }
+
+    #[test]
+    fn range_query_requires_a_complete_form() {
+        assert!(resolve_online_inventory_range(&query(Some("2026-09-01"), None, None)).is_err());
+        assert!(resolve_online_inventory_range(&query(None, Some("2026-09-14"), None)).is_err());
+        assert!(resolve_online_inventory_range(&query(None, None, None)).is_err());
+        assert!(
+            resolve_online_inventory_range(&query(
+                Some("2026-09-01"),
+                Some("2026-09-14"),
+                Some("2026-09-13"),
+            ))
+            .is_err()
+        );
+        assert!(
+            resolve_online_inventory_range(&query(Some("2026-09-01"), Some("2026-09-14"), None))
+                .is_ok()
+        );
     }
 
     fn bulk_cell(id: i64, date: &str) -> OnlineInventoryCellUpdate {

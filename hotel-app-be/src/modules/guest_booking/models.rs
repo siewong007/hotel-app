@@ -12,8 +12,11 @@ pub struct BookingSearchQuery {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OnlineInventoryQuery {
-    pub from: String,
-    pub to: String,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    /// Legacy single-date alias kept for frontends deployed before the range
+    /// read shipped — `?stay_date=` behaves like `from=to=stay_date`.
+    pub stay_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
