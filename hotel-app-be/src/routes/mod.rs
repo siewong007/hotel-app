@@ -282,7 +282,10 @@ async fn record_request_metrics(request: Request, next: Next) -> Response {
     crate::core::metrics::record_response(status.as_u16(), elapsed_ms);
 
     if status.is_server_error() {
-        log::warn!("{method} {path} -> {} in {elapsed_ms}ms request_id={request_id}", status.as_u16());
+        log::warn!(
+            "{method} {path} -> {} in {elapsed_ms}ms request_id={request_id}",
+            status.as_u16()
+        );
     }
 
     response
@@ -442,14 +445,16 @@ pub fn create_router(pool: DbPool) -> Router {
             // internal error produces, instead of an aborted connection.
             .layer(CatchPanicLayer::custom(panic_response))
             .layer(TraceLayer::new_for_http())
+            // Sits outside the router and the CORS layer, so it observes every
+            // response on the way out: 404s for unrouted paths, 429s from the
+            // per-route rate limiters, and CORS preflight replies alike. It
+            // must wrap normalize_error_response — the normalizer reads the
+            // REQUEST_ID task-local this layer scopes around the inner call.
+            .layer(axum::middleware::from_fn(record_request_metrics))
             // Normalizes error responses that never reached ApiError — extractor
             // rejections, unrouted-path 404s, body-size limits — into the
             // `{"error": ...}` shape clients always parse.
             .layer(axum::middleware::map_response(normalize_error_response))
-            // Sits outside the router and the CORS layer, so it observes every
-            // response on the way out: 404s for unrouted paths, 429s from the
-            // per-route rate limiters, and CORS preflight replies alike.
-            .layer(axum::middleware::from_fn(record_request_metrics))
             .layer(cors)
             // Security headers
             .layer(SetResponseHeaderLayer::if_not_present(
@@ -494,7 +499,12 @@ mod client_timezone_tests {
 
     #[test]
     fn accepts_real_zone_shapes() {
-        for zone in ["UTC", "Asia/Kuala_Lumpur", "America/Argentina/Salta", "Etc/GMT+8"] {
+        for zone in [
+            "UTC",
+            "Asia/Kuala_Lumpur",
+            "America/Argentina/Salta",
+            "Etc/GMT+8",
+        ] {
             assert_eq!(sanitize_client_timezone(zone).as_deref(), Some(zone));
         }
     }

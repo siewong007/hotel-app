@@ -11,7 +11,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use hotel_app_be::routes;
+use hotel_app_be::{AuthService, core, routes};
 use serde_json::Value;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tower::ServiceExt;
@@ -23,9 +23,9 @@ const BOOKING_B: i64 = 997_011;
 const ROOM_TYPE_ID: i64 = 997_012;
 const ROOM_ID: i64 = 997_013;
 const SESSION_A_TOKEN: &str = "idor-fixture-session-token-A";
+const TEST_JWT_SECRET: &str = "hotel-app-be-guest-portal-idor-secret-32";
 
 struct Fixture {
-    pool: PgPool,
     app: Router,
     session_a: String,
     _guard: tokio::sync::OwnedMutexGuard<()>,
@@ -48,6 +48,14 @@ impl Fixture {
             }
         };
         let guard = fixture_lock().lock_owned().await;
+
+        unsafe {
+            std::env::set_var("JWT_SECRET", TEST_JWT_SECRET);
+        }
+        core::config::init_from_env().expect("test app configuration must initialize");
+        AuthService::init_jwt_secret(TEST_JWT_SECRET)
+            .expect("test JWT secret must satisfy production validation");
+
         let pool = PgPoolOptions::new()
             .max_connections(3)
             .connect(&database_url)
@@ -95,9 +103,10 @@ impl Fixture {
             .expect("guest fixture");
         }
 
-        for (booking_id, guest_id, number) in
-            [(BOOKING_A, GUEST_A, "BK-IDOR-A"), (BOOKING_B, GUEST_B, "BK-IDOR-B")]
-        {
+        for (booking_id, guest_id, number, check_in, check_out) in [
+            (BOOKING_A, GUEST_A, "BK-IDOR-A", "2030-02-01", "2030-02-02"),
+            (BOOKING_B, GUEST_B, "BK-IDOR-B", "2030-02-05", "2030-02-06"),
+        ] {
             sqlx::query(
                 "INSERT INTO bookings \
                  (id, booking_number, guest_id, guest_name, guest_email, room_id, \
@@ -105,8 +114,8 @@ impl Fixture {
                   subtotal, total_amount, status, payment_status, created_by, \
                   tourism_tax_amount, extra_bed_charge) \
                  OVERRIDING SYSTEM VALUE \
-                 VALUES ($1, $2, $3, 'Idor Fixture', $4, $5, '2030-02-01', \
-                         '2030-02-02', 1, 0, 100, 100, 100, 'confirmed', 'unpaid', \
+                 VALUES ($1, $2, $3, 'Idor Fixture', $4, $5, $6::date, \
+                         $7::date, 1, 0, 100, 100, 100, 'confirmed', 'unpaid', \
                          NULL, 0, 0) \
                  ON CONFLICT (id) DO NOTHING",
             )
@@ -115,6 +124,8 @@ impl Fixture {
             .bind(guest_id)
             .bind(format!("idor-{guest_id}@hotel.local"))
             .bind(ROOM_ID)
+            .bind(check_in)
+            .bind(check_out)
             .execute(&pool)
             .await
             .expect("booking fixture");
@@ -135,7 +146,6 @@ impl Fixture {
 
         let app = routes::create_router(pool.clone());
         Some(Self {
-            pool,
             app,
             session_a: format!("Bearer {SESSION_A_TOKEN}"),
             _guard: guard,
@@ -153,11 +163,13 @@ impl Fixture {
             .execute(pool)
             .await
             .expect("payment cleanup");
-        sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = ANY($1)")
-            .bind(&[BOOKING_A, BOOKING_B][..])
-            .execute(pool)
-            .await
-            .expect("audit cleanup");
+        sqlx::query(
+            "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = ANY($1)",
+        )
+        .bind(&[BOOKING_A, BOOKING_B][..])
+        .execute(pool)
+        .await
+        .expect("audit cleanup");
         sqlx::query("DELETE FROM booking_history WHERE booking_id = ANY($1)")
             .bind(&[BOOKING_A, BOOKING_B][..])
             .execute(pool)
@@ -168,11 +180,21 @@ impl Fixture {
             .execute(pool)
             .await
             .expect("booking cleanup");
+        sqlx::query("DELETE FROM support_conversations WHERE guest_id = ANY($1)")
+            .bind(&[GUEST_A, GUEST_B][..])
+            .execute(pool)
+            .await
+            .expect("support conversation cleanup");
         sqlx::query("DELETE FROM guests WHERE id = ANY($1)")
             .bind(&[GUEST_A, GUEST_B][..])
             .execute(pool)
             .await
             .expect("guest cleanup");
+        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
+            .bind(ROOM_ID)
+            .execute(pool)
+            .await
+            .expect("room status log cleanup");
         sqlx::query("DELETE FROM rooms WHERE id = $1")
             .bind(ROOM_ID)
             .execute(pool)
@@ -202,31 +224,29 @@ impl Fixture {
         let body = payload
             .map(|value| Body::from(value.to_string()))
             .unwrap_or_else(Body::empty);
-        let response = self
-            .app
-            .clone()
-            .oneshot(builder.body(body).unwrap())
-            .await
-            .unwrap();
+        let mut request = builder.body(body).unwrap();
+        // Handlers extract ConnectInfo<SocketAddr>, which production attaches
+        // via into_make_service_with_connect_info — inject it for oneshot.
+        request
+            .extensions_mut()
+            .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                [127, 0, 0, 1],
+                40_000,
+            ))));
+        let response = self.app.clone().oneshot(request).await.unwrap();
         let status = response.status();
-        let text = String::from_utf8_lossy(
-            &to_bytes(response.into_body(), usize::MAX).await.unwrap(),
-        )
-        .to_string();
+        let text =
+            String::from_utf8_lossy(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
+                .to_string();
         (status, text)
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let pool = self.pool.clone();
-        tokio::spawn(async move { Fixture::cleanup(&pool).await });
     }
 }
 
 #[tokio::test]
 async fn session_cannot_claim_another_guests_booking_for_bank_transfer() {
-    let Some(fixture) = Fixture::new().await else { return };
+    let Some(fixture) = Fixture::new().await else {
+        return;
+    };
 
     let (status, _) = fixture
         .call(
@@ -246,7 +266,9 @@ async fn session_cannot_claim_another_guests_booking_for_bank_transfer() {
 
 #[tokio::test]
 async fn session_cannot_cancel_another_guests_booking() {
-    let Some(fixture) = Fixture::new().await else { return };
+    let Some(fixture) = Fixture::new().await else {
+        return;
+    };
 
     let (status, _) = fixture
         .call(
@@ -266,7 +288,9 @@ async fn session_cannot_cancel_another_guests_booking() {
 
 #[tokio::test]
 async fn unauthenticated_session_routes_require_a_token() {
-    let Some(fixture) = Fixture::new().await else { return };
+    let Some(fixture) = Fixture::new().await else {
+        return;
+    };
 
     let (status, _) = fixture
         .call(
@@ -282,7 +306,9 @@ async fn unauthenticated_session_routes_require_a_token() {
 
 #[tokio::test]
 async fn booking_list_contains_only_the_callers_rows() {
-    let Some(fixture) = Fixture::new().await else { return };
+    let Some(fixture) = Fixture::new().await else {
+        return;
+    };
 
     let (status, body) = fixture
         .call(

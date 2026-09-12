@@ -752,10 +752,13 @@ pub async fn cancel_my_booking(
     let (items, _) = get_my_bookings(pool, guest_id, 10_000, 0, None)
         .await
         .map(|page| (page.items, page.total))?;
-    let booking = items
-        .into_iter()
-        .find(|booking| booking.id == booking_id)
-        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+    let Some(booking) = items.into_iter().find(|booking| booking.id == booking_id) else {
+        // Same contract as the other portal mutations: a booking that exists
+        // but belongs to another guest is Forbidden, a nonexistent one is
+        // NotFound — resolve_owned_booking maps both.
+        resolve_owned_booking(pool, guest_id, booking_id).await?;
+        return Err(ApiError::NotFound("Booking not found".to_string()));
+    };
     if !booking.can_cancel {
         return Err(ApiError::Conflict(
             booking

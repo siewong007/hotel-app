@@ -291,26 +291,25 @@ fn assert_key_contract(responses: [(StatusCode, String); 4], expected_valid_stat
         (overlong_status, overlong_body),
         (valid_status, valid_body),
     ] = responses;
+    let assert_error_body = |body: &str| {
+        let parsed: serde_json::Value =
+            serde_json::from_str(body).expect("error body must be JSON");
+        assert_eq!(parsed["error"], IDEMPOTENCY_ERROR, "body: {body}");
+    };
     assert_eq!(status, StatusCode::BAD_REQUEST, "missing key body: {body}");
-    assert_eq!(body, json!({ "error": IDEMPOTENCY_ERROR }).to_string());
+    assert_error_body(&body);
     assert_eq!(
         blank_status,
         StatusCode::BAD_REQUEST,
         "blank key body: {blank_body}"
     );
-    assert_eq!(
-        blank_body,
-        json!({ "error": IDEMPOTENCY_ERROR }).to_string()
-    );
+    assert_error_body(&blank_body);
     assert_eq!(
         overlong_status,
         StatusCode::BAD_REQUEST,
         "overlong key body: {overlong_body}"
     );
-    assert_eq!(
-        overlong_body,
-        json!({ "error": IDEMPOTENCY_ERROR }).to_string()
-    );
+    assert_error_body(&overlong_body);
     assert_eq!(
         valid_status, expected_valid_status,
         "valid key body: {valid_body}"
