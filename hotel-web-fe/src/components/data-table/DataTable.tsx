@@ -10,6 +10,9 @@ import {
   Paper,
   Box,
   Typography,
+  Skeleton,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   flexRender,
@@ -28,6 +31,14 @@ export interface DataTableProps<TData> {
   data: TData[];
   columns: ColumnDef<TData, any>[];
   emptyMessage?: React.ReactNode;
+  loading?: boolean;
+  loadingRowCount?: number;
+  /**
+   * Below the `sm` breakpoint the table swaps to a card list — wide tables are
+   * unusable on phones. Supplying this renderer opts the surface in; without
+   * it the table scrolls horizontally as before.
+   */
+  renderMobileCard?: (row: TData) => React.ReactNode;
   globalFilter?: string;
   onRowClick?: (row: TData) => void;
   initialSorting?: SortingState;
@@ -42,6 +53,9 @@ export function DataTable<TData>({
   data,
   columns,
   emptyMessage = 'No rows',
+  loading = false,
+  loadingRowCount = 6,
+  renderMobileCard,
   globalFilter,
   onRowClick,
   initialSorting,
@@ -73,10 +87,54 @@ export function DataTable<TData>({
   });
 
   const rows: Row<TData>[] = table.getRowModel().rows;
+  const theme = useTheme();
+  const isMobileList = useMediaQuery(theme.breakpoints.down('sm')) && Boolean(renderMobileCard);
+
+  const emptyState = (
+    <Box sx={{ py: 4, textAlign: 'center' }}>
+      {typeof emptyMessage === 'string' ? (
+        <Typography sx={{ color: "text.secondary" }}>{emptyMessage}</Typography>
+      ) : (
+        emptyMessage
+      )}
+    </Box>
+  );
 
   return (
     <TableContainer component={Paper} sx={{ borderRadius: 2 }} {...containerProps}>
-      <Table>
+      {isMobileList ? (
+        <Box aria-busy={loading || undefined}>
+          {loading ? (
+            Array.from({ length: Math.min(loadingRowCount, 4) }).map((_, i) => (
+              <Box key={`loading-card-${i}`} sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Skeleton variant="text" width="55%" sx={{ fontSize: '1rem' }} />
+                <Skeleton variant="text" width="80%" />
+                <Skeleton variant="text" width="40%" />
+              </Box>
+            ))
+          ) : rows.length === 0 ? (
+            emptyState
+          ) : (
+            rows.map((row) => (
+              <Box
+                key={row.id}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                sx={{
+                  p: 2,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  cursor: onRowClick ? 'pointer' : undefined,
+                  '&:last-child': { borderBottom: 0 },
+                  ...(onRowClick && { '&:hover': { bgcolor: 'action.hover' } }),
+                }}
+              >
+                {renderMobileCard!(row.original)}
+              </Box>
+            ))
+          )}
+        </Box>
+      ) : (
+      <Table aria-busy={loading || undefined}>
         <TableHead>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id} sx={{ bgcolor: 'grey.50' }}>
@@ -107,7 +165,21 @@ export function DataTable<TData>({
           ))}
         </TableHead>
         <TableBody>
-          {rows.length === 0 ? (
+          {loading ? (
+            Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
+              <TableRow key={`loading-${rowIndex}`}>
+                {table.getVisibleLeafColumns().map((column, colIndex) => (
+                  <TableCell key={column.id} align={column.columnDef.meta?.align ?? 'left'}>
+                    <Skeleton
+                      variant="text"
+                      width={`${88 - ((rowIndex + colIndex) % 3) * 16}%`}
+                      sx={{ fontSize: '0.9rem' }}
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} align="center" sx={{ py: 4 }}>
                 {typeof emptyMessage === 'string' ? (
@@ -141,6 +213,7 @@ export function DataTable<TData>({
           )}
         </TableBody>
       </Table>
+      )}
       {enablePagination && rows.length > 0 && (
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, p: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
           <Typography variant="caption" sx={{
@@ -150,6 +223,7 @@ export function DataTable<TData>({
           </Typography>
           <Box
             component="button"
+            aria-label="Previous page"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
             sx={{ px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}
@@ -158,6 +232,7 @@ export function DataTable<TData>({
           </Box>
           <Box
             component="button"
+            aria-label="Next page"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
             sx={{ px: 1, py: 0.5, cursor: 'pointer', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper', '&:disabled': { opacity: 0.4, cursor: 'default' } }}

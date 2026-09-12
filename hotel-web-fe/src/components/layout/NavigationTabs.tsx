@@ -11,7 +11,14 @@ import {
   Popover,
   InputBase,
   CircularProgress,
+  IconButton,
+  Drawer,
+  List,
+  ListItemButton,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
+import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import HistoryIcon from '@mui/icons-material/History';
 import PersonIcon from '@mui/icons-material/Person';
@@ -31,20 +38,25 @@ import {
   canAccessNavigationRoute,
   navigationRouteDefinitions,
   preloadRoute,
+  type NavGroup,
 } from '../../navigation/routeRegistry';
 import { useRouteLabels } from '../../navigation/routeLabels';
+import { useTranslation } from '../../i18n';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
 
 interface NavigationTabsProps {
   darkBg?: boolean;
 }
 
-const EMERALD = '#10A47C';
-const EMERALD_DEEP = '#0E8C6A';
+const NAV_GROUP_ORDER: NavGroup[] = ['main', 'operations', 'admin', 'config'];
 
 export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function NavigationTabs({
   darkBg = false,
 }: NavigationTabsProps) {
+  const theme = useTheme();
+  const isNarrowNav = useMediaQuery(theme.breakpoints.down('md'));
+  const accentDeep = theme.palette.primary.dark;
+  const accentLight = theme.palette.primary.light;
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission, hasRole, getRoutePolicy, logout, user } = useAuth();
@@ -52,7 +64,8 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const displayEmail = user?.email?.endsWith('@no-email.invalid') ? '' : user?.email;
   const hotelName = getHotelSettings().hotel_name;
 
-  const { navLabel: navLabelFor } = useRouteLabels();
+  const { navLabel: navLabelFor, groupLabel } = useRouteLabels();
+  const { t: tNav } = useTranslation('nav');
   const visibleItems = React.useMemo(
     () =>
       navigationRouteDefinitions.filter((item) =>
@@ -68,6 +81,18 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const adminItems = visibleItems.filter((i) => i.navGroup === 'admin');
   const configItems = visibleItems.filter((i) => i.navGroup === 'config');
   const pillGroups = [opsItems, adminItems, configItems].filter((g) => g.length > 0);
+
+  // Below `md` the pill bar is replaced by a drawer; keep the same registry but
+  // split sections by their real navGroup so labels stay accurate.
+  const [navDrawerOpen, setNavDrawerOpen] = React.useState(false);
+  const drawerGroups = React.useMemo(
+    () =>
+      NAV_GROUP_ORDER.map((group) => ({
+        group,
+        items: visibleItems.filter((i) => i.navGroup === group),
+      })).filter((g) => g.items.length > 0),
+    [visibleItems]
+  );
 
   React.useEffect(() => {
     if (visibleItems.length === 0) return;
@@ -339,6 +364,16 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           color: onText,
         }}
       >
+        {isNarrowNav && (
+          <IconButton
+            color="inherit"
+            aria-label={tNav('aria.openMenu')}
+            onClick={() => setNavDrawerOpen(true)}
+            sx={{ mr: -1, flexShrink: 0 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
         <Box
           component={Link}
           to="/"
@@ -512,7 +547,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
               border: 'none',
               cursor: 'pointer',
               bgcolor: '#fff',
-              color: EMERALD_DEEP,
+              color: accentDeep,
               fontSize: '0.8rem',
               fontWeight: 700,
               boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
@@ -539,7 +574,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
             '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
           }}
         >
-          <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem', fontWeight: 800, background: 'linear-gradient(135deg,#fff,#B8E5D5)', color: EMERALD_DEEP }}>
+          <Avatar sx={{ width: 28, height: 28, fontSize: '0.75rem', fontWeight: 800, background: `linear-gradient(135deg,#fff,${accentLight})`, color: accentDeep }}>
             {getUserInitials()}
           </Avatar>
           <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', lineHeight: 1.1 }}>
@@ -588,8 +623,110 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
             <ListItemText>Sign Out</ListItemText>
           </MenuItem>
         </Menu>
+
+        {/* ---------- Narrow screens: drawer replaces the pill bar ---------- */}
+        <Drawer
+          anchor="left"
+          open={navDrawerOpen}
+          onClose={() => setNavDrawerOpen(false)}
+          slotProps={{ paper: { sx: { width: 300, maxWidth: '85vw' } } }}
+        >
+          <Box component="nav" aria-label={tNav('aria.mainNavigation')} sx={{ pt: 1, pb: 2 }}>
+            <Box sx={{ px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Box
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 1,
+                  bgcolor: 'primary.main',
+                  color: 'primary.contrastText',
+                  display: 'grid',
+                  placeItems: 'center',
+                }}
+              >
+                <HotelIcon sx={{ fontSize: 16 }} />
+              </Box>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{hotelName}</Typography>
+            </Box>
+            {bookingsRoute && (
+              <Box sx={{ px: 2, pb: 0.5 }}>
+                <Box
+                  component="button"
+                  onClick={() => {
+                    setNavDrawerOpen(false);
+                    navigate('/bookings');
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 0.875,
+                    width: '100%',
+                    height: 38,
+                    borderRadius: 1.25,
+                    border: 'none',
+                    cursor: 'pointer',
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <AddIcon sx={{ fontSize: 18 }} /> New booking
+                </Box>
+              </Box>
+            )}
+            {drawerGroups.map(({ group, items }) => (
+              <Box key={group} sx={{ mt: 1 }}>
+                <Typography
+                  sx={{
+                    px: 2,
+                    py: 0.5,
+                    fontSize: '0.66rem',
+                    fontWeight: 700,
+                    color: 'text.secondary',
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.6,
+                  }}
+                >
+                  {groupLabel(group)}
+                </Typography>
+                <List dense disablePadding>
+                  {items.map((item) => {
+                    const active = location.pathname === item.path;
+                    return (
+                      <ListItemButton
+                        key={item.id}
+                        selected={active}
+                        onClick={() => {
+                          setNavDrawerOpen(false);
+                          navigate(item.path);
+                        }}
+                        onMouseEnter={() => preloadRoute(item.path)}
+                        sx={{ mx: 1, borderRadius: 1 }}
+                      >
+                        <ListItemIcon sx={{ minWidth: 34 }}>
+                          {renderNavIcon(item, 18)}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={navLabelFor(item)}
+                          slotProps={{
+                            primary: {
+                              sx: { fontSize: '0.85rem', fontWeight: active ? 700 : 500 },
+                            },
+                          }}
+                        />
+                      </ListItemButton>
+                    );
+                  })}
+                </List>
+              </Box>
+            ))}
+          </Box>
+        </Drawer>
       </Box>
       {/* ---------- Row 2: grouped pill tabs ---------- */}
+      {!isNarrowNav && (
       <Box
         sx={{
           height: 46,
@@ -641,6 +778,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           </React.Fragment>
         ))}
       </Box>
+      )}
     </Box>
   );
 });

@@ -342,14 +342,6 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     },
   ], []);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   return (
     <Box>
       {/* Header */}
@@ -395,10 +387,63 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       <DataTable<UserWithRoles>
         data={users}
         columns={columns}
+        loading={loading}
         globalFilter={searchQuery}
         emptyMessage="No users found"
         onRowClick={handleOpenEdit}
         getRowId={(row) => row.id}
+        renderMobileCard={(u) => (
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 600 }}>{u.username}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>{u.email}</Typography>
+                {u.full_name && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>{u.full_name}</Typography>
+                )}
+              </Box>
+              <Chip
+                label={u.is_active ? 'Active' : 'Inactive'}
+                size="small"
+                color={u.is_active ? 'success' : 'default'}
+                variant={u.is_active ? 'filled' : 'outlined'}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1, gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', minWidth: 0 }}>
+                {u.roles && u.roles.length > 0 ? (
+                  u.roles.map((role) => (
+                    <Chip
+                      key={role.id}
+                      label={role.name}
+                      size="small"
+                      icon={<SecurityIcon sx={{ fontSize: 14 }} />}
+                      sx={{
+                        bgcolor: alpha(getRoleColor(role.name), 0.1),
+                        color: getRoleColor(role.name),
+                        fontWeight: 500,
+                        '& .MuiChip-icon': { color: 'inherit' },
+                      }}
+                    />
+                  ))
+                ) : (
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>No roles</Typography>
+                )}
+              </Box>
+              <IconButton
+                size="small"
+                color="error"
+                aria-label="Delete user"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenDelete(u);
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          </Box>
+        )}
       />
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={handleClose} maxWidth="sm" fullWidth>

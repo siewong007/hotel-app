@@ -21,6 +21,7 @@ import {
   Grid,
   Pagination,
   MenuItem,
+  Skeleton,
   alpha,
 } from '@mui/material';
 import {
@@ -366,6 +367,26 @@ const GuestConfigurationPage: React.FC = () => {
       meta: { align: 'right' },
     },
   ], [formatCurrency]);
+
+  const renderBookingMobileCard = (b: GuestBookingHistoryRow) => (
+    <Box>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {b.booking_number || `#${b.id}`}
+        </Typography>
+        <Chip label={bookingStatusLabel(b.status)} color={bookingStatusChipColor(b.status)} size="small" />
+      </Box>
+      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
+        {b.room_number ? `${b.room_number}${b.room_type ? ` (${b.room_type})` : ''}` : '—'}
+      </Typography>
+      <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+        {formatBookingHistoryDate(getBookingHistoryDateTime(b.check_in_date))} → {formatBookingHistoryDate(getBookingHistoryDateTime(b.check_out_date))} · {b.nights ?? 0} nights
+      </Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600, mt: 0.5 }}>
+        {formatCurrency(Number.parseFloat(String(b.total_amount)) || 0)}
+      </Typography>
+    </Box>
+  );
 
   const loadGuests = useCallback(async () => {
     await Promise.all([
@@ -952,8 +973,28 @@ const GuestConfigurationPage: React.FC = () => {
 
           {/* List body */}
           {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-              <CircularProgress size={28} />
+            <Box>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Box
+                  key={i}
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: 'auto 1fr auto',
+                    gap: 1.75,
+                    px: '13px',
+                    py: '14px',
+                    alignItems: 'center',
+                    borderBottom: `1px solid ${GUEST_DESIGN.rule}`,
+                  }}
+                >
+                  <Skeleton variant="circular" width={42} height={42} />
+                  <Box>
+                    <Skeleton variant="text" width="42%" sx={{ fontSize: 14 }} />
+                    <Skeleton variant="text" width="62%" sx={{ fontSize: 12 }} />
+                  </Box>
+                  <Skeleton variant="rounded" width={52} height={22} />
+                </Box>
+              ))}
             </Box>
           ) : visibleGuests.length === 0 ? (
             <Box sx={{ p: '48px 20px', textAlign: 'center', color: GUEST_DESIGN.ink3 }}>
@@ -1627,13 +1668,9 @@ const GuestConfigurationPage: React.FC = () => {
         <DialogTitle>Booking History: {viewingGuest?.nick_name}</DialogTitle>
         <DialogContent>
           {bookingsLoading ? (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                py: 3
-              }}>
-              <CircularProgress />
+            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Skeleton variant="text" width={190} height={26} />
+              <Skeleton variant="rounded" height={150} />
             </Box>
           ) : guestBookings.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>
@@ -1656,6 +1693,7 @@ const GuestConfigurationPage: React.FC = () => {
                     columns={guestBookingColumns}
                     emptyMessage="No checked out bookings found for this guest."
                     getRowId={(row) => String(row.id)}
+                    renderMobileCard={renderBookingMobileCard}
                   />
                 </Box>
               )}
@@ -1674,6 +1712,7 @@ const GuestConfigurationPage: React.FC = () => {
                     columns={guestBookingColumns}
                     emptyMessage="No void bookings found for this guest."
                     getRowId={(row) => String(row.id)}
+                    renderMobileCard={renderBookingMobileCard}
                   />
                 </Box>
               )}
@@ -1692,6 +1731,7 @@ const GuestConfigurationPage: React.FC = () => {
                     columns={guestBookingColumns}
                     emptyMessage="No other bookings found for this guest."
                     getRowId={(row) => String(row.id)}
+                    renderMobileCard={renderBookingMobileCard}
                   />
                 </Box>
               )}
@@ -1710,13 +1750,9 @@ const GuestConfigurationPage: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           {creditsLoading ? (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                py: 3
-              }}>
-              <CircularProgress />
+            <Box sx={{ mt: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Skeleton variant="text" width={160} height={24} />
+              <Skeleton variant="rounded" height={110} />
             </Box>
           ) : guestCredits ? (
             <Box>

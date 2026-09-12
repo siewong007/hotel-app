@@ -105,6 +105,11 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
   const boardAltSurface = themeMode === 'light' ? '#fbfaf6' : themeMode === 'night' ? '#101a2d' : '#252d29';
   const boardSelected = themeMode === 'light' ? '#f1efe7' : themeMode === 'night' ? '#17243a' : '#2d3833';
   const boardDash = themeMode === 'light' ? '#9aa09b' : '#65746f';
+  const focusRing = isLight
+    ? 'rgba(0, 121, 107, 0.45)'
+    : themeMode === 'night'
+      ? 'rgba(125, 211, 252, 0.55)'
+      : 'rgba(128, 203, 196, 0.5)';
 
   return createTheme({
     palette: {
@@ -223,6 +228,10 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           },
           '#root': {
             backgroundColor: selected.background.default,
+          },
+          'body :focus-visible': {
+            outline: `3px solid ${focusRing}`,
+            outlineOffset: 2,
           },
           '.hotel-board-shell': {
             backgroundColor: selected.background.default,
@@ -449,13 +458,25 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
       },
       MuiDialog: {
         styleOverrides: {
-          paper: {
+          paper: ({ theme }) => ({
             backgroundColor: popupBackground,
             color: selected.text.primary,
             border: `1px solid ${popupBorder}`,
             backgroundImage: 'none',
             boxShadow: popupShadow,
-          },
+            // Phones get a full-height sheet instead of a floating card —
+            // dense workflows (check-in, checkout invoice) are unusable in a
+            // floating dialog on a ~375px viewport.
+            [theme.breakpoints.down('sm')]: {
+              margin: 0,
+              width: '100%',
+              maxWidth: 'none',
+              height: '100dvh',
+              maxHeight: '100dvh',
+              borderRadius: 0,
+              border: 'none',
+            },
+          }),
         },
       },
       MuiDialogContent: {
@@ -465,12 +486,30 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           },
         },
       },
+      MuiDialogTitle: {
+        styleOverrides: {
+          root: ({ theme }) => ({
+            [theme.breakpoints.down('sm')]: {
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
+              backgroundColor: popupBackground,
+            },
+          }),
+        },
+      },
       MuiDialogActions: {
         styleOverrides: {
-          root: {
+          root: ({ theme }) => ({
             backgroundColor: popupBackground,
             borderTop: `1px solid ${selected.divider}`,
-          },
+            // Keep confirm/cancel reachable without scrolling a tall sheet.
+            [theme.breakpoints.down('sm')]: {
+              position: 'sticky',
+              bottom: 0,
+              zIndex: 1,
+            },
+          }),
         },
       },
       MuiPopover: {
