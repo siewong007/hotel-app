@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { formatStatusLabel } from '../../../utils/formatters';
 import AddCommentOutlinedIcon from '@mui/icons-material/AddCommentOutlined';
 import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
 import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined';
@@ -79,7 +80,7 @@ function supportCategoryLabel(category: PortalSupportCategory | string): string 
 }
 
 function supportStatusLabel(status: PortalSupportStatus | string): string {
-  return STATUS_LABELS[status as PortalSupportStatus] ?? status.replace(/_/g, ' ');
+  return STATUS_LABELS[status as PortalSupportStatus] ?? formatStatusLabel(status);
 }
 
 function supportStatusColor(status: PortalSupportStatus): ChipProps['color'] {

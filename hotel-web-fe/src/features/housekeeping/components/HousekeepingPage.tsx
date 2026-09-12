@@ -22,6 +22,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../../../auth/AuthContext';
 import { formatLocalDate } from '../../../utils/date';
+import { formatStatusLabel } from '../../../utils/formatters';
 import type { HousekeepingBoardRoom, HousekeepingPriority } from '../../../types/housekeeping.types';
 import {
   useCreateHousekeepingTask,
@@ -34,10 +35,7 @@ import MaintenanceTab from './MaintenanceTab';
 const ROOM_STATUS_ORDER = ['dirty', 'cleaning', 'reserved_dirty', 'maintenance', 'available', 'reserved', 'occupied'];
 const PRIORITIES: HousekeepingPriority[] = ['low', 'normal', 'high', 'urgent'];
 
-const statusLabel = (status: string) => status
-  .split('_')
-  .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-  .join(' ');
+const statusLabel = (status: string) => formatStatusLabel(status);
 
 const priorityColor = (priority?: HousekeepingPriority) => {
   switch (priority) {

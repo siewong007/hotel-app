@@ -1,4 +1,5 @@
 import type { BookingWithDetails } from '../../../../types';
+import { formatStatusLabel } from '../../../../utils/formatters';
 import type { SortField, SortOrder } from './types';
 
 export const getStatusColor = (status: string): 'success' | 'warning' | 'info' | 'default' => {
@@ -23,7 +24,7 @@ export const getStatusLabel = (status: string): string => {
     case 'voided':
       return 'Voided';
     default:
-      return status;
+      return formatStatusLabel(status);
   }
 };
 

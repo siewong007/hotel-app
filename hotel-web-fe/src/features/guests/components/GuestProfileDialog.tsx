@@ -27,6 +27,7 @@ import {
   WarningAmber as WarningAmberIcon,
 } from '@mui/icons-material';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { formatStatusLabel } from '../../../utils/formatters';
 import type { GuestDuplicateCandidate, GuestProfileBooking } from '../../../types';
 import { useGuestProfile } from '../hooks/useGuestQueries';
 
@@ -54,7 +55,7 @@ const formatDate = (value?: string | null) => {
 };
 
 const formatStatus = (value?: string | null) =>
-  value ? value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) : 'N/A';
+  formatStatusLabel(value, 'N/A');
 
 const recommendationLabel = (candidate: GuestDuplicateCandidate) => {
   if (candidate.blocking_reasons.length > 0 || candidate.recommended_action === 'do_not_merge') {

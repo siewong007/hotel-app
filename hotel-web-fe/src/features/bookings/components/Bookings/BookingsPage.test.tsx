@@ -417,9 +417,9 @@ describe('BookingsPage', () => {
       expect(screen.getAllByText('Jane Doe').length).toBeGreaterThan(0);
       expect(screen.getByText('Alex Tan')).toBeDefined();
       expect(screen.getByText('Mei Ling')).toBeDefined();
-      expect(screen.getByText(/Rm 101/)).toBeDefined();
-      expect(screen.getByText(/Rm 202/)).toBeDefined();
-      expect(screen.getByText(/Rm 303/)).toBeDefined();
+      expect(screen.getAllByText(/Room 101/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Room 202/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Room 303/).length).toBeGreaterThan(0);
       // F-1001 (booking1) renders twice once the auto-select effect opens the
       // details panel for the first visible booking (list row + detail header).
       expect(screen.getAllByText('F-1001').length).toBeGreaterThan(0);

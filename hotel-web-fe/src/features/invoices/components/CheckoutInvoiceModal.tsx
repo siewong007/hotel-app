@@ -46,6 +46,7 @@ import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
 import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 
@@ -180,7 +181,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setShowPaymentForm(true);
       setPaymentAmount(0);
       const bookingPaymentMethod = booking.payment_method
-        ? booking.payment_method.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+        ? formatStatusLabel(booking.payment_method)
         : 'Cash';
       setPaymentMethod(bookingPaymentMethod);
       setPaymentReference('');
@@ -296,7 +297,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const handleStartEdit = (payment: CheckoutPaymentRecord) => {
     setEditingPayment(payment);
     setEditAmount(toMoneyNumber(payment.total_amount));
-    setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
+    setEditMethod(formatStatusLabel(payment.payment_method, 'Cash'));
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
     setEditDate(formatPaymentDateForInput(payment));
@@ -683,12 +684,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const isEarlyCheckout = () => getCheckoutVariance() === 'early';
   const isLateCheckout = () => getCheckoutVariance() === 'late';
 
-  const formatBookingStatus = (status?: string) => {
-    if (!status) return 'Unknown';
-    return status
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  };
+  const formatBookingStatus = (status?: string) => formatStatusLabel(status, 'Unknown');
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -1407,7 +1403,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       }}>
                           <Grid size={4}>
                             <Typography variant="body2">
-                              {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                              {formatStatusLabel(p.payment_method, '')}
                             </Typography>
                             <Typography variant="caption" sx={{
                               color: "text.secondary"
@@ -1552,7 +1548,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         }}>
                           <Grid size={5}>
                             <Typography variant="body2" sx={{ color: '#2e7d32' }}>
-                              Deposit Refund ({p.payment_method?.replace('_', ' ')})
+                              Deposit Refund ({formatStatusLabel(p.payment_method, '')})
                             </Typography>
                             <Typography variant="caption" sx={{
                               color: "text.secondary"

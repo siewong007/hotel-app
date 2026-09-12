@@ -57,6 +57,15 @@ export default [
             "CallExpression[callee.object.property.name='response'][callee.property.name='json']",
           message:
             "ky 2 already consumed the error body; error.response.json() always rejects. Use readErrorData(error) from src/api/client.ts."
+        },
+        // Hand-rolled enum humanizers (`status.replace(/_/g, ' ')`) render raw
+        // API vocabulary to users and drift in casing per call site. Route all
+        // status/enum labels through formatStatusLabel() in src/utils/formatters.ts.
+        {
+          selector:
+            "CallExpression[callee.property.name='replace'][arguments.0.regex.pattern='_'][arguments.1.value=' ']",
+          message:
+            "Use formatStatusLabel() from src/utils/formatters.ts instead of ad-hoc underscore stripping."
         }
       ]
     }

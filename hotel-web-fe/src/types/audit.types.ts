@@ -1,5 +1,6 @@
 // Audit log type definitions
 import { AUDIT_ACTION_LABELS, AUDIT_RESOURCE_LABELS } from '../constants/audit.constants';
+import { formatStatusLabel } from '../utils/formatters';
 
 export interface AuditLogEntry {
   id: number;
@@ -61,10 +62,10 @@ export interface AuditUser {
 
 // Helper function to get action label
 export function getActionLabel(action: string): { label: string; color: string } {
-  return AUDIT_ACTION_LABELS[action] || { label: action.replace(/_/g, ' '), color: '#757575' };
+  return AUDIT_ACTION_LABELS[action] || { label: formatStatusLabel(action), color: '#757575' };
 }
 
 // Helper function to get resource label
 export function getResourceLabel(resourceType: string): { label: string; color: string } {
-  return AUDIT_RESOURCE_LABELS[resourceType] || { label: resourceType.replace(/_/g, ' '), color: '#757575' };
+  return AUDIT_RESOURCE_LABELS[resourceType] || { label: formatStatusLabel(resourceType), color: '#757575' };
 }

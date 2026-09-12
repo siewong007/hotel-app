@@ -19,7 +19,7 @@ describe('currency utilities', () => {
   });
 
   it('formats numeric values as currency strings', () => {
-    expect(formatCurrency(1234.50)).toBe('$1234.50');
+    expect(formatCurrency(1234.50)).toBe('$1,234.50');
     expect(formatCurrency(0)).toBe('$0.00');
     expect(formatCurrency(99.99)).toBe('$99.99');
   });
@@ -35,9 +35,9 @@ describe('currency utilities', () => {
   });
 
   it('formats with specific currency codes', () => {
-    expect(formatCurrency(1234.50, 'MYR')).toBe('RM 1234.50');
+    expect(formatCurrency(1234.50, 'MYR')).toBe('RM 1,234.50');
     expect(formatCurrency(99.99, 'EUR')).toBe('€99.99');
-    expect(formatCurrency(1000, 'JPY')).toBe('¥1000');
+    expect(formatCurrency(1000, 'JPY')).toBe('¥1,000');
   });
 
   it('formats with custom decimals', () => {

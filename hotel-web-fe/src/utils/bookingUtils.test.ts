@@ -176,9 +176,9 @@ describe('getBookingStatusColor / getBookingStatusText', () => {
     expect(getBookingStatusText(status)).toBe(text);
   });
 
-  it('falls back to default color and the raw string for an unknown status', () => {
+  it('falls back to default color and a humanized label for an unknown status', () => {
     expect(getBookingStatusColor('mystery_status')).toBe('default');
-    expect(getBookingStatusText('mystery_status')).toBe('mystery_status');
+    expect(getBookingStatusText('mystery_status')).toBe('Mystery Status');
   });
 });
 

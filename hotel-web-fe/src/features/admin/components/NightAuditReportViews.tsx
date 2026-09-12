@@ -45,6 +45,9 @@ import {
 } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { formatStatusLabel } from '../../../utils/formatters';
+import { formatHotelDate } from '../../../utils/date';
+import StatusChip from '../../../components/common/StatusChip';
 
 // Online bookings store source='online' and bury the channel name in booking_remarks
 // (formatted as "<Channel> - Ref: <ref>" or "<Channel> Booking" by UnifiedBookingModal).
@@ -348,7 +351,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
           {items.map((item) => (
             <TableRow key={item.category} hover>
               <TableCell sx={{ textTransform: 'capitalize' }}>
-                {item.category.replace(/_/g, ' ')}
+                {formatStatusLabel(item.category)}
               </TableCell>
               <TableCell align="center">{item.count}</TableCell>
               <TableCell align="right">{formatCurrency(Number(item.amount))}</TableCell>
@@ -365,22 +368,9 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
   );
 }
 
-const getBookingStatusChip = (status: string) => {
-  const statusColors: Record<string, 'success' | 'warning' | 'info' | 'default'> = {
-    checked_in: 'success',
-    checked_out: 'info',
-    reserved: 'warning',
-    confirmed: 'info',
-  };
-  return (
-    <Chip
-      label={status.replace(/_/g, ' ')}
-      color={statusColors[status] || 'default'}
-      size="small"
-      sx={{ textTransform: 'capitalize' }}
-    />
-  );
-};
+const getBookingStatusChip = (status: string) => (
+  <StatusChip status={status} />
+);
 
 const formatAuditDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
@@ -478,12 +468,12 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
                   <TableCell>{booking.booking_number}</TableCell>
                   <TableCell>{booking.guest_name}</TableCell>
                   <TableCell>{booking.room_number}</TableCell>
-                  <TableCell>{new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString()}</TableCell>
-                  <TableCell>{new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString()}</TableCell>
+                  <TableCell>{formatHotelDate(booking.check_in_date)}</TableCell>
+                  <TableCell>{formatHotelDate(booking.check_out_date)}</TableCell>
                   <TableCell align="right">{formatCurrency(Number(booking.total_amount))}</TableCell>
                   <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
                   <TableCell sx={{ textTransform: 'capitalize' }}>
-                    {booking.source?.replace(/_/g, ' ') || '-'}
+                    {booking.source ? formatStatusLabel(booking.source) : '-'}
                   </TableCell>
                 </TableRow>
               ))}

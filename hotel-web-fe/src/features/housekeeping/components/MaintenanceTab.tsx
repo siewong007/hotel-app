@@ -27,6 +27,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloseIcon from '@mui/icons-material/Close';
 import { useState } from 'react';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
 import type {
   MaintenanceCategory,
@@ -50,10 +51,7 @@ const CATEGORIES: MaintenanceCategory[] = [
 ];
 const PRIORITIES: MaintenancePriority[] = ['low', 'medium', 'high', 'critical'];
 
-const statusLabel = (status: string) => status
-  .split('_')
-  .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-  .join(' ');
+const statusLabel = (status: string) => formatStatusLabel(status);
 
 const priorityColor = (priority?: MaintenancePriority) => {
   switch (priority) {

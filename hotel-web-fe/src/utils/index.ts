@@ -30,6 +30,7 @@ export type { BookingStats } from './bookingUtils';
 
 export * from './hotelSettings';
 export * from './date';
+export * from './formatters';
 export * from './money';
 export * from './pagination';
 export * from './retry';

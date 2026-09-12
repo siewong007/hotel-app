@@ -3,6 +3,8 @@
  * so they can be unit-tested without rendering the component.
  */
 
+import { formatStatusLabel } from '../../utils/formatters';
+
 export interface UserLoyaltyMembership {
   id: number;
   membership_number: string;
@@ -114,10 +116,7 @@ export function isTierLocked(
 
 /** `dining_discount` → `Dining Discount`. */
 export function formatCategoryLabel(category: string): string {
-  return category
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return formatStatusLabel(category);
 }
 
 export const formatNumber = (num: number) => {

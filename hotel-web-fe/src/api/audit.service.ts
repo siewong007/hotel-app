@@ -1,6 +1,7 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
 import { formatLocalDate } from '../utils/date';
+import { formatStatusLabel } from '../utils/formatters';
 import {
   AuditLogResponse,
   AuditLogQuery,
@@ -157,9 +158,9 @@ export class AuditService {
     const tableData = response.data.map((log) => [
       new Date(log.created_at).toLocaleString(),
       log.username || 'System',
-      log.action.replace(/_/g, ' '),
+      formatStatusLabel(log.action, ''),
       log.category || '-',
-      log.resource_type.replace(/_/g, ' '),
+      formatStatusLabel(log.resource_type, ''),
       log.resource_id?.toString() || '-',
       log.has_changes === false || log.change_kind === 'action_only' ? 'Action only' : 'Field changes',
       log.ip_address || '-',

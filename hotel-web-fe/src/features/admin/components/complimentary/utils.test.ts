@@ -13,11 +13,11 @@ describe('complimentary status helpers', () => {
     expect(getStatusColor('anything_else')).toBe('default');
   });
 
-  it('maps statuses to labels, falling back to the raw status', () => {
+  it('maps statuses to labels, humanizing any unmapped status', () => {
     expect(getStatusLabel('fully_complimentary')).toBe('Fully Complimentary');
     expect(getStatusLabel('partial_complimentary')).toBe('Partial');
     expect(getStatusLabel('voided')).toBe('Voided');
-    expect(getStatusLabel('confirmed')).toBe('confirmed');
+    expect(getStatusLabel('confirmed')).toBe('Confirmed');
   });
 });
 

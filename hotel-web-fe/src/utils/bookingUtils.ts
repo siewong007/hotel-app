@@ -12,6 +12,7 @@ import {
   BookingWithDetails,
 } from '../types';
 import { multiplyMoney, sumMoney, toMoneyNumber } from './money';
+import { formatStatusLabel } from './formatters';
 
 /**
  * Validate booking dates
@@ -214,7 +215,7 @@ export const getBookingStatusText = (status: BookingStatusType | string): string
     case 'voided':
       return 'Voided';
     default:
-      return status;
+      return formatStatusLabel(status, 'Unknown');
   }
 };
 
@@ -264,7 +265,7 @@ export const getPaymentStatusText = (status: string | undefined): string => {
     case 'void':
       return 'Void';
     default:
-      return status || 'Unknown';
+      return formatStatusLabel(status, 'Unknown');
   }
 };
 

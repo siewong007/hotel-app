@@ -79,6 +79,7 @@ import {
 } from '../hooks/useEkycQueries';
 import EkycCreateDialog from './EkycCreateDialog';
 import { errorMessage } from '../../../utils/errorMessage';
+import { formatStatusLabel } from '../../../utils/formatters';
 
 const STATUS_OPTIONS = [
   'submitted',
@@ -135,8 +136,7 @@ function formatDate(value?: string | null): string {
 }
 
 function labelize(value?: string | null): string {
-  if (!value) return '-';
-  return value.split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  return formatStatusLabel(value, '-');
 }
 
 // Distinct colour per eKYC status. MUI's Chip `color` prop only exposes a

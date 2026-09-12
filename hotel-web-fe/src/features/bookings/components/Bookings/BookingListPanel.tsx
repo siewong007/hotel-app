@@ -224,7 +224,7 @@ const BookingListPanel: React.FC<BookingListPanelProps> = ({
                       mt: 0.35
                     }}>
                     <BedIcon sx={{ fontSize: 16, verticalAlign: 'text-bottom', mr: 0.5 }} />
-                    Rm {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} {'->'} {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
+                    Room {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} → {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
                   </Typography>
                 </Box>
                 <Box sx={{ textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>

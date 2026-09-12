@@ -14,66 +14,86 @@ export const toNumber = (value: number | string | null | undefined): number => {
   return toMoneyNumber(value);
 };
 
+// Grouping is pinned to en-US on purpose: money follows the *currency's*
+// convention (see i18n/format.ts — money is deliberately excluded from
+// locale-driven formatting), so 'RM 6,927.57' renders identically in every
+// interface language.
+const ZERO_DECIMAL_CURRENCIES = new Set(['JPY', 'IDR']);
+
+const groupAmount = (amount: number | string | null | undefined, code: string): string => {
+  const decimals = ZERO_DECIMAL_CURRENCIES.has(code) ? 0 : 2;
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(toMoneyNumber(amount));
+};
+
+const spaced = (symbol: string, code: string) => (amount: number | string | null | undefined) =>
+  `${symbol} ${groupAmount(amount, code)}`;
+
+const tight = (symbol: string, code: string) => (amount: number | string | null | undefined) =>
+  `${symbol}${groupAmount(amount, code)}`;
+
 export const SUPPORTED_CURRENCIES: Record<string, CurrencyInfo> = {
   USD: {
     code: 'USD',
     symbol: '$',
     name: 'US Dollar',
-    format: (amount) => `$${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('$', 'USD'),
   },
   MYR: {
     code: 'MYR',
     symbol: 'RM',
     name: 'Malaysian Ringgit',
-    format: (amount) => `RM ${toMoneyNumber(amount).toFixed(2)}`,
+    format: spaced('RM', 'MYR'),
   },
   EUR: {
     code: 'EUR',
     symbol: '€',
     name: 'Euro',
-    format: (amount) => `€${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('€', 'EUR'),
   },
   GBP: {
     code: 'GBP',
     symbol: '£',
     name: 'British Pound',
-    format: (amount) => `£${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('£', 'GBP'),
   },
   SGD: {
     code: 'SGD',
     symbol: 'S$',
     name: 'Singapore Dollar',
-    format: (amount) => `S$${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('S$', 'SGD'),
   },
   JPY: {
     code: 'JPY',
     symbol: '¥',
     name: 'Japanese Yen',
-    format: (amount) => `¥${Math.round(toMoneyNumber(amount))}`, // JPY doesn't use decimals
+    format: tight('¥', 'JPY'), // JPY doesn't use decimals
   },
   CNY: {
     code: 'CNY',
     symbol: '¥',
     name: 'Chinese Yuan',
-    format: (amount) => `¥${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('¥', 'CNY'),
   },
   AUD: {
     code: 'AUD',
     symbol: 'A$',
     name: 'Australian Dollar',
-    format: (amount) => `A$${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('A$', 'AUD'),
   },
   THB: {
     code: 'THB',
     symbol: '฿',
     name: 'Thai Baht',
-    format: (amount) => `฿${toMoneyNumber(amount).toFixed(2)}`,
+    format: tight('฿', 'THB'),
   },
   IDR: {
     code: 'IDR',
     symbol: 'Rp',
     name: 'Indonesian Rupiah',
-    format: (amount) => `Rp ${Math.round(toMoneyNumber(amount))}`, // IDR doesn't use decimals
+    format: spaced('Rp', 'IDR'), // IDR doesn't use decimals
   },
 };
 
@@ -128,12 +148,16 @@ export const formatCurrencyCustom = (
   decimals: number = 2,
   currencyCode?: string
 ): string => {
-  const symbol = getCurrencySymbol(currencyCode);
+  const code = currencyCode || getCurrentCurrency();
+  const symbol = getCurrencySymbol(code);
   const numAmount = toMoneyNumber(amount);
-  const formattedAmount = numAmount.toFixed(decimals);
+  const formattedAmount = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(numAmount);
 
   // For currencies that use space after symbol
-  if (currencyCode === 'MYR' || currencyCode === 'IDR') {
+  if (code === 'MYR' || code === 'IDR') {
     return `${symbol} ${formattedAmount}`;
   }
 

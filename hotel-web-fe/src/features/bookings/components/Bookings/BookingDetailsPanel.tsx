@@ -28,6 +28,7 @@ import {
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { getBookingStatusText, getPaymentStatusText } from '../../../../utils/bookingUtils';
+import { formatStatusLabel } from '../../../../utils/formatters';
 import { isPositiveMoney, toMoneyNumber } from '../../../../utils/money';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { getBookedViaText } from '../../utils/bookingChannel';
@@ -188,7 +189,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
               <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(booking)) ? alpha('#c43d32', 0.08) : alpha('#2f6f52', 0.1), color: isPositiveMoney(getBookingBalance(booking)) ? '#c43d32' : '#2f6f52', fontWeight: 900 }}>
                 {isPositiveMoney(getBookingBalance(booking))
                   ? `Due ${formatCurrency(getBookingBalance(booking))}`
-                  : `✓ Fully paid${booking.payment_method ? ` via ${booking.payment_method.replace(/_/g, ' ')}` : ''}`}
+                  : `✓ Fully paid${booking.payment_method ? ` via ${formatStatusLabel(booking.payment_method)}` : ''}`}
               </Box>
             </Stack>
           </Box>

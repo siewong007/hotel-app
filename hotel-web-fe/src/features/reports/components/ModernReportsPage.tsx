@@ -50,6 +50,7 @@ import { ReportsService, type BookingChannel } from '../../../api/reports.servic
 import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { formatLocalDate } from '../../../utils/date';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useReportData } from '../hooks/useReportData';
 import {
@@ -766,7 +767,7 @@ const ModernReportsPage: React.FC = () => {
         'e_wallet': 'E-Wallet',
         'company_bill': 'Company Bill',
       };
-      return methods[method] || method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      return methods[method] || formatStatusLabel(method);
     };
 
     // Format source for display
@@ -780,7 +781,7 @@ const ModernReportsPage: React.FC = () => {
         'phone': 'Phone',
         'online': 'Online',
       };
-      return sources[source] || source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      return sources[source] || formatStatusLabel(source);
     };
 
     return (

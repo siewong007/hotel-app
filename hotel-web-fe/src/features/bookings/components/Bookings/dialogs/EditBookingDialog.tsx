@@ -103,9 +103,9 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
     setEditFormData({
       status: booking.status,
       payment_status: booking.payment_status || 'unpaid',
-      payment_method: booking.payment_method
-        ? booking.payment_method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-        : '',
+      // Pass-through field: no input edits it, and the value is resubmitted
+      // verbatim — keep the raw API enum, never a humanized label.
+      payment_method: booking.payment_method || '',
       source: booking.source || 'walk_in',
       booking_channel_id: booking.booking_channel_id ?? '',
       ota_reference: booking.ota_reference || '',

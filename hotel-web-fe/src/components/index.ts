@@ -15,6 +15,18 @@ export { default as StatCard } from './common/StatCard';
 export type { StatCardProps, StatCardTrend } from './common/StatCard';
 export { default as TabPanel, getTabA11yProps } from './common/TabPanel';
 export type { TabPanelProps } from './common/TabPanel';
+export { default as StatusChip, statusTone } from './common/StatusChip';
+export type { StatusChipProps, StatusTone } from './common/StatusChip';
+export { default as MoneyText } from './common/MoneyText';
+export type { MoneyTextProps } from './common/MoneyText';
+export { default as DateText, DateRangeText } from './common/DateText';
+export type { DateTextProps, DateRangeTextProps } from './common/DateText';
+export { default as EmptyState } from './common/EmptyState';
+export type { EmptyStateProps } from './common/EmptyState';
+export { default as PageHeader } from './common/PageHeader';
+export type { PageHeaderProps } from './common/PageHeader';
+export { default as StatStrip } from './common/StatStrip';
+export type { StatStripProps, StatStripItem } from './common/StatStrip';
 
 // Data table primitives
 export { DataTable } from './data-table/DataTable';

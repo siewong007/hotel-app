@@ -1,5 +1,6 @@
 import type { BookingWithDetails } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { formatStatusLabel } from '../../../utils/formatters';
 
 export type BookingChannelInfo = {
   name: string;
@@ -108,5 +109,5 @@ export const getBookedViaText = (
     return `${channel.name} (${channel.abbreviation})`;
   }
 
-  return booking.source?.replace(/_/g, ' ') || 'Direct';
+  return booking.source ? formatStatusLabel(booking.source) : 'Direct';
 };

@@ -1,4 +1,5 @@
 import { Chip, type ChipProps } from '@mui/material';
+import { formatStatusLabel } from '../../../utils/formatters';
 import type { SupportConversationStatus, SupportPriority } from '../types';
 
 const STATUS_COLORS: Record<SupportConversationStatus, ChipProps['color']> = {
@@ -16,11 +17,7 @@ const PRIORITY_COLORS: Record<SupportPriority, ChipProps['color']> = {
 };
 
 export function humanizeSupportValue(value?: string | null): string {
-  if (!value) return '—';
-  return value
-    .split('_')
-    .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
+  return formatStatusLabel(value);
 }
 
 export function formatSupportDate(value?: string | null): string {

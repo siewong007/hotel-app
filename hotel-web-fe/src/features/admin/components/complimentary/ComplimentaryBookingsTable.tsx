@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../types';
 import { filterAndSortBookings, getStatusColor, getStatusLabel } from './utils';
+import { formatDateRange } from '../../../../utils/formatters';
 import type { SortField, SortOrder } from './types';
 
 interface ComplimentaryBookingsTableProps {
@@ -153,8 +154,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
                       <Typography variant="caption" sx={{
                         color: "success.main"
                       }}>
-                        Comp: {new Date(booking.complimentary_start_date).toLocaleDateString()} -{' '}
-                        {new Date(booking.complimentary_end_date).toLocaleDateString()}
+                        Comp: {formatDateRange(booking.complimentary_start_date, booking.complimentary_end_date)}
                       </Typography>
                     )}
                   </TableCell>

@@ -45,6 +45,7 @@ import {
 } from '@mui/icons-material';
 import { Guest } from '../../../types';
 import { errorMessage } from '../../../utils';
+import { formatStatusLabel } from '../../../utils/formatters';
 import { DataTable, type ColumnDef } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
 import { useSearchParams } from '../../../router';
@@ -155,7 +156,7 @@ const bookingStatusLabel = (status: string) => {
     confirmed: 'Reserved',
     pending: 'Pending',
   };
-  return labels[status] ?? status.replace(/_/g, ' ');
+  return labels[status] ?? formatStatusLabel(status);
 };
 
 const bookingStatusChipColor = (status: string): 'default' | 'success' | 'warning' | 'info' => {
