@@ -47,7 +47,7 @@ import {
   PictureAsPdf as PdfIcon,
   TableChart as CsvIcon,
 } from '@mui/icons-material';
-import { NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
+import { NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse, PostedBookingDetail } from '../../../api';
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import { formatLocalDate } from '../../../utils/date';
 import { formatCurrency } from '../../../utils/currency';
@@ -194,6 +194,106 @@ function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
           </Box>
         </Box>
       </Paper>
+    </Box>
+  );
+}
+
+// Online bookings store source='online' and bury the channel name in booking_remarks
+// (formatted as "<Channel> - Ref: <ref>" or "<Channel> Booking" by UnifiedBookingModal).
+// Match by checking whether any configured channel name appears in either field.
+const channelAbbreviation = (b: PostedBookingDetail): string | undefined => {
+  const configuredChannels = getHotelSettings().booking_channels.filter(c => c.abbreviation);
+  const haystacks = [b.source ?? '', b.booking_remarks ?? ''].map(s => s.toLowerCase());
+  for (const ch of configuredChannels) {
+    const needle = ch.name.toLowerCase();
+    if (haystacks.some(h => h.includes(needle))) return ch.abbreviation;
+  }
+  return undefined;
+};
+
+// Guest Ledger summary: one debit/credit row per journal account + totals (PDF page 2)
+function GuestLedgerSummary({ sections }: { sections: JournalSection[] }) {
+  if (!sections || sections.length === 0) {
+    return null;
+  }
+  const totalDebit = sections.reduce((sum, s) => sum + Number(s.total_debit), 0);
+  const totalCredit = sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
+  return (
+    <Box sx={{ mt: 3 }}>
+      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+        Guest Ledger
+      </Typography>
+      <TableContainer component={Paper} variant="outlined">
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableCell><strong>Account</strong></TableCell>
+              <TableCell align="right"><strong>Debits</strong></TableCell>
+              <TableCell align="right"><strong>Credits</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sections.map((s) => (
+              <TableRow key={s.entry_type} hover>
+                <TableCell>{s.display_name}</TableCell>
+                <TableCell align="right">
+                  {Number(s.total_debit) > 0 ? formatCurrency(Number(s.total_debit)) : '-'}
+                </TableCell>
+                <TableCell align="right">
+                  {Number(s.total_credit) > 0 ? formatCurrency(Number(s.total_credit)) : '-'}
+                </TableCell>
+              </TableRow>
+            ))}
+            <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableCell><strong>Total</strong></TableCell>
+              <TableCell align="right"><strong>{formatCurrency(totalDebit)}</strong></TableCell>
+              <TableCell align="right"><strong>{formatCurrency(totalCredit)}</strong></TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+}
+
+// Room Sold Detail by Date: room, type and guest per posted booking (PDF page 2)
+function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }) {
+  if (!bookings || bookings.length === 0) {
+    return null;
+  }
+  return (
+    <Box sx={{ mt: 3 }}>
+      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+        Room Sold Detail by Date
+      </Typography>
+      <TableContainer component={Paper} variant="outlined">
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableCell><strong>Room</strong></TableCell>
+              <TableCell><strong>Type</strong></TableCell>
+              <TableCell><strong>Guest Name</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {bookings.map((b) => {
+              const abbr = channelAbbreviation(b);
+              return (
+                <TableRow key={b.booking_id} hover>
+                  <TableCell>{b.room_number}</TableCell>
+                  <TableCell>{b.room_type_code || b.room_type || ''}</TableCell>
+                  <TableCell>{abbr ? `${b.guest_name} (${abbr})` : b.guest_name}</TableCell>
+                </TableRow>
+              );
+            })}
+            <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableCell><strong>Total Room Sold</strong></TableCell>
+              <TableCell><strong>{bookings.length}</strong></TableCell>
+              <TableCell />
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Box>
   );
 }
@@ -352,6 +452,36 @@ const NightAuditPage: React.FC = () => {
         const grandCredit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
         lines.push('');
         lines.push(`GRAND TOTAL,,, ${grandDebit.toFixed(2)}, ${grandCredit.toFixed(2)}`);
+
+        // Guest Ledger summary (mirrors PDF page 2)
+        lines.push('');
+        lines.push('GUEST LEDGER');
+        lines.push('Account,Debits,Credits');
+        details.journal_sections.forEach(section => {
+          lines.push([
+            section.display_name,
+            Number(section.total_debit) > 0 ? Number(section.total_debit).toFixed(2) : '',
+            Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : ''
+          ].join(','));
+        });
+        lines.push(`Total,${grandDebit.toFixed(2)},${grandCredit.toFixed(2)}`);
+      }
+
+      // Room Sold Detail by Date (mirrors PDF page 2)
+      if (bookings.length > 0) {
+        lines.push('');
+        lines.push('ROOM SOLD DETAIL BY DATE');
+        lines.push('Room,Type,Guest Name');
+        bookings.forEach(b => {
+          const abbr = channelAbbreviation(b);
+          const guestName = abbr ? `${b.guest_name} (${abbr})` : b.guest_name;
+          lines.push([
+            b.room_number,
+            b.room_type_code || b.room_type || '',
+            `"${guestName.replace(/"/g, '""')}"`
+          ].join(','));
+        });
+        lines.push(`Total Room Sold,${bookings.length},`);
       }
 
       const csvContent = lines.join('\n');
@@ -470,64 +600,6 @@ const NightAuditPage: React.FC = () => {
         // Skip service_tax - already merged into room_charge
         if (isServiceTax) return;
 
-        const isCityLedger = section.entry_type === 'city_ledger';
-
-        // City Ledger: special table with Description, Debit, Credit, Net amount
-        if (isCityLedger) {
-          const fmtDate = (d: string) => { const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; };
-          const today = fmtDate(audit.audit_date);
-
-          const rows: string[][] = [];
-          for (const entry of section.entries) {
-            const debit = Number(entry.debit);
-            const credit = Number(entry.credit);
-            rows.push([
-              today,
-              entry.description || 'Guest Ledger Transfer',
-              debit > 0 ? debit.toFixed(2) : '',
-              credit > 0 ? credit.toFixed(2) : '',
-            ]);
-          }
-          const totalDebit = Number(section.total_debit);
-          const totalCredit = Number(section.total_credit);
-          const netAmount = totalDebit - totalCredit;
-          rows.push([
-            '',
-            'Totals:',
-            totalDebit > 0 ? totalDebit.toFixed(2) : '',
-            `${totalCredit > 0 ? totalCredit.toFixed(2) : ''}    Net amount:    ${netAmount.toFixed(2)}`,
-          ]);
-
-          if (currentY + rows.length * 7 + 20 > pageHeight - 20) {
-            doc.addPage();
-            currentY = 20;
-          }
-
-          // Section header
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'bold');
-          doc.text('City Ledger', margin, currentY);
-          doc.setFont('helvetica', 'normal');
-          currentY += 5;
-
-          autoTable(doc, {
-            startY: currentY,
-            head: [['', '', '', '']],
-            body: rows,
-            showHead: false,
-            styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
-            columnStyles: {
-              0: { cellWidth: 28 },
-              1: { fontStyle: 'italic', cellWidth: 50 },
-              2: { halign: 'right', fontStyle: 'bold', cellWidth: 25 },
-              3: { halign: 'right', fontStyle: 'bold', cellWidth: 55 },
-            },
-            theme: 'grid',
-          });
-          currentY = doc.lastAutoTable.finalY + 6;
-          return;
-        }
-
         const isCreditSideSection = [
           'extra_bed_charge',
           'extra_bed_tax',
@@ -626,20 +698,8 @@ const NightAuditPage: React.FC = () => {
       doc.setFont('helvetica', 'normal');
       currentY += 8;
 
-      const configuredChannels = getHotelSettings().booking_channels.filter(c => c.abbreviation);
-      // Online bookings store source='online' and bury the channel name in booking_remarks
-      // (formatted as "<Channel> - Ref: <ref>" or "<Channel> Booking" by UnifiedBookingModal).
-      // Match by checking whether any configured channel name appears in either field.
-      const findAbbreviation = (b: typeof bookings[number]): string | undefined => {
-        const haystacks = [b.source ?? '', b.booking_remarks ?? ''].map(s => s.toLowerCase());
-        for (const ch of configuredChannels) {
-          const needle = ch.name.toLowerCase();
-          if (haystacks.some(h => h.includes(needle))) return ch.abbreviation;
-        }
-        return undefined;
-      };
       const roomSoldRows: string[][] = bookings.map(b => {
-        const abbr = findAbbreviation(b);
+        const abbr = channelAbbreviation(b);
         return [
           b.room_number,
           b.room_type_code || b.room_type || '',
@@ -939,9 +999,13 @@ const NightAuditPage: React.FC = () => {
                             <CircularProgress size={24} />
                             <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
                           </Box>
-                        ) : auditDetails[completedAudit.id]?.journal_sections && auditDetails[completedAudit.id].journal_sections.length > 0 ? (
-                          <JournalSectionsDisplay sections={auditDetails[completedAudit.id].journal_sections} />
-                        ) : !auditDetails[completedAudit.id] ? (
+                        ) : auditDetails[completedAudit.id] ? (
+                          <>
+                            <JournalSectionsDisplay sections={auditDetails[completedAudit.id].journal_sections} />
+                            <GuestLedgerSummary sections={auditDetails[completedAudit.id].journal_sections} />
+                            <RoomSoldDetail bookings={auditDetails[completedAudit.id].posted_bookings} />
+                          </>
+                        ) : (
                           <Button
                             variant="text"
                             size="small"
@@ -963,7 +1027,7 @@ const NightAuditPage: React.FC = () => {
                           >
                             Load Journal Entries
                           </Button>
-                        ) : null}
+                        )}
                         {/* Export and Rerun Buttons */}
                         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
                           <Button
@@ -1344,14 +1408,18 @@ const NightAuditPage: React.FC = () => {
                                 </Box>
                               )}
 
-                              {/* Journal Sections */}
+                              {/* Journal Sections + Guest Ledger + Room Sold Detail */}
                               {detailsLoading.has(audit.id) ? (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                                   <CircularProgress size={24} />
                                   <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
                                 </Box>
-                              ) : auditDetails[audit.id]?.journal_sections && auditDetails[audit.id].journal_sections.length > 0 ? (
-                                <JournalSectionsDisplay sections={auditDetails[audit.id].journal_sections} />
+                              ) : auditDetails[audit.id] ? (
+                                <>
+                                  <JournalSectionsDisplay sections={auditDetails[audit.id].journal_sections} />
+                                  <GuestLedgerSummary sections={auditDetails[audit.id].journal_sections} />
+                                  <RoomSoldDetail bookings={auditDetails[audit.id].posted_bookings} />
+                                </>
                               ) : null}
 
                               {/* Audit Info & Export Buttons */}

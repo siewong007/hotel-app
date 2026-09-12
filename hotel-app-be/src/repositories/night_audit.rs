@@ -1216,8 +1216,8 @@ pub async fn generate_journal_sections(
                     booking_number: company_name,
                     room_number,
                     entry_type: "city_ledger".to_string(),
-                    debit: Decimal::ZERO,
-                    credit: payment_amount,
+                    debit: payment_amount,
+                    credit: Decimal::ZERO,
                     description: Some(format!("City Ledger Payment ({})", payment_method)),
                 });
             }
