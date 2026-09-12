@@ -12,7 +12,8 @@ pub struct BookingSearchQuery {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OnlineInventoryQuery {
-    pub stay_date: String,
+    pub from: String,
+    pub to: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -32,6 +33,13 @@ pub struct OnlineInventoryAllocation {
     pub walk_in_reserved_rooms: i32,
     pub online_booking_enabled: bool,
     pub custom_price: Option<Decimal>,
+    /// Effective nightly rate without the custom override: the applicable rate
+    /// plan for the date, else the weekday/weekend/base fallback — the price a
+    /// guest pays when `custom_price` is null.
+    pub standard_price: Decimal,
+    /// An `online_inventory_allocations` row exists for this cell, even if it
+    /// stores defaults — distinguishes configured cells from untouched ones.
+    pub is_override: bool,
     pub online_available_rooms: i64,
 }
 

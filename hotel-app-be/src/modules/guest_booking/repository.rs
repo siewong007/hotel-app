@@ -121,34 +121,76 @@ impl GuestBookingRepository {
         pool: &DbPool,
         stay_date: NaiveDate,
     ) -> Result<Vec<OnlineInventoryAllocation>, ApiError> {
-        let next_date = stay_date
-            .succ_opt()
-            .ok_or_else(|| ApiError::BadRequest("Invalid stay date".to_string()))?;
+        Self::list_online_inventory_range(pool, stay_date, stay_date).await
+    }
+
+    /// One row per active room type per date in `[from, to]` (inclusive).
+    /// `standard_price` resolves the nightly rate a guest pays without a custom
+    /// override — applicable rate plan first, weekday/weekend/base fallback —
+    /// mirroring `nightly_rates` precedence in the service.
+    pub async fn list_online_inventory_range(
+        pool: &DbPool,
+        from: NaiveDate,
+        to: NaiveDate,
+    ) -> Result<Vec<OnlineInventoryAllocation>, ApiError> {
         let rows = sqlx::query(r#"
+                WITH dates AS (
+                    SELECT generate_series($1::date, $2::date, interval '1 day')::date AS stay_date
+                )
                 SELECT rt.id AS room_type_id, rt.code AS room_type_code, rt.name AS room_type_name,
-                       COUNT(r.id)::bigint AS physical_available_rooms,
+                       d.stay_date,
+                       COALESCE(avail.cnt, 0)::bigint AS physical_available_rooms,
                        COALESCE(a.walk_in_reserved_rooms, 0) AS walk_in_reserved_rooms,
                        COALESCE(a.online_booking_enabled, true) AS online_booking_enabled,
-                       a.custom_price::text AS custom_price
+                       a.custom_price::text AS custom_price,
+                       (a.room_type_id IS NOT NULL) AS is_override,
+                       COALESCE(rate.price,
+                           CASE WHEN extract(isodow FROM d.stay_date) IN (6, 7)
+                                THEN rt.weekend_rate ELSE rt.weekday_rate END,
+                           rt.base_price)::text AS standard_price
                 FROM room_types rt
-                LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = true
-                  AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
-                  AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id
-                    AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
-                    AND b.check_in_date < $2 AND b.check_out_date > $1)
-                LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = $1
+                CROSS JOIN dates d
+                LEFT JOIN LATERAL (
+                    SELECT COUNT(*)::bigint AS cnt
+                    FROM rooms r
+                    WHERE r.room_type_id = rt.id AND r.is_active = true
+                      AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order')
+                      AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id
+                        AND b.status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending', 'pending_payment', 'pending_confirmation')
+                        AND b.check_in_date < d.stay_date + 1 AND b.check_out_date > d.stay_date)
+                ) avail ON true
+                LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = d.stay_date
+                LEFT JOIN LATERAL (
+                    SELECT rr.price
+                    FROM room_rates rr
+                    JOIN rate_plans rp ON rp.id = rr.rate_plan_id
+                    WHERE rr.room_type_id = rt.id
+                      AND rp.is_active = true
+                      AND rr.effective_from <= d.stay_date
+                      AND (rr.effective_to IS NULL OR rr.effective_to >= d.stay_date)
+                      AND (rp.valid_from IS NULL OR rp.valid_from <= d.stay_date)
+                      AND (rp.valid_to IS NULL OR rp.valid_to >= d.stay_date)
+                      AND ((extract(isodow FROM d.stay_date) = 1 AND rp.applies_monday)
+                        OR (extract(isodow FROM d.stay_date) = 2 AND rp.applies_tuesday)
+                        OR (extract(isodow FROM d.stay_date) = 3 AND rp.applies_wednesday)
+                        OR (extract(isodow FROM d.stay_date) = 4 AND rp.applies_thursday)
+                        OR (extract(isodow FROM d.stay_date) = 5 AND rp.applies_friday)
+                        OR (extract(isodow FROM d.stay_date) = 6 AND rp.applies_saturday)
+                        OR (extract(isodow FROM d.stay_date) = 7 AND rp.applies_sunday))
+                    ORDER BY rp.priority DESC, rr.id DESC LIMIT 1
+                ) rate ON true
                 WHERE rt.is_active = true
-                GROUP BY rt.id, rt.code, rt.name, a.walk_in_reserved_rooms, a.online_booking_enabled, a.custom_price
-                ORDER BY rt.name
+                ORDER BY rt.name, d.stay_date
             "#)
-        .bind(stay_date)
-        .bind(next_date)
+        .bind(from)
+        .bind(to)
         .fetch_all(pool)
         .await
         .map_err(ApiError::from)?;
         Ok(rows
             .into_iter()
             .map(|row| {
+                let stay_date: NaiveDate = row.try_get("stay_date").unwrap_or(from);
                 let physical: i64 = row.try_get("physical_available_rooms").unwrap_or_default();
                 let reserved: i32 = row.try_get("walk_in_reserved_rooms").unwrap_or_default();
                 let enabled: bool = row.try_get("online_booking_enabled").unwrap_or(true);
@@ -161,6 +203,8 @@ impl GuestBookingRepository {
                     walk_in_reserved_rooms: reserved,
                     online_booking_enabled: enabled,
                     custom_price: get_opt_decimal(&row, "custom_price"),
+                    standard_price: get_decimal(&row, "standard_price"),
+                    is_override: row.try_get("is_override").unwrap_or(false),
                     online_available_rooms: if enabled {
                         (physical - i64::from(reserved)).max(0)
                     } else {

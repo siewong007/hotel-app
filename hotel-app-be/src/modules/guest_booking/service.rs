@@ -536,13 +536,37 @@ pub async fn quote_with_eligible_vouchers(
     })
 }
 
+/// Inclusive span limit for the range read — a 31-date window is the most the
+/// grid ever asks for.
+pub const MAX_ONLINE_INVENTORY_SPAN_DAYS: i64 = 30;
+
+fn parse_online_inventory_range(
+    from: &str,
+    to: &str,
+) -> Result<(NaiveDate, NaiveDate), ApiError> {
+    let from = NaiveDate::parse_from_str(from.trim(), "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid 'from' date. Use YYYY-MM-DD".to_string()))?;
+    let to = NaiveDate::parse_from_str(to.trim(), "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid 'to' date. Use YYYY-MM-DD".to_string()))?;
+    if to < from {
+        return Err(ApiError::BadRequest(
+            "'to' must not be before 'from'".to_string(),
+        ));
+    }
+    if (to - from).num_days() > MAX_ONLINE_INVENTORY_SPAN_DAYS {
+        return Err(ApiError::BadRequest(
+            "Date range cannot exceed 31 days".to_string(),
+        ));
+    }
+    Ok((from, to))
+}
+
 pub async fn list_online_inventory(
     pool: &DbPool,
     query: OnlineInventoryQuery,
 ) -> Result<Vec<OnlineInventoryAllocation>, ApiError> {
-    let stay_date = NaiveDate::parse_from_str(query.stay_date.trim(), "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid stay date. Use YYYY-MM-DD".to_string()))?;
-    Repository::list_online_inventory(pool, stay_date).await
+    let (from, to) = parse_online_inventory_range(&query.from, &query.to)?;
+    Repository::list_online_inventory_range(pool, from, to).await
 }
 
 pub async fn update_online_inventory(
@@ -1646,5 +1670,24 @@ mod tests {
         assert!(html.contains("View your booking"));
         assert!(html.contains("https://saliminn.my/portal"));
         assert!(!html.contains("pending payment"));
+    }
+
+    #[test]
+    fn range_rejects_span_over_31_dates() {
+        let err = parse_online_inventory_range("2026-09-01", "2026-10-02")
+            .expect_err("32-day span must fail");
+        assert!(matches!(err, ApiError::BadRequest(_)));
+    }
+
+    #[test]
+    fn range_accepts_31_date_span_and_rejects_inverted() {
+        assert!(parse_online_inventory_range("2026-09-01", "2026-10-01").is_ok());
+        assert!(parse_online_inventory_range("2026-10-01", "2026-09-01").is_err());
+    }
+
+    #[test]
+    fn range_rejects_malformed_dates() {
+        assert!(parse_online_inventory_range("01/09/2026", "2026-09-14").is_err());
+        assert!(parse_online_inventory_range("2026-09-01", "tomorrow").is_err());
     }
 }
