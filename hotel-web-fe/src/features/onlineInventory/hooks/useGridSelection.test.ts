@@ -55,6 +55,16 @@ describe('useGridSelection', () => {
     expect(result.current.selected.size).toBe(9); // 3 rows x 3 dates
   });
 
+  it('selectRange sets anchor, focus and rectangle atomically', () => {
+    const { result } = renderSelection();
+    act(() => result.current.selectRange('2:2026-09-13', '3:2026-09-14'));
+    expect(result.current.anchor).toBe('2:2026-09-13');
+    expect(result.current.focused).toBe('3:2026-09-14');
+    expect(result.current.selected).toEqual(
+      new Set(['2:2026-09-13', '2:2026-09-14', '3:2026-09-13', '3:2026-09-14']),
+    );
+  });
+
   it('clears selection and anchor', () => {
     const { result } = renderSelection();
     act(() => result.current.selectRow(1));

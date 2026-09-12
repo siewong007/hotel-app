@@ -64,6 +64,17 @@ export const useGridSelection = (roomTypeIds: number[], dates: string[]) => {
     [roomTypeIds],
   );
 
+  /** Atomic range select — sets anchor, focus, and the rectangle in one update
+   *  so pointer-drag never reads a stale anchor mid-gesture. */
+  const selectRange = useCallback(
+    (from: CellKey, to: CellKey) => {
+      setAnchor(from);
+      setFocused(to);
+      setSelected(rectBetween(from, to));
+    },
+    [rectBetween],
+  );
+
   const clear = useCallback(() => {
     setSelected(new Set());
     setAnchor(null);
@@ -85,11 +96,12 @@ export const useGridSelection = (roomTypeIds: number[], dates: string[]) => {
       isSelected: (key: CellKey) => selected.has(key),
       selectCell,
       moveFocus,
+      selectRange,
       selectRow,
       selectColumn,
       clear,
       setSelected: setSelectedKeys,
     }),
-    [anchor, focused, selected, selectCell, moveFocus, selectRow, selectColumn, clear, setSelectedKeys],
+    [anchor, focused, selected, selectCell, moveFocus, selectRange, selectRow, selectColumn, clear, setSelectedKeys],
   );
 };
