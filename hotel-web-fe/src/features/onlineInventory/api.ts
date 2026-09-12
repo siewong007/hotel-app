@@ -1,15 +1,29 @@
 import { api } from '../../api/client';
-import type { OnlineInventoryAllocation, UpdateOnlineInventoryInput } from './types';
+import type { CellUpdateInput, OnlineInventoryAllocation } from './types';
+
+export const getOnlineInventoryRange = (from: string, to: string) =>
+  api
+    .get('admin/online-inventory', { searchParams: { from, to } })
+    .json<OnlineInventoryAllocation[]>();
+
+export const bulkUpdateOnlineInventory = (cells: CellUpdateInput[]) =>
+  api
+    .put('admin/online-inventory/bulk', { json: { cells } })
+    .json<OnlineInventoryAllocation[]>();
+
+// --- Compatibility shims for the legacy single-date page; removed with it ---
 
 export const getOnlineInventory = (stayDate: string) =>
-  api
-    .get('admin/online-inventory', { searchParams: { stay_date: stayDate } })
-    .json<OnlineInventoryAllocation[]>();
+  getOnlineInventoryRange(stayDate, stayDate);
 
 export const updateOnlineInventory = (
   roomTypeId: number,
   stayDate: string,
-  input: UpdateOnlineInventoryInput,
+  input: {
+    walk_in_reserved_rooms: number;
+    online_booking_enabled: boolean;
+    custom_price: string | null;
+  },
 ) =>
   api
     .put(`admin/online-inventory/${roomTypeId}/${stayDate}`, { json: input })

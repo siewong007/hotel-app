@@ -14,6 +14,8 @@ const allocation = (
   walk_in_reserved_rooms: 2,
   online_booking_enabled: true,
   custom_price: null,
+  standard_price: '280.00',
+  is_override: false,
   online_available_rooms: 3,
   ...overrides,
 });
