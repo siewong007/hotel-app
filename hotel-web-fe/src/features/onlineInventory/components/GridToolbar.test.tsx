@@ -6,7 +6,9 @@ import { formatLocalDate } from '../../../utils/date';
 import { shiftDate } from '../utils';
 import { GridToolbar } from './GridToolbar';
 
-const START = '2026-09-12';
+// Always safely in the past so the "Today" shortcut is rendered — hardcoding a
+// calendar date made the suite timezone-fragile (CI runs in UTC).
+const START = shiftDate(formatLocalDate(), -30);
 
 const renderToolbar = (overrides: Partial<Parameters<typeof GridToolbar>[0]> = {}) => {
   const props = {
@@ -29,13 +31,13 @@ describe('GridToolbar', () => {
   it('navigates by one day and by the whole window', () => {
     const props = renderToolbar();
     fireEvent.click(screen.getByRole('button', { name: 'Previous day' }));
-    expect(props.onStartChange).toHaveBeenLastCalledWith('2026-09-11');
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, -1));
     fireEvent.click(screen.getByRole('button', { name: 'Next day' }));
-    expect(props.onStartChange).toHaveBeenLastCalledWith('2026-09-13');
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, 1));
     fireEvent.click(screen.getByRole('button', { name: 'Back 14 days' }));
-    expect(props.onStartChange).toHaveBeenLastCalledWith('2026-08-29');
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, -14));
     fireEvent.click(screen.getByRole('button', { name: 'Forward 14 days' }));
-    expect(props.onStartChange).toHaveBeenLastCalledWith('2026-09-26');
+    expect(props.onStartChange).toHaveBeenLastCalledWith(shiftDate(START, 14));
   });
 
   it('changes the start date through the date field', () => {
@@ -72,6 +74,6 @@ describe('GridToolbar', () => {
 
   it('uses shiftDate so window jumps land on real calendar dates', () => {
     // sanity: the helper the toolbar relies on
-    expect(shiftDate(START, 14)).toBe('2026-09-26');
+    expect(shiftDate('2026-09-12', 14)).toBe('2026-09-26');
   });
 });

@@ -699,7 +699,7 @@ pub async fn update_online_inventory(
         request.walk_in_reserved_rooms,
         request.online_booking_enabled,
         request.custom_price,
-        actor_id,
+        Some(actor_id),
     )
     .await?;
     AuditLog::log_event_tx(
@@ -750,7 +750,7 @@ pub async fn bulk_update_online_inventory(
                     reserved,
                     enabled,
                     price,
-                    actor_id,
+                    Some(actor_id),
                 )
                 .await?
             }

@@ -62,7 +62,7 @@ async fn range_lists_every_room_type_for_every_date_and_bulk_round_trips() {
         1,
         true,
         Some(Decimal::new(19995, 2)),
-        1,
+        None,
     )
     .await
     .expect("upsert");

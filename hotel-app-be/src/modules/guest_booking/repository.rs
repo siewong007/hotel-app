@@ -225,7 +225,7 @@ impl GuestBookingRepository {
         reserved: i32,
         enabled: bool,
         custom_price: Option<Decimal>,
-        updated_by: i64,
+        updated_by: Option<i64>,
     ) -> Result<(), ApiError> {
         Self::lock_room_type_tx(tx, room_type_id).await?;
         sqlx::query("INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, custom_price, updated_by) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = EXCLUDED.walk_in_reserved_rooms, online_booking_enabled = EXCLUDED.online_booking_enabled, custom_price = EXCLUDED.custom_price, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP")
