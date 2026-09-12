@@ -1514,7 +1514,7 @@ END $$;
 
 DO $$
 DECLARE
-    comp_id BIGINT; rack_id BIGINT; corp_id BIGINT; wknd_id BIGINT; early_id BIGINT; group_id BIGINT;
+    rack_id BIGINT; corp_id BIGINT; wknd_id BIGINT; early_id BIGINT; group_id BIGINT;
     std_id BIGINT; dlx_id BIGINT; ste_id BIGINT; fam_id BIGINT;
 BEGIN
     IF NOT (SELECT seed_property FROM v1_seed_state) THEN
@@ -1522,7 +1522,6 @@ BEGIN
     END IF;
 
     -- Get rate plan IDs
-    SELECT id INTO comp_id FROM rate_plans WHERE code = 'COMP' LIMIT 1;
     SELECT id INTO rack_id FROM rate_plans WHERE code = 'RACK' LIMIT 1;
     SELECT id INTO corp_id FROM rate_plans WHERE code = 'CORP' LIMIT 1;
     SELECT id INTO wknd_id FROM rate_plans WHERE code = 'WKND' LIMIT 1;
@@ -1540,14 +1539,10 @@ BEGIN
     -- backup whose room_types use different codes) would insert a NULL
     -- room_type_id and abort the whole bootstrap transaction.
 
-    -- COMPLIMENTARY RATE ($0 for all room types)
-    IF comp_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT comp_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 0.00), (dlx_id, 0.00), (ste_id, 0.00), (fam_id, 0.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
+    -- COMPLIMENTARY RATE deliberately seeds NO room_rates rows: a 0.00 rate at
+    -- priority 100 would outrank every public plan and the base-rate fallback,
+    -- making those room types bookable online for RM 0.00. The plan stays
+    -- visible in admin; comped nights are handled by the credits flow instead.
 
     -- RACK RATE (Base prices: STD $150, DLX $250, STE $450, FAM $350)
     IF rack_id IS NOT NULL THEN
