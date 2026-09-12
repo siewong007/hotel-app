@@ -210,6 +210,8 @@ jobs:
             "$bundle_dir/database/patches/0015_authenticator_hotel_name.sql"
           cp hotel-app-be/database/postgres/patches/0016_hotel_business_number.sql \
             "$bundle_dir/database/patches/0016_hotel_business_number.sql"
+          cp hotel-app-be/database/postgres/patches/0017_remove_seeded_rate_plans.sql \
+            "$bundle_dir/database/patches/0017_remove_seeded_rate_plans.sql"
 
           (
             cd "$bundle_dir"
@@ -240,6 +242,7 @@ jobs:
               database/patches/0014_session_client_timezone.sql \
               database/patches/0015_authenticator_hotel_name.sql \
               database/patches/0016_hotel_business_number.sql \
+              database/patches/0017_remove_seeded_rate_plans.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

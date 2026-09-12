@@ -134,10 +134,12 @@ async fn nightly_rates(
     let mut rates = Vec::new();
     let mut date = stay.check_in_date;
     while date < stay.check_out_date {
+        // Public pricing is the room's sold rate only: an explicit
+        // online-inventory custom price wins, otherwise base/weekday/weekend.
+        // Rate plans are a staff-side tool and never auto-apply online;
+        // complimentary nights are credit redemptions handled downstream.
         let (rate_plan_code, amount) = if let Some(custom_price) = custom_prices.get(&date) {
             ("ONLINE_CUSTOM".to_string(), *custom_price)
-        } else if let Some(rate) = Repository::applicable_rate(pool, room_type.id, date).await? {
-            rate
         } else {
             ("BASE".to_string(), base_rate_for_date(room_type, date))
         };

@@ -1485,117 +1485,17 @@ END $$;
 -- RATE PLANS
 -- ============================================================================
 
-DO $$
-BEGIN
-    IF (SELECT seed_property FROM v1_seed_state) THEN
-        INSERT INTO rate_plans (name, code, description, plan_type, adjustment_type, adjustment_value, valid_from, valid_to, is_active, priority)
-        VALUES
-            -- No COMP plan: complimentary nights are member-credit redemptions,
-            -- not a sellable rate. A rate-plan row here would leak into public
-            -- pricing via applicable_rate's priority ordering.
-            ('Standard Rack Rate', 'RACK', 'Standard published rate for walk-in guests', 'standard', 'override', NULL, '2023-01-01', '2026-12-31', true, 50),
-            ('Corporate Rate', 'CORP', 'Discounted rate for corporate clients and business travelers', 'corporate', 'percentage', -20.00, '2023-01-01', '2026-12-31', true, 60),
-            ('Weekend Rate', 'WKND', 'Special rate for weekend stays (Friday-Sunday)', 'seasonal', 'percentage', 15.00, '2023-01-01', '2026-12-31', true, 55),
-            ('Early Bird Rate', 'EARLY', 'Discounted rate for bookings made 30+ days in advance', 'promotional', 'percentage', -30.00, '2023-01-01', '2026-12-31', true, 70),
-            ('Group Rate', 'GROUP', 'Special rate for group bookings (5+ rooms)', 'group', 'percentage', -25.00, '2023-01-01', '2026-12-31', true, 65)
-        ON CONFLICT (code) DO NOTHING;
-
-        UPDATE rate_plans SET
-            applies_monday = false, applies_tuesday = false, applies_wednesday = false, applies_thursday = false,
-            applies_friday = true, applies_saturday = true, applies_sunday = true
-        WHERE code = 'WKND';
-
-        UPDATE rate_plans SET min_advance_booking = 30 WHERE code = 'EARLY';
-        UPDATE rate_plans SET min_nights = 1 WHERE code = 'GROUP';
-    END IF;
-END $$;
-
--- ============================================================================
--- ROOM RATES - Prices for each rate plan and room type combination
--- ============================================================================
-
-DO $$
-DECLARE
-    rack_id BIGINT; corp_id BIGINT; wknd_id BIGINT; early_id BIGINT; group_id BIGINT;
-    std_id BIGINT; dlx_id BIGINT; ste_id BIGINT; fam_id BIGINT;
-BEGIN
-    IF NOT (SELECT seed_property FROM v1_seed_state) THEN
-        RETURN;
-    END IF;
-
-    -- Get rate plan IDs
-    SELECT id INTO rack_id FROM rate_plans WHERE code = 'RACK' LIMIT 1;
-    SELECT id INTO corp_id FROM rate_plans WHERE code = 'CORP' LIMIT 1;
-    SELECT id INTO wknd_id FROM rate_plans WHERE code = 'WKND' LIMIT 1;
-    SELECT id INTO early_id FROM rate_plans WHERE code = 'EARLY' LIMIT 1;
-    SELECT id INTO group_id FROM rate_plans WHERE code = 'GROUP' LIMIT 1;
-
-    -- Get room type IDs
-    SELECT id INTO std_id FROM room_types WHERE code = 'STD' LIMIT 1;
-    SELECT id INTO dlx_id FROM room_types WHERE code = 'DLX' LIMIT 1;
-    SELECT id INTO ste_id FROM room_types WHERE code = 'STE' LIMIT 1;
-    SELECT id INTO fam_id FROM room_types WHERE code = 'FAM' LIMIT 1;
-
-    -- Each rate insert filters out room types that don't exist on this database
-    -- (NULL *_id). Without the WHERE filter a missing code (e.g. a restored
-    -- backup whose room_types use different codes) would insert a NULL
-    -- room_type_id and abort the whole bootstrap transaction.
-
-    -- COMPLIMENTARY RATE deliberately seeds NO room_rates rows: a 0.00 rate at
-    -- priority 100 would outrank every public plan and the base-rate fallback,
-    -- making those room types bookable online for RM 0.00. The plan stays
-    -- visible in admin; comped nights are handled by the credits flow instead.
-
-    -- RACK RATE (Base prices: STD $150, DLX $250, STE $450, FAM $350)
-    IF rack_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT rack_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 150.00), (dlx_id, 250.00), (ste_id, 450.00), (fam_id, 350.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- CORPORATE RATE (20% off base)
-    IF corp_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT corp_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 120.00), (dlx_id, 200.00), (ste_id, 360.00), (fam_id, 280.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- WEEKEND RATE (15% premium)
-    IF wknd_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT wknd_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 172.50), (dlx_id, 287.50), (ste_id, 517.50), (fam_id, 402.50)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- EARLY BIRD RATE (30% off base)
-    IF early_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT early_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 105.00), (dlx_id, 175.00), (ste_id, 315.00), (fam_id, 245.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- GROUP RATE (25% off base)
-    IF group_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT group_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 112.50), (dlx_id, 187.50), (ste_id, 337.50), (fam_id, 262.50)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-END $$;
+-- Rate plans and room rates are deliberately not seeded. Public online pricing
+-- resolves room_types base/weekday/weekend rates directly (plus explicit
+-- online-inventory custom prices); seeded promo plans were anchored to base
+-- prices that never matched the catalogue and silently raised guest quotes.
+-- Complimentary nights are member free-night credit redemptions, not a
+-- sellable rate. Rate plans remain available for staff to create deliberately.
 
 DO $$
 BEGIN
     IF (SELECT seed_property FROM v1_seed_state) THEN
-        RAISE NOTICE 'Rooms & rates loaded: 4 room types, 16 rooms, 6 rate plans with room rates';
+        RAISE NOTICE 'Rooms loaded: 4 room types, 16 rooms (no seeded rate plans)';
     ELSE
         RAISE NOTICE 'Existing property catalogue preserved; sample rooms and rates were not loaded';
     END IF;

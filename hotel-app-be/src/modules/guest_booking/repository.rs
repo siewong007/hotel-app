@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -126,8 +126,9 @@ impl GuestBookingRepository {
 
     /// One row per active room type per date in `[from, to]` (inclusive).
     /// `standard_price` resolves the nightly rate a guest pays without a custom
-    /// override — applicable rate plan first, weekday/weekend/base fallback —
-    /// mirroring `nightly_rates` precedence in the service.
+    /// override — weekday/weekend rate, then base price — mirroring
+    /// `nightly_rates` precedence in the service. Rate plans are a staff-side
+    /// tool and never feed public pricing.
     pub async fn list_online_inventory_range(
         pool: &DbPool,
         from: NaiveDate,
@@ -144,7 +145,7 @@ impl GuestBookingRepository {
                        COALESCE(a.online_booking_enabled, true) AS online_booking_enabled,
                        a.custom_price::text AS custom_price,
                        (a.room_type_id IS NOT NULL) AS is_override,
-                       COALESCE(rate.price,
+                       COALESCE(
                            CASE WHEN extract(isodow FROM d.stay_date) IN (6, 7)
                                 THEN rt.weekend_rate ELSE rt.weekday_rate END,
                            rt.base_price)::text AS standard_price
@@ -160,25 +161,6 @@ impl GuestBookingRepository {
                         AND b.check_in_date < d.stay_date + 1 AND b.check_out_date > d.stay_date)
                 ) avail ON true
                 LEFT JOIN online_inventory_allocations a ON a.room_type_id = rt.id AND a.stay_date = d.stay_date
-                LEFT JOIN LATERAL (
-                    SELECT rr.price
-                    FROM room_rates rr
-                    JOIN rate_plans rp ON rp.id = rr.rate_plan_id
-                    WHERE rr.room_type_id = rt.id
-                      AND rp.is_active = true
-                      AND rr.effective_from <= d.stay_date
-                      AND (rr.effective_to IS NULL OR rr.effective_to >= d.stay_date)
-                      AND (rp.valid_from IS NULL OR rp.valid_from <= d.stay_date)
-                      AND (rp.valid_to IS NULL OR rp.valid_to >= d.stay_date)
-                      AND ((extract(isodow FROM d.stay_date) = 1 AND rp.applies_monday)
-                        OR (extract(isodow FROM d.stay_date) = 2 AND rp.applies_tuesday)
-                        OR (extract(isodow FROM d.stay_date) = 3 AND rp.applies_wednesday)
-                        OR (extract(isodow FROM d.stay_date) = 4 AND rp.applies_thursday)
-                        OR (extract(isodow FROM d.stay_date) = 5 AND rp.applies_friday)
-                        OR (extract(isodow FROM d.stay_date) = 6 AND rp.applies_saturday)
-                        OR (extract(isodow FROM d.stay_date) = 7 AND rp.applies_sunday))
-                    ORDER BY rp.priority DESC, rr.id DESC LIMIT 1
-                ) rate ON true
                 WHERE rt.is_active = true
                 ORDER BY rt.name, d.stay_date
             "#)
@@ -404,47 +386,6 @@ impl GuestBookingRepository {
             .into_iter()
             .find(|room_type| room_type.id == room_type_id)
             .ok_or_else(|| ApiError::Conflict("This room type is no longer available".to_string()))
-    }
-
-    pub async fn applicable_rate(
-        pool: &DbPool,
-        room_type_id: i64,
-        date: NaiveDate,
-    ) -> Result<Option<(String, Decimal)>, ApiError> {
-        let weekday = date.weekday().num_days_from_monday() as i32;
-        let row = sqlx::query(
-            r#"
-                SELECT rp.code, rr.price::text AS price
-                FROM room_rates rr
-                JOIN rate_plans rp ON rp.id = rr.rate_plan_id
-                WHERE rr.room_type_id = $1
-                  AND rp.is_active = true
-                  AND rr.effective_from <= $2
-                  AND (rr.effective_to IS NULL OR rr.effective_to >= $2)
-                  AND (rp.valid_from IS NULL OR rp.valid_from <= $2)
-                  AND (rp.valid_to IS NULL OR rp.valid_to >= $2)
-                  AND (($3 = 0 AND rp.applies_monday = true)
-                    OR ($3 = 1 AND rp.applies_tuesday = true)
-                    OR ($3 = 2 AND rp.applies_wednesday = true)
-                    OR ($3 = 3 AND rp.applies_thursday = true)
-                    OR ($3 = 4 AND rp.applies_friday = true)
-                    OR ($3 = 5 AND rp.applies_saturday = true)
-                    OR ($3 = 6 AND rp.applies_sunday = true))
-                ORDER BY rp.priority DESC, rr.id DESC LIMIT 1
-            "#,
-        )
-        .bind(room_type_id)
-        .bind(date)
-        .bind(weekday)
-        .fetch_optional(pool)
-        .await
-        .map_err(ApiError::from)?;
-        Ok(row.map(|row| {
-            (
-                row.try_get("code").unwrap_or_else(|_| "BASE".to_string()),
-                get_decimal(&row, "price"),
-            )
-        }))
     }
 
     pub async fn eligible_voucher(
