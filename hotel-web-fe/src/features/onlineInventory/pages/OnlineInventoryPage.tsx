@@ -24,7 +24,7 @@ import SettingsSuggestOutlinedIcon from '@mui/icons-material/SettingsSuggestOutl
 import { formatLocalDate } from '../../../utils/date';
 import { InventoryRoomCard } from '../components/InventoryRoomCard';
 import { InventorySummary } from '../components/InventorySummary';
-import { useOnlineInventory } from '../hooks/useOnlineInventory';
+import { useLegacyOnlineInventory as useOnlineInventory } from '../hooks/useLegacyOnlineInventory';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 
 const shiftDate = (date: string, days: number) => {
