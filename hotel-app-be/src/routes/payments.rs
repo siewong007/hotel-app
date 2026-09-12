@@ -19,10 +19,13 @@ const PAYMENTS_READ: &str = "payments:read";
 const PAYMENTS_CREATE: &str = "payments:create";
 const PAYMENTS_UPDATE: &str = "payments:update";
 const PAYMENTS_DELETE: &str = "payments:delete";
-// Deposit refunds/reverts are part of routine front-desk checkout, so they
-// gate on a dedicated payments:refund (held by receptionist + manager) rather
-// than payments:manage; payments:manage still implies it via rbac_cache.
+// Deposit refunds are part of routine front-desk checkout, so they gate on a
+// dedicated payments:refund (held by receptionist + manager); payments:manage
+// still implies it via rbac_cache. Reverting a refund is not checkout work —
+// it re-opens a deposit for refunding — so it stays on payments:manage and a
+// receptionist cannot cycle refund/revert on their own.
 const PAYMENTS_REFUND: &str = "payments:refund";
+const PAYMENTS_MANAGE: &str = "payments:manage";
 // Guest-payment claim review (approve/reject). Held by manager/admin; any role
 // with payments:manage is auto-covered via rbac_cache.
 const PAYMENTS_APPROVE: &str = "payments:approve";
@@ -142,7 +145,7 @@ async fn revert_deposit_refund(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
     handlers::payments::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
 }
 

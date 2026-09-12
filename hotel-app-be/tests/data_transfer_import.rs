@@ -182,6 +182,80 @@ async fn relaxed_foreign_keys_allow_cyclic_rows_and_are_restored_afterwards() {
     tx.rollback().await.expect("rollback");
 }
 
+/// Credential, role and session tables must never enter through the import:
+/// the catalog validation used to accept any `public` table, so a
+/// `settings:manage` holder could have imported a forged `is_super_admin`
+/// user. The service must reject any file or selection naming a
+/// non-transferable table before a single row is written.
+#[tokio::test]
+async fn full_import_rejects_non_transferable_tables() {
+    use hotel_app_be::constants::ImportMode;
+    use hotel_app_be::models::{FullDataExport, ImportRequest, TransferPayload};
+    use hotel_app_be::services::data_transfer::import_booking_data;
+    use std::collections::BTreeMap;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+
+    let export = FullDataExport {
+        version: "2.0".to_string(),
+        exported_at: "2026-09-12T00:00:00Z".to_string(),
+        tables: BTreeMap::from([
+            ("public.amenities".to_string(), vec![]),
+            (
+                "public.users".to_string(),
+                vec![serde_json::json!({
+                    "id": 999_999_991_i64,
+                    "username": "forged-admin",
+                    "email": "forged@example.invalid",
+                    "password_hash": "x",
+                    "is_super_admin": true
+                })],
+            ),
+        ]),
+    };
+
+    let rejected = import_booking_data(
+        &pool,
+        1,
+        ImportRequest {
+            mode: ImportMode::Import,
+            data: TransferPayload::V2(export),
+            tables: vec![],
+        },
+    )
+    .await;
+    assert!(
+        matches!(&rejected, Err(hotel_app_be::core::error::ApiError::BadRequest(message)) if message.contains("not permitted")),
+        "a file containing public.users must be rejected outright: {rejected:?}"
+    );
+
+    // The same applies when the table is only named in the `tables` selection.
+    let export = FullDataExport {
+        version: "2.0".to_string(),
+        exported_at: "2026-09-12T00:00:00Z".to_string(),
+        tables: BTreeMap::from([
+            ("public.amenities".to_string(), vec![]),
+            ("public.users".to_string(), vec![]),
+        ]),
+    };
+    let rejected = import_booking_data(
+        &pool,
+        1,
+        ImportRequest {
+            mode: ImportMode::Import,
+            data: TransferPayload::V2(export),
+            tables: vec!["public.users".to_string()],
+        },
+    )
+    .await;
+    assert!(
+        matches!(&rejected, Err(hotel_app_be::core::error::ApiError::BadRequest(message)) if message.contains("not permitted")),
+        "a selection naming public.users must be rejected outright: {rejected:?}"
+    );
+}
+
 /// A violation must still fail the import rather than commit. Deferring moves
 /// the check; it must not lose it.
 #[tokio::test]

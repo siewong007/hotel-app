@@ -1148,6 +1148,7 @@ pub async fn generate_journal_sections(
             COALESCE(LOWER(TRIM(p.payment_type)), '') = 'refund'
             OR COALESCE(LOWER(TRIM(p.status)), '') = 'refunded'
         )
+        AND p.status <> 'void'
         AND b.status != 'voided'
         AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number

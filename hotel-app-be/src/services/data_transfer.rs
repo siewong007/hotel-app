@@ -81,6 +81,20 @@ const TABLE_INSERT_ORDER: &[&str] = &[
 
 const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
 
+/// True when a `schema.name` transfer-table key may cross the export/import
+/// boundary. Only `public` business-data tables may move: `users`, `roles`,
+/// `refresh_tokens`, session and audit tables carry credentials and grant
+/// state, so exporting them would hand a `settings:manage` holder every
+/// password hash and TOTP seed, and importing them could plant a forged
+/// `is_super_admin` account.
+fn is_transferable_key(key: &str) -> bool {
+    QualifiedTable::parse(key)
+        .map(|table| {
+            table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str())
+        })
+        .unwrap_or(false)
+}
+
 /// Tables keyed by a composite primary key (no serial `id`): excluded from
 /// sequence resets, and exported with an explicit key order.
 const COMPOSITE_PK_TABLES: &[&str] = &[
@@ -200,6 +214,9 @@ pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiEr
     let mut tables = Vec::new();
 
     for table in DataTransferRepository::transfer_tables(pool).await? {
+        if !is_transferable_key(&table.table.key()) {
+            continue;
+        }
         let count = DataTransferRepository::count_transfer_table(pool, &table).await?;
         let name = table.table.key();
         counts.insert(name.clone(), count);
@@ -224,6 +241,9 @@ pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiEr
 pub async fn export_booking_data(pool: &DbPool) -> Result<FullDataExport, ApiError> {
     let mut tables = std::collections::BTreeMap::new();
     for table in DataTransferRepository::transfer_tables(pool).await? {
+        if !is_transferable_key(&table.table.key()) {
+            continue;
+        }
         let name = table.table.key();
         let rows = DataTransferRepository::export_transfer_table(pool, &table).await?;
         tables.insert(name, rows);
@@ -499,6 +519,11 @@ async fn import_full_data(
 
     for table in data.tables.keys() {
         QualifiedTable::parse(table)?;
+        if !is_transferable_key(table) {
+            return Err(ApiError::BadRequest(format!(
+                "Transfer table '{table}' is not permitted: only the business-data table set can be imported"
+            )));
+        }
         if !descriptor_by_name.contains_key(table) {
             return Err(ApiError::BadRequest(format!(
                 "Transfer table '{table}' does not exist in the destination schema"
@@ -513,6 +538,11 @@ async fn import_full_data(
     };
     for table in &selected {
         QualifiedTable::parse(table)?;
+        if !is_transferable_key(table) {
+            return Err(ApiError::BadRequest(format!(
+                "Transfer table '{table}' is not permitted: only the business-data table set can be imported"
+            )));
+        }
         if !data.tables.contains_key(table) {
             return Err(ApiError::BadRequest(format!(
                 "Selected transfer table '{table}' is missing from the import file"
@@ -599,7 +629,11 @@ async fn import_full_data(
     sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
         .execute(&mut *tx)
         .await
-        .map_err(ApiError::from)?;
+        .map_err(|error| {
+            ApiError::BadRequest(format!(
+                "Import failed referential-integrity checks: {error}. Tables outside the transferable set may still reference the data being overwritten."
+            ))
+        })?;
 
     DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, true).await?;
     DataTransferRepository::restore_foreign_keys(&mut tx, &relaxed).await?;
@@ -623,6 +657,7 @@ fn expand_full_overwrite_tables(
         changed = false;
         for (child, parents) in dependencies {
             if parents.iter().any(|parent| selected.contains(parent))
+                && is_transferable_key(child)
                 && selected.insert(child.clone())
             {
                 changed = true;

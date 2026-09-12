@@ -584,8 +584,9 @@ pub async fn refund_deposit(
 
 /// Revert a keycard deposit refund that was recorded by mistake.
 ///
-/// Removes the refund payment row and recomputes the booking's payment status
-/// so the deposit is presented as not-yet-refunded again.
+/// Voids the refund payment row (the record is kept, not deleted) and
+/// recomputes the booking's payment status so the deposit is presented as
+/// not-yet-refunded again.
 pub async fn revert_deposit_refund(
     pool: &DbPool,
     user_id: i64,

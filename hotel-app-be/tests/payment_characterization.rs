@@ -2663,8 +2663,9 @@ async fn reject_payment_requires_reason_and_never_moves_money() {
 /// rejected; a valid refund of an amount <= a REAL, collected deposit inserts
 /// a `refund`/`refunded` payment row and is reflected in the live workflow
 /// summary; a second refund attempt on the same booking is rejected (one
-/// outstanding refund at a time); reverting deletes the refund row; and
-/// reverting again (nothing left) is rejected.
+/// outstanding refund at a time); reverting marks the refund row `void` so the
+/// disbursement record is kept but no longer counts; reverting again is
+/// rejected; and a fresh refund is allowed again afterwards.
 ///
 /// The room type's `keycard_deposit_amount` is set to 50.00 and a real
 /// `completed` deposit payment for 50.00 is recorded via the actual
@@ -2812,14 +2813,26 @@ async fn refund_deposit_and_revert_round_trip() {
     );
     assert!(!revert.get("deposit_refunded").unwrap().as_bool().unwrap());
 
+    // Revert must void, not delete: the refund row stays as a permanent,
+    // undeletable record of the disbursement but no longer counts as an
+    // outstanding refund.
     let remaining: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM payments WHERE booking_id = $1 AND payment_type = 'refund'",
+        "SELECT COUNT(*) FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded'",
     )
     .bind(booking_id)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(remaining, 0, "the reverted refund row must be deleted");
+    assert_eq!(remaining, 0, "no active refund may remain after a revert");
+    let voided: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM payments WHERE booking_id = $1 AND id = $2 AND status = 'void'",
+    )
+    .bind(booking_id)
+    .bind(refund_payment_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(voided, 1, "the reverted refund row must be kept as void");
 
     assert!(audit_log_exists(&pool, "payment_refund_reverted", refund_payment_id).await);
 
@@ -2827,6 +2840,20 @@ async fn refund_deposit_and_revert_round_trip() {
     assert!(
         matches!(revert_again, Err(ApiError::BadRequest(_))),
         "reverting when there is no outstanding refund must be rejected: {revert_again:?}"
+    );
+
+    // A reverted refund does not block a fresh one (e.g. the entry was a
+    // mistake and the deposit still has to be returned).
+    let re_refund = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+    )
+    .await;
+    assert!(
+        re_refund.is_ok(),
+        "a deposit must be refundable again after its refund was reverted: {re_refund:?}"
     );
 
     cleanup(

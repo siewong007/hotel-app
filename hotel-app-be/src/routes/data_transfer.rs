@@ -2,7 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_permission_helper;
+use crate::core::middleware::{ensure_super_admin, require_permission_helper};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -69,5 +69,8 @@ async fn import_data(
     Json(input): Json<models::ImportRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "settings:manage").await?;
+    // Import can clear whole tables, so it stays behind the super-admin flag
+    // even though export/preview ride on the grantable settings:manage.
+    ensure_super_admin(&pool, user_id).await?;
     handlers::data_transfer::import_booking_data_handler(State(pool), user_id, Json(input)).await
 }

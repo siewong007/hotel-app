@@ -1218,13 +1218,13 @@ impl PaymentRepository {
                     WHERE p.booking_id = b.id AND p.status = 'completed'
                       AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
+                    WHERE p.booking_id = b.id AND p.status <> 'void'
                       AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status = 'completed'
                       AND COALESCE(p.payment_type, 'booking') = 'deposit'), 0) AS deposit_collected,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
+                    WHERE p.booking_id = b.id AND p.status <> 'void'
                       AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
                 EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
             FROM bookings b
@@ -1283,8 +1283,11 @@ impl PaymentRepository {
             )));
         }
 
+        // Only an active refund blocks another one: a reverted refund keeps
+        // its row (status = 'void') so the disbursement stays on the books,
+        // but must not stop a legitimate re-refund of the deposit.
         let existing_refund: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' LIMIT 1"
+            "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' AND status = 'refunded' LIMIT 1"
         )
         .bind(booking_id)
         .fetch_optional(&mut *tx)
@@ -1322,16 +1325,20 @@ impl PaymentRepository {
 
     /// Revert a previously-recorded keycard deposit refund for a booking.
     ///
-    /// Deletes the refund payment row created by [`refund_deposit`] so the
-    /// deposit shows as not-yet-refunded again, drops out of the night-audit
-    /// journal, and can be re-refunded if it was issued by mistake. Returns the
-    /// id of the deleted refund payment. Errors if no such refund exists.
+    /// Marks the refund payment row `void` rather than deleting it: the row
+    /// stays as a permanent record of the disbursement (and remains
+    /// undeletable via `delete_payment_tx`), drops out of every refund
+    /// aggregate and the night-audit journal, and no longer blocks
+    /// [`refund_deposit`] — whose probe only counts `status = 'refunded'`
+    /// marker rows — so a mistakenly-entered refund can be corrected and the
+    /// deposit refunded again. Returns the id of the voided refund payment.
+    /// Errors if no active refund exists.
     pub async fn revert_deposit_refund(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
         // The note/description column differs between databases, but the
         // marker text is identical to what `refund_deposit` writes.
-        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' ORDER BY id DESC LIMIT 1";
+        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' AND status = 'refunded' ORDER BY id DESC LIMIT 1";
 
         let refund_id: Option<i64> = sqlx::query_scalar(select_sql)
             .bind(booking_id)
@@ -1348,7 +1355,7 @@ impl PaymentRepository {
             }
         };
 
-        sqlx::query("DELETE FROM payments WHERE id = $1")
+        sqlx::query("UPDATE payments SET status = 'void' WHERE id = $1")
             .bind(refund_id)
             .execute(&mut *tx)
             .await
