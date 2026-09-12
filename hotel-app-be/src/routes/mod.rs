@@ -38,7 +38,7 @@ use crate::core::{AuthService, middleware};
 use axum::{
     Router,
     extract::{Request, State},
-    http::Method,
+    http::{Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     routing::get,
@@ -46,7 +46,8 @@ use axum::{
 use std::net::{IpAddr, SocketAddr};
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::CorsLayer, services::ServeDir, set_header::SetResponseHeaderLayer, trace::TraceLayer,
+    catch_panic::CatchPanicLayer, cors::CorsLayer, services::ServeDir,
+    set_header::SetResponseHeaderLayer, trace::TraceLayer,
 };
 
 /// Extract client IP from trusted proxy headers or the direct peer address.
@@ -174,6 +175,60 @@ async fn enforce_active_session(
                 .into_response()
         }
     }
+}
+
+/// Handler for `CatchPanicLayer`: turn a panicked request task into the same
+/// generic JSON 500 every other internal error returns. The panic payload is
+/// logged server-side only.
+fn panic_response(panic: Box<dyn std::any::Any + Send>) -> Response {
+    let detail = panic
+        .downcast_ref::<&str>()
+        .map(|s| (*s).to_string())
+        .or_else(|| panic.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "unknown panic".to_string());
+    log::error!("Request handler panicked: {}", detail);
+    crate::core::error::ApiError::Internal(format!("Request handler panicked: {detail}"))
+        .into_response()
+}
+
+/// Rewrite error responses that never reached `ApiError` — extractor rejections,
+/// unrouted-path 404s, method mismatches, body-size limits — into the same
+/// `{"error": ...}` JSON shape every handled error returns. Status and headers
+/// (CORS, security headers, Retry-After) are preserved; only the body changes.
+/// Error responses already carrying a JSON body pass through untouched.
+async fn normalize_error_response(response: Response) -> Response {
+    let status = response.status();
+    if !status.is_client_error() && !status.is_server_error() {
+        return response;
+    }
+    let is_json = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/json"));
+    if is_json {
+        return response;
+    }
+
+    let message = match status {
+        StatusCode::NOT_FOUND => "We couldn't find what you were looking for.",
+        StatusCode::METHOD_NOT_ALLOWED => "That method isn't allowed here.",
+        StatusCode::PAYLOAD_TOO_LARGE => "That request was too large.",
+        StatusCode::UNSUPPORTED_MEDIA_TYPE => "That content type isn't supported.",
+        s if s.is_client_error() => "That request couldn't be processed.",
+        _ => "Something went wrong on our end. Please try again.",
+    };
+
+    let (mut parts, _) = response.into_parts();
+    parts.headers.remove(axum::http::header::CONTENT_LENGTH);
+    parts.headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        axum::http::HeaderValue::from_static("application/json"),
+    );
+    Response::from_parts(
+        parts,
+        axum::body::Body::from(serde_json::json!({ "error": message }).to_string()),
+    )
 }
 
 /// Count every request's status and latency into `core::metrics`.
@@ -356,7 +411,14 @@ pub fn create_router(pool: DbPool) -> Router {
     // Add middleware layers
     app.layer(
         ServiceBuilder::new()
+            // Outermost: a handler panic becomes the same JSON 500 every other
+            // internal error produces, instead of an aborted connection.
+            .layer(CatchPanicLayer::custom(panic_response))
             .layer(TraceLayer::new_for_http())
+            // Normalizes error responses that never reached ApiError — extractor
+            // rejections, unrouted-path 404s, body-size limits — into the
+            // `{"error": ...}` shape clients always parse.
+            .layer(axum::middleware::map_response(normalize_error_response))
             // Sits outside the router and the CORS layer, so it observes every
             // response on the way out: 404s for unrouted paths, 429s from the
             // per-route rate limiters, and CORS preflight replies alike.

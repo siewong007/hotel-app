@@ -1,5 +1,4 @@
-import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from '../../api/client';
+import { api, toApiError } from '../../api/client';
 import type {
   SupportActionPayload,
   SupportAgent,
@@ -17,20 +16,6 @@ function searchParamsFrom(params: SupportConversationListParams): Record<string,
   );
 }
 
-async function mapHttpError(error: unknown, fallback: string): Promise<never> {
-  if (error instanceof HTTPError) {
-    const details = readErrorData(error);
-    const message = details.error ?? details.message ?? fallback;
-    throw new APIError(message, error.response.status, details);
-  }
-
-  if (error instanceof APIError) {
-    throw error;
-  }
-
-  throw new APIError(fallback);
-}
-
 export class SupportService {
   static async listConversations(
     params: SupportConversationListParams,
@@ -40,7 +25,7 @@ export class SupportService {
         .get('support/conversations', { searchParams: searchParamsFrom(params) })
         .json<SupportConversationListResponse>();
     } catch (error) {
-      return await mapHttpError(error, 'Unable to load the support queue');
+      throw toApiError(error, 'Unable to load the support queue');
     }
   }
 
@@ -48,7 +33,7 @@ export class SupportService {
     try {
       return await api.get(`support/conversations/${id}`).json<SupportConversationDetailResponse>();
     } catch (error) {
-      return await mapHttpError(error, 'Unable to load this conversation');
+      throw toApiError(error, 'Unable to load this conversation');
     }
   }
 
@@ -56,7 +41,7 @@ export class SupportService {
     try {
       return await api.get('support/agents').json<SupportAgent[]>();
     } catch (error) {
-      return await mapHttpError(error, 'Unable to load support staff');
+      throw toApiError(error, 'Unable to load support staff');
     }
   }
 
@@ -69,7 +54,7 @@ export class SupportService {
         .post(`support/conversations/${conversationId}/messages`, { json: payload })
         .json<SupportConversationDetailResponse>();
     } catch (error) {
-      return await mapHttpError(error, 'Unable to send the reply');
+      throw toApiError(error, 'Unable to send the reply');
     }
   }
 
@@ -82,7 +67,7 @@ export class SupportService {
         .post(`support/conversations/${conversationId}/actions`, { json: payload })
         .json<SupportConversationDetailResponse>();
     } catch (error) {
-      return await mapHttpError(error, 'Unable to update this conversation');
+      throw toApiError(error, 'Unable to update this conversation');
     }
   }
 }

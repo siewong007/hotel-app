@@ -1,5 +1,4 @@
-import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from './client';
+import { api, toApiError } from './client';
 import {
   LoyaltyProgram,
   LoyaltyMembership,
@@ -77,15 +76,7 @@ export class LoyaltyService {
     try {
       return await api.post('api/rewards', { json: data }).json<LoyaltyReward>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to create reward',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to create reward');
+      throw toApiError(error, 'Failed to create reward');
     }
   }
 
@@ -93,15 +84,7 @@ export class LoyaltyService {
     try {
       return await api.put(`api/rewards/${id}`, { json: data }).json<LoyaltyReward>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to update reward',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to update reward');
+      throw toApiError(error, 'Failed to update reward');
     }
   }
 
@@ -109,15 +92,7 @@ export class LoyaltyService {
     try {
       await api.delete(`api/rewards/${id}`);
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to delete reward',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to delete reward');
+      throw toApiError(error, 'Failed to delete reward');
     }
   }
 
@@ -125,15 +100,7 @@ export class LoyaltyService {
     try {
       return await api.get('rewards/redemptions').json<RewardRedemption[]>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch redemption history',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch redemption history');
+      throw toApiError(error, 'Failed to fetch redemption history');
     }
   }
 }

@@ -240,7 +240,7 @@ pub async fn list_customer_ledgers(
         .bind(ui_status)
         .fetch_one(pool)
         .await
-        .unwrap_or(0);
+        .map_err(ApiError::from)?;
 
     let rows = sqlx::query(&data_sql)
         .bind(query.status.as_deref())

@@ -147,8 +147,8 @@ export function PageErrorBoundary({ children }: { children: React.ReactNode }) {
         console.error('Page Error:', error, errorInfo);
       }}
       onReset={() => {
-        // Clear any cached data that might be causing the error
-        sessionStorage.clear();
+        // Reload only — sessionStorage.clear() would also destroy the
+        // guest-portal session token and other unrelated session state.
         window.location.reload();
       }}
     >

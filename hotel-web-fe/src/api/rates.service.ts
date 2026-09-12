@@ -1,5 +1,4 @@
-import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from './client';
+import { api, toApiError } from './client';
 import { RateCodesResponse, MarketCodesResponse } from '../types';
 
 export class RatesService {
@@ -9,15 +8,7 @@ export class RatesService {
         .get('rate-codes')
         .json<RateCodesResponse>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch rate codes',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch rate codes');
+      throw toApiError(error, 'Failed to fetch rate codes');
     }
   }
 
@@ -27,15 +18,7 @@ export class RatesService {
         .get('market-codes')
         .json<MarketCodesResponse>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch market codes',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch market codes');
+      throw toApiError(error, 'Failed to fetch market codes');
     }
   }
 }

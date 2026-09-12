@@ -236,7 +236,13 @@ impl IntoResponse for ApiError {
 // Convenience conversion from sqlx::Error
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
-        ApiError::Database(err.to_string())
+        match err {
+            // `fetch_one` on a SELECT-by-id surfaces missing rows as RowNotFound;
+            // that is a 404, not a server fault. Aggregates and INSERT..RETURNING
+            // never produce it, so the blanket mapping is safe.
+            sqlx::Error::RowNotFound => ApiError::NotFound("Resource not found".to_string()),
+            other => ApiError::Database(other.to_string()),
+        }
     }
 }
 

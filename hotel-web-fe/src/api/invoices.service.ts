@@ -1,5 +1,4 @@
-import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from './client';
+import { api, toApiError } from './client';
 import type { PaymentWorkflowSummary } from '../types';
 
 export class InvoicesService {
@@ -7,15 +6,7 @@ export class InvoicesService {
     try {
       return await api.get(`invoices/preview/${bookingId}`).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch invoice preview',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch invoice preview');
+      throw toApiError(error, 'Failed to fetch invoice preview');
     }
   }
 
@@ -23,15 +14,7 @@ export class InvoicesService {
     try {
       return await api.post(`invoices/generate/${bookingId}`).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to generate invoice',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to generate invoice');
+      throw toApiError(error, 'Failed to generate invoice');
     }
   }
 
@@ -54,15 +37,7 @@ export class InvoicesService {
       };
       return await api.post('payments/record-payment', { json: payload }).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to record payment',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to record payment');
+      throw toApiError(error, 'Failed to record payment');
     }
   }
 
@@ -70,15 +45,7 @@ export class InvoicesService {
     try {
       return await api.get(`payments/all-payments/${bookingId}`).json<any[]>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch payments',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch payments');
+      throw toApiError(error, 'Failed to fetch payments');
     }
   }
 
@@ -86,15 +53,7 @@ export class InvoicesService {
     try {
       return await api.get(`payments/workflow-summary/${bookingId}`).json<PaymentWorkflowSummary>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch payment workflow summary',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch payment workflow summary');
+      throw toApiError(error, 'Failed to fetch payment workflow summary');
     }
   }
 
@@ -106,15 +65,7 @@ export class InvoicesService {
         json: { payment_method: paymentMethod, amount: numericAmount }
       }).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to refund deposit',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to refund deposit');
+      throw toApiError(error, 'Failed to refund deposit');
     }
   }
 
@@ -122,15 +73,7 @@ export class InvoicesService {
     try {
       return await api.post(`payments/revert-deposit-refund/${bookingId}`).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to revert deposit refund',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to revert deposit refund');
+      throw toApiError(error, 'Failed to revert deposit refund');
     }
   }
 
@@ -138,15 +81,7 @@ export class InvoicesService {
     try {
       return await api.get('invoices').json<any[]>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to fetch user invoices',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch user invoices');
+      throw toApiError(error, 'Failed to fetch user invoices');
     }
   }
 
@@ -169,15 +104,7 @@ export class InvoicesService {
 
       return await api.patch(`payments/${paymentId}`, { json: payload }).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to update payment',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to update payment');
+      throw toApiError(error, 'Failed to update payment');
     }
   }
 
@@ -185,15 +112,7 @@ export class InvoicesService {
     try {
       return await api.delete(`payments/${paymentId}`).json<any>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to delete payment',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to delete payment');
+      throw toApiError(error, 'Failed to delete payment');
     }
   }
 }

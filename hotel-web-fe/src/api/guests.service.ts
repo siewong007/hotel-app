@@ -1,5 +1,5 @@
 import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from './client';
+import { api, APIError, readErrorData, toApiError } from './client';
 import { Guest, GuestCreateRequest, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
@@ -12,24 +12,15 @@ const notifyUnauthorized = () => {
 };
 
 const toGuestApiError = async (error: unknown, fallback: string): Promise<APIError> => {
-  // Already wrapped (e.g. the 401 thrown inside getAllGuests' try block) —
-  // pass it through so an outer catch can't downgrade it to the generic fallback.
-  if (error instanceof APIError) return error;
-  if (error instanceof HTTPError) {
-    const errorData = readErrorData(error);
-    if (error.response.status === 401) {
-      notifyUnauthorized();
-      return new APIError(SESSION_EXPIRED_MESSAGE, error.response.status, errorData);
-    }
-
-    return new APIError(
-      errorData.error || fallback,
-      error.response.status,
-      errorData
-    );
+  // 401 gets a dedicated session-expired message + logout notification;
+  // everything else (including already-wrapped APIErrors, which toApiError
+  // passes through) uses the shared mapper.
+  if (error instanceof HTTPError && error.response.status === 401) {
+    notifyUnauthorized();
+    return new APIError(SESSION_EXPIRED_MESSAGE, error.response.status, readErrorData(error));
   }
 
-  return new APIError(fallback);
+  return toApiError(error, fallback);
 };
 
 export class GuestsService {

@@ -27,8 +27,7 @@ export interface EkycSubmitPayload {
   consents?: ConsentAcceptance[];
 }
 
-import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from './client';
+import { api, toApiError } from './client';
 import type { ConsentAcceptance } from '../features/legal/useConsent';
 
 export interface EkycListParams {
@@ -218,18 +217,6 @@ function paramsToSearch(params?: EkycListParams): string {
   return search ? `?${search}` : '';
 }
 
-async function mapHttpError(error: unknown, fallback: string): Promise<never> {
-  if (error instanceof HTTPError) {
-    const errorData = readErrorData(error);
-    throw new APIError(
-      errorData.error || fallback,
-      error.response.status,
-      errorData
-    );
-  }
-  throw new APIError(fallback);
-}
-
 export class EkycService {
   static async getEkycStatus(): Promise<{ status: string; submitted_at?: string } | null> {
     return await api.get('ekyc/status').json();
@@ -239,7 +226,7 @@ export class EkycService {
     try {
       await api.post('ekyc/submit', { json: data });
     } catch (error) {
-      await mapHttpError(error, 'eKYC submission failed');
+      throw toApiError(error, 'eKYC submission failed');
     }
   }
 
@@ -268,7 +255,7 @@ export class EkycService {
         .post(`ekyc/admin/applications/${applicationId}/actions`, { json: payload })
         .json();
     } catch (error) {
-      return await mapHttpError(error, 'eKYC action failed');
+      throw toApiError(error, 'eKYC action failed');
     }
   }
 
@@ -284,7 +271,7 @@ export class EkycService {
         })
         .json();
     } catch (error) {
-      return await mapHttpError(error, 'Sensitive field reveal failed');
+      throw toApiError(error, 'Sensitive field reveal failed');
     }
   }
 
@@ -319,7 +306,7 @@ export class EkycService {
     try {
       return await api.post('ekyc/upload-document', { body: formData }).json();
     } catch (error) {
-      return await mapHttpError(error, 'Document upload failed');
+      throw toApiError(error, 'Document upload failed');
     }
   }
 
@@ -329,7 +316,7 @@ export class EkycService {
     try {
       return await api.post('ekyc/admin/applications', { json: payload }).json();
     } catch (error) {
-      return await mapHttpError(error, 'Unable to create eKYC verification');
+      throw toApiError(error, 'Unable to create eKYC verification');
     }
   }
 }

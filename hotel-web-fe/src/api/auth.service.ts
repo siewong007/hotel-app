@@ -1,5 +1,4 @@
-import { HTTPError } from 'ky';
-import { api, APIError, readErrorData } from './client';
+import { api, toApiError } from './client';
 import {
   UserProfile,
   UserProfileUpdate,
@@ -20,15 +19,7 @@ export class AuthService {
         .post('auth/login/lookup', { json: { username } })
         .json<{ exists: boolean }>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Unable to verify username',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Unable to verify username');
+      throw toApiError(error, 'Unable to verify username');
     }
   }
 
@@ -54,15 +45,7 @@ export class AuthService {
         ...(turnstileToken ? { headers: { 'cf-turnstile-response': turnstileToken } } : {}),
       });
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Registration failed',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Registration failed');
+      throw toApiError(error, 'Registration failed');
     }
   }
 
@@ -83,15 +66,7 @@ export class AuthService {
         })
         .json<AuthResponse>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Google sign-in failed',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Google sign-in failed');
+      throw toApiError(error, 'Google sign-in failed');
     }
   }
 
@@ -104,15 +79,7 @@ export class AuthService {
     try {
       return await api.post('profile/complete', { json: input }).json<UserProfile>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Profile completion failed',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Profile completion failed');
+      throw toApiError(error, 'Profile completion failed');
     }
   }
 
@@ -120,15 +87,7 @@ export class AuthService {
     try {
       await api.post('auth/verify-email', { json: { token } });
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Email verification failed',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Email verification failed');
+      throw toApiError(error, 'Email verification failed');
     }
   }
 

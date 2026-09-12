@@ -2,7 +2,7 @@
 // Re-exports all services and utilities for clean imports
 
 // Core
-export { api, APIError, API_BASE_URL, parseAPIError } from './client';
+export { api, APIError, API_BASE_URL, toApiError } from './client';
 
 // Domain Services - re-export for direct imports
 export { RoomsService } from './rooms.service';

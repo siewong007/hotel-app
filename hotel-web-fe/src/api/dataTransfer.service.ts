@@ -1,5 +1,4 @@
-import { api, APIError, readErrorData } from './client';
-import { HTTPError } from 'ky';
+import { api, toApiError } from './client';
 import type { BookingDataExport, ExportPreview, ImportMode, ImportResult } from '../types';
 
 export class DataTransferService {
@@ -7,15 +6,7 @@ export class DataTransferService {
     try {
       return await api.get('data-transfer/export/preview', { timeout: false }).json<ExportPreview>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to preview export data',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to preview export data');
+      throw toApiError(error, 'Failed to preview export data');
     }
   }
 
@@ -23,15 +14,7 @@ export class DataTransferService {
     try {
       return await api.get('data-transfer/export', { timeout: false }).json<BookingDataExport>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to export data',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to export data');
+      throw toApiError(error, 'Failed to export data');
     }
   }
 
@@ -42,15 +25,7 @@ export class DataTransferService {
         timeout: false, // no timeout for potentially large imports
       }).json<ImportResult>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = readErrorData(error);
-        throw new APIError(
-          errorData.error || 'Failed to import data',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to import data');
+      throw toApiError(error, 'Failed to import data');
     }
   }
 }

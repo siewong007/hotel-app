@@ -26,14 +26,14 @@ impl AuditLog {
     /// * `ip_address` - IP address of the requester
     /// * `user_agent` - User agent string from the request
     pub async fn log_event(pool: &DbPool, event: AuditEvent<'_>) -> Result<(), ApiError> {
-        // Note: The audit_logs table may not exist yet. This is prepared for future migration.
-        // If the table doesn't exist, we'll log the error but not fail the operation.
+        // Deliberately non-fatal: a failed audit write must not abort the
+        // business operation it describes. The failure is still observable via
+        // the AUDIT_WRITE_FAILURES metric and the warn log below.
         let action = event.action;
         let resource_type = event.resource_type;
 
         let result = AuditRepository::insert_event(pool, event, Utc::now()).await;
 
-        // Log to console if database insert fails (table might not exist yet)
         if let Err(e) = &result {
             // Every alert rule built on audit_logs inherits this swallow, so a
             // broken audit trail must be observable on its own. Non-zero here

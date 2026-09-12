@@ -390,24 +390,24 @@ export const api = ky.create({
   }
 });
 
-// Helper to parse API errors
-export async function parseAPIError(error: unknown): Promise<APIError> {
-  if (error instanceof Response) {
-    try {
-      const body = await error.json();
-      return new APIError(
-        body.error || body.message || 'Request failed',
-        error.status,
-        body
-      );
-    } catch {
-      return new APIError('Request failed', error.status);
-    }
+/**
+ * Convert a thrown request error into an `APIError`. Replaces the repeated
+ * `if (error instanceof HTTPError) { ... }` catch-block boilerplate in
+ * services. For HTTP errors the server's `{"error": ...}`/`message`/`detail`
+ * payload wins; transport failures (timeout, offline, socket close) collapse
+ * to the caller's user-safe fallback — the service tests codify that contract.
+ */
+export function toApiError(error: unknown, fallback: string): APIError {
+  // Already wrapped — pass through so an outer catch can't downgrade it to
+  // the generic fallback or lose statusCode/details.
+  if (error instanceof APIError) return error;
+  if (isHTTPError(error)) {
+    const details = readErrorData(error);
+    return new APIError(
+      getExplicitApiNotificationMessage(details) ?? fallback,
+      error.response.status,
+      details,
+    );
   }
-
-  if (error instanceof Error) {
-    return new APIError(error.message);
-  }
-
-  return new APIError('Unknown error occurred');
+  return new APIError(fallback);
 }
