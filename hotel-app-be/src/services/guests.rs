@@ -411,12 +411,14 @@ pub async fn upgrade_guest_to_user(
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
+    // Role is never taken from the request: a client-supplied role would let
+    // the caller mint an account with arbitrary privileges.
     let new_user_id = GuestRepository::upgrade_guest_to_user(
         pool,
         input.guest_id,
         &input.username,
         &password_hash,
-        &input.role.unwrap_or_else(|| "guest".to_string()),
+        "guest",
     )
     .await?;
 

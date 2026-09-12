@@ -229,9 +229,10 @@ const LoginPage: React.FC = () => {
 
     setLoading(true);
 
-    // Kept from the two-step form: an unknown username gets its own message
-    // instead of the generic credential rejection, which reads like a typo in
-    // the password.
+    // The lookup is intentionally non-committal server-side (it returns a
+    // constant answer so the endpoint can't be used to enumerate accounts);
+    // unknown identifiers proceed to the password step and fail with the
+    // generic credential rejection.
     let exists: boolean;
     try {
       ({ exists } = await AuthService.lookupLoginIdentifier(identifier));

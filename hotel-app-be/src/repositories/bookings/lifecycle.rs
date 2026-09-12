@@ -1107,8 +1107,12 @@ pub async fn create_booking_handler(
         .map(Sanitizer::sanitize_notes);
     let ota_reference = sanitize_ota_reference(input.ota_reference.as_deref());
 
-    let deposit_paid = input.deposit_paid.unwrap_or(false);
-    let deposit_amount_f64 = input.deposit_amount;
+    // The deposit columns mirror the deposit payment row recorded from
+    // `amount_paid` below — never the client-supplied `deposit_*` fields,
+    // which are only an assertion about money and must exist as a real
+    // payment row before the refund flow may touch them.
+    let deposit_paid = input.amount_paid.is_some_and(|a| a > 0.0);
+    let deposit_amount_f64 = input.amount_paid.filter(|a| *a > 0.0);
     let payment_status = input
         .payment_status
         .clone()
@@ -1471,9 +1475,11 @@ pub async fn update_booking_handler(
         .clone()
         .unwrap_or_else(|| "unpaid".to_string());
 
-    // Handle deposit fields
-    let deposit_paid = input.deposit_paid;
-    let deposit_amount_f64 = input.deposit_amount;
+    // `deposit_paid`/`deposit_amount` are NOT bound into the UPDATE below —
+    // the columns are a write-through mirror of recorded deposit payments.
+    // The caller's assertion is applied by `reconcile_booking_deposit_tx`
+    // after the UPDATE (which holds the booking row lock), so a forged value
+    // can never inflate the refund ceiling.
 
     // Handle daily_rates, room rate override, or date change - recalculate totals.
     //
@@ -1607,8 +1613,6 @@ pub async fn update_booking_handler(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
     let booking: Booking = {
-        let deposit_amount =
-            deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
         let rate_override_decimal = input.room_rate_override.and_then(Decimal::from_f64_retain);
         sqlx::query_as(
             r#"UPDATE bookings SET
@@ -1649,8 +1653,12 @@ pub async fn update_booking_handler(
         .bind(&post_type)
         .bind(&new_payment_status)
         .bind(booking_id)
-        .bind(deposit_paid)
-        .bind(deposit_amount)
+        // $8/$9 (deposit_paid/deposit_amount): bound NULL so the COALESCE
+        // no-ops — deposit columns are reconciled against the payments
+        // ledger by `reconcile_booking_deposit_tx` below, never written
+        // verbatim from the request.
+        .bind(Option::<bool>::None)
+        .bind(Option::<Decimal>::None)
         .bind(input.company_id)
         .bind(&input.company_name)
         .bind(&input.payment_note)
@@ -1677,6 +1685,13 @@ pub async fn update_booking_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
+
+    // Apply any deposit assertion against the payments ledger (collect mints a
+    // real deposit payment; waive is rejected while one exists). The UPDATE
+    // above already holds the booking row lock, so this serializes with every
+    // other payment-path writer on this booking. The end-of-handler
+    // recompute_payment_status picks up a newly inserted deposit row.
+    reconcile_booking_deposit_tx(&mut tx, booking_id, &input, user_id).await?;
 
     let old_status = existing_booking.status.as_str();
     let updated_status = booking.status.as_str();
@@ -2355,6 +2370,11 @@ pub async fn void_booking_payments_tx(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Voiding may have removed completed deposit rows — resync the mirror so
+    // the booking columns can't overstate what the ledger still holds.
+    crate::repositories::payment::PaymentRepository::sync_booking_deposit_mirror_tx(tx, booking_id)
+        .await?;
+
     Ok(())
 }
 
@@ -2613,14 +2633,135 @@ pub async fn apply_guest_update_tx(
     Ok(())
 }
 
+/// Reconcile a caller-supplied deposit assertion (`deposit_paid` +
+/// `deposit_amount` on a booking update / check-in payload) against the
+/// payments ledger.
+///
+/// `bookings.deposit_*` is a write-through mirror of recorded
+/// `payments(payment_type='deposit', status='completed')` rows — money the
+/// refund flow may later pay out — so the columns can never move independently
+/// of a real payment row. A "collect" assertion (`deposit_paid=true` with a
+/// positive amount) names the total collected: any delta above what is
+/// already recorded is inserted as a completed deposit payment in this
+/// transaction, and the columns are rewritten to the recorded truth. A
+/// "waive" assertion (`deposit_paid=false`, or a zero/negative amount) is
+/// only allowed while no deposit payment exists — clearing a recorded deposit
+/// must go through a refund or payment void so the money trail is preserved.
+/// A bare `deposit_paid` flag with no amount (the edit form echoes the flag)
+/// is not an assertion and changes nothing.
+///
+/// Returns `true` when a deposit payment row was inserted. The booking row is
+/// locked `FOR UPDATE` before the deposit SUM is read, so a concurrent refund
+/// or another deposit assertion on the same booking cannot interleave.
+pub async fn reconcile_booking_deposit_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    booking_update: &BookingUpdateInput,
+    user_id: i64,
+) -> Result<bool, ApiError> {
+    enum DepositIntent {
+        Collect(Decimal),
+        Waive,
+    }
+
+    let intent = match (booking_update.deposit_paid, booking_update.deposit_amount) {
+        (Some(true), Some(amount)) if amount > 0.0 => DepositIntent::Collect(
+            Decimal::from_f64_retain(amount)
+                .ok_or_else(|| ApiError::BadRequest("Invalid deposit amount".to_string()))?,
+        ),
+        // Explicit "no deposit" — waive, or a non-positive amount. A bare
+        // `deposit_paid` echo (no amount field — the edit form does this) is
+        // not an assertion and changes nothing.
+        (Some(false), Some(_)) | (Some(true), Some(_)) => DepositIntent::Waive,
+        _ => return Ok(false),
+    };
+
+    sqlx::query("SELECT id FROM bookings WHERE id = $1 FOR UPDATE")
+        .bind(booking_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let recorded: Decimal = sqlx::query_scalar::<_, Option<Decimal>>(
+        "SELECT SUM(amount) FROM payments \
+         WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .unwrap_or(Decimal::ZERO);
+
+    match intent {
+        DepositIntent::Collect(requested) => {
+            if requested < recorded {
+                return Err(ApiError::BadRequest(format!(
+                    "Recorded deposit payments total {recorded} — lower it via a refund or \
+                     payment void, not a booking edit"
+                )));
+            }
+            let delta = requested - recorded;
+            let inserted = delta > Decimal::ZERO;
+            if inserted {
+                // The assertion attests money physically collected at the
+                // desk; record it as a real deposit payment so the refund
+                // ceiling can draw on it.
+                sqlx::query(
+                    "INSERT INTO payments \
+                        (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by) \
+                     VALUES (gen_uuidv7(), $1, $2, $3, 'deposit', 'completed', $4, $5)",
+                )
+                .bind(booking_id)
+                .bind(decimal_to_db(delta))
+                .bind(booking_update.payment_method.as_deref().unwrap_or("Cash"))
+                .bind(
+                    booking_update
+                        .payment_note
+                        .as_deref()
+                        .unwrap_or("Keycard deposit"),
+                )
+                .bind(user_id)
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+            }
+            crate::repositories::payment::PaymentRepository::sync_booking_deposit_mirror_tx(
+                tx, booking_id,
+            )
+            .await?;
+            Ok(inserted)
+        }
+        DepositIntent::Waive => {
+            if recorded > Decimal::ZERO {
+                return Err(ApiError::BadRequest(format!(
+                    "A deposit payment of {recorded} is recorded on this booking — refund or \
+                     void the payment instead of clearing the flag"
+                )));
+            }
+            sqlx::query(
+                "UPDATE bookings SET deposit_paid = false, deposit_amount = NULL, \
+                 deposit_paid_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+            )
+            .bind(booking_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Ok(false)
+        }
+    }
+}
+
 /// Apply optional booking-level edits supplied at check-in (market code,
 /// payment method, requests, remarks, company). PostgreSQL-flavoured dynamic
-/// update. No-op when nothing changes.
+/// update. No-op when nothing changes. Returns `true` when the deposit
+/// reconciliation inserted a payment row.
 pub async fn apply_booking_field_update_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
     booking_update: &BookingUpdateInput,
-) -> Result<(), ApiError> {
+    user_id: i64,
+) -> Result<bool, ApiError> {
     let mut updates: Vec<String> = vec![];
     let mut params: Vec<String> = vec![];
 
@@ -2650,25 +2791,27 @@ pub async fn apply_booking_field_update_tx(
         params.push(v.to_string());
     }
 
-    if params.is_empty() {
-        return Ok(());
+    if !params.is_empty() {
+        let query = format!(
+            "UPDATE bookings SET {} WHERE id = ${}",
+            updates.join(", "),
+            params.len() + 1
+        );
+        let mut q = sqlx::query(&query);
+        for p in &params {
+            q = q.bind(p);
+        }
+        q = q.bind(booking_id);
+        q.execute(&mut **tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
-    let query = format!(
-        "UPDATE bookings SET {} WHERE id = ${}",
-        updates.join(", "),
-        params.len() + 1
-    );
-    let mut q = sqlx::query(&query);
-    for p in &params {
-        q = q.bind(p);
-    }
-    q = q.bind(booking_id);
-    q.execute(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(())
+    // Deposit assertions travel in the same payload but are reconciled
+    // against the payments ledger — a deposit column write can only happen
+    // through a real payment row. Runs even when no plain field update was
+    // present (a deposit-only payload is valid).
+    reconcile_booking_deposit_tx(tx, booking_id, booking_update, user_id).await
 }
 
 /// Atomically transition a booking to `checked_in`, stamping the actual
@@ -2791,6 +2934,19 @@ pub async fn record_checkin_payment_tx(
     let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
     let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
 
+    // `payment_type` arrives from the check-in payload — bound it to real
+    // collected-payment types only. `refund` rows come exclusively from the
+    // deposit-refund workflow; accepting it here would mint a forged
+    // disbursement, and an unknown type would fail the CHECK constraint anyway.
+    if !matches!(pay_type, "booking" | "deposit" | "service" | "damage") {
+        return Err(ApiError::BadRequest("Unsupported payment type".to_string()));
+    }
+    if pay_amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Payment amount must be positive".to_string(),
+        ));
+    }
+
     // The two schemas diverge: PostgreSQL keys payments by `uuid` + `created_by`
     // and `description`. The bind order is identical — only the column list differs.
     let insert_query = r#"
@@ -2809,6 +2965,13 @@ pub async fn record_checkin_payment_tx(
         .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if pay_type == "deposit" {
+        crate::repositories::payment::PaymentRepository::sync_booking_deposit_mirror_tx(
+            tx, booking_id,
+        )
+        .await?;
+    }
 
     Ok(())
 }

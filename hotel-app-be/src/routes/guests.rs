@@ -58,7 +58,10 @@ async fn create_guest(
     headers: HeaderMap,
     Json(input): Json<models::GuestInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    // `guests:create`, not bare auth: the name-conflict error intentionally
+    // reveals the matching guest's ID so staff can pick the existing profile,
+    // which would otherwise be a guest-directory enumeration oracle.
+    let user_id = require_permission_helper(&pool, &headers, "guests:create").await?;
     handlers::guests::create_guest_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
@@ -93,7 +96,12 @@ async fn link_guest(
     headers: HeaderMap,
     Json(input): Json<models::LinkGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    // Staff-mediated: a link grants booking, credit, and modify rights over
+    // the target profile. `require_auth` alone let any self-registered account
+    // attach an arbitrary guest_id and set its own can_book_for/can_modify
+    // flags. Verified self-service access goes through the portal claim flow,
+    // which proves knowledge of a booking instead.
+    let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
     handlers::guests::link_guest_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
@@ -111,7 +119,9 @@ async fn upgrade_guest(
     headers: HeaderMap,
     Json(input): Json<models::UpgradeGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    // Creates a login account on the target guest profile — staff only. The
+    // can_modify link check inside the service stays as a second layer.
+    let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
     handlers::guests::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input))
         .await
 }

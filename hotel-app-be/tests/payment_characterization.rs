@@ -87,6 +87,23 @@ async fn ensure_admin_actor(pool: &PgPool, actor_id: i64) {
     .unwrap();
 }
 
+/// Assign a seeded role to a fixture actor, then flush the RBAC cache so a
+/// permission set cached by an earlier check in the same test can't hide the
+/// grant.
+async fn grant_role(pool: &PgPool, user_id: i64, role_name: &str) {
+    sqlx::query(
+        "INSERT INTO user_roles (user_id, role_id) \
+         SELECT $1, r.id FROM roles r WHERE r.name = $2 \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(user_id)
+    .bind(role_name)
+    .execute(pool)
+    .await
+    .unwrap();
+    hotel_app_be::core::rbac_cache::invalidate_all();
+}
+
 async fn seed_room_type(pool: &PgPool, room_type_id: i64, base_price: Decimal) {
     sqlx::query(
         "INSERT INTO room_types (id, code, name, base_price, max_occupancy, keycard_deposit_amount, service_charge_percentage) \
@@ -1199,11 +1216,14 @@ async fn concurrent_legacy_payment_approvals_complete_at_most_one_payment() {
     );
 }
 
-/// Updating a payment must hold the booking lock before it locks and refetches
-/// the payment. The gate freezes the update after it has reached the payment
-/// row; a concurrent create must then wait and revalidate the new balance.
+/// A completed payment is an immutable financial record: amount, payment
+/// method and payment date can never be rewritten after posting — corrections
+/// must void the row and record a new payment, so both sides stay on the
+/// books. Notes and transaction_reference remain editable (they carry no
+/// money and reference edits keep the idempotency-dedup machinery consistent).
+/// A rejected mutation must leave the stored row untouched.
 #[tokio::test]
-async fn concurrent_create_and_update_cannot_overpay_booking() {
+async fn completed_payment_amount_method_and_date_are_immutable() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -1220,87 +1240,187 @@ async fn concurrent_create_and_update_cannot_overpay_booking() {
     .unwrap();
     let payment_id = original["id"].as_i64().unwrap();
 
-    const GATE: i64 = 940_704;
-    install_payment_mutation_gate(&pool, "UPDATE", GATE).await;
-    let mut gate_connection = pool.acquire().await.unwrap();
-    sqlx::query("SELECT pg_advisory_lock($1)")
-        .bind(GATE)
-        .execute(&mut *gate_connection)
-        .await
-        .unwrap();
-
-    let update_pool = pool.clone();
-    let update = tokio::spawn(async move {
-        payments::update_payment(
-            &update_pool,
-            actor_id,
-            payment_id,
-            UpdatePaymentRequest {
-                amount: Some(200.0),
-                payment_method: None,
-                transaction_reference: None,
-                notes: None,
-                payment_date: None,
-            },
-        )
-        .await
-    });
-    wait_for_advisory_waiter(&pool).await;
-
-    let create_pool = pool.clone();
-    let create = tokio::spawn(async move {
-        payments::record_payment(
-            &create_pool,
-            actor_id,
-            payment_request(booking_id, 200.0, "payment-char-940704-concurrent"),
-        )
-        .await
-    });
-    sleep(Duration::from_millis(100)).await;
-    sqlx::query("SELECT pg_advisory_unlock($1)")
-        .bind(GATE)
-        .execute(&mut *gate_connection)
-        .await
-        .unwrap();
-
-    let updated = timeout(Duration::from_secs(5), update)
-        .await
-        .expect("update must not deadlock")
-        .unwrap();
-    let created = timeout(Duration::from_secs(5), create)
-        .await
-        .expect("create must not deadlock")
-        .unwrap();
-    let payment_total: Decimal = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(amount), 0) FROM payments \
-         WHERE booking_id = $1 AND status = 'completed'",
+    let update_amount = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: Some(200.0),
+            payment_method: None,
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
     )
-    .bind(booking_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    let (booking_status, payment_status) = fetch_booking_status(&pool, booking_id).await;
+    .await;
+    let update_method = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: Some("card".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+    let update_date = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: None,
+            transaction_reference: None,
+            notes: None,
+            payment_date: Some("2030-01-01".to_string()),
+        },
+    )
+    .await;
+    let update_notes = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: None,
+            payment_method: None,
+            transaction_reference: None,
+            notes: Some("corrected reference note".to_string()),
+            payment_date: None,
+        },
+    )
+    .await;
 
-    let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
+    let stored: (Decimal, String, String) =
+        sqlx::query_as("SELECT amount, payment_method, status FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let stored_notes: Option<String> =
+        sqlx::query_scalar("SELECT notes FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
-    trigger_cleanup.expect("the update gate must be removed");
 
     assert!(
-        updated.is_ok(),
-        "the lock-owning update must succeed: {updated:?}"
+        matches!(update_amount, Err(ApiError::BadRequest(_))),
+        "amount on a posted payment must be immutable: {update_amount:?}"
     );
     assert!(
-        matches!(created, Err(ApiError::BadRequest(_))),
-        "create must re-read the RM100 balance after the update: {created:?}"
+        matches!(update_method, Err(ApiError::BadRequest(_))),
+        "method on a posted payment must be immutable: {update_method:?}"
     );
-    assert_eq!(payment_total, d("200.00"));
-    assert_eq!(booking_status, "pending");
-    assert_eq!(payment_status, "partial");
+    assert!(
+        matches!(update_date, Err(ApiError::BadRequest(_))),
+        "payment date on a posted payment must be immutable: {update_date:?}"
+    );
+    assert!(
+        update_notes.is_ok(),
+        "notes must stay editable on a posted payment: {update_notes:?}"
+    );
+    assert_eq!(stored.0, d("100.00"), "the stored amount must be untouched");
+    assert_eq!(stored.1, "cash", "the stored method must be untouched");
+    assert_eq!(stored.2, "completed", "the stored status must be untouched");
+    assert_eq!(stored_notes.as_deref(), Some("corrected reference note"));
 }
 
-/// Deletion must lock booking -> payment. While the delete is paused after
-/// reaching its payment row, create must wait until the deleted installment is
-/// absent instead of confirming against money that is about to disappear.
+/// A pending (unposted) payment remains fully editable, but the amount must
+/// stay positive and, for room-charge rows, inside the live outstanding
+/// balance — the row under edit is not in `total_paid` yet, so the cap is the
+/// billable total minus completed payments.
+#[tokio::test]
+async fn pending_payment_amount_edits_stay_positive_and_within_balance() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_705, 940_706, 940_707, 940_708, 940_709);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    let payment_id = insert_pending_payment(
+        &pool,
+        booking_id,
+        "bank_transfer",
+        "booking",
+        d("100.00"),
+        actor_id,
+    )
+    .await;
+
+    let over_balance = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: Some(400.0),
+            payment_method: None,
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+    let non_positive = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: Some(0.0),
+            payment_method: None,
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+        },
+    )
+    .await;
+    let within_balance = payments::update_payment(
+        &pool,
+        actor_id,
+        payment_id,
+        UpdatePaymentRequest {
+            amount: Some(250.0),
+            payment_method: Some("duitnow".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: Some("2031-06-20".to_string()),
+        },
+    )
+    .await;
+
+    let stored: (Decimal, String) =
+        sqlx::query_as("SELECT amount, payment_method FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        matches!(over_balance, Err(ApiError::BadRequest(_))),
+        "a pending edit may not exceed the 300.00 balance: {over_balance:?}"
+    );
+    assert!(
+        matches!(non_positive, Err(ApiError::BadRequest(_))),
+        "a pending edit must stay positive: {non_positive:?}"
+    );
+    assert!(
+        within_balance.is_ok(),
+        "a pending edit inside the balance must succeed: {within_balance:?}"
+    );
+    assert_eq!(stored.0, d("250.00"));
+    assert_eq!(stored.1, "duitnow");
+}
+
+/// Void (the delete endpoint) must lock booking -> payment. While the void is
+/// paused after reaching its payment row, a concurrent create must wait until
+/// the voided installment is out of the completed sum instead of confirming
+/// against money that is about to be struck off. The voiding actor needs
+/// `payments:manage` because the row under test is a posted payment.
 #[tokio::test]
 async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
@@ -1310,6 +1430,7 @@ async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
     let (actor_id, room_type_id, room_id, guest_id, booking_id) =
         (940_710, 940_711, 940_712, 940_713, 940_714);
     seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    grant_role(&pool, actor_id, "manager").await;
     let original = payments::record_payment(
         &pool,
         actor_id,
@@ -1319,8 +1440,10 @@ async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
     .unwrap();
     let payment_id = original["id"].as_i64().unwrap();
 
+    // The delete path now voids with an UPDATE (never a DELETE), so the gate
+    // fires on UPDATE.
     const GATE: i64 = 940_714;
-    install_payment_mutation_gate(&pool, "DELETE", GATE).await;
+    install_payment_mutation_gate(&pool, "UPDATE", GATE).await;
     let mut gate_connection = pool.acquire().await.unwrap();
     sqlx::query("SELECT pg_advisory_lock($1)")
         .bind(GATE)
@@ -1367,6 +1490,11 @@ async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
     .fetch_one(&pool)
     .await
     .unwrap();
+    let voided_row: String = sqlx::query_scalar("SELECT status FROM payments WHERE id = $1")
+        .bind(payment_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     let (booking_status, payment_status) = fetch_booking_status(&pool, booking_id).await;
 
     let trigger_cleanup = remove_payment_mutation_gate(&pool).await;
@@ -1377,6 +1505,10 @@ async fn concurrent_create_and_delete_cannot_confirm_underpaid_booking() {
     assert!(
         created.is_ok(),
         "the partial create must succeed: {created:?}"
+    );
+    assert_eq!(
+        voided_row, "void",
+        "the row must be kept as void, not deleted"
     );
     assert_eq!(payment_total, d("200.00"));
     assert_eq!(booking_status, "pending");
@@ -2867,11 +2999,12 @@ async fn refund_deposit_and_revert_round_trip() {
     .await;
 }
 
-/// Existing hotel data records collected deposits on the booking. When both
-/// representations exist, the completed payment is a fallback rather than an
-/// additional deposit, so the same money cannot be counted twice.
+/// Existing hotel data may carry collected deposits on the booking columns.
+/// When both representations exist, only the completed payment row counts —
+/// the columns are caller-editable metadata, so the same money cannot be
+/// counted twice and a forged column cannot inflate the ceiling.
 #[tokio::test]
-async fn refund_deposit_uses_legacy_booking_deposit_without_double_counting() {
+async fn refund_deposit_uses_ledger_deposit_without_double_counting() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;
     };
@@ -3072,6 +3205,392 @@ async fn refund_deposit_refuses_when_no_deposit_held_or_amount_exceeds_it() {
     assert!(
         matches!(over_the_amount_held, Err(ApiError::BadRequest(_))),
         "refunding more than the collected deposit must be refused: {over_the_amount_held:?}"
+    );
+}
+
+/// `bookings.deposit_paid` / `deposit_amount` are caller-editable metadata —
+/// the refund ceiling must come from the payments ledger alone. A forged
+/// `deposit_amount` with no recorded deposit payment must mint no refundable
+/// money, and a forged column alongside a real deposit must not raise the
+/// ceiling past the recorded rows.
+#[tokio::test]
+async fn refund_deposit_ignores_booking_columns_without_a_payment_row() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let actor_id = 940_295;
+    let room_type_id = 940_296;
+    let room_id = 940_297;
+    let guest_id = 940_298;
+    let booking_id = 940_299;
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-07-01",
+            check_out: "2031-07-02",
+            base_price: d("100.00"),
+            subtotal: d("100.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+
+    // Forged columns — this is exactly what a staff caller could write before
+    // the write-through mirror existed.
+    sqlx::query("UPDATE bookings SET deposit_paid = true, deposit_amount = $1 WHERE id = $2")
+        .bind(d("9999.00"))
+        .bind(booking_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let forged_only = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 9999.0}),
+    )
+    .await;
+
+    // A real recorded deposit alongside forged columns: the ceiling is the
+    // ledger's 50.00, not the forged 9999.00.
+    payments::record_payment(
+        &pool,
+        actor_id,
+        RecordPaymentRequest {
+            booking_id,
+            amount: 50.0,
+            payment_method: "cash".to_string(),
+            payment_type: Some("deposit".to_string()),
+            transaction_reference: None,
+            notes: None,
+            payment_date: None,
+            idempotency_key: "payment-char-940299-deposit".to_string(),
+        },
+    )
+    .await
+    .expect("recording the real 50.00 deposit should succeed");
+
+    let inflated = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 9999.0}),
+    )
+    .await;
+    let at_ceiling = payments::refund_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        serde_json::json!({"payment_method": "cash", "amount": 50.0}),
+    )
+    .await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert!(
+        matches!(forged_only, Err(ApiError::BadRequest(_))),
+        "a forged deposit column with no payment row must mint nothing: {forged_only:?}"
+    );
+    assert!(
+        matches!(inflated, Err(ApiError::BadRequest(_))),
+        "a forged deposit column must not raise the recorded ceiling: {inflated:?}"
+    );
+    assert!(
+        at_ceiling.is_ok(),
+        "the recorded 50.00 deposit must still be refundable: {at_ceiling:?}"
+    );
+}
+
+/// The generic record-payment endpoint must not mint `refund` rows (those are
+/// written exclusively by the deposit-refund workflow) and must reject
+/// unknown types and non-positive amounts for every payment type.
+#[tokio::test]
+async fn record_payment_rejects_refund_type_and_nonpositive_amounts() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_730, 940_731, 940_732, 940_733, 940_734);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    let mut refund_type = payment_request(booking_id, 50.0, "payment-char-940734-refund");
+    refund_type.payment_type = Some("refund".to_string());
+    let refund_attempt = payments::record_payment(&pool, actor_id, refund_type).await;
+
+    let mut unknown_type = payment_request(booking_id, 50.0, "payment-char-940734-unknown");
+    unknown_type.payment_type = Some("voucher".to_string());
+    let unknown_attempt = payments::record_payment(&pool, actor_id, unknown_type).await;
+
+    let mut negative_deposit = payment_request(booking_id, -50.0, "payment-char-940734-neg");
+    negative_deposit.payment_type = Some("deposit".to_string());
+    let negative_attempt = payments::record_payment(&pool, actor_id, negative_deposit).await;
+
+    let mut zero_service = payment_request(booking_id, 0.0, "payment-char-940734-zero");
+    zero_service.payment_type = Some("service".to_string());
+    let zero_attempt = payments::record_payment(&pool, actor_id, zero_service).await;
+
+    // A deposit payment IS a legitimate collected-money row through this
+    // endpoint — the recorded row must then drive the deposit mirror columns.
+    let mut deposit = payment_request(booking_id, 50.0, "payment-char-940734-deposit");
+    deposit.payment_type = Some("deposit".to_string());
+    let deposit_recorded = payments::record_payment(&pool, actor_id, deposit).await;
+
+    let mirror: (Option<bool>, Option<Decimal>) =
+        sqlx::query_as("SELECT deposit_paid, deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        matches!(refund_attempt, Err(ApiError::BadRequest(_))),
+        "a caller-selected 'refund' must be rejected: {refund_attempt:?}"
+    );
+    assert!(
+        matches!(unknown_attempt, Err(ApiError::BadRequest(_))),
+        "an unknown payment type must be rejected: {unknown_attempt:?}"
+    );
+    assert!(
+        matches!(negative_attempt, Err(ApiError::BadRequest(_))),
+        "a negative amount must be rejected on every type: {negative_attempt:?}"
+    );
+    assert!(
+        matches!(zero_attempt, Err(ApiError::BadRequest(_))),
+        "a zero amount must be rejected on every type: {zero_attempt:?}"
+    );
+    assert!(
+        deposit_recorded.is_ok(),
+        "a positive deposit payment must record: {deposit_recorded:?}"
+    );
+    assert_eq!(mirror.0, Some(true), "the deposit mirror must flip on");
+    assert_eq!(
+        mirror.1,
+        Some(d("50.00")),
+        "the mirror must match the ledger"
+    );
+}
+
+/// Deleting a payment voids it — the row survives with status 'void', is
+/// excluded from payment totals, and a posted (`completed`) payment requires
+/// `payments:manage`. Refund markers and terminal rows can never be voided
+/// through this path.
+#[tokio::test]
+async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_740, 940_741, 940_742, 940_743, 940_744);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+    let original = payments::record_payment(
+        &pool,
+        actor_id,
+        payment_request(booking_id, 100.0, "payment-char-940744-original"),
+    )
+    .await
+    .unwrap();
+    let payment_id = original["id"].as_i64().unwrap();
+
+    // The recording actor holds no role, so voiding a posted payment must be
+    // refused — the route gate is payments:delete but the ledger gate is
+    // payments:manage.
+    let unauthorized = payments::delete_payment(&pool, actor_id, payment_id).await;
+    assert!(
+        matches!(unauthorized, Err(ApiError::Forbidden(_))),
+        "voiding a posted payment without payments:manage must be refused: {unauthorized:?}"
+    );
+
+    grant_role(&pool, actor_id, "manager").await;
+    let voided = payments::delete_payment(&pool, actor_id, payment_id).await;
+    assert!(
+        voided.is_ok(),
+        "a manager must be able to void a posted payment: {voided:?}"
+    );
+
+    let (status, processed_by): (String, Option<i64>) =
+        sqlx::query_as("SELECT status, processed_by FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    let completed_total: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments \
+         WHERE booking_id = $1 AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let revoid = payments::delete_payment(&pool, actor_id, payment_id).await;
+
+    // Refund markers are owned by the refund workflow — never voidable here.
+    let refund_row_id: i64 = sqlx::query_scalar(
+        "INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by) \
+         VALUES (gen_uuidv7(), $1, 25.00, 'cash', 'refund', 'refunded', 'Keycard deposit refund', $2) RETURNING id",
+    )
+    .bind(booking_id)
+    .bind(actor_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let refund_void = payments::delete_payment(&pool, actor_id, refund_row_id).await;
+
+    let void_audit = audit_log_exists(&pool, "payment_voided", payment_id).await;
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert_eq!(status, "void", "the row must be kept as void, not deleted");
+    assert_eq!(processed_by, Some(actor_id), "the void must name its actor");
+    assert_eq!(
+        completed_total,
+        d("0.00"),
+        "a voided row must drop out of the completed total"
+    );
+    assert!(
+        matches!(revoid, Err(ApiError::BadRequest(_))),
+        "a terminal row cannot be voided again: {revoid:?}"
+    );
+    assert!(
+        matches!(refund_void, Err(ApiError::BadRequest(_))),
+        "refund markers are managed by the refund workflow: {refund_void:?}"
+    );
+    assert!(void_audit, "the void must write a payment_voided audit row");
+}
+
+/// A booking deposit assertion is reconciled against the payments ledger:
+/// "collect" mints a real completed deposit payment for the delta and mirrors
+/// the columns; "waive" is rejected while a deposit payment exists; lowering
+/// the asserted amount below the recorded total is rejected — the recorded
+/// money can only move through a refund or a payment void.
+#[tokio::test]
+async fn booking_deposit_assertion_records_payment_and_guards_waive() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_750, 940_751, 940_752, 940_753, 940_754);
+    seed_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    let update_with = |deposit_paid: Option<bool>, deposit_amount: Option<f64>| {
+        hotel_app_be::models::BookingUpdateInput {
+            deposit_paid,
+            deposit_amount,
+            payment_method: Some("cash".to_string()),
+            ..Default::default()
+        }
+    };
+
+    // Scoped tx per assertion, mirroring how the booking-update / check-in
+    // callers run reconcile inside their own transaction.
+    macro_rules! reconcile {
+        ($input:expr) => {{
+            let mut tx = pool.begin().await.unwrap();
+            let result = hotel_app_be::repositories::bookings::reconcile_booking_deposit_tx(
+                &mut tx, booking_id, &$input, actor_id,
+            )
+            .await;
+            if result.is_ok() {
+                tx.commit().await.unwrap();
+            }
+            result
+        }};
+    }
+
+    // Collect 200 → a real deposit payment row + mirrored columns.
+    let collect = reconcile!(update_with(Some(true), Some(200.0)));
+    let ledger_deposit: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments \
+         WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let mirror: (Option<bool>, Option<Decimal>) =
+        sqlx::query_as("SELECT deposit_paid, deposit_amount FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+    // A second, higher assertion tops the ledger up by the delta only.
+    let topup = reconcile!(update_with(Some(true), Some(250.0)));
+    let ledger_after_topup: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount), 0) FROM payments \
+         WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Lowering below the recorded total is refused — money can only leave via
+    // refund/void.
+    let shrink = reconcile!(update_with(Some(true), Some(100.0)));
+    // Waive while money is recorded is refused.
+    let waive = reconcile!(update_with(Some(false), Some(0.0)));
+    // A bare flag echo is not an assertion — no rows, no column change.
+    let echo = reconcile!(update_with(Some(true), None));
+
+    cleanup_idempotency_booking(&pool, actor_id, room_type_id, room_id, guest_id, booking_id).await;
+
+    assert!(
+        matches!(collect, Ok(true)),
+        "collect must insert a payment row: {collect:?}"
+    );
+    assert_eq!(ledger_deposit, d("200.00"));
+    assert_eq!(mirror.0, Some(true));
+    assert_eq!(mirror.1, Some(d("200.00")));
+    assert!(
+        matches!(topup, Ok(true)),
+        "top-up must insert the delta: {topup:?}"
+    );
+    assert_eq!(
+        ledger_after_topup,
+        d("250.00"),
+        "the second assertion tops up by the delta"
+    );
+    assert!(
+        matches!(shrink, Err(ApiError::BadRequest(_))),
+        "shrinking a recorded deposit must be refused: {shrink:?}"
+    );
+    assert!(
+        matches!(waive, Err(ApiError::BadRequest(_))),
+        "waiving a recorded deposit must be refused: {waive:?}"
+    );
+    assert!(
+        matches!(echo, Ok(false)),
+        "a bare flag echo must change nothing: {echo:?}"
     );
 }
 

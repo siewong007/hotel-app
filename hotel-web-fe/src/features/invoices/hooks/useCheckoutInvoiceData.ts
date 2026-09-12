@@ -70,7 +70,11 @@ export function useCheckoutInvoiceData(
         queryFn: () => InvoicesService.getBookingPayments(booking.id),
         staleTime: 0,
       });
-      const normalizedPayments = (existing || []) as CheckoutPaymentRecord[];
+      // Voided rows are retained server-side for audit; the folio only lists
+      // payments that still carry money.
+      const normalizedPayments = ((existing || []) as CheckoutPaymentRecord[]).filter(
+        (p) => p.payment_status !== 'void'
+      );
       setPayments(normalizedPayments);
       // Detect a refunded keycard deposit structurally rather than by an exact
       // note string. The backend marks deposit refunds with payment_type='refund'

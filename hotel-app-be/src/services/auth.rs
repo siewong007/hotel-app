@@ -110,29 +110,21 @@ pub(crate) async fn ensure_not_locked(
     Ok(())
 }
 
-/// Active-account check for the Gmail-style login first step. Returns
-/// `exists: false` for unknown, deleted, or inactive accounts so the password
-/// field is never shown for those identifiers.
+/// First-step login check. Deliberately constant for every well-formed
+/// identifier: returning the real answer would let anyone enumerate which
+/// usernames/emails map to active accounts. The client always proceeds to the
+/// password step, where unknown identifiers fail with the same generic
+/// "Invalid credentials" as a wrong password.
 pub async fn lookup_login_identifier(
-    pool: &DbPool,
+    _pool: &DbPool,
     req: LoginLookupRequest,
 ) -> Result<LoginLookupResponse, ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    let identifier = req.username.trim();
-    if identifier.is_empty() {
-        return Ok(LoginLookupResponse { exists: false });
-    }
-
-    let user = AuthRepository::find_user_by_login(pool, identifier).await?;
     Ok(LoginLookupResponse {
-        exists: active_login_account_exists(user.as_ref()),
+        exists: !req.username.trim().is_empty(),
     })
-}
-
-fn active_login_account_exists(user: Option<&User>) -> bool {
-    matches!(user, Some(user) if user.is_active)
 }
 
 /// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
@@ -167,7 +159,9 @@ pub async fn login(
                 audit_ua(),
             )
             .await;
-            return Err(ApiError::Unauthorized("Account is inactive".to_string()));
+            // Same message as a wrong password: a distinct response would
+            // enumerate which identifiers map to real (disabled) accounts.
+            return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
         }
         None => {
             let _ = AuditLog::log_login_failure(
@@ -183,14 +177,6 @@ pub async fn login(
     };
 
     ensure_not_locked(pool, user.id, &req.username, ip_address, user_agent).await?;
-
-    let skip_email_verification = crate::core::config::get().skip_email_verification;
-
-    if !skip_email_verification && !user.is_verified {
-        return Err(ApiError::Unauthorized(
-            "Please verify your email address before logging in. Check your email for the verification link.".to_string()
-        ));
-    }
 
     let password_hash = AuthRepository::password_hash(pool, user.id).await?;
     let max_attempts = AuthRepository::max_login_attempts(pool).await;
@@ -244,6 +230,16 @@ pub async fn login(
             "Invalid credentials. {} attempt(s) remaining before account lockout.",
             remaining
         )));
+    }
+
+    // Checked only after the password verifies: reporting an unverified
+    // account any earlier would confirm the identifier is registered to
+    // anyone who probes it.
+    let skip_email_verification = crate::core::config::get().skip_email_verification;
+    if !skip_email_verification && !user.is_verified {
+        return Err(ApiError::Unauthorized(
+            "Please verify your email address before logging in. Check your email for the verification link.".to_string()
+        ));
     }
 
     let (two_factor_enabled, two_factor_secret) =
@@ -864,38 +860,4 @@ fn generic_verification_response() -> serde_json::Value {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use chrono::Utc;
 
-    fn sample_user(is_active: bool) -> User {
-        User {
-            id: 1,
-            username: "admin".into(),
-            email: "admin@example.com".into(),
-            google_subject: None,
-            full_name: Some("Admin".into()),
-            phone: None,
-            is_active,
-            is_verified: true,
-            user_type: None,
-            two_factor_enabled: Some(false),
-            two_factor_secret: None,
-            two_factor_recovery_codes: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        }
-    }
-
-    #[test]
-    fn active_login_account_exists_for_active_user() {
-        assert!(active_login_account_exists(Some(&sample_user(true))));
-    }
-
-    #[test]
-    fn active_login_account_exists_rejects_missing_or_inactive() {
-        assert!(!active_login_account_exists(None));
-        assert!(!active_login_account_exists(Some(&sample_user(false))));
-    }
-}

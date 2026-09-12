@@ -181,7 +181,7 @@ pub struct ReleaseBookingRequest {
 }
 
 /// Input for updating a booking
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BookingUpdateInput {
     pub room_id: Option<String>,
     pub check_in_date: Option<String>,

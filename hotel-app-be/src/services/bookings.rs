@@ -647,8 +647,19 @@ async fn checkin_booking_flow_for_booking(
             booking_repo::apply_guest_update_tx(&mut tx, booking.guest_id, guest_update).await?;
         }
         if let Some(ref booking_update) = checkin.booking_update {
-            booking_repo::apply_booking_field_update_tx(&mut tx, booking_id, booking_update)
-                .await?;
+            // Returns true when a deposit assertion inserted a real deposit
+            // payment row — the stored payment_status must then recompute so
+            // it reflects the collected money.
+            let deposit_payment_recorded = booking_repo::apply_booking_field_update_tx(
+                &mut tx,
+                booking_id,
+                booking_update,
+                user_id,
+            )
+            .await?;
+            if deposit_payment_recorded {
+                payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+            }
         }
     }
 

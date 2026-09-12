@@ -1249,38 +1249,18 @@ impl PaymentRepository {
     ) -> Result<PaymentEntryRow, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-        // Serialize deposit refunds for this booking and read the legacy
-        // deposit fields that hold the authoritative value in existing data.
-        let booking_deposit: Option<(bool, Option<Decimal>)> = sqlx::query_as(
-            "SELECT COALESCE(deposit_paid, false), deposit_amount FROM bookings WHERE id = $1 FOR UPDATE",
-        )
-        .bind(booking_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
-
-        let refundable_deposit = match booking_deposit {
-            Some((true, Some(amount))) if amount > Decimal::ZERO => amount,
-            Some(_) => sqlx::query_scalar::<_, Option<Decimal>>(
-                "SELECT SUM(amount) FROM payments WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'",
-            )
+        // Serialize deposit refunds for this booking. The payments ledger is
+        // the ONLY authority on collected deposits: `bookings.deposit_paid` /
+        // `deposit_amount` are caller-editable metadata columns and must never
+        // set the refund ceiling — a forged value would otherwise mint a
+        // refundable deposit that was never collected.
+        let booking_locked = sqlx::query("SELECT id FROM bookings WHERE id = $1 FOR UPDATE")
             .bind(booking_id)
-            .fetch_one(&mut *tx)
+            .fetch_optional(&mut *tx)
             .await
-            .map_err(ApiError::from)?
-            .unwrap_or(Decimal::ZERO),
-            None => return Err(ApiError::NotFound("Booking not found".to_string())),
-        };
-
-        if refundable_deposit <= Decimal::ZERO {
-            return Err(ApiError::BadRequest(
-                "No refundable deposit was collected for this booking".to_string(),
-            ));
-        }
-        if deposit_amount > refundable_deposit {
-            return Err(ApiError::BadRequest(format!(
-                "Deposit refund amount cannot exceed the refundable deposit of {refundable_deposit}"
-            )));
+            .map_err(ApiError::from)?;
+        if booking_locked.is_none() {
+            return Err(ApiError::NotFound("Booking not found".to_string()));
         }
 
         // Only an active refund blocks another one: a reverted refund keeps
@@ -1296,6 +1276,33 @@ impl PaymentRepository {
 
         if existing_refund.is_some() {
             return Err(ApiError::BadRequest("Deposit already refunded".to_string()));
+        }
+
+        // Refundable ceiling := completed deposit payments minus money already
+        // refunded (status 'refunded' refund rows; 'void' reversals don't
+        // count). The FOR UPDATE lock above serializes this read against a
+        // concurrent refund on the same booking.
+        let refundable_deposit = sqlx::query_scalar::<_, Decimal>(
+            "SELECT \
+                COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'), 0) \
+                - COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded'), 0)",
+        )
+        .bind(booking_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        if refundable_deposit <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "No refundable deposit was collected for this booking".to_string(),
+            ));
+        }
+        if deposit_amount > refundable_deposit {
+            return Err(ApiError::BadRequest(format!(
+                "Deposit refund amount cannot exceed the refundable deposit of {refundable_deposit}"
+            )));
         }
 
         let row = sqlx::query_as::<_, PaymentEntryRow>(
@@ -1640,7 +1647,7 @@ impl PaymentRepository {
         booking_id: i64,
         payment_id: i64,
         request: &UpdatePaymentRequest,
-    ) -> Result<PaymentEntryRow, ApiError> {
+    ) -> Result<(PaymentEntryRow, PaymentEntryRow), ApiError> {
         let preliminary =
             sqlx::query("SELECT transaction_id FROM payments WHERE id = $1 AND booking_id = $2")
                 .bind(payment_id)
@@ -1673,6 +1680,26 @@ impl PaymentRepository {
         .await
         .map_err(ApiError::from)?
         .ok_or_else(|| ApiError::NotFound("Payment not found".to_string()))?;
+
+        // Posted and terminal rows are immutable financial records. A
+        // completed payment's amount/method/date can never be rewritten —
+        // corrections go through a void + re-record so the ledger keeps both
+        // sides. Refund markers belong to the refund workflow (void via
+        // revert_deposit_refund). Notes and transaction_reference stay
+        // editable: they carry no money and reference edits are what keep the
+        // idempotency-dedup machinery consistent.
+        let existing_status = existing.payment_status.as_deref().unwrap_or_default();
+        let existing_type = existing.payment_type.as_deref().unwrap_or("booking");
+        if existing_type == "refund" {
+            return Err(ApiError::BadRequest(
+                "Refund records are immutable — use the refund revert workflow".to_string(),
+            ));
+        }
+        if matches!(existing_status, "refunded" | "void") {
+            return Err(ApiError::BadRequest(
+                "A refunded or void payment cannot be modified".to_string(),
+            ));
+        }
 
         let mut updates = Vec::new();
         let mut param_index = 1;
@@ -1747,6 +1774,25 @@ impl PaymentRepository {
             _ => None,
         };
         let final_payment_date = request.payment_date.as_deref().or(preserved_requested_date);
+
+        // A posted payment's financial fields can never change. Resubmitting
+        // the same value is a no-op, not a mutation, so it stays permitted —
+        // callers like the invoice edit form send the whole record.
+        if existing_status == "completed" {
+            let amount_changed = request.amount.is_some() && final_amount != existing_amount;
+            let method_changed =
+                request.payment_method.is_some() && final_payment_method != existing.payment_method;
+            let date_changed = request.payment_date.is_some()
+                && final_payment_date != existing.payment_date.as_deref();
+            if amount_changed || method_changed || date_changed {
+                return Err(ApiError::BadRequest(
+                    "Amount, method and payment date are immutable once a payment is posted — \
+                     void the payment and record a new one instead"
+                        .to_string(),
+                ));
+            }
+        }
+
         let fingerprint = Self::canonical_payment_fingerprint(
             booking_id,
             Some(final_amount),
@@ -1768,21 +1814,25 @@ impl PaymentRepository {
             );
         }
 
-        if request.amount.is_some()
-            && final_payment_type == "booking"
-            && existing.payment_status.as_deref() == Some("completed")
-        {
+        // Amount edits only reach here on non-posted rows (pending /
+        // processing / failed — completed rows were rejected above). They must
+        // still be positive, and for room-charge payments must not exceed the
+        // live outstanding balance. `summary.total_paid` counts only completed
+        // rows, so it excludes the row under edit for every status that can
+        // reach this point.
+        if request.amount.is_some() {
             if final_amount <= Decimal::ZERO {
                 return Err(ApiError::BadRequest(
                     "Payment amount must be positive".to_string(),
                 ));
             }
-            if let Some(summary) = Self::workflow_summary_row(&mut **tx, booking_id).await? {
-                let revised_total = summary.total_paid - existing_amount + final_amount;
-                if revised_total > summary.billable_total() + Decimal::new(5, 3) {
+            if final_payment_type == "booking"
+                && let Some(summary) = Self::workflow_summary_row(&mut **tx, booking_id).await?
+            {
+                let balance = summary.billable_total() - summary.total_paid;
+                if final_amount > balance + Decimal::new(5, 3) {
                     return Err(ApiError::BadRequest(format!(
-                        "Payment amount cannot exceed the outstanding booking total of {}",
-                        summary.billable_total()
+                        "Payment amount cannot exceed the outstanding booking total of {balance}"
                     )));
                 }
             }
@@ -1821,41 +1871,107 @@ impl PaymentRepository {
             .await
             .map_err(ApiError::from)?;
 
-        Ok(row)
+        Ok((existing, row))
     }
 
-    pub async fn delete_payment_tx(
+    /// Void a payment instead of deleting it.
+    ///
+    /// A payment row is a financial record: hard-deleting a `completed` one
+    /// erases the money trail and lets a posted collection disappear from the
+    /// books. Voiding flips `status` to 'void' — the row stays as a permanent
+    /// record (like the refund-revert path) but drops out of every aggregate
+    /// (`status = 'completed'` / `status <> 'void'` sums), and the service
+    /// writes a full snapshot to the audit log. `processed_at`/`processed_by`
+    /// record who finalized the row.
+    ///
+    /// Refund markers are managed exclusively by the refund workflow, and
+    /// rows already in a terminal state (`refunded`, `void`) cannot be voided
+    /// again. `allow_completed` is the service's verdict that the caller holds
+    /// `payments:manage` — required to void a posted payment; pending and
+    /// failed rows stay on the route's `payments:delete` gate.
+    ///
+    /// Returns the PRE-void row so the caller can audit the original values.
+    pub async fn void_payment_tx(
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
         payment_id: i64,
-    ) -> Result<(), ApiError> {
-        let payment_row = sqlx::query(
-            "SELECT payment_type FROM payments \
-                 WHERE id = $1 AND booking_id = $2 FOR UPDATE",
+        user_id: i64,
+        allow_completed: bool,
+    ) -> Result<PaymentEntryRow, ApiError> {
+        let existing = sqlx::query_as::<_, PaymentEntryRow>(
+            "SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type, \
+                    status AS payment_status, transaction_id AS transaction_reference, notes, \
+                    created_at::date::text AS payment_date, created_at, idempotency_fingerprint \
+             FROM payments WHERE id = $1 AND booking_id = $2 FOR UPDATE",
         )
         .bind(payment_id)
         .bind(booking_id)
         .fetch_optional(&mut **tx)
         .await
-        .map_err(ApiError::from)?;
+        .map_err(ApiError::from)?
+        .ok_or_else(|| ApiError::NotFound("Payment not found".to_string()))?;
 
-        let payment_row = match payment_row {
-            Some(row) => row,
-            None => return Err(ApiError::NotFound("Payment not found".to_string())),
-        };
-
-        let payment_type: Option<String> = payment_row.get("payment_type");
-        if payment_type.as_deref() == Some("refund") {
+        if existing.payment_type.as_deref() == Some("refund") {
             return Err(ApiError::BadRequest(
-                "Cannot delete refund records".to_string(),
+                "Refund records are managed by the refund revert workflow".to_string(),
+            ));
+        }
+        if matches!(
+            existing.payment_status.as_deref(),
+            Some("refunded") | Some("void")
+        ) {
+            return Err(ApiError::BadRequest(
+                "Payment is already in a terminal state".to_string(),
+            ));
+        }
+        if existing.payment_status.as_deref() == Some("completed") && !allow_completed {
+            return Err(ApiError::Forbidden(
+                "Voiding a posted payment requires the payments:manage permission".to_string(),
             ));
         }
 
-        sqlx::query("DELETE FROM payments WHERE id = $1")
-            .bind(payment_id)
-            .execute(&mut **tx)
-            .await
-            .map_err(ApiError::from)?;
+        sqlx::query(
+            "UPDATE payments SET status = 'void', processed_at = CURRENT_TIMESTAMP, processed_by = $1 \
+             WHERE id = $2",
+        )
+        .bind(user_id)
+        .bind(payment_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        // Voiding a deposit row changes the collected-deposit total — resync
+        // the booking mirror so it can't overstate what the ledger holds.
+        if existing.payment_type.as_deref() == Some("deposit") {
+            Self::sync_booking_deposit_mirror_tx(tx, booking_id).await?;
+        }
+
+        Ok(existing)
+    }
+
+    /// Keep `bookings.deposit_*` in step with the payments ledger. The columns
+    /// are a read model for the UI only — every money decision (refund
+    /// ceiling, workflow summary) reads `payments` directly. Called whenever a
+    /// deposit payment row appears or is voided so the mirror can't drift.
+    pub async fn sync_booking_deposit_mirror_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            "UPDATE bookings b SET \
+                deposit_paid = COALESCE(s.total, 0) > 0, \
+                deposit_amount = NULLIF(s.total, 0), \
+                deposit_paid_at = CASE WHEN COALESCE(s.total, 0) > 0 \
+                    THEN COALESCE(b.deposit_paid_at, CURRENT_TIMESTAMP) ELSE NULL END, \
+                updated_at = CURRENT_TIMESTAMP \
+             FROM (SELECT SUM(amount) AS total FROM payments \
+                   WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed') s \
+             WHERE b.id = $1",
+        )
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
 
         Ok(())
     }

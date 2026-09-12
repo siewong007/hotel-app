@@ -74,17 +74,25 @@ pub async fn book_with_credits_handler(
 
     let complimentary_nights = complimentary_dates.len() as i32;
 
-    // Get room info including room type
+    // Everything below runs in one transaction. The FOR UPDATE lock on the
+    // room row serializes concurrent bookings for that room, so the overlap
+    // check underneath it cannot be raced; the credit deduction is a single
+    // guarded UPDATE so a concurrent spend can no longer overdraw the balance
+    // or be silently dropped after the booking is committed.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+    // Get room info including room type, locking the room row for the tx.
     let room_info: Option<(i64, Decimal, String)> = sqlx::query(
         r#"
         SELECT rt.id, COALESCE(r.custom_price, rt.base_price), rt.name
         FROM rooms r
         INNER JOIN room_types rt ON r.room_type_id = rt.id
         WHERE r.id = $1
+        FOR UPDATE OF r
         "#,
     )
     .bind(input.room_id)
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?
     .map(|r| {
@@ -96,25 +104,7 @@ pub async fn book_with_credits_handler(
     let (room_type_id, room_rate, room_type_name) =
         room_info.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
 
-    // Check guest's complimentary credits for this room type
-    let available_credits: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(nights_available, 0) FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2"
-    )
-    .bind(input.guest_id)
-    .bind(room_type_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .unwrap_or(0);
-
-    if available_credits < complimentary_nights {
-        return Err(ApiError::BadRequest(format!(
-            "Insufficient complimentary credits for {}. Requested: {} nights, Available: {} nights",
-            room_type_name, complimentary_nights, available_credits
-        )));
-    }
-
-    // Check room availability
+    // Check room availability under the room lock.
     let room_available: bool = sqlx::query_scalar(
         r#"
         SELECT NOT EXISTS(
@@ -129,7 +119,7 @@ pub async fn book_with_credits_handler(
     .bind(input.room_id)
     .bind(check_in)
     .bind(check_out)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -139,14 +129,53 @@ pub async fn book_with_credits_handler(
         ));
     }
 
+    // Atomic deduction: the nights_available >= $1 guard fails the statement
+    // (no row returned) when the balance cannot cover the request, so two
+    // concurrent requests cannot both spend the same nights and the balance
+    // can never go negative.
+    let deducted = sqlx::query_scalar::<_, i32>(
+        "UPDATE guest_complimentary_credits \
+         SET nights_available = nights_available - $1, updated_at = CURRENT_TIMESTAMP \
+         WHERE guest_id = $2 AND room_type_id = $3 AND nights_available >= $1 \
+         RETURNING nights_available",
+    )
+    .bind(complimentary_nights)
+    .bind(input.guest_id)
+    .bind(room_type_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if deducted.is_none() {
+        let available_credits: i32 = sqlx::query_scalar(
+            "SELECT COALESCE(nights_available, 0) FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2"
+        )
+        .bind(input.guest_id)
+        .bind(room_type_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .unwrap_or(0);
+
+        return Err(ApiError::BadRequest(format!(
+            "Insufficient complimentary credits for {}. Requested: {} nights, Available: {} nights",
+            room_type_name, complimentary_nights, available_credits
+        )));
+    }
+
     // Calculate charges for non-complimentary nights
     let paid_nights = total_nights - complimentary_nights;
     let subtotal = room_rate * Decimal::from(paid_nights);
     let tax_amount = subtotal * Decimal::from_str_exact("0.10").unwrap_or_default();
     let total_amount = subtotal + tax_amount;
 
-    // Generate booking number
-    let booking_number = format!("COMP-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    // Second-granularity timestamps collided under concurrent requests; the
+    // uuid suffix keeps booking_number unique (matching the BK-* scheme).
+    let booking_number = format!(
+        "COMP-{}-{}",
+        check_in.format("%Y%m%d"),
+        &crate::core::db::generate_uuid()[..8]
+    );
 
     // Format complimentary dates for storage
     let complimentary_dates_str: Vec<String> = complimentary_dates
@@ -206,27 +235,30 @@ pub async fn book_with_credits_handler(
     .bind(&input.special_requests)
     .bind(&complimentary_reason)
     .bind(user_id)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Deduct credits from room-type specific credits
-    sqlx::query(
-        "UPDATE guest_complimentary_credits SET nights_available = nights_available - $1, updated_at = CURRENT_TIMESTAMP WHERE guest_id = $2 AND room_type_id = $3"
-    )
-    .bind(complimentary_nights)
-    .bind(input.guest_id)
-    .bind(room_type_id)
-    .execute(&pool)
-    .await
-    .ok();
+    .map_err(|e| {
+        // A booking path that doesn't take this room lock can still race us;
+        // the bookings_no_room_date_overlap exclusion constraint is the
+        // authoritative guard — translate it into the same user-facing error.
+        if let sqlx::Error::Database(db_err) = &e
+            && db_err.code().as_deref() == Some("23P01")
+        {
+            return ApiError::BadRequest(
+                "Room is not available for the selected dates".to_string(),
+            );
+        }
+        ApiError::Database(e.to_string())
+    })?;
 
     sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
         .bind("reserved")
         .bind(input.room_id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
-        .ok();
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(Json(serde_json::json!({
         "success": true,

@@ -382,7 +382,6 @@ pub struct UpgradeGuestInput {
     pub guest_id: i64,
     pub username: String,
     pub password: String,
-    pub role: Option<String>,
 }
 
 /// Staff-only input for assigning an existing guest-portal account to a guest.

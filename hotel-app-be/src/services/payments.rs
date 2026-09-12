@@ -250,7 +250,21 @@ pub async fn record_payment(
     let amount = Decimal::from_f64_retain(request.amount)
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
 
+    // This endpoint only mints real collected-payment rows. `refund` is
+    // excluded: refund markers are written exclusively by the deposit-refund
+    // workflow (with its own `refunded` status and eligibility checks) — a
+    // caller-selected type here would let `payments:create` forge a
+    // disbursement or inflate the refundable deposit ceiling.
     let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+    if !matches!(payment_type, "booking" | "deposit" | "service" | "damage") {
+        return Err(ApiError::BadRequest("Unsupported payment type".to_string()));
+    }
+    if amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Payment amount must be positive".to_string(),
+        ));
+    }
+
     let fingerprint = PaymentRepository::canonical_payment_fingerprint(
         request.booking_id,
         Some(amount),
@@ -318,36 +332,30 @@ pub async fn record_payment(
 
     // A booking room-charge payment can never exceed the outstanding balance.
     // This also blocks recording any payment once the booking is fully settled
-    // (balance is zero). Deposit/refund flows are intentionally exempt.
-    if payment_type == "booking" {
-        if amount <= Decimal::ZERO {
-            return Err(ApiError::BadRequest(
-                "Payment amount must be positive".to_string(),
-            ));
-        }
-
-        if let Some(summary) =
+    // (balance is zero). Deposit/service/damage rows are intentionally exempt —
+    // a keycard deposit legitimately exceeds the room balance.
+    if payment_type == "booking"
+        && let Some(summary) =
             PaymentRepository::workflow_summary_row(&mut *tx, request.booking_id).await?
-        {
-            // Validate against the full invoiced amount (room + tourism tax +
-            // extra bed), not the room-only `total_amount`. Otherwise a booking
-            // whose room charge is fully paid would reject collection of the
-            // tourism tax / extra bed that the checkout invoice still bills.
-            let billable_total = summary.billable_total();
-            let balance_due = if billable_total > summary.total_paid {
-                billable_total - summary.total_paid
-            } else {
-                Decimal::ZERO
-            };
-            // Allow a sub-cent rounding tolerance to match the frontend guard.
-            let tolerance = Decimal::new(5, 3); // 0.005
-            if amount > balance_due + tolerance {
-                return Err(ApiError::BadRequest(format!(
-                    "Payment amount cannot exceed the outstanding balance of {balance_due}"
-                )));
-            }
-            settles_balance_in_full = amount + tolerance >= balance_due;
+    {
+        // Validate against the full invoiced amount (room + tourism tax +
+        // extra bed), not the room-only `total_amount`. Otherwise a booking
+        // whose room charge is fully paid would reject collection of the
+        // tourism tax / extra bed that the checkout invoice still bills.
+        let billable_total = summary.billable_total();
+        let balance_due = if billable_total > summary.total_paid {
+            billable_total - summary.total_paid
+        } else {
+            Decimal::ZERO
+        };
+        // Allow a sub-cent rounding tolerance to match the frontend guard.
+        let tolerance = Decimal::new(5, 3); // 0.005
+        if amount > balance_due + tolerance {
+            return Err(ApiError::BadRequest(format!(
+                "Payment amount cannot exceed the outstanding balance of {balance_due}"
+            )));
         }
+        settles_balance_in_full = amount + tolerance >= balance_due;
     }
 
     let created_at_override = request
@@ -369,6 +377,9 @@ pub async fn record_payment(
     }
     let row = recorded_payment.row;
 
+    if payment_type == "deposit" {
+        PaymentRepository::sync_booking_deposit_mirror_tx(&mut tx, request.booking_id).await?;
+    }
     recompute_payment_status_tx(&mut tx, request.booking_id).await?;
 
     let mut confirmed_by_this_payment = false;
@@ -694,7 +705,7 @@ pub async fn update_payment(
     let booking_id = PaymentRepository::payment_booking_id(pool, payment_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
-    let row =
+    let (before, row) =
         PaymentRepository::update_payment_tx(&mut tx, booking_id, payment_id, &request).await?;
     recompute_payment_status_tx(&mut tx, booking_id).await?;
     tx.commit().await.map_err(ApiError::from)?;
@@ -723,6 +734,24 @@ pub async fn update_payment(
             resource_id: Some(row.id),
             details: Some(serde_json::json!({
                 "booking_id": row.booking_id,
+                "before": {
+                    "amount": before.total_amount,
+                    "payment_method": before.payment_method,
+                    "payment_type": before.payment_type,
+                    "status": before.payment_status,
+                    "transaction_reference": before.transaction_reference,
+                    "notes": before.notes,
+                    "payment_date": before.payment_date,
+                },
+                "after": {
+                    "amount": row.total_amount,
+                    "payment_method": row.payment_method,
+                    "payment_type": row.payment_type,
+                    "status": row.payment_status,
+                    "transaction_reference": row.transaction_reference,
+                    "notes": row.notes,
+                    "payment_date": row.payment_date,
+                },
             })),
             ..Default::default()
         },
@@ -732,15 +761,35 @@ pub async fn update_payment(
     Ok(row.into_response())
 }
 
+/// "Delete" a payment — implemented as a void, never a hard delete.
+///
+/// A payment row is a posted financial record: deleting it would erase the
+/// money trail (collect cash → delete → the recompute hides it). The row is
+/// kept with status 'void' so it drops out of every aggregate while staying
+/// auditable, and the full pre-void snapshot is written to the audit log.
+/// Voiding a `completed` payment additionally requires `payments:manage` —
+/// pending/failed rows stay on the route's `payments:delete` gate.
 pub async fn delete_payment(
     pool: &DbPool,
     user_id: i64,
     payment_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
     let booking_id = PaymentRepository::payment_booking_id(pool, payment_id).await?;
+    let can_void_completed =
+        crate::core::auth::AuthService::check_permission(pool, user_id, "payments:manage")
+            .await
+            .unwrap_or(false);
+
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     PaymentRepository::lock_booking_for_payment_tx(&mut tx, booking_id).await?;
-    PaymentRepository::delete_payment_tx(&mut tx, booking_id, payment_id).await?;
+    let voided = PaymentRepository::void_payment_tx(
+        &mut tx,
+        booking_id,
+        payment_id,
+        user_id,
+        can_void_completed,
+    )
+    .await?;
     recompute_payment_status_tx(&mut tx, booking_id).await?;
     tx.commit().await.map_err(ApiError::from)?;
 
@@ -748,11 +797,20 @@ pub async fn delete_payment(
         pool,
         AuditEvent {
             user_id: Some(user_id),
-            action: "payment_deleted",
+            action: "payment_voided",
             resource_type: "payment",
             resource_id: Some(payment_id),
             details: Some(serde_json::json!({
                 "booking_id": booking_id,
+                "voided_payment": {
+                    "amount": voided.total_amount,
+                    "payment_method": voided.payment_method,
+                    "payment_type": voided.payment_type,
+                    "status": voided.payment_status,
+                    "transaction_reference": voided.transaction_reference,
+                    "notes": voided.notes,
+                    "payment_date": voided.payment_date,
+                },
             })),
             ..Default::default()
         },
@@ -761,8 +819,9 @@ pub async fn delete_payment(
 
     Ok(serde_json::json!({
         "success": true,
-        "message": "Payment deleted successfully",
-        "deleted_id": payment_id
+        "message": "Payment voided",
+        "deleted_id": payment_id,
+        "voided_id": payment_id
     }))
 }
 
