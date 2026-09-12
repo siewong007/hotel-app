@@ -94,6 +94,9 @@
     "/api/admin/online-inventory": {
       "GET": {}
     },
+    "/api/admin/online-inventory/bulk": {
+      "PUT": {}
+    },
     "/api/admin/online-inventory/{room_type_id}/{stay_date}": {
       "PUT": {}
     },
