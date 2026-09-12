@@ -38,6 +38,10 @@ pub fn routes() -> Router<DbPool> {
         )
         .route("/admin/online-inventory", get(list_online_inventory))
         .route(
+            "/admin/online-inventory/bulk",
+            put(bulk_update_online_inventory),
+        )
+        .route(
             "/admin/online-inventory/{room_type_id}/{stay_date}",
             put(update_online_inventory),
         )
@@ -69,6 +73,26 @@ async fn update_online_inventory(
         axum::Extension(actor_id),
         axum::Extension(hub),
         Path(path),
+        axum::Json(request),
+    )
+    .await
+}
+
+async fn bulk_update_online_inventory(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    axum::extract::Extension(hub): axum::extract::Extension<
+        crate::modules::guest_booking::availability::AvailabilityHub,
+    >,
+    axum::Json(request): axum::Json<super::models::BulkUpdateOnlineInventoryRequest>,
+) -> Result<axum::Json<Vec<super::models::OnlineInventoryAllocation>>, crate::core::error::ApiError>
+{
+    let actor_id =
+        crate::core::middleware::require_permission_helper(&pool, &headers, "rooms:update").await?;
+    handlers::bulk_update_online_inventory_handler(
+        State(pool),
+        axum::Extension(actor_id),
+        axum::Extension(hub),
         axum::Json(request),
     )
     .await

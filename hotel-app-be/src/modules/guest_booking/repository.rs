@@ -215,8 +215,11 @@ impl GuestBookingRepository {
             .collect())
     }
 
-    pub async fn upsert_online_inventory(
-        pool: &DbPool,
+    /// Upserts one allocation cell inside an existing transaction. Locks the
+    /// room type row first so a concurrent room-type delete can't orphan the
+    /// allocation — repeated locks within one tx are cheap no-ops.
+    pub async fn upsert_online_inventory_tx(
+        tx: &mut DbTransaction<'_>,
         room_type_id: i64,
         stay_date: NaiveDate,
         reserved: i32,
@@ -224,13 +227,25 @@ impl GuestBookingRepository {
         custom_price: Option<Decimal>,
         updated_by: i64,
     ) -> Result<(), ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
-        Self::lock_room_type_tx(&mut tx, room_type_id).await?;
+        Self::lock_room_type_tx(tx, room_type_id).await?;
         sqlx::query("INSERT INTO online_inventory_allocations (room_type_id, stay_date, walk_in_reserved_rooms, online_booking_enabled, custom_price, updated_by) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (room_type_id, stay_date) DO UPDATE SET walk_in_reserved_rooms = EXCLUDED.walk_in_reserved_rooms, online_booking_enabled = EXCLUDED.online_booking_enabled, custom_price = EXCLUDED.custom_price, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP")
         .bind(room_type_id).bind(stay_date).bind(reserved).bind(enabled)
         .bind(opt_decimal_to_db(custom_price)).bind(updated_by)
-        .execute(&mut *tx).await.map_err(ApiError::from)?;
-        tx.commit().await.map_err(ApiError::from)?;
+        .execute(&mut **tx).await.map_err(ApiError::from)?;
+        Ok(())
+    }
+
+    /// Deletes one allocation cell inside an existing transaction, returning the
+    /// cell to defaults (open, zero hold, standard rate).
+    pub async fn delete_online_inventory_tx(
+        tx: &mut DbTransaction<'_>,
+        room_type_id: i64,
+        stay_date: NaiveDate,
+    ) -> Result<(), ApiError> {
+        Self::lock_room_type_tx(tx, room_type_id).await?;
+        sqlx::query("DELETE FROM online_inventory_allocations WHERE room_type_id = $1 AND stay_date = $2")
+            .bind(room_type_id).bind(stay_date)
+            .execute(&mut **tx).await.map_err(ApiError::from)?;
         Ok(())
     }
 

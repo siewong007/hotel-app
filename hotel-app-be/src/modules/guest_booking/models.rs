@@ -23,6 +23,38 @@ pub struct UpdateOnlineInventoryRequest {
     pub custom_price: Option<Decimal>,
 }
 
+/// One cell of a bulk online-inventory write. `reset` deletes the allocation
+/// row outright (cell returns to defaults); otherwise all three fields are
+/// required — the backend never merges partial cell updates.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OnlineInventoryCellUpdate {
+    pub room_type_id: i64,
+    pub stay_date: String,
+    #[serde(default)]
+    pub reset: bool,
+    pub walk_in_reserved_rooms: Option<i32>,
+    pub online_booking_enabled: Option<bool>,
+    pub custom_price: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BulkUpdateOnlineInventoryRequest {
+    pub cells: Vec<OnlineInventoryCellUpdate>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OnlineInventoryAffectedSpan {
+    pub room_type_id: i64,
+    pub first_date: NaiveDate,
+    pub last_date: NaiveDate,
+}
+
+#[derive(Debug, Clone)]
+pub struct BulkOnlineInventoryOutcome {
+    pub allocations: Vec<OnlineInventoryAllocation>,
+    pub spans: Vec<OnlineInventoryAffectedSpan>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct OnlineInventoryAllocation {
     pub room_type_id: i64,

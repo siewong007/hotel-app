@@ -199,6 +199,30 @@ pub async fn update_online_inventory_handler(
     Ok(Json(allocation))
 }
 
+/// One availability event per affected room type spanning its changed dates —
+/// subscribers refresh a range, so a contiguous span over-notifies slightly but
+/// never misses a date.
+pub async fn bulk_update_online_inventory_handler(
+    State(pool): State<DbPool>,
+    Extension(actor_id): Extension<i64>,
+    Extension(hub): Extension<AvailabilityHub>,
+    Json(request): Json<super::models::BulkUpdateOnlineInventoryRequest>,
+) -> Result<Json<Vec<super::models::OnlineInventoryAllocation>>, ApiError> {
+    let outcome = service::bulk_update_online_inventory(&pool, request, actor_id).await?;
+    for span in &outcome.spans {
+        hub.publish(super::availability::AvailabilityEvent {
+            event_id: uuid::Uuid::new_v4().to_string(),
+            event_type: "availability_changed",
+            reason: "online_inventory_changed",
+            room_type_id: Some(span.room_type_id),
+            check_in_date: Some(span.first_date),
+            check_out_date: span.last_date.succ_opt(),
+            remaining_rooms: None,
+        });
+    }
+    Ok(Json(outcome.allocations))
+}
+
 pub async fn create_booking_handler(
     State(pool): State<DbPool>,
     Extension(hub): Extension<AvailabilityHub>,
