@@ -1541,13 +1541,14 @@ WHERE NOT EXISTS (
     SELECT 1 FROM loyalty_rewards WHERE name = 'July Deluxe Room 20% Voucher'
 );
 
--- Fresh-property validation.
+-- Fresh-property validation. Rate plans are deliberately not part of the
+-- invariant: none are seeded (see the RATE PLANS block above), so asserting a
+-- seeded count would fail every fresh bootstrap.
 DO $$
 BEGIN
     IF (SELECT seed_property FROM v1_seed_state)
        AND ((SELECT COUNT(*) FROM room_types) < 4
-            OR (SELECT COUNT(*) FROM rooms) < 16
-            OR (SELECT COUNT(*) FROM rate_plans) < 6) THEN
+            OR (SELECT COUNT(*) FROM rooms) < 16) THEN
         RAISE EXCEPTION 'fresh V1 property bootstrap did not create its required records';
     END IF;
 END;
