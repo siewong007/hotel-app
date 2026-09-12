@@ -199,7 +199,17 @@ const OnlineInventoryPage = () => {
             </Tooltip>
           </Stack>
 
-          {!isLoading && items.length > 0 && <InventorySummary items={items} />}
+          {!isLoading && items.length > 0 && (
+            <InventorySummary
+              cells={items.map((item) => ({
+                physical: item.physical_available_rooms,
+                held: item.walk_in_reserved_rooms,
+                online: item.online_booking_enabled
+                  ? Math.max(0, item.physical_available_rooms - item.walk_in_reserved_rooms)
+                  : 0,
+              }))}
+            />
+          )}
         </Box>
 
         {isLoading ? (
