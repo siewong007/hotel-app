@@ -134,6 +134,59 @@ BEGIN
     RETURN NEW;
 END;
 $function$;
+
+-- The deposit-forfeited patch widens payments_payment_type_check and re-bodies
+-- sync_booking_payment_status() under literal-definition guards, so a database
+-- created before it carries the five-element CHECK and the refund/deposit-only
+-- filter. Model both back to their pre-patch shape or the patch only ever
+-- exercises its no-op path here and a wrong old-definition constant would
+-- pass this suite yet abort real deploys.
+ALTER TABLE payments DROP CONSTRAINT payments_payment_type_check;
+ALTER TABLE payments ADD CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY (ARRAY[('booking'::character varying)::text, ('deposit'::character varying)::text, ('service'::character varying)::text, ('damage'::character varying)::text, ('refund'::character varying)::text])));
+
+CREATE OR REPLACE FUNCTION public.sync_booking_payment_status()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_booking_id INTEGER;
+    v_settled NUMERIC;
+    v_new_status TEXT;
+BEGIN
+    -- Determine the affected booking_id (NEW for INSERT/UPDATE, OLD for DELETE)
+    v_booking_id := COALESCE(NEW.booking_id, OLD.booking_id);
+
+    -- Money that settles the booking's charges: completed payments excluding
+    -- refunds and held deposits (a keycard deposit is collateral, not a room
+    -- payment). Mirrors PaymentRepository::recompute_booking_payment_status.
+    SELECT COALESCE(SUM(amount), 0)
+      INTO v_settled
+      FROM payments
+     WHERE booking_id = v_booking_id
+       AND status = 'completed'
+       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit');
+
+    SELECT CASE
+        WHEN b.status = 'voided' THEN 'void'
+        WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
+        WHEN (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                + COALESCE(b.extra_bed_charge, 0)) <= 0 THEN 'paid'
+        WHEN v_settled >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
+        WHEN v_settled > 0 THEN 'partial'
+        ELSE 'unpaid'
+    END INTO v_new_status
+    FROM bookings b
+    WHERE b.id = v_booking_id;
+
+    UPDATE bookings
+       SET payment_status = v_new_status,
+           updated_at = CURRENT_TIMESTAMP
+     WHERE id = v_booking_id;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$function$;
 "#;
 
 #[derive(Clone)]
