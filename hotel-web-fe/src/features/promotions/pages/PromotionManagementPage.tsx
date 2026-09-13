@@ -2,7 +2,6 @@ import AddIcon from "@mui/icons-material/Add";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
-import LocalActivityOutlinedIcon from "@mui/icons-material/LocalActivityOutlined";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
 import {
@@ -21,13 +20,12 @@ import {
   Tooltip,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
 } from "@mui/material";
 import { useDeferredValue, useMemo, useState } from "react";
 import { getQueryErrorMessage } from "../../../api/queryConfig";
 import { useAuth } from "../../../auth/AuthContext";
 import { emitApiNotification } from "../../../utils/apiNotifications";
-import { PROMOTION_STATUS_LABELS, VOUCHER_STATUS_LABELS } from "../constants";
+import { PROMOTION_STATUS_LABELS } from "../constants";
 import {
   useAdminPromotions,
   useAdminVouchers,
@@ -36,6 +34,7 @@ import {
   usePromotionTransition,
   useRevokeVoucher,
   useUpdatePromotion,
+  useVoucherSummary,
 } from "../hooks/usePromotionAdmin";
 import type {
   Promotion,
@@ -43,13 +42,18 @@ import type {
   PromotionLifecycleAction,
   PromotionStatus,
   VoucherIssueInput,
-  VoucherStatus,
+  VoucherStatusFilter,
 } from "../types";
+import { formatCurrencyAmount } from "../utils";
 import { PromotionAdminTable } from "../components/PromotionAdminTable";
 import { PromotionEditorDialog } from "../components/PromotionEditorDialog";
 import { VoucherAdminTable } from "../components/VoucherAdminTable";
+import { VoucherDetailsDrawer } from "../components/VoucherDetailsDrawer";
 import { VoucherIssueDialog } from "../components/VoucherIssueDialog";
 import { useConfirm } from "../../../components/common/ConfirmProvider";
+import PageHeader from "../../../components/common/PageHeader";
+import StatStrip from "../../../components/common/StatStrip";
+import type { StatStripItem } from "../../../components/common/StatStrip";
 
 type WorkspaceTab = "promotions" | "vouchers";
 
@@ -64,14 +68,17 @@ const PROMOTION_FILTERS: Array<{
   })),
 ];
 
-const VOUCHER_FILTERS: Array<{ value: VoucherStatus | "all"; label: string }> =
-  [
-    { value: "all", label: "All" },
-    ...Object.entries(VOUCHER_STATUS_LABELS).map(([value, label]) => ({
-      value: value as VoucherStatus,
-      label,
-    })),
-  ];
+const VOUCHER_FILTERS: Array<{
+  value: VoucherStatusFilter | "all";
+  label: string;
+}> = [
+  { value: "all", label: "All" },
+  { value: "available", label: "Available" },
+  { value: "expiring_soon", label: "Expiring soon" },
+  { value: "expired", label: "Expired" },
+  { value: "redeemed", label: "Redeemed" },
+  { value: "revoked", label: "Revoked" },
+];
 
 export default function PromotionManagementPage() {
   const { hasPermission } = useAuth();
@@ -89,9 +96,9 @@ export default function PromotionManagementPage() {
   const [promotionStatus, setPromotionStatus] = useState<
     PromotionStatus | "all"
   >("all");
-  const [voucherStatus, setVoucherStatus] = useState<VoucherStatus | "all">(
-    "all",
-  );
+  const [voucherStatus, setVoucherStatus] = useState<
+    VoucherStatusFilter | "all"
+  >("all");
   const [promotionPage, setPromotionPage] = useState(0);
   const [promotionPageSize, setPromotionPageSize] = useState(25);
   const [voucherPage, setVoucherPage] = useState(0);
@@ -131,6 +138,7 @@ export default function PromotionManagementPage() {
     canReadPromotions && tab === "vouchers",
   );
   const vouchersQuery = useAdminVouchers(voucherParams, canReadVouchers);
+  const voucherSummaryQuery = useVoucherSummary(canReadVouchers);
   const createMutation = useCreatePromotion();
   const updateMutation = useUpdatePromotion();
   const transitionMutation = usePromotionTransition();
@@ -225,6 +233,20 @@ export default function PromotionManagementPage() {
     });
   };
 
+  const performRevoke = (voucherId: number, reason?: string) => {
+    revokeMutation.mutate(
+      { voucherId, input: reason ? { reason } : {} },
+      {
+        onSuccess: () => {
+          emitApiNotification({
+            message: "Voucher revoked",
+            severity: "success",
+          });
+        },
+      },
+    );
+  };
+
   const revokeVoucher = async (voucherId: number, label: string) => {
     if (!canManageVouchers) return;
     if (
@@ -237,17 +259,17 @@ export default function PromotionManagementPage() {
     ) {
       return;
     }
-    revokeMutation.mutate(
-      { voucherId, input: { reason: "Revoked by administrator" } },
-      {
-        onSuccess: () => {
-          emitApiNotification({
-            message: "Voucher revoked",
-            severity: "success",
-          });
-        },
-      },
-    );
+    performRevoke(voucherId);
+  };
+
+  /** The drawer already ran its own inline confirm — revoke directly. */
+  const revokeVoucherFromDrawer = (
+    voucherId: number,
+    _label: string,
+    reason?: string,
+  ) => {
+    if (!canManageVouchers) return;
+    performRevoke(voucherId, reason);
   };
 
   const resetPageForSearch = (value: string) => {
@@ -259,24 +281,110 @@ export default function PromotionManagementPage() {
   const availablePromotions = issuePromotionOptionsQuery.data?.items ?? [];
   const activeQuery = tab === "promotions" ? promotionsQuery : vouchersQuery;
   const queryError = activeQuery.error;
-  const promotionItems = promotionsQuery.data?.items ?? [];
-  const voucherItems = vouchersQuery.data?.items ?? [];
   const activeTotal = activeQuery.data?.total ?? 0;
-  const publishedOnPage = promotionItems.filter(
-    (promotion) => promotion.status === "published",
-  ).length;
-  const claimsOnPage = promotionItems.reduce(
-    (total, promotion) => total + promotion.claimed_count,
-    0,
-  );
-  const availableVouchersOnPage = voucherItems.filter(
-    (voucher) =>
-      voucher.status === "available" &&
-      (!voucher.expires_at ||
-        new Date(voucher.expires_at).getTime() >= Date.now()),
-  ).length;
+  const summary = voucherSummaryQuery.data;
+  const summaryValue = (value?: number) =>
+    voucherSummaryQuery.isLoading
+      ? "…"
+      : value != null
+        ? String(value)
+        : "—";
+  const discountsGiven = voucherSummaryQuery.isLoading
+    ? "…"
+    : summary?.discount_given.length
+      ? summary.discount_given
+          .map((discount) =>
+            formatCurrencyAmount(discount.amount, discount.currency),
+          )
+          .join(" · ")
+      : "—";
+  const applyVoucherStatus = (value: VoucherStatusFilter | "all") => {
+    setVoucherStatus(value);
+    setVoucherPage(0);
+  };
   const activeStatus = tab === "promotions" ? promotionStatus : voucherStatus;
   const hasActiveFilters = search.trim().length > 0 || activeStatus !== "all";
+
+  const statItems: StatStripItem[] =
+    tab === "vouchers"
+      ? [
+          {
+            key: "total",
+            label: "Total vouchers",
+            value: summaryValue(summary?.total),
+            hint: "Issued across all offers",
+          },
+          {
+            key: "available",
+            label: "Available now",
+            value: summaryValue(summary?.available),
+            hint: "Ready for guest use",
+            onClick: () => applyVoucherStatus("available"),
+            active: voucherStatus === "available",
+          },
+          {
+            key: "expiring",
+            label: "Expiring soon",
+            value: summaryValue(summary?.expiring_soon),
+            hint: "Within 7 days",
+            onClick: () => applyVoucherStatus("expiring_soon"),
+            active: voucherStatus === "expiring_soon",
+          },
+          {
+            key: "expired",
+            label: "Expired",
+            value: summaryValue(summary?.expired),
+            hint: "Past their expiry",
+            onClick: () => applyVoucherStatus("expired"),
+            active: voucherStatus === "expired",
+          },
+          {
+            key: "redeemed",
+            label: "Redeemed",
+            value: summaryValue(summary?.redeemed),
+            hint: `${summary?.redemption_count ?? 0} redemption${
+              summary?.redemption_count === 1 ? "" : "s"
+            }`,
+            onClick: () => applyVoucherStatus("redeemed"),
+            active: voucherStatus === "redeemed",
+          },
+          {
+            key: "discounts",
+            label: "Discounts given",
+            value: discountsGiven,
+            hint: "Across redemptions",
+          },
+        ]
+      : [
+          {
+            key: "promotions",
+            label: "Promotions",
+            value: promotionsQuery.isLoading
+              ? "…"
+              : String(promotionsQuery.data?.total ?? 0),
+            hint: hasActiveFilters
+              ? "Matching current filters"
+              : "All offers in this workspace",
+          },
+          {
+            key: "vouchers",
+            label: "Vouchers issued",
+            value: summaryValue(summary?.total),
+            hint: "Across all offers",
+          },
+          {
+            key: "redemptions",
+            label: "Redemptions",
+            value: summaryValue(summary?.redemption_count),
+            hint: "Vouchers applied to bookings",
+          },
+          {
+            key: "discounts",
+            label: "Discounts given",
+            value: discountsGiven,
+            hint: "Across redemptions",
+          },
+        ];
 
   const clearFilters = () => {
     setSearch("");
@@ -291,84 +399,23 @@ export default function PromotionManagementPage() {
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 } }}>
-      <Stack spacing={2.5}>
-        <Box
-          sx={(theme) => ({
-            position: "relative",
-            overflow: "hidden",
-            p: { xs: 2.5, md: 3.5 },
-            color: "common.white",
-            backgroundColor: theme.palette.primary.dark,
-            backgroundImage: `linear-gradient(125deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 58%, ${theme.palette.secondary.main} 145%)`,
-            border: `2px solid ${theme.palette.primary.dark}`,
-            borderRadius: 2,
-            boxShadow: theme.shadows[2],
-            "&::after": {
-              content: '""',
-              position: "absolute",
-              width: 240,
-              height: 240,
-              borderRadius: "50%",
-              right: -70,
-              top: -120,
-              bgcolor: "rgba(255,255,255,0.09)",
-            },
-          })}
-        >
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            sx={{
-              justifyContent: "space-between",
-              alignItems: { md: "center" },
-              gap: 2.5,
-              position: "relative",
-              zIndex: 1
-            }}>
-            <Stack direction="row" spacing={2} sx={{
-              alignItems: "flex-start"
-            }}>
-              <Box
-                sx={{
-                  display: { xs: "none", sm: "grid" },
-                  placeItems: "center",
-                  width: 52,
-                  height: 52,
-                  borderRadius: 2.5,
-                  bgcolor: "rgba(255,255,255,0.15)",
-                  flexShrink: 0,
-                }}
-              >
-                <CampaignOutlinedIcon fontSize="large" />
-              </Box>
-              <Box>
-                <Typography variant="h4" component="h1" sx={{
-                  fontWeight: 750
-                }}>
-                  Promotions & vouchers
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 0.5,
-                    color: "rgba(255,255,255,0.78)",
-                    maxWidth: 620,
-                  }}
-                >
-                  Create compelling offers, control their availability, and
-                  follow every guest claim from one workspace.
-                </Typography>
-              </Box>
-            </Stack>
+      <PageHeader
+        kicker="Guest offers"
+        title={tab === "promotions" ? "Promotions" : "Vouchers"}
+        subtitle={
+          tab === "promotions"
+            ? "Create compelling offers, control their availability, and follow every guest claim."
+            : "Issue, track, and manage guest vouchers across every offer."
+        }
+        sx={{ mb: 0 }}
+        actions={
+          <>
             {tab === "promotions" && canManagePromotions ? (
               <Button
                 variant="contained"
-                color="inherit"
                 startIcon={<AddIcon />}
                 onClick={openCreate}
-                sx={{
-                  color: "primary.main",
-                  bgcolor: "common.white",
-                  whiteSpace: "nowrap",
-                }}
+                sx={{ whiteSpace: "nowrap" }}
               >
                 Create promotion
               </Button>
@@ -376,117 +423,18 @@ export default function PromotionManagementPage() {
             {tab === "vouchers" && canManageVouchers ? (
               <Button
                 variant="contained"
-                color="inherit"
                 startIcon={<AddIcon />}
                 onClick={() => setIssueDialogOpen(true)}
-                sx={{
-                  color: "primary.main",
-                  bgcolor: "common.white",
-                  whiteSpace: "nowrap",
-                }}
+                sx={{ whiteSpace: "nowrap" }}
               >
                 Issue voucher
               </Button>
             ) : null}
-          </Stack>
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-            gap: 1.5,
-          }}
-        >
-          {[
-            {
-              label:
-                tab === "promotions"
-                  ? "Matching promotions"
-                  : "Matching vouchers",
-              value: activeTotal,
-              detail: hasActiveFilters
-                ? "Based on current filters"
-                : "Across this workspace",
-              icon:
-                tab === "promotions" ? (
-                  <CampaignOutlinedIcon />
-                ) : (
-                  <ConfirmationNumberOutlinedIcon />
-                ),
-            },
-            tab === "promotions"
-              ? {
-                  label: "Published on this page",
-                  value: publishedOnPage,
-                  detail: "Currently visible to guests",
-                  icon: <LocalActivityOutlinedIcon />,
-                }
-              : {
-                  label: "Available on this page",
-                  value: availableVouchersOnPage,
-                  detail: "Ready for guest use",
-                  icon: <LocalActivityOutlinedIcon />,
-                },
-            tab === "promotions"
-              ? {
-                  label: "Claims on this page",
-                  value: claimsOnPage,
-                  detail: "Guest demand at a glance",
-                  icon: <ConfirmationNumberOutlinedIcon />,
-                }
-              : {
-                  label: "Published offers",
-                  value: availablePromotions.length,
-                  detail: "Available for voucher issue",
-                  icon: <CampaignOutlinedIcon />,
-                },
-          ].map((metric) => (
-            <Paper
-              key={metric.label}
-              variant="outlined"
-              sx={{ p: 2, borderRadius: 2.5 }}
-            >
-              <Stack direction="row" spacing={1.5} sx={{
-                alignItems: "center"
-              }}>
-                <Box
-                  sx={{
-                    display: "grid",
-                    placeItems: "center",
-                    width: 42,
-                    height: 42,
-                    borderRadius: 2,
-                    bgcolor: "primary.main",
-                    color: "primary.contrastText",
-                  }}
-                >
-                  {metric.icon}
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    variant="h5"
-                    sx={{
-                      fontWeight: 750,
-                      lineHeight: 1.1
-                    }}>
-                    {metric.value}
-                  </Typography>
-                  <Typography variant="body2" noWrap sx={{
-                    fontWeight: 650
-                  }}>
-                    {metric.label}
-                  </Typography>
-                  <Typography variant="caption" noWrap sx={{
-                    color: "text.secondary"
-                  }}>
-                    {metric.detail}
-                  </Typography>
-                </Box>
-              </Stack>
-            </Paper>
-          ))}
-        </Box>
+          </>
+        }
+      />
+      <Stack spacing={2.5} sx={{ mt: 2.5 }}>
+        <StatStrip items={statItems} />
 
         {tab === "promotions" && !canManagePromotions ? (
           <Alert severity="info">
@@ -570,7 +518,7 @@ export default function PromotionManagementPage() {
                 placeholder={
                   tab === "promotions"
                     ? "Search by name or offer code"
-                    : "Search voucher, guest, or promotion"
+                    : "Search by offer name or exact voucher code"
                 }
                 value={search}
                 onChange={(event) => resetPageForSearch(event.target.value)}
@@ -630,15 +578,14 @@ export default function PromotionManagementPage() {
                   value={activeStatus}
                   onChange={(
                     _,
-                    value: PromotionStatus | VoucherStatus | "all" | null,
+                    value: PromotionStatus | VoucherStatusFilter | "all" | null,
                   ) => {
                     if (value === null) return;
                     if (tab === "promotions") {
                       setPromotionStatus(value as PromotionStatus | "all");
                       setPromotionPage(0);
                     } else {
-                      setVoucherStatus(value as VoucherStatus | "all");
-                      setVoucherPage(0);
+                      applyVoucherStatus(value as VoucherStatusFilter | "all");
                     }
                   }}
                   aria-label={`${tab} status filter`}
@@ -725,6 +672,14 @@ export default function PromotionManagementPage() {
         isSaving={issueMutation.isPending}
         onClose={() => setIssueDialogOpen(false)}
         onIssue={issueVoucher}
+      />
+      <VoucherDetailsDrawer
+        voucherId={drawerVoucherId}
+        open={drawerVoucherId != null}
+        canManage={canManageVouchers}
+        isRevoking={revokeMutation.isPending}
+        onClose={() => setDrawerVoucherId(null)}
+        onRevoke={revokeVoucherFromDrawer}
       />
     </Container>
   );
