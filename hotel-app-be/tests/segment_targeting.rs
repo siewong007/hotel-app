@@ -61,50 +61,45 @@ mod postgres_tests {
     }
 
     /// `base` is the first id of a private 100-id band (994000, 994100, ...).
-    /// Service-created rows (segments, campaigns) take sequence ids outside
-    /// the band, so cleanup also sweeps by marker text — every pattern is
-    /// band-scoped (`seg994%<id-band>` / `Seg994%<base>`) so a parallel test's
-    /// cleanup can never delete another test's suppression/segment rows.
+    /// The tests in this file run in parallel against one database, so every
+    /// predicate must stay inside the band — a cross-band sweep would delete
+    /// another test's fixtures mid-assertion. Service-created rows (segments,
+    /// campaigns) take sequence ids outside the band; their names/slugs embed
+    /// the base digits so the marker sweep below finds them.
     async fn cleanup(pool: &PgPool, base: i64) {
-        let id_marker = format!("seg994%{}%", base / 100);
-        let name_marker = format!("Seg994%{base}%");
-        // Marker deletes run first: campaigns referencing a service-created
-        // segment must go before the segment row itself (ON DELETE RESTRICT).
-        for (stmt, marker) in [
-            (
-                "DELETE FROM audit_logs WHERE details::text LIKE $1",
-                &name_marker,
-            ),
-            (
-                "DELETE FROM email_campaigns WHERE segment_id BETWEEN $2 AND $2 + 99 \
-                    OR name LIKE $1",
-                &name_marker,
-            ),
-            (
-                "DELETE FROM email_suppressions WHERE email LIKE $1",
-                &id_marker,
-            ),
-            ("DELETE FROM guest_segments WHERE slug LIKE $1", &id_marker),
-        ] {
-            sqlx::query(stmt)
-                .bind(marker)
-                .bind(base)
-                .execute(pool)
-                .await
-                .unwrap();
-        }
         for stmt in [
             "DELETE FROM audit_logs WHERE resource_type IN ('guest_segment', 'email_campaign') \
                 AND resource_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_deliveries WHERE guest_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_deliveries WHERE campaign_id BETWEEN $1 AND $1 + 99",
-            "DELETE FROM email_campaigns WHERE id BETWEEN $1 AND $1 + 99",
+            "DELETE FROM email_campaigns WHERE id BETWEEN $1 AND $1 + 99 \
+                OR segment_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM notification_subscriptions WHERE guest_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM guest_segments WHERE id BETWEEN $1 AND $1 + 99",
             "DELETE FROM guests WHERE id BETWEEN $1 AND $1 + 99",
         ] {
             sqlx::query(stmt).bind(base).execute(pool).await.unwrap();
         }
+
+        // Service-created rows carry the base digits in their name/slug and
+        // in the audit-row details.
+        let marker = format!("%{base}%");
+        for stmt in [
+            "DELETE FROM audit_logs WHERE resource_type IN ('guest_segment', 'email_campaign') \
+                AND details::text LIKE $1",
+            "DELETE FROM email_campaigns WHERE name LIKE $1",
+            "DELETE FROM guest_segments WHERE name LIKE $1 OR slug LIKE $1",
+        ] {
+            sqlx::query(stmt).bind(&marker).execute(pool).await.unwrap();
+        }
+
+        // Suppression emails embed the guest id, so the band shares a prefix
+        // (994000-994099 -> seg994-9940*@hotel.local).
+        sqlx::query("DELETE FROM email_suppressions WHERE email LIKE $1")
+            .bind(format!("seg994-{}%", base / 100))
+            .execute(pool)
+            .await
+            .unwrap();
     }
 
     /// Active guest with an email; caller attaches subscriptions etc.
@@ -268,11 +263,10 @@ mod postgres_tests {
         // must exist.)
         sqlx::query(
             "INSERT INTO email_campaigns (id, name, campaign_type, topic, subject, body_html) \
-             OVERRIDING SYSTEM VALUE VALUES ($1, $3, 'announcement', $2, 's', '<p>x</p>')",
+             OVERRIDING SYSTEM VALUE VALUES ($1, 'Seg994 dedup campaign', 'announcement', $2, 's', '<p>x</p>')",
         )
         .bind(BASE + 90)
         .bind(TOPIC)
-        .bind(format!("Seg994 dedup campaign {BASE}"))
         .execute(&pool)
         .await
         .unwrap();
