@@ -634,13 +634,13 @@ pub async fn archive_admin_promotion(
 fn normalized_voucher_status_filter(value: Option<String>) -> Result<Option<String>, ApiError> {
     match normalized_filter(value) {
         None => Ok(None),
-        Some(raw)
-            if raw.eq_ignore_ascii_case("expired")
-                || raw.eq_ignore_ascii_case("expiring_soon") =>
-        {
-            Ok(Some(raw.to_ascii_lowercase()))
+        Some(raw) => {
+            let normalized = validation::normalized_choice(&raw);
+            if normalized == "expired" || normalized == "expiring_soon" {
+                return Ok(Some(normalized));
+            }
+            validation::validate_voucher_status(&normalized).map(Some)
         }
-        Some(raw) => validation::validate_voucher_status(&raw).map(Some),
     }
 }
 
@@ -810,6 +810,14 @@ mod tests {
         );
         assert_eq!(
             normalized_voucher_status_filter(Some("Expiring_Soon".to_string())).unwrap(),
+            Some("expiring_soon".to_string())
+        );
+        assert_eq!(
+            normalized_voucher_status_filter(Some("expiring-soon".to_string())).unwrap(),
+            Some("expiring_soon".to_string())
+        );
+        assert_eq!(
+            normalized_voucher_status_filter(Some(" Expiring soon ".to_string())).unwrap(),
             Some("expiring_soon".to_string())
         );
     }

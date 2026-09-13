@@ -109,6 +109,9 @@ export default function PromotionManagementPage() {
   );
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [drawerVoucherId, setDrawerVoucherId] = useState<number | null>(null);
+  const [voucherPromotionId, setVoucherPromotionId] = useState<number | null>(
+    null,
+  );
 
   const promotionParams = useMemo(
     () => ({
@@ -125,8 +128,15 @@ export default function PromotionManagementPage() {
       page_size: voucherPageSize,
       search: deferredSearch || undefined,
       status: voucherStatus === "all" ? undefined : voucherStatus,
+      promotion_id: voucherPromotionId ?? undefined,
     }),
-    [deferredSearch, voucherPage, voucherPageSize, voucherStatus],
+    [
+      deferredSearch,
+      voucherPage,
+      voucherPageSize,
+      voucherStatus,
+      voucherPromotionId,
+    ],
   );
 
   const promotionsQuery = useAdminPromotions(
@@ -226,8 +236,9 @@ export default function PromotionManagementPage() {
   const issueVoucher = (input: VoucherIssueInput) => {
     if (!canManageVouchers) return;
     issueMutation.mutate(input, {
-      onSuccess: () => {
+      onSuccess: (voucher) => {
         setIssueDialogOpen(false);
+        setDrawerVoucherId(voucher.id);
         emitApiNotification({ message: "Voucher issued", severity: "success" });
       },
     });
@@ -259,7 +270,7 @@ export default function PromotionManagementPage() {
     ) {
       return;
     }
-    performRevoke(voucherId);
+    performRevoke(voucherId, "Revoked by administrator");
   };
 
   /** The drawer already ran its own inline confirm — revoke directly. */
@@ -278,7 +289,10 @@ export default function PromotionManagementPage() {
     else setVoucherPage(0);
   };
 
-  const availablePromotions = issuePromotionOptionsQuery.data?.items ?? [];
+  const availablePromotions = useMemo(
+    () => issuePromotionOptionsQuery.data?.items ?? [],
+    [issuePromotionOptionsQuery.data?.items],
+  );
   const activeQuery = tab === "promotions" ? promotionsQuery : vouchersQuery;
   const queryError = activeQuery.error;
   const activeTotal = activeQuery.data?.total ?? 0;
@@ -302,8 +316,23 @@ export default function PromotionManagementPage() {
     setVoucherStatus(value);
     setVoucherPage(0);
   };
+  const viewVouchersForPromotion = (promotion: Promotion) => {
+    setTab("vouchers");
+    setVoucherPromotionId(promotion.id);
+    setVoucherPage(0);
+  };
+  const voucherPromotionName = useMemo(() => {
+    if (voucherPromotionId == null) return null;
+    const match = [...promotionsQuery.data?.items ?? [], ...availablePromotions].find(
+      (promotion) => promotion.id === voucherPromotionId,
+    );
+    return match?.name ?? `Offer #${voucherPromotionId}`;
+  }, [voucherPromotionId, promotionsQuery.data?.items, availablePromotions]);
   const activeStatus = tab === "promotions" ? promotionStatus : voucherStatus;
-  const hasActiveFilters = search.trim().length > 0 || activeStatus !== "all";
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    activeStatus !== "all" ||
+    (tab === "vouchers" && voucherPromotionId != null);
 
   const statItems: StatStripItem[] =
     tab === "vouchers"
@@ -393,6 +422,7 @@ export default function PromotionManagementPage() {
       setPromotionPage(0);
     } else {
       setVoucherStatus("all");
+      setVoucherPromotionId(null);
       setVoucherPage(0);
     }
   };
@@ -445,7 +475,19 @@ export default function PromotionManagementPage() {
           <Alert severity="info">You have read-only access to vouchers.</Alert>
         ) : null}
         {queryError ? (
-          <Alert severity="error">
+          <Alert
+            severity="error"
+            action={
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => void activeQuery.refetch()}
+                disabled={activeQuery.isFetching}
+              >
+                Retry
+              </Button>
+            }
+          >
             {getQueryErrorMessage(queryError, `Unable to load ${tab}`)}
           </Alert>
         ) : null}
@@ -608,6 +650,18 @@ export default function PromotionManagementPage() {
               <Stack direction="row" spacing={1} sx={{
                 alignItems: "center"
               }}>
+                {tab === "vouchers" && voucherPromotionId != null ? (
+                  <Chip
+                    size="small"
+                    color="primary"
+                    variant="outlined"
+                    label={`Offer: ${voucherPromotionName ?? `#${voucherPromotionId}`}`}
+                    onDelete={() => {
+                      setVoucherPromotionId(null);
+                      setVoucherPage(0);
+                    }}
+                  />
+                ) : null}
                 <Chip
                   size="small"
                   variant="outlined"
@@ -632,6 +686,9 @@ export default function PromotionManagementPage() {
               canManage={canManagePromotions}
               isTransitioning={transitionMutation.isPending}
               onEdit={openEdit}
+              onViewVouchers={
+                canReadVouchers ? viewVouchersForPromotion : undefined
+              }
               onTransition={transitionPromotion}
               onPageChange={setPromotionPage}
               onPageSizeChange={(pageSize) => {
@@ -670,6 +727,14 @@ export default function PromotionManagementPage() {
         open={issueDialogOpen}
         promotions={availablePromotions}
         isSaving={issueMutation.isPending}
+        errorMessage={
+          issueMutation.error
+            ? getQueryErrorMessage(
+                issueMutation.error,
+                "Unable to issue voucher",
+              )
+            : null
+        }
         onClose={() => setIssueDialogOpen(false)}
         onIssue={issueVoucher}
       />

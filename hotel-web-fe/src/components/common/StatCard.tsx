@@ -73,14 +73,35 @@ export const StatCard = React.memo(function StatCard({
     ? `${showPositiveTrendSign && trend.value >= 0 ? '+' : ''}${showPositiveTrendSign ? trend.value : Math.abs(trend.value)}%`
     : '';
 
+  const clickable = cardProps.onClick != null;
   return (
     <Card
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                cardProps.onClick?.(
+                  event as unknown as React.MouseEvent<HTMLDivElement>,
+                );
+              }
+            }
+          : undefined
+      }
       {...cardProps}
       sx={[
         {
           height: '100%',
           position: 'relative',
           overflow: 'hidden',
+          ...(clickable && {
+            '&:focus-visible': {
+              outline: '2px solid',
+              outlineColor: 'primary.main',
+            },
+          }),
           ...(isGradient && {
             background: cardBackground,
             color: 'white',

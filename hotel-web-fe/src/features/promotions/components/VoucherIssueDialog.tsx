@@ -34,6 +34,9 @@ interface VoucherIssueDialogProps {
   open: boolean;
   promotions: Promotion[];
   isSaving: boolean;
+  /** Server-side failure from the last attempt (e.g. guest already holds a
+   *  voucher for this offer). */
+  errorMessage?: string | null;
   onClose: () => void;
   onIssue: (input: VoucherIssueInput) => void;
 }
@@ -42,6 +45,7 @@ export function VoucherIssueDialog({
   open,
   promotions,
   isSaving,
+  errorMessage,
   onClose,
   onIssue,
 }: VoucherIssueDialogProps) {
@@ -209,6 +213,9 @@ export function VoucherIssueDialog({
             fullWidth
           />
           {error ? <Alert severity="error">{error}</Alert> : null}
+          {errorMessage ? (
+            <Alert severity="error">{errorMessage}</Alert>
+          ) : null}
         </Stack>
       </DialogContent>
       <DialogActions>

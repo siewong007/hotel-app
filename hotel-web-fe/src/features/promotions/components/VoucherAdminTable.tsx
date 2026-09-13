@@ -29,6 +29,7 @@ import {
   formatPromotionDate,
   guestDisplayName,
   relativeExpiryLabel,
+  voucherCodeLabel,
   voucherDisplayStatus,
   voucherSourceLabel,
 } from '../utils';
@@ -50,10 +51,6 @@ interface VoucherAdminTableProps {
 
 const COLUMN_COUNT = 8;
 const SKELETON_ROWS = 5;
-
-export function voucherCodeLabel(voucher: Voucher): string {
-  return voucher.code_masked ?? voucher.code ?? `#${voucher.id}`;
-}
 
 function CodeCell({ voucher }: { voucher: Voucher }) {
   const [copied, setCopied] = useState(false);
@@ -130,6 +127,14 @@ function VoucherCardItem({
   return (
     <Box
       onClick={() => onView(voucher)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onView(voucher);
+        }
+      }}
       sx={{
         p: 2,
         borderBottom: 1,
@@ -137,6 +142,7 @@ function VoucherCardItem({
         cursor: 'pointer',
         '&:last-child': { borderBottom: 0 },
         '&:hover': { bgcolor: 'action.hover' },
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' },
       }}
     >
       <Stack

@@ -25,14 +25,15 @@ import { useAllRoomTypes } from '../../rooms/hooks';
 import { useAdminPromotion, useAdminVoucher } from '../hooks/usePromotionAdmin';
 import type { Voucher } from '../types';
 import {
+  formatCurrencyAmount,
   formatPromotionDate,
   formatPromotionDiscount,
   guestDisplayName,
   relativeExpiryLabel,
+  voucherCodeLabel,
   voucherDisplayStatus,
   voucherSourceLabel,
 } from '../utils';
-import { voucherCodeLabel } from './VoucherAdminTable';
 import { VoucherStatusChip } from './VoucherStatusChip';
 
 interface VoucherDetailsDrawerProps {
@@ -381,7 +382,10 @@ export function VoucherDetailsDrawer({
                   {promotion.min_subtotal ? (
                     <InfoRow label="Min subtotal">
                       <Typography variant="body2">
-                        {promotion.min_subtotal} {promotion.currency}
+                        {formatCurrencyAmount(
+                          promotion.min_subtotal,
+                          promotion.currency,
+                        )}
                       </Typography>
                     </InfoRow>
                   ) : null}

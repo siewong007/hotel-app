@@ -134,3 +134,9 @@ export function guestDisplayName(voucher: Voucher): string {
   if (name) return name;
   return voucher.guest_id != null ? `Guest #${voucher.guest_id}` : '—';
 }
+
+/** Staff see the masked code; a raw code only exists where the API exposed it
+ *  (e.g. a fresh issue response). */
+export function voucherCodeLabel(voucher: Voucher): string {
+  return voucher.code_masked ?? voucher.code ?? `#${voucher.id}`;
+}

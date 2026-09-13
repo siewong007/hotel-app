@@ -1,5 +1,6 @@
 import ArchiveIcon from "@mui/icons-material/Archive";
 import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
+import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutlined";
@@ -35,6 +36,9 @@ interface PromotionAdminTableProps {
   canManage: boolean;
   isTransitioning: boolean;
   onEdit: (promotion: Promotion) => void;
+  /** Drill into the vouchers issued from this offer. Only passed when the
+   *  operator can read vouchers. */
+  onViewVouchers?: (promotion: Promotion) => void;
   onTransition: (
     promotion: Promotion,
     action: PromotionLifecycleAction,
@@ -59,6 +63,7 @@ export function PromotionAdminTable({
   canManage,
   isTransitioning,
   onEdit,
+  onViewVouchers,
   onTransition,
   onPageChange,
   onPageSizeChange,
@@ -244,14 +249,26 @@ export function PromotionAdminTable({
                     />
                   </TableCell>
                   <TableCell align="right">
-                    {canManage ? (
-                      <Stack
-                        direction="row"
-                        spacing={0.25}
-                        sx={{
-                          justifyContent: "flex-end"
-                        }}
-                      >
+                    <Stack
+                      direction="row"
+                      spacing={0.25}
+                      sx={{
+                        justifyContent: "flex-end",
+                        alignItems: "center"
+                      }}
+                    >
+                      {onViewVouchers ? (
+                        <Tooltip title="View vouchers">
+                          <IconButton
+                            size="small"
+                            onClick={() => onViewVouchers(promotion)}
+                          >
+                            <ConfirmationNumberOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      ) : null}
+                      {canManage ? (
+                        <>
                         <Tooltip title="Edit">
                           <IconButton
                             size="small"
@@ -296,14 +313,15 @@ export function PromotionAdminTable({
                             </IconButton>
                           </Tooltip>
                         ) : null}
-                      </Stack>
-                    ) : (
-                      <Typography variant="caption" sx={{
-                        color: "text.secondary"
-                      }}>
-                        Read only
-                      </Typography>
-                    )}
+                        </>
+                      ) : (
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
+                          Read only
+                        </Typography>
+                      )}
+                    </Stack>
                   </TableCell>
                 </TableRow>
               );
