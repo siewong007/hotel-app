@@ -14,4 +14,6 @@
 #[allow(dead_code)]
 pub mod models;
 #[allow(dead_code)]
+pub mod repository;
+#[allow(dead_code)]
 pub mod validation;

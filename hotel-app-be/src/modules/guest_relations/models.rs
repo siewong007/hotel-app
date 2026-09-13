@@ -53,6 +53,16 @@ pub struct InteractionListQuery {
     pub include_completed_followups: Option<bool>,
 }
 
+/// Paged envelope for the interactions timeline — mirrors
+/// `SupportConversationListResponse` (minus queue metrics).
+#[derive(Debug, Serialize)]
+pub struct InteractionListResponse {
+    pub items: Vec<GuestInteraction>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct GuestPreference {
     pub id: i64,
@@ -122,6 +132,9 @@ pub struct GuestVoucherRow {
     pub status: String,
     pub source: String,
     pub promotion_id: i64,
+    /// Joined from `promotions` (`vouchers.promotion_id` is NOT NULL).
+    pub promotion_name: Option<String>,
+    pub promotion_slug: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub redeemed_at: Option<DateTime<Utc>>,
 }
