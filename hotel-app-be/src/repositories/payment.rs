@@ -1973,10 +1973,12 @@ impl PaymentRepository {
     /// ceiling, workflow summary) reads `payments` directly. Called whenever a
     /// deposit payment row appears or is voided so the mirror can't drift.
     ///
-    /// The mirrored amount is the deposit still HELD AND REFUNDABLE: completed
-    /// `deposit` rows minus completed `deposit_forfeited` rows (forfeits are
-    /// positive amounts the hotel kept, so they must be subtracted — a single
-    /// SUM over both types would overstate what is still refundable).
+    /// The mirrored amount is the collected deposit still attributable to the
+    /// stay: completed `deposit` rows minus completed `deposit_forfeited`
+    /// rows (forfeits are positive amounts the hotel kept, so they must be
+    /// subtracted — a single SUM over both types would overstate the held
+    /// amount), floored at zero. `refund` rows are deliberately not netted —
+    /// refundability is always re-derived from the ledger.
     pub async fn sync_booking_deposit_mirror_tx(
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
@@ -1988,9 +1990,10 @@ impl PaymentRepository {
                 deposit_paid_at = CASE WHEN COALESCE(s.total, 0) > 0 \
                     THEN COALESCE(b.deposit_paid_at, CURRENT_TIMESTAMP) ELSE NULL END, \
                 updated_at = CURRENT_TIMESTAMP \
-             FROM (SELECT COALESCE(SUM(amount) FILTER (WHERE payment_type = 'deposit'), 0) \
-                        - COALESCE(SUM(amount) FILTER (WHERE payment_type = 'deposit_forfeited'), 0) \
-                          AS total \
+             FROM (SELECT GREATEST( \
+                        COALESCE(SUM(amount) FILTER (WHERE payment_type = 'deposit'), 0) \
+                        - COALESCE(SUM(amount) FILTER (WHERE payment_type = 'deposit_forfeited'), 0), \
+                        0) AS total \
                    FROM payments \
                    WHERE booking_id = $1 AND status = 'completed' \
                      AND payment_type IN ('deposit', 'deposit_forfeited')) s \
