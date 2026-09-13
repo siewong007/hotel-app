@@ -3018,7 +3018,7 @@ pub async fn record_online_checkin_payment_tx(
         .unwrap_or_else(|| "online_banking".to_string());
     let notes = "Auto-recorded at check-in for online reservation";
 
-    // The settled SUM (completed, non-refund, non-deposit) and the `> 0` guard
+    // The settled SUM (completed, non-refund, non-deposit, non-forfeited) and the `> 0` guard
     // mirror `recompute_booking_payment_status_tx`, keeping the posted amount
     // and the resulting status in agreement — the remainder covers the full
     // billable total (room + tourism tax + extra bed), not just the room.
@@ -3029,7 +3029,7 @@ pub async fn record_online_checkin_payment_tx(
                  - COALESCE((SELECT SUM(p.amount) FROM payments p
                    WHERE p.booking_id = b.id
                      AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0),
+                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0),
                $2, 'booking', 'completed', $3, $4
         FROM bookings b
         WHERE b.id = $5
@@ -3037,7 +3037,7 @@ pub async fn record_online_checkin_payment_tx(
                 - COALESCE((SELECT SUM(p.amount) FROM payments p
                    WHERE p.booking_id = b.id
                      AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
+                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0) > 0
     "#;
 
     let result = sqlx::query(insert_query)

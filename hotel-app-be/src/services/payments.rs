@@ -941,13 +941,14 @@ pub async fn queue_checkout_receipt_email(
         return Ok(());
     }
 
-    // Money that settles the booking's charges — deposits are collateral and
-    // do not reduce the balance the receipt still shows as outstanding.
+    // Money that settles the booking's charges — held deposits are collateral
+    // and forfeited deposits are income, so neither reduces the balance the
+    // receipt still shows as outstanding.
     let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
         r#"
         SELECT COALESCE(SUM(amount) FILTER (
             WHERE status = 'completed'
-              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit')
+              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')
         ), 0)
         FROM payments
         WHERE booking_id = $1
