@@ -25,6 +25,8 @@ import {
   Typography,
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { PromotionsApi } from '../../promotions/api/promotionsApi';
 import { SegmentsApi } from '../../segments/api';
 import { CommunicationsApi } from '../api';
@@ -237,6 +239,7 @@ function CampaignDialog({
 }
 
 function CampaignsTab() {
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [editor, setEditor] = useState<{ id: number | null; input: CampaignInput } | null>(null);
@@ -315,6 +318,78 @@ function CampaignsTab() {
           {notice}
         </Alert>
       )}
+      {isPhone ? (
+        <Box>
+          {(campaigns.data?.items ?? []).map((c) => (
+            <Box
+              key={c.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={c.name}
+                subtitle={`${c.campaign_type} · ${c.total_recipients} recipients`}
+                meta={`${c.sent_count} sent / ${c.failed_count} failed`}
+                status={
+                  <Chip size="small" label={c.status} color={STATUS_COLORS[c.status] ?? 'default'} />
+                }
+                footer={
+                  <>
+                    {c.status === 'draft' && (
+                      <>
+                        <Button
+                          size="small"
+                          onClick={() =>
+                            setEditor({
+                              id: c.id,
+                              input: {
+                                name: c.name,
+                                campaign_type: c.campaign_type,
+                                subject: c.subject,
+                                body_html: c.body_html,
+                                body_text: c.body_text,
+                                template_id: c.template_id,
+                                promotion_id: c.promotion_id,
+                                segment_id: c.segment_id,
+                              },
+                            })
+                          }
+                        >
+                          Edit
+                        </Button>
+                        <Button size="small" onClick={() => setTestSendFor(c)}>
+                          Test send
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => act.mutate({ action: 'schedule', campaign: c })}
+                        >
+                          Send
+                        </Button>
+                      </>
+                    )}
+                    {(c.status === 'scheduled' || c.status === 'running') && (
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={() => act.mutate({ action: 'cancel', campaign: c })}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button size="small" onClick={() => act.mutate({ action: 'preview', campaign: c })}>
+                      Preview
+                    </Button>
+                    <Button size="small" onClick={() => setDeliveriesFor(c)}>
+                      Deliveries
+                    </Button>
+                  </>
+                }
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -402,6 +477,7 @@ function CampaignsTab() {
           ))}
         </TableBody>
       </Table>
+      )}
       {editor && (
         <CampaignDialog
           open
@@ -472,6 +548,22 @@ function CampaignsTab() {
       >
         <DialogTitle>Deliveries — {deliveriesFor?.name}</DialogTitle>
         <DialogContent>
+          {isPhone ? (
+            <Box>
+              {(deliveries.data?.items ?? []).map((d) => (
+                <Box
+                  key={d.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+                >
+                  <MobileCardRow
+                    title={d.recipient_masked}
+                    subtitle={`${d.attempts} attempts${d.last_error ? ` · ${d.last_error}` : ''}`}
+                    status={<Chip size="small" variant="outlined" label={d.status} />}
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : (
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -492,6 +584,7 @@ function CampaignsTab() {
               ))}
             </TableBody>
           </Table>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeliveriesFor(null)}>Close</Button>
@@ -510,6 +603,7 @@ const EMPTY_TEMPLATE: TemplateInput = {
 };
 
 function TemplatesTab() {
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [editor, setEditor] = useState<{ id: number | null; input: TemplateInput } | null>(null);
@@ -554,6 +648,58 @@ function TemplatesTab() {
           {error}
         </Alert>
       )}
+      {isPhone ? (
+        <Box>
+          {(templates.data ?? []).map((t: EmailTemplate) => (
+            <Box
+              key={t.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={t.name}
+                subtitle={t.code}
+                meta={t.variables.length ? `Variables: ${t.variables.join(', ')}` : 'No variables'}
+                status={
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={t.is_active ? 'Active' : 'Inactive'}
+                    color={t.is_active ? 'success' : 'default'}
+                  />
+                }
+                footer={
+                  <>
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        setEditor({
+                          id: t.id,
+                          input: {
+                            code: t.code,
+                            name: t.name,
+                            subject: t.subject,
+                            body_html: t.body_html,
+                            body_text: t.body_text,
+                            variables: t.variables,
+                            is_active: t.is_active,
+                          },
+                        })
+                      }
+                    >
+                      Edit
+                    </Button>
+                    {t.is_active && (
+                      <Button size="small" color="error" onClick={() => deactivate.mutate(t.id)}>
+                        Deactivate
+                      </Button>
+                    )}
+                  </>
+                }
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -601,6 +747,7 @@ function TemplatesTab() {
           ))}
         </TableBody>
       </Table>
+      )}
       {editor && (
         <Dialog open onClose={() => setEditor(null)} fullWidth maxWidth="md">
           <DialogTitle>{editor.id === null ? 'New template' : 'Edit template'}</DialogTitle>
@@ -676,6 +823,7 @@ function TemplatesTab() {
 }
 
 function SuppressionsTab() {
+  const isPhone = useIsPhone();
   const queryClient = useQueryClient();
   const { error, setError, capture } = useErrorText();
   const [email, setEmail] = useState('');
@@ -728,6 +876,26 @@ function SuppressionsTab() {
           Suppress
         </Button>
       </Stack>
+      {isPhone ? (
+        <Box>
+          {(suppressions.data?.items ?? []).map((s) => (
+            <Box
+              key={s.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={s.email}
+                subtitle={`${s.reason}${s.source ? ` · ${s.source}` : ''}`}
+                footer={
+                  <Button size="small" color="error" onClick={() => remove.mutate(s.email)}>
+                    Remove
+                  </Button>
+                }
+              />
+            </Box>
+          ))}
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -752,6 +920,7 @@ function SuppressionsTab() {
           ))}
         </TableBody>
       </Table>
+      )}
     </Box>
   );
 }

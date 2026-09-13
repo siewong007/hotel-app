@@ -70,6 +70,8 @@ import {
 import { api } from '../../../api/client';
 import { storage } from '../../../utils/storage';
 import { useAuth } from '../../../auth/AuthContext';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import {
   useAllEkycVerifications,
   useEkycApplication,
@@ -323,6 +325,7 @@ const MetricTile: React.FC<{ label: string; value: React.ReactNode; accent?: 'de
 };
 
 const EkycManagementPage: React.FC = () => {
+  const isPhone = useIsPhone();
   const [filters, setFilters] = useState<EkycListParams>(() => getSavedFilters());
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [error, setError] = useState('');
@@ -605,6 +608,48 @@ const EkycManagementPage: React.FC = () => {
 
         <Paper variant="outlined" sx={{ borderRadius: 1, overflow: 'hidden' }}>
           {listQuery.isFetching && <LinearProgress />}
+          {isPhone ? (
+            <Box>
+              {listQuery.isLoading && Array.from({ length: 5 }).map((_, index) => (
+                <Box key={index} sx={{ px: 2, py: 1.5 }}>
+                  <Skeleton />
+                  <Skeleton width="60%" />
+                </Box>
+              ))}
+              {!listQuery.isLoading && (listData?.data.length ?? 0) === 0 && (
+                <Typography
+                  variant="body2"
+                  align="center"
+                  sx={{ color: "text.secondary", py: 4 }}
+                >
+                  No applications found
+                </Typography>
+              )}
+              {listData?.data.map(application => (
+                <Box
+                  key={application.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+                >
+                  <MobileCardRow
+                    selected={application.id === selectedId}
+                    title={application.application_id}
+                    subtitle={`${application.full_name ?? '-'} · ${labelize(application.id_type)}`}
+                    meta={`${labelize(application.id_type)} ${application.id_number_masked ?? '-'} · submitted ${formatDate(application.submitted_at)} · arrives ${formatCalendarDate(application.next_arrival_date)}${application.assigned_reviewer_name ? ` · ${application.assigned_reviewer_name}` : ''}`}
+                    status={
+                      <Stack spacing={0.5} sx={{ alignItems: 'flex-end' }}>
+                        <Chip size="small" sx={statusChipSx(application.status)} label={labelize(application.status)} />
+                        <Chip size="small" variant="outlined" color={riskColor(application.risk_level)} label={`${labelize(application.risk_level)} ${application.risk_score}`} />
+                        {application.overdue_sla ? <Chip size="small" color="error" label="Overdue" /> : null}
+                        {!application.overdue_sla && application.nearing_sla ? <Chip size="small" color="warning" label="Near SLA" /> : null}
+                        {application.arrival_imminent ? <Chip size="small" color="warning" label="Arriving soon" /> : null}
+                      </Stack>
+                    }
+                    onClick={() => setSelectedId(application.id)}
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : (
           <TableContainer>
             <Table size="small">
               <TableHead>
@@ -698,6 +743,7 @@ const EkycManagementPage: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          )}
           <TablePagination
             component="div"
             count={listData?.total ?? 0}
@@ -967,7 +1013,9 @@ const DocumentSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }
   </InfoPanel>
 );
 
-const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => (
+const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => {
+  const isPhone = useIsPhone();
+  return (
   <Grid container spacing={2}>
     <Grid size={{ xs: 12, md: 5 }}>
       <InfoPanel title="Signals">
@@ -996,6 +1044,22 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>No comparable OCR fields</Typography>
+        ) : isPhone ? (
+          <Box>
+            {detail.differences.map(row => (
+              <Box
+                key={row.field}
+                sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+              >
+                <MobileCardRow
+                  title={labelize(row.field)}
+                  subtitle={`Submitted: ${row.submitted_value ?? '-'}`}
+                  meta={`Extracted: ${row.extracted_value ?? '-'}`}
+                  status={<Chip size="small" color={row.matches ? 'success' : 'warning'} label={row.matches ? 'Match' : 'Diff'} />}
+                />
+              </Box>
+            ))}
+          </Box>
         ) : (
           <Table size="small">
             <TableHead>
@@ -1023,7 +1087,8 @@ const ReviewSignals: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) 
       </InfoPanel>
     </Grid>
   </Grid>
-);
+  );
+};
 
 const TimelineSection: React.FC<{ detail: EkycApplicationDetail }> = ({ detail }) => (
   <Grid container spacing={2}>

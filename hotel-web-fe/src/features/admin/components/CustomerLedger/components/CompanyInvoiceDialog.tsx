@@ -14,6 +14,7 @@ import {
   Chip,
   Checkbox,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -31,6 +32,8 @@ import type { HotelSettings } from '../../../../../utils/hotelSettings';
 import { formatDateForDisplay, getLedgerUiStatus } from '../helpers';
 import { LedgerStatusBadge } from '../StatusPill';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
+import { useIsPhone } from '../../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../../components/data-table/MobileCardRow';
 
 type InvoiceListFilter = 'billable' | 'all' | 'invoiced';
 
@@ -107,7 +110,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
   onPrint,
   onDownload,
   formatCurrency,
-}) => (
+}) => {
+  const isPhone = useIsPhone();
+  return (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
     <DialogTitle>
       <Box
@@ -260,6 +265,47 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               </Grid>
             ) : (
               <Grid size={12}>
+                {isPhone ? (
+                  <Paper variant="outlined" sx={{ maxHeight: 320, overflowY: 'auto' }}>
+                    {visibleInvoiceLedgerEntries.map((ledger) => {
+                      const amount = toMoneyNumber(ledger.amount);
+                      const balanceDue = toMoneyNumber(ledger.balance_due);
+                      const eligible = isInvoiceEligible(ledger);
+                      return (
+                        <Box
+                          key={ledger.id}
+                          sx={{
+                            borderBottom: '1px solid',
+                            borderColor: 'divider',
+                            opacity: eligible ? 1 : 0.62,
+                            '&:last-child': { borderBottom: 0 },
+                          }}
+                        >
+                          <MobileCardRow
+                            selected={selectedInvoiceLedgers.includes(ledger.id)}
+                            title={ledger.description}
+                            subtitle={`${formatDateForDisplay(ledger.created_at)}${ledger.invoice_number ? ` · Already invoiced: ${ledger.invoice_number}` : ''}`}
+                            meta={`${formatCurrency(amount)} · balance ${formatCurrency(balanceDue)}`}
+                            status={
+                              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                                <LedgerStatusBadge status={getLedgerUiStatus(ledger)} />
+                                <Checkbox
+                                  checked={selectedInvoiceLedgers.includes(ledger.id)}
+                                  disabled={!eligible}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                  onChange={() => onToggleLedgerSelection(ledger.id)}
+                                  slotProps={{ input: { 'aria-label': `Select ${ledger.description}` } }}
+                                />
+                              </Stack>
+                            }
+                            onClick={eligible ? () => onToggleLedgerSelection(ledger.id) : undefined}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Paper>
+                ) : (
                 <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
                   <Table size="small" stickyHeader>
                     <TableHead>
@@ -325,6 +371,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     </TableBody>
                   </Table>
                 </TableContainer>
+                )}
 
                 {/* Summary */}
                 <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
@@ -660,6 +707,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
       )}
     </DialogActions>
   </Dialog>
-);
+  );
+};
 
 export default CompanyInvoiceDialog;
