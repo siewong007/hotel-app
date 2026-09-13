@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from '../../../router';
-import { returnFromAuthPage, safeGuestRedirect } from '../guestRedirect';
+import { returnFromAuthPage, safeGuestRedirect, safeStaffRedirect } from '../guestRedirect';
 import {
   Box,
   ButtonBase,
@@ -69,6 +69,11 @@ const TWO_FACTOR_METHODS: ReadonlyArray<{
 
 const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  // Where the reader was headed before auth interrupted them — drives the
+  // "sign in to continue" notice and the post-login restore.
+  const interruptedDestination =
+    safeGuestRedirect(searchParams.get('redirect')) ??
+    safeStaffRedirect(searchParams.get('redirect'));
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -123,7 +128,11 @@ const LoginPage: React.FC = () => {
     // the dashboard instead.
     const guestDestination =
       safeGuestRedirect(searchParams.get('redirect')) ?? '/guest-portal';
-    navigate(account === 'guest' ? guestDestination : '/admin-portal', { replace: true });
+    // Staff bounced by a ProtectedRoute go back to the screen they asked for
+    // (validated against the route registry — never an arbitrary URL).
+    const staffDestination =
+      safeStaffRedirect(searchParams.get('redirect')) ?? '/admin-portal';
+    navigate(account === 'guest' ? guestDestination : staffDestination, { replace: true });
   };
 
   const handleBack = () => returnFromAuthPage(navigate, searchParams.get('redirect'));
@@ -514,6 +523,14 @@ const LoginPage: React.FC = () => {
                 {t('login.subtitle')}
               </Typography>
             </Box>
+
+            {/* A ProtectedRoute bounced the reader here carrying ?redirect= —
+                say why they're signing in, and that they'll land back there. */}
+            {interruptedDestination && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                {t('login.sessionNotice')}
+              </Alert>
+            )}
 
             <Collapse in={!!error}>
               <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>

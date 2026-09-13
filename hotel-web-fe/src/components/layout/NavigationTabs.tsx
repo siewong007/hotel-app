@@ -74,13 +74,24 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     [hasPermission, hasRole, getRoutePolicy]
   );
 
-  // Option D: destinations split into visual groups (no "More" dropdown)
+  // Operational destinations stay one-click pills; the low-frequency admin and
+  // configuration groups collapse into labelled dropdowns so a wide admin nav
+  // fits the viewport instead of scrolling off it.
   const opsItems = visibleItems.filter(
     (i) => i.navGroup === 'main' || i.navGroup === 'operations'
   );
   const adminItems = visibleItems.filter((i) => i.navGroup === 'admin');
   const configItems = visibleItems.filter((i) => i.navGroup === 'config');
-  const pillGroups = [opsItems, adminItems, configItems].filter((g) => g.length > 0);
+  const dropdownGroups = (
+    [
+      ['admin', adminItems],
+      ['config', configItems],
+    ] as [NavGroup, typeof visibleItems][]
+  ).filter(([, items]) => items.length > 0);
+  const [groupMenuAnchor, setGroupMenuAnchor] = React.useState<null | {
+    group: NavGroup;
+    el: HTMLElement;
+  }>(null);
 
   // Below `md` the pill bar is replaced by a drawer; keep the same registry but
   // split sections by their real navGroup so labels stay accurate.
@@ -360,7 +371,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           px: { xs: 2, sm: 2.5 },
           display: 'flex',
           alignItems: 'center',
-          gap: 2.5,
+          gap: { xs: 1, sm: 2.5 },
           color: onText,
         }}
       >
@@ -387,39 +398,43 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           </Typography>
         </Box>
 
-        {/* Command bar */}
-        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+        {/* Command bar — a 40px search button on phones so the bell, language
+            and user menu stay on-screen; the full field from `sm` up. */}
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: { xs: 'flex-start', sm: 'center' } }}>
           <Box
             ref={cmdBoxRef}
             onClick={openCmd}
             role="button"
             tabIndex={0}
+            aria-label={tNav('aria.search')}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') openCmd();
             }}
             sx={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: { xs: 'center', sm: 'flex-start' },
               gap: 1.25,
-              width: 'min(620px, 100%)',
+              width: { xs: 40, sm: 'min(620px, 100%)' },
               height: 40,
-              px: 1.75,
+              px: { xs: 0, sm: 1.75 },
               borderRadius: 2.5,
               bgcolor: 'rgba(255,255,255,0.95)',
               color: 'text.primary',
               cursor: 'text',
               boxShadow: '0 2px 6px rgba(0,0,0,0.10), 0 8px 24px rgba(0,0,0,0.10)',
+              flexShrink: 0,
             }}
           >
             <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-            <Typography sx={{ fontSize: '0.84rem', flex: 1, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Typography sx={{ display: { xs: 'none', sm: 'block' }, fontSize: '0.84rem', flex: 1, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Search pages &amp; actions — or type{' '}
               <Box component="span" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', px: 0.75, py: '1px', borderRadius: 0.75, bgcolor: 'action.hover', color: 'text.secondary' }}>
                 /new
               </Box>{' '}
               for actions
             </Typography>
-            <Box sx={{ fontFamily: 'monospace', fontSize: '0.66rem', px: 0.875, py: '2px', borderRadius: 0.75, bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 600 }}>
+            <Box sx={{ display: { xs: 'none', sm: 'block' }, fontFamily: 'monospace', fontSize: '0.66rem', px: 0.875, py: '2px', borderRadius: 0.75, bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 600 }}>
               ⌘K
             </Box>
           </Box>
@@ -740,43 +755,103 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           overflowX: 'auto',
         }}
       >
-        {pillGroups.map((group, gi) => (
-          <React.Fragment key={gi}>
-            {gi > 0 && <Box sx={{ width: '1px', height: 22, bgcolor: 'divider', flexShrink: 0 }} />}
-            <Box sx={{ display: 'inline-flex', gap: 0.25, alignItems: 'center' }}>
-              {group.map((item) => {
-                const active = location.pathname === item.path;
-                return (
-                  <Box
-                    key={item.id}
-                    component={Link}
-                    to={item.path}
-                    onMouseEnter={() => preloadRoute(item.path)}
-                    onFocus={() => preloadRoute(item.path)}
-                    sx={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 0.75,
-                      height: 30,
-                      px: 1.375,
-                      borderRadius: 1,
-                      fontSize: '0.78rem',
-                      fontWeight: active ? 600 : 500,
-                      whiteSpace: 'nowrap',
-                      textDecoration: 'none',
-                      color: active ? 'text.primary' : 'text.secondary',
-                      bgcolor: active ? 'action.selected' : 'transparent',
-                      '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
-                    }}
-                  >
-                    {renderNavIcon(item, 16)}
-                    {navLabelFor(item)}
-                  </Box>
-                );
-              })}
-            </Box>
-          </React.Fragment>
-        ))}
+        {opsItems.length > 0 && (
+          <Box sx={{ display: 'inline-flex', gap: 0.25, alignItems: 'center' }}>
+            {opsItems.map((item) => {
+              const active = location.pathname === item.path;
+              return (
+                <Box
+                  key={item.id}
+                  component={Link}
+                  to={item.path}
+                  onMouseEnter={() => preloadRoute(item.path)}
+                  onFocus={() => preloadRoute(item.path)}
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    height: 30,
+                    px: 1.375,
+                    borderRadius: 1,
+                    fontSize: '0.78rem',
+                    fontWeight: active ? 600 : 500,
+                    whiteSpace: 'nowrap',
+                    textDecoration: 'none',
+                    color: active ? 'text.primary' : 'text.secondary',
+                    bgcolor: active ? 'action.selected' : 'transparent',
+                    '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+                  }}
+                >
+                  {renderNavIcon(item, 16)}
+                  {navLabelFor(item)}
+                </Box>
+              );
+            })}
+          </Box>
+        )}
+        {dropdownGroups.map(([group, items]) => {
+          const groupActive = items.some((i) => i.path === location.pathname);
+          return (
+            <React.Fragment key={group}>
+              <Box sx={{ width: '1px', height: 22, bgcolor: 'divider', flexShrink: 0 }} />
+              <Box
+                component="button"
+                aria-haspopup="menu"
+                aria-expanded={groupMenuAnchor?.group === group ? 'true' : undefined}
+                onClick={(e) => setGroupMenuAnchor({ group, el: e.currentTarget })}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  height: 30,
+                  px: 1.375,
+                  borderRadius: 1,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '0.78rem',
+                  fontWeight: groupActive ? 600 : 500,
+                  whiteSpace: 'nowrap',
+                  color: groupActive ? 'text.primary' : 'text.secondary',
+                  bgcolor: groupActive ? 'action.selected' : 'transparent',
+                  '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
+                }}
+              >
+                {groupLabel(group)}
+                <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
+              </Box>
+            </React.Fragment>
+          );
+        })}
+        <Menu
+          anchorEl={groupMenuAnchor?.el}
+          open={Boolean(groupMenuAnchor)}
+          onClose={() => setGroupMenuAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          slotProps={{ paper: { elevation: 8, sx: { mt: 0.5, minWidth: 220, borderRadius: 2 } } }}
+        >
+          {(dropdownGroups.find(([g]) => g === groupMenuAnchor?.group)?.[1] ?? []).map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <MenuItem
+                key={item.id}
+                selected={active}
+                onClick={() => {
+                  setGroupMenuAnchor(null);
+                  navigate(item.path);
+                }}
+                onMouseEnter={() => preloadRoute(item.path)}
+                sx={{ py: 1 }}
+              >
+                <ListItemIcon sx={{ minWidth: 34 }}>{renderNavIcon(item, 18)}</ListItemIcon>
+                <ListItemText
+                  primary={navLabelFor(item)}
+                  slotProps={{ primary: { sx: { fontSize: '0.85rem', fontWeight: active ? 700 : 500 } } }}
+                />
+              </MenuItem>
+            );
+          })}
+        </Menu>
       </Box>
       )}
     </Box>

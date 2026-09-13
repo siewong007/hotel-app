@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from '@tanstack/react-router';
+import { Navigate, useLocation } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { CircularProgress, Box } from '@mui/material';
 
@@ -15,6 +15,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiresPolicy = false,
 }) => {
   const { isAuthenticated, isLoading, hasPermission, hasRole, getRoutePolicy } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -31,7 +32,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // Carry the attempted URL so sign-in can restore it — a bounced session
+    // should return the user to the screen they asked for, not the dashboard.
+    const attempted = `${location.pathname}${location.search || ''}`;
+    const target =
+      attempted && attempted !== '/'
+        ? `/login?redirect=${encodeURIComponent(attempted)}`
+        : '/login';
+    return <Navigate to={target} replace />;
   }
 
   const policy = routeId ? getRoutePolicy(routeId) : undefined;

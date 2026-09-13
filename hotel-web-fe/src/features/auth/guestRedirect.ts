@@ -1,4 +1,5 @@
 import { returnToPreviousPage } from '../../utils/returnNavigation';
+import { authRouteDefinitions } from '../../navigation/routeRegistry';
 
 /**
  * Where a guest may be sent after signing in, when a `redirect` query parameter
@@ -21,6 +22,19 @@ export const GUEST_BOOKING_REDIRECT = '/guest-portal?view=booking';
 /** The redirect to honour, or `null` to fall back to the portal dashboard. */
 export function safeGuestRedirect(value: string | null | undefined): string | null {
   return value && ALLOWED_GUEST_REDIRECTS.has(value) ? value : null;
+}
+
+/**
+ * Where a staff member may be sent after signing in — the destination a
+ * ProtectedRoute carried in `?redirect=` when it bounced them to login.
+ * Allowlisted to registered auth paths so a crafted value lands on the
+ * dashboard rather than an external URL or a dead route. Any query string
+ * the attempted page had is preserved.
+ */
+export function safeStaffRedirect(value: string | null | undefined): string | null {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return null;
+  const path = value.split('?')[0].split('#')[0];
+  return authRouteDefinitions.some((route) => route.path === path) ? value : null;
 }
 
 /**
