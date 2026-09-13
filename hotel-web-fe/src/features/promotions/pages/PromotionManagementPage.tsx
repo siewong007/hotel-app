@@ -25,7 +25,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { getQueryErrorMessage } from "../../../api/queryConfig";
 import { useAuth } from "../../../auth/AuthContext";
 import { emitApiNotification } from "../../../utils/apiNotifications";
-import { PROMOTION_STATUS_LABELS } from "../constants";
+import { CAMPAIGN_LIFECYCLE_LABELS } from "../constants";
 import {
   useAdminPromotions,
   useAdminVouchers,
@@ -39,12 +39,14 @@ import {
 import type {
   Promotion,
   PromotionInput,
+  PromotionLifecycle,
   PromotionLifecycleAction,
-  PromotionStatus,
   VoucherIssueInput,
   VoucherStatusFilter,
 } from "../types";
 import { formatCurrencyAmount } from "../utils";
+import { CampaignPerformanceDrawer } from "../components/CampaignPerformanceDrawer";
+import { CancelCampaignDialog } from "../components/CancelCampaignDialog";
 import { PromotionAdminTable } from "../components/PromotionAdminTable";
 import { PromotionEditorDialog } from "../components/PromotionEditorDialog";
 import { VoucherAdminTable } from "../components/VoucherAdminTable";
@@ -55,15 +57,15 @@ import PageHeader from "../../../components/common/PageHeader";
 import StatStrip from "../../../components/common/StatStrip";
 import type { StatStripItem } from "../../../components/common/StatStrip";
 
-type WorkspaceTab = "promotions" | "vouchers";
+type WorkspaceTab = "campaigns" | "vouchers";
 
-const PROMOTION_FILTERS: Array<{
-  value: PromotionStatus | "all";
+const CAMPAIGN_FILTERS: Array<{
+  value: PromotionLifecycle | "all";
   label: string;
 }> = [
   { value: "all", label: "All" },
-  ...Object.entries(PROMOTION_STATUS_LABELS).map(([value, label]) => ({
-    value: value as PromotionStatus,
+  ...Object.entries(CAMPAIGN_LIFECYCLE_LABELS).map(([value, label]) => ({
+    value: value as PromotionLifecycle,
     label,
   })),
 ];
@@ -86,15 +88,18 @@ export default function PromotionManagementPage() {
   const canReadPromotions =
     hasPermission("promotions:read") || hasPermission("promotions:manage");
   const canManagePromotions = hasPermission("promotions:manage");
+  // Publishing is the approval step — `promotions:approve` (implied by
+  // `promotions:manage`) gates the publish action specifically.
+  const canApprovePromotions = hasPermission("promotions:approve");
   const canReadVouchers =
     hasPermission("vouchers:read") || hasPermission("vouchers:manage");
   const canManageVouchers = hasPermission("vouchers:manage");
 
-  const [tab, setTab] = useState<WorkspaceTab>("promotions");
+  const [tab, setTab] = useState<WorkspaceTab>("campaigns");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search.trim());
   const [promotionStatus, setPromotionStatus] = useState<
-    PromotionStatus | "all"
+    PromotionLifecycle | "all"
   >("all");
   const [voucherStatus, setVoucherStatus] = useState<
     VoucherStatusFilter | "all"
@@ -108,6 +113,10 @@ export default function PromotionManagementPage() {
     null,
   );
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Promotion | null>(null);
+  const [performanceTarget, setPerformanceTarget] = useState<Promotion | null>(
+    null,
+  );
   const [drawerVoucherId, setDrawerVoucherId] = useState<number | null>(null);
   const [voucherPromotionId, setVoucherPromotionId] = useState<number | null>(
     null,
@@ -144,7 +153,7 @@ export default function PromotionManagementPage() {
     canReadPromotions,
   );
   const issuePromotionOptionsQuery = useAdminPromotions(
-    { page: 1, page_size: 100, status: "published" },
+    { page: 1, page_size: 100, status: "live" },
     canReadPromotions && tab === "vouchers",
   );
   const vouchersQuery = useAdminVouchers(voucherParams, canReadVouchers);
@@ -200,9 +209,17 @@ export default function PromotionManagementPage() {
     });
   };
 
+  const LIFECYCLE_PAST_TENSE: Record<PromotionLifecycleAction, string> = {
+    publish: "published",
+    pause: "paused",
+    cancel: "cancelled",
+    archive: "archived",
+  };
+
   const transitionPromotion = async (
     promotion: Promotion,
     action: PromotionLifecycleAction,
+    reason?: string,
   ) => {
     if (!canManagePromotions) return;
     if (
@@ -221,16 +238,23 @@ export default function PromotionManagementPage() {
         promotionId: promotion.id,
         action,
         expectedVersion: promotion.version,
+        reason,
       },
       {
         onSuccess: () => {
           emitApiNotification({
-            message: `Promotion ${action === "publish" ? "published" : `${action}d`}`,
+            message: `Campaign ${LIFECYCLE_PAST_TENSE[action]}`,
             severity: "success",
           });
         },
       },
     );
+  };
+
+  /** Cancellation collects a reason first — the dialog owns the confirm. */
+  const cancelPromotion = (promotion: Promotion, reason?: string) => {
+    setCancelTarget(null);
+    void transitionPromotion(promotion, "cancel", reason);
   };
 
   const issueVoucher = (input: VoucherIssueInput) => {
@@ -285,7 +309,7 @@ export default function PromotionManagementPage() {
 
   const resetPageForSearch = (value: string) => {
     setSearch(value);
-    if (tab === "promotions") setPromotionPage(0);
+    if (tab === "campaigns") setPromotionPage(0);
     else setVoucherPage(0);
   };
 
@@ -293,7 +317,7 @@ export default function PromotionManagementPage() {
     () => issuePromotionOptionsQuery.data?.items ?? [],
     [issuePromotionOptionsQuery.data?.items],
   );
-  const activeQuery = tab === "promotions" ? promotionsQuery : vouchersQuery;
+  const activeQuery = tab === "campaigns" ? promotionsQuery : vouchersQuery;
   const queryError = activeQuery.error;
   const activeTotal = activeQuery.data?.total ?? 0;
   const summary = voucherSummaryQuery.data;
@@ -328,7 +352,7 @@ export default function PromotionManagementPage() {
     );
     return match?.name ?? `Offer #${voucherPromotionId}`;
   }, [voucherPromotionId, promotionsQuery.data?.items, availablePromotions]);
-  const activeStatus = tab === "promotions" ? promotionStatus : voucherStatus;
+  const activeStatus = tab === "campaigns" ? promotionStatus : voucherStatus;
   const hasActiveFilters =
     search.trim().length > 0 ||
     activeStatus !== "all" ||
@@ -386,14 +410,14 @@ export default function PromotionManagementPage() {
         ]
       : [
           {
-            key: "promotions",
-            label: "Promotions",
+            key: "campaigns",
+            label: "Campaigns",
             value: promotionsQuery.isLoading
               ? "…"
               : String(promotionsQuery.data?.total ?? 0),
             hint: hasActiveFilters
               ? "Matching current filters"
-              : "All offers in this workspace",
+              : "All campaigns in this workspace",
           },
           {
             key: "vouchers",
@@ -417,7 +441,7 @@ export default function PromotionManagementPage() {
 
   const clearFilters = () => {
     setSearch("");
-    if (tab === "promotions") {
+    if (tab === "campaigns") {
       setPromotionStatus("all");
       setPromotionPage(0);
     } else {
@@ -430,24 +454,24 @@ export default function PromotionManagementPage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 } }}>
       <PageHeader
-        kicker="Guest offers"
-        title={tab === "promotions" ? "Promotions" : "Vouchers"}
+        kicker="Revenue &amp; marketing"
+        title={tab === "campaigns" ? "Campaigns" : "Vouchers"}
         subtitle={
-          tab === "promotions"
-            ? "Create compelling offers, control their availability, and follow every guest claim."
-            : "Issue, track, and manage guest vouchers across every offer."
+          tab === "campaigns"
+            ? "Plan deals and voucher campaigns, target channels and loyalty tiers, and track real redemption performance."
+            : "Issue, track, and manage guest vouchers across every campaign."
         }
         sx={{ mb: 0 }}
         actions={
           <>
-            {tab === "promotions" && canManagePromotions ? (
+            {tab === "campaigns" && canManagePromotions ? (
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={openCreate}
                 sx={{ whiteSpace: "nowrap" }}
               >
-                Create promotion
+                Create campaign
               </Button>
             ) : null}
             {tab === "vouchers" && canManageVouchers ? (
@@ -466,9 +490,9 @@ export default function PromotionManagementPage() {
       <Stack spacing={2.5} sx={{ mt: 2.5 }}>
         <StatStrip items={statItems} />
 
-        {tab === "promotions" && !canManagePromotions ? (
+        {tab === "campaigns" && !canManagePromotions ? (
           <Alert severity="info">
-            You have read-only access to promotions.
+            You have read-only access to campaigns.
           </Alert>
         ) : null}
         {tab === "vouchers" && !canManageVouchers ? (
@@ -491,11 +515,11 @@ export default function PromotionManagementPage() {
             {getQueryErrorMessage(queryError, `Unable to load ${tab}`)}
           </Alert>
         ) : null}
-        {tab === "promotions" && promotionMutationError ? (
+        {tab === "campaigns" && promotionMutationError ? (
           <Alert severity="error">
             {getQueryErrorMessage(
               promotionMutationError,
-              "Unable to update promotion",
+              "Unable to update campaign",
             )}
           </Alert>
         ) : null}
@@ -525,10 +549,10 @@ export default function PromotionManagementPage() {
             }}
           >
             <Tab
-              value="promotions"
+              value="campaigns"
               icon={<CampaignOutlinedIcon fontSize="small" />}
               iconPosition="start"
-              label="Promotions"
+              label="Campaigns"
             />
             {canReadVouchers ? (
               <Tab
@@ -558,7 +582,7 @@ export default function PromotionManagementPage() {
               <TextField
                 size="small"
                 placeholder={
-                  tab === "promotions"
+                  tab === "campaigns"
                     ? "Search by name or offer code"
                     : "Search by offer name or exact voucher code"
                 }
@@ -620,11 +644,11 @@ export default function PromotionManagementPage() {
                   value={activeStatus}
                   onChange={(
                     _,
-                    value: PromotionStatus | VoucherStatusFilter | "all" | null,
+                    value: PromotionLifecycle | VoucherStatusFilter | "all" | null,
                   ) => {
                     if (value === null) return;
-                    if (tab === "promotions") {
-                      setPromotionStatus(value as PromotionStatus | "all");
+                    if (tab === "campaigns") {
+                      setPromotionStatus(value as PromotionLifecycle | "all");
                       setPromotionPage(0);
                     } else {
                       applyVoucherStatus(value as VoucherStatusFilter | "all");
@@ -633,8 +657,8 @@ export default function PromotionManagementPage() {
                   aria-label={`${tab} status filter`}
                   sx={{ whiteSpace: "nowrap" }}
                 >
-                  {(tab === "promotions"
-                    ? PROMOTION_FILTERS
+                  {(tab === "campaigns"
+                    ? CAMPAIGN_FILTERS
                     : VOUCHER_FILTERS
                   ).map((filter) => (
                     <ToggleButton
@@ -676,7 +700,7 @@ export default function PromotionManagementPage() {
             </Stack>
           </Box>
 
-          {tab === "promotions" ? (
+          {tab === "campaigns" ? (
             <PromotionAdminTable
               promotions={promotionsQuery.data?.items ?? []}
               total={promotionsQuery.data?.total ?? 0}
@@ -684,11 +708,14 @@ export default function PromotionManagementPage() {
               pageSize={promotionPageSize}
               isLoading={promotionsQuery.isLoading}
               canManage={canManagePromotions}
+              canApprove={canApprovePromotions}
               isTransitioning={transitionMutation.isPending}
               onEdit={openEdit}
               onViewVouchers={
                 canReadVouchers ? viewVouchersForPromotion : undefined
               }
+              onViewPerformance={setPerformanceTarget}
+              onCancel={setCancelTarget}
               onTransition={transitionPromotion}
               onPageChange={setPromotionPage}
               onPageSizeChange={(pageSize) => {
@@ -745,6 +772,17 @@ export default function PromotionManagementPage() {
         isRevoking={revokeMutation.isPending}
         onClose={() => setDrawerVoucherId(null)}
         onRevoke={revokeVoucherFromDrawer}
+      />
+      <CancelCampaignDialog
+        promotion={cancelTarget}
+        isCancelling={transitionMutation.isPending}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={cancelPromotion}
+      />
+      <CampaignPerformanceDrawer
+        promotion={performanceTarget}
+        open={performanceTarget != null}
+        onClose={() => setPerformanceTarget(null)}
       />
     </Container>
   );

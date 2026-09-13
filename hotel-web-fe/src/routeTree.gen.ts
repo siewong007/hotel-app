@@ -16,6 +16,7 @@ import { Route as R423RouteImport } from './routes/423'
 import { Route as AdminPortalRouteImport } from './routes/admin-portal'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BookingsRouteImport } from './routes/bookings'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
@@ -96,6 +97,11 @@ const AuditLogRoute = AuditLogRouteImport.update({
 const BookingsRoute = BookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunicationsRoute = CommunicationsRouteImport.update({
@@ -339,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -394,6 +401,7 @@ export interface FileRoutesByTo {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -450,6 +458,7 @@ export interface FileRoutesById {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -507,6 +516,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -562,6 +572,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -617,6 +628,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -673,6 +685,7 @@ export interface RootRouteChildren {
   AdminPortalRoute: typeof AdminPortalRoute
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRoute
+  CampaignsRoute: typeof CampaignsRoute
   CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
   CompleteProfileRoute: typeof CompleteProfileRoute
@@ -769,6 +782,13 @@ declare module '@tanstack/react-router' {
       path: '/bookings'
       fullPath: '/bookings'
       preLoaderRoute: typeof BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/communications': {
@@ -1114,6 +1134,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPortalRoute: AdminPortalRoute,
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRoute,
+  CampaignsRoute: CampaignsRoute,
   CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,
   CompleteProfileRoute: CompleteProfileRoute,

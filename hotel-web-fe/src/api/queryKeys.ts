@@ -97,6 +97,9 @@ export const queryKeys = {
     voucherSummary: () => [...promotions, 'admin', 'voucherSummary'] as const,
     adminPromotionDetail: (promotionId: number) =>
       [...promotions, 'admin', 'promotion', promotionId] as const,
+    targetingOptions: () => [...promotions, 'admin', 'targetingOptions'] as const,
+    campaignPerformance: (promotionId: number) =>
+      [...promotions, 'admin', 'performance', promotionId] as const,
   },
   roomTypes: {
     all: roomTypes,

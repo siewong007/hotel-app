@@ -83,9 +83,9 @@
       "label": "Profil Saya",
       "breadcrumb": "Profil Saya"
     },
-    "promotions": {
-      "label": "Promosi",
-      "breadcrumb": "Promosi & Baucar"
+    "campaigns": {
+      "label": "Kempen",
+      "breadcrumb": "Kempen"
     },
     "rates": {
       "label": "Kadar",

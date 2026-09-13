@@ -2,6 +2,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,6 +12,7 @@ import {
   FormControlLabel,
   Grid,
   InputLabel,
+  ListItemText,
   MenuItem,
   Select,
   Switch,
@@ -21,10 +23,12 @@ import { useEffect, useState } from "react";
 import { useAllRoomTypes } from "../../rooms/hooks";
 import { formatLocalDate } from "../../../utils/date";
 import {
+  CAMPAIGN_OBJECTIVE_OPTIONS,
   DISCOUNT_TYPE_OPTIONS,
   EMPTY_PROMOTION_INPUT,
   PROMOTION_KIND_OPTIONS,
 } from "../constants";
+import { useTargetingOptions } from "../hooks/usePromotionAdmin";
 import type { Promotion, PromotionInput } from "../types";
 import { discountValueLabel, slugifyPromotionName } from "../utils";
 
@@ -58,6 +62,10 @@ interface EditorState {
   isPublic: boolean;
   isCancellable: boolean;
   roomTypeId: string;
+  internalCode: string;
+  objective: string;
+  bookingChannelIds: string[];
+  loyaltyTierIds: string[];
 }
 
 function toLocalDateTime(value?: string | null): string {
@@ -135,6 +143,10 @@ function initialEditorState(promotion?: Promotion | null): EditorState {
     isPublic: input.is_public,
     isCancellable: input.is_cancellable ?? true,
     roomTypeId: input.room_type_ids[0]?.toString() ?? "",
+    internalCode: input.internal_code ?? "",
+    objective: input.objective ?? "",
+    bookingChannelIds: (input.booking_channel_ids ?? []).map(String),
+    loyaltyTierIds: (input.loyalty_tier_ids ?? []).map(String),
   };
 }
 
@@ -150,6 +162,7 @@ export function PromotionEditorDialog({
   );
   const [validationError, setValidationError] = useState<string | null>(null);
   const roomTypesQuery = useAllRoomTypes(open);
+  const targetingQuery = useTargetingOptions(open);
 
   useEffect(() => {
     if (open) {
@@ -187,6 +200,8 @@ export function PromotionEditorDialog({
     }
 
     const roomTypeId = Number(form.roomTypeId);
+    const toIds = (values: string[]) =>
+      values.map(Number).filter((value) => Number.isInteger(value) && value > 0);
 
     onSave({
       slug: form.slug.trim(),
@@ -211,6 +226,10 @@ export function PromotionEditorDialog({
       is_cancellable: form.isCancellable,
       room_type_ids:
         Number.isInteger(roomTypeId) && roomTypeId > 0 ? [roomTypeId] : [],
+      internal_code: form.internalCode.trim() || null,
+      objective: (form.objective || null) as PromotionInput["objective"],
+      booking_channel_ids: toIds(form.bookingChannelIds),
+      loyalty_tier_ids: toIds(form.loyaltyTierIds),
       expected_version: promotion?.version,
     });
   };
@@ -496,6 +515,117 @@ export function PromotionEditorDialog({
                 {(roomTypesQuery.data ?? []).map((roomType) => (
                   <MenuItem key={roomType.id} value={String(roomType.id)}>
                     {roomType.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <FormSection
+            title="Campaign targeting"
+            description="Restrict who can claim and where the campaign redeems. Leave a list empty for no restriction."
+          />
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              label="Internal code"
+              helperText="Staff-only operations reference"
+              value={form.internalCode}
+              onChange={(event) =>
+                setForm({ ...form, internalCode: event.target.value })
+              }
+              slotProps={{ htmlInput: { maxLength: 64 } }}
+              fullWidth
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth>
+              <InputLabel id="campaign-objective-label">Objective</InputLabel>
+              <Select
+                labelId="campaign-objective-label"
+                label="Objective"
+                value={form.objective}
+                onChange={(event) =>
+                  setForm({ ...form, objective: event.target.value })
+                }
+              >
+                <MenuItem value="">No objective</MenuItem>
+                {CAMPAIGN_OBJECTIVE_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth>
+              <InputLabel id="campaign-channels-label">
+                Booking channels
+              </InputLabel>
+              <Select
+                labelId="campaign-channels-label"
+                label="Booking channels"
+                multiple
+                value={form.bookingChannelIds}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    bookingChannelIds:
+                      typeof event.target.value === "string"
+                        ? event.target.value.split(",")
+                        : event.target.value,
+                  })
+                }
+                renderValue={(selected) =>
+                  selected.length === 0
+                    ? "All channels"
+                    : `${selected.length} selected`
+                }
+              >
+                {(targetingQuery.data?.channels ?? []).map((channel) => (
+                  <MenuItem key={channel.id} value={String(channel.id)}>
+                    <Checkbox
+                      checked={form.bookingChannelIds.includes(
+                        String(channel.id),
+                      )}
+                    />
+                    <ListItemText
+                      primary={channel.name}
+                      secondary={channel.channel_type}
+                    />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth>
+              <InputLabel id="campaign-tiers-label">Loyalty tiers</InputLabel>
+              <Select
+                labelId="campaign-tiers-label"
+                label="Loyalty tiers"
+                multiple
+                value={form.loyaltyTierIds}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    loyaltyTierIds:
+                      typeof event.target.value === "string"
+                        ? event.target.value.split(",")
+                        : event.target.value,
+                  })
+                }
+                renderValue={(selected) =>
+                  selected.length === 0
+                    ? "All guests"
+                    : `${selected.length} selected`
+                }
+              >
+                {(targetingQuery.data?.loyalty_tiers ?? []).map((tier) => (
+                  <MenuItem key={tier.id} value={String(tier.id)}>
+                    <Checkbox
+                      checked={form.loyaltyTierIds.includes(String(tier.id))}
+                    />
+                    <ListItemText primary={tier.name} secondary={tier.code} />
                   </MenuItem>
                 ))}
               </Select>
