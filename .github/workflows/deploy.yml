@@ -196,6 +196,8 @@ jobs:
             "$bundle_dir/database/patches/0017_remove_seeded_rate_plans.sql"
           cp hotel-app-be/database/postgres/patches/0018_billable_payment_status.sql \
             "$bundle_dir/database/patches/0018_billable_payment_status.sql"
+          cp hotel-app-be/database/postgres/patches/0019_guest_relations.sql \
+            "$bundle_dir/database/patches/0019_guest_relations.sql"
 
           (
             cd "$bundle_dir"
@@ -228,6 +230,7 @@ jobs:
               database/patches/0016_hotel_business_number.sql \
               database/patches/0017_remove_seeded_rate_plans.sql \
               database/patches/0018_billable_payment_status.sql \
+              database/patches/0019_guest_relations.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .
