@@ -22,7 +22,6 @@ import {
   Pagination,
   MenuItem,
   Skeleton,
-  alpha,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -81,6 +80,10 @@ import {
   type GuestSegment,
 } from '../utils';
 import { formatLocalDate } from '../../../utils/date';
+/** Alpha-composite a `var(--hotel-*)` token — MUI `alpha()` can't parse CSS
+ *  variables, `color-mix` handles both hex and var(). */
+const tint = (color: string, pct: number) =>
+  `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 const initialsOf = (name: string) =>
   name
     .split(/\s+/)
@@ -1133,7 +1136,7 @@ const GuestConfigurationPage: React.FC = () => {
                               color: GUEST_DESIGN.rose,
                               px: 0.85,
                               py: '2px',
-                              bgcolor: alpha(GUEST_DESIGN.rose, 0.1),
+                              bgcolor: tint(GUEST_DESIGN.rose, 10),
                               borderRadius: 999,
                               flexShrink: 0,
                             }}>
@@ -1329,7 +1332,7 @@ const GuestConfigurationPage: React.FC = () => {
                               color: GUEST_DESIGN.rose,
                               px: 1,
                               py: '2px',
-                              bgcolor: alpha(GUEST_DESIGN.rose, 0.1),
+                              bgcolor: tint(GUEST_DESIGN.rose, 10),
                               borderRadius: 999,
                             }}>
                               Missing tourism
@@ -1514,7 +1517,7 @@ const GuestConfigurationPage: React.FC = () => {
                           fontWeight: 700,
                           fontSize: 12.5,
                           textTransform: 'none',
-                          '&:hover': { bgcolor: alpha(GUEST_DESIGN.gold, 0.18) },
+                          '&:hover': { bgcolor: tint(GUEST_DESIGN.gold, 18) },
                         }}
                       >
                         Convert to Member
@@ -1531,7 +1534,7 @@ const GuestConfigurationPage: React.FC = () => {
                         fontSize: 12.5,
                         mt: 0.5,
                         textTransform: 'none',
-                        '&:hover': { bgcolor: alpha(GUEST_DESIGN.rose, 0.08) },
+                        '&:hover': { bgcolor: tint(GUEST_DESIGN.rose, 8) },
                       }}
                     >
                       Delete guest
