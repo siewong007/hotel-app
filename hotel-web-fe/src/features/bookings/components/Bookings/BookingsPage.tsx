@@ -58,7 +58,7 @@ import CheckInDialog from './dialogs/CheckInDialog';
 import EditBookingDialog from './dialogs/EditBookingDialog';
 
 const BookingsPage: React.FC = () => {
-  const [pageSearchParams] = useSearchParams();
+  const [pageSearchParams, setPageSearchParams] = useSearchParams();
   const { hasPermission } = useAuth();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
   const ONLINE_CHANNELS = getHotelSettings()
@@ -125,6 +125,7 @@ const BookingsPage: React.FC = () => {
   const [bookingView, setBookingView] = useState<BookingView>('all');
   const routedBookingSearch = pageSearchParams.get('search') || '';
   const routedBookingId = pageSearchParams.get('booking_id') || '';
+  const createRequested = pageSearchParams.get('create') === '1';
   const summaryBookingsQuery = useBookingsWithDetails();
   const fetchBookingWorkflow = useBookingWorkflowFetcher();
   const summaryBookings = summaryBookingsQuery.data ?? [];
@@ -164,6 +165,22 @@ const BookingsPage: React.FC = () => {
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Deep link: ?create=1 opens the create dialog (sidebar CTA / command
+  // palette navigate to /bookings?create=1). The param is stripped on close so
+  // refresh or history navigation doesn't re-trigger it.
+  useEffect(() => {
+    if (createRequested) setCreateDialogOpen(true);
+  }, [createRequested]);
+
+  const closeCreateDialog = () => {
+    setCreateDialogOpen(false);
+    if (createRequested) {
+      const next = new URLSearchParams(pageSearchParams);
+      next.delete('create');
+      setPageSearchParams(next, { replace: true });
+    }
+  };
 
   // Edit booking dialog (admin only)
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -571,7 +588,7 @@ const BookingsPage: React.FC = () => {
       {/* Create Booking Modal (Unified) */}
       <UnifiedBookingModal
         open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
+        onClose={closeCreateDialog}
         room={null}
         rooms={rooms}
         guests={guests}

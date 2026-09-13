@@ -207,6 +207,14 @@ vi.mock('../../../rooms/components/UnifiedBooking', () => ({
         >
           Simulate direct booking created
         </button>
+        <button
+          onClick={() => {
+            const onClose = props.onClose as (() => void) | undefined;
+            onClose?.();
+          }}
+        >
+          Simulate modal close
+        </button>
       </div>
     );
   },
@@ -581,6 +589,55 @@ describe('BookingsPage', () => {
 
       expect(screen.getByText('Check-In - Room 101')).toBeDefined();
       expect(screen.getByText('New Guest')).toBeDefined();
+    });
+
+    it('opens the create-booking modal when the ?create=1 deep-link param is present', () => {
+      mocks.searchParams = new URLSearchParams('create=1');
+
+      renderPage();
+
+      expect(mocks.lastUnifiedBookingModalProps?.open).toBe(true);
+      expect(screen.getByLabelText('Mocked create booking modal')).toBeDefined();
+    });
+
+    it('strips only the create param (via replace) when the deep-linked modal is closed', () => {
+      mocks.searchParams = new URLSearchParams('create=1&search=Jane');
+
+      renderPage();
+      expect(mocks.lastUnifiedBookingModalProps?.open).toBe(true);
+
+      fireEvent.click(screen.getByText('Simulate modal close'));
+
+      expect(mocks.lastUnifiedBookingModalProps?.open).toBe(false);
+      expect(mocks.setSearchParams).toHaveBeenCalledTimes(1);
+      const [nextParams, options] = mocks.setSearchParams.mock.calls[0] as [
+        URLSearchParams,
+        { replace?: boolean } | undefined,
+      ];
+      expect(nextParams.get('create')).toBeNull();
+      // Unrelated params survive the strip.
+      expect(nextParams.get('search')).toBe('Jane');
+      expect(options?.replace).toBe(true);
+    });
+
+    it('does not open the modal or touch the URL when the create param is absent', () => {
+      renderPage();
+
+      expect(mocks.lastUnifiedBookingModalProps?.open).toBe(false);
+      expect(screen.queryByLabelText('Mocked create booking modal')).toBeNull();
+      expect(mocks.setSearchParams).not.toHaveBeenCalled();
+    });
+
+    it('closes the modal without touching the URL when it was opened via the button (no create param)', () => {
+      renderPage();
+
+      fireEvent.click(screen.getByRole('button', { name: 'New booking' }));
+      expect(mocks.lastUnifiedBookingModalProps?.open).toBe(true);
+
+      fireEvent.click(screen.getByText('Simulate modal close'));
+
+      expect(mocks.lastUnifiedBookingModalProps?.open).toBe(false);
+      expect(mocks.setSearchParams).not.toHaveBeenCalled();
     });
 
     it('the existing-booking "Check in" button fetches the guest profile and prefills IC/phone', async () => {
