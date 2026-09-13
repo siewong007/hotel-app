@@ -96,18 +96,20 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
               </Typography>
               <Card variant="outlined">
                 <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      {section.columns.map((col) => (
-                        <TableCell key={col.key}>{col.label}</TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
+                  {section.columns.length > 0 && (
+                    <TableHead>
+                      <TableRow>
+                        {section.columns.map((col) => (
+                          <TableCell key={col.key}>{col.label}</TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                  )}
                   <TableBody>
                     {section.rows.length === 0 && (
                       <TableRow>
                         <TableCell
-                          colSpan={section.columns.length}
+                          colSpan={Math.max(section.columns.length, 1)}
                           align="center"
                           sx={{ color: 'text.secondary', py: 3 }}
                         >

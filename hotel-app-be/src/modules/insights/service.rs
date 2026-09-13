@@ -204,7 +204,12 @@ fn wrap_payload(
                         });
                     }
                 }
-                (_, Value::Array(items)) if items.first().is_some_and(Value::is_object) => {
+                (_, Value::Array(items))
+                    if items.is_empty() || items.first().is_some_and(Value::is_object) =>
+                {
+                    // Empty arrays still become sections — "no rows this
+                    // period" is reportable. Columns can only be inferred
+                    // from rows, so an empty section has none.
                     let rows: Vec<serde_json::Map<String, Value>> = items
                         .iter()
                         .filter_map(|i| i.as_object().cloned())
