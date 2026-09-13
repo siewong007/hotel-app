@@ -709,6 +709,23 @@ pub async fn update_room_type(
     Ok(())
 }
 
+/// Appends one public image URL to `room_types.images`.
+pub async fn append_room_type_image(
+    pool: &DbPool,
+    id: i64,
+    path: &str,
+) -> Result<(), ApiError> {
+    sqlx::query(
+        "UPDATE room_types SET images = COALESCE(images, '[]'::jsonb) || jsonb_build_array($2::text), updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+    )
+    .bind(id)
+    .bind(path)
+    .execute(pool)
+    .await
+    .map_err(db_err)?;
+    Ok(())
+}
+
 pub async fn room_type_name_and_code(
     pool: &DbPool,
     id: i64,

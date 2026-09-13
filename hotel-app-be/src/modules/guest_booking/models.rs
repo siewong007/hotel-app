@@ -147,6 +147,17 @@ pub struct GuestBookingOffer {
     pub total_amount: Decimal,
 }
 
+/// Public marketing-facing room type — no pricing or availability fields.
+#[derive(Debug, Clone, Serialize)]
+pub struct PublicRoomType {
+    pub id: i64,
+    pub name: String,
+    pub code: String,
+    pub description: Option<String>,
+    pub images: Vec<String>,
+    pub sort_order: i32,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct GuestBookingQuote {
     pub room_type_id: i64,

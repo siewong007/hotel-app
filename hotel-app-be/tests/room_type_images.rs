@@ -88,3 +88,87 @@ async fn room_type_images_round_trip_through_update() {
 
     rq::delete_room_type(&pool, id).await.expect("cleanup");
 }
+
+#[tokio::test]
+async fn public_room_types_lists_active_types_with_images_only() {
+    let database_url = match std::env::var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(_) => {
+            eprintln!("Skipping public room types test because DATABASE_URL is not set");
+            return;
+        }
+    };
+    let pool = PgPool::connect(&database_url)
+        .await
+        .expect("connect to test database");
+
+    let suffix = &uuid::Uuid::new_v4().simple().to_string()[..8];
+    let active_code = format!("TPUB{suffix}");
+    let active_id = rq::insert_room_type(
+        &pool,
+        rq::NewRoomType {
+            name: "Public Images Type",
+            code: &active_code,
+            description: &None,
+            base_price: Decimal::new(10000, 2),
+            weekday_rate: None,
+            weekend_rate: None,
+            max_occupancy: 2,
+            bed_type: &None,
+            bed_count: 1,
+            allows_extra_bed: false,
+            max_extra_beds: 0,
+            extra_bed_charge: Decimal::ZERO,
+            sort_order: 0,
+        },
+    )
+    .await
+    .expect("insert active type");
+    let inactive_code = format!("TPRH{suffix}");
+    let inactive_id = rq::insert_room_type(
+        &pool,
+        rq::NewRoomType {
+            name: "Hidden Images Type",
+            code: &inactive_code,
+            description: &None,
+            base_price: Decimal::new(10000, 2),
+            weekday_rate: None,
+            weekend_rate: None,
+            max_occupancy: 2,
+            bed_type: &None,
+            bed_count: 1,
+            allows_extra_bed: false,
+            max_extra_beds: 0,
+            extra_bed_charge: Decimal::ZERO,
+            sort_order: 0,
+        },
+    )
+    .await
+    .expect("insert inactive type");
+
+    let images = vec!["/uploads/room-types/pub.jpg".to_string()];
+    rq::update_room_type(&pool, active_id, noop_update(&Some(images.clone())))
+        .await
+        .expect("set images");
+    sqlx::query("UPDATE room_types SET is_active = false WHERE id = $1")
+        .bind(inactive_id)
+        .execute(&pool)
+        .await
+        .expect("deactivate type");
+
+    let listed = hotel_app_be::modules::guest_booking::repository::GuestBookingRepository::list_public_room_types(&pool)
+        .await
+        .expect("list public room types");
+
+    let active = listed
+        .iter()
+        .find(|t| t.id == active_id)
+        .expect("active type listed");
+    assert_eq!(active.images, images);
+    assert!(listed.iter().all(|t| t.id != inactive_id));
+
+    rq::delete_room_type(&pool, active_id).await.expect("cleanup");
+    rq::delete_room_type(&pool, inactive_id)
+        .await
+        .expect("cleanup");
+}

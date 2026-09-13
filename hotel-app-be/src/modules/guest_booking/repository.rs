@@ -397,6 +397,30 @@ impl GuestBookingRepository {
         Ok(rows.iter().map(inventory_from_row).collect())
     }
 
+    /// Active room types for the public site — names, codes and photos only;
+    /// no pricing or availability (those come from the offers/quote endpoints).
+    pub async fn list_public_room_types(
+        pool: &DbPool,
+    ) -> Result<Vec<super::models::PublicRoomType>, ApiError> {
+        let rows = sqlx::query(
+            "SELECT id, name, code, description, images, sort_order FROM room_types WHERE is_active = true ORDER BY sort_order, name",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(rows
+            .iter()
+            .map(|row| super::models::PublicRoomType {
+                id: row.get("id"),
+                name: row.get("name"),
+                code: row.get("code"),
+                description: row.try_get("description").ok().flatten(),
+                images: json_string_list(row, "images"),
+                sort_order: row.try_get("sort_order").unwrap_or(0),
+            })
+            .collect())
+    }
+
     pub async fn find_inventory(
         pool: &DbPool,
         room_type_id: i64,
