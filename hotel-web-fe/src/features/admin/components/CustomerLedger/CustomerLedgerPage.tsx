@@ -128,9 +128,8 @@ import DeleteCompanyDialog from './components/DeleteCompanyDialog';
 import CreditNoteDialog from './components/CreditNoteDialog';
 import CompanyFormDialog from './components/CompanyFormDialog';
 import CreateLedgerDialog from './components/CreateLedgerDialog';
-import PaymentDialog from './components/PaymentDialog';
 import CompanyCheckInDialog from './components/CompanyCheckInDialog';
-import RecordCompanyPaymentDialog from './components/RecordCompanyPaymentDialog';
+import RecordPaymentDialog from './components/RecordPaymentDialog';
 import CompanyInvoiceDialog from './components/CompanyInvoiceDialog';
 import LedgerSummaryStrip from './components/LedgerSummaryStrip';
 import CompanyListPane from './components/CompanyListPane';
@@ -1960,8 +1959,9 @@ const CustomerLedgerPage: React.FC = () => {
         onConfirm={handleConfirmVoidLedger}
         formatCurrency={formatCurrency}
       />
-      {/* Payment Dialog */}
-      <PaymentDialog
+      {/* Payment Dialog — per-entry scope */}
+      <RecordPaymentDialog
+        mode="entry"
         open={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
         paymentTab={paymentTab}
@@ -2050,8 +2050,9 @@ const CustomerLedgerPage: React.FC = () => {
         deleting={deletingCompany}
         onConfirm={handleDeleteCompany}
       />
-      {/* Record Payment Dialog */}
-      <RecordCompanyPaymentDialog
+      {/* Record Payment Dialog — company scope */}
+      <RecordPaymentDialog
+        mode="company"
         open={companyPaymentDialogOpen}
         onClose={() => { setCompanyPaymentDialogOpen(false); resetCompanyPaymentForm(); }}
         companyPaymentForm={companyPaymentForm}
