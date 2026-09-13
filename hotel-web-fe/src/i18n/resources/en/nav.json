@@ -1,11 +1,19 @@
 {
   "groups": {
-    "main": "Main",
+    "overview": "Overview",
     "operations": "Operations",
+    "finance": "Finance",
+    "engagement": "Engagement",
+    "property": "Property",
+    "insights": "Insights",
+    "administration": "Administration",
+    "utility": "Utilities",
+    "main": "Main",
     "admin": "Administration",
     "config": "Configuration"
   },
   "routes": {
+    "dashboard": { "label": "Overview", "breadcrumb": "Overview" },
     "timeline": { "label": "Timeline", "breadcrumb": "Reservation Timeline" },
     "guest-config": { "label": "Guests", "breadcrumb": "Guest Management" },
     "bookings": { "label": "Bookings", "breadcrumb": "Bookings" },
@@ -41,6 +49,10 @@
     "mainNavigation": "Main navigation",
     "openMenu": "Open menu",
     "moreSections": "More sections",
-    "search": "Search pages and actions"
+    "search": "Search pages and actions",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "breadcrumbs": "Breadcrumbs",
+    "userMenu": "Account menu"
   }
 }

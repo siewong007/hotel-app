@@ -1,11 +1,19 @@
 {
   "groups": {
-    "main": "Utama",
+    "overview": "Utama",
     "operations": "Operasi",
+    "finance": "Kewangan",
+    "engagement": "Penglibatan",
+    "property": "Hartanah",
+    "insights": "Wawasan",
+    "administration": "Pentadbiran",
+    "utility": "Utiliti",
+    "main": "Utama",
     "admin": "Pentadbiran",
     "config": "Konfigurasi"
   },
   "routes": {
+    "dashboard": { "label": "Papan Pemuka", "breadcrumb": "Papan Pemuka" },
     "timeline": { "label": "Garis Masa", "breadcrumb": "Garis Masa Tempahan" },
     "guest-config": { "label": "Tetamu", "breadcrumb": "Pengurusan Tetamu" },
     "bookings": { "label": "Tempahan", "breadcrumb": "Tempahan" },
@@ -41,6 +49,10 @@
     "mainNavigation": "Navigasi utama",
     "openMenu": "Buka menu",
     "moreSections": "Bahagian lain",
-    "search": "Cari halaman dan tindakan"
+    "search": "Cari halaman dan tindakan",
+    "collapseSidebar": "Runtuhkan bar sisi",
+    "expandSidebar": "Kembangkan bar sisi",
+    "breadcrumbs": "Breadcrumbs",
+    "userMenu": "Menu akaun"
   }
 }
