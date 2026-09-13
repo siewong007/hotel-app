@@ -815,6 +815,12 @@ pub(crate) async fn completed_booking_payment_total(
     Ok(row_mappers::get_decimal(&row, "total_paid"))
 }
 
+/// Gate the `checked_out`/`completed` transition on money housekeeping: the
+/// billable balance must be settled (unless company billing will carry it to
+/// the city ledger) AND any held deposit must be resolved — refunded,
+/// forfeited, or waived. Both checks read pre-update state at the call site,
+/// so resolution has to be a prior call: a payment or a waive folded into the
+/// checkout request itself does not satisfy either guard.
 async fn ensure_checkout_balance_resolved(
     pool: &DbPool,
     booking_id: i64,
@@ -836,11 +842,13 @@ async fn ensure_checkout_balance_resolved(
     // `total_paid` excludes deposits (collateral, not charge payment), unlike
     // `completed_booking_payment_total` which counts every completed payment
     // and exists for the "has any money been collected" release checks.
-    let total_paid =
+    let summary =
         crate::repositories::payment::PaymentRepository::workflow_summary_row(pool, booking_id)
-            .await?
-            .map(|summary| summary.total_paid)
-            .unwrap_or(Decimal::ZERO);
+            .await?;
+    let total_paid = summary
+        .as_ref()
+        .map(|summary| summary.total_paid)
+        .unwrap_or(Decimal::ZERO);
     let balance_due = checkout_balance_due(billable_total, total_paid);
     let final_company_id = input.company_id.or(existing_booking.company_id);
 
@@ -850,6 +858,40 @@ async fn ensure_checkout_balance_resolved(
         return Err(ApiError::BadRequest(format!(
             "Collect full payment before checkout. Balance due: {}",
             balance_due.round_dp(2)
+        )));
+    }
+
+    // A held deposit must also be resolved before checkout. Flag-only legacy
+    // deposits carry the assertion on the booking mirror with no payment rows
+    // behind it — the held amount is whichever is larger: the ledger's
+    // recorded deposits or the mirror's assertion. The mirror can only ADD a
+    // block here, never mint refundable money — refund, forfeit and waive all
+    // still resolve through the ledger. Unlike the balance check above, this
+    // one is NOT exempted by company billing: a corporate booking can still
+    // hold a keycard deposit.
+    let deposit_held = summary
+        .as_ref()
+        .map(|summary| summary.deposit_collected)
+        .unwrap_or(Decimal::ZERO)
+        .max(if existing_booking.deposit_paid.unwrap_or(false) {
+            existing_booking.deposit_amount.unwrap_or(Decimal::ZERO)
+        } else {
+            Decimal::ZERO
+        });
+    let unresolved_deposit = (deposit_held
+        - summary
+            .as_ref()
+            .map(|summary| summary.deposit_refunded)
+            .unwrap_or(Decimal::ZERO)
+        - summary
+            .as_ref()
+            .map(|summary| summary.deposit_forfeited)
+            .unwrap_or(Decimal::ZERO))
+    .max(Decimal::ZERO);
+    if unresolved_deposit > Decimal::ZERO {
+        return Err(ApiError::BadRequest(format!(
+            "Refund, forfeit, or waive the collected deposit of {} before checkout",
+            unresolved_deposit.round_dp(2)
         )));
     }
 
