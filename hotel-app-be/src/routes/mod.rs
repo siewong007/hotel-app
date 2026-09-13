@@ -408,6 +408,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::settings::routes::routes())
         .merge(crate::modules::ekyc::routes::routes())
         .merge(crate::modules::support::routes::routes())
+        .merge(crate::modules::guest_relations::routes::routes())
         .merge(crate::modules::teams::routes::routes())
         .merge(crate::modules::guest_booking::routes::routes())
         .merge(guest_portal::routes())

@@ -35,12 +35,17 @@ pub struct GuestInteractionInput {
     pub assigned_to: Option<i64>,
 }
 
+/// Patch semantics: every field is `Option` where `None` = unchanged. `Some`
+/// carries the replacement — for `subject`, `Some("")` sanitizes to a NULL
+/// (clears the column); for `is_private`, `Some(false)` reverts a mistakenly
+/// privatized note.
 #[derive(Debug, Deserialize)]
 pub struct GuestInteractionUpdate {
     pub subject: Option<String>,
     pub content: Option<String>,
     pub interaction_type: Option<String>,
     pub is_alert: Option<bool>,
+    pub is_private: Option<bool>,
     pub follow_up_at: Option<DateTime<Utc>>,
     pub follow_up_completed: Option<bool>, // sets/clears follow_up_completed_at
     pub assigned_to: Option<i64>,
@@ -53,11 +58,12 @@ pub struct InteractionListQuery {
     pub include_completed_followups: Option<bool>,
 }
 
-/// Paged envelope for the interactions timeline — mirrors
-/// `SupportConversationListResponse` (minus queue metrics).
+/// Paged envelope for the interactions timeline — same `{ data, total, page,
+/// page_size }` shape as `GuestPaginatedResponse` (the support inbox uses
+/// `items`; guest-domain lists use `data`).
 #[derive(Debug, Serialize)]
 pub struct InteractionListResponse {
-    pub items: Vec<GuestInteraction>,
+    pub data: Vec<GuestInteraction>,
     pub total: i64,
     pub page: i64,
     pub page_size: i64,

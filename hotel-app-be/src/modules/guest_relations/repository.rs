@@ -41,6 +41,7 @@ pub struct InteractionUpdateValues {
     pub content: String,
     pub interaction_type: String,
     pub is_alert: bool,
+    pub is_private: bool,
     pub follow_up_at: Option<DateTime<Utc>>,
     pub follow_up_completed_at: Option<DateTime<Utc>>,
     pub assigned_to: Option<i64>,
@@ -277,6 +278,50 @@ impl GuestRelationsRepository {
         Ok((rows.iter().map(interaction_from_row).collect(), total))
     }
 
+    /// Single-row fetch scoped to `guest_id` — used by the service's PATCH
+    /// merge, delete, and private-note authorization, so it deliberately skips
+    /// the list query's `is_private` visibility filter: the row must load even
+    /// when the caller cannot see it, so the service can return 403 (instead
+    /// of a misleading 404-or-allow) after checking `created_by`/`guests:manage`.
+    pub async fn find_interaction(
+        pool: &DbPool,
+        note_id: i64,
+        guest_id: i64,
+    ) -> Result<Option<GuestInteraction>, ApiError> {
+        let row = sqlx::query(
+            r#"
+                SELECT
+                    n.id,
+                    n.guest_id,
+                    n.interaction_type,
+                    COALESCE(n.note_type, 'general') AS note_type,
+                    n.subject,
+                    n.content,
+                    n.booking_id,
+                    COALESCE(n.is_alert, false) AS is_alert,
+                    COALESCE(n.is_private, false) AS is_private,
+                    n.follow_up_at,
+                    n.follow_up_completed_at,
+                    n.assigned_to,
+                    COALESCE(au.full_name, au.username) AS assigned_to_name,
+                    n.created_by,
+                    COALESCE(cu.full_name, cu.username) AS created_by_name,
+                    n.created_at,
+                    n.updated_at
+                FROM guest_notes n
+                LEFT JOIN users au ON au.id = n.assigned_to
+                LEFT JOIN users cu ON cu.id = n.created_by
+                WHERE n.id = $1 AND n.guest_id = $2
+            "#,
+        )
+        .bind(note_id)
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(row.as_ref().map(interaction_from_row))
+    }
+
     pub async fn insert_interaction(
         pool: &DbPool,
         guest_id: i64,
@@ -322,9 +367,10 @@ impl GuestRelationsRepository {
                     content = $4,
                     interaction_type = $5,
                     is_alert = $6,
-                    follow_up_at = $7,
-                    follow_up_completed_at = $8,
-                    assigned_to = $9,
+                    is_private = $7,
+                    follow_up_at = $8,
+                    follow_up_completed_at = $9,
+                    assigned_to = $10,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1 AND guest_id = $2
             "#,
@@ -335,6 +381,7 @@ impl GuestRelationsRepository {
         .bind(&values.content)
         .bind(&values.interaction_type)
         .bind(values.is_alert)
+        .bind(values.is_private)
         .bind(values.follow_up_at)
         .bind(values.follow_up_completed_at)
         .bind(values.assigned_to)
@@ -357,19 +404,6 @@ impl GuestRelationsRepository {
             .await
             .map_err(ApiError::from)?;
         Ok(result.rows_affected() > 0)
-    }
-
-    pub async fn interaction_exists_for_guest(
-        pool: &DbPool,
-        note_id: i64,
-        guest_id: i64,
-    ) -> Result<bool, ApiError> {
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM guest_notes WHERE id = $1 AND guest_id = $2)")
-            .bind(note_id)
-            .bind(guest_id)
-            .fetch_one(pool)
-            .await
-            .map_err(ApiError::from)
     }
 
     /// Mirrors `SupportRepository::booking_belongs_to_guest` — the service
@@ -507,15 +541,17 @@ impl GuestRelationsRepository {
     }
 
     /// Staff response write — `response`/`response_at`/`response_by` are the
-    /// real column names on `guest_reviews`.
+    /// real column names on `guest_reviews`. `RETURNING` hands the updated row
+    /// straight back to the handler (`overall_rating` is numeric → `::float8`,
+    /// same cast as `list_reviews`).
     pub async fn respond_to_review(
         pool: &DbPool,
         review_id: i64,
         guest_id: i64,
         response: &str,
         responder_id: i64,
-    ) -> Result<bool, ApiError> {
-        let result = sqlx::query(
+    ) -> Result<Option<GuestReviewRow>, ApiError> {
+        let row = sqlx::query(
             r#"
                 UPDATE guest_reviews
                 SET response = $3,
@@ -523,16 +559,25 @@ impl GuestRelationsRepository {
                     response_by = $4,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = $1 AND guest_id = $2
+                RETURNING id,
+                          booking_id,
+                          overall_rating::float8 AS overall_rating,
+                          title,
+                          content,
+                          response,
+                          response_at,
+                          COALESCE(is_published, false) AS is_published,
+                          created_at
             "#,
         )
         .bind(review_id)
         .bind(guest_id)
         .bind(response)
         .bind(responder_id)
-        .execute(pool)
+        .fetch_optional(pool)
         .await
         .map_err(ApiError::from)?;
-        Ok(result.rows_affected() > 0)
+        Ok(row.as_ref().map(review_from_row))
     }
 
     // ------------------------------------------------------------------
