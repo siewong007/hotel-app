@@ -45,6 +45,7 @@ mod postgres_tests {
             "DELETE FROM bookings WHERE id = $1",
             "DELETE FROM promotion_room_types WHERE promotion_id = $1",
             "DELETE FROM promotions WHERE id = $1",
+            "DELETE FROM room_status_change_log WHERE room_id = $1",
             "DELETE FROM rooms WHERE id = $1",
             "DELETE FROM room_types WHERE id = $1",
             "DELETE FROM guests WHERE id = $1",

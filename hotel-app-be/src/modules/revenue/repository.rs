@@ -48,7 +48,8 @@ impl RevenueRepository {
                 JOIN rooms r ON r.id = b.room_id
                 CROSS JOIN LATERAL generate_series(
                     b.check_in_date,
-                    GREATEST(b.check_out_date - 1, b.check_in_date)
+                    GREATEST(b.check_out_date - 1, b.check_in_date),
+                    interval '1 day'
                 ) AS gs
                 WHERE b.status NOT IN ('voided', 'comp_void', 'no_show')
                   AND ($3::bigint IS NULL OR r.room_type_id = $3)
@@ -109,7 +110,8 @@ impl RevenueRepository {
                 JOIN rooms r ON r.id = b.room_id
                 CROSS JOIN LATERAL generate_series(
                     b.check_in_date,
-                    GREATEST(b.check_out_date - 1, b.check_in_date)
+                    GREATEST(b.check_out_date - 1, b.check_in_date),
+                    interval '1 day'
                 ) AS gs
                 WHERE b.status NOT IN ('voided', 'comp_void', 'no_show')
                   AND ($3::bigint IS NULL OR r.room_type_id = $3)
@@ -219,7 +221,7 @@ impl RevenueRepository {
                    (resolved.price IS NULL) AS is_base_rate,
                    a.custom_price AS custom_price,
                    COALESCE(a.online_booking_enabled, true) AS online_booking_enabled,
-                   COALESCE(a.walk_in_reserved_rooms, 0) AS walk_in_reserved_rooms,
+                   COALESCE(a.walk_in_reserved_rooms, 0)::bigint AS walk_in_reserved_rooms,
                    phys.cnt AS physical_rooms,
                    COALESCE(sold.cnt, 0)::bigint AS sold_rooms
             FROM rts rt

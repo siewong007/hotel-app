@@ -12,8 +12,12 @@ mod postgres_tests {
     use rust_decimal::Decimal;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
-    /// Private id band — every fixture row keys off BASE.
-    const BASE: i64 = 996_000;
+    /// Private id bands — each test keys its fixture rows off its own base so
+    /// the parallel tests in this binary never collide, and every unique-coded
+    /// row carries the band tag.
+    const SUMS_BASE: i64 = 996_000;
+    const DAILY_BASE: i64 = 996_100;
+    const CREATED_BASE: i64 = 996_200;
 
     fn date(day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, 10, day).expect("valid test date")
@@ -36,42 +40,63 @@ mod postgres_tests {
         )
     }
 
-    /// Reseed child-first; all rows key off BASE so parallel binaries never
-    /// collide.
-    async fn seed(pool: &PgPool) {
+    /// Reseed child-first; all rows key off `base` and unique-coded rows carry
+    /// `tag`, so the parallel tests in this binary never collide.
+    async fn seed(pool: &PgPool, base: i64, tag: &str) {
+        let (guest_name, guest_email) = (
+            format!("Revenue Guest {tag}"),
+            format!("revenue-guest-{tag}@hotel.test"),
+        );
+        let (type_code, type_name, room_no) = (
+            format!("REV{tag}"),
+            format!("Revenue Room {tag}"),
+            format!("RV1{tag}"),
+        );
+        let (sold_no, void_no, edge_no) = (
+            format!("REV-SOLD-{tag}"),
+            format!("REV-VOID-{tag}"),
+            format!("REV-EDGE-{tag}"),
+        );
         for statement in [
             "DELETE FROM bookings WHERE guest_id = $1",
             "DELETE FROM guests WHERE id = $1",
+            "DELETE FROM room_status_change_log WHERE room_id IN \
+                (SELECT id FROM rooms WHERE room_type_id = $1)",
             "DELETE FROM rooms WHERE room_type_id = $1",
             "DELETE FROM room_types WHERE id = $1",
         ] {
             sqlx::query(statement)
-                .bind(BASE)
+                .bind(base)
                 .execute(pool)
                 .await
                 .expect("clear fixture row");
         }
         sqlx::query(
             "INSERT INTO guests (id, nick_name, email) OVERRIDING SYSTEM VALUE \
-             VALUES ($1, 'Revenue Guest', 'revenue-guest@hotel.test')",
+             VALUES ($1, $2, $3)",
         )
-        .bind(BASE)
+        .bind(base)
+        .bind(&guest_name)
+        .bind(&guest_email)
         .execute(pool)
         .await
         .expect("seed guest");
         sqlx::query(
             "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
-             OVERRIDING SYSTEM VALUE VALUES ($1, 'REV', 'Revenue Room', 100.00, 2)",
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 100.00, 2)",
         )
-        .bind(BASE)
+        .bind(base)
+        .bind(&type_code)
+        .bind(&type_name)
         .execute(pool)
         .await
         .expect("seed room type");
         sqlx::query(
             "INSERT INTO rooms (id, room_number, room_type_id, status) \
-             OVERRIDING SYSTEM VALUE VALUES ($1, 'REV1', $1, 'available')",
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, $1, 'available')",
         )
-        .bind(BASE)
+        .bind(base)
+        .bind(&room_no)
         .execute(pool)
         .await
         .expect("seed room");
@@ -81,10 +106,11 @@ mod postgres_tests {
             "INSERT INTO bookings (id, booking_number, guest_id, room_id, \
              check_in_date, check_out_date, room_rate, subtotal, total_amount, status, \
              created_at) OVERRIDING SYSTEM VALUE \
-             VALUES ($1, 'REV-SOLD', $1, $1, '2026-10-01', '2026-10-03', \
+             VALUES ($1, $2, $1, $1, '2026-10-01', '2026-10-03', \
              100, 200, 200, 'confirmed', '2026-09-28 10:00:00+00')",
         )
-        .bind(BASE)
+        .bind(base)
+        .bind(&sold_no)
         .execute(pool)
         .await
         .expect("seed sold booking");
@@ -94,10 +120,11 @@ mod postgres_tests {
             "INSERT INTO bookings (id, booking_number, guest_id, room_id, \
              check_in_date, check_out_date, room_rate, subtotal, total_amount, status, \
              created_at) OVERRIDING SYSTEM VALUE \
-             VALUES ($1 + 1, 'REV-VOID', $1, $1, '2026-10-01', '2026-10-02', \
+             VALUES ($1 + 1, $2, $1, $1, '2026-10-01', '2026-10-02', \
              100, 100, 0, 'voided', '2026-09-29 10:00:00+00')",
         )
-        .bind(BASE)
+        .bind(base)
+        .bind(&void_no)
         .execute(pool)
         .await
         .expect("seed voided booking");
@@ -107,10 +134,11 @@ mod postgres_tests {
             "INSERT INTO bookings (id, booking_number, guest_id, room_id, \
              check_in_date, check_out_date, room_rate, subtotal, total_amount, status, \
              created_at) OVERRIDING SYSTEM VALUE \
-             VALUES ($1 + 2, 'REV-EDGE', $1, $1, '2026-10-03', '2026-10-05', \
+             VALUES ($1 + 2, $2, $1, $1, '2026-10-03', '2026-10-05', \
              100, 200, 200, 'confirmed', '2026-10-01 10:00:00+00')",
         )
-        .bind(BASE)
+        .bind(base)
+        .bind(&edge_no)
         .execute(pool)
         .await
         .expect("seed edge booking");
@@ -121,12 +149,12 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        seed(&pool).await;
+        seed(&pool, SUMS_BASE, "S").await;
         let range = RevenueRange {
             from: date(1),
             to: date(3),
         };
-        let sums = RevenueRepository::stay_sums(&pool, &range, Some(BASE), None)
+        let sums = RevenueRepository::stay_sums(&pool, &range, Some(SUMS_BASE), None)
             .await
             .expect("stay sums");
         // 100+100 (REV-SOLD nights 1-2) + 100 (REV-EDGE night 3 only).
@@ -141,12 +169,12 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        seed(&pool).await;
+        seed(&pool, DAILY_BASE, "D").await;
         let range = RevenueRange {
             from: date(1),
             to: date(3),
         };
-        let daily = RevenueRepository::daily(&pool, &range, Some(BASE), None)
+        let daily = RevenueRepository::daily(&pool, &range, Some(DAILY_BASE), None)
             .await
             .expect("daily rows");
         assert_eq!(daily.len(), 3);
@@ -164,13 +192,13 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        seed(&pool).await;
+        seed(&pool, CREATED_BASE, "V").await;
         // Booking-creation window covering all three fixture bookings.
         let range = RevenueRange {
             from: NaiveDate::from_ymd_opt(2026, 9, 28).expect("valid date"),
             to: NaiveDate::from_ymd_opt(2026, 10, 1).expect("valid date"),
         };
-        let sums = RevenueRepository::stay_sums(&pool, &range, Some(BASE), None)
+        let sums = RevenueRepository::stay_sums(&pool, &range, Some(CREATED_BASE), None)
             .await
             .expect("stay sums");
         assert_eq!(sums.bookings_created, 3);

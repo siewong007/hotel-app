@@ -430,7 +430,8 @@ mod postgres_tests {
         let Some(pool) = setup_pg_pool().await else {
             return;
         };
-        let base = 993_300;
+        // 993_4xx band: 993_3xx is owned by guest_portal_credits' room types.
+        let base = 993_400;
         cleanup_fixtures(&pool, base).await;
 
         seed_promotion(&pool, base, "published", "live", true).await;
