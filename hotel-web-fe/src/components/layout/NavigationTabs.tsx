@@ -50,7 +50,23 @@ interface NavigationTabsProps {
   darkBg?: boolean;
 }
 
-const NAV_GROUP_ORDER: NavGroup[] = ['main', 'operations', 'admin', 'config'];
+// Temporary bridge: old topbar buckets until sidebar replaces this file.
+// Maps the new registry navGroups onto the legacy main/operations/admin/config
+// sections so the pill bar + two dropdowns keep their exact current behavior.
+type LegacyNavBucket = 'main' | 'operations' | 'admin' | 'config';
+const LEGACY_GROUP_BUCKET: Record<NavGroup, LegacyNavBucket> = {
+  overview: 'main',
+  operations: 'main',
+  finance: 'operations',
+  engagement: 'operations',
+  property: 'operations',
+  insights: 'operations',
+  administration: 'admin',
+  utility: 'config',
+};
+const NAV_GROUP_ORDER: LegacyNavBucket[] = ['main', 'operations', 'admin', 'config'];
+const legacyBucket = (item: { navGroup?: NavGroup }): LegacyNavBucket =>
+  LEGACY_GROUP_BUCKET[item.navGroup ?? 'overview'];
 
 export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function NavigationTabs({
   darkBg = false,
@@ -81,18 +97,18 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   // configuration groups collapse into labelled dropdowns so a wide admin nav
   // fits the viewport instead of scrolling off it.
   const opsItems = visibleItems.filter(
-    (i) => i.navGroup === 'main' || i.navGroup === 'operations'
+    (i) => legacyBucket(i) === 'main' || legacyBucket(i) === 'operations'
   );
-  const adminItems = visibleItems.filter((i) => i.navGroup === 'admin');
-  const configItems = visibleItems.filter((i) => i.navGroup === 'config');
+  const adminItems = visibleItems.filter((i) => legacyBucket(i) === 'admin');
+  const configItems = visibleItems.filter((i) => legacyBucket(i) === 'config');
   const dropdownGroups = (
     [
       ['admin', adminItems],
       ['config', configItems],
-    ] as [NavGroup, typeof visibleItems][]
+    ] as [LegacyNavBucket, typeof visibleItems][]
   ).filter(([, items]) => items.length > 0);
   const [groupMenuAnchor, setGroupMenuAnchor] = React.useState<null | {
-    group: NavGroup;
+    group: LegacyNavBucket;
     el: HTMLElement;
   }>(null);
 
@@ -103,7 +119,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     () =>
       NAV_GROUP_ORDER.map((group) => ({
         group,
-        items: visibleItems.filter((i) => i.navGroup === group),
+        items: visibleItems.filter((i) => legacyBucket(i) === group),
       })).filter((g) => g.items.length > 0),
     [visibleItems]
   );
@@ -722,7 +738,8 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
                     letterSpacing: 0.6,
                   }}
                 >
-                  {groupLabel(group)}
+                  {/* legacy bucket id; nav.json still carries the old group keys */}
+                  {groupLabel(group as NavGroup)}
                 </Typography>
                 <List dense disablePadding>
                   {items.map((item) => {
@@ -834,7 +851,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
                   '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
                 }}
               >
-                {groupLabel(group)}
+                {groupLabel(group as NavGroup)}
                 <KeyboardArrowDownIcon sx={{ fontSize: 16 }} />
               </Box>
             </React.Fragment>
