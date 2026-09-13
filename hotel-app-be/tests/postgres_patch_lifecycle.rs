@@ -12,141 +12,16 @@ use tokio::time::{Duration, timeout};
 const POSTGRES_SCHEMA: &str = include_str!("../database/postgres/migrations/0001_v1_baseline.sql");
 const POSTGRES_SEED: &str = include_str!("../database/postgres/seed.sql");
 
-const DOCUMENTED_V1_DOWNGRADE: &str = r#"
-DELETE FROM hotel_schema_revisions WHERE generation = 1 AND version > 1;
-
-DROP INDEX IF EXISTS uq_users_google_subject;
-ALTER TABLE users DROP COLUMN IF EXISTS google_subject;
-
-DROP INDEX IF EXISTS uq_payments_booking_idempotency;
-DROP INDEX IF EXISTS uq_ledger_payments_ledger_idempotency;
-DROP INDEX IF EXISTS idx_customer_ledger_payments_receipt_unique;
-ALTER TABLE payments
-    DROP COLUMN IF EXISTS idempotency_key,
-    DROP COLUMN IF EXISTS idempotency_fingerprint;
-ALTER TABLE customer_ledger_payments
-    DROP COLUMN IF EXISTS idempotency_key,
-    DROP COLUMN IF EXISTS idempotency_fingerprint;
-CREATE UNIQUE INDEX idx_customer_ledger_payments_receipt_unique
-    ON customer_ledger_payments (lower(TRIM(BOTH FROM receipt_number)))
-    WHERE receipt_number IS NOT NULL AND TRIM(BOTH FROM receipt_number) <> ''::text;
-
-ALTER TABLE bookings DROP CONSTRAINT bookings_status_check;
-ALTER TABLE bookings ADD CONSTRAINT bookings_status_check CHECK (
-    status::text = ANY (
-        ARRAY[
-            'pending'::character varying,
-            'confirmed'::character varying,
-            'checked_in'::character varying,
-            'auto_checked_in'::character varying,
-            'checked_out'::character varying,
-            'no_show'::character varying,
-            'completed'::character varying,
-            'comp_void'::character varying,
-            'partial_complimentary'::character varying,
-            'fully_complimentary'::character varying,
-            'voided'::character varying
-        ]::text[]
-    )
-);
-
--- The same vocabulary change also widened the room/date exclusion constraint and
--- the room-sync trigger function. A database created before it has all three in
--- the old shape, so the downgrade must model all three or convergence is only
--- proven for the one object the first patch happened to cover.
-ALTER TABLE bookings DROP CONSTRAINT bookings_no_room_date_overlap;
-ALTER TABLE bookings ADD CONSTRAINT bookings_no_room_date_overlap EXCLUDE USING gist (room_id WITH =, daterange(check_in_date, check_out_date, '[)'::text) WITH &&) WHERE (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('checked_in'::character varying)::text, ('auto_checked_in'::character varying)::text])));
-
-CREATE OR REPLACE FUNCTION public.sync_room_status_with_booking()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-    v_current_room_status VARCHAR(20);
-    v_next_status VARCHAR(20);
-    v_has_other_current_stay BOOLEAN;
-BEGIN
-    -- Skip room status changes for back-dated stays that have already ended.
-    IF NEW.check_out_date < CURRENT_DATE
-       AND NEW.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') THEN
-        RETURN NEW;
-    END IF;
-
-    SELECT status INTO v_current_room_status FROM rooms WHERE id = NEW.room_id;
-
-    SELECT EXISTS (
-        SELECT 1 FROM bookings
-        WHERE room_id = NEW.room_id
-          AND id != NEW.id
-          AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
-          AND check_in_date <= CURRENT_DATE
-          AND check_out_date >= CURRENT_DATE
-    ) INTO v_has_other_current_stay;
-
-    IF NEW.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
-       AND v_current_room_status != 'occupied' THEN
-        PERFORM update_room_status(NEW.room_id, 'occupied',
-            'Guest checked in - Booking #' || NEW.id, NULL,
-            NEW.check_in_date, NEW.check_out_date);
-
-    ELSIF NEW.status IN ('checked_out', 'completed')
-          AND v_current_room_status = 'occupied' THEN
-        PERFORM update_room_status(NEW.room_id, 'dirty',
-            'Guest checked out - Needs cleaning - Booking #' || NEW.id,
-            NULL, CURRENT_TIMESTAMP, NULL);
-
-    ELSIF NEW.status IN ('confirmed', 'pending')
-          AND NOT v_has_other_current_stay
-          AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN
-        PERFORM update_room_status(NEW.room_id, 'reserved',
-            CASE
-                WHEN NEW.check_in_date::date = CURRENT_DATE
-                    THEN 'Same-day reservation - Booking #' || NEW.id
-                ELSE 'Future reservation - Booking #' || NEW.id
-            END,
-            NULL, NEW.check_in_date, NEW.check_out_date);
-
-    ELSIF NEW.status IN ('no_show', 'voided')
-          AND v_current_room_status IN ('occupied', 'reserved') THEN
-        SELECT CASE
-            WHEN EXISTS (
-                SELECT 1 FROM bookings
-                WHERE room_id = NEW.room_id
-                  AND id != NEW.id
-                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
-                  AND check_in_date <= CURRENT_DATE
-                  AND check_out_date >= CURRENT_DATE
-            ) THEN 'occupied'
-            WHEN EXISTS (
-                SELECT 1 FROM bookings
-                WHERE room_id = NEW.room_id
-                  AND id != NEW.id
-                  AND status IN ('confirmed', 'pending')
-                  AND check_out_date > CURRENT_DATE
-            ) THEN 'reserved'
-            ELSE 'available'
-        END INTO v_next_status;
-
-        PERFORM update_room_status(NEW.room_id, v_next_status,
-            'Booking no-show/voided - Booking #' || NEW.id, NULL, NULL, NULL);
-    END IF;
-
-    RETURN NEW;
-END;
-$function$;
-"#;
 
 #[derive(Clone)]
 struct TestDatabase {
     name: String,
-    user: String,
     url: String,
 }
 
 struct DisposableDatabases {
     admin_url: String,
     names: Vec<String>,
-    user: String,
 }
 
 impl DisposableDatabases {
@@ -165,15 +40,9 @@ impl DisposableDatabases {
             server_version_num, 190000,
             "patch lifecycle tests require PostgreSQL 19"
         );
-        let user: String = sqlx::query_scalar("SELECT current_user")
-            .fetch_one(&mut admin)
-            .await
-            .expect("read PostgreSQL database user");
-
         Self {
             admin_url,
             names: Vec::new(),
-            user,
         }
     }
 
@@ -192,11 +61,7 @@ impl DisposableDatabases {
             .await
             .expect("create disposable PostgreSQL database");
         self.names.push(name.clone());
-        TestDatabase {
-            name,
-            user: self.user.clone(),
-            url,
-        }
+        TestDatabase { name, url }
     }
 
     async fn cleanup(&mut self) {
@@ -282,31 +147,29 @@ impl TemporaryCatalog {
         Self { path }
     }
 
-    fn update_patch_checksum(&self, file: &str) -> String {
-        let patch_bytes = std::fs::read(self.path.join(file)).expect("read temporary patch");
-        let checksum = format!("sha256:{}", hex::encode(Sha256::digest(patch_bytes)));
-        let manifest_path = self.path.join("manifest.tsv");
-        let manifest =
-            std::fs::read_to_string(&manifest_path).expect("read temporary patch manifest");
-        let mut updated = false;
-        let manifest = manifest
-            .lines()
-            .map(|line| {
-                let mut fields = line.split('\t').map(str::to_owned).collect::<Vec<_>>();
-                if fields.len() == 5 && fields[4] == file {
-                    fields[3] = checksum.clone();
-                    updated = true;
-                    fields.join("\t")
-                } else {
-                    line.to_owned()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(updated, "temporary manifest has no row for {file}");
-        std::fs::write(manifest_path, format!("{manifest}\n"))
-            .expect("update temporary patch checksum");
-        checksum
+    /// A synthetic two-patch catalog: controls plus two patches that each
+    /// create an observable sentinel table. Used to prove the runner still
+    /// applies, records and skips patches against a database whose committed
+    /// catalog is empty.
+    fn with_synthetic_patches() -> Self {
+        let catalog = Self::copy_committed();
+        let mut manifest = String::from("# generation\tversion\tname\tchecksum\tfile\n");
+        for (version, name) in [(2, "sentinel-a"), (3, "sentinel-b")] {
+            let file = format!("{version:04}_{name}.sql").replace('-', "_");
+            let patch_source = format!(
+                "CREATE TABLE public.patch_sentinel_{name}(id integer);\n",
+            )
+            .replace('-', "_");
+            std::fs::write(catalog.path.join(&file), &patch_source)
+                .expect("write synthetic patch");
+            let checksum = hex::encode(Sha256::digest(patch_source.as_bytes()));
+            manifest.push_str(&format!(
+                "1\t{version}\t{name}\tsha256:{checksum}\t{file}\n"
+            ));
+        }
+        std::fs::write(catalog.path.join("manifest.tsv"), manifest)
+            .expect("write synthetic manifest");
+        catalog
     }
 
     fn with_failing_patch() -> Self {
@@ -314,8 +177,8 @@ impl TemporaryCatalog {
 
         let next_version = committed_manifest_versions()
             .last()
-            .expect("committed manifest must list at least one patch")
-            + 1;
+            .map(|version| version + 1)
+            .unwrap_or(2);
         let file = format!("{next_version:04}_injected_failure.sql");
         let patch_source = "CREATE TABLE patch_failure_sentinel(id integer); SELECT 1 / 0;\n";
         std::fs::write(catalog.path.join(&file), patch_source)
@@ -333,16 +196,21 @@ impl TemporaryCatalog {
         catalog
     }
 
-    fn with_sleeping_google_subject_patch() -> (Self, String) {
+    /// A synthetic catalog whose first patch sleeps inside the advisory-lock
+    /// transaction, so a second runner can be observed waiting on the lock.
+    fn with_sleeping_patch() -> Self {
         let catalog = Self::copy_committed();
-        let file = "0002_google_subject.sql";
-        let patch_path = catalog.path.join(file);
-        let patch_source =
-            std::fs::read_to_string(&patch_path).expect("read temporary google-subject patch");
-        std::fs::write(patch_path, format!("SELECT pg_sleep(5);\n{patch_source}"))
+        let patch_source = "SELECT pg_sleep(5);\nCREATE TABLE public.sleeping_sentinel(id integer);\n";
+        let file = "0002_sleeping_patch.sql";
+        std::fs::write(catalog.path.join(file), patch_source)
             .expect("write lock-holding temporary patch");
-        let checksum = catalog.update_patch_checksum(file);
-        (catalog, checksum)
+        let checksum = hex::encode(Sha256::digest(patch_source.as_bytes()));
+        std::fs::write(
+            catalog.path.join("manifest.tsv"),
+            format!("# generation\tversion\tname\tchecksum\tfile\n1\t2\tsleeping-patch\tsha256:{checksum}\t{file}\n"),
+        )
+        .expect("write sleeping-patch manifest");
+        catalog
     }
 }
 
@@ -570,7 +438,7 @@ async fn revision_snapshot(pool: &PgPool) -> RevisionSnapshot {
         r#"
         SELECT version, name, checksum, applied_at::text
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 23 -- keep upper bound in sync with newest catalog patch
+        WHERE generation = 1 AND version > 1
         ORDER BY version
         "#,
     )
@@ -662,121 +530,37 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
         .collect()
 }
 
-fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 22);
+/// The `(version, name, checksum)` rows a manifest expects to record, in
+/// manifest order. Derived from the catalog rather than hardcoded so the
+/// expectation follows whichever catalog the runner was given — including an
+/// empty committed manifest, which must record no patch revisions at all.
+fn manifest_revision_entries(catalog_dir: &Path) -> Vec<(i32, String, String)> {
+    std::fs::read_to_string(catalog_dir.join("manifest.tsv"))
+        .expect("catalog manifest must be readable")
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
+        .map(|line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            assert_eq!(fields.len(), 5, "manifest row must have five fields: {line}");
+            (
+                fields[1].parse().expect("manifest version must be an integer"),
+                fields[2].to_owned(),
+                fields[3].to_owned(),
+            )
+        })
+        .collect()
+}
+
+fn assert_expected_revisions(revisions: &RevisionSnapshot, catalog_dir: &Path) {
     assert_eq!(
         revisions
             .iter()
             .map(|(version, name, checksum, _)| (*version, name.as_str(), checksum.as_str()))
             .collect::<Vec<_>>(),
-        vec![
-            (2, "google-subject", google_subject_checksum,),
-            (
-                3,
-                "payment-idempotency",
-                "sha256:4e3e36411f1b7e013a4ee122404126f5e767d4560dd02e657791675243b78d36",
-            ),
-            (
-                4,
-                "booking-status-vocabulary",
-                "sha256:abc4424b4bd33ed76dcc0eedc533096e4f982f0c5401ca62404dc67cbac05ff7",
-            ),
-            (
-                5,
-                "booking-status-enforcement",
-                "sha256:a9ea019977a421f15bf923e074384ecaf88e458af85b3f15c6bc6b3aa66a08e3",
-            ),
-            (
-                6,
-                "guest-role-isolation",
-                "sha256:b1a5687a8b94c1abdc97c340ab0c6996ddd41d5072867f7476c81099e3b1f4a4",
-            ),
-            (
-                7,
-                "manager-audit-read",
-                "sha256:c2f750e187948fc39aa6d6f16c83b84cb7c75ae4f0d289d6df38a655275e9f90",
-            ),
-            (
-                8,
-                "notifications-email-triggers",
-                "sha256:595e3e3ddb52d1160478e74ede955b9f7e834f4755c22e4288b10ab375087fcb",
-            ),
-            (
-                9,
-                "unpaid-hold-release",
-                "sha256:d14c65ee4cd2e96393623197286c3922398bfe7aa4170f61f8ed4ef7dc7984f0",
-            ),
-            (
-                10,
-                "consent-records",
-                "sha256:527b993cf661c0d64ad6974e44b8bea662d118d38a8910f01014a2cffb95e6aa",
-            ),
-            (
-                11,
-                "guest-nick-name",
-                "sha256:65e891c9368b463b5d24cd86ca00e32e3c29091b16d7310dd3257ca422845240",
-            ),
-            (
-                12,
-                "payment-retry-capabilities",
-                "sha256:04ff0496a9c7ea9b8ee76e893eb6916c04415e4b224004fad2dfa9c5635b2f4b",
-            ),
-            (
-                13,
-                "two-factor-enrollment-policy",
-                "sha256:5e46f0c9cbf8b5a9871e64fe3b6bcccfd2bca55e6449cafd2d95ebee6f8c28c7",
-            ),
-            (
-                14,
-                "session-client-timezone",
-                "sha256:35d9d7143804344d62ccadebf3aa4c0b9025e777828c4089ad24dc471ee881da",
-            ),
-            (
-                15,
-                "authenticator-hotel-name",
-                "sha256:949dd599e6f56038372b11e4561d2d73c900b99ad5a6b3b1c4a4a096bf601774",
-            ),
-            (
-                16,
-                "hotel-business-number",
-                "sha256:d4c0d4d204e9d3fbb0b75cef70b6e5344d343ebdfc7713b836e72560200d90c6",
-            ),
-            (
-                17,
-                "remove-seeded-rate-plans",
-                "sha256:741db16eb631b6b8df6b5e652dd27f69cfb2035c82db9df62bc1b14a3bf967ca",
-            ),
-            (
-                18,
-                "billable-payment-status",
-                "sha256:5043cc326977b0de7fb54c330d1801e361e5e720fae779f6803718ce1b3f538f",
-            ),
-            (
-                19,
-                "revenue-read-permission",
-                "sha256:c9ca11ba9ac3ab064535edea655e9339c3043daec7a670f22be4cf6280727826",
-            ),
-            (
-                20,
-                "rates-route-policy",
-                "sha256:77733624dbb1716d7c9d273d03df4beb804d8990ee8a6f6ceff3354fafc1fe11",
-            ),
-            (
-                21,
-                "campaign-targeting",
-                "sha256:c3f853d0163e87d37f9b7a891e90b351479c7fdf3646d5f8326af16008904c65",
-            ),
-            (
-                22,
-                "guest-segments",
-                "sha256:ab6955f2efa4347542f37135b6ad830b6c8ea094a7b589fa494725316487dfbd",
-            ),
-            (
-                23,
-                "guest-relations",
-                "sha256:8dcc74ad0b96d24d7246e78a88d329ee0b55bc6d97afdac81880e797f24e10a1",
-            ),
-        ]
+        manifest_revision_entries(catalog_dir)
+            .iter()
+            .map(|(version, name, checksum)| (*version, name.as_str(), checksum.as_str()))
+            .collect::<Vec<_>>()
     );
 }
 
@@ -901,145 +685,48 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
     );
 }
 
-async fn schema_dump(database: &TestDatabase) -> String {
-    let dump_args = [
-        "--schema-only",
-        "--no-owner",
-        "--no-privileges",
-        // A fixed dummy value, not a credential: pg_dump 18+ otherwise emits a
-        // RANDOM \restrict key per run, and two dumps of identical schemas would
-        // never compare equal. gitleaks:allow
-        "--restrict-key=0123456789abcdef0123456789abcdef",
-    ];
-    let local_output = Command::new("pg_dump")
-        .args(dump_args)
-        .env("PGDATABASE", &database.url)
-        .output()
-        .await
-        .expect("start pg_dump");
-    let output = if local_output.status.success() {
-        local_output
-    } else {
-        // The disposable test database runs in a Docker container; locate it
-        // by image. Accept the prior beta too so a mixed local environment
-        // still works during upgrades.
-        let containers = Command::new("docker")
-            .args([
-                "ps",
-                "--filter",
-                "ancestor=postgres:19beta3",
-                "--format",
-                "{{.ID}}",
-            ])
-            .output()
-            .await
-            .expect("locate PostgreSQL 19 container for pg_dump");
-        let mut container_id = String::from_utf8_lossy(&containers.stdout)
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .to_owned();
-        if container_id.is_empty() {
-            let legacy = Command::new("docker")
-                .args([
-                    "ps",
-                    "--filter",
-                    "ancestor=postgres:19beta2",
-                    "--format",
-                    "{{.ID}}",
-                ])
-                .output()
-                .await
-                .expect("locate legacy PostgreSQL 19 container for pg_dump");
-            container_id = String::from_utf8_lossy(&legacy.stdout)
-                .lines()
-                .next()
-                .expect("a PostgreSQL 19 pg_dump is required")
-                .to_owned();
-        }
-        let mut command = Command::new("docker");
-        command
-            .args([
-                "exec",
-                &container_id,
-                "pg_dump",
-                "-U",
-                &database.user,
-                "-d",
-                &database.name,
-            ])
-            .args(dump_args);
-        command
-            .output()
-            .await
-            .expect("run PostgreSQL 19 pg_dump in server container")
-    };
-    assert!(
-        output.status.success(),
-        "pg_dump failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    String::from_utf8(output.stdout).expect("pg_dump output must be UTF-8")
-}
-
-fn normalize_schema_dump(dump: &str, database_names: &[&str]) -> String {
-    dump.lines()
-        .filter(|line| {
-            !line.starts_with("-- Dumped from database version")
-                && !line.starts_with("-- Dumped by pg_dump version")
-                && !line.starts_with("-- Started on")
-                && !line.starts_with("-- Completed on")
-        })
-        .map(|line| {
-            database_names.iter().fold(line.to_owned(), |line, name| {
-                line.replace(name, "<database>")
-            })
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 #[tokio::test]
-async fn postgres_v1_patches_converge_and_are_idempotent() {
+async fn postgres_v1_patches_apply_record_and_skip_idempotently() {
     let Some(database_url) = database_url_or_skip() else {
         return;
     };
     let mut databases = DisposableDatabases::connect(&database_url).await;
     let fresh = databases.create("fresh").await;
-    let upgrade = databases.create("upgrade").await;
     let fresh_pool = install_v1(&fresh).await;
-    let upgrade_pool = install_v1(&upgrade).await;
 
-    sqlx::raw_sql(DOCUMENTED_V1_DOWNGRADE)
-        .execute(&upgrade_pool)
-        .await
-        .expect("apply documented old V1 downgrade");
-
-    let first_run = run_patches(&upgrade, None).await;
-    assert_runner_succeeded(&first_run);
-    let first_revisions = revision_snapshot(&upgrade_pool).await;
-    let first_objects = object_snapshot(&upgrade_pool).await;
+    // The committed catalog is empty after the V1 fold: the runner must be a
+    // clean no-op, and the database must still carry every formerly-patched
+    // object because the baseline now ships them directly.
+    let empty_run = run_patches(&fresh, None).await;
+    assert_runner_succeeded(&empty_run);
     assert_expected_revisions(
-        &first_revisions,
-        "sha256:25db31d1c54440cde9344145637a7a088c3973b8ccf9e503aade1941d1dc2650",
+        &revision_snapshot(&fresh_pool).await,
+        &postgres_dir().join("patches"),
     );
-    assert_expected_objects(&first_objects);
+    assert_expected_objects(&object_snapshot(&fresh_pool).await);
 
-    let second_run = run_patches(&upgrade, None).await;
+    // A future same-generation change re-opens the catalog at version 2: it
+    // must apply, record its revision, and skip cleanly on rerun.
+    let synthetic = TemporaryCatalog::with_synthetic_patches();
+    let first_run = run_patches(&fresh, Some(&synthetic.path)).await;
+    assert_runner_succeeded(&first_run);
+    let first_revisions = revision_snapshot(&fresh_pool).await;
+    assert_expected_revisions(&first_revisions, &synthetic.path);
+    for sentinel in ["patch_sentinel_sentinel_a", "patch_sentinel_sentinel_b"] {
+        let exists: bool = sqlx::query_scalar("SELECT to_regclass($1) IS NOT NULL")
+            .bind(format!("public.{sentinel}"))
+            .fetch_one(&fresh_pool)
+            .await
+            .expect("check synthetic sentinel table");
+        assert!(exists, "{sentinel} must exist after the synthetic catalog ran");
+    }
+
+    let second_run = run_patches(&fresh, Some(&synthetic.path)).await;
     assert_runner_succeeded(&second_run);
-    assert_eq!(revision_snapshot(&upgrade_pool).await, first_revisions);
-    assert_eq!(object_snapshot(&upgrade_pool).await, first_objects);
-
-    let fresh_dump =
-        normalize_schema_dump(&schema_dump(&fresh).await, &[&fresh.name, &upgrade.name]);
-    let upgrade_dump =
-        normalize_schema_dump(&schema_dump(&upgrade).await, &[&fresh.name, &upgrade.name]);
-    assert!(fresh_dump.contains("CREATE TABLE public.bookings"));
-    assert!(upgrade_dump.contains("CREATE TABLE public.bookings"));
-    assert_eq!(upgrade_dump, fresh_dump);
+    assert_eq!(revision_snapshot(&fresh_pool).await, first_revisions);
 
     fresh_pool.close().await;
-    upgrade_pool.close().await;
+    drop(synthetic);
     databases.cleanup().await;
 }
 
@@ -1652,34 +1339,30 @@ async fn postgres_v1_patch_failures_roll_back() {
 
     let checksum_conflict = databases.create("checksum").await;
     let checksum_pool = install_v1(&checksum_conflict).await;
-    sqlx::raw_sql(DOCUMENTED_V1_DOWNGRADE)
-        .execute(&checksum_pool)
-        .await
-        .expect("apply documented old V1 downgrade");
+    let conflict_catalog = TemporaryCatalog::with_synthetic_patches();
     sqlx::query(
         r#"
         INSERT INTO hotel_schema_revisions (generation, version, name, checksum)
-        VALUES (1, 2, 'google-subject', 'sha256:0000000000000000000000000000000000000000000000000000000000000000')
+        VALUES (1, 2, 'sentinel-a', 'sha256:0000000000000000000000000000000000000000000000000000000000000000')
         "#,
     )
     .execute(&checksum_pool)
     .await
     .expect("insert conflicting patch revision");
-    let checksum_output = run_patches(&checksum_conflict, None).await;
+    let checksum_output = run_patches(&checksum_conflict, Some(&conflict_catalog.path)).await;
     assert_runner_failed_with(&checksum_output, "patch 1.2 checksum mismatch");
-    let google_subject_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'google_subject')",
-    )
-    .fetch_one(&checksum_pool)
-    .await
-    .expect("check google_subject after checksum conflict");
-    assert!(!google_subject_exists);
+    let sentinel_exists: bool =
+        sqlx::query_scalar("SELECT to_regclass('public.patch_sentinel_sentinel_a') IS NOT NULL")
+            .fetch_one(&checksum_pool)
+            .await
+            .expect("check sentinel table after checksum conflict");
+    assert!(!sentinel_exists);
 
     let empty = databases.create("empty").await;
     let empty_pool = PgPool::connect(&empty.url)
         .await
         .expect("connect to empty disposable database");
-    let empty_output = run_patches(&empty, None).await;
+    let empty_output = run_patches(&empty, Some(&conflict_catalog.path)).await;
     assert_runner_failed_with(
         &empty_output,
         "relation \"public.hotel_schema_revisions\" does not exist",
@@ -1712,8 +1395,8 @@ async fn postgres_v1_patch_failures_roll_back() {
     // so this must follow the catalog rather than name a fixed version.
     let injected_version = committed_manifest_versions()
         .last()
-        .expect("committed manifest must list at least one patch")
-        + 1;
+        .map(|version| version + 1)
+        .unwrap_or(2);
     let injected_revision_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM hotel_schema_revisions WHERE generation = 1 AND version = $1)",
     )
@@ -1730,6 +1413,7 @@ async fn postgres_v1_patch_failures_roll_back() {
     checksum_pool.close().await;
     empty_pool.close().await;
     rollback_pool.close().await;
+    drop(conflict_catalog);
     drop(temporary_catalog);
     databases.cleanup().await;
 }
@@ -1746,13 +1430,8 @@ async fn postgres_v1_patch_runners_serialize() {
         .into_iter()
         .map(|(kind, name, definition)| (kind.to_owned(), name.to_owned(), definition.to_owned()))
         .collect::<Vec<_>>();
-    sqlx::raw_sql(DOCUMENTED_V1_DOWNGRADE)
-        .execute(&pool)
-        .await
-        .expect("apply documented old V1 downgrade");
 
-    let (temporary_catalog, google_subject_checksum) =
-        TemporaryCatalog::with_sleeping_google_subject_patch();
+    let temporary_catalog = TemporaryCatalog::with_sleeping_patch();
     let run_id = uuid::Uuid::new_v4().simple().to_string();
     let first_application = format!("hotel_patch_first_{run_id}");
     let second_application = format!("hotel_patch_second_{run_id}");
@@ -1784,12 +1463,12 @@ async fn postgres_v1_patch_runners_serialize() {
     assert_runner_succeeded(&second);
 
     let revisions = revision_snapshot(&pool).await;
-    assert_expected_revisions(&revisions, &google_subject_checksum);
+    assert_expected_revisions(&revisions, &temporary_catalog.path);
     let revision_counts: Vec<(i32, i64)> = sqlx::query_as(
         r#"
         SELECT version, COUNT(*)
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 23 -- keep upper bound in sync with newest catalog patch
+        WHERE generation = 1 AND version > 1
         GROUP BY version
         ORDER BY version
         "#,
@@ -1799,9 +1478,9 @@ async fn postgres_v1_patch_runners_serialize() {
     .expect("count concurrent patch revisions");
     assert_eq!(
         revision_counts,
-        committed_manifest_versions()
+        manifest_revision_entries(&temporary_catalog.path)
             .into_iter()
-            .map(|version| (version, 1))
+            .map(|(version, _, _)| (version, 1))
             .collect::<Vec<(i32, i64)>>(),
         "two concurrent runners must record every catalog version exactly once"
     );

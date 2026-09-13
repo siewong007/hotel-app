@@ -91,16 +91,17 @@ PostgreSQL is the only engine. A new empty database is initialized exactly once 
 V1 baseline then `seed.sql`; Docker, server and desktop share that sequence, and legacy
 schemas are exported and rebuilt rather than migrated. **There is no second migration
 file** — the only forward path is `database/postgres/patches/`, an ordered
-checksum-verified catalog driven by `manifest.tsv`, so an additive schema change goes
-into the baseline (fresh installs) AND a new catalog patch (installed V1 databases).
+checksum-verified catalog driven by `manifest.tsv`. The original 22-patch lineage
+(1.2–1.23) was folded into the baseline and the catalog reset to EMPTY: `manifest.tsv`
+currently carries no rows, an empty catalog is a valid no-op for both executors, and
+databases that recorded pre-reset revisions are rebuilt rather than converged.
+For future additive changes the mechanism is unchanged: the schema goes into the
+baseline (fresh installs) AND a new catalog patch (installed V1 databases).
 Nothing discovers loose SQL. A new `000N_*.sql` is dead until it is registered in FOUR
-places: `patches/manifest.tsv`, and by name in BOTH `.github/workflows/deploy.yml` and
-`deploy/deploy.sh` (`tests/postgres_patch_catalog.rs` enforces those three), plus FOUR
-hardcoded spots in `tests/postgres_patch_lifecycle.rs` — two `version BETWEEN 2 AND <N>`
-bounds, the expected-revision list, and `assert_expected_revisions`' `revisions.len()`.
-A stale bound does not fail loudly; it silently drops the newest patch from coverage while
-the suite stays green. `deploy/deploy-staging.sh` and `.github/workflows/deploy-staging.yml`
-need the same two entries and NOTHING enforces them. Catalog head is `0018`.
+places: `patches/manifest.tsv`, `deploy/deploy.sh`, `deploy/deploy-staging.sh`, and
+BOTH `.github/workflows/deploy*.yml`. `tests/postgres_patch_catalog.rs` enforces the
+manifest↔deploy-lists; `tests/postgres_patch_lifecycle.rs` is manifest-driven (synthetic
+catalogs for mechanics), so no test bounds need hand-editing when the head moves.
 The V1 baseline checksum in `_begin.sql`/`seed.sql` is a FROZEN lineage token, not a hash of
 the baseline file (they diverged long ago). Never "recompute" it: `_begin.sql` compares it to
 what `seed.sql` recorded in each live database, so rotating it aborts every patch everywhere.

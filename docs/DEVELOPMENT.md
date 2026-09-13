@@ -73,9 +73,11 @@ logins share the password `HotelStaging2026!` — see
 
 The compose service auto-initializes `hotel_management` on first boot.
 Schema rules: additive changes go in the baseline **and** a new catalog patch
-registered in `patches/manifest.tsv` + `deploy/deploy.sh` + both deploy
-workflows + `tests/postgres_patch_lifecycle.rs` bounds — a loose `000N_*.sql`
-file is never executed.
+registered in `patches/manifest.tsv` + `deploy/deploy.sh` +
+`deploy/deploy-staging.sh` + both deploy workflows — a loose `000N_*.sql`
+file is never executed. The catalog is currently **empty**: the original
+1.2–1.23 patch lineage was folded into the baseline, so fresh installs need
+no patches and pre-reset databases are rebuilt rather than converged.
 
 ## Validate
 

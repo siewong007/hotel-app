@@ -61,28 +61,6 @@ required_payload=(
   database/patches/manifest.tsv
   database/patches/_begin.sql
   database/patches/_end.sql
-  database/patches/0002_google_subject.sql
-  database/patches/0003_payment_idempotency.sql
-  database/patches/0004_booking_status_vocabulary.sql
-  database/patches/0005_booking_status_enforcement.sql
-  database/patches/0006_guest_role_isolation.sql
-  database/patches/0007_manager_audit_read.sql
-  database/patches/0008_notifications_email_triggers.sql
-  database/patches/0009_unpaid_hold_release.sql
-  database/patches/0010_consent_records.sql
-  database/patches/0011_guest_nick_name.sql
-  database/patches/0012_payment_retry_capabilities.sql
-  database/patches/0013_two_factor_enrollment_policy.sql
-  database/patches/0014_session_client_timezone.sql
-  database/patches/0015_authenticator_hotel_name.sql
-  database/patches/0016_hotel_business_number.sql
-  database/patches/0017_remove_seeded_rate_plans.sql
-  database/patches/0018_billable_payment_status.sql
-  database/patches/0019_revenue_read_permission.sql
-  database/patches/0020_rates_route_policy.sql
-  database/patches/0021_campaign_targeting.sql
-  database/patches/0022_guest_segments.sql
-  database/patches/0023_guest_relations.sql
 )
 for payload in "${required_payload[@]}"; do
   [[ -f "$RELEASE_DIR/$payload" ]] || die "release payload is missing $payload"
@@ -347,28 +325,6 @@ install_release_files() {
   install -m 0644 "$RELEASE_DIR/database/patches/manifest.tsv" "$APP_DIR/database/patches/manifest.tsv"
   install -m 0644 "$RELEASE_DIR/database/patches/_begin.sql" "$APP_DIR/database/patches/_begin.sql"
   install -m 0644 "$RELEASE_DIR/database/patches/_end.sql" "$APP_DIR/database/patches/_end.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0002_google_subject.sql" "$APP_DIR/database/patches/0002_google_subject.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0003_payment_idempotency.sql" "$APP_DIR/database/patches/0003_payment_idempotency.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0004_booking_status_vocabulary.sql" "$APP_DIR/database/patches/0004_booking_status_vocabulary.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0005_booking_status_enforcement.sql" "$APP_DIR/database/patches/0005_booking_status_enforcement.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0006_guest_role_isolation.sql" "$APP_DIR/database/patches/0006_guest_role_isolation.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0007_manager_audit_read.sql" "$APP_DIR/database/patches/0007_manager_audit_read.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0008_notifications_email_triggers.sql" "$APP_DIR/database/patches/0008_notifications_email_triggers.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0009_unpaid_hold_release.sql" "$APP_DIR/database/patches/0009_unpaid_hold_release.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0010_consent_records.sql" "$APP_DIR/database/patches/0010_consent_records.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0011_guest_nick_name.sql" "$APP_DIR/database/patches/0011_guest_nick_name.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0012_payment_retry_capabilities.sql" "$APP_DIR/database/patches/0012_payment_retry_capabilities.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0013_two_factor_enrollment_policy.sql" "$APP_DIR/database/patches/0013_two_factor_enrollment_policy.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0014_session_client_timezone.sql" "$APP_DIR/database/patches/0014_session_client_timezone.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0015_authenticator_hotel_name.sql" "$APP_DIR/database/patches/0015_authenticator_hotel_name.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0016_hotel_business_number.sql" "$APP_DIR/database/patches/0016_hotel_business_number.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0017_remove_seeded_rate_plans.sql" "$APP_DIR/database/patches/0017_remove_seeded_rate_plans.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0018_billable_payment_status.sql" "$APP_DIR/database/patches/0018_billable_payment_status.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0019_revenue_read_permission.sql" "$APP_DIR/database/patches/0019_revenue_read_permission.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0020_rates_route_policy.sql" "$APP_DIR/database/patches/0020_rates_route_policy.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0021_campaign_targeting.sql" "$APP_DIR/database/patches/0021_campaign_targeting.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0022_guest_segments.sql" "$APP_DIR/database/patches/0022_guest_segments.sql"
-  install -m 0644 "$RELEASE_DIR/database/patches/0023_guest_relations.sql" "$APP_DIR/database/patches/0023_guest_relations.sql"
 
   # The backend image runs as uid/gid 1000. Bind-mounted application state must
   # stay writable by that non-root user across container replacements.
