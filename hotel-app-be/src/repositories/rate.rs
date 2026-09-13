@@ -274,6 +274,54 @@ impl RateRepository {
         .map_err(ApiError::from)
     }
 
+    /// Upserts one rate band inside an existing transaction. A band for the
+    /// same `(rate_plan_id, room_type_id)` with *exactly* the same
+    /// `[effective_from, effective_to]` bounds is repriced in place;
+    /// otherwise a new band is inserted. Exact-match keeps repeated bulk runs
+    /// idempotent; overlapping non-exact bands resolve by `rr.id DESC` (see
+    /// `applicable_rate`).
+    pub async fn upsert_room_rate_band_tx(
+        tx: &mut crate::core::db::DbTransaction<'_>,
+        values: &RoomRateCreateValues,
+    ) -> Result<RoomRate, ApiError> {
+        let updated = sqlx::query(
+            r#"
+            UPDATE room_rates SET price = $4
+            WHERE rate_plan_id = $1 AND room_type_id = $2
+              AND effective_from = $3
+              AND effective_to IS NOT DISTINCT FROM $5
+            RETURNING *
+            "#,
+        )
+        .bind(values.rate_plan_id)
+        .bind(values.room_type_id)
+        .bind(values.effective_from)
+        .bind(decimal_to_db(values.price))
+        .bind(values.effective_to)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+        if let Some(row) = updated {
+            return Ok(row_mappers::row_to_room_rate(&row));
+        }
+        sqlx::query(
+            r#"
+            INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+            "#,
+        )
+        .bind(values.rate_plan_id)
+        .bind(values.room_type_id)
+        .bind(decimal_to_db(values.price))
+        .bind(values.effective_from)
+        .bind(values.effective_to)
+        .fetch_one(&mut **tx)
+        .await
+        .map(|row| row_mappers::row_to_room_rate(&row))
+        .map_err(ApiError::from)
+    }
+
     pub async fn list_room_rates(pool: &DbPool) -> Result<Vec<RoomRateWithDetails>, ApiError> {
         let query = room_rate_details_query(None);
         let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))

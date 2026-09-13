@@ -12,7 +12,8 @@ use serde_json::json;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    ApplicableRateQuery, RatePlanInput, RatePlanUpdateInput, RoomRateInput, RoomRateUpdateInput,
+    ApplicableRateQuery, BulkRoomRateInput, RatePlanInput, RatePlanUpdateInput, RoomRateInput,
+    RoomRateUpdateInput,
 };
 use crate::services::rates as svc;
 
@@ -129,6 +130,20 @@ pub async fn create_room_rate(
             "room_rate": room_rate
         })),
     ))
+}
+
+/// Bulk-upsert room-rate bands across room types for one plan.
+pub async fn bulk_upsert_room_rates(
+    State(pool): State<DbPool>,
+    user_id: i64,
+    Json(input): Json<BulkRoomRateInput>,
+) -> Result<impl IntoResponse, RateError> {
+    let room_rates = svc::bulk_upsert_room_rates(&pool, user_id, input).await?;
+
+    Ok(Json(json!({
+        "message": "Room rates upserted",
+        "room_rates": room_rates
+    })))
 }
 
 /// Get all room rates with details.
