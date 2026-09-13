@@ -8,7 +8,6 @@ import {
   Paper,
   Tab,
   Tabs,
-  Typography,
 } from '@mui/material';
 import { ArrowBackOutlined as BackIcon } from '@mui/icons-material';
 import type { Guest } from '../../../types';
@@ -30,6 +29,9 @@ import OverviewTab from '../components/tabs/OverviewTab';
 import StaysTab from '../components/tabs/StaysTab';
 import PreferencesTab from '../components/tabs/PreferencesTab';
 import InteractionsTab from '../components/tabs/InteractionsTab';
+import LoyaltyVouchersTab from '../components/tabs/LoyaltyVouchersTab';
+import SupportFeedbackTab from '../components/tabs/SupportFeedbackTab';
+import CommunicationTab from '../components/tabs/CommunicationTab';
 import { guestDisplayName } from '../utils';
 
 interface GuestProfilePageProps {
@@ -66,19 +68,6 @@ const emptyGuestForm = (): GuestFormData => ({
   discount_percentage: 0,
 });
 
-/** Placeholder for the tabs Tasks 14–15 fill in — keeps the shell complete so
- *  tab order, gating, and the Add Note quick action are already real. */
-const TabStub: React.FC<{ label: string }> = ({ label }) => (
-  <Paper variant="outlined" sx={{ p: 3, textAlign: 'center' }}>
-    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-      {label}
-    </Typography>
-    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-      This section of the guest profile loads in a later task.
-    </Typography>
-  </Paper>
-);
-
 /**
  * Guest 360 — the guest-relations workspace profile page. Composes the
  * identity header + tabbed detail surface over `useGuestProfile` (guest,
@@ -95,7 +84,9 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
   const canWriteSupport = hasPermission('support:write');
   const canAssignSupport = hasPermission('support:assign');
   const canReadCommunications = hasPermission('communications:read');
+  const canManageCommunications = hasPermission('communications:manage');
   const canReadReviews = hasPermission('reviews:read');
+  const canUpdateReviews = hasPermission('reviews:update');
 
   const numericGuestId = Number(guestId);
   const isValidGuestId = guestId.trim() !== '' && Number.isFinite(numericGuestId);
@@ -333,9 +324,24 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
                       addNoteRequested={addNoteRequested}
                       onAddNoteHandled={() => setAddNoteRequested(false)}
                     />
-                  ) : (
-                    <TabStub label={tab.label} />
-                  )}
+                  ) : tab.key === 'loyalty' ? (
+                    <LoyaltyVouchersTab guestId={numericGuestId} />
+                  ) : tab.key === 'support' ? (
+                    <SupportFeedbackTab
+                      guestId={numericGuestId}
+                      reservations={profile.reservations}
+                      canWriteSupport={canWriteSupport}
+                      canViewReviews={canReadReviews}
+                      canRespondToReviews={canUpdateReviews}
+                      onNewConversation={() => setSupportDialogOpen(true)}
+                    />
+                  ) : tab.key === 'communication' ? (
+                    <CommunicationTab
+                      guestId={numericGuestId}
+                      guestName={guestDisplayName(guest)}
+                      canManageConsent={canManageCommunications}
+                    />
+                  ) : null}
                 </TabPanel>
               ))}
             </Box>

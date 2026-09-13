@@ -10,6 +10,8 @@ import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateGuestDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
 import { supportQueryKeys } from '../../support/hooks/useSupportQueries';
+import { CommunicationsApi } from '../../communications/api';
+import type { PreferenceUpdateInput } from '../../communications/types';
 import type {
   CreateStaffSupportConversationRequest,
   GuestInteractionInput,
@@ -227,6 +229,27 @@ export function useCreateSupportConversation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.guests.support(variables.guest_id) });
       queryClient.invalidateQueries({ queryKey: supportQueryKeys.all });
       invalidateGuestDependencies(queryClient);
+    },
+  });
+}
+
+/**
+ * Staff-recorded consent — `POST /admin/communications/guests/{id}/consent`
+ * (`communications:manage`). The endpoint lives on the communications
+ * feature's API module, so this wraps it rather than duplicating a method on
+ * `GuestRelationsService`. Only the per-guest communications summary reads the
+ * subscription rows, so that key alone is invalidated (the mutation doesn't
+ * touch `guests.marketing_opt_in` or other guest fields).
+ */
+export function useRecordGuestConsent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ guestId, data }: { guestId: number; data: PreferenceUpdateInput }) =>
+      CommunicationsApi.recordStaffConsent(guestId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.guests.communications(variables.guestId),
+      });
     },
   });
 }
