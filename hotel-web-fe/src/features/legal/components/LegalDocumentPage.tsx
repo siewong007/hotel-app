@@ -13,6 +13,8 @@ import {
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import GavelOutlinedIcon from '@mui/icons-material/GavelOutlined';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useNavigate } from '../../../router';
 import {
   HOTEL_LEGAL_IDENTITY,
@@ -52,9 +54,39 @@ const LEGAL_DEEP_GOLD = '#a4732e';
 const LEGAL_PAPER = '#fdfbf6';
 const LEGAL_FRAME_LINE = 'rgba(49,91,75,0.14)';
 const LEGAL_HAIRLINE = 'rgba(49,91,75,0.16)';
+const LEGAL_GOLD_WASH = 'rgba(217,181,116,0.07)';
 
 const hairlineColor = (theme: Theme): string =>
   theme.palette.mode === 'light' ? LEGAL_HAIRLINE : theme.palette.divider;
+
+/**
+ * The quiet bordered block shared by the "In this document" rail and the
+ * contact callout — a hairline frame with no fill, so it reads as page
+ * furniture rather than a card.
+ */
+const quietFrameSx = (theme: Theme) => ({
+  maxWidth: '68ch',
+  px: { xs: 2, sm: 3 },
+  py: { xs: 1.5, sm: 2 },
+  border: '1px solid',
+  borderColor: hairlineColor(theme),
+  borderRadius: 2,
+});
+
+/**
+ * Accent for an emphasis callout: deep gold flags an obligation the guest
+ * must meet, house green flags helpful context. Dark and night modes defer
+ * to the palette's warning/info tokens, matching how the rest of this page
+ * falls back to theme colors once the fixed hues lose contrast.
+ */
+const emphasisAccent = (theme: Theme, emphasis: 'requirement' | 'info'): string =>
+  emphasis === 'requirement'
+    ? theme.palette.mode === 'light'
+      ? LEGAL_DEEP_GOLD
+      : theme.palette.warning.main
+    : theme.palette.mode === 'light'
+      ? LEGAL_GREEN
+      : theme.palette.info.main;
 
 const paperFrameSx = (theme: Theme) => ({
   p: { xs: 2.5, sm: 4, md: 6 },
@@ -226,15 +258,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
           <Box
             component="nav"
             aria-label={locale === 'ms' ? 'Kandungan dokumen' : 'Document contents'}
-            sx={(theme) => ({
-              mt: 4,
-              maxWidth: '68ch',
-              px: { xs: 2, sm: 3 },
-              py: { xs: 1.5, sm: 2 },
-              border: '1px solid',
-              borderColor: hairlineColor(theme),
-              borderRadius: 2,
-            })}
+            sx={(theme) => ({ mt: 4, ...quietFrameSx(theme) })}
           >
             <Typography sx={(theme) => ({ ...eyebrowSx(theme), mb: 1 })}>
               {locale === 'ms' ? 'Dalam dokumen ini' : 'In this document'}
@@ -299,33 +323,9 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
           <Stack sx={{ gap: 5 }}>
             {document.sections.map((section, index) => {
               const heading = splitHeadingNumeral(section.heading[locale]);
-              return (
-                <Box
-                  key={section.id}
-                  id={section.id}
-                  component="section"
-                  sx={(theme) => ({
-                    scrollMarginTop: 12,
-                    ...(index > 0
-                      ? { pt: 4, borderTop: '1px solid', borderColor: hairlineColor(theme) }
-                      : null),
-                  })}
-                >
-                  <Typography component="h2" sx={sectionHeadingSx}>
-                    {heading.numeral ? (
-                      <Box
-                        component="span"
-                        sx={(theme) => ({
-                          mr: 0.75,
-                          fontFamily: LEGAL_SERIF,
-                          color: theme.palette.mode === 'light' ? LEGAL_DEEP_GOLD : LEGAL_GOLD,
-                        })}
-                      >
-                        {heading.numeral}
-                      </Box>
-                    ) : null}
-                    {heading.text}
-                  </Typography>
+              const emphasis = section.emphasis;
+              const sectionContent = (
+                <>
                   {section.body?.map((paragraph, paragraphIndex) => (
                     <Typography key={paragraphIndex} sx={{ mb: 1.5, lineHeight: 1.85 }}>
                       {paragraph[locale]}
@@ -353,6 +353,86 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
                       ))}
                     </Box>
                   )}
+                </>
+              );
+              return (
+                <Box
+                  key={section.id}
+                  id={section.id}
+                  component="section"
+                  sx={(theme) => ({
+                    scrollMarginTop: 12,
+                    ...(index > 0
+                      ? { pt: 4, borderTop: '1px solid', borderColor: hairlineColor(theme) }
+                      : null),
+                  })}
+                >
+                  <Typography component="h2" sx={sectionHeadingSx}>
+                    {heading.numeral ? (
+                      <Box
+                        component="span"
+                        sx={(theme) => ({
+                          mr: 0.75,
+                          fontFamily: LEGAL_SERIF,
+                          color: theme.palette.mode === 'light' ? LEGAL_DEEP_GOLD : LEGAL_GOLD,
+                        })}
+                      >
+                        {heading.numeral}
+                      </Box>
+                    ) : null}
+                    {heading.text}
+                  </Typography>
+                  {emphasis ? (
+                    <Box
+                      sx={(theme) => ({
+                        mt: 1.5,
+                        p: 2.5,
+                        border: '1px solid',
+                        borderColor: hairlineColor(theme),
+                        borderLeftWidth: 3,
+                        borderLeftColor: emphasisAccent(theme, emphasis),
+                        borderRadius: 2,
+                        bgcolor: theme.palette.mode === 'light' ? LEGAL_GOLD_WASH : 'action.hover',
+                      })}
+                    >
+                      <Box
+                        sx={(theme) => ({
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.75,
+                          mb: 1.5,
+                          color: emphasisAccent(theme, emphasis),
+                        })}
+                      >
+                        {emphasis === 'requirement' ? (
+                          <GavelOutlinedIcon sx={{ fontSize: 16 }} />
+                        ) : (
+                          <InfoOutlinedIcon sx={{ fontSize: 16 }} />
+                        )}
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            color: 'inherit',
+                            fontWeight: 700,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {emphasis === 'requirement'
+                            ? locale === 'ms'
+                              ? 'Perkara penting'
+                              : 'Important'
+                            : locale === 'ms'
+                              ? 'Baik untuk diketahui'
+                              : 'Good to know'}
+                        </Typography>
+                      </Box>
+                      {sectionContent}
+                    </Box>
+                  ) : (
+                    sectionContent
+                  )}
                 </Box>
               );
             })}
@@ -361,24 +441,26 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
 
         <Divider sx={(theme) => ({ my: 4, borderColor: hairlineColor(theme) })} />
 
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-          {locale === 'ms' ? 'Hubungi kami' : 'Contact us'}
-        </Typography>
-        <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.9 }}>
-          {HOTEL_LEGAL_IDENTITY.registeredName}
-          <br />
-          {HOTEL_LEGAL_IDENTITY.addressLines.map((line) => (
-            <React.Fragment key={line}>
-              {line}
-              <br />
-            </React.Fragment>
-          ))}
-          <Link href={`mailto:${HOTEL_LEGAL_IDENTITY.email}`}>{HOTEL_LEGAL_IDENTITY.email}</Link>
-          {' · '}
-          <Link href={`tel:${HOTEL_LEGAL_IDENTITY.phone.replace(/\s/g, '')}`}>
-            {HOTEL_LEGAL_IDENTITY.phone}
-          </Link>
-        </Typography>
+        <Box sx={quietFrameSx}>
+          <Typography sx={(theme) => ({ ...eyebrowSx(theme), mb: 1 })}>
+            {locale === 'ms' ? 'Ada soalan tentang dokumen ini?' : 'Questions about this document?'}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'text.secondary', lineHeight: 1.9 }}>
+            {HOTEL_LEGAL_IDENTITY.registeredName}
+            <br />
+            {HOTEL_LEGAL_IDENTITY.addressLines.map((line) => (
+              <React.Fragment key={line}>
+                {line}
+                <br />
+              </React.Fragment>
+            ))}
+            <Link href={`mailto:${HOTEL_LEGAL_IDENTITY.email}`}>{HOTEL_LEGAL_IDENTITY.email}</Link>
+            {' · '}
+            <Link href={`tel:${HOTEL_LEGAL_IDENTITY.phone.replace(/\s/g, '')}`}>
+              {HOTEL_LEGAL_IDENTITY.phone}
+            </Link>
+          </Typography>
+        </Box>
 
         <Divider sx={(theme) => ({ my: 4, borderColor: hairlineColor(theme) })} />
 
