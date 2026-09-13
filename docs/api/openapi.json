@@ -580,17 +580,47 @@
     "/api/guests/{id}/bookings": {
       "GET": {}
     },
+    "/api/guests/{id}/communications": {
+      "GET": {}
+    },
     "/api/guests/{id}/credits": {
+      "GET": {}
+    },
+    "/api/guests/{id}/interactions": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/guests/{id}/interactions/{nid}": {
+      "DELETE": {},
+      "PATCH": {}
+    },
+    "/api/guests/{id}/loyalty": {
       "GET": {}
     },
     "/api/guests/{id}/portal-account": {
       "POST": {}
     },
+    "/api/guests/{id}/preferences": {
+      "GET": {},
+      "PUT": {}
+    },
     "/api/guests/{id}/profile": {
+      "GET": {}
+    },
+    "/api/guests/{id}/reviews": {
+      "GET": {}
+    },
+    "/api/guests/{id}/reviews/{rid}/response": {
+      "POST": {}
+    },
+    "/api/guests/{id}/support": {
       "GET": {}
     },
     "/api/guests/{id}/tourism-from-last-check-in": {
       "POST": {}
+    },
+    "/api/guests/{id}/vouchers": {
+      "GET": {}
     },
     "/api/housekeeping/assignable-staff": {
       "GET": {}
@@ -914,7 +944,8 @@
       "GET": {}
     },
     "/api/support/conversations": {
-      "GET": {}
+      "GET": {},
+      "POST": {}
     },
     "/api/support/conversations/{id}": {
       "GET": {}
