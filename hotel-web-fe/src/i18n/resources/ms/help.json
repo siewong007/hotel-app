@@ -1,0 +1,86 @@
+{
+  "hub": {
+    "kicker": "Pusat Bantuan",
+    "title": "Bagaimana kami boleh membantu?",
+    "subtitle": "Panduan dan jawapan untuk mengendalikan hartanah — cari, atau semak mengikut topik.",
+    "searchPlaceholder": "Cari artikel bantuan…",
+    "searchHint": "Cuba “refund”, “check in” atau “tambah kakitangan”",
+    "quickTasksTitle": "Tugas pantas",
+    "quickTasksSubtitle": "Terus ke panduan untuk kerja paling biasa.",
+    "categoriesTitle": "Semak mengikut topik",
+    "popularTitle": "Artikel popular",
+    "troubleshootingTitle": "Ada yang tidak berfungsi?",
+    "troubleshootingSubtitle": "Penyelesaian langkah demi langkah untuk masalah paling biasa.",
+    "escalationTitle": "Dapatkan lebih bantuan",
+    "escalationBody": "Perubahan akses, soalan kebenaran dan kecacatan yang disyaki melalui pentadbir atau manager anda. Bawa nama halaman, teks ralat tepat dan entri Audit Log jika ada.",
+    "escalationLink": "Baca panduan eskalasi",
+    "supportInboxNote": "Membantu tetamu pula? Mesej mereka berada dalam peti masuk Support di bawah Operations.",
+    "articlesCount": "{{count}} artikel"
+  },
+  "search": {
+    "label": "Cari bantuan",
+    "recentLabel": "Carian terkini",
+    "noResultsTitle": "Tiada artikel sepadan",
+    "noResultsBody": "Cuba kata kunci lain — atau semak kategori di bawah.",
+    "clearLabel": "Kosongkan carian",
+    "resultsLabel": "Artikel",
+    "suggestionsLabel": "Cuba",
+    "suggestions": {
+      "refund": "refund",
+      "checkIn": "check in",
+      "staff": "tambah kakitangan"
+    }
+  },
+  "categories": {
+    "getting-started": { "name": "Mula menggunakan", "desc": "Log masuk, keselamatan dan mengenali portal" },
+    "bookings": { "name": "Tempahan & kaunter hadapan", "desc": "Cipta, cari, check in, check out dan void tempahan" },
+    "guests": { "name": "Tetamu", "desc": "Profil tetamu, sejarah dan akaun portal" },
+    "rooms-inventory": { "name": "Bilik & inventori", "desc": "Jenis bilik, papan Rooms, inventori dalam talian dan housekeeping" },
+    "payments-ledgers": { "name": "Bayaran & lejar", "desc": "Deposit, bayaran balik, kelulusan, lejar syarikat dan kredit" },
+    "rates-promotions": { "name": "Kadar & promosi", "desc": "Tawaran, baucar dan program kesetiaan" },
+    "reports-night-audit": { "name": "Laporan & night audit", "desc": "Laporan harian, metrik, tutup hari dan audit log" },
+    "communications": { "name": "Komunikasi", "desc": "Kempen e-mel, notifikasi dan peti masuk sokongan tetamu" },
+    "staff-access": { "name": "Kakitangan & akses", "desc": "Akaun pengguna, peranan, kebenaran dan semakan eKYC" },
+    "settings-data": { "name": "Tetapan & data", "desc": "Tetapan hotel, lalai dan pemindahan data" },
+    "troubleshooting": { "name": "Penyelesaian masalah", "desc": "Apabila sesuatu hilang, tersangkut atau tidak berfungsi" }
+  },
+  "quickTasks": {
+    "create-a-booking": { "label": "Cipta tempahan", "desc": "Walk-in, telefon dan tetamu berulang" },
+    "check-in-a-guest": { "label": "Daftar masuk tetamu", "desc": "Peraturan hari ketibaan dan check-in awal" },
+    "find-a-reservation": { "label": "Cari tempahan", "desc": "Mengikut kod, nama tetamu atau bilik" },
+    "refund-a-deposit": { "label": "Bayar balik deposit", "desc": "Bayaran balik checkout dan peraturan revert" },
+    "add-manage-staff": { "label": "Tambah ahli kakitangan", "desc": "Akaun dan lantikan peranan" },
+    "run-night-audit": { "label": "Jalankan night audit", "desc": "Menutup hari perniagaan dengan selamat" }
+  },
+  "troubleshootingLinks": {
+    "cant-find-a-booking": "Saya tidak jumpa tempahan",
+    "payment-problems": "Bayaran gagal atau tersangkut",
+    "email-not-sending": "E-mel tidak dihantar",
+    "page-missing-or-access-denied": "Saya tidak nampak halaman yang saya perlukan",
+    "session-and-stale-data": "Skrin kelihatan lapuk"
+  },
+  "article": {
+    "backToHelp": "Kembali ke Pusat Bantuan",
+    "onThisPage": "Dalam halaman ini",
+    "lastReviewed": "Semakan terakhir {{date}}",
+    "readingTime": "{{count}} min membaca",
+    "openPage": "Buka halaman",
+    "requiresLabel": "Memerlukan",
+    "relatedTitle": "Artikel berkaitan",
+    "feedbackTitle": "Adakah ini membantu?",
+    "feedbackYes": "Ya",
+    "feedbackNo": "Tidak",
+    "feedbackThanks": "Terima kasih — dicatat. Pentadbir anda boleh menyemak maklum balas semasa semakan kandungan seterusnya.",
+    "feedbackVotedYes": "Dicatat — gembira ia membantu.",
+    "feedbackVotedNo": "Dicatat — terima kasih atas kejujuran. Jika masih belum selesai, panduan eskalasi menerangkan langkah seterusnya.",
+    "notFoundTitle": "Artikel tidak ditemui",
+    "notFoundBody": "Panduan ini mungkin telah dialihkan atau dinamakan semula. Semak Pusat Bantuan untuk mencari apa yang anda perlukan.",
+    "browseAll": "Semak semua topik"
+  },
+  "aria": {
+    "helpNavigation": "Navigasi bantuan",
+    "toc": "Kandungan artikel",
+    "searchResults": "Hasil carian bantuan",
+    "breadcrumbs": "Jejak navigasi"
+  }
+}

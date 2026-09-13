@@ -179,6 +179,7 @@ export const RootLayout: React.FC = () => {
       </Suspense>
 
       <Container
+        component="main"
         maxWidth="xl"
         className={boardSkinActive ? 'hotel-board-skin' : undefined}
         sx={{ mt: boardSkinActive ? 3 : 4, mb: 4, px: { xs: 2, sm: 3 }, minHeight: 'calc(100vh - 200px)', contain: 'layout style', isolation: 'isolate' }}

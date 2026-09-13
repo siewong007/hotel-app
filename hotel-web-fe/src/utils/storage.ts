@@ -15,7 +15,9 @@ type StorageKey =
   | 'cmdRecents'
   | 'notificationHistory'
   | 'ekycAdminFilters'
-  | 'dataTransferHistory';
+  | 'dataTransferHistory'
+  | 'helpRecentSearches'
+  | 'helpArticleFeedback';
 
 interface StorageCache {
   [key: string]: unknown;

@@ -51,6 +51,7 @@ import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/in
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
+import { Route as HelpSlugRouteImport } from './routes/help.$slug'
 import { Route as LegalIdentityVerificationRouteImport } from './routes/legal/identity-verification'
 import { Route as LegalPaymentTermsRouteImport } from './routes/legal/payment-terms'
 import { Route as LegalPrivacyRouteImport } from './routes/legal/privacy'
@@ -270,6 +271,11 @@ const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
   path: '/guest-checkin/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HelpSlugRoute = HelpSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => HelpRoute,
+} as any)
 const LegalIdentityVerificationRoute =
   LegalIdentityVerificationRouteImport.update({
     id: '/legal/identity-verification',
@@ -331,7 +337,7 @@ export interface FileRoutesByFullPath {
   '/enroll-two-factor': typeof EnrollTwoFactorRoute
   '/guest-config': typeof GuestConfigRoute
   '/guest-portal': typeof GuestPortalRoute
-  '/help': typeof HelpRoute
+  '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
@@ -355,6 +361,7 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/help/$slug': typeof HelpSlugRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -383,7 +390,7 @@ export interface FileRoutesByTo {
   '/enroll-two-factor': typeof EnrollTwoFactorRoute
   '/guest-config': typeof GuestConfigRoute
   '/guest-portal': typeof GuestPortalRoute
-  '/help': typeof HelpRoute
+  '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
@@ -407,6 +414,7 @@ export interface FileRoutesByTo {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/help/$slug': typeof HelpSlugRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -436,7 +444,7 @@ export interface FileRoutesById {
   '/enroll-two-factor': typeof EnrollTwoFactorRoute
   '/guest-config': typeof GuestConfigRoute
   '/guest-portal': typeof GuestPortalRoute
-  '/help': typeof HelpRoute
+  '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
@@ -460,6 +468,7 @@ export interface FileRoutesById {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/help/$slug': typeof HelpSlugRoute
   '/legal/identity-verification': typeof LegalIdentityVerificationRoute
   '/legal/payment-terms': typeof LegalPaymentTermsRoute
   '/legal/privacy': typeof LegalPrivacyRoute
@@ -514,6 +523,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/help/$slug'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
     | '/legal/privacy'
@@ -566,6 +576,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/help/$slug'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
     | '/legal/privacy'
@@ -618,6 +629,7 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/help/$slug'
     | '/legal/identity-verification'
     | '/legal/payment-terms'
     | '/legal/privacy'
@@ -647,7 +659,7 @@ export interface RootRouteChildren {
   EnrollTwoFactorRoute: typeof EnrollTwoFactorRoute
   GuestConfigRoute: typeof GuestConfigRoute
   GuestPortalRoute: typeof GuestPortalRoute
-  HelpRoute: typeof HelpRoute
+  HelpRoute: typeof HelpRouteWithChildren
   HousekeepingRoute: typeof HousekeepingRoute
   LoginRoute: typeof LoginRoute
   LoyaltyRoute: typeof LoyaltyRoute
@@ -978,6 +990,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestCheckinVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/help/$slug': {
+      id: '/help/$slug'
+      path: '/$slug'
+      fullPath: '/help/$slug'
+      preLoaderRoute: typeof HelpSlugRouteImport
+      parentRoute: typeof HelpRoute
+    }
     '/legal/identity-verification': {
       id: '/legal/identity-verification'
       path: '/legal/identity-verification'
@@ -1037,6 +1056,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface HelpRouteChildren {
+  HelpSlugRoute: typeof HelpSlugRoute
+}
+
+const HelpRouteChildren: HelpRouteChildren = {
+  HelpSlugRoute: HelpSlugRoute,
+}
+
+const HelpRouteWithChildren = HelpRoute._addFileChildren(HelpRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
@@ -1055,7 +1084,7 @@ const rootRouteChildren: RootRouteChildren = {
   EnrollTwoFactorRoute: EnrollTwoFactorRoute,
   GuestConfigRoute: GuestConfigRoute,
   GuestPortalRoute: GuestPortalRoute,
-  HelpRoute: HelpRoute,
+  HelpRoute: HelpRouteWithChildren,
   HousekeepingRoute: HousekeepingRoute,
   LoginRoute: LoginRoute,
   LoyaltyRoute: LoyaltyRoute,

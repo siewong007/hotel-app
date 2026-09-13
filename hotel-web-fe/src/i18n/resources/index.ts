@@ -18,11 +18,13 @@ import enAuth from './en/auth.json';
 import enCommon from './en/common.json';
 import enErrors from './en/errors.json';
 import enGuestPortal from './en/guestPortal.json';
+import enHelp from './en/help.json';
 import enNav from './en/nav.json';
 import msAuth from './ms/auth.json';
 import msCommon from './ms/common.json';
 import msErrors from './ms/errors.json';
 import msGuestPortal from './ms/guestPortal.json';
+import msHelp from './ms/help.json';
 import msNav from './ms/nav.json';
 
 import type { LocaleCode } from '../locales';
@@ -36,6 +38,7 @@ const enResources = {
   common: enCommon as TranslationBundle,
   errors: enErrors as TranslationBundle,
   guestPortal: enGuestPortal as TranslationBundle,
+  help: enHelp as TranslationBundle,
   nav: enNav as TranslationBundle,
 };
 
@@ -44,6 +47,7 @@ const msResources = {
   common: msCommon as TranslationBundle,
   errors: msErrors as TranslationBundle,
   guestPortal: msGuestPortal as TranslationBundle,
+  help: msHelp as TranslationBundle,
   nav: msNav as TranslationBundle,
 };
 

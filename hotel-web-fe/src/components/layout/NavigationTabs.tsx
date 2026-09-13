@@ -33,6 +33,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { storage } from '../../utils/storage';
 import { getHotelSettings } from '../../utils/hotelSettings';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
+import { searchArticles } from '../../features/help/utils';
+import { useHelpArticles } from '../../features/help/hooks/useHelpArticles';
 import { NotificationCenter } from './NotificationCenter';
 import {
   canAccessNavigationRoute,
@@ -66,6 +68,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
 
   const { navLabel: navLabelFor, groupLabel } = useRouteLabels();
   const { t: tNav } = useTranslation('nav');
+  const helpArticles = useHelpArticles();
   const visibleItems = React.useMemo(
     () =>
       navigationRouteDefinitions.filter((item) =>
@@ -154,7 +157,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const cmdInputRef = React.useRef<HTMLInputElement | null>(null);
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [cmdQuery, setCmdQuery] = React.useState('');
-  const [scope, setScope] = React.useState<'all' | 'bookings' | 'guests' | 'ledgers' | 'rooms' | 'pages'>('all');
+  const [scope, setScope] = React.useState<'all' | 'bookings' | 'guests' | 'ledgers' | 'rooms' | 'pages' | 'help'>('all');
   const [activeIndex, setActiveIndex] = React.useState(0);
 
   type Recent = { title: string; subtitle?: string; route: string; kind: string };
@@ -172,8 +175,8 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const slash = term.startsWith('/');
   const lowTerm = (slash ? term.slice(1) : term).toLowerCase();
 
-  // Server-side federated search (skipped for /commands or the Pages scope)
-  const serverEnabled = !isGuest && cmdOpen && !slash && scope !== 'pages';
+  // Server-side federated search (skipped for /commands or the client-only scopes)
+  const serverEnabled = !isGuest && cmdOpen && !slash && scope !== 'pages' && scope !== 'help';
   const serverTypes =
     scope === 'bookings' || scope === 'guests' || scope === 'ledgers' || scope === 'rooms' ? [scope] : undefined;
   const { groups: serverGroups, loading: serverLoading } = useGlobalSearch(
@@ -315,8 +318,22 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
       if (pages.length) out.push({ key: 'pages', label: 'Pages', items: pages });
     }
 
+    // Help articles are client-side: the same weighted search that powers the
+    // Help Centre, so ⌘K can surface guides without a backend endpoint.
+    const showHelp = !isGuest && (scope === 'all' || scope === 'pages' || scope === 'help');
+    if (showHelp && lowTerm.length >= 2) {
+      const helpItems = searchArticles(helpArticles, lowTerm, 5).map((hit) => ({
+        key: `help-${hit.article.slug}`,
+        title: hit.article.title,
+        subtitle: hit.article.summary,
+        icon: <HelpOutlineIcon sx={{ fontSize: 16 }} />,
+        route: `/help/${hit.article.slug}`,
+      }));
+      if (helpItems.length) out.push({ key: 'help', label: 'Help', items: helpItems });
+    }
+
     return out;
-  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor]);
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest, navLabelFor, helpArticles]);
 
   const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
@@ -473,6 +490,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
                 ['ledgers', 'Ledger'],
                 ['rooms', 'Rooms'],
                 ['pages', 'Pages'],
+                ['help', 'Help'],
               ] as const).map(([k, lb]) => {
                 const on = scope === k;
                 return (

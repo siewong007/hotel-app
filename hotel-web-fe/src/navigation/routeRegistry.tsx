@@ -58,7 +58,7 @@ const LoyaltyPortal = lazyRoute(() => import('../features/loyalty/components/Loy
 const LoyaltyDashboard = lazyRoute(() => import('../features/loyalty/components/LoyaltyDashboard'));
 const UserProfilePage = lazyRoute(() => import('../features/user/components/UserProfilePage'));
 const SettingsPage = lazyRoute(() => import('../features/user/components/SettingsPage'));
-const HelpSupportPage = lazyRoute(() => import('../features/user/components/HelpSupportPage'));
+const HelpCenterPage = lazyRoute(() => import('../features/help/pages/HelpCenterPage'));
 const RBACManagementPage = lazyRoute(() => import('../features/admin/components/rbac/RBACManagementPage'));
 const EkycRegistrationPage = lazyRoute(() => import('../features/ekyc/components/EkycRegistrationPage'));
 const EkycManagementPage = lazyRoute(() => import('../features/ekyc/components/EkycManagementPage'));
@@ -230,7 +230,7 @@ const routeDefinitions: AppRouteDefinition[] = [
   {
     id: 'help',
     path: '/help',
-    component: HelpSupportPage,
+    component: HelpCenterPage,
     animationType: 'fade',
     visibility: 'auth',
     icon: HelpOutlineIcon,

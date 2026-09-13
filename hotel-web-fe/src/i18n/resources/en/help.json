@@ -1,0 +1,86 @@
+{
+  "hub": {
+    "kicker": "Help Centre",
+    "title": "How can we help?",
+    "subtitle": "Guides and answers for running the property — search, or browse by topic.",
+    "searchPlaceholder": "Search help articles…",
+    "searchHint": "Try “refund”, “check in” or “add staff”",
+    "quickTasksTitle": "Quick tasks",
+    "quickTasksSubtitle": "Straight to the guide for the most common jobs.",
+    "categoriesTitle": "Browse by topic",
+    "popularTitle": "Popular articles",
+    "troubleshootingTitle": "Something not working?",
+    "troubleshootingSubtitle": "Step-by-step fixes for the problems staff hit most.",
+    "escalationTitle": "Get more help",
+    "escalationBody": "Access changes, permission questions and suspected defects go through your administrator or manager. Bring the page name, the exact error text and the Audit Log entry if you have one.",
+    "escalationLink": "Read the escalation guide",
+    "supportInboxNote": "Helping a guest instead? Their messages live in the Support inbox under Operations.",
+    "articlesCount": "{{count}} articles"
+  },
+  "search": {
+    "label": "Search help",
+    "recentLabel": "Recent searches",
+    "noResultsTitle": "No matching articles",
+    "noResultsBody": "Try different keywords — or browse the categories below.",
+    "clearLabel": "Clear search",
+    "resultsLabel": "Articles",
+    "suggestionsLabel": "Try",
+    "suggestions": {
+      "refund": "refund",
+      "checkIn": "check in",
+      "staff": "add staff"
+    }
+  },
+  "categories": {
+    "getting-started": { "name": "Getting started", "desc": "Sign-in, security and finding your way around" },
+    "bookings": { "name": "Bookings & front desk", "desc": "Create, find, check in, check out and void reservations" },
+    "guests": { "name": "Guests", "desc": "Guest profiles, history and portal accounts" },
+    "rooms-inventory": { "name": "Rooms & inventory", "desc": "Room types, the Rooms board, online inventory and housekeeping" },
+    "payments-ledgers": { "name": "Payments & ledgers", "desc": "Deposits, refunds, approvals, company ledgers and credits" },
+    "rates-promotions": { "name": "Rates & promotions", "desc": "Offers, vouchers and the loyalty programme" },
+    "reports-night-audit": { "name": "Reports & night audit", "desc": "Daily reports, metrics, closing the day and the audit log" },
+    "communications": { "name": "Communications", "desc": "Email campaigns, notifications and the guest support inbox" },
+    "staff-access": { "name": "Staff & access", "desc": "User accounts, roles, permissions and eKYC reviews" },
+    "settings-data": { "name": "Settings & data", "desc": "Hotel settings, defaults and data transfer" },
+    "troubleshooting": { "name": "Troubleshooting", "desc": "When something is missing, stuck or not working" }
+  },
+  "quickTasks": {
+    "create-a-booking": { "label": "Create a booking", "desc": "Walk-ins, phone and returning guests" },
+    "check-in-a-guest": { "label": "Check a guest in", "desc": "Arrival-day rules and early check-in" },
+    "find-a-reservation": { "label": "Find a reservation", "desc": "By code, guest name or room" },
+    "refund-a-deposit": { "label": "Refund a deposit", "desc": "Checkout refunds and the revert rules" },
+    "add-manage-staff": { "label": "Add a staff member", "desc": "Accounts and role assignment" },
+    "run-night-audit": { "label": "Run the night audit", "desc": "Closing the business day safely" }
+  },
+  "troubleshootingLinks": {
+    "cant-find-a-booking": "I can’t find a booking",
+    "payment-problems": "A payment failed or is stuck",
+    "email-not-sending": "Email isn’t sending",
+    "page-missing-or-access-denied": "I can’t see a page I need",
+    "session-and-stale-data": "Screens look out of date"
+  },
+  "article": {
+    "backToHelp": "Back to Help Centre",
+    "onThisPage": "On this page",
+    "lastReviewed": "Last reviewed {{date}}",
+    "readingTime": "{{count}} min read",
+    "openPage": "Open the page",
+    "requiresLabel": "Requires",
+    "relatedTitle": "Related articles",
+    "feedbackTitle": "Was this helpful?",
+    "feedbackYes": "Yes",
+    "feedbackNo": "No",
+    "feedbackThanks": "Thanks — noted. Your administrator can review feedback during the next content review.",
+    "feedbackVotedYes": "Noted — glad it helped.",
+    "feedbackVotedNo": "Noted — thanks for the honesty. If it is still unresolved, the escalation guide covers where to go next.",
+    "notFoundTitle": "Article not found",
+    "notFoundBody": "This guide may have moved or been renamed. Browse the Help Centre to find what you need.",
+    "browseAll": "Browse all topics"
+  },
+  "aria": {
+    "helpNavigation": "Help navigation",
+    "toc": "Article contents",
+    "searchResults": "Help search results",
+    "breadcrumbs": "Breadcrumbs"
+  }
+}
