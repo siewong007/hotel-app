@@ -210,12 +210,19 @@ ensure_secrets() {
       else
         printf '%s=%s\n' "$key" "$default" >> "$SECRETS_FILE"
       fi
-      log "Initialized ${key} with general hotel bank default"
+      log "Initialized ${key} with a default value"
     fi
   }
   ensure_secret_default HOTEL_BANK_NAME "Maybank"
   ensure_secret_default HOTEL_BANK_ACCOUNT_NAME "Salim Inn"
   ensure_secret_default HOTEL_BANK_ACCOUNT_NUMBER "511270052595"
+
+  # TOTP seed encryption is mandatory in production; a host that predates the
+  # key gets a generated one persisted here rather than a failed deploy. Seeds
+  # written before the key existed are plaintext legacy rows and re-encrypt
+  # under it on their next setup cycle. base64 output never contains the sed
+  # delimiter '|' or '&', so the existing-blank-key path stays safe.
+  ensure_secret_default TOTP_ENCRYPTION_KEY "$(openssl rand -base64 32)"
 
   # Replaces a key outright, unlike ensure_secret_default which only fills a
   # blank. Rewrites through a temp file rather than sed -i because secret values
