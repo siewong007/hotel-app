@@ -281,15 +281,25 @@ vi.mock('./components/CreditNoteDialog', () => ({
 }));
 
 import CustomerLedgerPage from './CustomerLedgerPage';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import type { RenderOptions } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfirmProvider } from '../../../../components/common/ConfirmProvider';
 
-// The page calls useConfirm(), which requires the provider App.tsx mounts.
-// `wrapper` is omitted deliberately: a caller passing its own would silently
-// drop ConfirmProvider, so make that a compile error instead.
+// The page calls useConfirm() and reads shared queries, which require the
+// providers App.tsx mounts. `wrapper` is omitted deliberately: a caller
+// passing its own would silently drop them, so make that a compile error.
 const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
-  rtlRender(ui, { ...options, wrapper: ConfirmProvider });
+  rtlRender(ui, {
+    ...options,
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ConfirmProvider>{children}</ConfirmProvider>
+      </QueryClientProvider>
+    ),
+  });
 
 function createLocalStorageStub() {
   const store = new Map<string, string>();

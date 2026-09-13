@@ -379,6 +379,7 @@ pub fn create_router(pool: DbPool) -> Router {
     let availability_hub = crate::modules::guest_booking::availability::AvailabilityHub::default();
     let support_hub = crate::modules::support::hub::SupportHub::default();
     let loyalty_hub = crate::modules::loyalty::hub::LoyaltyHub::default();
+    let data_change_hub = crate::modules::realtime::hub::DataChangeHub::default();
 
     // All domain routes live under the `/api` prefix so that frontend
     // navigation paths (e.g. `/bookings/123`) never collide with the API and
@@ -418,6 +419,11 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(passkey::routes())
         .merge(two_factor::routes())
         .merge(webhooks::routes())
+        .merge(crate::modules::realtime::routes::routes())
+        .layer(axum::middleware::from_fn_with_state(
+            data_change_hub.clone(),
+            crate::modules::realtime::middleware::publish_data_changes,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             pool.clone(),
             enforce_active_session,
@@ -436,7 +442,8 @@ pub fn create_router(pool: DbPool) -> Router {
         .layer(axum::Extension(rate_limiters))
         .layer(axum::Extension(loyalty_hub))
         .layer(axum::Extension(availability_hub))
-        .layer(axum::Extension(support_hub));
+        .layer(axum::Extension(support_hub))
+        .layer(axum::Extension(data_change_hub));
 
     // Add middleware layers
     app.layer(

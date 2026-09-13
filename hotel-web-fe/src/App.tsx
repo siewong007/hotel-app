@@ -9,6 +9,7 @@ import { createAppTheme, ThemeMode } from './theme';
 import { DesktopServiceGate } from './desktop/DesktopServiceGate';
 import { storage } from './utils/storage';
 import { ApiNotificationHost } from './components/common/ApiNotificationHost';
+import { RealtimeInvalidator } from './components/common/RealtimeInvalidator';
 import { ConfirmProvider } from './components/common/ConfirmProvider';
 import { I18nProvider } from './i18n';
 import { router } from './router/router';
@@ -40,6 +41,7 @@ function App() {
           <CssBaseline />
           <DesktopServiceGate>
             <AuthProvider>
+              <RealtimeInvalidator />
               <ApiNotificationHost />
               <ThemeModeContext.Provider value={themeModeContextValue}>
                 <ConfirmProvider>

@@ -10,6 +10,8 @@ import {
   getApiNotificationMessage,
   getApiNotificationSeverity,
 } from '../utils/apiNotifications';
+import { queryClient } from './queryClient';
+import { domainForApiPath, invalidateDomain } from './queryInvalidation';
 
 // API Error class for better error handling
 export class APIError extends Error {
@@ -265,6 +267,21 @@ async function createRequestWithUrl(request: Request, url: string): Promise<Requ
   });
 }
 
+// Successful mutations refresh their data domain automatically — call sites
+// no longer need to remember which queries to invalidate. GETs and unmapped
+// paths (auth, guest-portal, settings) skip this entirely. Best-effort: a URL
+// parse hiccup must not fail the request.
+function invalidateMutationDomain(request: Request, response: Response) {
+  if (!response.ok) return;
+  if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') return;
+  try {
+    const domain = domainForApiPath(new URL(request.url).pathname);
+    if (domain) invalidateDomain(queryClient, domain);
+  } catch {
+    // ignore
+  }
+}
+
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
   // Resolve service paths from the application root. Without this, a relative
@@ -344,7 +361,9 @@ export const api = ky.create({
           if (!isAuthEndpoint(request.url) && !isGuestPortalRequest(request.url)) {
             const refreshed = await refreshAccessToken();
             if (refreshed) {
-              return retryWithFreshAccessToken(request, options);
+              const retryResponse = await retryWithFreshAccessToken(request, options);
+              invalidateMutationDomain(request, retryResponse);
+              return retryResponse;
             }
 
             console.warn('Auto-logout triggered due to 401 on protected endpoint');
@@ -356,6 +375,7 @@ export const api = ky.create({
             window.dispatchEvent(new CustomEvent('auth:unauthorized'));
           }
         }
+        invalidateMutationDomain(request, response);
         return response;
       }
     ],

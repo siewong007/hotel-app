@@ -73,15 +73,18 @@ import {
   Replay as RegenerateIcon,
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { BookingsService, CompaniesService, GuestsService, LedgerService, RoomsService } from '../../../../api';
+import { useQueryClient } from '@tanstack/react-query';
+import { BookingsService, CompaniesService, LedgerService } from '../../../../api';
 import { api } from '../../../../api/client';
+import { queryKeys } from '../../../../api/queryKeys';
+import { useActiveCompanies, useBookingsWithDetails } from '../../../bookings/hooks/useBookingQueries';
+import { useRooms } from '../../../rooms/hooks/useRoomQueries';
 import {
   CustomerLedger,
   CustomerLedgerCreateRequest,
   CustomerLedgerUpdateRequest,
   CustomerLedgerPayment,
   CustomerLedgerPaymentRequest,
-  Room,
   Guest,
   BookingWithDetails,
   Booking,
@@ -203,10 +206,7 @@ const CustomerLedgerPage: React.FC = () => {
   const ledgerPaymentAttemptRef = useRef<IdempotencyAttempt | null>(null);
 
   // Company autocomplete state
-  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
-  const [ledgerRooms, setLedgerRooms] = useState<Room[]>([]);
-  const [loadingLedgerRooms, setLoadingLedgerRooms] = useState(false);
 
   // Tracks whether the company registration dialog was opened from the
   // Create Ledger Entry autocomplete; if true, the newly-registered company
@@ -237,10 +237,36 @@ const CustomerLedgerPage: React.FC = () => {
   const [editingPaymentDate, setEditingPaymentDate] = useState<string>('');
   const [savingPaymentDate, setSavingPaymentDate] = useState(false);
 
-  // Company Check-In state lives in useCompanyCheckIn; `companies` and
-  // `allCompanyBookings` stay here — the workspace also reads them.
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [allCompanyBookings, setAllCompanyBookings] = useState<BookingWithDetails[]>([]);
+  // Company Check-In state lives in useCompanyCheckIn; `companies`,
+  // `allCompanyBookings`, and `ledgerRooms` are query-backed so cache
+  // invalidation (this client or the realtime socket) refreshes them.
+  const queryClient = useQueryClient();
+  const companiesQuery = useActiveCompanies();
+  const companies = useMemo(() => companiesQuery.data ?? [], [companiesQuery.data]);
+  const companyOptions = useMemo<CompanyOption[]>(() =>
+    companies.map((company) => ({
+      company_name: company.company_name,
+      company_registration_number: company.registration_number,
+      contact_person: company.contact_person,
+      contact_email: company.contact_email,
+      contact_phone: company.contact_phone,
+      billing_address_line1: company.billing_address,
+    })),
+    [companies],
+  );
+  const companyBookingsQuery = useBookingsWithDetails({ company_billed: true });
+  const allCompanyBookings = useMemo(
+    () => (companyBookingsQuery.data ?? []).filter(
+      b => b.status === 'checked_in' || b.status === 'auto_checked_in',
+    ),
+    [companyBookingsQuery.data],
+  );
+  const roomsQuery = useRooms();
+  const ledgerRooms = useMemo(
+    () => sortRoomsByNumber(roomsQuery.data ?? []),
+    [roomsQuery.data],
+  );
+  const loadingLedgerRooms = roomsQuery.isFetching;
 
   // Company Registration state
   const [companyRegDialogOpen, setCompanyRegDialogOpen] = useState(false);
@@ -389,53 +415,19 @@ const CustomerLedgerPage: React.FC = () => {
     companies,
   ]);
 
-  // Load currently-active company-billed bookings.
-  // Backend filters on company_id IS NOT NULL; we narrow to active statuses client-side.
+  // The companies/bookings/rooms sources are shared queries now; these shims
+  // keep the existing call sites working by invalidating the same keys.
   const loadAllCompanyBookings = useCallback(async () => {
-    try {
-      const bookings = await BookingsService.getBookingsWithDetails({ company_billed: true });
-      const active = bookings.filter(
-        b => b.status === 'checked_in' || b.status === 'auto_checked_in',
-      );
-      setAllCompanyBookings(active);
-    } catch (err) {
-      console.error('Failed to load company bookings:', err);
-    }
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+  }, [queryClient]);
 
-  // Load companies from database (single call for both dropdown options and check-in data)
   const loadCompanies = useCallback(async () => {
-    try {
-      const companiesData = await CompaniesService.getCompanies({ is_active: true });
-      setCompanies(companiesData);
-      const options: CompanyOption[] = companiesData.map((company) => ({
-        company_name: company.company_name,
-        company_registration_number: company.registration_number,
-        contact_person: company.contact_person,
-        contact_email: company.contact_email,
-        contact_phone: company.contact_phone,
-        billing_address_line1: company.billing_address,
-      }));
-      setCompanyOptions(options);
-    } catch (err) {
-      console.error('Failed to load companies:', err);
-    }
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+  }, [queryClient]);
 
-  const loadLedgerRooms = async () => {
-    if (ledgerRooms.length > 0) return;
-
-    try {
-      setLoadingLedgerRooms(true);
-      const rooms = await RoomsService.getAllRooms();
-      setLedgerRooms(sortRoomsByNumber(rooms));
-    } catch (err) {
-      console.error('Failed to load rooms for ledger entry:', err);
-      setLedgerRooms([]);
-    } finally {
-      setLoadingLedgerRooms(false);
-    }
-  };
+  const loadLedgerRooms = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.rooms.all });
+  }, [queryClient]);
 
   const {
     checkInDialogOpen,
@@ -474,14 +466,12 @@ const CustomerLedgerPage: React.FC = () => {
 
   useEffect(() => {
     loadData();
-    loadCompanies();
     loadGuests();
-    loadAllCompanyBookings();
 
     const handleSettingsChange = () => setHotelSettings(getHotelSettings());
     window.addEventListener('hotelSettingsChange', handleSettingsChange);
     return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
-  }, [loadData, loadGuests, loadCompanies, loadAllCompanyBookings]);
+  }, [loadData, loadGuests]);
 
   // Handle opening checkout dialog for a company booking
   const handleOpenCheckoutDialog = (booking: BookingWithDetails) => {
@@ -547,7 +537,6 @@ const CustomerLedgerPage: React.FC = () => {
           contact_phone: created.contact_phone,
           billing_address_line1: created.billing_address,
         };
-        setCompanyOptions(prev => [...prev, opt]);
         setSelectedCompany(opt);
         setCreateFormData(prev => ({
           ...prev,
