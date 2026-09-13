@@ -117,6 +117,17 @@ describe('LegalDocumentPage business registration number', () => {
     expect(screen.getByText(/SA7770001/)).toBeTruthy();
     expect(screen.queryByText(/SA2012724/)).toBeNull();
   });
+
+  // The reading-experience suite stubs the document, so it stays green even
+  // if every `emphasis` flag disappears from the content files. The real
+  // `buildTermsOfService` flags `cancellation` (and `booking-confirmation`)
+  // 'requirement' — this pins that contract against the real document.
+  it('renders emphasis callouts from the real terms of service', () => {
+    render(<LegalDocumentPage documentId="terms_of_service" />);
+
+    expect(screen.getAllByRole('note').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Important').length).toBeGreaterThan(0);
+  });
 });
 
 // A minimal document with one of each section shape — plain numbered,
@@ -197,7 +208,9 @@ describe('LegalDocumentPage reading experience', () => {
     // in gold serif while the rest of the heading stays plain ink.
     const numeral = within(heading).getByText('2.');
     expect(numeral.tagName).toBe('SPAN');
-    expect(heading.textContent).toBe('2.Obligations section heading');
+    // A real space separates the numeral span from the heading text so a
+    // screen reader does not announce "2.Obligations…" as one fused token.
+    expect(heading.textContent).toBe('2. Obligations section heading');
 
     // A heading with no leading numeral renders as plain text — no empty span.
     const annex = screen.getByRole('heading', { name: 'Annex without a numeral' });
@@ -224,6 +237,8 @@ describe('LegalDocumentPage reading experience', () => {
     render(<LegalDocumentPage documentId="terms_of_service" />);
 
     const requirement = sectionElement('beta');
+    // The callout carries role="note" so assistive tech can discover it.
+    expect(within(requirement).getByRole('note')).toBeTruthy();
     expect(within(requirement).getByText('Important')).toBeTruthy();
     expect(within(requirement).getByTestId('GavelOutlinedIcon')).toBeTruthy();
     expect(within(requirement).getByText('Beta body text.')).toBeTruthy();

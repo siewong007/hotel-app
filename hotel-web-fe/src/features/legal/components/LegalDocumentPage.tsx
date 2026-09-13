@@ -377,13 +377,20 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
                           color: theme.palette.mode === 'light' ? LEGAL_DEEP_GOLD : LEGAL_GOLD,
                         })}
                       >
-                        {heading.numeral}
+                        {/* The trailing space is real text, not formatting:
+                            without it the heading's textContent fuses to
+                            "4.Cancellation…" and a screen reader announces the
+                            numeral glued to the first word. */}
+                        {heading.numeral}{' '}
                       </Box>
                     ) : null}
                     {heading.text}
                   </Typography>
                   {emphasis ? (
                     <Box
+                      // Landmark for assistive tech: flags the callout as a
+                      // parenthetical aside so it is discoverable by role.
+                      role="note"
                       sx={(theme) => ({
                         mt: 1.5,
                         p: 2.5,
