@@ -913,6 +913,9 @@
     "/api/settings/{key}": {
       "PATCH": {}
     },
+    "/api/settings/{key}/reset": {
+      "POST": {}
+    },
     "/api/support/agents": {
       "GET": {}
     },

@@ -1077,6 +1077,14 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
         'Days a member of a role listed in require_two_factor_roles may sign in before two-factor enrolment is enforced. 0 enforces immediately.', false)
 ON CONFLICT (key) DO NOTHING;
 
+-- Record the seeded value as the default for every setting that does not
+-- already carry one. This runs inside the same transaction as the INSERTs, so
+-- on a fresh install `value` IS the seeded default. On desktop re-runs the
+-- IS NULL guard keeps a previously recorded default even when the hotel has
+-- since edited the live value. Changing a key's default later is deliberate
+-- work: update this seed and write a patch, exactly like changing the value.
+UPDATE system_settings SET default_value = value WHERE default_value IS NULL;
+
 -- This policy is part of the required route-policy set, so it must be present
 -- before the integrity checks below.
 INSERT INTO route_access_policies (

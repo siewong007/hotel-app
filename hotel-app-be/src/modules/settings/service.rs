@@ -10,8 +10,37 @@ use crate::core::settings_cache;
 use crate::models::AuditEvent;
 use crate::services::audit::AuditLog;
 
-pub async fn list_system_settings(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
-    SettingsRepository::find_all(pool).await
+/// Categories whose keys change authentication or account security. The
+/// generic `settings:update` grant covers business preferences; anything under
+/// an elevated category additionally requires `settings:manage`.
+const ELEVATED_SETTING_CATEGORIES: &[&str] = &["security"];
+
+/// Update/reset guard for the target setting's category. Callers already
+/// passed `settings:update` at the route; this adds `settings:manage` for
+/// elevated categories once the row's category is known.
+async fn ensure_category_allowed(
+    pool: &DbPool,
+    user_id: i64,
+    category: Option<&str>,
+) -> Result<(), ApiError> {
+    if ELEVATED_SETTING_CATEGORIES.contains(&category.unwrap_or("general")) {
+        crate::core::middleware::check_permission(pool, user_id, "settings:manage").await?;
+    }
+    Ok(())
+}
+
+pub async fn list_system_settings(
+    pool: &DbPool,
+    category: Option<&str>,
+) -> Result<Vec<SystemSetting>, ApiError> {
+    let settings = SettingsRepository::find_all(pool).await?;
+    Ok(match category {
+        Some(category) => settings
+            .into_iter()
+            .filter(|setting| setting.category.as_deref() == Some(category))
+            .collect(),
+        None => settings,
+    })
 }
 
 pub async fn list_public_settings(pool: &DbPool) -> Result<Vec<PublicSetting>, ApiError> {
@@ -27,8 +56,13 @@ pub async fn update_system_setting(
     // Read before the write: `system_settings` keeps only `updated_by`/`updated_at`,
     // so the row itself cannot say what a value was replaced with. Two admins
     // racing the same key could make the recorded `old_value` one revision stale,
-    // which is acceptable for a trail gated behind `settings:update`.
-    let old_value = SettingsRepository::get_value(pool, key).await?;
+    // which is acceptable for a trail gated behind `settings:update`. The row
+    // load doubles as the category lookup for the elevated-permission check.
+    let existing = SettingsRepository::find_by_key(pool, key)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+    ensure_category_allowed(pool, user_id, existing.category.as_deref()).await?;
+    let old_value = Some(existing.value);
 
     let setting = SettingsRepository::update_value_by_user(pool, key, &input.value, user_id)
         .await?
@@ -45,6 +79,49 @@ pub async fn update_system_setting(
             details: Some(serde_json::json!({
                 "key": key,
                 "old_value": old_value,
+                "new_value": setting.value
+            })),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    Ok(setting)
+}
+
+/// Restore a setting to its seeded default. The permission shape matches an
+/// update: `settings:update` at the route, `settings:manage` for elevated
+/// categories.
+pub async fn reset_system_setting(
+    pool: &DbPool,
+    key: &str,
+    user_id: i64,
+) -> Result<SystemSetting, ApiError> {
+    let existing = SettingsRepository::find_by_key(pool, key)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+    ensure_category_allowed(pool, user_id, existing.category.as_deref()).await?;
+    if existing.default_value.is_none() {
+        return Err(ApiError::BadRequest(format!(
+            "Setting '{key}' has no recorded default to reset to"
+        )));
+    }
+
+    let setting = SettingsRepository::reset_to_default(pool, key, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+    settings_cache::invalidate_key(key);
+
+    AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "settings_reset",
+            resource_type: "system_setting",
+            resource_id: Some(setting.id),
+            details: Some(serde_json::json!({
+                "key": key,
+                "old_value": existing.value,
                 "new_value": setting.value
             })),
             ..Default::default()

@@ -7,16 +7,19 @@ use chrono::{DateTime, Utc};
 
 pub struct SettingsRepository;
 
+/// The full `SystemSetting` projection. `default_value` is read through
+/// `to_jsonb` so the query keeps working on databases installed before the
+/// column existed — those report NULL, i.e. "no recorded default".
+const SETTING_COLUMNS: &str = "id, key, value, description, category, is_public, value_type, \
+     created_at, updated_at, \
+     to_jsonb(system_settings)->>'default_value' AS default_value";
+
 impl SettingsRepository {
     /// Find all settings
     pub async fn find_all(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
-        sqlx::query_as::<_, SystemSetting>(
-            r#"
-            SELECT id, key, value, description, category, created_at, updated_at
-            FROM system_settings
-            ORDER BY category, key
-            "#,
-        )
+        sqlx::query_as::<_, SystemSetting>(sqlx::AssertSqlSafe(format!(
+            "SELECT {SETTING_COLUMNS} FROM system_settings ORDER BY category, key"
+        )))
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
@@ -43,13 +46,9 @@ impl SettingsRepository {
     /// Find setting by key
     #[allow(dead_code)] // used by tests/audit_analytics_settings.rs
     pub async fn find_by_key(pool: &DbPool, key: &str) -> Result<Option<SystemSetting>, ApiError> {
-        sqlx::query_as::<_, SystemSetting>(
-            r#"
-            SELECT id, key, value, description, category, created_at, updated_at
-            FROM system_settings
-            WHERE key = $1
-            "#,
-        )
+        sqlx::query_as::<_, SystemSetting>(sqlx::AssertSqlSafe(format!(
+            "SELECT {SETTING_COLUMNS} FROM system_settings WHERE key = $1"
+        )))
         .bind(key)
         .fetch_optional(pool)
         .await
@@ -86,17 +85,38 @@ impl SettingsRepository {
         value: &str,
         user_id: i64,
     ) -> Result<Option<SystemSetting>, ApiError> {
-        sqlx::query_as::<_, SystemSetting>(
-            r#"
-            UPDATE system_settings
-            SET value = $1, updated_at = CURRENT_TIMESTAMP, updated_by = $2
-            WHERE key = $3
-            RETURNING id, key, value, description, category, created_at, updated_at
-            "#,
-        )
+        sqlx::query_as::<_, SystemSetting>(sqlx::AssertSqlSafe(format!(
+            "UPDATE system_settings \
+             SET value = $1, updated_at = CURRENT_TIMESTAMP, updated_by = $2 \
+             WHERE key = $3 \
+             RETURNING {SETTING_COLUMNS}"
+        )))
         .bind(value)
         .bind(user_id)
         .bind(key)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Restore a setting to its recorded default. Returns `None` when the key
+    /// does not exist or has no `default_value` — the service distinguishes
+    /// the two cases via `find_by_key` first.
+    pub async fn reset_to_default(
+        pool: &DbPool,
+        key: &str,
+        user_id: i64,
+    ) -> Result<Option<SystemSetting>, ApiError> {
+        sqlx::query_as::<_, SystemSetting>(sqlx::AssertSqlSafe(format!(
+            "UPDATE system_settings \
+             SET value = to_jsonb(system_settings)->>'default_value', \
+                 updated_at = CURRENT_TIMESTAMP, updated_by = $2 \
+             WHERE key = $1 \
+               AND to_jsonb(system_settings)->>'default_value' IS NOT NULL \
+             RETURNING {SETTING_COLUMNS}"
+        )))
+        .bind(key)
+        .bind(user_id)
         .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
@@ -197,14 +217,12 @@ impl SettingsRepository {
         description: Option<&str>,
         category: Option<&str>,
     ) -> Result<SystemSetting, ApiError> {
-        sqlx::query_as::<_, SystemSetting>(
-            r#"
-            INSERT INTO system_settings (key, value, description, category)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
-            RETURNING id, key, value, description, category, created_at, updated_at
-            "#,
-        )
+        sqlx::query_as::<_, SystemSetting>(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO system_settings (key, value, description, category) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP \
+             RETURNING {SETTING_COLUMNS}"
+        )))
         .bind(key)
         .bind(value)
         .bind(description)

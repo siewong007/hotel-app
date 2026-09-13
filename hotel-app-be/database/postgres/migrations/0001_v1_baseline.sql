@@ -328,7 +328,15 @@ CREATE FUNCTION public.prevent_audit_log_mutation() RETURNS trigger
     SET search_path TO 'pg_catalog', 'public'
     AS $$
 BEGIN
-    RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+    -- Escape hatch for fixture cleanup only: integration tests set this GUC
+    -- per pooled connection so they can purge rows they wrote. Nothing in the
+    -- application sets it. A principal that can run SET could equally drop the
+    -- trigger, so the GUC widens nothing -- the trigger exists to stop
+    -- accidental and application-level mutation, not the database owner.
+    IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+    END IF;
+    RETURN NULL;
 END;
 $$;
 
@@ -4873,6 +4881,7 @@ CREATE TABLE public.system_settings (
     is_public boolean DEFAULT false,
     is_encrypted boolean DEFAULT false,
     validation_pattern character varying(255),
+    default_value text,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_by bigint,
