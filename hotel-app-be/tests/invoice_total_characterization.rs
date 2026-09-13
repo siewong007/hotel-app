@@ -813,3 +813,86 @@ async fn deposit_only_payment_should_not_produce_a_fully_settled_invoice() {
         "a deposit-only booking's invoice must not be marked 'paid'"
     );
 }
+
+/// `bookings.payment_status` must only reach 'paid' once the full billable
+/// total is settled by charge payments: held deposits do not count (they are
+/// collateral, not room payment), and the room-only `total_amount` is not the
+/// finish line when tourism tax / extra bed remain.
+///
+/// Both writers of the stored column are exercised: the raw payment INSERTs
+/// fire the `sync_booking_payment_status` trigger (patch 0018), and the
+/// explicit `recompute_booking_payment_status` call exercises the Rust path —
+/// they must agree.
+#[tokio::test]
+async fn payment_status_should_require_billable_settled_excluding_deposit_payments() {
+    let Some((pool, _guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let ids = FixtureIds {
+        actor_id: 940_360,
+        room_type_id: 940_361,
+        room_id: 940_362,
+        guest_id: 940_363,
+        booking_id: 940_364,
+    };
+    let room_payment_id = 940_365;
+    let deposit_payment_id = 940_366;
+    let remainder_payment_id = 940_367;
+
+    cleanup_fixture(&pool, &ids).await;
+    let seeded = seed_disagreeing_booking(&pool, &ids).await;
+
+    // Pay the room-only total as a charge payment, then a keycard deposit that
+    // would push the raw received total over the billable total — yet must not
+    // settle it.
+    insert_completed_payment(&pool, room_payment_id, ids.booking_id, seeded.total_amount, "booking").await;
+    insert_completed_payment(&pool, deposit_payment_id, ids.booking_id, Decimal::new(5_000, 2), "deposit").await;
+
+    let status_after_deposit: String =
+        sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = $1")
+            .bind(ids.booking_id)
+            .fetch_one(&pool)
+            .await
+            .expect("read payment_status written by the payments trigger");
+
+    PaymentRepository::recompute_booking_payment_status(&pool, ids.booking_id)
+        .await
+        .expect("recompute must succeed");
+
+    let status_after_recompute: String =
+        sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = $1")
+            .bind(ids.booking_id)
+            .fetch_one(&pool)
+            .await
+            .expect("read payment_status after the Rust recompute");
+
+    // Settle the remaining billable amount with a charge payment; the trigger
+    // must now promote the booking to 'paid'.
+    let remainder = seeded.billable_total(&pool).await - seeded.total_amount;
+    insert_completed_payment(&pool, remainder_payment_id, ids.booking_id, remainder, "booking").await;
+
+    let status_after_settled: String =
+        sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = $1")
+            .bind(ids.booking_id)
+            .fetch_one(&pool)
+            .await
+            .expect("read payment_status after the billable remainder is paid");
+
+    cleanup_fixture(&pool, &ids).await;
+
+    assert_eq!(
+        status_after_deposit, "partial",
+        "the trigger must report 'partial' when only the room total is settled \
+         (tourism tax + extra bed outstanding) even though a held deposit pushed \
+         raw receipts over the billable total"
+    );
+    assert_eq!(
+        status_after_recompute, "partial",
+        "the Rust recompute must agree with the trigger-written value"
+    );
+    assert_eq!(
+        status_after_settled, "paid",
+        "'paid' once charge payments cover the full billable total"
+    );
+}

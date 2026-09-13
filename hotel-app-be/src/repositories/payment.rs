@@ -376,16 +376,18 @@ impl PaymentRepository {
             SET payment_status = CASE
                 WHEN b.status = 'voided' THEN 'void'
                 WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
-                WHEN b.total_amount <= 0 THEN 'paid'
+                WHEN (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                        + COALESCE(b.extra_bed_charge, 0)) <= 0 THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
-                     >= b.total_amount THEN 'paid'
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0)
+                     >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                        + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
                     THEN 'partial'
                 ELSE 'unpaid'
             END,
@@ -411,16 +413,18 @@ impl PaymentRepository {
             SET payment_status = CASE
                 WHEN b.status = 'voided' THEN 'void'
                 WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
-                WHEN b.total_amount <= 0 THEN 'paid'
+                WHEN (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                        + COALESCE(b.extra_bed_charge, 0)) <= 0 THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
-                     >= b.total_amount THEN 'paid'
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0)
+                     >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                        + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
                         WHERE p.booking_id = b.id
                           AND p.status = 'completed'
-                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                          AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
                     THEN 'partial'
                 ELSE 'unpaid'
             END,
@@ -1210,9 +1214,13 @@ impl PaymentRepository {
                 b.total_amount,
                 COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
                 COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
+                -- Money that settles the booking's charges: completed payments
+                -- excluding refunds and held deposits (a keycard deposit is
+                -- collateral, not a room payment). Deposit money is reported
+                -- separately via deposit_collected/deposit_refunded.
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
+                      AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) AS total_paid,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status <> 'void'
                       AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,

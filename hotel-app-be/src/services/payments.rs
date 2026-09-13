@@ -894,6 +894,8 @@ pub async fn queue_checkout_receipt_email(
         check_in_date: chrono::NaiveDate,
         check_out_date: chrono::NaiveDate,
         total_amount: rust_decimal::Decimal,
+        tourism_tax_amount: rust_decimal::Decimal,
+        extra_bed_charge: rust_decimal::Decimal,
         room_number: Option<String>,
         room_type: Option<String>,
     }
@@ -908,6 +910,8 @@ pub async fn queue_checkout_receipt_email(
                b.check_in_date,
                b.check_out_date,
                b.total_amount,
+               COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
+               COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
                r.room_number,
                rt.name AS room_type
         FROM bookings b
@@ -937,11 +941,13 @@ pub async fn queue_checkout_receipt_email(
         return Ok(());
     }
 
+    // Money that settles the booking's charges — deposits are collateral and
+    // do not reduce the balance the receipt still shows as outstanding.
     let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
         r#"
         SELECT COALESCE(SUM(amount) FILTER (
             WHERE status = 'completed'
-              AND COALESCE(payment_type, 'booking') != 'refund'
+              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit')
         ), 0)
         FROM payments
         WHERE booking_id = $1
@@ -955,7 +961,9 @@ pub async fn queue_checkout_receipt_email(
     let nights = (source.check_out_date - source.check_in_date)
         .num_days()
         .max(0);
-    let balance = (source.total_amount - paid).max(rust_decimal::Decimal::ZERO);
+    let billable_total =
+        source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
+    let balance = (billable_total - paid).max(rust_decimal::Decimal::ZERO);
 
     let hotel = email_layout::hotel_display_name();
     let booking_number = source.booking_number.as_deref().unwrap_or("");

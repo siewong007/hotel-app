@@ -3813,15 +3813,13 @@ async fn stale_unstarted_paypal_attempt_is_voided_after_ten_minutes() {
     assert_eq!(booking_status, "pending_payment");
 }
 
-/// (6, KNOWN BUG -- ignored) `create_payment` must charge the booking's
-/// `billable_total()` (decided-correct total per the ledger/payment audit),
-/// not `calculate_payment_summary`'s room-only `base_price * nights`
-/// recalculation. This booking's fixture deliberately makes the two figures
-/// disagree (500.00 billable vs. 200.00 room-only) so the bug cannot pass by
-/// accident. Currently FAILS (repositories/payment.rs:229 binds
-/// `summary.total_amount`) -- do not assert the current wrong value.
+/// (6) `create_payment` charges the booking's `billable_total()` (decided-
+/// correct total per the ledger/payment audit): `calculate_payment_summary`
+/// now quotes `workflow_summary_row`'s billable total instead of a room-only
+/// `base_price * nights` recalculation. This booking's fixture deliberately
+/// makes the two figures disagree (500.00 billable vs. 200.00 room-only) so a
+/// regression cannot pass by accident.
 #[tokio::test]
-#[ignore = "create_payment/calculate_payment_summary charges a room-only base_price*nights recalculation instead of the decided-correct billable_total() (booking.total_amount + tourism_tax_amount + extra_bed_charge); PaymentRequest.amount is also silently discarded (repositories/payment.rs:229 binds summary.total_amount, never request.amount) -- pending fix: unify the invoice/payment total calculators"]
 async fn create_payment_should_charge_the_billable_total_not_the_room_recalculation() {
     let Some((pool, _serial_guard)) = setup_pg_pool().await else {
         return;

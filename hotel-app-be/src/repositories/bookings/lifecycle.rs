@@ -832,7 +832,14 @@ async fn ensure_checkout_balance_resolved(
         return Ok(());
     }
 
-    let total_paid = completed_booking_payment_total(pool, booking_id).await?;
+    // Money that settles the billable charges — the workflow summary's
+    // `total_paid` excludes deposits (collateral, not charge payment), unlike
+    // `completed_booking_payment_total` which counts every completed payment
+    // and exists for the "has any money been collected" release checks.
+    let total_paid = crate::repositories::payment::PaymentRepository::workflow_summary_row(pool, booking_id)
+        .await?
+        .map(|summary| summary.total_paid)
+        .unwrap_or(Decimal::ZERO);
     let balance_due = checkout_balance_due(billable_total, total_paid);
     let final_company_id = input.company_id.or(existing_booking.company_id);
 
@@ -3003,7 +3010,7 @@ pub async fn record_checkin_payment_tx(
 /// Online bookings are prepaid (OTA/web), so on arrival we record the amount
 /// still owed as a `booking` payment so the folio reflects the collected money
 /// and `payment_status` recomputes to `paid`. The remainder is computed in SQL
-/// (`total_amount` minus completed non-refund payments) and the row is inserted
+/// (billable total minus completed non-refund, non-deposit payments) and the row is inserted
 /// only when that remainder is positive, so the call is safe to run
 /// unconditionally — it no-ops when the booking is already fully paid and never
 /// double-charges an existing payment. Returns `true` when a payment row was
@@ -3021,23 +3028,26 @@ pub async fn record_online_checkin_payment_tx(
         .unwrap_or_else(|| "online_banking".to_string());
     let notes = "Auto-recorded at check-in for online reservation";
 
-    // The completed-non-refund SUM and the `> 0` guard mirror
-    // `recompute_booking_payment_status_tx`, keeping the posted amount and the
-    // resulting status in agreement.
+    // The settled SUM (completed, non-refund, non-deposit) and the `> 0` guard
+    // mirror `recompute_booking_payment_status_tx`, keeping the posted amount
+    // and the resulting status in agreement — the remainder covers the full
+    // billable total (room + tourism tax + extra bed), not just the room.
     let insert_query = r#"
         INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
         SELECT $1::uuid, b.id,
-               b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
+               b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0)
+                 - COALESCE((SELECT SUM(p.amount) FROM payments p
                    WHERE p.booking_id = b.id
                      AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0),
+                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0),
                $2, 'booking', 'completed', $3, $4
         FROM bookings b
         WHERE b.id = $5
-          AND b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
+          AND b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0)
+                - COALESCE((SELECT SUM(p.amount) FROM payments p
                    WHERE p.booking_id = b.id
                      AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
     "#;
 
     let result = sqlx::query(insert_query)

@@ -45,6 +45,8 @@ struct BookingEmailSource {
     check_in_date: chrono::NaiveDate,
     check_out_date: chrono::NaiveDate,
     total_amount: rust_decimal::Decimal,
+    tourism_tax_amount: rust_decimal::Decimal,
+    extra_bed_charge: rust_decimal::Decimal,
     currency: Option<String>,
     room_number: Option<String>,
     room_type: Option<String>,
@@ -157,6 +159,8 @@ async fn load_source(
                b.check_in_date,
                b.check_out_date,
                b.total_amount,
+               COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
+               COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
                b.currency,
                r.room_number,
                rt.name AS room_type,
@@ -358,13 +362,15 @@ pub async fn queue_payment_confirmation_email(
         return Ok(());
     };
 
-    // Running position across every non-refund completed payment, so the guest
-    // sees the balance that remains rather than only this one instalment.
+    // Running position across every non-refund, non-deposit completed
+    // payment, so the guest sees the balance that remains on their billable
+    // charges rather than only this one instalment. Held deposits are
+    // collateral, not charge payments.
     let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
         r#"
         SELECT COALESCE(SUM(amount) FILTER (
             WHERE status = 'completed'
-              AND COALESCE(payment_type, 'booking') != 'refund'
+              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit')
         ), 0)
         FROM payments
         WHERE booking_id = $1
@@ -375,7 +381,9 @@ pub async fn queue_payment_confirmation_email(
     .await
     .map_err(ApiError::from)?;
 
-    let balance = (source.total_amount - paid).max(rust_decimal::Decimal::ZERO);
+    let billable_total =
+        source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
+    let balance = (billable_total - paid).max(rust_decimal::Decimal::ZERO);
     let method = payment.payment_method.replace('_', " ");
     let locale = resolve_locale(pool, &source).await;
     let closing = if balance.is_zero() {
@@ -498,6 +506,8 @@ mod tests {
             check_in_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 5).expect("valid date"),
             check_out_date: chrono::NaiveDate::from_ymd_opt(2026, 8, 8).expect("valid date"),
             total_amount: Decimal::new(45000, 2),
+            tourism_tax_amount: Decimal::ZERO,
+            extra_bed_charge: Decimal::ZERO,
             currency: Some("MYR".to_string()),
             room_number: Some("1203".to_string()),
             room_type: Some("Deluxe King".to_string()),
