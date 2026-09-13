@@ -788,49 +788,38 @@ CREATE FUNCTION public.sync_booking_payment_status() RETURNS trigger
     AS $$
 DECLARE
     v_booking_id INTEGER;
-    v_total_paid NUMERIC;
-    v_total_amount NUMERIC;
-    v_has_refunded BOOLEAN;
+    v_settled NUMERIC;
     v_new_status TEXT;
 BEGIN
     -- Determine the affected booking_id (NEW for INSERT/UPDATE, OLD for DELETE)
     v_booking_id := COALESCE(NEW.booking_id, OLD.booking_id);
 
-    -- Sum all completed payments for this booking
+    -- Money that settles the booking's charges: completed payments excluding
+    -- refunds and held deposits (a keycard deposit is collateral, not a room
+    -- payment). Mirrors PaymentRepository::recompute_booking_payment_status.
     SELECT COALESCE(SUM(amount), 0)
-      INTO v_total_paid
+      INTO v_settled
       FROM payments
      WHERE booking_id = v_booking_id
-       AND status = 'completed';
+       AND status = 'completed'
+       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit');
 
-    -- Get the booking's total_amount
-    SELECT total_amount
-      INTO v_total_amount
-      FROM bookings
-     WHERE id = v_booking_id;
+    SELECT CASE
+        WHEN b.status = 'voided' THEN 'void'
+        WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
+        WHEN (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                + COALESCE(b.extra_bed_charge, 0)) <= 0 THEN 'paid'
+        WHEN v_settled >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
+        WHEN v_settled > 0 THEN 'partial'
+        ELSE 'unpaid'
+    END INTO v_new_status
+    FROM bookings b
+    WHERE b.id = v_booking_id;
 
-    -- Check if any payment has been refunded and there are no completed payments
-    SELECT EXISTS (
-        SELECT 1
-          FROM payments
-         WHERE booking_id = v_booking_id
-           AND status = 'refunded'
-    ) INTO v_has_refunded;
-
-    -- Determine the new payment status
-    IF v_total_paid = 0 AND v_has_refunded THEN
-        v_new_status := 'refunded';
-    ELSIF v_total_paid >= v_total_amount THEN
-        v_new_status := 'paid';
-    ELSIF v_total_paid > 0 AND v_total_paid < v_total_amount THEN
-        v_new_status := 'partial';
-    ELSE
-        v_new_status := 'unpaid';
-    END IF;
-
-    -- Update the booking's payment status
     UPDATE bookings
-       SET payment_status = v_new_status
+       SET payment_status = v_new_status,
+           updated_at = CURRENT_TIMESTAMP
      WHERE id = v_booking_id;
 
     RETURN COALESCE(NEW, OLD);
@@ -2698,7 +2687,14 @@ CREATE TABLE public.guest_notes (
     is_private boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     created_by bigint,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    subject character varying(255),
+    interaction_type character varying(50) DEFAULT 'note'::character varying NOT NULL,
+    booking_id bigint,
+    follow_up_at timestamp with time zone,
+    follow_up_completed_at timestamp with time zone,
+    assigned_to bigint,
+    CONSTRAINT guest_notes_interaction_type_check CHECK (interaction_type IN ('note','call','email','in_person','follow_up'))
 );
 
 
@@ -4752,7 +4748,7 @@ CREATE TABLE public.support_conversations (
     last_activity_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT support_conversations_category_check CHECK (((category)::text = ANY ((ARRAY['booking'::character varying, 'stay'::character varying, 'billing'::character varying, 'loyalty'::character varying, 'technical'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT support_conversations_category_check CHECK (category IN ('booking','stay','billing','loyalty','technical','other','service_request','complaint')),
     CONSTRAINT support_conversations_escalation_level_check CHECK (((escalation_level >= 0) AND (escalation_level <= 3))),
     CONSTRAINT support_conversations_priority_check CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[]))),
     CONSTRAINT support_conversations_reopen_count_check CHECK ((reopen_count >= 0)),
@@ -7044,6 +7040,20 @@ CREATE INDEX idx_guest_notes_alert ON public.guest_notes USING btree (guest_id, 
 
 
 --
+-- Name: idx_guest_notes_follow_up_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_follow_up_open ON public.guest_notes USING btree (follow_up_at) WHERE ((follow_up_at IS NOT NULL) AND (follow_up_completed_at IS NULL));
+
+
+--
+-- Name: idx_guest_notes_guest_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_guest_created ON public.guest_notes USING btree (guest_id, created_at DESC);
+
+
+--
 -- Name: idx_guest_notes_guest_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8000,6 +8010,13 @@ CREATE UNIQUE INDEX uq_bookings_guest_portal_request ON public.bookings USING bt
 --
 
 CREATE UNIQUE INDEX uq_customer_ledgers_booking_room_charge ON public.customer_ledgers USING btree (booking_id) WHERE (((post_type)::text = 'room_charge'::text) AND (COALESCE(is_reversal, false) = false) AND (booking_id IS NOT NULL));
+
+
+--
+-- Name: uq_guest_preferences_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_guest_preferences_key ON public.guest_preferences USING btree (guest_id, category, preference_key);
 
 
 --
