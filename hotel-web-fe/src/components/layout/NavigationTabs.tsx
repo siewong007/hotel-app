@@ -274,7 +274,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
 
         <LanguageSwitcher color="inherit" size="small" />
 
-        <NotificationCenter darkBg={darkBg} />
+        <NotificationCenter />
 
         {/* User pill */}
         <Box

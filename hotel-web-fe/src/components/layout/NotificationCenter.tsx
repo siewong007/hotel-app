@@ -59,12 +59,7 @@ function formatRelativeTime(timestamp: number): string {
 /** Which popover tab is active: in-app alerts or one of the server tiers. */
 type CenterTab = 'alerts' | TierFilter;
 
-interface NotificationCenterProps {
-  /** White-on-dark appbar styling for the bell icon. */
-  darkBg?: boolean;
-}
-
-export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg = false }) => {
+export const NotificationCenter: React.FC = () => {
   const { user, hasPermission } = useAuth();
   const userId = user?.id;
   const { items, unreadCount } = useNotifications(userId);
@@ -91,8 +86,6 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg =
   };
   const handleClose = () => setAnchorEl(null);
 
-  const iconColor = darkBg ? 'rgba(255,255,255,0.92)' : 'inherit';
-
   return (
     <>
       <Tooltip title="Notifications">
@@ -101,9 +94,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg =
           aria-label={`Notifications${badgeCount > 0 ? ` (${badgeCount} unread)` : ''}`}
           sx={{
             flexShrink: 0,
-            color: iconColor,
-            display: { xs: 'none', sm: 'inline-flex' },
-            '&:hover': { bgcolor: darkBg ? 'rgba(255,255,255,0.14)' : 'action.hover' },
+            color: 'inherit',
+            '&:hover': { bgcolor: 'action.hover' },
           }}
         >
           <Badge badgeContent={badgeCount} color="error" max={99} overlap="circular">
