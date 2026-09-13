@@ -29,6 +29,8 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { PaymentApprovalsService, PendingPaymentEntry } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
 import { useAuth } from '../../../auth/AuthContext';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import {
   useApprovePayment,
   usePendingPayments,
@@ -58,6 +60,7 @@ function statusColor(status: string): 'default' | 'warning' | 'success' | 'error
 
 const PaymentApprovalsPage: React.FC = () => {
   const { hasPermission } = useAuth();
+  const isPhone = useIsPhone();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [view, setView] = useState<'pending' | 'history'>('pending');
@@ -71,6 +74,7 @@ const PaymentApprovalsPage: React.FC = () => {
 
   const pendingQuery = usePendingPayments({ page: page + 1, pageSize });
   const historyQuery = usePaymentApprovalHistory({ page: page + 1, pageSize }, view === 'history');
+
   const approveMutation = useApprovePayment();
   const rejectMutation = useRejectPayment();
   const receiptMutation = useRequestPaymentReceipt();
@@ -91,6 +95,22 @@ const PaymentApprovalsPage: React.FC = () => {
   const queryError = activeQuery.error;
   const effectiveError =
     error || (queryError instanceof Error ? queryError.message : null);
+
+  const paginationEl = (
+    <TablePagination
+      component="div"
+      count={total}
+      page={page}
+      onPageChange={(_, newPage) => setPage(newPage)}
+      rowsPerPage={pageSize}
+      rowsPerPageOptions={[10, 25, 50, 100]}
+      onRowsPerPageChange={(event) => {
+        setPageSize(parseInt(event.target.value, 10));
+        setPage(0);
+      }}
+      labelRowsPerPage="Claims per page"
+    />
+  );
 
   const handleApprove = async (entry: PendingPaymentEntry) => {
     setError(null);
@@ -267,6 +287,85 @@ const PaymentApprovalsPage: React.FC = () => {
         </Box>
       ) : items.length === 0 ? (
         <Alert severity="info">{view === 'pending' ? 'No pending payment claims right now.' : 'No payment approvals have been recorded yet.'}</Alert>
+      ) : isPhone ? (
+        <Paper variant="outlined" component="div" sx={{ overflow: 'hidden' }}>
+          {items.map((entry) => {
+            const isPaypal = entry.payment_method === 'paypal';
+            const isBusy =
+              (approveMutation.isPending && approveMutation.variables === entry.id) ||
+              (rejectMutation.isPending && rejectMutation.variables?.paymentId === entry.id) ||
+              (receiptMutation.isPending && receiptMutation.variables?.paymentId === entry.id);
+            return (
+              <MobileCardRow
+                key={entry.id}
+                title={entry.guest_name ?? entry.booking_number ?? `#${entry.booking_id}`}
+                subtitle={`${entry.booking_number ?? `#${entry.booking_id}`} · ${formatCurrency(entry.amount)} · ${entry.payment_method}`}
+                meta={`Submitted ${new Date(entry.created_at).toLocaleString()}${
+                  view === 'history' && entry.processed_at
+                    ? ` · Reviewed ${new Date(entry.processed_at).toLocaleString()}`
+                    : ''
+                }`}
+                status={<Chip label={entry.status} size="small" color={statusColor(entry.status)} />}
+                footer={
+                  <>
+                    {entry.receipt_file_available ? (
+                      <Button
+                        size="small"
+                        startIcon={<DescriptionOutlinedIcon />}
+                        onClick={() => void handleViewReceipt(entry)}
+                      >
+                        Receipt
+                      </Button>
+                    ) : null}
+                    {view !== 'history' ? (
+                      <>
+                        {!isPaypal ? (
+                          <Button
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                            startIcon={
+                              isBusy && approveMutation.isPending ? (
+                                <CircularProgress size={16} color="inherit" />
+                              ) : (
+                                <CheckCircleOutlineIcon />
+                              )
+                            }
+                            disabled={isBusy}
+                            onClick={() => void handleApprove(entry)}
+                          >
+                            Approve
+                          </Button>
+                        ) : null}
+                        {entry.payment_method === 'bank_transfer' ? (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<UploadFileOutlinedIcon />}
+                            disabled={isBusy}
+                            onClick={() => openReceiptDialog(entry)}
+                          >
+                            {entry.receipt_uploaded ? 'Receipt uploaded' : entry.receipt_requested ? 'Request again' : 'Request receipt'}
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          disabled={isBusy}
+                          onClick={() => openRejectDialog(entry)}
+                        >
+                          {isPaypal ? 'Cancel PayPal attempt' : 'Reject'}
+                        </Button>
+                      </>
+                    ) : null}
+                  </>
+                }
+              />
+            );
+          })}
+          {paginationEl}
+        </Paper>
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table>
@@ -369,19 +468,7 @@ const PaymentApprovalsPage: React.FC = () => {
               })}
             </TableBody>
           </Table>
-          <TablePagination
-            component="div"
-            count={total}
-            page={page}
-            onPageChange={(_, newPage) => setPage(newPage)}
-            rowsPerPage={pageSize}
-            rowsPerPageOptions={[10, 25, 50, 100]}
-            onRowsPerPageChange={(event) => {
-              setPageSize(parseInt(event.target.value, 10));
-              setPage(0);
-            }}
-            labelRowsPerPage="Claims per page"
-          />
+          {paginationEl}
         </TableContainer>
       )}
       <Dialog open={Boolean(receiptTarget)} onClose={() => setReceiptTarget(null)} maxWidth="sm" fullWidth>

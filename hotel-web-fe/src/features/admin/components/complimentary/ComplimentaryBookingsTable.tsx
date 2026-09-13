@@ -26,6 +26,8 @@ import type { BookingWithDetails } from '../../../../types';
 import { filterAndSortBookings, getStatusColor, getStatusLabel } from './utils';
 import { formatDateRange } from '../../../../utils/formatters';
 import type { SortField, SortOrder } from './types';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../../components/data-table/MobileCardRow';
 
 interface ComplimentaryBookingsTableProps {
   bookings: BookingWithDetails[];
@@ -43,6 +45,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const isPhone = useIsPhone();
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -88,6 +91,56 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
         }}
       />
 
+      {isPhone ? (
+        <Paper component="div" sx={{ overflow: 'hidden' }} aria-busy={loading || undefined}>
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <Box key={`loading-${i}`} sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Skeleton variant="text" width="55%" />
+                <Skeleton variant="text" width="80%" />
+              </Box>
+            ))
+          ) : filteredBookings.length === 0 ? (
+            <Typography sx={{ color: 'text.secondary', py: 4, textAlign: 'center' }}>
+              No complimentary bookings found
+            </Typography>
+          ) : (
+            filteredBookings.map((booking) => (
+              <MobileCardRow
+                key={booking.id}
+                title={`${booking.guest_name} · ${booking.booking_number}`}
+                subtitle={`Room ${booking.room_number} ${booking.room_type ?? ''} · ${new Date(booking.check_in_date).toLocaleDateString()} – ${new Date(booking.check_out_date).toLocaleDateString()}`}
+                meta={
+                  booking.complimentary_start_date && booking.complimentary_end_date
+                    ? `${booking.complimentary_nights || 0} comp nights · ${formatDateRange(booking.complimentary_start_date, booking.complimentary_end_date)}`
+                    : `${booking.complimentary_nights || 0} comp nights`
+                }
+                status={
+                  <Chip
+                    label={getStatusLabel(booking.status as string)}
+                    size="small"
+                    color={getStatusColor(booking.status as string)}
+                  />
+                }
+                footer={
+                  <>
+                    <Tooltip title="Edit complimentary details">
+                      <IconButton size="small" color="primary" aria-label="Edit complimentary details" onClick={() => onEdit(booking)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Remove complimentary status">
+                      <IconButton size="small" color="error" aria-label="Remove complimentary status" onClick={() => onRemove(booking)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                }
+              />
+            ))
+          )}
+        </Paper>
+      ) : (
       <TableContainer component={Paper}>
         <Table aria-busy={loading || undefined}>
           <TableHead>
@@ -215,6 +268,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
           </TableBody>
         </Table>
       </TableContainer>
+      )}
     </>
   );
 };

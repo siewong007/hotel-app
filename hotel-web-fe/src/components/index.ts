@@ -33,3 +33,5 @@ export type { StatStripProps, StatStripItem } from './common/StatStrip';
 // Data table primitives
 export { DataTable } from './data-table/DataTable';
 export type { DataTableProps, ColumnDef } from './data-table/DataTable';
+export { MobileCardRow } from './data-table/MobileCardRow';
+export type { MobileCardRowProps } from './data-table/MobileCardRow';

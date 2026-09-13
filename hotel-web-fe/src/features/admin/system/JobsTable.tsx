@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Box,
   Chip,
   Table,
   TableBody,
@@ -12,6 +13,8 @@ import {
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import type { JobHealth } from './types';
 
 function formatDuration(ms: number | null): string {
@@ -40,7 +43,44 @@ const JOB_LABELS: Record<string, string> = {
   pre_arrival_reminders: 'Pre-arrival Reminders',
 };
 
-export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => (
+export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => {
+  const isPhone = useIsPhone();
+
+  if (isPhone) {
+    return (
+      <Box>
+        {jobs.map((job) => (
+          <Box
+            key={job.job_name}
+            sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+          >
+            <MobileCardRow
+              title={JOB_LABELS[job.job_name] ?? job.job_name}
+              subtitle={`${formatRelative(job.last_run_at)} · ${job.runs_24h} runs · ${job.failures_24h} failures (24h)`}
+              meta={job.last_error ? `Last error: ${job.last_error}` : `${formatDuration(job.last_duration_ms)} last run`}
+              status={
+                <Chip
+                  size="small"
+                  icon={
+                    job.last_status === 'ok' ? (
+                      <CheckCircleOutlineIcon />
+                    ) : (
+                      <ErrorOutlineIcon />
+                    )
+                  }
+                  label={job.last_status}
+                  color={job.last_status === 'ok' ? 'success' : 'error'}
+                  variant="outlined"
+                />
+              }
+            />
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  return (
   <Table size="small">
     <TableHead>
       <TableRow>
@@ -119,4 +159,5 @@ export const JobsTable: React.FC<{ jobs: JobHealth[] }> = ({ jobs }) => (
       ))}
     </TableBody>
   </Table>
-);
+  );
+};
