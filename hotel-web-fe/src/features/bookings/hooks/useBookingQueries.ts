@@ -36,11 +36,28 @@ export function useBookingsWithDetails(filters?: BookingsWithDetailsFilters, ena
   });
 }
 
-export function useAllBookings(filters?: { room_number?: string; company_billed?: boolean }, enabled = true) {
+export function useAllBookings(
+  filters?: { room_number?: string; company_billed?: boolean; status?: string },
+  enabled = true,
+  refetchInterval?: number,
+) {
   return useQuery({
     queryKey: queryKeys.bookings.list(filters as BookingsPageParams | undefined),
     queryFn: () => BookingsService.getAllBookings(filters),
     enabled,
+    refetchInterval,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+// Live-view bookings only (checked_in/auto_checked_in/confirmed/pending).
+// Use this instead of useAllBookings() when historical rows aren't needed.
+export function useActiveBookings(enabled = true, refetchInterval?: number) {
+  return useQuery({
+    queryKey: queryKeys.bookings.active(),
+    queryFn: () => BookingsService.getActiveBookings(),
+    enabled,
+    refetchInterval,
     staleTime: queryStaleTime.short,
   });
 }

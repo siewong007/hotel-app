@@ -70,6 +70,14 @@ export interface StatusConfig {
   bgColor: string;
   textColor: string;
   borderColor: string;
+  // Room-card background fills (saturated surfaces the card's white text sits
+  // on). cardFill defaults to bgColor — set it only when bgColor is too light
+  // for white text (dirty states). cardFillDark is the dark-mode variant.
+  cardFill?: string;
+  cardFillDark: string;
+  // Accent for status dots/tiles/pills on neutral surfaces (filter chips,
+  // header stat tiles, context-menu status pill).
+  accentColor: string;
 
   // Content
   label: string;
@@ -102,6 +110,8 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: '#66BB6A',
     textColor: '#fff',
     borderColor: '#43A047',
+    cardFillDark: '#2F9E5F',
+    accentColor: '#3f8f5b',
 
     // Content
     label: 'Vacant/Clean',
@@ -126,6 +136,8 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: '#FFA726',
     textColor: '#fff',
     borderColor: '#FB8C00',
+    cardFillDark: '#E07B24',
+    accentColor: '#ec7c32',
 
     // Content
     label: 'Occupied',
@@ -150,6 +162,8 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: '#42A5F5',
     textColor: '#fff',
     borderColor: '#1E88E5',
+    cardFillDark: '#2B7FBE',
+    accentColor: '#3f7fbd',
 
     // Content
     label: 'Reserved',
@@ -173,6 +187,9 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: '#FBC02D',
     textColor: '#2F2A12',
     borderColor: '#B88900',
+    cardFill: '#a89436',
+    cardFillDark: '#B99A27',
+    accentColor: '#b8942f',
 
     label: 'Reserved / Dirty',
     shortLabel: 'Res Dirty',
@@ -195,6 +212,9 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: '#FDD835', // Yellow
     textColor: '#333',
     borderColor: '#F9A825',
+    cardFill: '#a89436',
+    cardFillDark: '#B99A27',
+    accentColor: '#b8942f',
 
     // Content
     label: 'Dirty',
@@ -220,6 +240,8 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: '#757575',
     textColor: '#fff',
     borderColor: '#616161',
+    cardFillDark: '#6B7378',
+    accentColor: '#8d9691',
 
     // Content
     label: 'Maintenance',
@@ -254,6 +276,15 @@ export const getStatusColor = (status: RoomStatusType) => {
 
 export const getStatusBgColor = (status: RoomStatusType) => {
   return getStatusConfig(status).bgColor;
+};
+
+export const getStatusAccentColor = (status: RoomStatusType) => {
+  return getStatusConfig(status).accentColor;
+};
+
+export const getStatusCardFill = (status: RoomStatusType, isDarkMode: boolean) => {
+  const config = getStatusConfig(status);
+  return isDarkMode ? config.cardFillDark : (config.cardFill ?? config.bgColor);
 };
 
 export const getStatusLabel = (status: RoomStatusType) => {

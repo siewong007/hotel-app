@@ -2,17 +2,20 @@
 // quick status stat tiles, and the status / attribute filter rows.
 
 import React from 'react';
-import { Box, Paper, Typography, ToggleButton, ToggleButtonGroup } from '@mui/material';
+import { Box, Paper, Typography, ToggleButton, ToggleButtonGroup, TextField, InputAdornment } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
   Hotel as HotelIcon,
   Block as BlockIcon,
   SmokingRooms as SmokingIcon,
   AutoAwesome as SparkleIcon,
+  Search as SearchIcon,
+  Sort as SortIcon,
 } from '@mui/icons-material';
 import type { Room } from '../../../../../types';
 import { formatHotelDate } from '../../../../../utils/date';
 import type { RoomStatusType } from '../../../config';
+import { getStatusAccentColor } from '../../../config';
 import type {
   RoomFilterOption,
   RoomAttributeFilters,
@@ -34,6 +37,13 @@ interface RoomManagementHeaderProps {
   smokingCount: number;
   dailyCleaningCount: number;
   noCleaningCount: number;
+  floors: number[];
+  floorFilter: number | 'all';
+  onFloorFilterChange: (value: number | 'all') => void;
+  roomSearch: string;
+  onRoomSearchChange: (value: string) => void;
+  prioritySort: boolean;
+  onTogglePrioritySort: () => void;
 }
 
 const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
@@ -52,6 +62,13 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
   smokingCount,
   dailyCleaningCount,
   noCleaningCount,
+  floors,
+  floorFilter,
+  onFloorFilterChange,
+  roomSearch,
+  onRoomSearchChange,
+  prioritySort,
+  onTogglePrioritySort,
 }) => {
   return (
     <Paper
@@ -122,13 +139,14 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
 
         {/* Quick Stats - soft tinted tiles */}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {[
-            { count: availableCount, label: 'Available', color: '#43A047', show: true },
-            { count: occupiedCount, label: 'Occupied', color: '#FB8C00', show: true },
-            { count: reservedCount, label: 'Reserved', color: '#1E88E5', show: true },
-            { count: dirtyCount, label: 'Dirty', color: '#C9A227', show: dirtyCount > 0 },
-            { count: maintenanceCount, label: 'Maintenance', color: '#616161', show: maintenanceCount > 0 },
-          ]
+          {([
+            { count: availableCount, label: 'Available', status: 'available' as const, show: true },
+            { count: occupiedCount, label: 'Occupied', status: 'occupied' as const, show: true },
+            { count: reservedCount, label: 'Reserved', status: 'reserved' as const, show: true },
+            { count: dirtyCount, label: 'Dirty', status: 'dirty' as const, show: dirtyCount > 0 },
+            { count: maintenanceCount, label: 'Maintenance', status: 'maintenance' as const, show: maintenanceCount > 0 },
+          ])
+            .map((s) => ({ ...s, color: getStatusAccentColor(s.status) }))
             .filter((s) => s.show)
             .map((s) => (
               <Box
@@ -250,6 +268,89 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
             </Box>
           );
         })}
+
+        {/* Floor filter — only useful when the property spans floors */}
+        {floors.length > 1 && (
+          <>
+            <Box sx={{ width: '1px', height: 26, bgcolor: 'divider', mx: 0.5 }} />
+            {(['all', ...floors] as (number | 'all')[]).map((floor) => {
+              const selected = floorFilter === floor;
+              return (
+                <Box
+                  key={floor}
+                  component="button"
+                  onClick={() => onFloorFilterChange(floor)}
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    px: 1.25,
+                    py: 0.5,
+                    cursor: 'pointer',
+                    border: '1px solid',
+                    borderColor: selected ? alpha('#5b7fbe', 0.55) : 'divider',
+                    borderRadius: '999px',
+                    color: 'text.primary',
+                    bgcolor: selected ? alpha('#5b7fbe', 0.12) : 'background.paper',
+                    font: 'inherit',
+                    '&:hover': { bgcolor: selected ? alpha('#5b7fbe', 0.18) : alpha('#5b7fbe', 0.06) },
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                    {floor === 'all' ? 'All floors' : `Floor ${floor}`}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </>
+        )}
+
+        {/* Room-number search + attention-first sort, pushed to the row end */}
+        <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TextField
+            size="small"
+            value={roomSearch}
+            onChange={(e) => onRoomSearchChange(e.target.value)}
+            placeholder="Room #"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              },
+              htmlInput: { 'aria-label': 'Search by room number' },
+            }}
+            sx={{
+              width: 110,
+              '& .MuiInputBase-root': { borderRadius: 999, fontSize: '0.75rem', height: 30 },
+            }}
+          />
+          <Box
+            component="button"
+            onClick={onTogglePrioritySort}
+            title="Sort rooms by attention needed (dirty, maintenance, reserved first)"
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.6,
+              px: 1.25,
+              py: 0.5,
+              cursor: 'pointer',
+              border: '1px solid',
+              borderColor: prioritySort ? alpha('#c25e10', 0.55) : 'divider',
+              borderRadius: '999px',
+              color: 'text.primary',
+              bgcolor: prioritySort ? alpha('#c25e10', 0.12) : 'background.paper',
+              font: 'inherit',
+              '&:hover': { bgcolor: prioritySort ? alpha('#c25e10', 0.18) : alpha('#c25e10', 0.06) },
+              '& svg': { color: '#c25e10' },
+            }}
+          >
+            <SortIcon sx={{ fontSize: 15 }} />
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>Attention first</Typography>
+          </Box>
+        </Box>
       </Box>
     </Paper>
   );

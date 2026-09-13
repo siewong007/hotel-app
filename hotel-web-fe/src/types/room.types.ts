@@ -127,7 +127,15 @@ export interface RoomStatusSyncResult {
 }
 
 export interface RoomStatusUpdateInput {
-  status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'reserved_dirty' | 'dirty';
+  status:
+    | 'available'
+    | 'occupied'
+    | 'maintenance'
+    | 'reserved'
+    | 'reserved_dirty'
+    | 'dirty'
+    | 'cleaning'
+    | 'out_of_order';
   notes?: string;
   reserved_start_date?: string;
   reserved_end_date?: string;

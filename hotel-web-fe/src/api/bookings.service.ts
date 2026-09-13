@@ -44,12 +44,13 @@ const emptyBookingStats: BookingStatsResponse = {
 };
 
 export class BookingsService {
-  static async getAllBookings(filters?: { room_number?: string; company_billed?: boolean }): Promise<BookingWithDetails[]> {
+  static async getAllBookings(filters?: { room_number?: string; company_billed?: boolean; status?: string }): Promise<BookingWithDetails[]> {
     try {
       const pageSize = 500;
       const baseParams: Record<string, any> = { page: 1, page_size: pageSize };
       if (filters?.room_number) baseParams.room_number = filters.room_number;
       if (filters?.company_billed) baseParams.company_billed = true;
+      if (filters?.status) baseParams.status = filters.status;
 
       const firstPage = await withRetry(
         () => api.get('bookings', { searchParams: baseParams }).json<any>(),
@@ -78,6 +79,17 @@ export class BookingsService {
     } catch (error) {
       throw toApiError(error, 'Failed to fetch bookings');
     }
+  }
+
+  // Only the statuses a live room grid can act on. Fetching per-status keeps
+  // the payload bounded — getAllBookings() with no filter returns the full
+  // booking history (checked_out/cancelled included), which grows forever.
+  static async getActiveBookings(): Promise<BookingWithDetails[]> {
+    const statuses = ['checked_in', 'auto_checked_in', 'confirmed', 'pending'];
+    const results = await Promise.all(
+      statuses.map((status) => this.getAllBookings({ status }))
+    );
+    return results.flat();
   }
 
   static async createBooking(bookingData: BookingCreateRequest): Promise<Booking> {

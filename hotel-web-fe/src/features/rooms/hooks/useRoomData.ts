@@ -1,32 +1,31 @@
 import { useState, useCallback, useMemo } from 'react';
-import { Room, Guest, BookingWithDetails } from '../../../types';
-import { useAllBookings } from '../../bookings/hooks/useBookingQueries';
+import { BookingWithDetails } from '../../../types';
+import { useActiveBookings } from '../../bookings/hooks/useBookingQueries';
 import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from './useRoomQueries';
 import { errorMessage } from '../../../utils/errorMessage';
 
-export function useRoomData() {
-  const roomsQuery = useRooms();
-  const guestsQuery = useGuests();
-  const bookingsQuery = useAllBookings();
+const ROOM_DATA_REFETCH_INTERVAL_MS = 30_000;
+
+// `guestsEnabled` gates the full guest list — only the booking modal's guest
+// picker needs it, so the page passes its modal-open flag and the whole-table
+// fetch stays off the initial-load path.
+export function useRoomData(guestsEnabled = true) {
+  // Query-level polling pauses while the tab is hidden, unlike a setInterval.
+  const roomsQuery = useRooms(true, ROOM_DATA_REFETCH_INTERVAL_MS);
+  const guestsQuery = useGuests(undefined, guestsEnabled);
+  const bookingsQuery = useActiveBookings(true, ROOM_DATA_REFETCH_INTERVAL_MS);
   const { refetch: refetchRooms } = roomsQuery;
   const { refetch: refetchGuests } = guestsQuery;
   const { refetch: refetchBookings } = bookingsQuery;
-  const [roomOverrides, setRooms] = useState<Room[] | null>(null);
-  const [guestOverrides, setGuests] = useState<Guest[] | null>(null);
-  const [manualLoading, setManualLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadRooms = useCallback(async (showLoader = false) => {
-    if (showLoader) setManualLoading(true);
+  const loadRooms = useCallback(async () => {
     try {
-      const result = await refetchRooms();
-      if (result.data) setRooms(null);
+      await refetchRooms();
       setError(null);
     } catch (err) {
       setError(errorMessage(err, 'Failed to load rooms'));
-    } finally {
-      if (showLoader) setManualLoading(false);
     }
   }, [refetchRooms]);
 
@@ -40,34 +39,30 @@ export function useRoomData() {
 
   const loadGuests = useCallback(async () => {
     try {
-      const result = await refetchGuests();
-      if (result.data) setGuests(null);
+      await refetchGuests();
     } catch (err) {
       setError(errorMessage(err, 'Failed to load guests'));
     }
   }, [refetchGuests]);
 
   const reload = useCallback(async () => {
-    await Promise.all([loadRooms(true), loadGuests(), loadBookings()]);
+    await Promise.all([loadRooms(), loadGuests(), loadBookings()]);
   }, [loadRooms, loadGuests, loadBookings]);
 
   const allBookingsData = useMemo(
     () => (bookingsQuery.data ?? []) as BookingWithDetails[],
     [bookingsQuery.data]
   );
-  const rooms = roomOverrides ?? (roomsQuery.data ?? []);
-  const guests = guestOverrides ?? (guestsQuery.data ?? []);
+  const rooms = roomsQuery.data ?? [];
+  const guests = guestsQuery.data ?? [];
   const queryError = roomsQuery.error || guestsQuery.error || bookingsQuery.error;
-  const loading = manualLoading || roomsQuery.isPending;
+  // Block the page only while there is no room data at all; refetches keep the
+  // grid mounted so actions don't flash a full-page spinner.
+  const loading = roomsQuery.isPending;
 
-  const {
-    roomBookings,
-    reservedBookings,
-    compVoidBookings,
-  } = useMemo(() => {
+  const { roomBookings, reservedBookings } = useMemo(() => {
     const bookingsMap = new Map<string, BookingWithDetails>();
     const reservedMap = new Map<string, BookingWithDetails>();
-    const compVoidMap = new Map<string, BookingWithDetails>();
 
     allBookingsData.forEach((booking: BookingWithDetails) => {
       if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
@@ -79,26 +74,21 @@ export function useRoomData() {
           reservedMap.set(booking.room_id, booking);
         }
       }
-      if (booking.status === 'voided') {
-        compVoidMap.set(booking.room_id, booking);
-      }
     });
 
     return {
       roomBookings: bookingsMap,
       reservedBookings: reservedMap,
-      compVoidBookings: compVoidMap,
     };
   }, [allBookingsData]);
 
   return {
-    rooms, setRooms,
-    guests, setGuests,
+    rooms,
+    guests,
     loading,
     error: error || (queryError instanceof Error ? queryError.message : null),
     roomBookings,
     reservedBookings,
-    compVoidBookings,
     allBookingsData,
     reload,
     reloadRooms: loadRooms,

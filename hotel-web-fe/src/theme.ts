@@ -240,7 +240,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
               : 'linear-gradient(0deg, rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
             backgroundSize: '72px 72px',
           },
-          '.hotel-board-skin .MuiPaper-root:not(.MuiAppBar-root):not(.MuiDrawer-paper), body.hotel-board-skin-active .MuiDialog-paper, body.hotel-board-skin-active .MuiPopover-paper, body.hotel-board-skin-active .MuiMenu-paper, body.hotel-board-skin-active .MuiPopper-root .MuiPaper-root, body.hotel-board-skin-active .MuiAutocomplete-paper, body.hotel-board-skin-active .MuiPickersPopper-paper, body.hotel-board-skin-active .MuiSnackbarContent-root': {
+          '.hotel-board-skin .MuiPaper-root:not(.MuiAppBar-root):not(.MuiDrawer-paper):not(.hotel-room-card), body.hotel-board-skin-active .MuiDialog-paper, body.hotel-board-skin-active .MuiPopover-paper, body.hotel-board-skin-active .MuiMenu-paper, body.hotel-board-skin-active .MuiPopper-root .MuiPaper-root, body.hotel-board-skin-active .MuiAutocomplete-paper, body.hotel-board-skin-active .MuiPickersPopper-paper, body.hotel-board-skin-active .MuiSnackbarContent-root': {
             backgroundImage: 'none',
             border: `2px solid ${boardBorder}`,
             borderRadius: 8,
@@ -265,7 +265,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             'body .MuiDialogActions-root': {
               borderTopColor: `${selected.divider} !important`,
             },
-            'body .MuiPaper-root .MuiPaper-root, body .MuiDialog-paper .MuiPaper-root:not(.MuiAppBar-root)': {
+            'body .MuiPaper-root .MuiPaper-root:not(.hotel-room-card), body .MuiDialog-paper .MuiPaper-root:not(.MuiAppBar-root):not(.hotel-room-card)': {
               backgroundColor: `${popupMutedBackground} !important`,
               color: selected.text.primary,
               borderColor: popupBorder,
@@ -282,14 +282,14 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
               border: `1px solid ${popupBorder}`,
             },
           }),
-          '.hotel-board-skin .MuiCard-root': {
+          '.hotel-board-skin .MuiCard-root:not(.hotel-room-card)': {
             backgroundColor: selected.background.paper,
             border: `2px solid ${boardBorder}`,
             borderRadius: 8,
             boxShadow: boardShadow,
             transform: 'none',
           },
-          '.hotel-board-skin .MuiCard-root:hover': {
+          '.hotel-board-skin .MuiCard-root:not(.hotel-room-card):hover': {
             boxShadow: boardLargeShadow,
             transform: 'translate(-1px, -1px)',
           },
@@ -307,7 +307,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           'body.hotel-board-skin-active .MuiDialogContent-root': {
             backgroundColor: selected.background.paper,
           },
-          '.hotel-board-skin .MuiCardContent-root': {
+          '.hotel-board-skin .MuiCard-root:not(.hotel-room-card) .MuiCardContent-root': {
             paddingTop: 16,
           },
           '.hotel-board-skin .MuiDialogActions-root, body.hotel-board-skin-active .MuiDialogActions-root': {

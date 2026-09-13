@@ -16,6 +16,7 @@ import { alpha } from '@mui/material/styles';
 import type { Room } from '../../../../../types';
 import type { MenuLayout } from '../types';
 import type { RoomManagementStatusInfo } from '../../../hooks/useRoomManagementFilters';
+import { getStatusAccentColor } from '../../../config';
 import { getRoomStatusColor, getRoomStatusLabel } from '../roomCardPresentation';
 import {
   getPositiveRatePerNight,
@@ -84,7 +85,7 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                       py: 0.2,
                       borderRadius: 999,
                       bgcolor: alpha(statusColor, 0.14),
-                      color: info.computedStatus === 'dirty' || info.computedStatus === 'reserved_dirty' ? '#8a6d00' : statusColor,
+                      color: getStatusAccentColor(info.computedStatus),
                       border: '1px solid',
                       borderColor: alpha(statusColor, 0.35),
                       fontSize: '0.6rem',
@@ -110,7 +111,10 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                     variant="contained"
                     color={layout.primary.dark ? 'inherit' : layout.primary.color || 'primary'}
                     startIcon={layout.primary.icon}
-                    onClick={() => layout.primary!.onClick(selectedRoom)}
+                    onClick={() => {
+                      layout.primary!.onClick(selectedRoom);
+                      onClose();
+                    }}
                     sx={{
                       borderRadius: 1.5,
                       py: 1,
@@ -153,7 +157,10 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                   {section.actions.map((action) => (
                     <MenuItem
                       key={action.id}
-                      onClick={() => action.onClick(selectedRoom)}
+                      onClick={() => {
+                        action.onClick(selectedRoom);
+                        onClose();
+                      }}
                       sx={{ py: 0.75, px: 2 }}
                     >
                       <ListItemIcon sx={{ color: action.color || 'text.secondary', minWidth: 32 }}>
@@ -167,11 +174,6 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                           secondary: { sx: { fontSize: '0.7rem' } },
                         }}
                       />
-                      {action.badge != null && (
-                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, ml: 1 }}>
-                          {action.badge}
-                        </Typography>
-                      )}
                     </MenuItem>
                   ))}
                 </Box>

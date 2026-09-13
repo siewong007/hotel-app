@@ -8,7 +8,6 @@ export interface RoomAction {
   color?: string;
   onClick: (room: Room) => void;
   secondary?: string;
-  badge?: string | number;
 }
 
 export interface MenuSection {
@@ -27,15 +26,6 @@ export interface MenuLayout {
   sections: MenuSection[];
 }
 
-export interface GuestWithCredits {
-  id: number;
-  full_name: string;
-  email: string;
-  total_complimentary_credits: number;
-  credits_by_room_type: {
-    room_type_id: number;
-    room_type_name: string;
-    room_type_code: string;
-    nights_available: number;
-  }[];
-}
+// Either a mouse event (click position) or an explicit anchor point, so the
+// context menu can be opened from the keyboard as well as the pointer.
+export type RoomMenuAnchor = React.MouseEvent<HTMLElement> | { top: number; left: number };

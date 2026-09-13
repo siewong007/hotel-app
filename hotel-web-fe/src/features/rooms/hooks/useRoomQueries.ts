@@ -54,11 +54,12 @@ const restoreRoomCache = (
   }
 };
 
-export function useRooms(enabled = true) {
+export function useRooms(enabled = true, refetchInterval?: number) {
   return useQuery({
     queryKey: queryKeys.rooms.all,
     queryFn: () => RoomsService.getAllRooms(),
     enabled,
+    refetchInterval,
     staleTime: queryStaleTime.standard,
   });
 }

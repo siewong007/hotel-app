@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BookingsService, GuestsService } from '../../../api';
 import type { Guest, Room } from '../../../types';
-import type { GuestWithCredits } from '../components/RoomManagement/types';
 import { addLocalDays, formatLocalDate } from '../../../utils/date';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { errorMessage } from '../../../utils/errorMessage';
@@ -77,8 +76,6 @@ export function useGuestCreditsWorkflow({
   const [bookingWithCredits, setBookingWithCredits] = useState(false);
   const [creditsBookingSuccess, setCreditsBookingSuccess] = useState<CreditsBookingSuccess | null>(null);
   const [roomBlockedDates, setRoomBlockedDates] = useState<BlockedDateRange[]>([]);
-  const [guestsWithCredits] = useState<GuestWithCredits[]>([]);
-  const [loadingGuestsWithCredits] = useState(false);
 
   const isDateBlocked = useCallback((dateStr: string): boolean => {
     return isDateBlockedByRanges(dateStr, roomBlockedDates);
@@ -106,21 +103,28 @@ export function useGuestCreditsWorkflow({
   }, []);
 
   const openGuestDetails = useCallback((guestId: string | number) => {
-    const guest = guests.find(candidate => candidate.id.toString() === guestId.toString());
+    const openWith = (guest: Guest) => {
+      setSelectedGuest(guest);
+      setTab(0);
+      setGuestCredits(null);
+      setCreditsBookingSuccess(null);
+      setSelectedComplimentaryDates([]);
+      setDialogOpen(true);
+      onCloseMenu();
+      void loadGuestCredits(guest.id);
+    };
 
-    if (!guest) {
-      showSnackbar(`Guest not found (ID: ${guestId})`, 'warning');
+    const cached = guests.find(candidate => candidate.id.toString() === guestId.toString());
+    if (cached) {
+      openWith(cached);
       return;
     }
 
-    setSelectedGuest(guest);
-    setTab(0);
-    setGuestCredits(null);
-    setCreditsBookingSuccess(null);
-    setSelectedComplimentaryDates([]);
-    setDialogOpen(true);
-    onCloseMenu();
-    void loadGuestCredits(guest.id);
+    // The guest list is lazy-loaded and may not be fetched yet — fall back to
+    // a single-guest fetch so the menu action still works.
+    GuestsService.getGuest(guestId)
+      .then(openWith)
+      .catch(() => showSnackbar(`Guest not found (ID: ${guestId})`, 'warning'));
   }, [guests, loadGuestCredits, onCloseMenu, showSnackbar]);
 
   const close = useCallback(() => setDialogOpen(false), []);
@@ -277,8 +281,6 @@ export function useGuestCreditsWorkflow({
     roomBlockedDates,
     selectedComplimentaryDates,
     bookingWithCredits,
-    guestsWithCredits,
-    loadingGuestsWithCredits,
     openGuestDetails,
     getCreditsBookingDates: getCreditsBookingDatesForForm,
     getTotalCreditsForRoom,

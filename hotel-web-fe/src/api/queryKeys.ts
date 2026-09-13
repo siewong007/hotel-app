@@ -36,6 +36,7 @@ export const queryKeys = {
   bookings: {
     all: bookings,
     list: (params?: KeyParams) => [...bookings, 'list', paramsOrEmpty(params)] as const,
+    active: () => [...bookings, 'active'] as const,
     page: (params?: KeyParams) => [...bookings, 'page', paramsOrEmpty(params)] as const,
     withDetails: (filters?: KeyParams) => [...bookings, 'with-details', paramsOrEmpty(filters)] as const,
     stats: () => [...bookings, 'stats'] as const,

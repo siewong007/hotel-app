@@ -804,8 +804,6 @@ BEGIN
        AND status = 'completed'
        AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit');
 
-    -- The full billable amount (room total + tourism tax + extra bed) and the
-    -- booking flags the status CASE needs.
     SELECT CASE
         WHEN b.status = 'voided' THEN 'void'
         WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
@@ -819,7 +817,6 @@ BEGIN
     FROM bookings b
     WHERE b.id = v_booking_id;
 
-    -- Update the booking's payment status
     UPDATE bookings
        SET payment_status = v_new_status,
            updated_at = CURRENT_TIMESTAMP
