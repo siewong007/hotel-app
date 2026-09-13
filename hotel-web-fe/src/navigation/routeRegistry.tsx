@@ -24,7 +24,9 @@ import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
 import type { RouteAccessPolicy } from '../types';
 
 export type RouteAnimation = 'fade' | 'slide' | 'grow';
-export type NavGroup = 'main' | 'operations' | 'admin' | 'config';
+export type NavGroup =
+  | 'overview' | 'operations' | 'finance' | 'engagement'
+  | 'property' | 'insights' | 'administration' | 'utility';
 
 interface AccessChecker {
   hasPermission: (permission: string) => boolean;
