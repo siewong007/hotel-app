@@ -33,11 +33,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
   const selected = paletteByMode[themeMode];
   const darkSurface = themeMode === 'night' ? '#10192a' : '#26312d';
   const isLight = themeMode === 'light';
-  const appBarBackground = isLight
-    ? 'linear-gradient(135deg, #2f8d66 0%, #1f6f52 100%)'
-    : themeMode === 'night'
-      ? 'linear-gradient(135deg, #0b1220 0%, #17243a 100%)'
-      : 'linear-gradient(135deg, #202523 0%, #111614 100%)';
+  const appBarBackground = selected.background.paper;
   const appBackground = isLight
     ? 'linear-gradient(135deg, #eef8f5 0%, #dff2ed 48%, #ccebe5 100%)'
     : themeMode === 'night'
@@ -99,12 +95,12 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
   const accentText = isLight ? selected.primary.dark : selected.primary.light;
   const onAccent = isLight ? '#ffffff' : selected.primary.contrastText;
   const shadowColor = isLight ? 'rgba(38, 166, 154, 0.24)' : 'rgba(0, 0, 0, 0.44)';
-  const boardBorder = themeMode === 'light' ? '#202124' : '#dbe7e1';
-  const boardShadow = themeMode === 'light' ? '4px 4px 0 rgba(32,33,36,0.22)' : '4px 4px 0 rgba(0,0,0,0.55)';
-  const boardLargeShadow = themeMode === 'light' ? '8px 8px 0 rgba(32,33,36,0.18)' : '8px 8px 0 rgba(0,0,0,0.58)';
+  const boardBorder = isLight ? '#d9ded9' : selected.divider;
+  const boardShadow = '0 1px 2px rgba(16,24,40,0.06)';
+  const boardLargeShadow = '0 4px 14px rgba(16,24,40,0.10)';
   const boardAltSurface = themeMode === 'light' ? '#fbfaf6' : themeMode === 'night' ? '#101a2d' : '#252d29';
   const boardSelected = themeMode === 'light' ? '#f1efe7' : themeMode === 'night' ? '#17243a' : '#2d3833';
-  const boardDash = themeMode === 'light' ? '#9aa09b' : '#65746f';
+  const boardDash = selected.divider;
   const focusRing = isLight
     ? 'rgba(0, 121, 107, 0.45)'
     : themeMode === 'night'
@@ -235,14 +231,10 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           },
           '.hotel-board-shell': {
             backgroundColor: selected.background.default,
-            backgroundImage: themeMode === 'light'
-              ? 'linear-gradient(0deg, rgba(32,33,36,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(32,33,36,0.025) 1px, transparent 1px)'
-              : 'linear-gradient(0deg, rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
-            backgroundSize: '72px 72px',
           },
           '.hotel-board-skin .MuiPaper-root:not(.MuiAppBar-root):not(.MuiDrawer-paper):not(.hotel-room-card), body.hotel-board-skin-active .MuiDialog-paper, body.hotel-board-skin-active .MuiPopover-paper, body.hotel-board-skin-active .MuiMenu-paper, body.hotel-board-skin-active .MuiPopper-root .MuiPaper-root, body.hotel-board-skin-active .MuiAutocomplete-paper, body.hotel-board-skin-active .MuiPickersPopper-paper, body.hotel-board-skin-active .MuiSnackbarContent-root': {
             backgroundImage: 'none',
-            border: `2px solid ${boardBorder}`,
+            border: `1px solid ${boardBorder}`,
             borderRadius: 8,
             boxShadow: boardShadow,
           },
@@ -284,17 +276,16 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           }),
           '.hotel-board-skin .MuiCard-root:not(.hotel-room-card)': {
             backgroundColor: selected.background.paper,
-            border: `2px solid ${boardBorder}`,
+            border: `1px solid ${boardBorder}`,
             borderRadius: 8,
             boxShadow: boardShadow,
             transform: 'none',
           },
           '.hotel-board-skin .MuiCard-root:not(.hotel-room-card):hover': {
             boxShadow: boardLargeShadow,
-            transform: 'translate(-1px, -1px)',
           },
           '.hotel-board-skin .MuiCardHeader-root, .hotel-board-skin .MuiDialogTitle-root, body.hotel-board-skin-active .MuiDialogTitle-root': {
-            borderBottom: `1px dashed ${boardDash}`,
+            borderBottom: `1px solid ${selected.divider}`,
             paddingBottom: 12,
           },
           'body.hotel-board-skin-active .MuiDialogTitle-root': {
@@ -311,17 +302,17 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             paddingTop: 16,
           },
           '.hotel-board-skin .MuiDialogActions-root, body.hotel-board-skin-active .MuiDialogActions-root': {
-            borderTop: `1px dashed ${boardDash}`,
+            borderTop: `1px solid ${selected.divider}`,
             padding: '12px 20px',
           },
           '.hotel-board-skin .MuiButton-root, body.hotel-board-skin-active .MuiButton-root': {
             borderRadius: 6,
-            borderWidth: 2,
-            fontWeight: 900,
+            borderWidth: 1,
+            fontWeight: 700,
             boxShadow: 'none',
           },
           '.hotel-board-skin .MuiButton-contained, body.hotel-board-skin-active .MuiButton-contained': {
-            border: `2px solid ${boardBorder}`,
+            border: `1px solid ${boardBorder}`,
           },
           '.hotel-board-skin .MuiButton-outlined, body.hotel-board-skin-active .MuiButton-outlined': {
             borderColor: boardBorder,
@@ -329,15 +320,15 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             backgroundColor: selected.background.paper,
           },
           '.hotel-board-skin .MuiButton-text, body.hotel-board-skin-active .MuiButton-text': {
-            border: '2px solid transparent',
+            border: '1px solid transparent',
           },
           '.hotel-board-skin .MuiChip-root, body.hotel-board-skin-active .MuiChip-root': {
             borderRadius: 6,
             border: `1px solid ${boardBorder}`,
-            fontWeight: 800,
+            fontWeight: 600,
           },
           '.hotel-board-skin .MuiTableContainer-root': {
-            border: `2px solid ${boardBorder}`,
+            border: `1px solid ${boardBorder}`,
             borderRadius: 8,
             boxShadow: boardShadow,
             backgroundColor: selected.background.paper,
@@ -345,11 +336,11 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           '.hotel-board-skin .MuiTableHead-root .MuiTableCell-root': {
             backgroundColor: boardSelected,
             color: selected.text.primary,
-            fontWeight: 900,
-            borderBottom: `2px solid ${boardBorder}`,
+            fontWeight: 600,
+            borderBottom: `1px solid ${boardBorder}`,
           },
           '.hotel-board-skin .MuiTableBody-root .MuiTableCell-root': {
-            borderBottom: `1px dashed ${boardDash}`,
+            borderBottom: `1px solid ${selected.divider}`,
           },
           '.hotel-board-skin .MuiTableRow-root:hover': {
             backgroundColor: boardAltSurface,
@@ -373,11 +364,11 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             color: selected.primary.main,
           },
           '.hotel-board-skin .MuiTabs-root': {
-            borderBottom: `2px solid ${boardBorder}`,
+            borderBottom: `1px solid ${boardBorder}`,
             minHeight: 44,
           },
           '.hotel-board-skin .MuiTab-root': {
-            fontWeight: 800,
+            fontWeight: 600,
             minHeight: 44,
           },
           '.hotel-board-skin .MuiTab-root.Mui-selected': {
@@ -391,12 +382,12 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             backgroundColor: boardSelected,
           },
           '.hotel-board-skin .MuiAlert-root, body.hotel-board-skin-active .MuiAlert-root': {
-            border: `2px solid ${boardBorder}`,
+            border: `1px solid ${boardBorder}`,
             borderRadius: 8,
             boxShadow: 'none',
           },
           '.hotel-board-skin .MuiAccordion-root': {
-            border: `2px solid ${boardBorder}`,
+            border: `1px solid ${boardBorder}`,
             borderRadius: 8,
             boxShadow: boardShadow,
             overflow: 'hidden',
@@ -410,7 +401,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           },
           '.hotel-board-skin h1, .hotel-board-skin h2, .hotel-board-skin h3, .hotel-board-skin h4, .hotel-board-skin h5, .hotel-board-skin h6, body.hotel-board-skin-active .MuiDialogTitle-root': {
             letterSpacing: 0,
-            fontWeight: 900,
+            fontWeight: 700,
           },
         },
       },
