@@ -496,7 +496,10 @@ pub async fn get_payment_workflow_summary(
     if balance_due > Decimal::ZERO {
         warnings.push(format!("Outstanding balance: {}", balance_due));
     }
-    if row.deposit_collected > row.deposit_refunded
+    // A forfeited deposit is still "collected" but can no longer be refunded,
+    // so the outstanding-deposit check compares what is actually still held
+    // and returnable to the guest.
+    if row.deposit_collected - row.deposit_refunded - row.deposit_forfeited > Decimal::ZERO
         && matches!(row.booking_status.as_str(), "checked_out" | "completed")
     {
         warnings.push("Collected deposit has not been fully refunded".to_string());
@@ -511,7 +514,8 @@ pub async fn get_payment_workflow_summary(
         "Review failed payment".to_string()
     } else if balance_due > Decimal::ZERO {
         "Collect balance due".to_string()
-    } else if row.deposit_collected > row.deposit_refunded
+    } else if row.deposit_collected - row.deposit_refunded - row.deposit_forfeited
+        > Decimal::ZERO
         && matches!(row.booking_status.as_str(), "checked_out" | "completed")
     {
         "Refund deposit".to_string()
@@ -529,6 +533,7 @@ pub async fn get_payment_workflow_summary(
         balance_due,
         deposit_collected: row.deposit_collected,
         deposit_refunded: row.deposit_refunded,
+        deposit_forfeited: row.deposit_forfeited,
         has_failed_payment: row.has_failed_payment,
         next_action,
         warnings,

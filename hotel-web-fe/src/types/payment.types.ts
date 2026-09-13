@@ -56,6 +56,7 @@ export interface PaymentWorkflowSummary {
   balance_due: number | string;
   deposit_collected: number | string;
   deposit_refunded: number | string;
+  deposit_forfeited: number | string;
   has_failed_payment: boolean;
   next_action: string;
   warnings: string[];
