@@ -275,6 +275,30 @@ async fn insert_pending_payment(
     .expect("inserting a fixture pending payment should succeed")
 }
 
+/// Inserts a `completed` payment row directly (the same shape
+/// `reconcile_booking_deposit_tx` mints), so void-guard tests don't depend on
+/// the record-payment path's own guards — the same convention
+/// `insert_pending_payment` uses for the approve/reject tests.
+async fn insert_completed_payment(
+    pool: &PgPool,
+    booking_id: i64,
+    payment_type: &str,
+    amount: Decimal,
+    created_by: i64,
+) -> i64 {
+    sqlx::query_scalar::<_, i64>(
+        "INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, created_by) \
+         VALUES (gen_uuidv7(), $1, $2, 'cash', $3, 'completed', $4) RETURNING id",
+    )
+    .bind(booking_id)
+    .bind(amount)
+    .bind(payment_type)
+    .bind(created_by)
+    .fetch_one(pool)
+    .await
+    .expect("inserting a fixture completed payment should succeed")
+}
+
 async fn fetch_payment_status(pool: &PgPool, payment_id: i64) -> String {
     sqlx::query_scalar("SELECT status FROM payments WHERE id = $1")
         .bind(payment_id)
@@ -3886,6 +3910,179 @@ async fn delete_payment_voids_and_requires_manage_for_completed_rows() {
         matches!(refund_void, Err(ApiError::BadRequest(_))),
         "refund markers are managed by the refund workflow: {refund_void:?}"
     );
+    assert!(void_audit, "the void must write a payment_voided audit row");
+}
+
+/// A completed deposit is held collateral: once the booking is in-house,
+/// voiding the row would make money the guest is still owed vanish from the
+/// ledger — the exact action that caused the incident this guard prevents.
+/// Every in-house-or-later status must refuse the void with the actionable
+/// refund/forfeit message even for a `payments:manage` caller, and the row
+/// must stay `completed`. A `deposit_forfeited` row stays voidable on the
+/// same booking — that is the deliberate un-forfeit hatch (the Task-6
+/// checkout guard re-blocks the booking afterwards).
+#[tokio::test]
+async fn delete_completed_deposit_is_refused_once_the_booking_is_in_house() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_940, 940_941, 940_942, 940_943, 940_944);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "checked_in",
+            check_in: "2031-08-10",
+            check_out: "2031-08-12",
+            base_price: d("150.00"),
+            subtotal: d("300.00"),
+            total_amount: d("300.00"),
+        },
+    )
+    .await;
+    grant_role(&pool, actor_id, "manager").await;
+
+    let deposit_id =
+        insert_completed_payment(&pool, booking_id, "deposit", d("100.00"), actor_id).await;
+    let forfeit_id =
+        insert_completed_payment(&pool, booking_id, "deposit_forfeited", d("25.00"), actor_id)
+            .await;
+
+    // `late_checkout` is in the guard's in-house list but is not in the
+    // bookings_status_check vocabulary, so no row can carry it to test.
+    for status in [
+        "checked_in",
+        "auto_checked_in",
+        "checked_out",
+        "completed",
+    ] {
+        sqlx::query("UPDATE bookings SET status = $2 WHERE id = $1")
+            .bind(booking_id)
+            .bind(status)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let void = payments::delete_payment(&pool, actor_id, deposit_id).await;
+        match void {
+            Err(ApiError::BadRequest(message)) => assert!(
+                message.contains("refund") && message.contains("forfeit"),
+                "the refusal must name the refund/forfeit resolution path, got: {message}"
+            ),
+            other => panic!(
+                "voiding a completed deposit on a {status} booking must be refused, got: {other:?}"
+            ),
+        }
+        assert_eq!(
+            fetch_payment_status(&pool, deposit_id).await,
+            "completed",
+            "a refused void must leave the {status} booking's deposit row completed"
+        );
+    }
+
+    // The un-forfeit hatch: a completed `deposit_forfeited` row is NOT a held
+    // deposit, so it stays voidable by payments:manage even on a completed
+    // booking — voiding it re-asserts money held, which the checkout guard
+    // then re-blocks on.
+    let unforfeit = payments::delete_payment(&pool, actor_id, forfeit_id).await;
+    assert!(
+        unforfeit.is_ok(),
+        "a deposit_forfeited row must stay voidable in-house (un-forfeit hatch): {unforfeit:?}"
+    );
+    assert_eq!(
+        fetch_payment_status(&pool, forfeit_id).await,
+        "void",
+        "the un-forfeit void must flip the row to void"
+    );
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+}
+
+/// Pre-stay the deposit is still just money held against a reservation, so a
+/// `payments:manage` caller keeps the existing void path — e.g. a deposit
+/// recorded on the wrong booking before the guest arrives.
+#[tokio::test]
+async fn delete_completed_deposit_stays_voidable_before_check_in() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+
+    let (actor_id, room_type_id, room_id, guest_id, booking_id) =
+        (940_945, 940_946, 940_947, 940_948, 940_949);
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+    ensure_admin_actor(&pool, actor_id).await;
+    seed_booking(
+        &pool,
+        &BookingFixture {
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+            actor_id,
+            status: "confirmed",
+            check_in: "2031-08-15",
+            check_out: "2031-08-16",
+            base_price: d("150.00"),
+            subtotal: d("150.00"),
+            total_amount: d("150.00"),
+        },
+    )
+    .await;
+    grant_role(&pool, actor_id, "manager").await;
+
+    let deposit_id =
+        insert_completed_payment(&pool, booking_id, "deposit", d("50.00"), actor_id).await;
+
+    let voided = payments::delete_payment(&pool, actor_id, deposit_id).await;
+    let status = fetch_payment_status(&pool, deposit_id).await;
+    let void_audit = audit_log_exists(&pool, "payment_voided", deposit_id).await;
+
+    cleanup(
+        &pool,
+        &[room_type_id],
+        &[room_id],
+        &[guest_id],
+        &[booking_id],
+        &[actor_id],
+    )
+    .await;
+
+    assert!(
+        voided.is_ok(),
+        "a pre-stay completed deposit must stay voidable by payments:manage: {voided:?}"
+    );
+    assert_eq!(status, "void", "the row must be kept as void, not deleted");
     assert!(void_audit, "the void must write a payment_voided audit row");
 }
 

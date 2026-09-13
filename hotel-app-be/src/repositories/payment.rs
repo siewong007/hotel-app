@@ -2015,9 +2015,14 @@ impl PaymentRepository {
     ///
     /// Refund markers are managed exclusively by the refund workflow, and
     /// rows already in a terminal state (`refunded`, `void`) cannot be voided
-    /// again. `allow_completed` is the service's verdict that the caller holds
-    /// `payments:manage` — required to void a posted payment; pending and
-    /// failed rows stay on the route's `payments:delete` gate.
+    /// again. A completed `deposit` row on a booking that is in-house or later
+    /// is collateral the guest is still owed — voiding it would make held
+    /// money disappear, so it must leave through `refund_deposit` /
+    /// `forfeit_deposit` instead. `deposit_forfeited` rows stay voidable: that
+    /// is the deliberate un-forfeit hatch (the checkout guard re-blocks the
+    /// booking afterwards). `allow_completed` is the service's verdict that
+    /// the caller holds `payments:manage` — required to void a posted payment;
+    /// pending and failed rows stay on the route's `payments:delete` gate.
     ///
     /// Returns the PRE-void row so the caller can audit the original values.
     pub async fn void_payment_tx(
@@ -2051,6 +2056,27 @@ impl PaymentRepository {
         ) {
             return Err(ApiError::BadRequest(
                 "Payment is already in a terminal state".to_string(),
+            ));
+        }
+        // A held deposit on an in-house booking is money owed back to the
+        // guest — it can only leave through refund or forfeit, never a void.
+        if existing.payment_type.as_deref() == Some("deposit")
+            && existing.payment_status.as_deref() == Some("completed")
+            && matches!(
+                Self::booking_status_for_payment_tx(tx, booking_id)
+                    .await?
+                    .as_str(),
+                "checked_in"
+                    | "auto_checked_in"
+                    | "late_checkout"
+                    | "checked_out"
+                    | "completed"
+            )
+        {
+            return Err(ApiError::BadRequest(
+                "Deposit payments can't be voided after check-in — \
+                 refund or forfeit the deposit instead"
+                    .to_string(),
             ));
         }
         if existing.payment_status.as_deref() == Some("completed") && !allow_completed {
