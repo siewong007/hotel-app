@@ -303,7 +303,10 @@ pub async fn update_guest(
             None => existing.blacklist_reason,
         }
     };
-    if input.is_blacklisted == Some(true) && blacklist_reason.is_none() {
+    if blacklist_reason.is_none()
+        && (input.is_blacklisted == Some(true)
+            || (input.blacklist_reason.is_some() && is_blacklisted == Some(true)))
+    {
         return Err(ApiError::BadRequest(
             "blacklist_reason is required when setting is_blacklisted".to_string(),
         ));
