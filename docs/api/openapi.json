@@ -931,6 +931,21 @@
     "/api/support/conversations/{id}/messages": {
       "POST": {}
     },
+    "/api/system/health": {
+      "GET": {}
+    },
+    "/api/system/jobs/failures": {
+      "GET": {}
+    },
+    "/api/system/notifications": {
+      "GET": {}
+    },
+    "/api/system/notifications/read-all": {
+      "POST": {}
+    },
+    "/api/system/notifications/{id}/read": {
+      "POST": {}
+    },
     "/api/system/process-checkins": {
       "POST": {}
     },

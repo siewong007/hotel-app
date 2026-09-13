@@ -13,9 +13,6 @@
 //! a decrease as "process restarted" rather than as a negative rate — see
 //! [`MetricsSnapshot::delta_since`].
 
-// Counter plumbing is in place ahead of the readers that will expose it.
-#![allow(dead_code)]
-
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Requests that took at least this long are counted as slow.
@@ -80,6 +77,11 @@ impl MetricsSnapshot {
     /// when the process restarted between the two readings. Callers should treat
     /// `None` as "no comparable window" and skip the interval rather than
     /// reporting a spurious spike or a negative rate.
+    ///
+    /// No in-process caller yet — consumers are alerting clients that take two
+    /// snapshots apart; kept (and unit-tested) because a reimplemented diff
+    /// would get the restart guard wrong.
+    #[allow(dead_code)]
     pub fn delta_since(&self, earlier: &MetricsSnapshot) -> Option<MetricsSnapshot> {
         let fields = [
             (self.requests_total, earlier.requests_total),

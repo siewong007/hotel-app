@@ -10085,4 +10085,48 @@ CREATE TABLE public.hotel_schema_revisions (
     PRIMARY KEY (generation, version)
 );
 
+-- One row per background-loop iteration, written by the schedulers spawned in
+-- main.rs. `status` is 'ok' or 'error'; `detail` carries per-tick counters
+-- (e.g. rows processed) and `error` the last failure message. This is a
+-- heartbeat log, not a job queue: loops write it best-effort so a monitoring
+-- surface can answer "is the loop alive, and did it last succeed?".
+CREATE TABLE public.job_runs (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    job_name character varying(100) NOT NULL,
+    status character varying(20) NOT NULL,
+    detail jsonb,
+    error text,
+    duration_ms integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_job_runs_job_created ON public.job_runs USING btree (job_name, created_at DESC);
+CREATE INDEX idx_job_runs_created ON public.job_runs USING btree (created_at DESC);
+
+-- Staff-facing alerts (distinct from the guest email pipeline in
+-- email_deliveries): one shared row per event, addressed to a permission name
+-- rather than enumerated users, with per-user read state tracked separately.
+-- Producers today: background-job failures via core::job_runs.
+CREATE TABLE public.staff_notifications (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    audience_permission character varying(100) NOT NULL,
+    kind character varying(50) NOT NULL,
+    subject character varying(200),
+    title character varying(300) NOT NULL,
+    body text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_staff_notifications_audience ON public.staff_notifications
+    USING btree (audience_permission, created_at DESC);
+CREATE INDEX idx_staff_notifications_kind_subject ON public.staff_notifications
+    USING btree (kind, subject, created_at DESC);
+
+CREATE TABLE public.staff_notification_reads (
+    notification_id bigint NOT NULL REFERENCES public.staff_notifications(id) ON DELETE CASCADE,
+    user_id bigint NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (notification_id, user_id)
+);
+
 COMMIT;

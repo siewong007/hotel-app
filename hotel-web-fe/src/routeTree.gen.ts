@@ -28,6 +28,7 @@ import { Route as GuestConfigRouteImport } from './routes/guest-config'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoyaltyRouteImport } from './routes/loyalty'
 import { Route as MyRewardsRouteImport } from './routes/my-rewards'
@@ -45,6 +46,7 @@ import { Route as RoomConfigRouteImport } from './routes/room-config'
 import { Route as RoomManagementRouteImport } from './routes/room-management'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
+import { Route as SystemHealthRouteImport } from './routes/system-health'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
@@ -156,6 +158,11 @@ const HousekeepingRoute = HousekeepingRouteImport.update({
   path: '/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -239,6 +246,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SupportRoute = SupportRouteImport.update({
   id: '/support',
   path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemHealthRoute = SystemHealthRouteImport.update({
+  id: '/system-health',
+  path: '/system-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TimelineRoute = TimelineRouteImport.update({
@@ -339,6 +351,7 @@ export interface FileRoutesByFullPath {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
@@ -356,6 +369,7 @@ export interface FileRoutesByFullPath {
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -392,6 +406,7 @@ export interface FileRoutesByTo {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
@@ -409,6 +424,7 @@ export interface FileRoutesByTo {
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -446,6 +462,7 @@ export interface FileRoutesById {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
@@ -463,6 +480,7 @@ export interface FileRoutesById {
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
+  '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
@@ -501,6 +519,7 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/jobs'
     | '/login'
     | '/loyalty'
     | '/my-rewards'
@@ -518,6 +537,7 @@ export interface FileRouteTypes {
     | '/room-management'
     | '/settings'
     | '/support'
+    | '/system-health'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -554,6 +574,7 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/jobs'
     | '/login'
     | '/loyalty'
     | '/my-rewards'
@@ -571,6 +592,7 @@ export interface FileRouteTypes {
     | '/room-management'
     | '/settings'
     | '/support'
+    | '/system-health'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -607,6 +629,7 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/jobs'
     | '/login'
     | '/loyalty'
     | '/my-rewards'
@@ -624,6 +647,7 @@ export interface FileRouteTypes {
     | '/room-management'
     | '/settings'
     | '/support'
+    | '/system-health'
     | '/timeline'
     | '/verify-email'
     | '/guest-checkin/confirm'
@@ -661,6 +685,7 @@ export interface RootRouteChildren {
   GuestPortalRoute: typeof GuestPortalRoute
   HelpRoute: typeof HelpRouteWithChildren
   HousekeepingRoute: typeof HousekeepingRoute
+  JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
   LoyaltyRoute: typeof LoyaltyRoute
   MyRewardsRoute: typeof MyRewardsRoute
@@ -678,6 +703,7 @@ export interface RootRouteChildren {
   RoomManagementRoute: typeof RoomManagementRoute
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
+  SystemHealthRoute: typeof SystemHealthRoute
   TimelineRoute: typeof TimelineRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
@@ -829,6 +855,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HousekeepingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -946,6 +979,13 @@ declare module '@tanstack/react-router' {
       path: '/support'
       fullPath: '/support'
       preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system-health': {
+      id: '/system-health'
+      path: '/system-health'
+      fullPath: '/system-health'
+      preLoaderRoute: typeof SystemHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/timeline': {
@@ -1086,6 +1126,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestPortalRoute: GuestPortalRoute,
   HelpRoute: HelpRouteWithChildren,
   HousekeepingRoute: HousekeepingRoute,
+  JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
   LoyaltyRoute: LoyaltyRoute,
   MyRewardsRoute: MyRewardsRoute,
@@ -1103,6 +1144,7 @@ const rootRouteChildren: RootRouteChildren = {
   RoomManagementRoute: RoomManagementRoute,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
+  SystemHealthRoute: SystemHealthRoute,
   TimelineRoute: TimelineRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,

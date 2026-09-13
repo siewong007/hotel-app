@@ -28,6 +28,10 @@ import { Link } from '../../router/compat';
 import { useDeliveryFeed } from '../../features/notifications/hooks/useDeliveryFeed';
 import { DeliveryTabs, TIER_TAB_LABELS } from '../../features/notifications/components/DeliveryTabs';
 import type { TierFilter } from '../../features/notifications/types';
+import {
+  useMarkAllStaffNotificationsRead,
+  useStaffNotifications,
+} from '../../features/admin/system/hooks';
 
 const SEVERITY_META: Record<
   ApiNotificationSeverity,
@@ -56,8 +60,9 @@ function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString();
 }
 
-/** Which popover tab is active: in-app alerts or one of the server tiers. */
-type CenterTab = 'alerts' | TierFilter;
+/** Which popover tab is active: in-app alerts, persisted staff alerts, or one
+ * of the guest-email server tiers. */
+type CenterTab = 'alerts' | 'system' | TierFilter;
 
 export const NotificationCenter: React.FC = () => {
   const { user, hasPermission } = useAuth();
@@ -70,14 +75,21 @@ export const NotificationCenter: React.FC = () => {
   // Staff holding communications:read additionally see the guest-email outbox
   // feed, grouped into priority tiers by delivery kind.
   const canReadFeed = hasPermission('communications:read');
-  const feedTier: TierFilter = tab === 'alerts' ? 'all' : tab;
+  const feedTier: TierFilter = tab === 'alerts' || tab === 'system' ? 'all' : tab;
   const feed = useDeliveryFeed(
     { tier: feedTier },
-    open && canReadFeed && tab !== 'alerts',
+    open && canReadFeed && tab !== 'alerts' && tab !== 'system',
   );
   const serverUnread = canReadFeed ? feed.data?.unread ?? null : null;
 
-  const badgeCount = serverUnread !== null ? serverUnread : unreadCount;
+  // Persisted staff alerts (job failures today) are addressed to permission
+  // holders — gated on settings:manage, matching the producer's audience.
+  const canSeeStaffAlerts = hasPermission('settings:manage');
+  const staffAlerts = useStaffNotifications(canSeeStaffAlerts, open);
+  const markAllStaffRead = useMarkAllStaffNotificationsRead();
+  const staffUnread = canSeeStaffAlerts ? staffAlerts.data?.unread ?? 0 : 0;
+
+  const badgeCount = unreadCount + (serverUnread ?? 0) + staffUnread;
 
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -145,21 +157,76 @@ export const NotificationCenter: React.FC = () => {
           </Box>
         </Box>
 
-        {canReadFeed && (
+        {(canReadFeed || canSeeStaffAlerts) && (
           <Tabs
             value={tab}
-            onChange={(_, next: CenterTab) => setTab(next)}
+            onChange={(_, next: CenterTab) => {
+              setTab(next);
+              if (next === 'system') markAllStaffRead.mutate();
+            }}
             variant="fullWidth"
             sx={{ minHeight: 36, borderBottom: '1px solid', borderColor: 'divider', '& .MuiTab-root': { minHeight: 36, fontSize: '0.75rem' } }}
           >
             <Tab value="alerts" label="Alerts" />
-            {(Object.keys(TIER_TAB_LABELS) as TierFilter[]).map((key) => (
-              <Tab key={key} value={key} label={TIER_TAB_LABELS[key]} />
-            ))}
+            {canSeeStaffAlerts && <Tab value="system" label="System" />}
+            {canReadFeed &&
+              (Object.keys(TIER_TAB_LABELS) as TierFilter[]).map((key) => (
+                <Tab key={key} value={key} label={TIER_TAB_LABELS[key]} />
+              ))}
           </Tabs>
         )}
 
-        {canReadFeed && tab !== 'alerts' ? (
+        {canSeeStaffAlerts && tab === 'system' ? (
+          <Box sx={{ maxHeight: 420, overflowY: 'auto' }}>
+            {(staffAlerts.data?.items ?? []).length === 0 ? (
+              <Box sx={{ px: 2, py: 5, textAlign: 'center', color: 'text.secondary' }}>
+                <NotificationsNoneIcon sx={{ fontSize: 32, opacity: 0.4, mb: 1 }} />
+                <Typography sx={{ fontSize: '0.85rem' }}>
+                  {staffAlerts.isPending ? 'Loading…' : 'No system alerts'}
+                </Typography>
+              </Box>
+            ) : (
+              (staffAlerts.data?.items ?? []).map((item) => (
+                <Box
+                  key={item.id}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 1.25,
+                    px: 2,
+                    py: 1.25,
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    '&:last-of-type': { borderBottom: 'none' },
+                  }}
+                >
+                  <Box sx={{ color: '#d32f2f', display: 'flex', mt: '2px' }}>
+                    <ErrorOutlineIcon fontSize="small" />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        fontSize: '0.82rem',
+                        lineHeight: 1.35,
+                        fontWeight: item.read_at ? 400 : 600,
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+                    {item.body && (
+                      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mt: 0.25 }}>
+                        {item.body}
+                      </Typography>
+                    )}
+                    <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.25 }}>
+                      {formatRelativeTime(Date.parse(item.created_at))}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))
+            )}
+          </Box>
+        ) : canReadFeed && tab !== 'alerts' ? (
           <DeliveryTabs
             showTabs={false}
             tier={feedTier}

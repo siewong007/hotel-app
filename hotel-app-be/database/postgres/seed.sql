@@ -244,6 +244,7 @@ VALUES
     ('guest-config'),
     ('help'),
     ('housekeeping'),
+    ('jobs'),
     ('loyalty'),
     ('night-audit'),
     ('online-inventory'),
@@ -256,6 +257,7 @@ VALUES
     ('room-management'),
     ('settings'),
     ('support'),
+    ('system-health'),
     ('teams'),
     ('timeline');
 
@@ -1133,6 +1135,8 @@ VALUES
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('loyalty', '/loyalty', 'Loyalty', 'admin', '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('system-health', '/system-health', 'System Health', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('jobs', '/jobs', 'Jobs', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),

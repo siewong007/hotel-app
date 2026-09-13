@@ -7,4 +7,5 @@ pub mod promotions;
 pub mod realtime;
 pub mod settings;
 pub mod support;
+pub mod system;
 pub mod teams;
