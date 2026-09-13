@@ -1345,6 +1345,121 @@ impl PaymentRepository {
         Ok(row)
     }
 
+    /// Record that the hotel keeps part or all of a held deposit (lost
+    /// keycard, damage). Inserts a `deposit_forfeited` row that stays
+    /// `completed` — the cash really was collected — while shrinking the
+    /// refundable ceiling and the booking's deposit mirror. Serialized with
+    /// refunds on the same booking FOR UPDATE lock and validated against the
+    /// same payments-ledger ceiling, so a forfeit can never exceed the deposit
+    /// money actually still held.
+    ///
+    /// This is the ONLY writer of `deposit_forfeited` rows: the generic
+    /// `record_payment` caller-type whitelist deliberately excludes the type,
+    /// so a caller cannot mint kept-money rows without these checks.
+    #[allow(dead_code)] // Consumed by the checkout-guard service, introduced in the next task.
+    pub async fn forfeit_deposit(
+        pool: &DbPool,
+        user_id: i64,
+        booking_id: i64,
+        amount: Decimal,
+        reason: &str,
+    ) -> Result<PaymentEntryRow, ApiError> {
+        let reason = reason.trim();
+        if reason.is_empty() {
+            return Err(ApiError::BadRequest(
+                "A deposit forfeit reason is required".to_string(),
+            ));
+        }
+        if amount <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "Forfeit amount must be positive".to_string(),
+            ));
+        }
+
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+        // Same serialization as `refund_deposit`: the booking FOR UPDATE lock
+        // makes the refundable-ceiling read below race-free against a
+        // concurrent refund or forfeit on the same booking.
+        let booking_locked = sqlx::query("SELECT id FROM bookings WHERE id = $1 FOR UPDATE")
+            .bind(booking_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+        if booking_locked.is_none() {
+            return Err(ApiError::NotFound("Booking not found".to_string()));
+        }
+
+        // Identical ceiling to `refund_deposit`: completed deposit payments
+        // minus disbursed refunds minus deposits the hotel already kept.
+        let refundable_deposit = sqlx::query_scalar::<_, Decimal>(
+            "SELECT \
+                COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed'), 0) \
+                - COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded'), 0) \
+                - COALESCE((SELECT SUM(amount) FROM payments \
+                          WHERE booking_id = $1 AND payment_type = 'deposit_forfeited' AND status = 'completed'), 0)",
+        )
+        .bind(booking_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        if refundable_deposit <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "No refundable deposit was collected for this booking".to_string(),
+            ));
+        }
+        if amount > refundable_deposit {
+            return Err(ApiError::BadRequest(format!(
+                "Forfeit amount cannot exceed the refundable deposit of {refundable_deposit}"
+            )));
+        }
+
+        // Carry the tender the deposit was originally collected in — the row
+        // records kept money, not a new payment.
+        let deposit_method: String = sqlx::query_scalar(
+            "SELECT payment_method FROM payments \
+             WHERE booking_id = $1 AND payment_type = 'deposit' AND status = 'completed' \
+             ORDER BY id DESC LIMIT 1",
+        )
+        .bind(booking_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(ApiError::from)?
+        .unwrap_or_else(|| "cash".to_string());
+
+        let row = sqlx::query_as::<_, PaymentEntryRow>(
+            r#"
+            INSERT INTO payments (
+                uuid, booking_id, amount, payment_method, payment_type,
+                status, notes, created_by
+            )
+            VALUES (gen_uuidv7(), $1, $2, $3, 'deposit_forfeited', 'completed', $4, $5)
+            RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
+                      status AS payment_status, NULL::text AS transaction_reference, notes,
+                      created_at::date::text AS payment_date, created_at
+            "#,
+        )
+        .bind(booking_id)
+        .bind(decimal_to_db(amount))
+        .bind(&deposit_method)
+        .bind(format!("Deposit forfeited: {reason}"))
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        // A completed forfeit nets out of the still-held deposit mirror —
+        // resync so the booking columns can't overstate what is returnable.
+        Self::sync_booking_deposit_mirror_tx(&mut tx, booking_id).await?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(row)
+    }
+
     /// Revert a previously-recorded keycard deposit refund for a booking.
     ///
     /// Marks the refund payment row `void` rather than deleting it: the row
