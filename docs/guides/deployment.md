@@ -298,12 +298,12 @@ database), see
 it is the canonical database lifecycle reference. From the repository root:
 
 ```bash
-make db-setup DATABASE_URL="$DATABASE_URL"
+make db-baseline DATABASE_URL="$DATABASE_URL"
 ```
 
 ### Patching an installed V1 database
 
-Fresh installs need nothing here — `make db-setup` finishes by running the same
+Fresh installs need nothing here — `make db-baseline` finishes by running the same
 catalog, so a new database is created already at the current patch level.
 
 A database that is **already** on V1 cannot re-run the baseline, so compatible
@@ -380,7 +380,7 @@ any new application code serves traffic against an unconverged schema.
 
 To check whether a database still matches a current baseline — after a manual
 intervention, or before a release — compare it against a scratch database built
-fresh by `make db-setup`:
+fresh by `make db-baseline`:
 
 ```bash
 make db-schema-drift \

@@ -6,6 +6,7 @@ PostgreSQL is the application's only database engine.
 database/postgres/
 ├── migrations/0001_v1_baseline.sql     # fresh install: schema
 ├── seed.sql                            # fresh install: system/bootstrap records
+├── staging.sql                         # optional: rerunnable staging/demo dataset
 ├── patches/manifest.tsv                # ordered, checksummed patch catalog
 ├── patches/_begin.sql                  # shared control: lock, guard, skip
 ├── patches/_end.sql                    # shared control: record, commit
@@ -25,12 +26,13 @@ the desktop Rust patch executor applies the same bundled catalog. Dropping a
 ## V1 lifecycle
 
 Baseline → seed → patches. The ordered patch catalog is
-`patches/manifest.tsv`. From the repository root, one command runs all three
-against a new PostgreSQL database:
+`patches/manifest.tsv`. From the repository root, the canonical command is:
 
 ```bash
-make db-setup DATABASE_URL="$DATABASE_URL"
+make db-baseline DATABASE_URL="$DATABASE_URL"
 ```
+
+(`make db-setup` remains as a deprecated alias for `db-baseline`.)
 
 The equivalent by hand, once and in this order:
 
@@ -85,6 +87,56 @@ baseline + seed, scratch-install the previous baseline + seed + your SQL, then
 be empty — and check the dumps are non-trivial first, because two failed dumps
 also diff to zero. Declare a new column in the position `ALTER TABLE ADD COLUMN`
 produces (last in the table body) or fresh and patched schemas diverge forever.
+
+## Staging dataset (`staging.sql`)
+
+`staging.sql` is the canonical staging/demo dataset: a comprehensive,
+deterministic, **re-runnable** population of every application module on top of
+a completed V1 lifecycle. It never ships to production and is not part of
+`db-baseline`.
+
+```bash
+make db-baseline DATABASE_URL="$DATABASE_URL"   # once per fresh database
+make db-seed     DATABASE_URL="$DATABASE_URL"   # apply; safe to rerun
+```
+
+Rerun semantics: the script opens one transaction, takes an advisory lock,
+guards on the recorded V1 revision, deletes every staging-owned row
+(child-first) inside the fixed id band **800000-899999** (plus generated-id
+children and marker-tagged `job_runs`), then reinserts. A rerun therefore
+yields identical counts — it is a reset of the staging dataset, never an
+append. It never touches bootstrap rows or ids outside the band.
+
+Reference date: every stay/schedule date derives from the connection's
+`CURRENT_DATE`, so the dataset never goes stale. Pin it for reproducible runs:
+
+```bash
+PGOPTIONS='-c staging.ref_date=2026-01-15' psql "$DATABASE_URL" -f hotel-app-be/database/postgres/staging.sql
+```
+
+Auth fixtures: every staging user shares the staging-only password
+`HotelStaging2026!` (`*.stg` / `*_stg` accounts such as `manager_stg`,
+`frontdesk_amy`, `finance_mei`, `marketing_nadia`, `hk_siti`, plus a
+`guest_portal` portal login, an inactive and a locked account). Never reuse
+these credentials outside staging.
+
+Coverage highlights: 50 guests (VIP, corporate, foreign/local for tourism tax,
+blacklisted, duplicate-name, long-name, minimal-profile, bulk filler for
+pagination), 24 rooms across all statuses including maintenance/out-of-order,
+~77 bookings covering every status (in-house, arriving, departing, no-show,
+voided+refunded, comp, partial-comp, 30-night long stay, same-day walk-in,
+aging unpaid holds, adjacent same-room windows), payments/invoices/ledgers in
+every state, housekeeping & maintenance boards, 14 days of night-audit history,
+promotions/vouchers/redemptions, campaigns + deliveries + suppressions,
+loyalty members/points/redemptions, portal sessions, staff notifications, and
+an append-only audit trail.
+
+Limitations: there are no payroll/HR tables — only `teams`/`team_members` are
+seeded. The exclusion constraint makes double-booked rooms DB-impossible, so
+overlap rejection is exercised through API tests, not fixtures. `audit_logs`
+is append-only: staging audit rows are id-guarded inserts that survive reruns
+and always attribute the bootstrap admin (the real actor is recorded inside
+`details`).
 
 ## Compatible V1 patching
 

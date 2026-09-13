@@ -63,7 +63,7 @@ Desktop (`hotel-desktop/`) — `bun run dev` (tauri dev + sidecar), `bun run bui
 (installer), `build:no-bundle` (binary only), `desktop:prepare:force` (refresh resources).
 
 Root `Makefile` wraps the common ones (`make dev-be`, `check-all`, `test-all`, `lint-all`,
-`docker-up`, `db-setup`); `make help` lists all targets.
+`docker-up`, `db-baseline`, `db-seed`); `make help` lists all targets.
 
 CI (`.github/workflows/ci.yml`, push/PR to master) runs five jobs: secret scan +
 `cargo audit`; FE typecheck + `lint:strict` + test + build; BE check/test/clippy/release

@@ -50,16 +50,26 @@ cd hotel-desktop && bun run dev                  # Tauri dev: sidecar backend + 
 ## Database
 
 ```bash
-# One-time init of a fresh database (CI sequence):
+# Canonical: full structure on a fresh database (baseline + system seed + patches):
+make db-baseline
+
+# Canonical: comprehensive deterministic staging dataset (safe to rerun):
+make db-seed
+
+# Equivalent by hand, once and in this order:
 psql "$DATABASE_URL" -f hotel-app-be/database/postgres/migrations/0001_v1_baseline.sql
 psql "$DATABASE_URL" -f hotel-app-be/database/postgres/seed.sql
-
-# Apply pending catalog patches (idempotent, checksum-verified):
 make db-patch
 
 # Schema drift check (needs psql + pg_dump):
 make db-schema-drift
 ```
+
+`db-seed` applies `database/postgres/staging.sql`: deterministic rows in the
+800000-899999 id band, deleted-then-reinserted on rerun, all dates relative to
+`CURRENT_DATE` (pin via `PGOPTIONS='-c staging.ref_date=YYYY-MM-DD'`). Staging
+logins share the password `HotelStaging2026!` — see
+`hotel-app-be/database/README.md` for the full scenario inventory.
 
 The compose service auto-initializes `hotel_management` on first boot.
 Schema rules: additive changes go in the baseline **and** a new catalog patch

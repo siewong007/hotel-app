@@ -495,19 +495,24 @@ fn deployment_local_database_setup_records_the_patch_catalog() {
         !makefile.contains("$(DATABASE_URL)"),
         "Make recipes must leave DATABASE_URL expansion to the shell environment"
     );
-    assert!(make_lines.contains(&"db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
+    assert!(make_lines.contains(&"db-baseline db-seed db-setup db-patch require-database-url db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \\"));
     assert!(make_lines.contains(&"require-database-url:"));
     assert!(make_lines.contains(
         &"@case \"$$DATABASE_URL\" in *[![:space:]]*) ;; *) printf '%s\\n' 'DATABASE_URL is required' >&2; exit 1 ;; esac"
     ));
-    assert!(make_lines.contains(&"db-setup: require-database-url ## Initialize an empty PostgreSQL database at V1 (requires DATABASE_URL)"));
+    assert!(make_lines.contains(&"db-baseline: require-database-url ## Canonical: create schema + system bootstrap on an empty DB (requires DATABASE_URL)"));
+    assert!(make_lines.contains(&"db-seed: require-database-url ## Canonical: populate comprehensive deterministic staging data (requires DATABASE_URL)"));
     assert!(make_lines.contains(&"db-patch: require-database-url ## Apply verified V1 compatibility patches (requires DATABASE_URL)"));
 
+    // db-setup survives as a deprecated alias; the canonical recipe is db-baseline.
+    assert!(make_lines.contains(
+        &"db-setup: db-baseline ## DEPRECATED alias for db-baseline (kept for compatibility)"
+    ));
     let setup = makefile
-        .split("db-setup: require-database-url ##")
+        .split("db-baseline: require-database-url ##")
         .nth(1)
         .and_then(|source| source.split("\n\n").next())
-        .expect("Makefile must define db-setup");
+        .expect("Makefile must define db-baseline");
     let setup_lines = active_lines(setup);
     let baseline = active_line_position(
         &setup_lines,

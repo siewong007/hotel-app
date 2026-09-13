@@ -58,7 +58,7 @@ row. There is no partially applied patch, and a rerun is a no-op.
 
 | Context | Application point |
 |---|---|
-| Server / local | `make db-patch` (also the last step of `make db-setup`) |
+| Server / local | `make db-patch` (also the last step of `make db-baseline`) |
 | Production deploy | `deploy/deploy.sh` — after the verified backup, after PostgreSQL alone is up, before the application containers are activated |
 | Desktop | the Tauri launcher (`src-tauri/src/postgres/patches.rs`), after it recognizes a fresh or V1 database and before it starts the backend sidecar |
 | Backend startup | never — it validates the schema and refuses layouts it does not recognize |
