@@ -235,7 +235,7 @@ export type GuestSupportConversationCategory =
   | 'complaint';
 
 /** `POST /support/conversations` body (staff-side creation on a guest's behalf). */
-export interface CreateGuestSupportConversationRequest {
+export interface CreateStaffSupportConversationRequest {
   guest_id: number;
   category: GuestSupportConversationCategory;
   subject?: string;

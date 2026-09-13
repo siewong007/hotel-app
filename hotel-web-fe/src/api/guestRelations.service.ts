@@ -1,7 +1,7 @@
 import { HTTPError } from 'ky';
 import { api, APIError, readErrorData, toApiError } from './client';
 import type {
-  CreateGuestSupportConversationRequest,
+  CreateStaffSupportConversationRequest,
   GuestCommunicationsSummary,
   GuestInteraction,
   GuestInteractionInput,
@@ -225,7 +225,7 @@ export class GuestRelationsService {
    * `waiting_for_staff`). Returns the staff conversation detail.
    */
   static async createSupportConversation(
-    data: CreateGuestSupportConversationRequest,
+    data: CreateStaffSupportConversationRequest,
   ): Promise<GuestSupportConversationDetail> {
     try {
       return await api

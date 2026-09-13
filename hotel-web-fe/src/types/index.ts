@@ -43,7 +43,7 @@ export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from '../constants/guest.const
 
 // Guest relations workspace types
 export type {
-  CreateGuestSupportConversationRequest,
+  CreateStaffSupportConversationRequest,
   GuestCommunicationsSummary,
   GuestDelivery,
   GuestInteraction,

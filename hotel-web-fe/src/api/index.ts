@@ -26,6 +26,7 @@ export { HousekeepingService } from './housekeeping.service';
 export { MaintenanceService } from './maintenance.service';
 export { PaymentApprovalsService } from './paymentApprovals.service';
 export { UsersService } from './users.service';
+export { GuestRelationsService } from './guestRelations.service';
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
 export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
 export type {

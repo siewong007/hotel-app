@@ -5,7 +5,7 @@ import { invalidateGuestDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
 import { supportQueryKeys } from '../../support/hooks/useSupportQueries';
 import type {
-  CreateGuestSupportConversationRequest,
+  CreateStaffSupportConversationRequest,
   GuestInteractionInput,
   GuestInteractionListParams,
   GuestInteractionUpdate,
@@ -182,7 +182,7 @@ export function useGuestSupportConversations(guestId?: number | string | null, e
 export function useCreateSupportConversation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreateGuestSupportConversationRequest) =>
+    mutationFn: (data: CreateStaffSupportConversationRequest) =>
       GuestRelationsService.createSupportConversation(data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.guests.support(variables.guest_id) });
