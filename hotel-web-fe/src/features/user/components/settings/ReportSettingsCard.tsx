@@ -21,7 +21,7 @@ import {
   REPORT_TYPOGRAPHY_PRESETS,
   type ReportTypographyPresetKey,
   getReportTypographyPreset,
-} from "../../../reports/utils/reportTypography";
+} from "../../../insights/utils/reportTypography";
 
 interface ReportSettingsCardProps {
   isAdmin: boolean;
