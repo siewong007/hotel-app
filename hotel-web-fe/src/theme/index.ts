@@ -174,6 +174,9 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
         padding: '7px 16px',
         transition:
           'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
+        // Coarse pointers (phones + tablets) get the 44px touch floor;
+        // mouse viewports keep the dense 36px default.
+        '@media (pointer: coarse)': { minHeight: 44 },
       },
       contained: {
         backgroundColor: t.primary.main,
@@ -205,6 +208,8 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
       root: {
         color: t.text.secondary,
         '&:hover': { backgroundColor: t.surfaces.hover, color: t.text.primary },
+        // 24px icon + 12px padding = 48px square hit area on touch devices.
+        '@media (pointer: coarse)': { padding: 12 },
       },
     },
   },
@@ -426,6 +431,7 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
     styleOverrides: {
       root: {
         borderRadius: 8,
+        '@media (pointer: coarse)': { minHeight: 48 },
         '&:hover': { backgroundColor: t.surfaces.hover },
         '&.Mui-selected': {
           backgroundColor: t.primary.subtle,
@@ -438,6 +444,7 @@ const componentOverrides = (t: DesignTokens): ThemeOptions['components'] => ({
     styleOverrides: {
       root: {
         color: t.text.primary,
+        '@media (pointer: coarse)': { minHeight: 44 },
         '&:hover': { backgroundColor: t.surfaces.hover },
         '&.Mui-selected': {
           backgroundColor: t.primary.subtle,

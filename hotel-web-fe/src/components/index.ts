@@ -23,6 +23,8 @@ export { default as DateText, DateRangeText } from './common/DateText';
 export type { DateTextProps, DateRangeTextProps } from './common/DateText';
 export { default as EmptyState } from './common/EmptyState';
 export type { EmptyStateProps } from './common/EmptyState';
+export { BottomSheet } from './common/BottomSheet';
+export type { BottomSheetProps } from './common/BottomSheet';
 export { default as PageHeader } from './common/PageHeader';
 export type { PageHeaderProps } from './common/PageHeader';
 export { default as StatStrip } from './common/StatStrip';

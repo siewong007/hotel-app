@@ -2,4 +2,5 @@
 export { useApi } from './useApi';
 export { useCurrency } from './useCurrency';
 export { useDebouncedValue } from './useDebouncedValue';
+export { useIsPhone } from './useIsPhone';
 export { useRoomAvailabilityCheck } from './useRoomAvailabilityCheck';
