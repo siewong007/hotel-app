@@ -38,8 +38,8 @@ import {
   TOURISM_TYPE_CONFIG,
   type TourismType,
 } from '../../../types';
-import { GUEST_DESIGN } from '../constants';
-import type { GuestFormData } from '../types';
+import { GUEST_DESIGN } from '../../guests/constants';
+import type { GuestFormData } from '../../guests/types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { useGuestCompanyOptions } from '../hooks/useGuestCompanyOptions';
 

@@ -69,7 +69,7 @@ import {
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
 import { Star as MemberIcon } from '@mui/icons-material';
 import EkycCreateDialog from '../../ekyc/components/EkycCreateDialog';
-import GuestFormDialog from './GuestFormDialog';
+import GuestFormDialog from '../../guestRelations/components/GuestFormDialog';
 import { ContactRow, StatTile } from './GuestDetailPanelParts';
 import { AVATAR_PALETTE, GUEST_DESIGN } from '../constants';
 import type { GuestFormData } from '../types';

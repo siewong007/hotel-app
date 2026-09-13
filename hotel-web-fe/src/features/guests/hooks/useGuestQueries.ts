@@ -18,6 +18,11 @@ type GuestPageParams = {
   tourism_type?: TourismType;
   missing_tourism?: boolean;
   missing_info?: boolean;
+  // CRM list filters (guest relations workspace). Only `true` is meaningful —
+  // an absent key means "no filter", matching the backend's `unwrap_or(false)`.
+  vip?: boolean;
+  blacklisted?: boolean;
+  has_open_support?: boolean;
 };
 
 export function useGuests(params?: GuestListParams, enabled = true) {
