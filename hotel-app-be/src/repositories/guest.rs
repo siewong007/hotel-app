@@ -125,42 +125,9 @@ impl GuestRepository {
         pagination: Pagination,
     ) -> Result<(i64, Vec<Guest>), ApiError> {
         let search = params.search.as_deref().filter(|s| !s.trim().is_empty());
-        let guest_type_filter = params
-            .guest_type
-            .as_deref()
-            .filter(|s| !s.trim().is_empty());
-        let tourism_type_filter = params
-            .tourism_type
-            .as_deref()
-            .filter(|s| !s.trim().is_empty());
-        let missing_tourism_filter = params.missing_tourism.unwrap_or(false);
-        let missing_info_filter = params.missing_info.unwrap_or(false);
+        let filter_clause = list_filter_clause(params);
 
         let like_op = "ILIKE";
-
-        let mut filter_clause = String::new();
-        match guest_type_filter {
-            Some("member") => filter_clause.push_str(" AND guest_type = 'member'"),
-            Some("non_member") => {
-                filter_clause.push_str(" AND (guest_type = 'non_member' OR guest_type IS NULL)");
-            }
-            _ => {}
-        }
-        match tourism_type_filter {
-            Some("local") => filter_clause.push_str(" AND tourism_type = 'local'"),
-            Some("foreign") => filter_clause.push_str(" AND tourism_type = 'foreign'"),
-            _ => {}
-        }
-        if missing_tourism_filter {
-            filter_clause.push_str(" AND tourism_type IS NULL");
-        }
-        if missing_info_filter {
-            filter_clause.push_str(
-                " AND ((NULLIF(TRIM(COALESCE(email, '')), '') IS NULL \
-                 AND NULLIF(TRIM(COALESCE(phone, '')), '') IS NULL) \
-                 OR NULLIF(TRIM(COALESCE(ic_number, '')), '') IS NULL)",
-            );
-        }
 
         let select_cols = r#"id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
             address_line_1 as address_line1, city, state as state_province,
@@ -1351,6 +1318,61 @@ impl GuestRepository {
     }
 }
 
+/// WHERE-clause fragment shared by the count and data queries in
+/// `find_paginated`. Literal-only — user-controlled values stay bound
+/// parameters in the caller (`search`), so nothing here needs escaping.
+fn list_filter_clause(params: &GuestPaginationParams) -> String {
+    let guest_type_filter = params
+        .guest_type
+        .as_deref()
+        .filter(|s| !s.trim().is_empty());
+    let tourism_type_filter = params
+        .tourism_type
+        .as_deref()
+        .filter(|s| !s.trim().is_empty());
+
+    let mut filter_clause = String::new();
+    match guest_type_filter {
+        Some("member") => filter_clause.push_str(" AND guest_type = 'member'"),
+        Some("non_member") => {
+            filter_clause.push_str(" AND (guest_type = 'non_member' OR guest_type IS NULL)");
+        }
+        _ => {}
+    }
+    match tourism_type_filter {
+        Some("local") => filter_clause.push_str(" AND tourism_type = 'local'"),
+        Some("foreign") => filter_clause.push_str(" AND tourism_type = 'foreign'"),
+        _ => {}
+    }
+    if params.missing_tourism.unwrap_or(false) {
+        filter_clause.push_str(" AND tourism_type IS NULL");
+    }
+    if params.missing_info.unwrap_or(false) {
+        filter_clause.push_str(
+            " AND ((NULLIF(TRIM(COALESCE(email, '')), '') IS NULL \
+             AND NULLIF(TRIM(COALESCE(phone, '')), '') IS NULL) \
+             OR NULLIF(TRIM(COALESCE(ic_number, '')), '') IS NULL)",
+        );
+    }
+    if params.vip.unwrap_or(false) {
+        filter_clause.push_str(" AND vip_status IS NOT NULL AND vip_status <> ''");
+    }
+    if params.blacklisted.unwrap_or(false) {
+        filter_clause.push_str(" AND is_blacklisted = true");
+    }
+    if params.has_open_support.unwrap_or(false) {
+        // "Open" follows the staff inbox definition (`queue_metrics`
+        // total_open / unassigned / mine queues): every status but 'closed'.
+        // A 'resolved' conversation is still reopenable, so it stays open
+        // until staff closes it.
+        filter_clause.push_str(
+            " AND EXISTS (SELECT 1 FROM support_conversations sc \
+             WHERE sc.guest_id = guests.id AND sc.status <> 'closed')",
+        );
+    }
+    filter_clause
+}
+
 fn get_optional_date(row: &DbRow, col: &str) -> Option<NaiveDate> {
     row.try_get::<Option<NaiveDate>, _>(col).ok().flatten()
 }
@@ -1362,4 +1384,88 @@ fn get_required_date(row: &DbRow, col: &str) -> Result<NaiveDate, ApiError> {
 
 fn get_datetime(row: &DbRow, col: &str) -> DateTime<Utc> {
     row.try_get(col).unwrap_or_else(|_| Utc::now())
+}
+
+#[cfg(test)]
+mod list_filter_clause_tests {
+    use super::list_filter_clause;
+    use crate::models::GuestPaginationParams;
+
+    fn params() -> GuestPaginationParams {
+        GuestPaginationParams {
+            page: None,
+            page_size: None,
+            search: None,
+            guest_type: None,
+            tourism_type: None,
+            missing_tourism: None,
+            missing_info: None,
+            vip: None,
+            blacklisted: None,
+            has_open_support: None,
+        }
+    }
+
+    #[test]
+    fn empty_params_produce_no_filter() {
+        assert_eq!(list_filter_clause(&params()), "");
+    }
+
+    #[test]
+    fn false_flags_produce_no_filter() {
+        let mut p = params();
+        p.vip = Some(false);
+        p.blacklisted = Some(false);
+        p.has_open_support = Some(false);
+        assert_eq!(list_filter_clause(&p), "");
+    }
+
+    #[test]
+    fn vip_filters_on_non_empty_vip_status() {
+        let mut p = params();
+        p.vip = Some(true);
+        assert_eq!(
+            list_filter_clause(&p),
+            " AND vip_status IS NOT NULL AND vip_status <> ''"
+        );
+    }
+
+    #[test]
+    fn blacklisted_filters_on_strict_true() {
+        let mut p = params();
+        p.blacklisted = Some(true);
+        assert_eq!(list_filter_clause(&p), " AND is_blacklisted = true");
+    }
+
+    #[test]
+    fn has_open_support_matches_inbox_open_definition() {
+        let mut p = params();
+        p.has_open_support = Some(true);
+        assert_eq!(
+            list_filter_clause(&p),
+            " AND EXISTS (SELECT 1 FROM support_conversations sc \
+             WHERE sc.guest_id = guests.id AND sc.status <> 'closed')"
+        );
+    }
+
+    #[test]
+    fn filters_compose_in_stable_order() {
+        let mut p = params();
+        p.guest_type = Some("member".to_string());
+        p.missing_info = Some(true);
+        p.vip = Some(true);
+        p.blacklisted = Some(true);
+        p.has_open_support = Some(true);
+        assert_eq!(
+            list_filter_clause(&p),
+            " AND guest_type = 'member' \
+             AND ((NULLIF(TRIM(COALESCE(email, '')), '') IS NULL \
+             AND NULLIF(TRIM(COALESCE(phone, '')), '') IS NULL) \
+             OR NULLIF(TRIM(COALESCE(ic_number, '')), '') IS NULL) \
+             AND vip_status IS NOT NULL AND vip_status <> '' \
+             AND is_blacklisted = true \
+             AND EXISTS (SELECT 1 FROM support_conversations sc \
+             WHERE sc.guest_id = guests.id AND sc.status <> 'closed')"
+        );
+    }
 }

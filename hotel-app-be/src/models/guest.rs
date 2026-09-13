@@ -515,6 +515,12 @@ pub struct GuestPaginationParams {
     pub missing_tourism: Option<bool>,
     /// Filter to guests missing one or more required profile fields.
     pub missing_info: Option<bool>,
+    /// Filter to guests with a VIP status recorded.
+    pub vip: Option<bool>,
+    /// Filter to blacklisted guests.
+    pub blacklisted: Option<bool>,
+    /// Filter to guests with a support conversation that is not closed.
+    pub has_open_support: Option<bool>,
 }
 
 /// Paginated guest list response.
