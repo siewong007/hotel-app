@@ -43,20 +43,22 @@ impl RevenueRepository {
                        (b.subtotal / GREATEST(b.check_out_date - b.check_in_date, 1))
                            AS nightly_revenue
                 FROM bookings b
+                JOIN rooms r ON r.id = b.room_id
                 CROSS JOIN LATERAL generate_series(
                     b.check_in_date,
                     GREATEST(b.check_out_date - 1, b.check_in_date)
                 ) AS gs
                 WHERE b.status NOT IN ('voided', 'comp_void', 'no_show')
-                  AND ($3::bigint IS NULL OR b.room_type_id = $3)
+                  AND ($3::bigint IS NULL OR r.room_type_id = $3)
                   AND ($4::bigint IS NULL OR b.booking_channel_id = $4)
                   AND gs::date BETWEEN $1 AND $2
             ),
             created AS (
                 SELECT b.status
                 FROM bookings b
+                JOIN rooms r ON r.id = b.room_id
                 WHERE b.created_at::date BETWEEN $1 AND $2
-                  AND ($3::bigint IS NULL OR b.room_type_id = $3)
+                  AND ($3::bigint IS NULL OR r.room_type_id = $3)
                   AND ($4::bigint IS NULL OR b.booking_channel_id = $4)
             )
             SELECT
@@ -102,12 +104,13 @@ impl RevenueRepository {
                        (b.subtotal / GREATEST(b.check_out_date - b.check_in_date, 1))
                            AS nightly_revenue
                 FROM bookings b
+                JOIN rooms r ON r.id = b.room_id
                 CROSS JOIN LATERAL generate_series(
                     b.check_in_date,
                     GREATEST(b.check_out_date - 1, b.check_in_date)
                 ) AS gs
                 WHERE b.status NOT IN ('voided', 'comp_void', 'no_show')
-                  AND ($3::bigint IS NULL OR b.room_type_id = $3)
+                  AND ($3::bigint IS NULL OR r.room_type_id = $3)
                   AND ($4::bigint IS NULL OR b.booking_channel_id = $4)
                   AND gs::date BETWEEN $1 AND $2
             )
@@ -156,10 +159,11 @@ impl RevenueRepository {
                    COUNT(*) AS bookings,
                    COALESCE(SUM(COALESCE(b.net_revenue, b.subtotal)), 0) AS net_revenue
             FROM bookings b
+            JOIN rooms r ON r.id = b.room_id
             LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
             WHERE b.created_at::date BETWEEN $1 AND $2
               AND b.status NOT IN ('voided', 'comp_void')
-              AND ($3::bigint IS NULL OR b.room_type_id = $3)
+              AND ($3::bigint IS NULL OR r.room_type_id = $3)
               AND ($4::bigint IS NULL OR b.booking_channel_id = $4)
             GROUP BY b.booking_channel_id, bc.name, bc.channel_type
             ORDER BY net_revenue DESC

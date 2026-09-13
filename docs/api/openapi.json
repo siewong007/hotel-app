@@ -815,6 +815,9 @@
     "/api/reports/generate": {
       "GET": {}
     },
+    "/api/revenue/overview": {
+      "GET": {}
+    },
     "/api/room-rates": {
       "GET": {},
       "POST": {}
@@ -1067,6 +1070,9 @@
     },
     {
       "name": "reports"
+    },
+    {
+      "name": "revenue"
     },
     {
       "name": "room-rates"

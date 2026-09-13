@@ -105,6 +105,7 @@ VALUES
     ('maintenance:write'),
     ('navigation_housekeeping:read'),
     ('navigation_promotions:read'),
+    ('navigation_revenue:read'),
     ('night_audit:execute'),
     ('night_audit:read'),
     ('payments:approve'),
@@ -128,6 +129,7 @@ VALUES
     ('navigation_communications:read'),
     ('reports:execute'),
     ('reports:read'),
+    ('revenue:read'),
     ('reviews:create'),
     ('reviews:delete'),
     ('reviews:manage'),
@@ -252,6 +254,7 @@ VALUES
     ('promotions'),
     ('rbac'),
     ('reports'),
+    ('revenue'),
     ('room-config'),
     ('room-management'),
     ('settings'),
@@ -464,6 +467,8 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('communications:send', 'communications', 'execute', 'Schedule, test-send, and send email campaigns', true),
 ('communications:manage', 'communications', 'manage', 'Full communications management including automation and suppressions', true),
 ('navigation_communications:read', 'navigation:communications', 'read', 'Show Communications navigation', true),
+('revenue:read', 'revenue', 'read', 'View revenue performance, pricing, and occupancy analytics', true),
+('navigation_revenue:read', 'navigation:revenue', 'read', 'Show Revenue navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -565,6 +570,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',
+    'revenue:read', 'navigation_revenue:read',
     'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
@@ -1115,6 +1121,7 @@ VALUES
     ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('revenue', '/revenue', 'Revenue', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('settings', '/settings', 'Settings', 'config', '["settings:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
