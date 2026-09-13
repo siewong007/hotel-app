@@ -45,8 +45,8 @@ export const REGISTRATION_CONSENTS: ConsentPrompt[] = [
     documentId: 'marketing',
     required: false,
     label: {
-      en: 'Optional: send me offers, news and birthday rewards by email.',
-      ms: 'Pilihan: hantarkan saya tawaran, berita dan ganjaran hari lahir melalui e-mel.',
+      en: 'Optional: send me offers and news by email.',
+      ms: 'Pilihan: hantarkan saya tawaran dan berita melalui e-mel.',
     },
     helper: {
       en: 'You can unsubscribe at any time. Declining does not affect your booking or your price.',
