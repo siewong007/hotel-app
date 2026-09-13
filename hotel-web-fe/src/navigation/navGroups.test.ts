@@ -8,9 +8,9 @@ const item = (id: string, navGroup: AppRouteDefinition['navGroup']) =>
 describe('navSections', () => {
   it('orders groups by NAV_GROUP_ORDER and preserves registry order inside', () => {
     const sections = navSections([
-      item('b', 'operations'), item('a', 'finance'), item('c', 'operations'),
+      item('b', 'front_office'), item('a', 'finance'), item('c', 'front_office'),
     ]);
-    expect(sections.map((s) => s.group)).toEqual(['operations', 'finance']);
+    expect(sections.map((s) => s.group)).toEqual(['front_office', 'finance']);
     expect(sections[0].items.map((i) => i.id)).toEqual(['b', 'c']);
   });
 
