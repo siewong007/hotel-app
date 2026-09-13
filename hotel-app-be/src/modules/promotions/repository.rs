@@ -125,6 +125,23 @@ fn decimal_to_f64(value: rust_decimal::Decimal) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(0.0)
 }
 
+/// Whether `error` is the integrity violation raised by `constraint`. Same
+/// dual-check convention as the guest/user repositories: match on the PG
+/// `SQLSTATE` (or the SQLite wording the harness once produced) plus the
+/// constraint name, which always appears in the server message.
+fn is_constraint_violation(error: &sqlx::Error, pg_code: &str, constraint: &str) -> bool {
+    let Some(database_error) = error.as_database_error() else {
+        return false;
+    };
+    let matches_code = database_error.code().as_deref() == Some(pg_code)
+        || database_error
+            .message()
+            .contains("constraint failed");
+    matches_code
+        && (database_error.constraint() == Some(constraint)
+            || database_error.message().contains(constraint))
+}
+
 fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
     Promotion {
         id: row.try_get("id").unwrap_or_default(),
@@ -440,6 +457,9 @@ impl PromotionRepository {
         pool: &DbPool,
         slug: &str,
     ) -> Result<Option<PublicPromotion>, ApiError> {
+        // Same visibility predicate as the public catalogue list — a promotion
+        // hidden there (full, out of window, private, unpublished) must not be
+        // fetchable by guessing its slug.
         let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
@@ -448,6 +468,7 @@ impl PromotionRepository {
                       AND p.is_public = true
                       AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= CURRENT_TIMESTAMP)
                       AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= CURRENT_TIMESTAMP)
+                      AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
                 "#
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
         let row = query(&sql)
@@ -801,7 +822,20 @@ impl PromotionRepository {
         .bind(issued_by)
         .fetch_optional(&mut **tx)
         .await
-        .map_err(ApiError::from)
+        .map_err(|error| {
+            // The (promotion, guest) pair conflict is already filtered by
+            // ON CONFLICT .. DO NOTHING; what remains is the code uniqueness
+            // guard and the guest/promotion FKs, both client mistakes.
+            if is_constraint_violation(&error, "23505", "vouchers_code_key") {
+                return ApiError::Conflict(
+                    "That voucher code is already in use".to_string(),
+                );
+            }
+            if is_constraint_violation(&error, "23503", "vouchers_guest_id_fkey") {
+                return ApiError::NotFound("Guest not found".to_string());
+            }
+            ApiError::from(error)
+        })
     }
 
     pub async fn reserve_claim_capacity(

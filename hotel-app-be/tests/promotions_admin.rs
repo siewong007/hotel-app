@@ -10,7 +10,10 @@
 
 mod postgres_tests {
     use chrono::{Duration, NaiveDate, Utc};
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::modules::promotions::models::VoucherIssueInput;
     use hotel_app_be::modules::promotions::repository::PromotionRepository;
+    use hotel_app_be::modules::promotions::service;
     use sqlx::{PgPool, postgres::PgPoolOptions};
 
     async fn setup_pg_pool() -> Option<PgPool> {
@@ -40,6 +43,9 @@ mod postgres_tests {
         // RESTRICT foreign keys force this delete order.
         for statement in [
             "DELETE FROM voucher_redemptions WHERE id BETWEEN $1 AND $1 + 99",
+            // Issued vouchers take identity ids outside the band, so match on
+            // promotion_id as well as the band.
+            "DELETE FROM vouchers WHERE promotion_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM vouchers WHERE id BETWEEN $1 AND $1 + 99",
             // A trigger logs every room insert; the log FKs to rooms.
             "DELETE FROM room_status_change_log WHERE room_id BETWEEN $1 AND $1 + 99",
@@ -297,6 +303,105 @@ mod postgres_tests {
         // The fixture contributes exactly 25; other fixtures could add more
         // under the same currency, so assert the floor.
         assert!(myr.amount >= 25.0);
+
+        cleanup_fixtures(&pool, base).await;
+    }
+
+    /// A public promotion hidden from the catalogue (claim limit reached) must
+    /// also be unreachable by slug, and admin issue must translate the code
+    /// uniqueness and guest FK guards into 409/404 instead of a 500.
+    #[tokio::test]
+    async fn public_slug_respects_claim_limit_and_issue_maps_integrity_errors() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let base = 992_400;
+        cleanup_fixtures(&pool, base).await;
+
+        sqlx::query(
+            "INSERT INTO guests (id, nick_name, guest_type, is_active) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'non_member', true)",
+        )
+        .bind(base + 1)
+        .bind(format!("Vch992 Guest {base}-1"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // base = full public promo, base+2 = same but under the limit.
+        for (id, slug, limit, claimed) in [
+            (base, "vch992-full", Some(1), 1),
+            (base + 2, "vch992-open", Some(2), 0),
+        ] {
+            sqlx::query(
+                "INSERT INTO promotions (id, slug, name, status, promotion_kind, discount_type, discount_value, currency, claim_limit, claimed_count, is_public) \
+                 OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'Vch992 Offer', 'published', 'voucher', 'fixed_amount', 25, 'MYR', $3, $4, true)",
+            )
+            .bind(id)
+            .bind(slug)
+            .bind(limit)
+            .bind(claimed)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+
+        assert!(
+            PromotionRepository::find_public_by_slug(&pool, "vch992-full")
+                .await
+                .unwrap()
+                .is_none(),
+            "a claim-limit-reached promotion must 404 on the public slug route"
+        );
+        assert!(
+            PromotionRepository::find_public_by_slug(&pool, "vch992-open")
+                .await
+                .unwrap()
+                .is_some(),
+            "an under-limit public promotion stays fetchable by slug"
+        );
+
+        // Issue once to occupy a code, then re-issue with the same custom code.
+        let input = |code: Option<&str>, guest_id: i64| VoucherIssueInput {
+            promotion_id: base + 2,
+            guest_id,
+            code: code.map(str::to_string),
+            expires_at: None,
+        };
+        service::issue_admin_voucher(&pool, 1000, input(Some("VCH992DUP1"), base + 1), None, None)
+            .await
+            .expect("first issue must succeed");
+
+        // A second guest is needed because (promotion, guest) is unique.
+        sqlx::query(
+            "INSERT INTO guests (id, nick_name, guest_type, is_active) \
+             OVERRIDING SYSTEM VALUE VALUES ($1, $2, 'non_member', true)",
+        )
+        .bind(base + 3)
+        .bind(format!("Vch992 Guest {base}-3"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let duplicate = service::issue_admin_voucher(
+            &pool,
+            1000,
+            input(Some("VCH992DUP1"), base + 3),
+            None,
+            None,
+        )
+        .await;
+        assert!(
+            matches!(duplicate, Err(ApiError::Conflict(_))),
+            "reused voucher code must be a 409, got {duplicate:?}"
+        );
+
+        let missing_guest =
+            service::issue_admin_voucher(&pool, 1000, input(None, 992_499), None, None).await;
+        assert!(
+            matches!(missing_guest, Err(ApiError::NotFound(_))),
+            "missing guest must be a 404, got {missing_guest:?}"
+        );
 
         cleanup_fixtures(&pool, base).await;
     }
