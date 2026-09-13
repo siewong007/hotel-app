@@ -4,7 +4,7 @@ use axum::{
     response::Json,
 };
 
-use super::models::{RevenueOverview, RevenueOverviewQuery};
+use super::models::{RateCalendar, RateCalendarQuery, RevenueOverview, RevenueOverviewQuery};
 use super::service::RevenueService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -17,4 +17,13 @@ pub async fn overview(
 ) -> Result<Json<RevenueOverview>, ApiError> {
     require_permission_helper(&pool, &headers, "revenue:read").await?;
     Ok(Json(RevenueService::overview(&pool, query).await?))
+}
+
+pub async fn rate_calendar(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(query): Query<RateCalendarQuery>,
+) -> Result<Json<RateCalendar>, ApiError> {
+    require_permission_helper(&pool, &headers, "revenue:read").await?;
+    Ok(Json(RevenueService::rate_calendar(&pool, query).await?))
 }

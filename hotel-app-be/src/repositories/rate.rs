@@ -442,7 +442,10 @@ impl RateRepository {
                   ($3 = 5 AND rp.applies_saturday = true) OR
                   ($3 = 6 AND rp.applies_sunday = true)
               )
-            ORDER BY rp.priority DESC
+            -- Within one priority, the most recently created band wins: bulk
+            -- edits can leave overlapping bands, so the pick must be
+            -- deterministic rather than an arbitrary row.
+            ORDER BY rp.priority DESC, rr.id DESC
             LIMIT 1
             "#,
         )

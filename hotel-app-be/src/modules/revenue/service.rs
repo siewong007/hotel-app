@@ -3,8 +3,8 @@ use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 use super::models::{
-    RevenueChannelMix, RevenueDailyPoint, RevenueKpis, RevenueOverview, RevenueOverviewQuery,
-    RevenueRangeInfo,
+    RateCalendar, RateCalendarQuery, RevenueChannelMix, RevenueDailyPoint, RevenueKpis,
+    RevenueOverview, RevenueOverviewQuery, RevenueRangeInfo,
 };
 use super::repository::{RevenueRepository, StaySums};
 use super::validation::{RevenueRange, revenue_range};
@@ -17,6 +17,9 @@ const DIRECT_CHANNEL_TYPES: [&str; 4] = ["direct", "website", "walk_in", "phone"
 
 /// Window used when the caller supplies neither bound: trailing 30 days.
 const DEFAULT_RANGE_DAYS: i64 = 30;
+
+/// Default rate-calendar window: two weeks starting today.
+const DEFAULT_CALENDAR_DAYS: i64 = 14;
 
 pub struct RevenueService;
 
@@ -58,6 +61,37 @@ impl RevenueService {
             previous_kpis,
             daily,
             channels,
+        })
+    }
+
+    /// Staff rate calendar. Unlike the overview (trailing window), an
+    /// unbounded request defaults to a forward-looking 14-day window —
+    /// rate management looks ahead, not back.
+    pub async fn rate_calendar(
+        pool: &DbPool,
+        query: RateCalendarQuery,
+    ) -> Result<RateCalendar, ApiError> {
+        let range = match (&query.from, &query.to) {
+            (Some(from), Some(to)) => revenue_range(from, to)?,
+            (None, None) => {
+                let from = hotel_today(pool).await.map_err(ApiError::from)?;
+                RevenueRange {
+                    from,
+                    to: from + Duration::days(DEFAULT_CALENDAR_DAYS - 1),
+                }
+            }
+            _ => {
+                return Err(ApiError::BadRequest(
+                    "'from' and 'to' must be provided together".to_string(),
+                ));
+            }
+        };
+        let (room_types, cells) = RevenueRepository::rate_calendar(pool, &range).await?;
+        Ok(RateCalendar {
+            from: range.from,
+            to: range.to,
+            room_types,
+            cells,
         })
     }
 }

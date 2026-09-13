@@ -81,3 +81,51 @@ pub struct RevenueOverview {
     /// Booking-creation-date basis channel attribution.
     pub channels: Vec<RevenueChannelMix>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct RateCalendarQuery {
+    pub from: Option<String>,
+    pub to: Option<String>,
+}
+
+/// One resolved cell of the staff rate calendar.
+#[derive(Debug, Clone, Serialize)]
+pub struct RateCalendarCell {
+    pub room_type_id: i64,
+    pub stay_date: NaiveDate,
+    /// Winning plan code ("BASE" when the base-rate fallback applies).
+    pub rate_plan_code: String,
+    /// Resolved plan/band rate before channel overlays.
+    pub plan_rate: Decimal,
+    /// True when no plan band matched and `room_types.base_price` was used.
+    pub is_base_rate: bool,
+    /// Online-channel per-date override (null when the cell uses the plan rate).
+    pub custom_price: Option<Decimal>,
+    /// What an online guest pays: `custom_price.unwrap_or(plan_rate)`.
+    pub effective_rate: Decimal,
+    /// Sellable physical rooms of this type (active, not maintenance/ooo).
+    pub physical_rooms: i64,
+    /// Rooms holding a sold-status booking covering this stay date.
+    pub sold_rooms: i64,
+    /// Physical rooms minus sold rooms (floored at 0).
+    pub available_rooms: i64,
+    /// Sold ÷ physical as a percentage (0 when physical is 0), one decimal.
+    pub occupancy_pct: Decimal,
+    pub online_booking_enabled: bool,
+    pub walk_in_reserved_rooms: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RateCalendarRoomType {
+    pub room_type_id: i64,
+    pub code: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RateCalendar {
+    pub from: NaiveDate,
+    pub to: NaiveDate,
+    pub room_types: Vec<RateCalendarRoomType>,
+    pub cells: Vec<RateCalendarCell>,
+}
