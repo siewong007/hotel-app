@@ -176,7 +176,6 @@ impl SearchRepository {
         Ok(rows
             .into_iter()
             .map(|row| {
-                let route_search = encode_query_component(&row.full_name);
                 let subtitle = [
                     format!("#{}", row.id),
                     row.phone,
@@ -193,7 +192,7 @@ impl SearchRepository {
                     id: row.id,
                     title: row.full_name,
                     subtitle,
-                    route: format!("/guest-config?search={}&guest_id={}", route_search, row.id),
+                    route: format!("/guest-relations/guests/{}", row.id),
                 }
             })
             .collect())

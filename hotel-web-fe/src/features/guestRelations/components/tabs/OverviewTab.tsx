@@ -33,7 +33,9 @@ import {
   useGuestSupportConversations,
 } from '../../hooks/useGuestRelationsQueries';
 
-const OPEN_SUPPORT_STATUSES = new Set(['waiting_for_staff', 'waiting_for_guest']);
+// Matches the backend has_open_support filter and the support inbox's
+// "open" definition: everything not closed ('resolved' is reopenable).
+const OPEN_SUPPORT_STATUSES = new Set(['waiting_for_staff', 'waiting_for_guest', 'resolved']);
 
 const SectionCard: React.FC<{ title: React.ReactNode; children: React.ReactNode }> = ({
   title,
@@ -354,8 +356,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
       )}
 
       {/* Sensitive identity — present only for `guests:reveal` holders; the
-          backend omits the field entirely otherwise. Read-only here; edits go
-          through the guest form dialog. */}
+          backend omits the field entirely otherwise. View-only: the staff UI
+          has no edit surface for these (the guests PATCH API accepts them
+          under the same grant). */}
       {sensitive && (
         <SectionCard
           title={

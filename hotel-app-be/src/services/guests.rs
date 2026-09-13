@@ -373,7 +373,7 @@ pub async fn update_guest(
     let _ = AuditLog::log_event(
         pool,
         AuditEvent {
-            user_id: None,
+            user_id: Some(user_id),
             action: "guest_updated",
             resource_type: "guest",
             resource_id: Some(guest_id),

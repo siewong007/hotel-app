@@ -74,10 +74,11 @@ export class GuestRelationsService {
     data: GuestInteractionInput,
   ): Promise<GuestInteraction> {
     try {
-      return await withRetry(
-        () => api.post(`guests/${guestId}/interactions`, { json: data }).json<GuestInteraction>(),
-        { maxAttempts: 2, initialDelay: 1000 }
-      );
+      // No retry: the create is not idempotent and a lost response would
+      // double-file the note.
+      return await api
+        .post(`guests/${guestId}/interactions`, { json: data })
+        .json<GuestInteraction>();
     } catch (error) {
       throw await toGuestRelationsApiError(error, 'Failed to create guest interaction');
     }
