@@ -1,7 +1,26 @@
 # Legacy flag-only deposit refund — design
 
 Date: 2026-09-13
-Status: approved approach (Option A, convert-on-refund), pending spec review
+Status: **superseded** — Option A (convert-on-refund inside `refund_deposit`)
+was dropped after discovery of
+`refund_deposit_ignores_booking_columns_without_a_payment_row`
+(`tests/payment_characterization.rs`), a security characterization test that
+enshrines "forged booking columns mint no refundable money". Conversion would
+have violated that invariant deliberately.
+
+**Implemented instead (user-approved revision):** the attestation goes through
+the existing `updateBooking` → `reconcile_booking_deposit_tx` Collect path,
+driven from `CheckoutInvoiceModal.handleRefundDeposit`: when the refundable
+amount computed from the payments list falls short of `depositRefund`, the
+modal first asserts `deposit_paid:true` + `deposit_amount` (the server mints
+the missing deposit-payment delta under the booking lock as an audited staff
+attestation requiring `bookings:update`), then calls `refundDeposit` normally.
+`refund_deposit` keeps its strict ledger-only ceiling — zero backend changes.
+Waive persists via `updateBooking({deposit_paid:false, deposit_amount:0,
+payment_note:'Deposit waived: <reason>'})`. See the revised plan at
+`docs/superpowers/plans/2026-09-13-legacy-deposit-refund-plan.md`.
+
+Everything below is the original Option-A spec, retained for context.
 
 ## Problem
 

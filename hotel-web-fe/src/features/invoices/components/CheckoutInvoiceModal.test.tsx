@@ -12,12 +12,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 
 import type { BookingWithDetails, CustomerLedger } from '../../../types';
+import type { CheckoutPaymentRecord } from '../types';
 
 const mocks = vi.hoisted(() => ({
   recordPayment: vi.fn(),
   createLedgerPayment: vi.fn(),
   setPayments: vi.fn(),
   reloadPayments: vi.fn(),
+  updateBooking: vi.fn(),
+  refundDeposit: vi.fn(),
+  setDepositRefunded: vi.fn(),
+  payments: [] as CheckoutPaymentRecord[],
 }));
 
 vi.mock('../../../hooks/useCurrency', () => ({
@@ -25,7 +30,7 @@ vi.mock('../../../hooks/useCurrency', () => ({
 }));
 
 vi.mock('../../../api', () => ({
-  BookingsService: { updateBooking: vi.fn() },
+  BookingsService: { updateBooking: (...args: unknown[]) => mocks.updateBooking(...args) },
 }));
 
 vi.mock('../../../api/invoices.service', () => ({
@@ -33,7 +38,7 @@ vi.mock('../../../api/invoices.service', () => ({
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
     updatePayment: vi.fn(),
     deletePayment: vi.fn(),
-    refundDeposit: vi.fn(),
+    refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     revertDepositRefund: vi.fn(),
   },
 }));
@@ -58,10 +63,10 @@ vi.mock('../hooks/useCheckoutInvoiceData', () => ({
     guestAddress: '',
     guestPhone: '',
     guestIcNumber: '',
-    payments: [],
+    payments: mocks.payments,
     setPayments: (...args: unknown[]) => mocks.setPayments(...args),
     depositRefunded: false,
-    setDepositRefunded: vi.fn(),
+    setDepositRefunded: (...args: unknown[]) => mocks.setDepositRefunded(...args),
     editableDailyRates: {},
     setEditableDailyRates: vi.fn(),
     reloadPayments: (...args: unknown[]) => mocks.reloadPayments(...args),
@@ -108,7 +113,7 @@ const ledger: CustomerLedger = {
   updated_at: '2026-08-01T00:00:00.000Z',
 };
 
-function renderModal(ledgerView = false) {
+function renderModal(ledgerView = false, overrides: Partial<BookingWithDetails> = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -122,7 +127,7 @@ function renderModal(ledgerView = false) {
     <CheckoutInvoiceModal
       open
       onClose={vi.fn()}
-      booking={booking}
+      booking={{ ...booking, ...overrides }}
       ledger={ledgerView ? ledger : null}
     />,
     { wrapper },
@@ -267,5 +272,111 @@ describe('CheckoutInvoiceModal payment idempotency', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Pre-integrity-rework bookings carry the deposit only in booking columns with
+// no `payment_type='deposit'` row, so refund_deposit's ledger-only ceiling sees
+// nothing held and always refuses. The modal repairs that lazily at refund
+// time: it asserts the collected amount through the booking update (the server
+// mints the missing deposit payment under the booking lock), then refunds
+// against the now-real ledger row.
+describe('CheckoutInvoiceModal legacy deposit handling', () => {
+  beforeEach(() => {
+    mocks.updateBooking.mockReset().mockResolvedValue({});
+    mocks.refundDeposit.mockReset().mockResolvedValue({ id: 9, payment_status: 'refunded' });
+    mocks.setPayments.mockReset();
+    mocks.setDepositRefunded.mockReset();
+    mocks.payments = [];
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('records the collected deposit via updateBooking before refunding a flag-only deposit', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: /Refund RM50\.00/ }));
+
+    await waitFor(() => expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'cash', 50));
+    expect(mocks.updateBooking).toHaveBeenCalledWith('42', {
+      deposit_paid: true,
+      deposit_amount: 50,
+    });
+    // The collection assertion must land before the refund call so the
+    // minted deposit row exists when the ceiling is evaluated.
+    expect(mocks.updateBooking.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.refundDeposit.mock.invocationCallOrder[0]);
+    expect(mocks.setDepositRefunded).toHaveBeenCalledWith(true);
+  });
+
+  it('does not assert a collection when a deposit payment already covers the refund', async () => {
+    mocks.payments = [
+      { id: 1, payment_status: 'completed', payment_type: 'deposit', total_amount: 50 },
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: /Refund RM50\.00/ }));
+
+    await waitFor(() => expect(mocks.refundDeposit).toHaveBeenCalledWith('42', 'cash', 50));
+    expect(mocks.updateBooking).not.toHaveBeenCalled();
+  });
+
+  it('persists a deposit waive through updateBooking and unblocks checkout', async () => {
+    // A completed booking payment zeroes the balance so the deposit gate is
+    // the only thing holding "Proceed to Checkout" disabled.
+    mocks.payments = [
+      { id: 2, payment_status: 'completed', payment_type: 'booking', total_amount: 100 },
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    const proceed = within(dialog).getByRole('button', { name: 'Proceed to Checkout' });
+    expect((proceed as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(
+      within(dialog).getByPlaceholderText(/Reason for waiving deposit/i),
+      { target: { value: 'Lost keycard' } },
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Waive Deposit' }));
+
+    await waitFor(() =>
+      expect(mocks.updateBooking).toHaveBeenCalledWith('42', {
+        deposit_paid: false,
+        deposit_amount: 0,
+        payment_note: 'Deposit waived: Lost keycard',
+      }),
+    );
+    await waitFor(() =>
+      expect((within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled).toBe(false),
+    );
+  });
+
+  it('keeps checkout locked and surfaces the error when the server rejects the waive', async () => {
+    mocks.payments = [
+      { id: 1, payment_status: 'completed', payment_type: 'deposit', total_amount: 50 },
+      { id: 2, payment_status: 'completed', payment_type: 'booking', total_amount: 100 },
+    ];
+    mocks.updateBooking.mockRejectedValue(
+      new Error('A deposit payment of 50.00 is recorded on this booking'),
+    );
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.change(
+      within(dialog).getByPlaceholderText(/Reason for waiving deposit/i),
+      { target: { value: 'Lost keycard' } },
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Waive Deposit' }));
+
+    await waitFor(() =>
+      expect(within(dialog).getByText(/deposit payment of 50\.00 is recorded/i)).toBeDefined(),
+    );
+    expect(
+      (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });

@@ -162,6 +162,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   // Deposit waive state
   const [depositWaived, setDepositWaived] = useState(false);
   const [depositWaiveReason, setDepositWaiveReason] = useState('');
+  const [waivingDeposit, setWaivingDeposit] = useState(false);
 
   // Editable daily rates UI state
   const [editingRates, setEditingRates] = useState(false);
@@ -381,14 +382,61 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (!booking) return;
     try {
       setRefundingDeposit(true);
+      // Legacy bookings carry the deposit only in booking columns with no
+      // deposit payment row, so the refund ceiling sees nothing held. Assert
+      // the collected amount through the booking update first — the server
+      // mints the missing deposit payment under the booking lock — then the
+      // refund draws on it. Skipped when recorded rows already cover it.
+      const recordedDeposit = sumMoney(payments
+        .filter((p) => (p.payment_type || '').toLowerCase() === 'deposit' && p.payment_status === 'completed')
+        .map((p) => toMoneyNumber(p.total_amount)));
+      const refundedDeposit = sumMoney(payments
+        .filter((p) => (p.payment_type || '').toLowerCase() === 'refund' && p.payment_status === 'refunded')
+        .map((p) => toMoneyNumber(p.total_amount)));
+      const reconciledDeposit = isLessMoney(
+        subtractMoney(recordedDeposit, refundedDeposit),
+        charges.depositRefund,
+      );
+      if (reconciledDeposit) {
+        await BookingsService.updateBooking(booking.id, {
+          deposit_paid: true,
+          deposit_amount: charges.depositRefund,
+        });
+      }
       const refundPayment = await InvoicesService.refundDeposit(booking.id, refundPaymentMethod, charges.depositRefund);
-      setPayments(prev => [...prev, refundPayment]);
+      if (reconciledDeposit) {
+        // Re-fetch so the folio also lists the deposit row just minted.
+        await reloadPayments();
+      } else {
+        setPayments(prev => [...prev, refundPayment]);
+      }
       setDepositRefunded(true);
       invalidateInvoiceState();
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Failed to refund deposit');
     } finally {
       setRefundingDeposit(false);
+    }
+  };
+
+  const handleWaiveDeposit = async () => {
+    if (!booking || !depositWaiveReason.trim()) return;
+    try {
+      setWaivingDeposit(true);
+      const reason = depositWaiveReason.trim();
+      await BookingsService.updateBooking(booking.id, {
+        deposit_paid: false,
+        deposit_amount: 0,
+        payment_note: booking.payment_note
+          ? `${booking.payment_note} | Deposit waived: ${reason}`
+          : `Deposit waived: ${reason}`,
+      });
+      setDepositWaived(true);
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to waive deposit');
+    } finally {
+      setWaivingDeposit(false);
     }
   };
 
@@ -1209,12 +1257,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           variant="outlined"
                           color="warning"
                           fullWidth
-                          onClick={() => {
-                            if (depositWaiveReason.trim()) {
-                              setDepositWaived(true);
-                            }
-                          }}
-                          disabled={!depositWaiveReason.trim()}
+                          onClick={handleWaiveDeposit}
+                          disabled={!depositWaiveReason.trim() || waivingDeposit}
+                          startIcon={waivingDeposit ? <CircularProgress size={14} /> : undefined}
                           sx={{ fontSize: '0.75rem', py: 0.5 }}
                         >
                           Waive Deposit
@@ -1242,18 +1287,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }} size={4}>
                       <Chip label="Waived" size="small" color="warning" />
-                      <Button
-                        size="small"
-                        variant="text"
-                        color="primary"
-                        onClick={() => {
-                          setDepositWaived(false);
-                          setDepositWaiveReason('');
-                        }}
-                        sx={{ fontSize: '0.7rem', minWidth: 'auto' }}
-                      >
-                        Undo
-                      </Button>
                     </Grid>
                   </Grid>
                 </Box>
