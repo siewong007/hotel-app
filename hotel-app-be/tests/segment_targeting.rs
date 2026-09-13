@@ -61,26 +61,45 @@ mod postgres_tests {
     }
 
     /// `base` is the first id of a private 100-id band (994000, 994100, ...).
-    /// Service-created rows (segments, campaigns) take sequence ids outside
-    /// the band, so cleanup also sweeps by the `seg994` name/slug markers.
+    /// The tests in this file run in parallel against one database, so every
+    /// predicate must stay inside the band — a cross-band sweep would delete
+    /// another test's fixtures mid-assertion. Service-created rows (segments,
+    /// campaigns) take sequence ids outside the band; their names/slugs embed
+    /// the base digits so the marker sweep below finds them.
     async fn cleanup(pool: &PgPool, base: i64) {
         for stmt in [
             "DELETE FROM audit_logs WHERE resource_type IN ('guest_segment', 'email_campaign') \
                 AND resource_id BETWEEN $1 AND $1 + 99",
-            // Service-created segments carry sequence ids outside the band;
-            // their audit rows are found by the fixture name in details.
-            "DELETE FROM audit_logs WHERE details::text LIKE '%Seg994%'",
             "DELETE FROM email_deliveries WHERE guest_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_deliveries WHERE campaign_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_campaigns WHERE id BETWEEN $1 AND $1 + 99 \
-                OR segment_id BETWEEN $1 AND $1 + 99 OR name LIKE 'Seg994%'",
+                OR segment_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM notification_subscriptions WHERE guest_id BETWEEN $1 AND $1 + 99",
-            "DELETE FROM email_suppressions WHERE email LIKE 'seg994-%'",
-            "DELETE FROM guest_segments WHERE id BETWEEN $1 AND $1 + 99 OR slug LIKE 'seg994-%'",
+            "DELETE FROM guest_segments WHERE id BETWEEN $1 AND $1 + 99",
             "DELETE FROM guests WHERE id BETWEEN $1 AND $1 + 99",
         ] {
             sqlx::query(stmt).bind(base).execute(pool).await.unwrap();
         }
+
+        // Service-created rows carry the base digits in their name/slug and
+        // in the audit-row details.
+        let marker = format!("%{base}%");
+        for stmt in [
+            "DELETE FROM audit_logs WHERE resource_type IN ('guest_segment', 'email_campaign') \
+                AND details::text LIKE $1",
+            "DELETE FROM email_campaigns WHERE name LIKE $1",
+            "DELETE FROM guest_segments WHERE name LIKE $1 OR slug LIKE $1",
+        ] {
+            sqlx::query(stmt).bind(&marker).execute(pool).await.unwrap();
+        }
+
+        // Suppression emails embed the guest id, so the band shares a prefix
+        // (994000-994099 -> seg994-9940*@hotel.local).
+        sqlx::query("DELETE FROM email_suppressions WHERE email LIKE $1")
+            .bind(format!("seg994-{}%", base / 100))
+            .execute(pool)
+            .await
+            .unwrap();
     }
 
     /// Active guest with an email; caller attaches subscriptions etc.
@@ -187,7 +206,7 @@ mod postgres_tests {
         let segment = segments_service::create_segment(
             &pool,
             ACTOR,
-            segment_input("Seg994 Country", BASE, true),
+            segment_input(&format!("Seg994 Country {BASE}"), BASE, true),
             None,
             None,
         )
@@ -276,7 +295,7 @@ mod postgres_tests {
             ACTOR,
             segment.id,
             SegmentInput {
-                name: "Seg994 Country Renamed".to_string(),
+                name: format!("Seg994 Country Renamed {BASE}"),
                 description: Some("renamed".to_string()),
                 rules: seg_rules(BASE),
                 is_active: Some(true),
@@ -286,7 +305,7 @@ mod postgres_tests {
         )
         .await
         .unwrap();
-        assert_eq!(updated.name, "Seg994 Country Renamed");
+        assert_eq!(updated.name, format!("Seg994 Country Renamed {BASE}"));
 
         segments_service::delete_segment(&pool, ACTOR, segment.id, None, None)
             .await
