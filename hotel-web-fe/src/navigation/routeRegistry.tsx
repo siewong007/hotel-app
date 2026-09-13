@@ -23,13 +23,14 @@ import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
 import type { RouteAccessPolicy } from '../types';
 
 export type RouteAnimation = 'fade' | 'slide' | 'grow';
 export type NavGroup =
-  | 'overview' | 'operations' | 'finance' | 'engagement'
+  | 'overview' | 'operations' | 'finance' | 'revenue' | 'engagement'
   | 'property' | 'insights' | 'administration' | 'utility';
 
 interface AccessChecker {
@@ -97,6 +98,7 @@ const PromotionManagementPage = lazyRoute(() => import('../features/promotions/p
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
 const NotificationsPage = lazyRoute(() => import('../features/notifications/pages/NotificationsPage'));
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
+const RevenueOverviewPage = lazyRoute(() => import('../features/revenue/pages/RevenueOverviewPage'));
 const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
 const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
 const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
@@ -328,6 +330,19 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Reports',
     navLabel: 'Reports',
     navGroup: 'insights',
+    accessControlled: true,
+  },
+  // ── revenue ─────────────────────────────────────────────────────────────
+  {
+    id: 'revenue',
+    path: '/revenue',
+    component: RevenueOverviewPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: TrendingUpIcon,
+    breadcrumbLabel: 'Revenue',
+    navLabel: 'Revenue',
+    navGroup: 'revenue',
     accessControlled: true,
   },
   // ── administration ──────────────────────────────────────────────────────

@@ -41,6 +41,7 @@ import { Route as PromotionsRouteImport } from './routes/promotions'
 import { Route as RbacRouteImport } from './routes/rbac'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as RevenueRouteImport } from './routes/revenue'
 import { Route as RoomConfigRouteImport } from './routes/room-config'
 import { Route as RoomManagementRouteImport } from './routes/room-management'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -221,6 +222,11 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RevenueRoute = RevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RoomConfigRoute = RoomConfigRouteImport.update({
   id: '/room-config',
   path: '/room-config',
@@ -352,6 +358,7 @@ export interface FileRoutesByFullPath {
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
@@ -405,6 +412,7 @@ export interface FileRoutesByTo {
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
@@ -459,6 +467,7 @@ export interface FileRoutesById {
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
@@ -514,6 +523,7 @@ export interface FileRouteTypes {
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
     | '/settings'
@@ -567,6 +577,7 @@ export interface FileRouteTypes {
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
     | '/settings'
@@ -620,6 +631,7 @@ export interface FileRouteTypes {
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
     | '/settings'
@@ -674,6 +686,7 @@ export interface RootRouteChildren {
   RbacRoute: typeof RbacRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
+  RevenueRoute: typeof RevenueRoute
   RoomConfigRoute: typeof RoomConfigRoute
   RoomManagementRoute: typeof RoomManagementRoute
   SettingsRoute: typeof SettingsRoute
@@ -920,6 +933,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/revenue': {
+      id: '/revenue'
+      path: '/revenue'
+      fullPath: '/revenue'
+      preLoaderRoute: typeof RevenueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/room-config': {
       id: '/room-config'
       path: '/room-config'
@@ -1099,6 +1119,7 @@ const rootRouteChildren: RootRouteChildren = {
   RbacRoute: RbacRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
+  RevenueRoute: RevenueRoute,
   RoomConfigRoute: RoomConfigRoute,
   RoomManagementRoute: RoomManagementRoute,
   SettingsRoute: SettingsRoute,
