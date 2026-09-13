@@ -32,6 +32,16 @@ mod postgres_tests {
         Some(
             PgPoolOptions::new()
                 .max_connections(3)
+                // Some baselines make audit_logs append-only; this GUC is the
+                // test escape hatch and a no-op where the trigger is absent.
+                .after_connect(|conn, _| {
+                    Box::pin(async move {
+                        sqlx::query("SET app.allow_audit_mutation = 'on'")
+                            .execute(conn)
+                            .await
+                            .map(|_| ())
+                    })
+                })
                 .connect(&database_url)
                 .await
                 .expect("failed to connect to PostgreSQL test database"),
@@ -55,6 +65,11 @@ mod postgres_tests {
     /// the band, so cleanup also sweeps by the `seg994` name/slug markers.
     async fn cleanup(pool: &PgPool, base: i64) {
         for stmt in [
+            "DELETE FROM audit_logs WHERE resource_type IN ('guest_segment', 'email_campaign') \
+                AND resource_id BETWEEN $1 AND $1 + 99",
+            // Service-created segments carry sequence ids outside the band;
+            // their audit rows are found by the fixture name in details.
+            "DELETE FROM audit_logs WHERE details::text LIKE '%Seg994%'",
             "DELETE FROM email_deliveries WHERE guest_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_deliveries WHERE campaign_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_campaigns WHERE id BETWEEN $1 AND $1 + 99 \

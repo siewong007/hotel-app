@@ -160,6 +160,22 @@ notification preferences (`/guest-portal/me/notification-preferences`), and
 booking-confirmation deliveries queued from the guest-booking and payment
 paths.
 
+## Guest segments
+
+`guest_segments` stores named JSONB rule sets (`{groups: [{conditions}]}`
+— OR between groups, AND within). `modules/segments/rules.rs` compiles them
+into parameterized predicates over `guests` (whitelisted fields/operators;
+only values are bound). Membership is always evaluated live — there is no
+materialized member table.
+
+`email_campaigns.segment_id` intersects the compiled predicate with the
+existing audience gates (active guest, valid email, topic subscription,
+suppression list, per-campaign delivery dedup). Preview counts and the
+scheduler's expansion share the same `SegmentScope` resolution: a missing
+or inactive segment fails closed to zero recipients rather than widening
+to the untargeted audience. Segments referenced by campaigns cannot be
+deleted (`ON DELETE RESTRICT` + a service-level conflict) — deactivate them.
+
 ## Realtime resilience
 
 WebSocket hubs log lagged-drop counts; frontend sockets reconnect with capped

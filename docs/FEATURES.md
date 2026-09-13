@@ -36,7 +36,8 @@ shipped), **Experimental**, **Deprecated**.
 | Audit log viewer | Delivered | ✓ `features/audit-log` | ✓ `routes/audit.rs` | Partitioned append-only store |
 | eKYC | Delivered | ✓ `features/ekyc` | ✓ `modules/ekyc` | Submission + staff review queue |
 | Guest portal (booking, pre-check-in, docs) | Delivered | ✓ `guest/`, `features/guestPortal` | ✓ `routes/guest_portal.rs`, `modules/guest_booking` | Booking access tokens, consent gate |
-| Communications (email campaigns) | Delivered | ✓ `features/communications` | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends |
+| Guest segments | Delivered | ✓ `features/segments` (`/segments`) | ✓ `modules/segments` | JSONB rules compiled to bound-parameter SQL; dynamic evaluation — membership never materialized |
+| Communications (email campaigns) | Delivered | ✓ `features/communications` | ✓ `modules/communications` | lettre SMTP worker; per-guest preferences; transactional sends; optional `segment_id` audience intersection |
 | SMS channel | Not delivered | — | — | Open item; no implementation |
 | Support tickets | Delivered | ✓ `features/support` | ✓ `modules/support` | Incl. guest-portal support widget |
 | Notifications (in-app + email triggers) | Delivered | ✓ `features/notifications` | ✓ | Checkout receipt + pre-arrival reminder (patch 0008) |
