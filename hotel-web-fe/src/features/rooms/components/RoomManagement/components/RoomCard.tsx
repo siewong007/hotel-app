@@ -26,20 +26,110 @@ import {
   AutoAwesome as SparkleIcon,
 } from '@mui/icons-material';
 import type { Room, BookingWithDetails } from '../../../../../types';
+import type { RoomMenuAnchor } from '../types';
 import { getRoomTypeCode } from '../../../utils/roomManagementUtils';
+
+// Action row pinned to the card bottom so the primary action sits in the same
+// spot on every card regardless of state.
+const CardActionRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Box
+    sx={{
+      position: 'absolute',
+      bottom: 12,
+      left: 12,
+      right: 12,
+      display: 'flex',
+      gap: 0.4,
+      alignItems: 'center',
+      minWidth: 0,
+    }}
+  >
+    {children}
+  </Box>
+);
+
+const CardPillButton: React.FC<{
+  tone: 'dark' | 'paper';
+  onClick: () => void;
+  children: React.ReactNode;
+}> = ({ tone, onClick, children }) => (
+  <Button
+    size="small"
+    variant={tone === 'dark' ? 'contained' : 'outlined'}
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+    sx={{
+      flex: 1,
+      fontSize: '0.62rem',
+      fontWeight: 700,
+      textTransform: 'none',
+      whiteSpace: 'nowrap',
+      minWidth: 0,
+      py: 0.35,
+      px: 0.5,
+      borderRadius: 999,
+      ...(tone === 'dark'
+        ? {
+            color: 'background.paper',
+            bgcolor: 'text.primary',
+            borderWidth: 0,
+            boxShadow: 'none',
+            '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
+          }
+        : {
+            color: 'text.primary',
+            bgcolor: 'background.paper',
+            borderColor: 'divider',
+            borderWidth: 1,
+            '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
+          }),
+    }}
+  >
+    {children}
+  </Button>
+);
+
+const CardMoreButton: React.FC<{ onClick: (event: React.MouseEvent<HTMLElement>) => void }> = ({ onClick }) => (
+  <Tooltip title="More actions" arrow>
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(e);
+      }}
+      sx={{
+        border: '1px solid',
+        borderColor: 'rgba(255,255,255,0.55)',
+        borderRadius: 999,
+        width: 24,
+        height: 24,
+        flexShrink: 0,
+        color: '#fff',
+        bgcolor: 'transparent',
+        '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
+      }}
+    >
+      <MoreHorizIcon sx={{ fontSize: 14 }} />
+    </IconButton>
+  </Tooltip>
+);
 
 interface RoomCardProps {
   room: Room;
   computedStatus: string;
+  statusLabel: string;
   booking: BookingWithDetails | undefined;
   reservedBooking: BookingWithDetails | undefined;
   hasReservationForToday: boolean;
   isOccupied: boolean;
   isReservedToday: boolean;
   isComplimentary: boolean;
+  overdueDays?: number;
   cardFill: string;
   isDarkMode: boolean;
-  onMenuOpen: (event: React.MouseEvent<HTMLElement>, room: Room) => void;
+  onMenuOpen: (anchor: RoomMenuAnchor, room: Room) => void;
   onEditNotes: (room: Room) => void;
   onEditBookingNotes: (booking: BookingWithDetails, event: React.MouseEvent) => void;
   onCheckOut: (room: Room) => void;
@@ -52,12 +142,14 @@ interface RoomCardProps {
 const RoomCard: React.FC<RoomCardProps> = ({
   room,
   computedStatus,
+  statusLabel,
   booking,
   reservedBooking,
   hasReservationForToday,
   isOccupied,
   isReservedToday,
   isComplimentary,
+  overdueDays,
   cardFill,
   isDarkMode,
   onMenuOpen,
@@ -73,25 +165,15 @@ const RoomCard: React.FC<RoomCardProps> = ({
     <Box sx={{ minWidth: 0 }}>
       <Card
         elevation={0}
-        ref={(el: HTMLDivElement | null) => {
-          // Two global theme rules try to force this card back to a neutral
-          // surface: theme.ts:276 (board-skin) and theme.ts:259 (dark-mode
-          // nested-Paper, which uses `!important` AND has higher specificity
-          // than any sx-generated class chain we can produce). Inline styles
-          // set with `!important` via setProperty beat both — that's the
-          // only reliable escape here.
-          if (!el) return;
-          el.style.setProperty('background-color', cardFill, 'important');
-          el.style.setProperty('background-image', 'none', 'important');
-          el.style.setProperty(
-            'border-color',
-            isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)',
-            'important',
-          );
-          el.style.setProperty('border-width', '1px', 'important');
-          el.style.setProperty('border-style', 'solid', 'important');
-        }}
+        // `hotel-room-card` opts out of the board-skin and dark-mode
+        // nested-Paper rules in theme.ts, which otherwise force every card
+        // back to a neutral surface.
+        className="hotel-room-card"
         sx={{
+          bgcolor: cardFill,
+          backgroundImage: 'none',
+          border: '1px solid',
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)',
           color: '#fff',
           cursor: 'pointer',
           position: 'relative',
@@ -113,6 +195,18 @@ const RoomCard: React.FC<RoomCardProps> = ({
           e.preventDefault();
           onMenuOpen(e, room);
         }}
+        role="button"
+        tabIndex={0}
+        aria-label={`Room ${room.room_number}, ${statusLabel} — open actions`}
+        onKeyDown={(e) => {
+          // Inner buttons handle their own keys — only open the menu when the
+          // card itself is focused.
+          if (e.target !== e.currentTarget) return;
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          const rect = e.currentTarget.getBoundingClientRect();
+          onMenuOpen({ top: rect.top + 48, left: rect.left + 12 }, room);
+        }}
       >
         <CardContent
           sx={{
@@ -128,7 +222,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
             '&:last-child': { pb: '44px' },
           }}
         >
-          {/* Header row: room number + type code on the left, status pill on the right */}
+          {/* Header row: room number + type code */}
           <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
               <Typography
@@ -152,7 +246,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     lineHeight: 1,
                   }}
                 >
-                  {getRoomTypeCode(room.room_type)}
+                  {room.room_type_code || getRoomTypeCode(room.room_type)}
                 </Typography>
                 <Box
                   component="svg"
@@ -193,6 +287,30 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Tooltip>
               )}
             </Box>
+
+            {/* Overdue-checkout flag: the banner aggregates these, this ties
+                the warning to the specific room card. */}
+            {overdueDays != null && overdueDays > 0 && (
+              <Tooltip title={`${overdueDays} day${overdueDays === 1 ? '' : 's'} past scheduled checkout`} arrow>
+                <Box
+                  sx={{
+                    flexShrink: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    px: 0.75,
+                    py: 0.3,
+                    borderRadius: 0.75,
+                    bgcolor: 'rgba(183,28,28,0.88)',
+                    border: '1px solid rgba(255,255,255,0.4)',
+                    color: '#fff',
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.7 }}>
+                    OVERDUE {overdueDays}d
+                  </Typography>
+                </Box>
+              </Tooltip>
+            )}
 
           </Box>
 
@@ -390,86 +508,16 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Box>
               </Tooltip>
 
-              {/* Action row: Check out, Move, More — pinned to card bottom for cross-card alignment */}
-              <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', gap: 0.4, alignItems: 'center', minWidth: 0 }}>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCheckOut(room);
-                  }}
-                  sx={{
-                    flex: 1,
-                    color: 'text.primary',
-                    bgcolor: 'background.paper',
-                    fontSize: '0.62rem',
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    whiteSpace: 'nowrap',
-                    '&.MuiButton-root': {
-                      minWidth: 0,
-                      py: 0.35,
-                      px: 0.5,
-                      borderRadius: 999,
-                      borderColor: 'divider',
-                      borderWidth: 1,
-                    },
-                    '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
-                  }}
-                >
+              {/* Action row: Check out, Move, More */}
+              <CardActionRow>
+                <CardPillButton tone="paper" onClick={() => onCheckOut(room)}>
                   Check out
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onChangeRoom(room);
-                  }}
-                  sx={{
-                    flex: 1,
-                    color: 'text.primary',
-                    bgcolor: 'background.paper',
-                    fontSize: '0.62rem',
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    whiteSpace: 'nowrap',
-                    '&.MuiButton-root': {
-                      minWidth: 0,
-                      py: 0.35,
-                      px: 0.5,
-                      borderRadius: 999,
-                      borderColor: 'divider',
-                      borderWidth: 1,
-                    },
-                    '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
-                  }}
-                >
+                </CardPillButton>
+                <CardPillButton tone="paper" onClick={() => onChangeRoom(room)}>
                   Move
-                </Button>
-                <Tooltip title="More actions" arrow>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMenuOpen(e, room);
-                    }}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'rgba(255,255,255,0.55)',
-                      borderRadius: 999,
-                      width: 22,
-                      height: 22,
-                      flexShrink: 0,
-                      color: '#fff',
-                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
-                    }}
-                  >
-                    <MoreHorizIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+                </CardPillButton>
+                <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
+              </CardActionRow>
             </Box>
           ) : null}
 
@@ -542,58 +590,13 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 </Tooltip>
               </Box>
 
-              {/* Action row: Check in (primary) + More — pinned to card bottom */}
-              <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', gap: 0.4, alignItems: 'center', minWidth: 0 }}>
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCheckIn(room);
-                  }}
-                  sx={{
-                    flex: 1,
-                    color: 'background.paper',
-                    fontSize: '0.62rem',
-                    fontWeight: 700,
-                    textTransform: 'none',
-                    whiteSpace: 'nowrap',
-                    boxShadow: 'none',
-                    '&.MuiButton-root': {
-                      minWidth: 0,
-                      py: 0.35,
-                      px: 0.5,
-                      borderRadius: 999,
-                      bgcolor: 'text.primary',
-                      borderWidth: 0,
-                    },
-                    '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
-                  }}
-                >
+              {/* Action row: Check in (primary) + More */}
+              <CardActionRow>
+                <CardPillButton tone="dark" onClick={() => onCheckIn(room)}>
                   Check in
-                </Button>
-                <Tooltip title="More actions" arrow>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMenuOpen(e, room);
-                    }}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'rgba(255,255,255,0.55)',
-                      borderRadius: 999,
-                      width: 22,
-                      height: 22,
-                      flexShrink: 0,
-                      color: '#fff',
-                      '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
-                    }}
-                  >
-                    <MoreHorizIcon sx={{ fontSize: 14 }} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
+                </CardPillButton>
+                <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
+              </CardActionRow>
             </>
           )}
 
@@ -634,135 +637,22 @@ const RoomCard: React.FC<RoomCardProps> = ({
 
           {/* Action row for Dirty Rooms: Mark clean (primary) + More */}
           {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && (
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 12,
-                left: 12,
-                right: 12,
-                display: 'flex',
-                gap: 0.4,
-                alignItems: 'center',
-                minWidth: 0,
-              }}
-            >
-              <Button
-                size="small"
-                variant="contained"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onMarkAvailable(room);
-                }}
-                sx={{
-                  flex: 1,
-                  color: 'background.paper',
-                  fontSize: '0.62rem',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  whiteSpace: 'nowrap',
-                  boxShadow: 'none',
-                  '&.MuiButton-root': {
-                    minWidth: 0,
-                    py: 0.35,
-                    px: 0.5,
-                    borderRadius: 999,
-                    bgcolor: 'text.primary',
-                    borderWidth: 0,
-                  },
-                  '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
-                }}
-              >
+            <CardActionRow>
+              <CardPillButton tone="dark" onClick={() => onMarkAvailable(room)}>
                 {computedStatus === 'reserved_dirty' ? 'Mark clean' : 'Mark available'}
-              </Button>
-              <Tooltip title="More actions" arrow>
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onMenuOpen(e, room);
-                  }}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'rgba(255,255,255,0.55)',
-                    borderRadius: 999,
-                    width: 22,
-                    height: 22,
-                    flexShrink: 0,
-                    color: '#fff',
-                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
-                  }}
-                >
-                  <MoreHorizIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
+              </CardPillButton>
+              <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
+            </CardActionRow>
           )}
 
-          {/* Action row for Available Rooms: + New booking (primary) + More — pinned to card bottom */}
+          {/* Action row for Available Rooms: + New booking (primary) + More */}
           {computedStatus === 'available' && (
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 12,
-                left: 12,
-                right: 12,
-                display: 'flex',
-                gap: 0.4,
-                alignItems: 'center',
-                minWidth: 0,
-              }}
-            >
-              <Button
-                size="small"
-                variant="contained"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNewBooking(room);
-                }}
-                sx={{
-                  flex: 1,
-                  color: 'background.paper',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  whiteSpace: 'nowrap',
-                  boxShadow: 'none',
-                  '&.MuiButton-root': {
-                    minWidth: 0,
-                    py: 0.5,
-                    px: 0.75,
-                    borderRadius: 999,
-                    bgcolor: 'text.primary',
-                    borderWidth: 0,
-                  },
-                  '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
-                }}
-              >
+            <CardActionRow>
+              <CardPillButton tone="dark" onClick={() => onNewBooking(room)}>
                 + New booking
-              </Button>
-              <Tooltip title="More actions" arrow>
-                <IconButton
-                  size="small"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onMenuOpen(e, room);
-                  }}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'rgba(255,255,255,0.55)',
-                    borderRadius: 999,
-                    width: 24,
-                    height: 24,
-                    flexShrink: 0,
-                    color: '#fff',
-                    bgcolor: 'transparent',
-                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
-                  }}
-                >
-                  <MoreHorizIcon sx={{ fontSize: 14 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
+              </CardPillButton>
+              <CardMoreButton onClick={(e) => onMenuOpen(e, room)} />
+            </CardActionRow>
           )}
 
         </CardContent>
@@ -771,4 +661,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
   );
 };
 
-export default RoomCard;
+// Memoized: card props are primitives or query-cache references (structural
+// sharing keeps unchanged rooms/bookings identical across polls), and the
+// page passes useCallback'd handlers — so unchanged cards skip re-rendering.
+export default React.memo(RoomCard);

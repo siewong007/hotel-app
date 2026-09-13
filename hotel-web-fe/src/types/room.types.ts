@@ -62,6 +62,8 @@ export interface Room {
   id: string; // UUID
   room_number: string;
   room_type: string;
+  // Room-type code joined from room_types.code (present on GET /rooms rows).
+  room_type_code?: string;
   price_per_night: number | string;
   available: boolean;
   description?: string;

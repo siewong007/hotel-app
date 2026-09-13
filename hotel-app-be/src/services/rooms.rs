@@ -1054,6 +1054,17 @@ pub async fn execute_room_change_handler(
         .map(|s| s.to_string())
         .unwrap_or_else(|| "Room change requested".to_string());
 
+    // Optional re-price applied inside the same transaction — omitted means
+    // the booking keeps its existing room_rate_override.
+    let room_rate_override = input
+        .get("room_rate_override")
+        .and_then(|v| {
+            v.as_f64()
+                .or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok()))
+        })
+        .and_then(Decimal::from_f64_retain)
+        .filter(|d| *d > Decimal::ZERO);
+
     // Prevent changing to the same room
     if room_id == target_id {
         return Err(ApiError::BadRequest(
@@ -1109,6 +1120,7 @@ pub async fn execute_room_change_handler(
             user_id,
             from_room_number: &from_room_number,
             to_room_number: &to_room_number,
+            room_rate_override,
         },
     )
     .await?;
@@ -1132,7 +1144,8 @@ pub async fn execute_room_change_handler(
                 "to_room_number": to_room_number,
                 "booking_id": booking_id,
                 "guest_id": guest_id,
-                "reason": reason
+                "reason": reason,
+                "room_rate_override": room_rate_override
             })),
             ..Default::default()
         },

@@ -47,6 +47,7 @@ fn row_to_room_with_rating(row: &DbRow) -> RoomWithRating {
         id: row.get("id"),
         room_number: row.get("room_number"),
         room_type: row.get("room_type"),
+        room_type_code: row.try_get("room_type_code").ok(),
         price_per_night: row
             .get::<String, _>("price_per_night")
             .parse()
@@ -127,6 +128,7 @@ SELECT
     r.id,
     r.room_number,
     rt.name as room_type,
+    rt.code as room_type_code,
     COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN false
@@ -1317,6 +1319,7 @@ pub struct RoomChangeValues<'a> {
     pub user_id: i64,
     pub from_room_number: &'a str,
     pub to_room_number: &'a str,
+    pub room_rate_override: Option<Decimal>,
 }
 
 pub async fn execute_room_change_tx(
@@ -1332,9 +1335,15 @@ pub async fn execute_room_change_tx(
         user_id,
         from_room_number,
         to_room_number,
+        room_rate_override,
     } = values;
-    sqlx::query("UPDATE bookings SET room_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
+    // COALESCE keeps any existing override when the caller moves the guest
+    // without re-pricing (e.g. the room-event flow).
+    sqlx::query(
+        "UPDATE bookings SET room_id = $1, room_rate_override = COALESCE($2, room_rate_override), updated_at = CURRENT_TIMESTAMP WHERE id = $3",
+    )
         .bind(target_id)
+        .bind(room_rate_override)
         .bind(booking_id)
         .execute(&mut **tx)
         .await

@@ -86,10 +86,20 @@ export class RoomsService {
     }
   }
 
-  static async executeRoomChange(roomId: string | number, targetRoomId: string): Promise<any> {
+  // Single transactional call: reassigns the booking, marks the old room
+  // dirty and the new room occupied, and writes room_changes/history rows.
+  static async executeRoomChange(
+    roomId: string | number,
+    targetRoomId: string,
+    options?: { roomRateOverride?: number; reason?: string },
+  ): Promise<any> {
     try {
       return await api.post(`rooms/${roomId}/execute-change`, {
-        json: { target_room_id: parseInt(targetRoomId, 10) }
+        json: {
+          target_room_id: parseInt(targetRoomId, 10),
+          ...(options?.roomRateOverride != null ? { room_rate_override: options.roomRateOverride } : {}),
+          ...(options?.reason ? { reason: options.reason } : {}),
+        }
       }).json();
     } catch (error) {
       throw toApiError(error, 'Failed to execute room change');

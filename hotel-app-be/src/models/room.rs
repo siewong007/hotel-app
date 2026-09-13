@@ -129,6 +129,7 @@ pub struct RoomWithRating {
     pub id: i64,
     pub room_number: String,
     pub room_type: String,
+    pub room_type_code: Option<String>,
     pub price_per_night: Decimal,
     pub available: bool,
     pub status: Option<String>,
@@ -324,6 +325,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomWithRating {
             id: row.try_get("id")?,
             room_number: row.try_get("room_number")?,
             room_type: row.try_get("room_type")?,
+            // Absent in queries that don't join room_types.code — treated as
+            // unknown rather than an error (same contract as row_to_room_with_rating).
+            room_type_code: row.try_get("room_type_code").unwrap_or(None),
             price_per_night: { row.try_get("price_per_night")? },
             available: row.try_get("available")?,
             status: row.try_get("status")?,

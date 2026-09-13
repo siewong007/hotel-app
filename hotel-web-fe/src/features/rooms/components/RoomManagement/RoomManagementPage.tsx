@@ -2,78 +2,38 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from '../../../../router';
 import {
   Box,
-  Grid,
-  Card,
-  CardContent,
   Typography,
-  IconButton,
-  Menu,
-  MenuItem,
   Chip,
   Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  Select,
-  FormControl,
-  InputLabel,
   Alert,
-  CircularProgress,
-  Divider,
-  ListItemIcon,
-  ListItemText,
   Paper,
+  Skeleton,
   Stack,
-  Autocomplete,
-  Tabs,
-  Tab,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
-  Tooltip,
-  ToggleButton,
-  ToggleButtonGroup,
-  InputAdornment,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
-  CleaningServices as CleaningIcon,
-  Build as MaintenanceIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   Person as PersonIcon,
   PersonAdd as PersonAddIcon,
   Login as LoginIcon,
   Logout as LogoutIcon,
   History as HistoryIcon,
-  Receipt as ReceiptIcon,
-  Message as MessageIcon,
   Settings as SettingsIcon,
-  Hotel as HotelIcon,
-  Block as BlockIcon,
-  EventAvailable as BookingIcon,
-  AccessTime as TimeIcon,
   CardGiftcard as GiftIcon,
-  Info as InfoIcon,
   CalendarMonth as CalendarIcon,
   Update as ExtendIcon,
   SwapHoriz as SwapIcon,
-  Phone as PhoneIcon,
-  Edit as EditIcon,
-  Save as SaveIcon,
   Notes as NotesIcon,
-  Payment as PaymentIcon,
-  MoneyOff as MoneyOffIcon,
-  MoreHoriz as MoreHorizIcon,
-  SmokingRooms as SmokingIcon,
   AutoAwesome as SparkleIcon,
   Build as BuildIcon,
 } from '@mui/icons-material';
-import { BookingsService, GuestsService, RoomsService } from '../../../../api';
+import { BookingsService, RoomsService } from '../../../../api';
 
-import { Room, Guest, Booking, BookingWithDetails, BookingCreateRequest, RoomHistory, TourismType } from '../../../../types';
+import { Room, Guest, Booking, BookingWithDetails, RoomHistory } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import {
   useBookingNotes,
@@ -85,41 +45,25 @@ import {
   useUpcomingBookingsDialog,
 } from '../../hooks';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
-import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
 import { isGreaterMoney, isLessMoney, subtractMoney, toMoneyNumber } from '../../../../utils/money';
-import { isValidEmail } from '../../../../utils/validation';
-import {
-  getUnifiedStatusColor,
-  getUnifiedStatusLabel,
-} from '../../config';
-import {
-  calculateNightCount,
-  getCreditBookingDates as getCreditBookingDateRange,
-} from '../../utils/roomManagementUtils';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import RoomStatusDialog from './RoomStatusDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
-import { RoomAction, MenuLayout, GuestWithCredits } from './types';
+import { RoomAction, MenuLayout, RoomMenuAnchor } from './types';
+import { getUnifiedStatusShortLabel } from '../../config';
 import RoomNotesDialog from './components/RoomNotesDialog';
 import RoomDetailsDialog from './components/RoomDetailsDialog';
 import RoomHistoryDialog from './components/RoomHistoryDialog';
 import BookingNotesDialog from './components/BookingNotesDialog';
-import CollectDepositDialog from './components/CollectDepositDialog';
 import MarkComplimentaryDialog from './components/MarkComplimentaryDialog';
 import UpcomingBookingsDialog from './components/UpcomingBookingsDialog';
 import ChangeRoomDialog from './components/ChangeRoomDialog';
-import ComplimentaryCheckInDialog from './components/ComplimentaryCheckInDialog';
 import ReservedCheckInDialog from './components/ReservedCheckInDialog';
-import WalkInCheckInDialog from './components/WalkInCheckInDialog';
-import OnlineCheckInDialog from './components/OnlineCheckInDialog';
-import {
-  getRoomCardFill,
-  getRoomStatusColor,
-  getRoomStatusLabel,
-} from './roomCardPresentation';
+import { getRoomCardFill } from './roomCardPresentation';
 import GuestDetailsDialog from './components/GuestDetailsDialog';
 import RoomManagementHeader from './components/RoomManagementHeader';
 import RoomCard from './components/RoomCard';
@@ -145,23 +89,6 @@ const getOverdueDays = (checkOutDate: string, todayIso: string) => {
   return Math.max(1, Math.ceil((today.getTime() - checkOut.getTime()) / DAY_MS));
 };
 
-type GuestInformationDraft = {
-  email: string;
-  phone: string;
-  ic_number: string;
-  tourism_type?: string;
-};
-
-const validateGuestInformationDraft = (guest: GuestInformationDraft): string | null => {
-  if (!guest.ic_number.trim()) {
-    return 'Please enter IC/Passport number';
-  }
-
-  // Email and phone are optional — online bookings often arrive without either,
-  // and contact details are collected at check-in. Do not block booking creation.
-  return null;
-};
-
 // UnifiedBookingModal's onBookingCreated forwards the raw booking/guest objects it built
 // (see UnifiedBookingModal.tsx `onBookingCreated?: (booking: Booking & { room_number?: string }, guest: Guest) => void`),
 // whose booking object carries an optional `room_number` overlay on the declared `Booking`
@@ -176,6 +103,10 @@ const RoomManagementPage: React.FC = () => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode !== 'light';
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
+  // Unified booking modal state — declared before useRoomData because it gates
+  // the guest-list query (guests are only needed once the modal opens).
+  const [unifiedBookingOpen, setUnifiedBookingOpen] = useState(false);
+  const [unifiedBookingType, setUnifiedBookingType] = useState<BookingType | undefined>(undefined);
   const {
     rooms,
     guests,
@@ -183,13 +114,11 @@ const RoomManagementPage: React.FC = () => {
     error: dataError,
     roomBookings,
     reservedBookings,
-    compVoidBookings,
     allBookingsData,
     reload: loadData,
     reloadRooms: loadRooms,
-    reloadGuests: loadGuests,
     reloadBookings: loadBookings,
-  } = useRoomData();
+  } = useRoomData(unifiedBookingOpen);
   const showSnackbar = useCallback((message: string, severity: ApiNotificationSeverity) => {
     emitApiNotification({ message, severity });
   }, []);
@@ -203,6 +132,10 @@ const RoomManagementPage: React.FC = () => {
         : `Room ${b.room_number} checked out successfully`,
     notify: (message, severity) => showSnackbar(message, (severity ?? 'success') as ApiNotificationSeverity),
   });
+  // Stable useCallback inside the hook — destructured so it can be a dep of
+  // memoized handlers below (the checkoutFlow object itself is a fresh
+  // literal every render).
+  const { openCheckout } = checkoutFlow;
   const {
     notesDialogOpen,
     notesRoom,
@@ -230,6 +163,13 @@ const RoomManagementPage: React.FC = () => {
     setRoomStatusFilter,
     attrFilters,
     toggleAttrFilter,
+    floorFilter,
+    setFloorFilter,
+    roomSearch,
+    setRoomSearch,
+    prioritySort,
+    togglePrioritySort,
+    floors,
     getRoomStatusInfo,
     availableCount,
     occupiedCount,
@@ -273,8 +213,6 @@ const RoomManagementPage: React.FC = () => {
   });
 
   // Dialogs
-  const [walkInDialogOpen, setWalkInDialogOpen] = useState(false);
-  const [onlineCheckInDialogOpen, setOnlineCheckInDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [roomDetailsDialogOpen, setRoomDetailsDialogOpen] = useState(false);
   const [changeRoomDialogOpen, setChangeRoomDialogOpen] = useState(false);
@@ -293,74 +231,13 @@ const RoomManagementPage: React.FC = () => {
   const [changingRoom, setChangingRoom] = useState(false);
   const [changeRoomCustomRate, setChangeRoomCustomRate] = useState<string>('');
 
-  // Walk-in form state
-  const [walkInGuest, setWalkInGuest] = useState<Guest | null>(null);
-  const [walkInBookingChannel, setWalkInBookingChannel] = useState('');
-  const [walkInReference, setWalkInReference] = useState('');
-  const [walkInCheckInDate, setWalkInCheckInDate] = useState('');
-  const [walkInCheckOutDate, setWalkInCheckOutDate] = useState('');
-  const [walkInNumberOfNights, setWalkInNumberOfNights] = useState(1);
-  const [creatingBooking, setCreatingBooking] = useState(false);
-  const [isCreatingNewGuest, setIsCreatingNewGuest] = useState(false);
-  const [newGuestForm, setNewGuestForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    nationality: '',
-    ic_number: '',
-    tourism_type: 'local'
-  });
-  // Walk-in payment/deposit state
-  const [walkInDeposit, setWalkInDeposit] = useState<number>(0);
-  const [walkInPaymentMethod, setWalkInPaymentMethod] = useState<string>('Cash');
-  const [walkInRoomCardDeposit, setWalkInRoomCardDeposit] = useState<number>(0);
-
-  // Online check-in form state
-  const [onlineCheckInGuest, setOnlineCheckInGuest] = useState<Guest | null>(null);
-  const [onlineCheckInBookingChannel, setOnlineCheckInBookingChannel] = useState('');
-  const [onlineReference, setOnlineReference] = useState('');
-  const [onlineCheckInDate, setOnlineCheckInDate] = useState('');
-  const [onlineCheckOutDate, setOnlineCheckOutDate] = useState('');
-  const [onlineNumberOfNights, setOnlineNumberOfNights] = useState(1);
-  const [isCreatingNewOnlineGuest, setIsCreatingNewOnlineGuest] = useState(false);
-  const [newOnlineGuestForm, setNewOnlineGuestForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    nationality: '',
-    ic_number: '',
-    tourism_type: 'local'
-  });
-
-  // Complimentary check-in state
-  const [complimentaryCheckInDialogOpen, setComplimentaryCheckInDialogOpen] = useState(false);
-  const [complimentaryCheckInGuest, setComplimentaryCheckInGuest] = useState<GuestWithCredits | null>(null);
-  const [complimentaryCheckInDate, setComplimentaryCheckInDate] = useState('');
-  const [complimentaryCheckOutDate, setComplimentaryCheckOutDate] = useState('');
-  const [complimentaryNumberOfNights, setComplimentaryNumberOfNights] = useState(1);
-
   // Room history state
   const [roomHistory, setRoomHistory] = useState<RoomHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Enhanced check-in modal state
-
-  // Unified booking modal state
-  const [unifiedBookingOpen, setUnifiedBookingOpen] = useState(false);
-  const [unifiedBookingType, setUnifiedBookingType] = useState<BookingType | undefined>(undefined);
-
-  // Payment collection dialog state
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [processingPayment, setProcessingPayment] = useState(false);
-
-  // Get configurable booking channels and payment methods from hotel settings
+  // Get configurable payment methods from hotel settings
   // Can be modified in Settings page or by editing hotelSettings.ts
-  const BOOKING_CHANNELS = getHotelSettings().booking_channels;
-  const PAYMENT_METHODS = getHotelSettings().payment_methods;
+  const PAYMENT_METHODS = useMemo(() => getHotelSettings().payment_methods, []);
   const todayIso = formatLocalDate();
 
   const roomById = useMemo(() => {
@@ -384,17 +261,23 @@ const RoomManagementPage: React.FC = () => {
       });
   }, [allBookingsData, todayIso]);
 
-  useEffect(() => {
-    loadData();
-    // Refresh room status every 30 seconds
-    const interval = setInterval(() => loadRooms(), 30000);
-    return () => clearInterval(interval);
-  }, [loadData, loadRooms]);
+  // room_id -> days past checkout, for the per-card OVERDUE badge.
+  const overdueDaysByRoom = useMemo(() => {
+    const map = new Map<string, number>();
+    overdueCheckoutBookings.forEach((booking) => {
+      map.set(String(booking.room_id), getOverdueDays(booking.check_out_date, todayIso));
+    });
+    return map;
+  }, [overdueCheckoutBookings, todayIso]);
 
-  // Show data loading errors in snackbar
+  // Rooms and bookings poll themselves via refetchInterval in useRoomData,
+  // which also pauses while the tab is hidden.
+
+  // Refetch errors surface as a snackbar when rooms are on screen; an
+  // initial-load failure shows the persistent inline alert instead.
   useEffect(() => {
-    if (dataError) showSnackbar(dataError, 'error');
-  }, [dataError, showSnackbar]);
+    if (dataError && rooms.length > 0) showSnackbar(dataError, 'error');
+  }, [dataError, rooms.length, showSnackbar]);
 
   // Memoized callbacks for UnifiedBookingModal to prevent re-renders during periodic refresh
   const handleUnifiedBookingClose = useCallback(() => {
@@ -431,561 +314,53 @@ const RoomManagementPage: React.FC = () => {
     openReservedCheckIn(bwd, booking.payment_method || 'Cash');
   }, [openReservedCheckIn]);
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, room: Room) => {
-    event.preventDefault();
-    setMenuPosition({ top: event.clientY, left: event.clientX });
+  // useCallback'd handlers keep memoized RoomCards from re-rendering on every
+  // parent state change (menu open/close, dialog toggles, poll refetches).
+  const handleMenuOpen = useCallback((anchor: RoomMenuAnchor, room: Room) => {
+    if ('preventDefault' in anchor) {
+      anchor.preventDefault();
+      setMenuPosition({ top: anchor.clientY, left: anchor.clientX });
+    } else {
+      setMenuPosition(anchor);
+    }
     setSelectedRoom(room);
-  };
+  }, []);
 
   // Room Actions - Unified Booking Modal
-  const openUnifiedBooking = (room: Room, bookingType?: BookingType) => {
+  const openUnifiedBooking = useCallback((room: Room, bookingType?: BookingType) => {
     setSelectedRoom(room);
     setUnifiedBookingType(bookingType);
     setUnifiedBookingOpen(true);
-    handleMenuClose();
-  };
+  }, []);
 
-  const handleWalkInGuest = (room: Room) => {
-    openUnifiedBooking(room, 'walk_in');
-  };
-
-  const handleOnlineCheckIn = (room: Room) => {
-    openUnifiedBooking(room, 'online');
-  };
-
-  const handleCloseWalkInDialog = () => {
-    if (creatingBooking) return;
-
-    setWalkInDialogOpen(false);
-    // Reset form state
-    setWalkInGuest(null);
-    setIsCreatingNewGuest(false);
-    setNewGuestForm({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      nationality: '',
-      ic_number: '',
-      tourism_type: 'local'
-    });
-    // Reset deposit/payment state
-    setWalkInDeposit(0);
-    setWalkInPaymentMethod('cash');
-    setWalkInRoomCardDeposit(0);
-  };
-
-  const handleCloseOnlineCheckInDialog = () => {
-    if (creatingBooking) return;
-
-    setOnlineCheckInDialogOpen(false);
-    // Reset form state
-    setOnlineCheckInGuest(null);
-    setOnlineCheckInBookingChannel('');
-    setOnlineReference('');
-    setIsCreatingNewOnlineGuest(false);
-    setNewOnlineGuestForm({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      nationality: '',
-      ic_number: '',
-      tourism_type: 'local'
-    });
-  };
-
-  // Complimentary Check-in handlers
-  const handleComplimentaryCheckIn = (room: Room) => {
-    openUnifiedBooking(room, 'complimentary');
-  };
-
-  const handleCloseComplimentaryCheckInDialog = () => {
-    if (creatingBooking) return;
-
-    setComplimentaryCheckInDialogOpen(false);
-    setComplimentaryCheckInGuest(null);
-    setComplimentaryCheckInDate('');
-    setComplimentaryCheckOutDate('');
-    setComplimentaryNumberOfNights(1);
-  };
-
-  const handleComplimentaryBookingSubmit = async () => {
-    if (!selectedRoom || !complimentaryCheckInGuest) {
-      showSnackbar('Please select a guest with free room credits', 'warning');
-      return;
-    }
-
-    if (!complimentaryCheckInDate || !complimentaryCheckOutDate) {
-      showSnackbar('Please select check-in and check-out dates', 'warning');
-      return;
-    }
-
-    try {
-      setCreatingBooking(true);
-
-      const complimentaryDates = getCreditBookingDateRange(
-        complimentaryCheckInDate,
-        complimentaryCheckOutDate,
-      );
-
-      // Use bookWithCredits API which properly deducts credits - creates a RESERVATION (not check-in)
-      const bookingResult = await BookingsService.bookWithCredits({
-        guest_id: complimentaryCheckInGuest.id,
-        room_id: typeof selectedRoom.id === 'string' ? parseInt(selectedRoom.id) : selectedRoom.id,
-        check_in_date: complimentaryCheckInDate,
-        check_out_date: complimentaryCheckOutDate,
-        complimentary_dates: complimentaryDates,
-      });
-
-      showSnackbar(`Complimentary reservation created for ${complimentaryCheckInGuest.full_name} in Room ${selectedRoom.room_number} (${bookingResult.complimentary_nights} nights used)`, 'success');
-      setComplimentaryCheckInDialogOpen(false);
-      setComplimentaryCheckInGuest(null);
-      setComplimentaryCheckInDate('');
-      setComplimentaryCheckOutDate('');
-      setComplimentaryNumberOfNights(1);
-      await loadData();
-    } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to create reservation', 'error');
-    } finally {
-      setCreatingBooking(false);
-    }
-  };
-
-  const handleWalkInGuestSelected = async () => {
-    if (!selectedRoom) {
-      showSnackbar('Please select a room', 'warning');
-      return;
-    }
-
-    let guestToUse: Guest | null = null;
-
-    try {
-      setCreatingBooking(true);
-
-      // If creating a new guest, create them first
-      if (isCreatingNewGuest) {
-        // Validate required fields
-        if (!newGuestForm.first_name || !newGuestForm.last_name) {
-          showSnackbar('Please fill in all required fields (First Name, Last Name)', 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        const guestInformationError = validateGuestInformationDraft(newGuestForm);
-        if (guestInformationError) {
-          showSnackbar(guestInformationError, 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        // Validate email format only if provided
-        if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
-          showSnackbar('Please enter a valid email address', 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        // Check for duplicate guest name
-        const fullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
-        const existingGuestByName = guests.find(g => g.nick_name.toLowerCase().trim() === fullName);
-        if (existingGuestByName) {
-          showSnackbar(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        // Check for duplicate email only if provided
-        if (newGuestForm.email && newGuestForm.email.trim()) {
-          const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
-          if (existingGuest) {
-            showSnackbar(`A guest with email ${newGuestForm.email} already exists. Please select from existing guests.`, 'warning');
-            setCreatingBooking(false);
-            return;
-          }
-        }
-
-        // Create the new guest
-        const newGuest = await GuestsService.createGuest({
-          first_name: newGuestForm.first_name,
-          last_name: newGuestForm.last_name,
-          email: newGuestForm.email || undefined,
-          phone: newGuestForm.phone,
-          ic_number: newGuestForm.ic_number,
-          nationality: newGuestForm.nationality,
-          tourism_type: (newGuestForm.tourism_type || 'local') as TourismType,
-        });
-
-        guestToUse = newGuest;
-
-        // Refresh guest list
-        await loadGuests();
-
-        // Reset new guest form
-        setNewGuestForm({
-          first_name: '',
-          last_name: '',
-          email: '',
-          phone: '',
-          nationality: '',
-          ic_number: '',
-          tourism_type: 'local'
-        });
-      } else {
-        // Use existing selected guest
-        if (!walkInGuest) {
-          showSnackbar('Please select a guest', 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-        guestToUse = walkInGuest;
-      }
-
-      // Create a real booking in the database
-      const today = formatLocalDate();
-      const tomorrow = formatLocalDate(addLocalDays(today, 1));
-
-      // Double-check that we have valid data
-      if (!selectedRoom || !selectedRoom.id) {
-        showSnackbar('Invalid room selection. Please try again.', 'warning');
-        setCreatingBooking(false);
-        return;
-      }
-
-      // Check if guest is member - waive room card deposit
-      const isMemberGuest = guestToUse.guest_type === 'member';
-      const effectiveRoomCardDeposit = isMemberGuest ? 0 : walkInRoomCardDeposit;
-
-      const bookingData = {
-        guest_id: guestToUse.id,
-        room_id: String(selectedRoom.id), // Convert to string for validation
-        check_in_date: walkInCheckInDate || today,
-        check_out_date: walkInCheckOutDate || tomorrow,
-        number_of_guests: 1,
-        post_type: 'normal_stay' as const,
-        booking_remarks: isMemberGuest ? 'Walk-In Guest (Member - Card Deposit Waived)' : 'Walk-In Guest',
-        source: 'walk_in' as const,
-        payment_status: 'unpaid' as const,
-      };
-
-      const createdBooking = await BookingsService.createBooking(bookingData);
-
-      // Convert to BookingWithDetails for the reserved check-in dialog
-      const bwd: BookingWithDetails = {
-        id: createdBooking.id,
-        guest_id: guestToUse.id.toString(),
-        room_id: selectedRoom.id,
-        room_type: selectedRoom.room_type,
-        check_in_date: createdBooking.check_in_date,
-        check_out_date: createdBooking.check_out_date,
-        total_amount: createdBooking.total_amount,
-        status: createdBooking.status,
-        folio_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
-        market_code: 'Walk-In',
-        rate_code: 'RACK',
-        payment_method: walkInPaymentMethod,
-        post_type: createdBooking.post_type,
-        created_at: createdBooking.created_at,
-        updated_at: createdBooking.updated_at,
-        guest_name: guestToUse.nick_name || '',
-        guest_email: guestToUse.email || '',
-        guest_phone: guestToUse.phone || '',
-        room_number: selectedRoom.room_number,
-        booking_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
-        price_per_night: selectedRoom.price_per_night || 0,
-      };
-      setWalkInDialogOpen(false);
-      reservedCheckIn.openWithBooking(bwd, walkInPaymentMethod || 'Cash');
-    } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to create guest', 'error');
-    } finally {
-      setCreatingBooking(false);
-    }
-  };
-
-  const handleConfirmWalkIn = async () => {
-    if (!selectedRoom || !walkInGuest || !walkInBookingChannel) {
-      showSnackbar('Please select a guest and booking channel', 'warning');
-      return;
-    }
-
-    try {
-      setCreatingBooking(true);
-
-      // Create booking for walk-in
-      const bookingData: BookingCreateRequest = {
-        guest_id: walkInGuest.id,
-        room_id: String(selectedRoom.id), // Convert to string for validation
-        check_in_date: walkInCheckInDate,
-        check_out_date: walkInCheckOutDate,
-        number_of_guests: 1,
-        post_type: 'normal_stay',
-        booking_remarks: walkInReference
-          ? `${walkInBookingChannel} - Ref: ${walkInReference}`
-          : walkInBookingChannel,
-      };
-
-      await BookingsService.createBooking(bookingData);
-
-      // Update room status to occupied
-      await RoomsService.updateRoomStatus(selectedRoom.id, {
-        status: 'occupied',
-        notes: `Walk-in via ${walkInBookingChannel}`,
-      });
-
-      showSnackbar(`${walkInGuest.nick_name} checked into room ${selectedRoom.room_number} (${walkInBookingChannel})`, 'success');
-      setWalkInDialogOpen(false);
-      // Reset form
-      setWalkInGuest(null);
-      setWalkInBookingChannel('');
-      setWalkInReference('');
-      await loadData();
-    } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to check in guest', 'error');
-    } finally {
-      setCreatingBooking(false);
-    }
-  };
-
-  const handleCheckIn = (room: Room) => {
-    setSelectedRoom(room);
-    handleMenuClose();
-
-    // Check if there's a reserved booking for this room
+  const handleCheckIn = useCallback((room: Room) => {
     const reservedBooking = reservedBookings.get(room.id);
     if (reservedBooking) {
-      // For reserved rooms, open the streamlined check-in dialog
-      reservedCheckIn.openWithBooking(reservedBooking);
+      // Reserved rooms go through the streamlined check-in dialog.
+      setSelectedRoom(room);
+      openReservedCheckIn(reservedBooking);
       return;
     }
 
-    // For non-reserved rooms, use the online check-in dialog
-    setOnlineCheckInDialogOpen(true);
-  };
+    // No reservation on file — fall back to the unified booking flow.
+    openUnifiedBooking(room, 'online');
+  }, [reservedBookings, openReservedCheckIn, openUnifiedBooking]);
 
-  // Handle deposit collection for reserved bookings
-  const handleCollectPayment = async () => {
-    if (!paymentBooking) {
-      showSnackbar('No booking selected', 'warning');
-      return;
-    }
-
-    if (!paymentMethod) {
-      showSnackbar('Please select a payment method', 'warning');
-      return;
-    }
-
-    try {
-      setProcessingPayment(true);
-
-      await BookingsService.updateBooking(paymentBooking.id, {
-        payment_status: 'paid',
-        payment_method: paymentMethod,
-      });
-
-      showSnackbar(`Deposit collected for booking ${paymentBooking.booking_number}. Room is now ready for check-in.`, 'success');
-
-      // Close dialog and reset state
-      setPaymentDialogOpen(false);
-      setPaymentBooking(null);
-      setPaymentMethod('');
-
-      // Reload data
-      await loadData();
-    } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to collect deposit', 'error');
-    } finally {
-      setProcessingPayment(false);
-    }
-  };
-
-  const handleOnlineGuestSelected = async () => {
-    if (!selectedRoom) {
-      showSnackbar('Please select a room', 'warning');
-      return;
-    }
-
-    if (!onlineCheckInBookingChannel) {
-      showSnackbar('Please select a booking channel', 'warning');
-      return;
-    }
-
-    let guestToUse: Guest | null = null;
-
-    try {
-      setCreatingBooking(true);
-
-      // If creating a new guest, create them first
-      if (isCreatingNewOnlineGuest) {
-        // Validate required fields
-        if (!newOnlineGuestForm.first_name || !newOnlineGuestForm.last_name) {
-          showSnackbar('Please fill in all required fields (First Name, Last Name)', 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        const guestInformationError = validateGuestInformationDraft(newOnlineGuestForm);
-        if (guestInformationError) {
-          showSnackbar(guestInformationError, 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        // Validate email format only if provided
-        if (newOnlineGuestForm.email && newOnlineGuestForm.email.trim() && !isValidEmail(newOnlineGuestForm.email)) {
-          showSnackbar('Please enter a valid email address', 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        // Check for duplicate guest name
-        const onlineFullName = `${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}`.toLowerCase();
-        const existingGuestByName = guests.find(g => g.nick_name.toLowerCase().trim() === onlineFullName);
-        if (existingGuestByName) {
-          showSnackbar(`A guest with the name '${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-
-        // Check for duplicate email only if provided
-        if (newOnlineGuestForm.email && newOnlineGuestForm.email.trim()) {
-          const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newOnlineGuestForm.email.toLowerCase());
-          if (existingGuest) {
-            showSnackbar(`A guest with email ${newOnlineGuestForm.email} already exists. Please select from existing guests.`, 'warning');
-            setCreatingBooking(false);
-            return;
-          }
-        }
-
-        // Create the new guest
-        const newGuest = await GuestsService.createGuest({
-          first_name: newOnlineGuestForm.first_name,
-          last_name: newOnlineGuestForm.last_name,
-          email: newOnlineGuestForm.email || undefined,
-          phone: newOnlineGuestForm.phone,
-          ic_number: newOnlineGuestForm.ic_number,
-          nationality: newOnlineGuestForm.nationality,
-          tourism_type: (newOnlineGuestForm.tourism_type || 'local') as TourismType,
-        });
-
-        guestToUse = newGuest;
-
-        // Refresh guest list
-        await loadGuests();
-
-        // Reset new guest form
-        setNewOnlineGuestForm({
-          first_name: '',
-          last_name: '',
-          email: '',
-          phone: '',
-          nationality: '',
-          ic_number: '',
-          tourism_type: 'local'
-        });
-      } else {
-        // Use existing selected guest
-        if (!onlineCheckInGuest) {
-          showSnackbar('Please select a guest', 'warning');
-          setCreatingBooking(false);
-          return;
-        }
-        guestToUse = onlineCheckInGuest;
-      }
-
-      // Create a real booking in the database
-      const today = formatLocalDate();
-      const tomorrow = formatLocalDate(addLocalDays(today, 1));
-
-      // Double-check that we have valid data
-      if (!selectedRoom || !selectedRoom.id) {
-        console.error('Invalid room selection:', { selectedRoom, id: selectedRoom?.id });
-        showSnackbar('Invalid room selection. Please try again.', 'warning');
-        setCreatingBooking(false);
-        return;
-      }
-
-      // Ensure dates are valid
-      const checkInDateToUse = onlineCheckInDate || today;
-      const checkOutDateToUse = onlineCheckOutDate || tomorrow;
-
-      if (!checkInDateToUse || !checkOutDateToUse) {
-        showSnackbar('Check-in and check-out dates are required', 'warning');
-        setCreatingBooking(false);
-        return;
-      }
-
-      // Validate that check-out is after check-in
-      const checkInTest = new Date(checkInDateToUse);
-      const checkOutTest = new Date(checkOutDateToUse);
-      if (checkOutTest <= checkInTest) {
-        showSnackbar('Check-out date must be after check-in date', 'warning');
-        setCreatingBooking(false);
-        return;
-      }
-
-      // Create reservation (NOT immediate check-in) for online booking
-      const bookingData = {
-        guest_id: guestToUse.id,
-        room_id: String(selectedRoom.id),
-        check_in_date: checkInDateToUse,
-        check_out_date: checkOutDateToUse,
-        number_of_guests: 1,
-        post_type: 'normal_stay' as const,
-        source: 'online' as const,
-        booking_remarks: onlineReference
-          ? `${onlineCheckInBookingChannel} - Ref: ${onlineReference}`
-          : `${onlineCheckInBookingChannel} Booking`,
-      };
-
-      await BookingsService.createBooking(bookingData);
-
-      showSnackbar(`Reservation created for ${guestToUse.nick_name} in Room ${selectedRoom.room_number}`, 'success');
-      setOnlineCheckInDialogOpen(false);
-
-      // Reset form state
-      setOnlineCheckInGuest(null);
-      setOnlineCheckInBookingChannel('');
-      setOnlineReference('');
-      setOnlineCheckInDate('');
-      setOnlineCheckOutDate('');
-      setOnlineNumberOfNights(1);
-      setIsCreatingNewOnlineGuest(false);
-      setNewOnlineGuestForm({
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        nationality: '',
-        ic_number: '',
-        tourism_type: 'local'
-      });
-
-      await loadData();
-    } catch (error) {
-      showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to create guest', 'error');
-    } finally {
-      setCreatingBooking(false);
-    }
-  };
-
-  const handleCheckOut = (room: Room) => {
+  const handleCheckOut = useCallback((room: Room) => {
     setSelectedRoom(room);
     // Find the active booking for this room
     const booking = roomBookings.get(room.id);
     if (booking) {
       setSelectedBooking(booking);
-      checkoutFlow.openCheckout(booking);
+      openCheckout(booking);
     } else {
       showSnackbar('No active booking found for this room', 'warning');
     }
-    handleMenuClose();
-  };
+  }, [roomBookings, openCheckout, showSnackbar]);
 
   const handleUpdateStatus = (room: Room) => {
     setSelectedRoom(room);
     setRoomStatusDialogOpen(true);
-    handleMenuClose();
   };
 
   const handleSaveRoomStatus = async (status: string, notes: string) => {
@@ -1019,10 +394,9 @@ const RoomManagementPage: React.FC = () => {
     } catch (error) {
       showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
     }
-    handleMenuClose();
   };
 
-  const handleMarkAvailable = async (room: Room) => {
+  const handleMarkAvailable = useCallback(async (room: Room) => {
     try {
       // Request "available"; the backend keeps reserved-dirty rooms reserved
       // when an active reservation still exists.
@@ -1036,8 +410,7 @@ const RoomManagementPage: React.FC = () => {
     } catch (error) {
       showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
     }
-    handleMenuClose();
-  };
+  }, [loadData, showSnackbar]);
 
   const handleMaintenance = async (room: Room) => {
     try {
@@ -1050,7 +423,6 @@ const RoomManagementPage: React.FC = () => {
     } catch (error) {
       showSnackbar(error instanceof Error && error.message ? error.message : 'Failed to update room status', 'error');
     }
-    handleMenuClose();
   };
 
   const handleViewUpcomingBookings = upcomingBookings.openForRoom;
@@ -1058,7 +430,6 @@ const RoomManagementPage: React.FC = () => {
   const handleShowHistory = async (room: Room) => {
     setSelectedRoom(room);
     setHistoryDialogOpen(true);
-    handleMenuClose();
 
     // Load room history
     try {
@@ -1078,16 +449,14 @@ const RoomManagementPage: React.FC = () => {
   const handleRoomProperties = (room: Room) => {
     setSelectedRoom(room);
     setRoomDetailsDialogOpen(true);
-    handleMenuClose();
   };
 
-  const handleEditNotes = (room: Room) => {
+  const handleEditNotes = useCallback((room: Room) => {
     setSelectedRoom(room);
     openRoomNotes(room);
-    handleMenuClose();
-  };
+  }, [openRoomNotes]);
 
-  const handleChangeRoom = (room: Room) => {
+  const handleChangeRoom = useCallback((room: Room) => {
     setSelectedRoom(room);
     setNewSelectedRoom(null);
     setChangeRoomCustomRate('');
@@ -1095,8 +464,7 @@ const RoomManagementPage: React.FC = () => {
     const booking = roomBookings.get(room.id);
     setSelectedBooking(booking || null);
     setChangeRoomDialogOpen(true);
-    handleMenuClose();
-  };
+  }, [roomBookings]);
 
   const handleUpdateCheckoutDate = (room: Room) => {
     const booking = roomBookings.get(room.id);
@@ -1104,7 +472,6 @@ const RoomManagementPage: React.FC = () => {
       setUpdateCheckoutBooking(booking);
       setUpdateCheckoutDialogOpen(true);
     }
-    handleMenuClose();
   };
 
   const handleReviewCheckout = (booking: BookingWithDetails) => {
@@ -1139,22 +506,12 @@ const RoomManagementPage: React.FC = () => {
         : toMoneyNumber(newSelectedRoom.price_per_night);
       const priceDifference = subtractMoney(effectiveRate, selectedRoom.price_per_night);
 
-      // Update booking with new room and rate
-      await BookingsService.updateBooking(selectedBooking.id, {
-        room_id: String(newSelectedRoom.id),
-        room_rate_override: effectiveRate,
-      });
-
-      // Update old room status to dirty (needs cleaning after guest moved)
-      await RoomsService.updateRoomStatus(selectedRoom.id, {
-        status: 'dirty',
-        notes: `Guest moved to room ${newSelectedRoom.room_number}`,
-      });
-
-      // Update new room status to occupied
-      await RoomsService.updateRoomStatus(newSelectedRoom.id, {
-        status: 'occupied',
-        notes: `Guest moved from room ${selectedRoom.room_number}`,
+      // One transactional call: booking reassignment + rate override + old
+      // room→dirty + new room→occupied + room_changes/history audit rows.
+      // (Previously three separate API calls that could half-apply.)
+      await RoomsService.executeRoomChange(selectedRoom.id, String(newSelectedRoom.id), {
+        roomRateOverride: effectiveRate,
+        reason: `Guest moved from room ${selectedRoom.room_number} to ${newSelectedRoom.room_number}`,
       });
 
       const changeMessage = isGreaterMoney(priceDifference, 0)
@@ -1185,7 +542,6 @@ const RoomManagementPage: React.FC = () => {
     } else {
       showSnackbar('No pending booking found for this room', 'warning');
     }
-    handleMenuClose();
   };
 
   const handleConfirmMarkComplimentary = async () => {
@@ -1287,14 +643,25 @@ const RoomManagementPage: React.FC = () => {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: "400px"
-        }}>
-        <CircularProgress />
+      <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
+        <Skeleton variant="rounded" height={130} sx={{ borderRadius: 2 }} />
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: 'repeat(2, minmax(0, 1fr))',
+              sm: 'repeat(3, minmax(0, 1fr))',
+              md: 'repeat(5, minmax(0, 1fr))',
+              lg: 'repeat(7, minmax(0, 1fr))',
+            },
+            gap: 1.5,
+            mt: 1.5,
+          }}
+        >
+          {Array.from({ length: 14 }, (_, i) => (
+            <Skeleton key={i} variant="rounded" height={250} sx={{ borderRadius: 2.5 }} />
+          ))}
+        </Box>
       </Box>
     );
   }
@@ -1318,7 +685,32 @@ const RoomManagementPage: React.FC = () => {
         smokingCount={smokingCount}
         dailyCleaningCount={dailyCleaningCount}
         noCleaningCount={noCleaningCount}
+        floors={floors}
+        floorFilter={floorFilter}
+        onFloorFilterChange={setFloorFilter}
+        roomSearch={roomSearch}
+        onRoomSearchChange={setRoomSearch}
+        prioritySort={prioritySort}
+        onTogglePrioritySort={togglePrioritySort}
       />
+      {dataError && rooms.length === 0 && (
+        <Alert
+          severity="error"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => loadData()}
+              sx={{ fontWeight: 800 }}
+            >
+              Retry
+            </Button>
+          }
+          sx={{ mt: 1.5, border: '1px solid', borderColor: 'error.light', alignItems: 'center' }}
+        >
+          {dataError}
+        </Alert>
+      )}
       {overdueCheckoutBookings.length > 0 && (
         <Alert
           severity="warning"
@@ -1365,7 +757,7 @@ const RoomManagementPage: React.FC = () => {
         sx={{ 
           display: 'grid', 
           gridTemplateColumns: {
-            xs: '1fr',
+            xs: 'repeat(2, minmax(0, 1fr))',
             sm: 'repeat(3, minmax(0, 1fr))',
             md: 'repeat(5, minmax(0, 1fr))',
             lg: 'repeat(7, minmax(0, 1fr))',
@@ -1376,20 +768,20 @@ const RoomManagementPage: React.FC = () => {
       >
         {filteredRooms.map((room) => {
           const info = getRoomStatusInfo(room);
-          const displayRoom = { ...room, status: info.computedStatus };
-          const statusColor = getRoomStatusColor(displayRoom);
-          const cardFill = getRoomCardFill(info.computedStatus, statusColor, isDarkMode);
+          const cardFill = getRoomCardFill(info.computedStatus, isDarkMode);
           return (
             <RoomCard
               key={room.id}
               room={room}
               computedStatus={info.computedStatus}
+              statusLabel={getUnifiedStatusShortLabel(info.computedStatus)}
               booking={info.booking}
               reservedBooking={info.reservedBooking}
               hasReservationForToday={info.hasReservationForToday}
               isOccupied={info.isOccupied}
               isReservedToday={info.isReservedToday}
               isComplimentary={info.isComplimentary}
+              overdueDays={overdueDaysByRoom.get(room.id)}
               cardFill={cardFill}
               isDarkMode={isDarkMode}
               onMenuOpen={handleMenuOpen}
@@ -1515,110 +907,6 @@ const RoomManagementPage: React.FC = () => {
           <Button onClick={() => setOverdueCheckoutDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
-      {/* Walk-in Guest Dialog */}
-      <WalkInCheckInDialog
-        open={walkInDialogOpen}
-        onClose={handleCloseWalkInDialog}
-        roomNumber={selectedRoom?.room_number}
-        roomPricePerNight={selectedRoom?.price_per_night}
-        isCreatingNewGuest={isCreatingNewGuest}
-        onModeChange={setIsCreatingNewGuest}
-        guests={guests}
-        selectedGuest={walkInGuest}
-        onSelectGuest={(guest) => {
-          setWalkInGuest(guest);
-          // Reset room card deposit to 0 for members (waived)
-          if (guest?.guest_type === 'member') {
-            setWalkInRoomCardDeposit(0);
-          }
-        }}
-        newGuestForm={newGuestForm}
-        onNewGuestFieldChange={(field, value) => setNewGuestForm(prev => ({ ...prev, [field]: value }))}
-        checkInDate={walkInCheckInDate}
-        onCheckInDateChange={(value) => {
-          setWalkInCheckInDate(value);
-          if (walkInCheckOutDate) {
-            setWalkInNumberOfNights(calculateNightCount(value, walkInCheckOutDate));
-          }
-        }}
-        checkOutDate={walkInCheckOutDate}
-        onCheckOutDateChange={(value) => {
-          setWalkInCheckOutDate(value);
-          if (walkInCheckInDate) {
-            setWalkInNumberOfNights(calculateNightCount(walkInCheckInDate, value));
-          }
-        }}
-        numberOfNights={walkInNumberOfNights}
-        currencySymbol={currencySymbol}
-        creating={creatingBooking}
-        onSubmit={handleWalkInGuestSelected}
-      />
-      {/* Online Check-in Dialog */}
-      <OnlineCheckInDialog
-        open={onlineCheckInDialogOpen}
-        onClose={handleCloseOnlineCheckInDialog}
-        roomNumber={selectedRoom?.room_number}
-        roomPricePerNight={selectedRoom?.price_per_night}
-        isCreatingNewGuest={isCreatingNewOnlineGuest}
-        onModeChange={setIsCreatingNewOnlineGuest}
-        guests={guests}
-        selectedGuest={onlineCheckInGuest}
-        onSelectGuest={setOnlineCheckInGuest}
-        newGuestForm={newOnlineGuestForm}
-        onNewGuestFieldChange={(field, value) => setNewOnlineGuestForm(prev => ({ ...prev, [field]: value }))}
-        bookingChannels={BOOKING_CHANNELS}
-        bookingChannel={onlineCheckInBookingChannel}
-        onBookingChannelChange={setOnlineCheckInBookingChannel}
-        reference={onlineReference}
-        onReferenceChange={setOnlineReference}
-        checkInDate={onlineCheckInDate}
-        onCheckInDateChange={(value) => {
-          setOnlineCheckInDate(value);
-          if (onlineCheckOutDate) {
-            setOnlineNumberOfNights(calculateNightCount(value, onlineCheckOutDate));
-          }
-        }}
-        checkOutDate={onlineCheckOutDate}
-        onCheckOutDateChange={(value) => {
-          setOnlineCheckOutDate(value);
-          if (onlineCheckInDate) {
-            setOnlineNumberOfNights(calculateNightCount(onlineCheckInDate, value));
-          }
-        }}
-        numberOfNights={onlineNumberOfNights}
-        currencySymbol={currencySymbol}
-        creating={creatingBooking}
-        onSubmit={handleOnlineGuestSelected}
-      />
-      {/* Complimentary Check-in Dialog */}
-      <ComplimentaryCheckInDialog
-        open={complimentaryCheckInDialogOpen}
-        onClose={handleCloseComplimentaryCheckInDialog}
-        roomNumber={selectedRoom?.room_number}
-        roomPricePerNight={selectedRoom?.price_per_night}
-        loadingGuests={guestCreditsWorkflow.loadingGuestsWithCredits}
-        guestsWithCredits={guestCreditsWorkflow.guestsWithCredits}
-        selectedGuest={complimentaryCheckInGuest}
-        onSelectGuest={setComplimentaryCheckInGuest}
-        checkInDate={complimentaryCheckInDate}
-        onCheckInDateChange={(value) => {
-          setComplimentaryCheckInDate(value);
-          if (complimentaryCheckOutDate) {
-            setComplimentaryNumberOfNights(calculateNightCount(value, complimentaryCheckOutDate));
-          }
-        }}
-        checkOutDate={complimentaryCheckOutDate}
-        onCheckOutDateChange={(value) => {
-          setComplimentaryCheckOutDate(value);
-          if (complimentaryCheckInDate) {
-            setComplimentaryNumberOfNights(calculateNightCount(complimentaryCheckInDate, value));
-          }
-        }}
-        numberOfNights={complimentaryNumberOfNights}
-        currencySymbol={currencySymbol}
-        creating={creatingBooking}
-        onSubmit={handleComplimentaryBookingSubmit}
-      />
       {/* Extend Checkout Date Dialog */}
       <UpdateCheckoutDateDialog
         open={updateCheckoutDialogOpen}
@@ -1746,28 +1034,6 @@ const RoomManagementPage: React.FC = () => {
         onPhoneChange={reservedCheckIn.setPhone}
         processing={reservedCheckIn.processing}
         onCheckIn={reservedCheckIn.checkIn}
-      />
-      {/* Payment Collection Dialog */}
-      <CollectDepositDialog
-        open={paymentDialogOpen}
-        onClose={() => {
-          if (!processingPayment) {
-            setPaymentDialogOpen(false);
-            setPaymentBooking(null);
-            setPaymentMethod('');
-          }
-        }}
-        onCancel={() => {
-          setPaymentDialogOpen(false);
-          setPaymentBooking(null);
-          setPaymentMethod('');
-        }}
-        booking={paymentBooking}
-        paymentMethod={paymentMethod}
-        onPaymentMethodChange={setPaymentMethod}
-        paymentMethods={PAYMENT_METHODS}
-        processing={processingPayment}
-        onCollect={handleCollectPayment}
       />
       {/* Guest Details Dialog with Tabs */}
       <GuestDetailsDialog
