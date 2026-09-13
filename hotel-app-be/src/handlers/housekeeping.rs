@@ -8,8 +8,9 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    CreateHousekeepingTaskRequest, HousekeepingBoardResponse, HousekeepingTask,
-    HousekeepingTaskListResponse, ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
+    AssignableStaffMember, AssignableStaffQuery, CreateHousekeepingTaskRequest,
+    HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
+    ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
 use crate::services::housekeeping;
 
@@ -38,6 +39,15 @@ pub async fn update_task_handler(
 ) -> Result<Json<HousekeepingTask>, ApiError> {
     Ok(Json(
         housekeeping::update_task(&pool, user_id, task_id, input).await?,
+    ))
+}
+
+pub async fn assignable_staff_handler(
+    State(pool): State<DbPool>,
+    Query(params): Query<AssignableStaffQuery>,
+) -> Result<Json<Vec<AssignableStaffMember>>, ApiError> {
+    Ok(Json(
+        housekeeping::assignable_staff(&pool, params.scope.as_deref()).await?,
     ))
 }
 

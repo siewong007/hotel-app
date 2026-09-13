@@ -102,6 +102,17 @@ describe('HousekeepingService', () => {
         page_size: 25,
       });
     });
+
+    it('forwards task_type and unassigned filters as searchParams', async () => {
+      get.mockReturnValue(mockJsonResponse({ items: [], total: 0, page: 1, page_size: 50 }));
+
+      await HousekeepingService.listTasks({ task_type: 'checkout_clean', unassigned: true });
+
+      expect(lastGetSearchParams()).toEqual({
+        task_type: 'checkout_clean',
+        unassigned: true,
+      });
+    });
   });
 
   describe('createTask', () => {
@@ -135,6 +146,40 @@ describe('HousekeepingService', () => {
       await HousekeepingService.updateTask('abc', { notes: 'done' });
 
       expect(patch).toHaveBeenCalledWith('housekeeping/tasks/abc', { json: { notes: 'done' } });
+    });
+
+    it('sends clear_assignee to explicitly unassign a task', async () => {
+      patch.mockReturnValue(mockJsonResponse(buildTask({ id: 7 })));
+
+      await HousekeepingService.updateTask(7, { clear_assignee: true });
+
+      expect(patch).toHaveBeenCalledWith('housekeeping/tasks/7', {
+        json: { clear_assignee: true },
+      });
+    });
+  });
+
+  describe('getAssignableStaff', () => {
+    it('calls GET housekeeping/assignable-staff with the default housekeeping scope', async () => {
+      const staff = [{ id: 2, username: 'amira', full_name: 'Amira' }];
+      get.mockReturnValue(mockJsonResponse(staff));
+
+      const result = await HousekeepingService.getAssignableStaff();
+
+      expect(get).toHaveBeenCalledWith('housekeeping/assignable-staff', {
+        searchParams: { scope: 'housekeeping' },
+      });
+      expect(result).toEqual(staff);
+    });
+
+    it('forwards the maintenance scope', async () => {
+      get.mockReturnValue(mockJsonResponse([]));
+
+      await HousekeepingService.getAssignableStaff('maintenance');
+
+      expect(get).toHaveBeenCalledWith('housekeeping/assignable-staff', {
+        searchParams: { scope: 'maintenance' },
+      });
     });
   });
 });

@@ -1,5 +1,7 @@
 import { api } from './client';
 import type {
+  AssignableStaffMember,
+  AssignableStaffScope,
   CreateHousekeepingTaskRequest,
   HousekeepingBoardResponse,
   HousekeepingTask,
@@ -27,5 +29,13 @@ export class HousekeepingService {
     input: UpdateHousekeepingTaskRequest,
   ): Promise<HousekeepingTask> {
     return api.patch(`housekeeping/tasks/${taskId}`, { json: input }).json<HousekeepingTask>();
+  }
+
+  static async getAssignableStaff(
+    scope: AssignableStaffScope = 'housekeeping',
+  ): Promise<AssignableStaffMember[]> {
+    return api
+      .get('housekeeping/assignable-staff', { searchParams: { scope } })
+      .json<AssignableStaffMember[]>();
   }
 }

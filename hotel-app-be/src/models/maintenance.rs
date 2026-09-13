@@ -61,6 +61,9 @@ pub struct UpdateMaintenanceTicketRequest {
     pub scheduled_date: Option<DateTime<Utc>>,
     pub resolution_notes: Option<String>,
     pub images: Option<Value>,
+    /// `assigned_to` is a COALESCE patch and cannot clear an assignee; this flag
+    /// is the explicit "unassign" path.
+    pub clear_assignee: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,4 +100,5 @@ pub struct MaintenanceTicketPatch {
     pub scheduled_date: Option<DateTime<Utc>>,
     pub resolution_notes: Option<String>,
     pub images: Option<Value>,
+    pub clear_assignee: bool,
 }

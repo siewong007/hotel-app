@@ -6,9 +6,9 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{
-    CreateHousekeepingTaskRequest, HousekeepingBoardResponse, HousekeepingTask,
-    HousekeepingTaskListResponse, HousekeepingTaskPatch, ListHousekeepingTasksQuery,
-    UpdateHousekeepingTaskRequest,
+    AssignableStaffMember, CreateHousekeepingTaskRequest, HousekeepingBoardResponse,
+    HousekeepingTask, HousekeepingTaskListResponse, HousekeepingTaskPatch,
+    ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
 use crate::repositories::housekeeping::{self, NewHousekeepingTask};
 use crate::services::{audit::AuditLog, rooms};
@@ -21,6 +21,17 @@ const VALID_TASK_TYPES: &[&str] = &[
     "checkout_clean",
     "inspection",
     "maintenance_followup",
+];
+
+/// Permission sets an `assignable-staff` scope resolves to. Keep this an
+/// allowlist: the query parameter must never become an arbitrary permission
+/// oracle.
+const ASSIGNABLE_SCOPES: &[(&str, &[&str])] = &[
+    (
+        "housekeeping",
+        &["housekeeping:update", "housekeeping:manage"],
+    ),
+    ("maintenance", &["maintenance:write", "maintenance:manage"]),
 ];
 
 fn sanitize_optional_notes(value: Option<String>) -> Option<String> {
@@ -97,6 +108,7 @@ fn patch_from_update(
         notes: sanitize_optional_notes(input.notes),
         inspection_notes: sanitize_optional_notes(input.inspection_notes),
         items_used: input.items_used,
+        clear_assignee: input.clear_assignee.unwrap_or(false),
     })
 }
 
@@ -113,15 +125,23 @@ pub async fn list_tasks(
         ));
     }
 
+    if let Some(task_type) = params.task_type.as_deref() {
+        validate_task_type(task_type)?;
+    }
+
     let pagination = normalize_pagination(params.page, params.page_size, 50, 200);
     let (total, items) = housekeeping::list_tasks(
         pool,
-        params.status.as_deref(),
-        params.room_id,
-        params.assigned_to,
-        params.scheduled_date,
-        pagination.page_size,
-        pagination.offset,
+        housekeeping::HousekeepingTaskFilters {
+            status: params.status.as_deref(),
+            task_type: params.task_type.as_deref(),
+            room_id: params.room_id,
+            assigned_to: params.assigned_to,
+            unassigned: params.unassigned,
+            scheduled_date: params.scheduled_date,
+            page_size: pagination.page_size,
+            offset: pagination.offset,
+        },
     )
     .await?;
 
@@ -262,6 +282,31 @@ pub async fn update_task(
     .await;
 
     Ok(task)
+}
+
+/// Staff members an assignment picker may offer: active users holding the
+/// scope's permissions. `housekeeping:manage` implies `housekeeping:update`, so
+/// both names are listed — same for `maintenance:manage`/`maintenance:write`.
+pub async fn assignable_staff(
+    pool: &DbPool,
+    scope: Option<&str>,
+) -> Result<Vec<AssignableStaffMember>, ApiError> {
+    let scope = scope.unwrap_or("housekeeping");
+    let permissions = ASSIGNABLE_SCOPES
+        .iter()
+        .find(|(name, _)| *name == scope)
+        .map(|(_, permissions)| *permissions)
+        .ok_or_else(|| {
+            ApiError::BadRequest(format!(
+                "Invalid scope. Must be one of: {:?}",
+                ASSIGNABLE_SCOPES
+                    .iter()
+                    .map(|(name, _)| name)
+                    .collect::<Vec<_>>()
+            ))
+        })?;
+
+    housekeeping::list_assignable_staff(pool, permissions).await
 }
 
 pub async fn board(pool: &DbPool) -> Result<HousekeepingBoardResponse, ApiError> {

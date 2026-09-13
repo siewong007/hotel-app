@@ -48,16 +48,37 @@ pub struct UpdateHousekeepingTaskRequest {
     pub notes: Option<String>,
     pub inspection_notes: Option<String>,
     pub items_used: Option<Value>,
+    /// `assigned_to` is a COALESCE patch and cannot clear an assignee; this flag
+    /// is the explicit "unassign" path.
+    pub clear_assignee: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ListHousekeepingTasksQuery {
     pub status: Option<String>,
+    pub task_type: Option<String>,
     pub room_id: Option<i64>,
     pub assigned_to: Option<i64>,
+    /// `true` lists only unassigned tasks, `false` only assigned ones.
+    pub unassigned: Option<bool>,
     pub scheduled_date: Option<NaiveDate>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignableStaffQuery {
+    /// Which permission set to resolve: `housekeeping` (default) or `maintenance`.
+    pub scope: Option<String>,
+}
+
+/// Minimal staff identity for assignment pickers — no email, roles, or PII
+/// beyond a display name.
+#[derive(Debug, Clone, Serialize)]
+pub struct AssignableStaffMember {
+    pub id: i64,
+    pub full_name: Option<String>,
+    pub username: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,4 +113,5 @@ pub struct HousekeepingTaskPatch {
     pub notes: Option<String>,
     pub inspection_notes: Option<String>,
     pub items_used: Option<Value>,
+    pub clear_assignee: bool,
 }

@@ -6,7 +6,9 @@ use sqlx::Row;
 
 use crate::core::db::{DbPool, DbRow, DbTransaction};
 use crate::core::error::ApiError;
-use crate::models::{HousekeepingBoardRoom, HousekeepingTask, HousekeepingTaskPatch};
+use crate::models::{
+    AssignableStaffMember, HousekeepingBoardRoom, HousekeepingTask, HousekeepingTaskPatch,
+};
 
 const TASK_SELECT: &str = r#"
 SELECT
@@ -99,46 +101,60 @@ pub async fn find_task(pool: &DbPool, task_id: i64) -> Result<Option<Housekeepin
     Ok(row.map(row_to_task))
 }
 
+#[derive(Debug, Default)]
+pub struct HousekeepingTaskFilters<'a> {
+    pub status: Option<&'a str>,
+    pub task_type: Option<&'a str>,
+    pub room_id: Option<i64>,
+    pub assigned_to: Option<i64>,
+    /// `true` → only unassigned tasks, `false` → only assigned ones.
+    pub unassigned: Option<bool>,
+    pub scheduled_date: Option<NaiveDate>,
+    pub page_size: i64,
+    pub offset: i64,
+}
+
 pub async fn list_tasks(
     pool: &DbPool,
-    status: Option<&str>,
-    room_id: Option<i64>,
-    assigned_to: Option<i64>,
-    scheduled_date: Option<NaiveDate>,
-    page_size: i64,
-    offset: i64,
+    filters: HousekeepingTaskFilters<'_>,
 ) -> Result<(i64, Vec<HousekeepingTask>), ApiError> {
     let where_clause = r#"
 WHERE ($1::text IS NULL OR t.status = $1)
   AND ($2::bigint IS NULL OR t.room_id = $2)
   AND ($3::bigint IS NULL OR t.assigned_to = $3)
   AND ($4::date IS NULL OR t.scheduled_date = $4)
+  AND ($5::text IS NULL OR t.task_type = $5)
+  AND ($6::boolean IS NULL OR (t.assigned_to IS NULL) = $6)
 "#;
     let count_query = format!("SELECT COUNT(*) FROM housekeeping_tasks t {}", where_clause);
     let list_query = format!(
         "{} {} ORDER BY t.created_at DESC LIMIT {} OFFSET {}",
         TASK_SELECT,
         where_clause,
-        crate::param!(5),
-        crate::param!(6)
+        crate::param!(7),
+        crate::param!(8)
     );
 
     let total = sqlx::query_scalar::<_, i64>(&count_query)
-        .bind(status)
-        .bind(room_id)
-        .bind(assigned_to)
-        .bind(scheduled_date)
+        .bind(filters.status)
+        .bind(filters.room_id)
+        .bind(filters.assigned_to)
+        .bind(filters.scheduled_date)
+        .bind(filters.task_type)
+        .bind(filters.unassigned)
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let rows = sqlx::query(&list_query)
-        .bind(status)
-        .bind(room_id)
-        .bind(assigned_to)
-        .bind(scheduled_date)
-        .bind(page_size)
-        .bind(offset)
+        .bind(filters.status)
+        .bind(filters.room_id)
+        .bind(filters.assigned_to)
+        .bind(filters.scheduled_date)
+        .bind(filters.task_type)
+        .bind(filters.unassigned)
+        .bind(filters.page_size)
+        .bind(filters.offset)
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -180,16 +196,11 @@ RETURNING id
         .ok_or_else(|| ApiError::Database("Created housekeeping task was not found".to_string()))
 }
 
-pub async fn patch_task(
-    pool: &DbPool,
-    task_id: i64,
-    patch: &HousekeepingTaskPatch,
-) -> Result<HousekeepingTask, ApiError> {
-    let query = r#"
+const PATCH_TASK_SQL: &str = r#"
 UPDATE housekeeping_tasks
 SET priority = COALESCE($2, priority),
     status = COALESCE($3, status),
-    assigned_to = COALESCE($4, assigned_to),
+    assigned_to = CASE WHEN $9::bool THEN NULL ELSE COALESCE($4, assigned_to) END,
     scheduled_date = COALESCE($5, scheduled_date),
     notes = COALESCE($6, notes),
     inspection_notes = COALESCE($7, inspection_notes),
@@ -200,9 +211,14 @@ SET priority = COALESCE($2, priority),
 WHERE id = $1
 "#;
 
+pub async fn patch_task(
+    pool: &DbPool,
+    task_id: i64,
+    patch: &HousekeepingTaskPatch,
+) -> Result<HousekeepingTask, ApiError> {
     let items_bind = patch.items_used.clone();
 
-    sqlx::query(query)
+    sqlx::query(PATCH_TASK_SQL)
         .bind(task_id)
         .bind(patch.priority.as_deref())
         .bind(patch.status.as_deref())
@@ -211,6 +227,7 @@ WHERE id = $1
         .bind(patch.notes.as_deref())
         .bind(patch.inspection_notes.as_deref())
         .bind(items_bind)
+        .bind(patch.clear_assignee)
         .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -225,24 +242,9 @@ pub async fn patch_task_tx(
     task_id: i64,
     patch: &HousekeepingTaskPatch,
 ) -> Result<(), ApiError> {
-    let query = r#"
-UPDATE housekeeping_tasks
-SET priority = COALESCE($2, priority),
-    status = COALESCE($3, status),
-    assigned_to = COALESCE($4, assigned_to),
-    scheduled_date = COALESCE($5, scheduled_date),
-    notes = COALESCE($6, notes),
-    inspection_notes = COALESCE($7, inspection_notes),
-    items_used = COALESCE($8, items_used),
-    started_at = CASE WHEN $3 = 'in_progress' AND started_at IS NULL THEN CURRENT_TIMESTAMP ELSE started_at END,
-    completed_at = CASE WHEN $3 = 'completed' AND completed_at IS NULL THEN CURRENT_TIMESTAMP ELSE completed_at END,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = $1
-"#;
-
     let items_bind = patch.items_used.clone();
 
-    sqlx::query(query)
+    sqlx::query(PATCH_TASK_SQL)
         .bind(task_id)
         .bind(patch.priority.as_deref())
         .bind(patch.status.as_deref())
@@ -251,6 +253,7 @@ WHERE id = $1
         .bind(patch.notes.as_deref())
         .bind(patch.inspection_notes.as_deref())
         .bind(items_bind)
+        .bind(patch.clear_assignee)
         .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -281,6 +284,59 @@ ORDER BY r.floor NULLS LAST, r.room_number
             floor: row.try_get("floor").ok(),
             status: row.get("status"),
             open_task: None,
+        })
+        .collect())
+}
+
+/// Active users holding ANY of `permissions` through effective roles — the
+/// inverse of `rbac_cache::EFFECTIVE_ROLES_CTE`, evaluated per candidate user
+/// (direct user_roles UNION team-conferred roles, expiry-filtered). Used to
+/// populate assignment pickers without exposing the full user directory.
+pub async fn list_assignable_staff(
+    pool: &DbPool,
+    permissions: &[&str],
+) -> Result<Vec<AssignableStaffMember>, ApiError> {
+    let query = r#"
+SELECT DISTINCT u.id, u.full_name, u.username
+FROM users u
+WHERE u.is_active = true
+  AND u.deleted_at IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM permissions p
+      INNER JOIN role_permissions rp ON p.id = rp.permission_id
+      INNER JOIN (
+          SELECT ur.role_id
+          FROM user_roles ur
+          WHERE ur.user_id = u.id
+            AND (ur.expires_at IS NULL OR ur.expires_at > CURRENT_TIMESTAMP)
+          UNION
+          SELECT tr.role_id
+          FROM team_roles tr
+          INNER JOIN team_members tm ON tm.team_id = tr.team_id
+          INNER JOIN teams t ON t.id = tm.team_id
+          WHERE tm.user_id = u.id
+            AND t.is_active
+            AND t.deleted_at IS NULL
+            AND (tm.expires_at IS NULL OR tm.expires_at > CURRENT_TIMESTAMP)
+      ) er ON er.role_id = rp.role_id
+      WHERE p.name = ANY($1)
+  )
+ORDER BY u.full_name NULLS LAST, u.username
+"#;
+
+    let rows = sqlx::query(query)
+        .bind(permissions)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| AssignableStaffMember {
+            id: row.get("id"),
+            full_name: row.try_get("full_name").ok(),
+            username: row.get("username"),
         })
         .collect())
 }

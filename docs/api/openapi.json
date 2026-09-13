@@ -592,6 +592,9 @@
     "/api/guests/{id}/tourism-from-last-check-in": {
       "POST": {}
     },
+    "/api/housekeeping/assignable-staff": {
+      "GET": {}
+    },
     "/api/housekeeping/board": {
       "GET": {}
     },
@@ -943,6 +946,9 @@
     "/api/teams/{team_id}/roles": {
       "PUT": {}
     },
+    "/api/updates/socket": {
+      "GET": {}
+    },
     "/api/users": {
       "GET": {},
       "POST": {}
@@ -1085,6 +1091,9 @@
     },
     {
       "name": "teams"
+    },
+    {
+      "name": "updates"
     },
     {
       "name": "users"

@@ -4,16 +4,18 @@ use axum::{
     Json, Router,
     extract::{Extension, Path, Query, State},
     http::HeaderMap,
+    middleware,
     routing::{get, patch, post},
 };
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_permission_helper;
+use crate::core::middleware::{require_any_permission_helper, require_permission_helper};
 use crate::handlers::housekeeping;
 use crate::models::{
-    CreateHousekeepingTaskRequest, HousekeepingBoardResponse, HousekeepingTask,
-    HousekeepingTaskListResponse, ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
+    AssignableStaffMember, AssignableStaffQuery, CreateHousekeepingTaskRequest,
+    HousekeepingBoardResponse, HousekeepingTask, HousekeepingTaskListResponse,
+    ListHousekeepingTasksQuery, UpdateHousekeepingTaskRequest,
 };
 
 pub fn routes() -> Router<DbPool> {
@@ -22,6 +24,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/housekeeping/tasks", post(create_task))
         .route("/housekeeping/tasks/{id}", patch(update_task))
         .route("/housekeeping/board", get(board))
+        .route("/housekeeping/assignable-staff", get(assignable_staff))
+        // Task completion can flip a room to available — let availability
+        // subscribers see the inventory change like any /rooms mutation.
+        .route_layer(middleware::from_fn(super::rooms::publish_inventory_changes))
 }
 
 async fn list_tasks(
@@ -59,4 +65,26 @@ async fn board(
 ) -> Result<Json<HousekeepingBoardResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "housekeeping:read").await?;
     housekeeping::board_handler(State(pool)).await
+}
+
+/// Gated on the write permissions the assignment actions require, so read-only
+/// viewers cannot enumerate staff accounts. `maintenance:write` is included
+/// because the maintenance scope serves that domain's pickers too.
+async fn assignable_staff(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    query: Query<AssignableStaffQuery>,
+) -> Result<Json<Vec<AssignableStaffMember>>, ApiError> {
+    require_any_permission_helper(
+        &pool,
+        &headers,
+        &[
+            "housekeeping:update",
+            "housekeeping:manage",
+            "maintenance:write",
+            "maintenance:manage",
+        ],
+    )
+    .await?;
+    housekeeping::assignable_staff_handler(State(pool), query).await
 }

@@ -69,6 +69,8 @@ export interface UpdateMaintenanceTicketRequest {
   scheduled_date?: string;
   resolution_notes?: string;
   images?: unknown;
+  /** Explicit unassign — `assigned_to` alone cannot clear the field. */
+  clear_assignee?: boolean;
 }
 
 export interface ListMaintenanceTicketsQuery {

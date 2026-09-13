@@ -78,8 +78,8 @@ mod postgres_tests {
     use chrono::{Duration, NaiveDate, Utc};
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::models::{
-        CreateHousekeepingTaskRequest, CreateMaintenanceTicketRequest, RoomStatusUpdateInput,
-        UpdateHousekeepingTaskRequest, UpdateMaintenanceTicketRequest,
+        CreateHousekeepingTaskRequest, CreateMaintenanceTicketRequest, ListHousekeepingTasksQuery,
+        RoomStatusUpdateInput, UpdateHousekeepingTaskRequest, UpdateMaintenanceTicketRequest,
     };
     use hotel_app_be::repositories::rooms_queries as rq;
     use hotel_app_be::services::{bookings, housekeeping, maintenance, rooms};
@@ -1469,5 +1469,307 @@ mod postgres_tests {
         // the role it was just re-opened for.
         assert_eq!(housekeeper_view.0.id, room_id);
         assert_eq!(housekeeper_view.0.status, "occupied");
+    }
+
+    // ===================================================================
+    // Scenario 9: explicit unassign + the task_type/unassigned list filters.
+    //
+    // `assigned_to` patches are COALESCE-based, so a JSON `null` binds NULL
+    // and keeps the old value — `clear_assignee` is the only unassign path.
+    // This pins both directions: an unrelated patch must preserve the
+    // assignee, and the flag must actually NULL the column.
+    // ===================================================================
+
+    #[tokio::test]
+    async fn postgres_housekeeping_task_clear_assignee_and_list_filters() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 980_013;
+        let room_id = 980_312;
+        let room_type_id = 980_412;
+
+        cleanup_room(&pool, room_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        seed_actor(&pool, actor_id).await;
+        seed_room_type(&pool, room_type_id).await;
+        seed_room(&pool, room_id, room_type_id, "dirty").await;
+
+        // Task A gets an assignee; task B stays unassigned with a distinct type.
+        let task_a = housekeeping::create_task(
+            &pool,
+            actor_id,
+            serde_json::from_value(serde_json::json!({"room_id": room_id})).unwrap(),
+        )
+        .await
+        .expect("task A creation must succeed");
+        let task_a = housekeeping::update_task(
+            &pool,
+            actor_id,
+            task_a.id,
+            serde_json::from_value(serde_json::json!({"assigned_to": actor_id})).unwrap(),
+        )
+        .await
+        .expect("assigning task A must succeed");
+        assert_eq!(task_a.assigned_to, Some(actor_id));
+
+        let task_b = housekeeping::create_task(
+            &pool,
+            actor_id,
+            serde_json::from_value(
+                serde_json::json!({"room_id": room_id, "task_type": "inspection"}),
+            )
+            .unwrap(),
+        )
+        .await
+        .expect("task B creation must succeed");
+        assert_eq!(task_b.task_type, "inspection");
+        assert_eq!(task_b.assigned_to, None);
+
+        // An unrelated patch must NOT clear the assignee (COALESCE contract).
+        let task_a = housekeeping::update_task(
+            &pool,
+            actor_id,
+            task_a.id,
+            serde_json::from_value(serde_json::json!({"priority": "high"})).unwrap(),
+        )
+        .await
+        .expect("priority patch must succeed");
+        assert_eq!(
+            task_a.assigned_to,
+            Some(actor_id),
+            "a patch without clear_assignee must preserve assigned_to"
+        );
+
+        // List filters, scoped to the fixture room so real DB rows can't leak in.
+        let unassigned = housekeeping::list_tasks(
+            &pool,
+            serde_json::from_value::<ListHousekeepingTasksQuery>(
+                serde_json::json!({"room_id": room_id, "unassigned": true}),
+            )
+            .unwrap(),
+        )
+        .await
+        .expect("unassigned filter must succeed");
+        assert!(unassigned.items.iter().any(|t| t.id == task_b.id));
+        assert!(!unassigned.items.iter().any(|t| t.id == task_a.id));
+
+        let assigned = housekeeping::list_tasks(
+            &pool,
+            serde_json::from_value::<ListHousekeepingTasksQuery>(
+                serde_json::json!({"room_id": room_id, "unassigned": false}),
+            )
+            .unwrap(),
+        )
+        .await
+        .expect("assigned filter must succeed");
+        assert!(assigned.items.iter().any(|t| t.id == task_a.id));
+        assert!(!assigned.items.iter().any(|t| t.id == task_b.id));
+
+        let inspections = housekeeping::list_tasks(
+            &pool,
+            serde_json::from_value::<ListHousekeepingTasksQuery>(
+                serde_json::json!({"room_id": room_id, "task_type": "inspection"}),
+            )
+            .unwrap(),
+        )
+        .await
+        .expect("task_type filter must succeed");
+        assert!(inspections.items.iter().any(|t| t.id == task_b.id));
+        assert!(!inspections.items.iter().any(|t| t.id == task_a.id));
+
+        // The explicit unassign path: flag clears, and the task re-joins the
+        // unassigned set.
+        let task_a = housekeeping::update_task(
+            &pool,
+            actor_id,
+            task_a.id,
+            serde_json::from_value(serde_json::json!({"clear_assignee": true})).unwrap(),
+        )
+        .await
+        .expect("clear_assignee patch must succeed");
+        assert_eq!(task_a.assigned_to, None);
+
+        let unassigned = housekeeping::list_tasks(
+            &pool,
+            serde_json::from_value::<ListHousekeepingTasksQuery>(
+                serde_json::json!({"room_id": room_id, "unassigned": true}),
+            )
+            .unwrap(),
+        )
+        .await
+        .expect("unassigned filter must succeed after unassign");
+        assert!(unassigned.items.iter().any(|t| t.id == task_a.id));
+        assert!(unassigned.items.iter().any(|t| t.id == task_b.id));
+
+        cleanup_room(&pool, room_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    // ===================================================================
+    // Scenario 10: maintenance tickets get the same explicit unassign path.
+    // ===================================================================
+
+    #[tokio::test]
+    async fn postgres_maintenance_ticket_clear_assignee() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 980_014;
+        let room_id = 980_313;
+        let room_type_id = 980_413;
+
+        cleanup_room(&pool, room_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+
+        seed_actor(&pool, actor_id).await;
+        seed_room_type(&pool, room_type_id).await;
+        seed_room(&pool, room_id, room_type_id, "maintenance").await;
+
+        let ticket = maintenance::create_ticket(
+            &pool,
+            actor_id,
+            serde_json::from_value::<CreateMaintenanceTicketRequest>(serde_json::json!({
+                "room_id": room_id,
+                "title": "Broken hinge",
+                "category": "furniture"
+            }))
+            .unwrap(),
+        )
+        .await
+        .expect("ticket creation must succeed");
+
+        let ticket = maintenance::update_ticket(
+            &pool,
+            actor_id,
+            ticket.id,
+            serde_json::from_value(serde_json::json!({"assigned_to": actor_id})).unwrap(),
+        )
+        .await
+        .expect("assigning the ticket must succeed");
+        assert_eq!(ticket.assigned_to, Some(actor_id));
+
+        // Preserve-on-unrelated-patch, then clear — same contract as tasks.
+        let ticket = maintenance::update_ticket(
+            &pool,
+            actor_id,
+            ticket.id,
+            serde_json::from_value(serde_json::json!({"priority": "high"})).unwrap(),
+        )
+        .await
+        .expect("priority patch must succeed");
+        assert_eq!(ticket.assigned_to, Some(actor_id));
+
+        let ticket = maintenance::update_ticket(
+            &pool,
+            actor_id,
+            ticket.id,
+            serde_json::from_value(serde_json::json!({"clear_assignee": true})).unwrap(),
+        )
+        .await
+        .expect("clear_assignee patch must succeed");
+        assert_eq!(ticket.assigned_to, None);
+
+        cleanup_room(&pool, room_id).await;
+        cleanup_room_type(&pool, room_type_id).await;
+        cleanup_actor(&pool, actor_id).await;
+    }
+
+    // ===================================================================
+    // Scenario 11: assignable_staff resolves the scope allowlist against
+    // effective roles, and must not offer inactive or unscoped users.
+    //
+    // The query enumerates every active user in the DB, so assertions are
+    // membership/non-membership of fixture users — the seeded admin and any
+    // real staff legitimately appear in the lists.
+    // ===================================================================
+
+    #[tokio::test]
+    async fn postgres_assignable_staff_resolves_scope_allowlist() {
+        let Some((pool, _guard)) = setup_pg_pool().await else {
+            return;
+        };
+        let hk_staff_id = 980_015;
+        let maint_staff_id = 980_016;
+        let inactive_hk_id = 980_017;
+        let unrelated_id = 980_018;
+        let hk_role = "rm980_assignable_hk";
+        let maint_role = "rm980_assignable_maint";
+        let unrelated_role = "rm980_assignable_rooms";
+
+        for actor_id in [hk_staff_id, maint_staff_id, inactive_hk_id, unrelated_id] {
+            cleanup_actor(&pool, actor_id).await;
+        }
+        for role in [hk_role, maint_role, unrelated_role] {
+            cleanup_scoped_role(&pool, role).await;
+        }
+
+        for actor_id in [hk_staff_id, maint_staff_id, inactive_hk_id, unrelated_id] {
+            seed_actor(&pool, actor_id).await;
+        }
+        grant_scoped_permission(&pool, hk_staff_id, hk_role, &["housekeeping:update"]).await;
+        grant_scoped_permission(&pool, maint_staff_id, maint_role, &["maintenance:write"]).await;
+        grant_scoped_permission(&pool, inactive_hk_id, hk_role, &["housekeeping:update"]).await;
+        grant_scoped_permission(&pool, unrelated_id, unrelated_role, &["rooms:read"]).await;
+        // Former staff member: the permission is still granted but the account
+        // is deactivated — must not be assignable.
+        sqlx::query("UPDATE users SET is_active = false WHERE id = $1")
+            .bind(inactive_hk_id)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let hk_staff = housekeeping::assignable_staff(&pool, Some("housekeeping"))
+            .await
+            .expect("housekeeping scope must resolve");
+        let hk_ids: Vec<i64> = hk_staff.iter().map(|m| m.id).collect();
+        assert!(
+            hk_ids.contains(&hk_staff_id),
+            "housekeeping:update holder must be assignable to housekeeping tasks"
+        );
+        assert!(
+            !hk_ids.contains(&maint_staff_id),
+            "maintenance-only staff must not appear in the housekeeping scope"
+        );
+        assert!(
+            !hk_ids.contains(&inactive_hk_id),
+            "a deactivated account must never be offered for assignment"
+        );
+        assert!(
+            !hk_ids.contains(&unrelated_id),
+            "rooms:read alone must not make a user assignable"
+        );
+
+        let maint_staff = housekeeping::assignable_staff(&pool, Some("maintenance"))
+            .await
+            .expect("maintenance scope must resolve");
+        let maint_ids: Vec<i64> = maint_staff.iter().map(|m| m.id).collect();
+        assert!(maint_ids.contains(&maint_staff_id));
+        assert!(!maint_ids.contains(&hk_staff_id));
+
+        // Default scope is housekeeping; an unknown scope is a client error,
+        // never an arbitrary permission lookup.
+        let default_staff = housekeeping::assignable_staff(&pool, None)
+            .await
+            .expect("default scope must resolve");
+        assert!(default_staff.iter().any(|m| m.id == hk_staff_id));
+
+        let err = housekeeping::assignable_staff(&pool, Some("users:read"))
+            .await
+            .expect_err("a scope outside the allowlist must be rejected");
+        assert!(matches!(err, ApiError::BadRequest(_)));
+
+        // Clean up before assertions above could leave residue on a rerun;
+        // fixture ids are reused, so teardown order mirrors setup order.
+        for actor_id in [hk_staff_id, maint_staff_id, inactive_hk_id, unrelated_id] {
+            cleanup_actor(&pool, actor_id).await;
+        }
+        for role in [hk_role, maint_role, unrelated_role] {
+            cleanup_scoped_role(&pool, role).await;
+        }
     }
 }

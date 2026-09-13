@@ -4,6 +4,7 @@ import { RoomsService } from '../../../api/rooms.service';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import type {
+  AssignableStaffScope,
   CreateHousekeepingTaskRequest,
   ListHousekeepingTasksQuery,
   UpdateHousekeepingTaskRequest,
@@ -24,6 +25,15 @@ export function useHousekeepingTasks(params: ListHousekeepingTasksQuery = {}, en
     queryFn: () => HousekeepingService.listTasks(params),
     enabled,
     staleTime: queryStaleTime.short,
+  });
+}
+
+export function useAssignableStaff(scope: AssignableStaffScope = 'housekeeping', enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.housekeeping.assignableStaff(scope),
+    queryFn: () => HousekeepingService.getAssignableStaff(scope),
+    enabled,
+    staleTime: queryStaleTime.long,
   });
 }
 

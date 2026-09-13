@@ -53,7 +53,10 @@ pub fn routes() -> Router<DbPool> {
         .route_layer(middleware::from_fn(publish_inventory_changes))
 }
 
-async fn publish_inventory_changes(
+/// Publishes a `room_inventory_changed` availability event after any successful
+/// mutating request on the router it layers. `pub(crate)` so the housekeeping
+/// router can reuse it — completing a cleaning task changes `rooms.status`.
+pub(crate) async fn publish_inventory_changes(
     Extension(hub): Extension<crate::modules::guest_booking::availability::AvailabilityHub>,
     request: Request<axum::body::Body>,
     next: Next,

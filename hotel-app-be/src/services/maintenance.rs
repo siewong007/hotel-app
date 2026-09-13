@@ -248,6 +248,7 @@ pub async fn update_ticket(
         scheduled_date: input.scheduled_date,
         resolution_notes,
         images: input.images,
+        clear_assignee: input.clear_assignee.unwrap_or(false),
     };
 
     let ticket = maintenance::patch_ticket(pool, ticket_id, &patch).await?;

@@ -2,416 +2,419 @@ import {
   Alert,
   Box,
   Button,
-  Chip,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
+  IconButton,
+  Snackbar,
   Stack,
   Tab,
   Tabs,
-  TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
 import { useMemo, useState } from 'react';
+import PageHeader from '../../../components/common/PageHeader';
+import StatStrip from '../../../components/common/StatStrip';
+import { getTabA11yProps, TabPanel } from '../../../components/common/TabPanel';
+import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useAuth } from '../../../auth/AuthContext';
-import { formatLocalDate } from '../../../utils/date';
+import { formatHotelDateTime, formatLocalDate } from '../../../utils/date';
+import { errorMessage } from '../../../utils/errorMessage';
 import { formatStatusLabel } from '../../../utils/formatters';
-import type { HousekeepingBoardRoom, HousekeepingPriority } from '../../../types/housekeeping.types';
+import type {
+  CreateHousekeepingTaskRequest,
+  HousekeepingBoardRoom,
+  HousekeepingTask,
+  UpdateHousekeepingTaskRequest,
+} from '../../../types/housekeeping.types';
+import type { RoomStatusUpdateInput } from '../../../types/room.types';
 import {
   useCreateHousekeepingTask,
   useHousekeepingBoard,
   useSyncRoomStatuses,
   useUpdateHousekeepingTask,
 } from '../hooks/useHousekeepingQueries';
+import { useUpdateRoomStatus } from '../../rooms/hooks/useRoomQueries';
+import { roomNeedsAttention } from '../housekeepingConfig';
+import BoardView, { EMPTY_BOARD_FILTERS, type BoardFilters } from './BoardView';
+import TasksView, { type TaskQuickFilter } from './TasksView';
 import MaintenanceTab from './MaintenanceTab';
+import NewTaskDialog from './NewTaskDialog';
+import TaskEditDialog from './TaskEditDialog';
+import RoomDetailDrawer from './RoomDetailDrawer';
+import RoomStatusUpdateDialog from './RoomStatusUpdateDialog';
+import NewTicketDialog from './NewTicketDialog';
+import { useCreateMaintenanceTicket } from '../hooks/useMaintenanceQueries';
+import type { HousekeepingActionContext, HousekeepingActionHandlers } from './RoomTaskCard';
 
-const ROOM_STATUS_ORDER = ['dirty', 'cleaning', 'reserved_dirty', 'maintenance', 'available', 'reserved', 'occupied'];
-const PRIORITIES: HousekeepingPriority[] = ['low', 'normal', 'high', 'urgent'];
-
-const statusLabel = (status: string) => formatStatusLabel(status);
-
-const priorityColor = (priority?: HousekeepingPriority) => {
-  switch (priority) {
-    case 'urgent':
-      return 'error';
-    case 'high':
-      return 'warning';
-    case 'low':
-      return 'default';
-    default:
-      return 'info';
-  }
-};
-
-const taskStatusColor = (status?: string) => {
-  switch (status) {
-    case 'in_progress':
-      return 'primary';
-    case 'completed':
-      return 'success';
-    case 'void':
-      return 'default';
-    default:
-      return 'warning';
-  }
-};
-
-function RoomTaskRow({
-  room,
-  canUpdate,
-  currentUserId,
-  onCreate,
-  onUpdate,
-  isBusy,
-}: {
-  room: HousekeepingBoardRoom;
-  canUpdate: boolean;
-  currentUserId?: number;
-  onCreate: (roomId: number, notes?: string) => void;
-  onUpdate: (taskId: number, input: { status?: 'in_progress' | 'completed' | 'void'; assigned_to?: number }) => void;
-  isBusy: boolean;
-}) {
-  const [notes, setNotes] = useState('');
-  const task = room.open_task;
-  const canCreateTask = !task && ['dirty', 'cleaning', 'reserved_dirty'].includes(room.status);
-
-  return (
-    <Box
-      sx={{
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 1,
-        p: 1.25,
-        bgcolor: 'background.paper',
-      }}
-    >
-      <Stack spacing={1}>
-        <Stack
-          direction="row"
-          sx={{
-            justifyContent: "space-between",
-            gap: 1,
-            alignItems: "center"
-          }}>
-          <Box sx={{
-            minWidth: 0
-          }}>
-            <Typography variant="subtitle2" noWrap>
-              Room {room.room_number}
-            </Typography>
-            <Typography variant="caption" noWrap component="div" sx={{
-              color: "text.secondary"
-            }}>
-              {room.room_type}{room.floor != null ? ` · Floor ${room.floor}` : ''}
-            </Typography>
-          </Box>
-          <Chip size="small" label={statusLabel(room.status)} />
-        </Stack>
-
-        {task ? (
-          <>
-            <Stack direction="row" spacing={0.75} useFlexGap sx={{
-              flexWrap: "wrap"
-            }}>
-              <Chip size="small" variant="outlined" color={priorityColor(task.priority)} label={`Priority: ${statusLabel(task.priority)}`} />
-              <Chip size="small" color={taskStatusColor(task.status)} label={statusLabel(task.status)} />
-              {task.assigned_to_name ? <Chip size="small" label={task.assigned_to_name} /> : null}
-              {task.scheduled_date ? <Chip size="small" label={task.scheduled_date} /> : null}
-            </Stack>
-            {task.notes ? (
-              <Typography variant="body2" sx={{
-                color: "text.secondary"
-              }}>
-                {task.notes}
-              </Typography>
-            ) : null}
-            {canUpdate ? (
-              <Stack direction="row" spacing={0.75} useFlexGap sx={{
-                flexWrap: "wrap"
-              }}>
-                {!task.assigned_to && currentUserId ? (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<AssignmentIndIcon />}
-                    disabled={isBusy}
-                    onClick={() => onUpdate(task.id, { assigned_to: currentUserId })}
-                  >
-                    Assign me
-                  </Button>
-                ) : null}
-                {task.status === 'pending' ? (
-                  <Button
-                    size="small"
-                    variant="contained"
-                    startIcon={<PlayArrowIcon />}
-                    disabled={isBusy}
-                    onClick={() => onUpdate(task.id, { status: 'in_progress' })}
-                  >
-                    Start
-                  </Button>
-                ) : null}
-                {task.status === 'in_progress' ? (
-                  <Button
-                    size="small"
-                    variant="contained"
-                    color="success"
-                    startIcon={<CheckCircleIcon />}
-                    disabled={isBusy}
-                    onClick={() => onUpdate(task.id, { status: 'completed' })}
-                  >
-                    Complete
-                  </Button>
-                ) : null}
-              </Stack>
-            ) : null}
-          </>
-        ) : (
-          <Stack spacing={1}>
-            {canCreateTask ? (
-              <>
-                <TextField
-                  size="small"
-                  label="Notes"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  fullWidth
-                />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  disabled={isBusy}
-                  onClick={() => {
-                    onCreate(room.id, notes || undefined);
-                    setNotes('');
-                  }}
-                >
-                  Add task
-                </Button>
-              </>
-            ) : (
-              <Typography variant="body2" sx={{
-                color: "text.secondary"
-              }}>
-                No open task
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </Stack>
-    </Box>
-  );
+interface Snack {
+  severity: 'success' | 'error' | 'info';
+  message: string;
 }
 
 export default function HousekeepingPage() {
   const { user, hasPermission } = useAuth();
-  const canViewMaintenance = hasPermission('maintenance:read');
-  const canWriteMaintenance = hasPermission('maintenance:write');
-  const [tab, setTab] = useState(0);
-  const [floorFilter, setFloorFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const boardQuery = useHousekeepingBoard();
-  const createTask = useCreateHousekeepingTask();
-  const updateTask = useUpdateHousekeepingTask();
-  const syncStatuses = useSyncRoomStatuses();
+  const confirm = useConfirm();
+  const canViewMaintenance = hasPermission('maintenance:read') || hasPermission('maintenance:manage');
+  const canWriteMaintenance =
+    hasPermission('maintenance:write') || hasPermission('maintenance:manage');
   const canUpdate = hasPermission('housekeeping:update') || hasPermission('housekeeping:manage');
   const canCreate = hasPermission('housekeeping:create') || hasPermission('housekeeping:manage');
   const canSyncStatuses = hasPermission('rooms:update') || hasPermission('rooms:manage');
   const currentUserId = user?.id ? Number(user.id) : undefined;
-  const isBusy = createTask.isPending || updateTask.isPending;
+
+  const [tab, setTab] = useState(0);
+  const [taskQuick, setTaskQuick] = useState<TaskQuickFilter>('open');
+  const [boardFilters, setBoardFilters] = useState<BoardFilters>(EMPTY_BOARD_FILTERS);
+  const [snack, setSnack] = useState<Snack | null>(null);
+  const [newTaskRoom, setNewTaskRoom] = useState<HousekeepingBoardRoom | null | undefined>(undefined);
+  const [editTask, setEditTask] = useState<HousekeepingTask | null>(null);
+  const [detailRoom, setDetailRoom] = useState<HousekeepingBoardRoom | null>(null);
+  const [statusRoom, setStatusRoom] = useState<HousekeepingBoardRoom | null>(null);
+  const [ticketRoom, setTicketRoom] = useState<HousekeepingBoardRoom | null | undefined>(undefined);
+
+  const boardQuery = useHousekeepingBoard();
+  const createTask = useCreateHousekeepingTask();
+  const updateTask = useUpdateHousekeepingTask();
+  const syncStatuses = useSyncRoomStatuses();
+  const updateRoomStatus = useUpdateRoomStatus();
+  const createTicket = useCreateMaintenanceTicket();
 
   const rooms = useMemo(() => boardQuery.data?.rooms ?? [], [boardQuery.data]);
-  const floors = useMemo(
-    () => Array.from(new Set(rooms.map(room => room.floor).filter((floor): floor is number => floor != null))).sort((a, b) => a - b),
-    [rooms],
-  );
+  const roomById = useMemo(() => new Map(rooms.map((room) => [room.id, room])), [rooms]);
 
-  const filteredRooms = useMemo(() => rooms.filter((room) => {
-    if (floorFilter !== 'all' && String(room.floor) !== floorFilter) return false;
-    if (priorityFilter !== 'all' && room.open_task?.priority !== priorityFilter) return false;
-    return true;
-  }), [floorFilter, priorityFilter, rooms]);
+  const stats = useMemo(() => {
+    const count = (predicate: (room: HousekeepingBoardRoom) => boolean) =>
+      rooms.filter(predicate).length;
+    return {
+      needsCleaning: count((room) => room.status === 'dirty' || room.status === 'reserved_dirty'),
+      inProgress: count(
+        (room) => room.status === 'cleaning' || room.open_task?.status === 'in_progress',
+      ),
+      unassigned: count((room) => Boolean(room.open_task && !room.open_task.assigned_to)),
+      blocked: count((room) => room.status === 'maintenance' || room.status === 'out_of_order'),
+      ready: count((room) => room.status === 'available'),
+      attention: count(roomNeedsAttention),
+    };
+  }, [rooms]);
 
-  const groupedRooms = useMemo(() => {
-    const groups = new Map<string, HousekeepingBoardRoom[]>();
-    for (const room of filteredRooms) {
-      const key = room.status || 'available';
-      groups.set(key, [...(groups.get(key) ?? []), room]);
+  const notify = (severity: Snack['severity'], message: string) =>
+    setSnack({ severity, message });
+
+  const busyTaskId =
+    updateTask.isPending && updateTask.variables ? Number(updateTask.variables.taskId) : undefined;
+
+  const patchTask = async (
+    task: HousekeepingTask,
+    input: UpdateHousekeepingTaskRequest,
+    success: string,
+  ) => {
+    try {
+      await updateTask.mutateAsync({ taskId: task.id, input });
+      notify('success', success);
+    } catch (err) {
+      notify('error', errorMessage(err, 'Task update failed'));
     }
+  };
 
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      const aIndex = ROOM_STATUS_ORDER.indexOf(a);
-      const bIndex = ROOM_STATUS_ORDER.indexOf(b);
-      return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
-    });
-  }, [filteredRooms]);
+  const actionContext: HousekeepingActionContext = {
+    canCreate,
+    canUpdate,
+    canUpdateRoomStatus: canSyncStatuses,
+    canWriteMaintenance,
+    currentUserId,
+    busyTaskId,
+  };
 
-  const error = boardQuery.error || createTask.error || updateTask.error || syncStatuses.error;
+  const actions: HousekeepingActionHandlers = {
+    onStartTask: (task) =>
+      void patchTask(task, { status: 'in_progress' }, `Room ${task.room_number} — task started.`),
+    onCompleteTask: (task) => {
+      void (async () => {
+        const releasesRoom =
+          task.task_type === 'cleaning' || task.task_type === 'checkout_clean';
+        const ok = await confirm({
+          title: 'Complete task?',
+          message: releasesRoom
+            ? `Room ${task.room_number} will be marked clean and released for sale.`
+            : `The ${formatStatusLabel(task.task_type)} task on room ${task.room_number} will be marked completed.`,
+          confirmText: 'Complete',
+          severity: 'info',
+        });
+        if (ok) {
+          await patchTask(task, { status: 'completed' }, `Room ${task.room_number} — task completed.`);
+        }
+      })();
+    },
+    onAssignMe: (task) => {
+      if (!currentUserId) return;
+      void patchTask(
+        task,
+        { assigned_to: currentUserId },
+        `Room ${task.room_number} — task assigned to you.`,
+      );
+    },
+    onEditTask: (task) => setEditTask(task),
+    onVoidTask: (task) => {
+      void (async () => {
+        const ok = await confirm({
+          title: 'Void this task?',
+          message: `The ${formatStatusLabel(task.task_type)} task on room ${task.room_number} will be cancelled. The room keeps its current status.`,
+          confirmText: 'Void task',
+          severity: 'warning',
+        });
+        if (ok) {
+          await patchTask(task, { status: 'void' }, `Room ${task.room_number} — task voided.`);
+        }
+      })();
+    },
+    onNewTask: (room) => setNewTaskRoom(room),
+    onViewRoom: (room) => setDetailRoom(room),
+    onUpdateRoomStatus: (room) => setStatusRoom(room),
+    onReportMaintenance: (room) => setTicketRoom(room),
+  };
+
+  const handleCreateTask = async (input: CreateHousekeepingTaskRequest) => {
+    await createTask.mutateAsync(input);
+    const room = roomById.get(input.room_id);
+    notify('success', `Task created for room ${room?.room_number ?? input.room_id}.`);
+  };
+
+  const handleEditTask = async (taskId: number, input: UpdateHousekeepingTaskRequest) => {
+    await updateTask.mutateAsync({ taskId, input });
+    notify('success', 'Task updated.');
+  };
+
+  const handleRoomStatus = async (roomId: number, input: RoomStatusUpdateInput) => {
+    await updateRoomStatus.mutateAsync({ roomId, data: input });
+    boardQuery.refetch();
+    notify('success', `Room ${roomById.get(roomId)?.room_number ?? roomId} → ${formatStatusLabel(input.status)}.`);
+  };
+
+  const goToBoardFilter = (patch: Partial<BoardFilters>) => {
+    setBoardFilters({ ...EMPTY_BOARD_FILTERS, ...patch });
+    setTab(0);
+  };
+
+  const statItems = [
+    {
+      key: 'attention',
+      label: 'Needs attention',
+      value: stats.attention,
+      color: 'warning.main',
+      onClick: () => goToBoardFilter({ attentionOnly: true }),
+      active: tab === 0 && boardFilters.attentionOnly,
+    },
+    {
+      key: 'needsCleaning',
+      label: 'Needs cleaning',
+      value: stats.needsCleaning,
+      color: 'warning.main',
+      onClick: () => goToBoardFilter({ status: 'dirty' }),
+      active: tab === 0 && boardFilters.status === 'dirty',
+    },
+    {
+      key: 'inProgress',
+      label: 'In progress',
+      value: stats.inProgress,
+      color: 'primary.main',
+      onClick: () => goToBoardFilter({ status: 'cleaning' }),
+      active: tab === 0 && boardFilters.status === 'cleaning',
+    },
+    {
+      key: 'unassigned',
+      label: 'Unassigned tasks',
+      value: stats.unassigned,
+      color: 'info.main',
+      onClick: () => {
+        setTaskQuick('unassigned');
+        setTab(1);
+      },
+      active: tab === 1 && taskQuick === 'unassigned',
+    },
+    {
+      key: 'blocked',
+      label: 'Blocked rooms',
+      value: stats.blocked,
+      color: 'error.main',
+      onClick: () => goToBoardFilter({ status: 'maintenance' }),
+      active: tab === 0 && boardFilters.status === 'maintenance',
+    },
+    {
+      key: 'ready',
+      label: 'Ready',
+      value: stats.ready,
+      color: 'success.main',
+      onClick: () => goToBoardFilter({ status: 'available' }),
+      active: tab === 0 && boardFilters.status === 'available',
+    },
+  ];
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1440, mx: 'auto' }}>
-      <Stack spacing={2.5}>
-        {canViewMaintenance ? (
-          <Tabs value={tab} onChange={(_event, value: number) => setTab(value)}>
-            <Tab label="Board" />
-            <Tab label="Maintenance" />
-          </Tabs>
-        ) : null}
-
-        {tab === 0 ? (
-          <Stack spacing={2.5}>
-            <Stack
-              direction={{ xs: 'column', md: 'row' }}
-              sx={{
-                justifyContent: "space-between",
-                gap: 2
-              }}>
-              <Box>
-                <Typography variant="h4" component="h1">
-                  Housekeeping
-                </Typography>
-                <Typography variant="body2" sx={{
-                  color: "text.secondary"
-                }}>
-                  {formatLocalDate()} · {filteredRooms.length} rooms — grouped by room status; open tasks on each card
-                </Typography>
-              </Box>
-              <Stack
-                direction="row"
-                spacing={1.25}
-                useFlexGap
-                sx={{
-                  flexWrap: "wrap",
-                  alignItems: "center"
-                }}>
-                {canSyncStatuses ? (
-                  <Button
-                    variant="outlined"
-                    startIcon={<SyncIcon />}
-                    disabled={syncStatuses.isPending}
-                    onClick={() => syncStatuses.mutate()}
-                  >
-                    Sync statuses
-                  </Button>
-                ) : null}
-                <FormControl size="small" sx={{ minWidth: 130 }}>
-                  <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
-                  <Select
-                    labelId="housekeeping-floor-filter"
-                    label="Floor"
-                    value={floorFilter}
-                    onChange={(event) => setFloorFilter(event.target.value)}
-                  >
-                    <MenuItem value="all">All floors</MenuItem>
-                    {floors.map(floor => (
-                      <MenuItem key={floor} value={String(floor)}>Floor {floor}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 130 }}>
-                  <InputLabel id="housekeeping-priority-filter">Priority</InputLabel>
-                  <Select
-                    labelId="housekeeping-priority-filter"
-                    label="Priority"
-                    value={priorityFilter}
-                    onChange={(event) => setPriorityFilter(event.target.value)}
-                  >
-                    <MenuItem value="all">All priorities</MenuItem>
-                    {PRIORITIES.map(priority => (
-                      <MenuItem key={priority} value={priority}>{statusLabel(priority)}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
-            </Stack>
-
-            {error ? <Alert severity="error">{error instanceof Error ? error.message : 'Housekeeping update failed'}</Alert> : null}
-
-            {syncStatuses.data ? (
-              <Alert
-                severity={syncStatuses.data.synced_count > 0 ? 'success' : 'info'}
-                onClose={() => syncStatuses.reset()}
+      <PageHeader
+        kicker={`Operations · ${formatLocalDate()}`}
+        title="Housekeeping"
+        subtitle={
+          boardQuery.data
+            ? `${rooms.length} rooms · ${stats.attention} need attention · updated ${formatHotelDateTime(new Date(boardQuery.dataUpdatedAt).toISOString())}`
+            : 'Room status and task board'
+        }
+        actions={
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Tooltip title="Refresh board">
+              <span>
+                <IconButton
+                  aria-label="Refresh housekeeping board"
+                  onClick={() => boardQuery.refetch()}
+                  disabled={boardQuery.isFetching}
+                >
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            {canSyncStatuses ? (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<SyncIcon />}
+                disabled={syncStatuses.isPending}
+                onClick={() => syncStatuses.mutate()}
               >
-                {syncStatuses.data.message}
-                {syncStatuses.data.changes.length > 0
-                  ? ` — ${syncStatuses.data.changes
-                      .map(change => `${change.room_number}: ${statusLabel(change.old_status)} to ${statusLabel(change.new_status)}`)
-                      .join(', ')}`
-                  : ''}
-              </Alert>
+                Sync statuses
+              </Button>
             ) : null}
-
-            {boardQuery.isLoading ? (
-              <Stack
-                sx={{
-                  alignItems: "center",
-                  py: 8
-                }}>
-                <CircularProgress />
-              </Stack>
-            ) : (
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
-                  gap: 2,
-                  alignItems: 'start',
-                }}
+            {canCreate ? (
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => setNewTaskRoom(null)}
               >
-                {groupedRooms.map(([status, statusRooms]) => (
-                  <Box
-                    key={status}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      p: 1.5,
-                      bgcolor: 'background.default',
-                      minHeight: 160,
-                    }}
-                  >
-                    <Stack spacing={1.25}>
-                      <Stack
-                        direction="row"
-                        sx={{
-                          justifyContent: "space-between",
-                          alignItems: "center"
-                        }}>
-                        <Typography variant="subtitle1">{statusLabel(status)}</Typography>
-                        <Chip size="small" label={statusRooms.length} />
-                      </Stack>
-                      {statusRooms.map(room => (
-                        <RoomTaskRow
-                          key={room.id}
-                          room={room}
-                          canUpdate={canUpdate}
-                          currentUserId={currentUserId}
-                          isBusy={isBusy}
-                          onCreate={(roomId, notes) => {
-                            if (!canCreate) return;
-                            createTask.mutate({ room_id: roomId, task_type: 'cleaning', priority: 'normal', notes });
-                          }}
-                          onUpdate={(taskId, input) => updateTask.mutate({ taskId, input })}
-                        />
-                      ))}
-                    </Stack>
-                  </Box>
-                ))}
-              </Box>
-            )}
+                New task
+              </Button>
+            ) : null}
           </Stack>
+        }
+      />
+
+      <Stack spacing={2.5}>
+        <StatStrip items={statItems} />
+
+        {boardQuery.error ? (
+          <Alert
+            severity="error"
+            action={<Button onClick={() => boardQuery.refetch()}>Retry</Button>}
+          >
+            {errorMessage(boardQuery.error, 'Failed to load the housekeeping board.')}
+          </Alert>
         ) : null}
 
-        {tab === 1 && canViewMaintenance ? <MaintenanceTab canWrite={canWriteMaintenance} /> : null}
+        {syncStatuses.data ? (
+          <Alert
+            severity={syncStatuses.data.synced_count > 0 ? 'success' : 'info'}
+            onClose={() => syncStatuses.reset()}
+          >
+            {syncStatuses.data.message}
+            {syncStatuses.data.changes.length > 0
+              ? ` — ${syncStatuses.data.changes
+                  .map(
+                    (change) =>
+                      `${change.room_number}: ${formatStatusLabel(change.old_status)} → ${formatStatusLabel(change.new_status)}`,
+                  )
+                  .join(', ')}`
+              : ''}
+          </Alert>
+        ) : null}
+        {syncStatuses.error ? (
+          <Alert severity="error">
+            {errorMessage(syncStatuses.error, 'Status sync failed')}
+          </Alert>
+        ) : null}
+
+        <Tabs
+          value={tab}
+          onChange={(_event, value: number) => setTab(value)}
+          aria-label="Housekeeping views"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Board" {...getTabA11yProps(0, 'housekeeping')} />
+          <Tab label="Tasks" {...getTabA11yProps(1, 'housekeeping')} />
+          {canViewMaintenance ? (
+            <Tab label="Maintenance" {...getTabA11yProps(2, 'housekeeping')} />
+          ) : null}
+        </Tabs>
+
+        <TabPanel value={tab} index={0} idPrefix="housekeeping">
+          <BoardView
+            rooms={rooms}
+            isLoading={boardQuery.isLoading}
+            filters={boardFilters}
+            onFiltersChange={setBoardFilters}
+            actions={actions}
+            {...actionContext}
+          />
+        </TabPanel>
+        <TabPanel value={tab} index={1} idPrefix="housekeeping">
+          <TasksView
+            roomById={roomById}
+            actions={actions}
+            quick={taskQuick}
+            onQuickChange={setTaskQuick}
+            {...actionContext}
+          />
+        </TabPanel>
+        {canViewMaintenance ? (
+          <TabPanel value={tab} index={2} idPrefix="housekeeping">
+            <MaintenanceTab canWrite={canWriteMaintenance} onNotify={notify} />
+          </TabPanel>
+        ) : null}
       </Stack>
+
+      <NewTaskDialog
+        open={newTaskRoom !== undefined}
+        rooms={rooms}
+        initialRoom={newTaskRoom ?? null}
+        onClose={() => setNewTaskRoom(undefined)}
+        onSubmit={handleCreateTask}
+      />
+      <TaskEditDialog
+        open={Boolean(editTask)}
+        task={editTask}
+        onClose={() => setEditTask(null)}
+        onSubmit={handleEditTask}
+      />
+      <RoomDetailDrawer
+        room={detailRoom}
+        open={Boolean(detailRoom)}
+        onClose={() => setDetailRoom(null)}
+        actions={actions}
+        {...actionContext}
+      />
+      <RoomStatusUpdateDialog
+        open={Boolean(statusRoom)}
+        room={statusRoom}
+        onClose={() => setStatusRoom(null)}
+        onSubmit={handleRoomStatus}
+      />
+      <NewTicketDialog
+        open={ticketRoom !== undefined}
+        initialRoom={ticketRoom ?? null}
+        onClose={() => setTicketRoom(undefined)}
+        onSubmit={async (input) => {
+          await createTicket.mutateAsync(input);
+          notify('success', 'Maintenance ticket created.');
+        }}
+      />
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={4000}
+        onClose={() => setSnack(null)}
+        message={snack?.message}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 }

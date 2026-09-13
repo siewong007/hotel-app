@@ -247,7 +247,7 @@ SET title = COALESCE($2, title),
     category = COALESCE($4, category),
     priority = COALESCE($5, priority),
     status = COALESCE($6, status),
-    assigned_to = COALESCE($7, assigned_to),
+    assigned_to = CASE WHEN $15::bool THEN NULL ELSE COALESCE($7, assigned_to) END,
     estimated_cost = COALESCE($8, estimated_cost),
     actual_cost = COALESCE($9, actual_cost),
     estimated_hours = COALESCE($10, estimated_hours),
@@ -283,6 +283,7 @@ WHERE id = $1
         .bind(patch.scheduled_date)
         .bind(patch.resolution_notes.as_deref())
         .bind(images_bind)
+        .bind(patch.clear_assignee)
         .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
