@@ -16,7 +16,7 @@ import type {
 } from '../../../types';
 import type { SupportAgent } from '../../support/types';
 import { formatStatusLabel } from '../../../utils/formatters';
-import { formatHotelDate, toHotelDateString } from '../../../utils/date';
+import { formatHotelDate, toHotelDateString, toHotelInstantIso } from '../../../utils/date';
 
 export const INTERACTION_TYPE_OPTIONS: GuestInteractionType[] = [
   'note',
@@ -60,12 +60,13 @@ export const emptyInteractionDraft = (): InteractionFormDraft => ({
 
 /**
  * `guest_notes.follow_up_at` is a `timestamptz` while the picker produces a
- * hotel-local calendar date. Anchoring at noon UTC keeps the stored instant
- * on the picked date for every timezone the app deploys to — midnight UTC
- * would render a day early for hotels west of Greenwich, and viewer-local
- * parsing drifts for remote staff.
+ * hotel-local calendar date. Anchoring at noon *hotel-local* (via
+ * `toHotelInstantIso`) keeps the stored instant on the picked date in every
+ * deployable timezone — noon UTC would roll to the next day for UTC+12..+14,
+ * and midnight UTC rolls a day back west of Greenwich.
  */
-export const followUpDateToISO = (pickerDate: string): string => `${pickerDate}T12:00:00Z`;
+export const followUpDateToISO = (pickerDate: string): string =>
+  toHotelInstantIso(pickerDate, 12, 0) ?? `${pickerDate}T12:00:00Z`;
 
 interface InteractionFormProps {
   mode: 'create' | 'edit';

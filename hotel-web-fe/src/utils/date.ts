@@ -147,6 +147,45 @@ export const formatHotelDateTime = (value: BusinessDateValue, fallback = '-'): s
   return value.toLocaleString(intlTag(), { timeZone: getHotelTimeZone() });
 };
 
+// Inverse of instantToHotelDateString for wall-clock targets: the UTC instant
+// of `hour:minute` hotel-local on a 'YYYY-MM-DD' date (null when unparseable).
+// Used when a date picker feeds a timestamptz column — anchoring at noon
+// hotel-local keeps the picked calendar date on the stored instant in every
+// timezone (midnight UTC drifts for hotels west of Greenwich; noon UTC drifts
+// for UTC+12 and beyond).
+export const toHotelInstantIso = (
+  dateString: string,
+  hour = 12,
+  minute = 0,
+): string | null => {
+  const match = DATE_ONLY_RE.exec(dateString.trim());
+  if (!match) return null;
+  const wallParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: getHotelTimeZone(),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const guess = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), hour, minute);
+  const parts = wallParts.formatToParts(new Date(guess));
+  const part = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find(p => p.type === type)?.value ?? 0);
+  const shownHour = part('hour') === 24 ? 0 : part('hour');
+  const hotelWallOfGuess = Date.UTC(
+    part('year'),
+    part('month') - 1,
+    part('day'),
+    shownHour,
+    part('minute'),
+    part('second'),
+  );
+  return new Date(guess - (hotelWallOfGuess - guess)).toISOString();
+};
+
 // True once the hotel calendar has moved past the value's date (the day itself
 // does not count as past) — viewer-timezone independent.
 export const isHotelDatePast = (value: BusinessDateValue): boolean => {
