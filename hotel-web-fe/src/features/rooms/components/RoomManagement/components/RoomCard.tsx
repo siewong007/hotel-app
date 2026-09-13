@@ -28,6 +28,13 @@ import type { Room, BookingWithDetails } from '../../../../../types';
 import type { RoomMenuAnchor } from '../types';
 import { getRoomTypeCode } from '../../../utils/roomManagementUtils';
 
+// Ink and borders rendered ON the saturated status fill. The fill is the
+// status accent token, which inverts between modes (deep in light, pastel in
+// dark), so on-card ink uses --hotel-on-primary — the theme's contrast color
+// for saturated accents — with color-mix tints for the dimmer tiers.
+const ON_FILL = 'var(--hotel-on-primary)';
+const onFill = (pct: number) => `color-mix(in srgb, ${ON_FILL} ${pct}%, transparent)`;
+
 // Action row pinned to the card bottom so the primary action sits in the same
 // spot on every card regardless of state.
 const CardActionRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -70,10 +77,15 @@ const CardPillButton: React.FC<{
       px: 0.5,
       borderRadius: 999,
       ...(tone === 'dark'
-        ? {}
+        ? {
+            color: 'var(--hotel-text)',
+            bgcolor: ON_FILL,
+            boxShadow: 'none',
+            '&:hover': { bgcolor: onFill(85), boxShadow: 'none' },
+          }
         : {
             color: 'text.primary',
-            bgcolor: 'transparent',
+            bgcolor: 'background.paper',
             borderColor: 'divider',
             borderWidth: 1,
             '&:hover': { borderColor: 'text.secondary', bgcolor: 'action.hover' },
@@ -94,14 +106,14 @@ const CardMoreButton: React.FC<{ onClick: (event: React.MouseEvent<HTMLElement>)
       }}
       sx={{
         border: '1px solid',
-        borderColor: 'divider',
+        borderColor: onFill(55),
         borderRadius: 999,
         width: 24,
         height: 24,
         flexShrink: 0,
-        color: 'text.secondary',
+        color: ON_FILL,
         bgcolor: 'transparent',
-        '&:hover': { borderColor: 'text.secondary', bgcolor: 'action.hover' },
+        '&:hover': { borderColor: ON_FILL, bgcolor: onFill(12) },
       }}
     >
       <MoreHorizIcon sx={{ fontSize: 14 }} />
@@ -121,7 +133,6 @@ interface RoomCardProps {
   isComplimentary: boolean;
   overdueDays?: number;
   cardFill: string;
-  isDarkMode: boolean;
   onMenuOpen: (anchor: RoomMenuAnchor, room: Room) => void;
   onEditNotes: (room: Room) => void;
   onEditBookingNotes: (booking: BookingWithDetails, event: React.MouseEvent) => void;
@@ -165,8 +176,8 @@ const RoomCard: React.FC<RoomCardProps> = ({
           bgcolor: cardFill,
           backgroundImage: 'none',
           border: '1px solid',
-          borderColor: 'divider',
-          color: 'text.primary',
+          borderColor: onFill(28),
+          color: ON_FILL,
           cursor: 'pointer',
           position: 'relative',
           height: 250,
@@ -229,7 +240,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   variant="caption"
                   sx={{
                     fontWeight: 800,
-                    color: 'text.secondary',
+                    color: onFill(80),
                     letterSpacing: 0.6,
                     fontSize: '0.7rem',
                     lineHeight: 1,
@@ -246,7 +257,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   <path
                     d="M1 4 Q5 1 9 3 T17 3 T25 3 T35 3"
                     fill="none"
-                    stroke="var(--hotel-text-muted)"
+                    stroke={onFill(70)}
                     strokeWidth={1.6}
                     strokeLinecap="round"
                   />
@@ -263,9 +274,10 @@ const RoomCard: React.FC<RoomCardProps> = ({
                       px: 0.75,
                       py: 0.3,
                       borderRadius: 0.75,
-                      bgcolor: 'var(--hotel-surface-raised)',
-                      border: '1px solid var(--hotel-border-strong)',
-                      color: 'text.secondary',
+                      bgcolor: onFill(16),
+                      border: '1px solid',
+                      borderColor: onFill(40),
+                      color: ON_FILL,
                     }}
                   >
                     <SmokingIcon sx={{ fontSize: 12 }} />
@@ -289,9 +301,10 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     px: 0.75,
                     py: 0.3,
                     borderRadius: 0.75,
-                    bgcolor: 'var(--hotel-danger-bg)',
-                    border: '1px solid var(--hotel-danger-border)',
-                    color: 'var(--hotel-danger)',
+                    bgcolor: 'var(--hotel-danger)',
+                    border: '1px solid',
+                    borderColor: onFill(40),
+                    color: ON_FILL,
                   }}
                 >
                   <Typography sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.7 }}>
@@ -309,7 +322,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
               sx={{
                 mt: 1.25,
                 fontStyle: 'italic',
-                color: 'text.secondary',
+                color: onFill(85),
                 fontSize: '0.85rem',
                 fontWeight: 500,
               }}
@@ -333,7 +346,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 px: 0.75,
                 py: 0.15,
                 borderRadius: 999,
-                bgcolor: 'color-mix(in srgb, var(--hotel-chart-4) 14%, transparent)',
+                bgcolor: 'background.paper',
                 color: 'var(--hotel-chart-4)',
               }}
             >
@@ -344,7 +357,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
             </Box>
           )}
 
-          <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
+          <Divider sx={{ my: 1, borderStyle: 'dashed', borderColor: onFill(35) }} />
 
           {/* Room Notes */}
           {!isOccupied && !isReservedToday && (
@@ -389,7 +402,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
               <Typography
                 sx={{
                   mt: 0.4,
-                  color: 'text.secondary',
+                  color: onFill(80),
                   fontSize: '0.75rem',
                   fontWeight: 500,
                 }}
@@ -434,12 +447,12 @@ const RoomCard: React.FC<RoomCardProps> = ({
                       borderRadius: 999,
                       ...(booking.cleaning_preference
                         ? {
-                            bgcolor: 'var(--hotel-success-bg)',
+                            bgcolor: 'background.paper',
                             color: 'var(--hotel-success)',
                             border: '1px solid var(--hotel-success-border)',
                           }
                         : {
-                            bgcolor: 'transparent',
+                            bgcolor: 'background.paper',
                             color: 'text.secondary',
                             border: '1.5px dashed var(--hotel-border-strong)',
                           }),
@@ -471,7 +484,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                     borderRadius: 0.5,
                     cursor: 'pointer',
                     '&:hover': {
-                      bgcolor: 'action.hover',
+                      bgcolor: onFill(12),
                     },
                     minHeight: 24,
                   }}
@@ -532,7 +545,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 <Typography
                   sx={{
                     mt: 0.4,
-                    color: 'text.secondary',
+                    color: onFill(80),
                     fontSize: '0.75rem',
                     fontWeight: 500,
                   }}
@@ -553,7 +566,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
                       bgcolor: 'transparent',
                       borderRadius: 0.5,
                       cursor: 'pointer',
-                      '&:hover': { bgcolor: 'action.hover' },
+                      '&:hover': { bgcolor: onFill(12) },
                       minHeight: 24,
                     }}
                   >
@@ -591,26 +604,26 @@ const RoomCard: React.FC<RoomCardProps> = ({
 
           {/* Upcoming Same-Day Reservation for Rooms That Need Cleaning */}
           {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && reservedBooking && hasReservationForToday && (
-            <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid var(--hotel-border)' }}>
+            <Box sx={{ mt: 1, pt: 1, borderTop: `1px solid ${onFill(30)}` }}>
               <Box sx={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 0.5,
                 px: 0.5,
                 py: 0.25,
-                bgcolor: 'var(--hotel-hover)',
+                bgcolor: onFill(15),
                 borderRadius: 1,
               }}>
-                <CalendarIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, fontSize: '0.65rem' }}>
+                <CalendarIcon sx={{ fontSize: 14, color: onFill(80) }} />
+                <Typography variant="caption" sx={{ color: onFill(80), fontWeight: 600, fontSize: '0.65rem' }}>
                   Reserved: {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </Typography>
               </Box>
               {reservedBooking.guest_name && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                  <PersonIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
+                  <PersonIcon sx={{ fontSize: 12, color: onFill(80) }} />
                   <Typography variant="caption" sx={{
-                    color: 'text.primary',
+                    color: ON_FILL,
                     fontWeight: 500,
                     fontSize: '0.6rem',
                     overflow: 'hidden',

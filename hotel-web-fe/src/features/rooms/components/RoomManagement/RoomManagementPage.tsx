@@ -100,7 +100,6 @@ type BookingCreatedPayload = Booking & { room_number?: string };
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode !== 'light';
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   // Unified booking modal state — declared before useRoomData because it gates
   // the guest-list query (guests are only needed once the modal opens).
@@ -767,7 +766,7 @@ const RoomManagementPage: React.FC = () => {
       >
         {filteredRooms.map((room) => {
           const info = getRoomStatusInfo(room);
-          const cardFill = getRoomCardFill(info.computedStatus, isDarkMode);
+          const cardFill = getRoomCardFill(info.computedStatus);
           return (
             <RoomCard
               key={room.id}
@@ -782,7 +781,6 @@ const RoomManagementPage: React.FC = () => {
               isComplimentary={info.isComplimentary}
               overdueDays={overdueDaysByRoom.get(room.id)}
               cardFill={cardFill}
-              isDarkMode={isDarkMode}
               onMenuOpen={handleMenuOpen}
               onEditNotes={handleEditNotes}
               onEditBookingNotes={handleEditBookingNotes}

@@ -70,13 +70,10 @@ export interface StatusConfig {
   bgColor: string;
   textColor: string;
   borderColor: string;
-  // Room-card background fills (saturated surfaces the card's white text sits
-  // on). cardFill defaults to bgColor — set it only when bgColor is too light
-  // for white text (dirty states). cardFillDark is the dark-mode variant.
-  cardFill?: string;
-  cardFillDark: string;
   // Accent for status dots/tiles/pills on neutral surfaces (filter chips,
-  // header stat tiles, context-menu status pill).
+  // header stat tiles, context-menu status pill) and the room-card fill — one
+  // token per status keeps the grid in the filter's exact color scheme, and
+  // the var() resolves per theme mode.
   accentColor: string;
 
   // Content
@@ -110,7 +107,6 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: 'var(--hotel-success-bg)',
     textColor: 'var(--hotel-success)',
     borderColor: 'var(--hotel-success-border)',
-    cardFillDark: 'var(--hotel-success-bg)',
     accentColor: 'var(--hotel-success)',
 
     // Content
@@ -136,7 +132,6 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: 'var(--hotel-warning-bg)',
     textColor: 'var(--hotel-warning)',
     borderColor: 'var(--hotel-warning-border)',
-    cardFillDark: 'var(--hotel-warning-bg)',
     accentColor: 'var(--hotel-warning)',
 
     // Content
@@ -162,7 +157,6 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: 'var(--hotel-info-bg)',
     textColor: 'var(--hotel-info)',
     borderColor: 'var(--hotel-info-border)',
-    cardFillDark: 'var(--hotel-info-bg)',
     accentColor: 'var(--hotel-info)',
 
     // Content
@@ -187,8 +181,6 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: 'var(--hotel-warning-bg)',
     textColor: 'var(--hotel-warning)',
     borderColor: 'var(--hotel-warning-border)',
-    cardFill: 'var(--hotel-warning-bg)',
-    cardFillDark: 'var(--hotel-warning-bg)',
     accentColor: 'var(--hotel-warning)',
 
     label: 'Reserved / Dirty',
@@ -212,8 +204,6 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: 'var(--hotel-warning-bg)',
     textColor: 'var(--hotel-warning)',
     borderColor: 'var(--hotel-warning-border)',
-    cardFill: 'var(--hotel-warning-bg)',
-    cardFillDark: 'var(--hotel-warning-bg)',
     accentColor: 'var(--hotel-warning)',
 
     // Content
@@ -240,7 +230,6 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     bgColor: 'var(--hotel-neutral-bg)',
     textColor: 'var(--hotel-neutral)',
     borderColor: 'var(--hotel-neutral-border)',
-    cardFillDark: 'var(--hotel-neutral-bg)',
     accentColor: 'var(--hotel-neutral)',
 
     // Content
@@ -282,9 +271,8 @@ export const getStatusAccentColor = (status: RoomStatusType) => {
   return getStatusConfig(status).accentColor;
 };
 
-export const getStatusCardFill = (status: RoomStatusType, isDarkMode: boolean) => {
-  const config = getStatusConfig(status);
-  return isDarkMode ? config.cardFillDark : (config.cardFill ?? config.bgColor);
+export const getStatusCardFill = (status: RoomStatusType) => {
+  return getStatusConfig(status).accentColor;
 };
 
 export const getStatusLabel = (status: RoomStatusType) => {
@@ -493,7 +481,7 @@ export function getUnifiedStatusColor(status: string): string {
   // Check if it's a room status
   const roomConfig = ROOM_STATUS_CONFIG[status as RoomStatusType];
   if (roomConfig) {
-    return roomConfig.bgColor;
+    return roomConfig.accentColor;
   }
   // Default neutral for unknown statuses
   return 'var(--hotel-neutral)';
