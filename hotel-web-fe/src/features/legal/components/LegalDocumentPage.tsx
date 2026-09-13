@@ -11,6 +11,7 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from '../../../router';
 import {
@@ -34,6 +35,78 @@ const SIBLING_LINKS: { id: LegalDocumentId; label: Record<LegalLocale, string> }
     label: { en: 'Identity Verification', ms: 'Pengesahan Identiti' },
   },
 ];
+
+/**
+ * Boutique reading palette, borrowed from the guest sign-in experience rather
+ * than invented: deep green ink `#102a21` / `#315b4b` and gold `#d9b574` on
+ * warm paper (see `.auth-card` / `.auth-heading` in `index.css`). These values
+ * are light-mode only — dark and night modes fall back to theme tokens
+ * (`background.paper`, `text.primary`, `divider`) so the page stays legible in
+ * every palette.
+ */
+const LEGAL_SERIF = 'Georgia, "Times New Roman", serif';
+const LEGAL_INK = '#102a21';
+const LEGAL_GREEN = '#315b4b';
+const LEGAL_GOLD = '#d9b574';
+const LEGAL_DEEP_GOLD = '#a4732e';
+const LEGAL_PAPER = '#fdfbf6';
+const LEGAL_FRAME_LINE = 'rgba(49,91,75,0.14)';
+const LEGAL_HAIRLINE = 'rgba(49,91,75,0.16)';
+
+const hairlineColor = (theme: Theme): string =>
+  theme.palette.mode === 'light' ? LEGAL_HAIRLINE : theme.palette.divider;
+
+const paperFrameSx = (theme: Theme) => ({
+  p: { xs: 2.5, sm: 4, md: 6 },
+  border: '1px solid',
+  borderColor: theme.palette.mode === 'light' ? LEGAL_FRAME_LINE : 'divider',
+  borderRadius: 3,
+  bgcolor: theme.palette.mode === 'light' ? LEGAL_PAPER : 'background.paper',
+});
+
+const eyebrowSx = (theme: Theme) => ({
+  display: 'block',
+  fontSize: '0.6875rem',
+  fontWeight: 700,
+  letterSpacing: '0.2em',
+  textTransform: 'uppercase',
+  color: theme.palette.mode === 'light' ? LEGAL_GREEN : 'text.secondary',
+});
+
+const documentTitleSx = (theme: Theme) => ({
+  mt: 0.75,
+  fontFamily: LEGAL_SERIF,
+  fontSize: { xs: '1.75rem', sm: '2rem', md: '2.125rem' },
+  fontWeight: 400,
+  letterSpacing: '-0.02em',
+  lineHeight: 1.2,
+  color: theme.palette.mode === 'light' ? LEGAL_INK : 'text.primary',
+});
+
+const sectionHeadingSx = (theme: Theme) => ({
+  mt: 0,
+  mb: 2,
+  fontFamily: LEGAL_SERIF,
+  fontSize: '1.35rem',
+  fontWeight: 400,
+  letterSpacing: '-0.01em',
+  lineHeight: 1.3,
+  color: theme.palette.mode === 'light' ? LEGAL_INK : 'text.primary',
+});
+
+const NUMERAL_PREFIX = /^(\d+)\.\s*(.*)$/;
+
+/**
+ * Splits "4. Cancellation, changes and no-shows" into ("4.", "Cancellation…")
+ * for display only — the localized string keeps its numbering, the renderer
+ * just gets to style the numeral separately (gold serif in the heading,
+ * supplied by the ordered list in the contents rail).
+ */
+function splitHeadingNumeral(heading: string): { numeral: string | null; text: string } {
+  const match = NUMERAL_PREFIX.exec(heading);
+  if (!match) return { numeral: null, text: heading };
+  return { numeral: `${match[1]}.`, text: match[2] };
+}
 
 /**
  * Renders one legal document in the reader's chosen language.
@@ -62,11 +135,11 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
   if (!document) {
     return (
       <Container maxWidth="md" sx={{ py: { xs: 4, md: 8 } }}>
-        <Paper elevation={0} sx={{ p: { xs: 3, md: 5 }, border: 1, borderColor: 'divider' }}>
-          <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+        <Paper elevation={0} sx={paperFrameSx}>
+          <Typography component="span" sx={eyebrowSx}>
             {HOTEL_LEGAL_IDENTITY.tradingName}
           </Typography>
-          <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
+          <Typography variant="h4" component="h1" sx={documentTitleSx}>
             {locale === 'ms' ? 'Dokumen tidak dijumpai' : 'Document not found'}
           </Typography>
           <Typography sx={{ color: 'text.secondary', mt: 1.5 }}>
@@ -101,7 +174,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
       // over English text is how "accessible" becomes unusable.
       lang={locale}
     >
-      <Paper elevation={0} sx={{ p: { xs: 2.5, md: 5 }, border: 1, borderColor: 'divider' }}>
+      <Paper elevation={0} sx={paperFrameSx}>
         <Button
           startIcon={<ArrowBackIcon />}
           onClick={() => returnToPreviousPage(navigate)}
@@ -111,22 +184,25 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
         </Button>
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
-          sx={{ justifyContent: 'space-between', alignItems: { sm: 'flex-start' }, gap: 2 }}
+          sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 2 }}
         >
-          <Box>
-            <Typography variant="overline" sx={{ color: 'text.secondary' }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography component="span" sx={eyebrowSx}>
               {HOTEL_LEGAL_IDENTITY.tradingName}
             </Typography>
-            <Typography variant="h4" component="h1" sx={{ fontWeight: 700, mt: 0.5 }}>
+            <Typography variant="h4" component="h1" sx={documentTitleSx}>
               {document.title[locale]}
             </Typography>
           </Box>
+          {/* Own row on xs via the column direction above; sits at the top-right
+              of the masthead from sm up. */}
           <ToggleButtonGroup
             size="small"
             exclusive
             value={locale}
             onChange={(_event, next) => next && setLocale(next as LegalLocale)}
             aria-label={locale === 'ms' ? 'Bahasa dokumen' : 'Document language'}
+            sx={{ flexShrink: 0 }}
           >
             {LEGAL_LOCALES.map((option) => (
               <ToggleButton key={option} value={option} sx={{ px: 1.5 }}>
@@ -136,13 +212,13 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
           </ToggleButtonGroup>
         </Stack>
 
-        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1.5 }}>
           {locale === 'ms'
             ? `Versi ${document.version} · Berkuat kuasa ${document.effectiveDate}`
             : `Version ${document.version} · Effective ${document.effectiveDate}`}
         </Typography>
 
-        <Typography sx={{ mt: 3, fontSize: '1.05rem', lineHeight: 1.75 }}>
+        <Typography sx={{ mt: 3, fontSize: '1.05rem', lineHeight: 1.8, color: 'text.primary', maxWidth: '68ch' }}>
           {document.summary[locale]}
         </Typography>
 
@@ -150,50 +226,140 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
           <Box
             component="nav"
             aria-label={locale === 'ms' ? 'Kandungan dokumen' : 'Document contents'}
-            sx={{ mt: 3, p: 2, border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'action.hover' }}
+            sx={(theme) => ({
+              mt: 4,
+              maxWidth: '68ch',
+              px: { xs: 2, sm: 3 },
+              py: { xs: 1.5, sm: 2 },
+              border: '1px solid',
+              borderColor: hairlineColor(theme),
+              borderRadius: 2,
+            })}
           >
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-              {locale === 'ms' ? 'Kandungan' : 'Contents'}
+            <Typography sx={(theme) => ({ ...eyebrowSx(theme), mb: 1 })}>
+              {locale === 'ms' ? 'Dalam dokumen ini' : 'In this document'}
             </Typography>
-            <Stack component="ol" sx={{ m: 0, pl: 3, gap: 0.5 }}>
-              {document.sections.map((section) => (
-                <Typography key={section.id} component="li" variant="body2">
-                  <Link href={`#${section.id}`} underline="hover">
-                    {section.heading[locale]}
+            <Box
+              component="ol"
+              sx={(theme) => ({
+                m: 0,
+                // Two-digit markers ("14.") are ~18px wide; pl:2.5 (20px)
+                // leaves almost no gap before the link text.
+                pl: 3,
+                '& li::marker': {
+                  fontFamily: LEGAL_SERIF,
+                  color: theme.palette.mode === 'light' ? LEGAL_GREEN : 'text.secondary',
+                },
+              })}
+            >
+              {document.sections.map((section, index) => (
+                <Typography
+                  key={section.id}
+                  component="li"
+                  variant="body2"
+                  sx={(theme) => ({
+                    py: 0.5,
+                    borderBottom: index === document.sections.length - 1 ? 'none' : '1px solid',
+                    borderColor: hairlineColor(theme),
+                  })}
+                >
+                  <Link
+                    href={`#${section.id}`}
+                    underline="hover"
+                    sx={{ color: theme => theme.palette.mode === 'light' ? LEGAL_GREEN : 'primary.main' }}
+                  >
+                    {splitHeadingNumeral(section.heading[locale]).text}
                   </Link>
                 </Typography>
               ))}
-            </Stack>
+            </Box>
           </Box>
         ) : null}
 
-        <Divider sx={{ my: 4 }} />
+        {/* With children, MUI paints the two hairline segments via ::before/
+            ::after whose borderTop is hardcoded to palette.divider — a root
+            borderColor would be inert, so the segments are colored directly. */}
+        <Divider
+          sx={(theme) => ({
+            my: 4,
+            '&::before, &::after': { borderTopColor: hairlineColor(theme) },
+          })}
+        >
+          <Box
+            sx={(theme) => ({
+              width: 48,
+              height: 2,
+              borderRadius: 1,
+              bgcolor: theme.palette.mode === 'light' ? LEGAL_GOLD : 'divider',
+            })}
+          />
+        </Divider>
 
-        <Stack sx={{ gap: 4 }}>
-          {document.sections.map((section) => (
-            <Box key={section.id} id={section.id} component="section" sx={{ scrollMarginTop: 12 }}>
-              <Typography variant="h6" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-                {section.heading[locale]}
-              </Typography>
-              {section.body?.map((paragraph, index) => (
-                <Typography key={index} sx={{ mb: 1.5, lineHeight: 1.8 }}>
-                  {paragraph[locale]}
-                </Typography>
-              ))}
-              {section.bullets && section.bullets.length > 0 && (
-                <Stack component="ul" sx={{ m: 0, pl: 3, gap: 1 }}>
-                  {section.bullets.map((bullet, index) => (
-                    <Typography key={index} component="li" sx={{ lineHeight: 1.8 }}>
-                      {bullet[locale]}
+        <Box sx={{ maxWidth: '68ch' }}>
+          <Stack sx={{ gap: 5 }}>
+            {document.sections.map((section, index) => {
+              const heading = splitHeadingNumeral(section.heading[locale]);
+              return (
+                <Box
+                  key={section.id}
+                  id={section.id}
+                  component="section"
+                  sx={(theme) => ({
+                    scrollMarginTop: 12,
+                    ...(index > 0
+                      ? { pt: 4, borderTop: '1px solid', borderColor: hairlineColor(theme) }
+                      : null),
+                  })}
+                >
+                  <Typography component="h2" sx={sectionHeadingSx}>
+                    {heading.numeral ? (
+                      <Box
+                        component="span"
+                        sx={(theme) => ({
+                          mr: 0.75,
+                          fontFamily: LEGAL_SERIF,
+                          color: theme.palette.mode === 'light' ? LEGAL_DEEP_GOLD : LEGAL_GOLD,
+                        })}
+                      >
+                        {heading.numeral}
+                      </Box>
+                    ) : null}
+                    {heading.text}
+                  </Typography>
+                  {section.body?.map((paragraph, paragraphIndex) => (
+                    <Typography key={paragraphIndex} sx={{ mb: 1.5, lineHeight: 1.85 }}>
+                      {paragraph[locale]}
                     </Typography>
                   ))}
-                </Stack>
-              )}
-            </Box>
-          ))}
-        </Stack>
+                  {section.bullets && section.bullets.length > 0 && (
+                    // Plain <ul>, not Stack: Stack is display:flex, which
+                    // blockifies <li> children so no ::marker ever generates
+                    // and bullets render with no glyph at all.
+                    <Box
+                      component="ul"
+                      sx={(theme) => ({
+                        m: 0,
+                        pl: 3,
+                        '& > li + li': { mt: 1 },
+                        '& li::marker': {
+                          color: theme.palette.mode === 'light' ? LEGAL_GREEN : 'text.secondary',
+                        },
+                      })}
+                    >
+                      {section.bullets.map((bullet, bulletIndex) => (
+                        <Typography key={bulletIndex} component="li" sx={{ lineHeight: 1.85 }}>
+                          {bullet[locale]}
+                        </Typography>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Stack>
+        </Box>
 
-        <Divider sx={{ my: 4 }} />
+        <Divider sx={(theme) => ({ my: 4, borderColor: hairlineColor(theme) })} />
 
         <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
           {locale === 'ms' ? 'Hubungi kami' : 'Contact us'}
@@ -214,7 +380,7 @@ export const LegalDocumentPage: React.FC<{ documentId: LegalDocumentId }> = ({ d
           </Link>
         </Typography>
 
-        <Divider sx={{ my: 4 }} />
+        <Divider sx={(theme) => ({ my: 4, borderColor: hairlineColor(theme) })} />
 
         <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
           <Button
