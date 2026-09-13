@@ -54,6 +54,15 @@ export const queryKeys = {
     credits: (id: string | number) => [...guests, 'credits', String(id)] as const,
     mine: () => [...guests, 'mine'] as const,
     mineWithCredits: () => [...guests, 'mine-with-credits'] as const,
+    // Guest relations workspace (per-guest sub-resources)
+    interactions: (id: string | number, params?: KeyParams) =>
+      [...guests, 'interactions', String(id), paramsOrEmpty(params)] as const,
+    preferences: (id: string | number) => [...guests, 'preferences', String(id)] as const,
+    reviews: (id: string | number) => [...guests, 'reviews', String(id)] as const,
+    loyalty: (id: string | number) => [...guests, 'loyalty', String(id)] as const,
+    vouchers: (id: string | number) => [...guests, 'vouchers', String(id)] as const,
+    communications: (id: string | number) => [...guests, 'communications', String(id)] as const,
+    support: (id: string | number) => [...guests, 'support', String(id)] as const,
   },
   rooms: {
     all: rooms,

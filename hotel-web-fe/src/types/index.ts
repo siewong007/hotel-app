@@ -31,6 +31,7 @@ export type {
   GuestDuplicateCandidate,
   GuestProfile,
   GuestProfileBooking,
+  GuestSensitiveProfile,
   GuestSummary,
   GuestTourismConversionResponse,
   GuestTourismConversionSource,
@@ -39,6 +40,32 @@ export type {
   TourismType,
 } from './guest.types';
 export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from '../constants/guest.constants';
+
+// Guest relations workspace types
+export type {
+  CreateGuestSupportConversationRequest,
+  GuestCommunicationsSummary,
+  GuestDelivery,
+  GuestInteraction,
+  GuestInteractionInput,
+  GuestInteractionListParams,
+  GuestInteractionListResponse,
+  GuestInteractionType,
+  GuestInteractionUpdate,
+  GuestLoyaltyRedemption,
+  GuestLoyaltySummary,
+  GuestPreference,
+  GuestPreferenceCategory,
+  GuestPreferenceEntry,
+  GuestPreferencesPutRequest,
+  GuestReview,
+  GuestReviewResponseInput,
+  GuestSubscription,
+  GuestSupportConversationCategory,
+  GuestSupportConversationDetail,
+  GuestSupportConversationSummary,
+  GuestVoucher,
+} from './guestRelations.types';
 
 // Booking runtime constants and types
 export { BookingStatus } from '../constants/booking.constants';

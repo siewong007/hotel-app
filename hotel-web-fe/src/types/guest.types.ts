@@ -33,6 +33,21 @@ export interface Guest {
   tourism_type?: TourismType; // Local or foreign tourism for tax calculation
   discount_percentage?: number; // Member discount percentage (e.g., 10 for 10% off)
   company_name?: string; // Company the guest is tied to
+  /**
+   * CRM profile fields (guest relations workspace). The backend serializes
+   * each with `skip_serializing_if`, so a field is absent (never `null`)
+   * whenever the column is NULL or the SELECT didn't populate it.
+   */
+  vip_status?: string;
+  tags?: string[];
+  job_title?: string;
+  notes?: string;
+  special_requests?: string;
+  marketing_opt_in?: boolean;
+  communication_preference?: string;
+  language_preference?: string;
+  is_blacklisted?: boolean;
+  blacklist_reason?: string;
   /** Read-only username of the linked guest account, when one exists. */
   account_username?: string;
   /** Activation state of the linked guest account; absent means no account. */
@@ -87,11 +102,25 @@ export interface GuestDuplicateCandidate {
   recommended_action: 'do_not_merge' | 'high_confidence_review' | 'contact_match_review' | 'manual_review' | string;
 }
 
+/**
+ * Government-issued identifier details, returned only to callers holding
+ * `guests:reveal`. Never present on the base `Guest` payload.
+ */
+export interface GuestSensitiveProfile {
+  date_of_birth: string | null;
+  id_type: string | null;
+  id_number: string | null;
+  id_expiry: string | null;
+  id_country: string | null;
+}
+
 export interface GuestProfile {
   guest: Guest;
   summary: GuestSummary;
   reservations: GuestProfileBooking[];
   duplicate_candidates: GuestDuplicateCandidate[];
+  /** Present only when the caller holds `guests:reveal`; omitted otherwise. */
+  sensitive?: GuestSensitiveProfile | null;
 }
 
 export interface GuestTourismConversionSource {
@@ -148,4 +177,23 @@ export interface GuestUpdateRequest {
   tourism_type?: TourismType;
   discount_percentage?: number;
   company_name?: string;
+  // CRM profile fields (guest relations workspace).
+  vip_status?: string;
+  tags?: string[];
+  job_title?: string;
+  notes?: string;
+  special_requests?: string;
+  marketing_opt_in?: boolean;
+  communication_preference?: string;
+  language_preference?: string;
+  /** `blacklist_reason` is required by the backend when setting this true. */
+  is_blacklisted?: boolean;
+  blacklist_reason?: string;
+  // Sensitive identifier fields — updating any of these additionally
+  // requires the caller to hold `guests:reveal`.
+  date_of_birth?: string;
+  id_type?: string;
+  id_number?: string;
+  id_expiry?: string;
+  id_country?: string;
 }

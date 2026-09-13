@@ -95,6 +95,9 @@ export class GuestsService {
     tourism_type?: TourismType;
     missing_tourism?: boolean;
     missing_info?: boolean;
+    vip?: boolean;
+    blacklisted?: boolean;
+    has_open_support?: boolean;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
       ...toPaginationSearchParams({ page: params.page, pageSize: params.page_size }),
@@ -104,6 +107,9 @@ export class GuestsService {
     if (params.tourism_type) searchParams.tourism_type = params.tourism_type;
     if (params.missing_tourism != null) searchParams.missing_tourism = String(params.missing_tourism);
     if (params.missing_info != null) searchParams.missing_info = String(params.missing_info);
+    if (params.vip != null) searchParams.vip = String(params.vip);
+    if (params.blacklisted != null) searchParams.blacklisted = String(params.blacklisted);
+    if (params.has_open_support != null) searchParams.has_open_support = String(params.has_open_support);
 
     try {
       const resp = await withRetry(
