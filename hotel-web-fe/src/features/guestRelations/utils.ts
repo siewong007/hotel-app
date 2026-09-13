@@ -24,6 +24,19 @@ export const guestLegalName = (guest: Guest): string =>
     .join(' ')
     .trim();
 
+/**
+ * Frontend mirror of `models::guest::display_guest_name`: the legal name is
+ * used only once BOTH halves are present — a lone first name is not a legal
+ * name — otherwise the nickname the guest booked under wins.
+ */
+export const guestDisplayName = (
+  guest: Pick<Guest, 'nick_name' | 'first_name' | 'last_name'>,
+): string => {
+  const first = guest.first_name?.trim();
+  const last = guest.last_name?.trim();
+  return first && last ? `${first} ${last}` : guest.nick_name.trim();
+};
+
 const csvCell = (value: unknown) => {
   const text = value == null ? '' : String(value);
   return `"${text.replace(/"/g, '""')}"`;
