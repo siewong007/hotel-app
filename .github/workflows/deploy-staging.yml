@@ -218,6 +218,8 @@ jobs:
             "$bundle_dir/database/patches/0019_revenue_read_permission.sql"
           cp hotel-app-be/database/postgres/patches/0020_rates_route_policy.sql \
             "$bundle_dir/database/patches/0020_rates_route_policy.sql"
+          cp hotel-app-be/database/postgres/patches/0021_campaign_targeting.sql \
+            "$bundle_dir/database/patches/0021_campaign_targeting.sql"
 
           (
             cd "$bundle_dir"
@@ -252,6 +254,7 @@ jobs:
               database/patches/0018_billable_payment_status.sql \
               database/patches/0019_revenue_read_permission.sql \
               database/patches/0020_rates_route_policy.sql \
+              database/patches/0021_campaign_targeting.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

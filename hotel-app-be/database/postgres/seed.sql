@@ -120,6 +120,7 @@ VALUES
     ('permissions:manage'),
     ('permissions:read'),
     ('permissions:update'),
+    ('promotions:approve'),
     ('promotions:manage'),
     ('promotions:read'),
     ('communications:read'),
@@ -460,6 +461,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('navigation_support:read', 'navigation:support', 'read', 'Show Support navigation', true),
 ('promotions:read', 'promotions', 'read', 'View promotions and promotion performance', true),
 ('promotions:manage', 'promotions', 'manage', 'Create and manage promotions', true),
+('promotions:approve', 'promotions', 'approve', 'Approve and publish campaigns', true),
 ('vouchers:read', 'vouchers', 'read', 'View issued vouchers and redemptions', true),
 ('vouchers:manage', 'vouchers', 'manage', 'Issue, revoke, and manage vouchers', true),
 ('navigation_promotions:read', 'navigation:promotions', 'read', 'Show Promotions navigation', true),
@@ -744,10 +746,10 @@ INSERT INTO route_access_policies (
     is_system_policy
 )
 VALUES (
-    'promotions',
-    '/promotions',
-    'Promotions',
-    'admin',
+    'campaigns',
+    '/campaigns',
+    'Campaigns',
+    'revenue',
     '["promotions:read"]'::jsonb,
     '[]'::jsonb,
     '[]'::jsonb,
