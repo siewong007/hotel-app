@@ -6,15 +6,19 @@ import {
   Chip,
   CircularProgress,
   Grid,
+  IconButton,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import PrintIcon from '@mui/icons-material/Print';
 import type { KpiFormat, ReportEnvelope, ReportKpi } from '../types';
 import { formatCurrency } from '../../../utils/currency';
+import { printReportEnvelope } from '../utils/reportEnvelopePrint';
 
 const formatValue = (value: unknown, format: KpiFormat): string => {
   if (value == null) return '—';
@@ -79,6 +83,16 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
               </Typography>
             )}
             <Chip size="small" variant="outlined" label={`${envelope.meta.date_basis} dates`} />
+            <Tooltip title="Print report">
+              <IconButton
+                size="small"
+                onClick={() => printReportEnvelope(envelope)}
+                aria-label="Print report"
+                sx={{ ml: 'auto' }}
+              >
+                <PrintIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Box>
 
           {envelope.kpis.length > 0 && (

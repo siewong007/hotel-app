@@ -252,16 +252,13 @@ vi.mock('./components/DeleteCompanyDialog', () => ({ default: () => null }));
 vi.mock('./components/CompanyFormDialog', () => ({ default: () => null }));
 vi.mock('./components/CompanyCheckInDialog', () => ({ default: () => null }));
 
-vi.mock('./components/PaymentDialog', () => ({
+vi.mock('./components/RecordPaymentDialog', () => ({
   default: (props: any) => {
-    mocks.captured.paymentDialog = props;
-    return null;
-  },
-}));
-
-vi.mock('./components/RecordCompanyPaymentDialog', () => ({
-  default: (props: any) => {
-    mocks.captured.recordCompanyPaymentDialog = props;
+    if (props.mode === 'company') {
+      mocks.captured.recordCompanyPaymentDialog = props;
+    } else {
+      mocks.captured.paymentDialog = props;
+    }
     return null;
   },
 }));

@@ -1,11 +1,10 @@
 {
   "groups": {
     "overview": "Utama",
-    "operations": "Operasi",
+    "front_office": "Pejabat Hadapan",
+    "guests": "Tetamu",
+    "revenue": "Hasil & Pemasaran",
     "finance": "Kewangan",
-    "revenue": "Hasil",
-    "engagement": "Penglibatan",
-    "property": "Hartanah",
     "insights": "Wawasan",
     "administration": "Pentadbiran",
     "utility": "Utiliti",

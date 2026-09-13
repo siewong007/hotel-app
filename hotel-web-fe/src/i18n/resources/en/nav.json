@@ -1,11 +1,10 @@
 {
   "groups": {
     "overview": "Overview",
-    "operations": "Operations",
+    "front_office": "Front Office",
+    "guests": "Guests",
+    "revenue": "Revenue & Marketing",
     "finance": "Finance",
-    "revenue": "Revenue",
-    "engagement": "Engagement",
-    "property": "Property",
     "insights": "Insights",
     "administration": "Administration",
     "utility": "Utilities",
