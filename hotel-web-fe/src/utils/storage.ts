@@ -17,7 +17,8 @@ type StorageKey =
   | 'ekycAdminFilters'
   | 'dataTransferHistory'
   | 'helpRecentSearches'
-  | 'helpArticleFeedback';
+  | 'helpArticleFeedback'
+  | 'navCollapsed';
 
 interface StorageCache {
   [key: string]: unknown;
