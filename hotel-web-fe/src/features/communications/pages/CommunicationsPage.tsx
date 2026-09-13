@@ -760,7 +760,7 @@ export default function CommunicationsPage() {
   const [tab, setTab] = useState(0);
   const tabs = useMemo(
     () => [
-      { label: 'Campaigns', node: <CampaignsTab /> },
+      { label: 'Email Campaigns', node: <CampaignsTab /> },
       { label: 'Templates', node: <TemplatesTab /> },
       { label: 'Suppressions', node: <SuppressionsTab /> },
     ],
