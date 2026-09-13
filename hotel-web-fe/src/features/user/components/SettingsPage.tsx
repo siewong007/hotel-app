@@ -1,5 +1,5 @@
 import { errorMessage } from '../../../utils/errorMessage';
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -299,7 +299,7 @@ const SettingsPage: React.FC = () => {
 
   // The settings object the form currently describes — one source used by
   // both the save payload and the unsaved-changes comparison.
-  const buildSettings = (): HotelSettings => {
+  const buildSettings = useCallback((): HotelSettings => {
     const normalizedReportBodyFontSize =
       normalizeReportFontSize(reportFontSize);
 
@@ -369,7 +369,19 @@ const SettingsPage: React.FC = () => {
         booking_channels: bookingChannels,
         payment_methods: paymentMethods,
     };
-  };
+  }, [
+    hotelName, hotelAddress, hotelPhone, hotelEmail, hotelBusinessNumber,
+    checkInTime, checkOutTime, nightShiftTime, nightAuditAutoEnabled,
+    currency, timezone, depositAmount, serviceTaxRate, tourismTaxRate,
+    defaultPaymentTermsDays, unpaidHoldReleaseHours, reportFontSize,
+    reportFontFamily, reportHeadingFontSize, reportSectionHeadingFontSize,
+    reportTableFontSize, reportCaptionFontSize, reportChipFontSize,
+    maxLoginAttempts, totpIssuerName, passkeyRelyingPartyName,
+    supportEnabled, guestBookingCancellationEnabled, supportCategories,
+    supportFirstResponseMinutes, supportResolutionMinutes,
+    supportReopenWindowDays, rateCodes, marketCodes, bookingChannels,
+    paymentMethods,
+  ]);
 
   // Baseline of the last loaded/saved form — the dirty check compares the
   // form's JSON against this. Capturing must wait one commit past the apply
@@ -385,7 +397,7 @@ const SettingsPage: React.FC = () => {
     } else if (pendingBaseline.current) {
       baselineArmed.current = true;
     }
-  });
+  }, [buildSettings]);
   const isDirty =
     baselineJson !== null && JSON.stringify(buildSettings()) !== baselineJson;
 
