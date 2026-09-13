@@ -42,6 +42,7 @@ import {
   getUnifiedStatusLabel,
 } from '../config';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
 import { formatLocalDate } from '../../../utils/date';
@@ -183,9 +184,12 @@ function buildBookingBarLayout(
 
 const RoomReservationTimeline: React.FC = () => {
   const { format: formatCurrency } = useCurrency();
+  const isPhone = useIsPhone();
+  const roomCol = isPhone ? 120 : ROOM_COL;
+  const dayW = isPhone ? 52 : DAY_W;
 
   const [error, setError] = useState<string | null>(null);
-  const [daysToShow, setDaysToShow] = useState(14);
+  const [daysToShow, setDaysToShow] = useState(() => (isPhone ? 7 : 14));
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -339,8 +343,14 @@ const RoomReservationTimeline: React.FC = () => {
     setPopoverAnchor(null);
     setHoveredBooking(null);
   };
+  // Tap opens details immediately — hover delays are unreliable on touch.
+  const handleBarClick = (e: React.MouseEvent<HTMLElement>, booking: TimelineBooking) => {
+    if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
+    setPopoverAnchor(e.currentTarget);
+    setHoveredBooking(booking);
+  };
 
-  const totalGridWidth = ROOM_COL + DAY_W * daysToShow;
+  const totalGridWidth = roomCol + dayW * daysToShow;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -499,9 +509,9 @@ const RoomReservationTimeline: React.FC = () => {
               >
                 <Box
                   sx={{
-                    width: ROOM_COL,
+                    width: roomCol,
                     flexShrink: 0,
-                    px: 1.75,
+                    px: isPhone ? 1 : 1.75,
                     py: 1,
                     borderRight: `2px solid ${PALETTE.ink}`,
                     position: 'sticky',
@@ -518,7 +528,7 @@ const RoomReservationTimeline: React.FC = () => {
                     <Box
                       key={i}
                       sx={{
-                        width: DAY_W,
+                        width: dayW,
                         flexShrink: 0,
                         textAlign: 'center',
                         py: 0.75,
@@ -526,13 +536,15 @@ const RoomReservationTimeline: React.FC = () => {
                         bgcolor: isToday ? 'color-mix(in srgb, var(--hotel-primary) 10%, transparent)' : 'transparent',
                       }}
                     >
-                      <Typography sx={{ fontFamily: 'inherit', fontSize: 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1 }}>
-                        {d.toLocaleDateString('en-US', { weekday: 'short' })} · {d.toLocaleDateString('en-US', { month: 'short' })}
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 11 : 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {isPhone
+                          ? d.toLocaleDateString('en-US', { weekday: 'narrow' })
+                          : `${d.toLocaleDateString('en-US', { weekday: 'short' })} · ${d.toLocaleDateString('en-US', { month: 'short' })}`}
                       </Typography>
                       <Typography
                         sx={{
                           fontFamily: 'inherit',
-                          fontSize: 24,
+                          fontSize: isPhone ? 20 : 24,
                           lineHeight: 1.05,
                           fontWeight: isToday ? 700 : 400,
                           color: isToday ? PALETTE.todayAccent : PALETTE.ink,
@@ -540,7 +552,7 @@ const RoomReservationTimeline: React.FC = () => {
                       >
                         {d.getDate()}
                       </Typography>
-                      {isToday && (
+                      {isToday && !isPhone && (
                         <Typography sx={{ fontFamily: 'inherit', fontSize: 12, color: PALETTE.todayAccent, mt: '-2px' }}>
                           today
                         </Typography>
@@ -568,10 +580,10 @@ const RoomReservationTimeline: React.FC = () => {
                     {/* Room info cell (sticky) */}
                     <Box
                       sx={{
-                        width: ROOM_COL,
+                        width: roomCol,
                         flexShrink: 0,
                         borderRight: `2px solid ${PALETTE.ink}`,
-                        px: 1.75,
+                        px: isPhone ? 1 : 1.75,
                         py: 1.25,
                         bgcolor: PALETTE.panelBg,
                         display: 'flex',
@@ -582,26 +594,26 @@ const RoomReservationTimeline: React.FC = () => {
                         zIndex: 5,
                       }}
                     >
-                      <Typography sx={{ fontFamily: 'inherit', fontWeight: 700, fontSize: 22, color: PALETTE.ink, lineHeight: 1.1 }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontWeight: 700, fontSize: isPhone ? 18 : 22, color: PALETTE.ink, lineHeight: 1.1 }}>
                         {room.room_number}
                       </Typography>
-                      <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.inkSubtle, lineHeight: 1.1 }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 12 : 14, color: PALETTE.inkSubtle, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {room.room_type}
                       </Typography>
-                      <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: isPhone ? 12 : 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
                         {formatCurrency(toMoneyNumber(room.price_per_night))}/night
                       </Typography>
                     </Box>
 
                     {/* Day cell backgrounds */}
-                    <Box sx={{ position: 'absolute', left: ROOM_COL, top: 0, right: 0, bottom: 0, display: 'flex' }}>
+                    <Box sx={{ position: 'absolute', left: roomCol, top: 0, right: 0, bottom: 0, display: 'flex' }}>
                       {dates.map((d, i) => {
                         const isToday = sameDay(d, today);
                         return (
                           <Box
                             key={i}
                             sx={{
-                              width: DAY_W,
+                              width: dayW,
                               flexShrink: 0,
                               height: '100%',
                               borderRight: `1px solid ${PALETTE.rowDivider}`,
@@ -620,8 +632,8 @@ const RoomReservationTimeline: React.FC = () => {
                     {roomBookingBars.map((b) => {
                       const span = b.endCol - b.startCol;
                       const sc = statusBarColors(b.status, b.is_complimentary);
-                      const left = ROOM_COL + b.startCol * DAY_W + 4;
-                      const width = span * DAY_W - 8;
+                      const left = roomCol + b.startCol * dayW + 4;
+                      const width = span * dayW - 8;
                       const showText = width > 90;
                       const showRate = width > 160;
                       const isSynthetic = String(b.id).startsWith('synthetic-');
@@ -631,6 +643,7 @@ const RoomReservationTimeline: React.FC = () => {
                           key={b.id}
                           onMouseEnter={(e) => handleBarMouseEnter(e, b)}
                           onMouseLeave={handleBarMouseLeave}
+                          onClick={(e) => handleBarClick(e, b)}
                           sx={{
                             position: 'absolute',
                             left,

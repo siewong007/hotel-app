@@ -14,7 +14,7 @@ export const GuestCheckInConfirmation: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <Container maxWidth="sm" sx={{ mt: 8 }}>
+    <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 } }}>
       <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
         <Box sx={{ mb: 3 }}>
           <CheckCircleIcon

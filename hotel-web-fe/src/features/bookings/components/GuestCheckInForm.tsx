@@ -207,7 +207,7 @@ export const GuestCheckInForm: React.FC = () => {
 
   if (loading) {
     return (
-      <Container maxWidth="sm" sx={{ mt: 8, textAlign: 'center' }}>
+      <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 }, textAlign: 'center' }}>
         <CircularProgress />
         <Typography sx={{ mt: 2 }}>Loading...</Typography>
       </Container>
@@ -216,7 +216,7 @@ export const GuestCheckInForm: React.FC = () => {
 
   if (error && !booking) {
     return (
-      <Container maxWidth="sm" sx={{ mt: 8 }}>
+      <Container maxWidth="sm" sx={{ mt: { xs: 3, sm: 8 } }}>
         <Paper elevation={3} sx={{ p: 4 }}>
           <Alert severity="error">{error}</Alert>
           <Button
@@ -240,7 +240,7 @@ export const GuestCheckInForm: React.FC = () => {
       : 'Payment is not required for this booking right now.';
 
   return (
-    <Container maxWidth="md" sx={{ mt: 8, mb: 4 }}>
+    <Container maxWidth="md" sx={{ mt: { xs: 3, sm: 8 }, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
         <Box sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>
