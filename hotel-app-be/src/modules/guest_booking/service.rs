@@ -12,7 +12,8 @@ use super::models::{
     OnlineInventoryQuery, RoomTypeInventory, UpdateOnlineInventoryRequest, VoucherPricing,
 };
 use super::repository::{
-    GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionValues,
+    GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionAllocation,
+    VoucherRedemptionValues,
 };
 use super::validation::{
     ValidatedStay, validate_anonymous_guest, validate_client_request_id,
@@ -296,6 +297,38 @@ fn settlement(
         complimentary_discount,
         voucher_pricing,
     })
+}
+
+/// Split a redemption across stay nights: comped nights record their full
+/// rate as discount (settled by credits), payable nights record the voucher
+/// share the engine allocated. Order matches `nightly_rates`, and the sums
+/// always reconcile with the parent `voucher_redemptions` row.
+fn nightly_redemption_allocations(
+    nightly_rates: &[NightlyRate],
+    complimentary_dates: &[NaiveDate],
+    voucher_pricing: Option<&PromotionPricing>,
+) -> Vec<VoucherRedemptionAllocation> {
+    nightly_rates
+        .iter()
+        .enumerate()
+        .map(|(index, rate)| {
+            let credit_share = if complimentary_dates.contains(&rate.date) {
+                rate.amount
+            } else {
+                Decimal::ZERO
+            };
+            let voucher_share = voucher_pricing
+                .map(|pricing| pricing.nights[index].discount)
+                .unwrap_or(Decimal::ZERO);
+            let discount_amount = credit_share + voucher_share;
+            VoucherRedemptionAllocation {
+                stay_date: rate.date,
+                gross_amount: rate.amount,
+                discount_amount,
+                net_amount: rate.amount - discount_amount,
+            }
+        })
+        .collect()
 }
 
 async fn voucher_for_quote(
@@ -1075,6 +1108,11 @@ pub async fn create(
                 subtotal: quote.subtotal,
                 discount_amount: quote.discount_amount,
                 total_amount: quote.total_amount,
+                allocations: nightly_redemption_allocations(
+                    &quote.nightly_rates,
+                    &quote.complimentary_dates,
+                    quote.voucher_pricing.as_ref(),
+                ),
             },
         )
         .await?;
@@ -1827,6 +1865,32 @@ mod tests {
         let settled = settlement(&rates, &[], Some(&voucher("percentage", 10, None))).unwrap();
         assert_eq!(settled.discount_amount, Decimal::from(40));
         assert_eq!(settled.total_amount, Decimal::from(360));
+    }
+
+    #[test]
+    fn voucher_allocations_reconcile_with_stay_totals() {
+        // 600 stay: the 300 night comped, a 10% voucher on the 300 payable -> 30.
+        let rates = vec![rate(10, 100), rate(11, 300), rate(12, 200)];
+        let settled = settlement(&rates, &[date(11)], Some(&voucher("percentage", 10, None)))
+            .unwrap();
+        let rows = nightly_redemption_allocations(
+            &rates,
+            &[date(11)],
+            settled.voucher_pricing.as_ref(),
+        );
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].gross_amount, Decimal::from(100));
+        assert_eq!(rows[0].discount_amount, Decimal::from(10));
+        assert_eq!(rows[0].net_amount, Decimal::from(90));
+        // The comped night records its full rate as discount (settled by credits).
+        assert_eq!(rows[1].gross_amount, Decimal::from(300));
+        assert_eq!(rows[1].discount_amount, Decimal::from(300));
+        assert_eq!(rows[1].net_amount, Decimal::ZERO);
+        assert_eq!(rows[2].discount_amount, Decimal::from(20));
+        let sum_discount: Decimal = rows.iter().map(|row| row.discount_amount).sum();
+        let sum_net: Decimal = rows.iter().map(|row| row.net_amount).sum();
+        assert_eq!(sum_discount, settled.discount_amount);
+        assert_eq!(sum_net, settled.total_amount);
     }
 
     #[test]

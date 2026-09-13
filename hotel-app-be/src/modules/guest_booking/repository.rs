@@ -84,6 +84,16 @@ pub struct VoucherEligibilityQuery<'a> {
     pub currency: &'a str,
 }
 
+/// One night's share of a redemption. `discount_amount` combines the
+/// complimentary-credit share and the voucher share so allocations always
+/// reconcile with the parent `voucher_redemptions` row.
+pub struct VoucherRedemptionAllocation {
+    pub stay_date: NaiveDate,
+    pub gross_amount: Decimal,
+    pub discount_amount: Decimal,
+    pub net_amount: Decimal,
+}
+
 /// Amounts recorded when a voucher is redeemed against a booking.
 pub struct VoucherRedemptionValues<'a> {
     pub voucher: &'a VoucherPricing,
@@ -93,6 +103,9 @@ pub struct VoucherRedemptionValues<'a> {
     pub subtotal: Decimal,
     pub discount_amount: Decimal,
     pub total_amount: Decimal,
+    /// Per-night split of `discount_amount`/`total_amount`; one row per stay
+    /// night, persisted to `voucher_redemption_allocations`.
+    pub allocations: Vec<VoucherRedemptionAllocation>,
 }
 
 pub struct GuestBookingRepository;
@@ -684,6 +697,7 @@ impl GuestBookingRepository {
             subtotal,
             discount_amount,
             total_amount,
+            allocations,
         } = values;
         let updated = sqlx::query("UPDATE vouchers SET status = 'redeemed', redeemed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND guest_id = $2 AND status = 'available'")
         .bind(voucher.voucher_id)
@@ -698,13 +712,14 @@ impl GuestBookingRepository {
             ));
         }
 
-        sqlx::query(
+        let redemption_id: i64 = sqlx::query_scalar(
             r#"
                 INSERT INTO voucher_redemptions (
                     voucher_id, promotion_id, booking_id, guest_id, status,
                     gross_subtotal, discount_type, discount_value,
                     discount_amount, net_total, applied_by
                 ) VALUES ($1, $2, $3, $4, 'applied', $5, $6, $7, $8, $9, $10)
+                RETURNING id
             "#,
         )
         .bind(voucher.voucher_id)
@@ -717,9 +732,30 @@ impl GuestBookingRepository {
         .bind(decimal_to_db(discount_amount))
         .bind(decimal_to_db(total_amount))
         .bind(actor_user_id)
-        .execute(&mut **tx)
+        .fetch_one(&mut **tx)
         .await
         .map_err(ApiError::from)?;
+
+        if !allocations.is_empty() {
+            let mut builder = sqlx::QueryBuilder::new(
+                "INSERT INTO voucher_redemption_allocations \
+                 (redemption_id, booking_id, stay_date, gross_amount, \
+                  discount_amount, net_amount) ",
+            );
+            builder.push_values(allocations.iter(), |mut row, allocation| {
+                row.push_bind(redemption_id)
+                    .push_bind(booking_id)
+                    .push_bind(allocation.stay_date)
+                    .push_bind(decimal_to_db(allocation.gross_amount))
+                    .push_bind(decimal_to_db(allocation.discount_amount))
+                    .push_bind(decimal_to_db(allocation.net_amount));
+            });
+            builder
+                .build()
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+        }
         Ok(())
     }
 
