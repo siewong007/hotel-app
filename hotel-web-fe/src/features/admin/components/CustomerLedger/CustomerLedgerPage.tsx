@@ -347,17 +347,6 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-    loadCompanies();
-    loadGuests();
-    loadAllCompanyBookings();
-
-    const handleSettingsChange = () => setHotelSettings(getHotelSettings());
-    window.addEventListener('hotelSettingsChange', handleSettingsChange);
-    return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
-  }, [loadData, loadGuests]);
-
-  useEffect(() => {
     const hasLedgerTarget = Boolean(
       routedLedgerTab ||
       routedLedgerSearch ||
@@ -402,7 +391,7 @@ const CustomerLedgerPage: React.FC = () => {
 
   // Load currently-active company-billed bookings.
   // Backend filters on company_id IS NOT NULL; we narrow to active statuses client-side.
-  const loadAllCompanyBookings = async () => {
+  const loadAllCompanyBookings = useCallback(async () => {
     try {
       const bookings = await BookingsService.getBookingsWithDetails({ company_billed: true });
       const active = bookings.filter(
@@ -412,10 +401,10 @@ const CustomerLedgerPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to load company bookings:', err);
     }
-  };
+  }, []);
 
   // Load companies from database (single call for both dropdown options and check-in data)
-  const loadCompanies = async () => {
+  const loadCompanies = useCallback(async () => {
     try {
       const companiesData = await CompaniesService.getCompanies({ is_active: true });
       setCompanies(companiesData);
@@ -431,7 +420,7 @@ const CustomerLedgerPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to load companies:', err);
     }
-  };
+  }, []);
 
   const loadLedgerRooms = async () => {
     if (ledgerRooms.length > 0) return;
@@ -482,6 +471,17 @@ const CustomerLedgerPage: React.FC = () => {
       await loadAllCompanyBookings();
     },
   });
+
+  useEffect(() => {
+    loadData();
+    loadCompanies();
+    loadGuests();
+    loadAllCompanyBookings();
+
+    const handleSettingsChange = () => setHotelSettings(getHotelSettings());
+    window.addEventListener('hotelSettingsChange', handleSettingsChange);
+    return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
+  }, [loadData, loadGuests, loadCompanies, loadAllCompanyBookings]);
 
   // Handle opening checkout dialog for a company booking
   const handleOpenCheckoutDialog = (booking: BookingWithDetails) => {
