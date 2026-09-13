@@ -1,6 +1,7 @@
 //! Characterization tests for the payment domain functions that previously
 //! had ZERO test callers: `record_payment`, `approve_payment`,
-//! `reject_payment`, `refund_deposit` / `revert_deposit_refund`, and the
+//! `reject_payment`, `refund_deposit` / `revert_deposit_refund`,
+//! `forfeit_deposit`, and the
 //! network-free boundary of `capture_paypal_payment`. Business logic lives in
 //! `src/services/payments.rs` (thin orchestration: transactions, audit,
 //! notifications) over `src/repositories/payment.rs` (the actual SQL).
