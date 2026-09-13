@@ -818,12 +818,18 @@
     "/api/revenue/overview": {
       "GET": {}
     },
+    "/api/revenue/rate-calendar": {
+      "GET": {}
+    },
     "/api/room-rates": {
       "GET": {},
       "POST": {}
     },
     "/api/room-rates/applicable": {
       "GET": {}
+    },
+    "/api/room-rates/bulk": {
+      "POST": {}
     },
     "/api/room-rates/by-plan/{rate_plan_id}": {
       "GET": {}

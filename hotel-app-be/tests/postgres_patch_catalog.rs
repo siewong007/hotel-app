@@ -193,9 +193,9 @@ fn postgres_patch_manifest_is_ordered_complete_and_checksummed() {
             .all(|pair| pair[1].version == pair[0].version + 1)
     );
     let last = entries.last().expect("manifest must have a last patch");
-    assert_eq!(last.version, 19);
-    assert_eq!(last.name, "revenue-read-permission");
-    assert_eq!(last.file, "0019_revenue_read_permission.sql");
+    assert_eq!(last.version, 20);
+    assert_eq!(last.name, "rates-route-policy");
+    assert_eq!(last.file, "0020_rates_route_policy.sql");
     for entry in entries {
         let bytes = std::fs::read(postgres_dir().join("patches").join(&entry.file))
             .expect("manifest-listed patch must exist");
