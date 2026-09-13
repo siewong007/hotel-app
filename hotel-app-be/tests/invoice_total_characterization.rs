@@ -688,9 +688,9 @@ async fn checkout_invoice_total_should_equal_billable_total() {
 /// The checkout guard (`ensure_checkout_balance_resolved`, private —
 /// exercised here via the public `update_booking_handler`) must require the
 /// full billable_total to be collected before allowing checkout, not just
-/// the room-only `total_amount`. Today it compares payments against
-/// `total_amount` alone, so a booking whose room charge is fully paid can
-/// check out with tourism tax and extra bed charges still outstanding.
+/// the room-only `total_amount`. It now compares payments against
+/// billable_total (room + tourism tax + extra bed), so a booking whose room
+/// charge is fully paid cannot check out with those charges outstanding.
 ///
 /// The failure must be the balance guard specifically, not some other
 /// `update_booking_handler` failure mode (permission check, room
@@ -700,7 +700,6 @@ async fn checkout_invoice_total_should_equal_billable_total() {
 /// ~line 764-767: `"Collect full payment before checkout. Balance due: {}"`),
 /// not merely `.is_err()` (review finding 10, 2026-07-27).
 #[tokio::test]
-#[ignore = "ensure_checkout_balance_resolved compares collected payments against bookings.total_amount only, ignoring tourism_tax_amount/extra_bed_charge — pending fix: unify invoice total calculators"]
 async fn checkout_guard_should_require_full_billable_total_not_just_room_total_amount() {
     let Some((pool, _guard)) = setup_pg_pool().await else {
         return;

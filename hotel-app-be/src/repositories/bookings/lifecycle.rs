@@ -821,7 +821,7 @@ async fn ensure_checkout_balance_resolved(
     existing_booking: &Booking,
     input: &BookingUpdateInput,
     new_status: &str,
-    new_total_amount: Option<Decimal>,
+    billable_total: Decimal,
 ) -> Result<(), ApiError> {
     let is_checkout_transition = matches!(new_status, "checked_out" | "completed")
         && !matches!(
@@ -832,9 +832,8 @@ async fn ensure_checkout_balance_resolved(
         return Ok(());
     }
 
-    let total_amount = new_total_amount.unwrap_or(existing_booking.total_amount);
     let total_paid = completed_booking_payment_total(pool, booking_id).await?;
-    let balance_due = checkout_balance_due(total_amount, total_paid);
+    let balance_due = checkout_balance_due(billable_total, total_paid);
     let final_company_id = input.company_id.or(existing_booking.company_id);
 
     if balance_due > Decimal::ZERO
@@ -1564,13 +1563,35 @@ pub async fn update_booking_handler(
     let clear_company = input.clear_company.unwrap_or(false);
     let ota_reference = sanitize_ota_reference(input.ota_reference.as_deref());
 
+    // The guard must hold checkout until the full invoice is settled — room
+    // charges plus the tourism tax and extra bed the invoice still bills.
+    // `record_payment` validates against the same billable_total
+    // (`PaymentWorkflowSummaryRow::billable_total`), so compare the post-update
+    // effective amounts: the canonical tourism tax recomputed above, the
+    // input-or-existing extra bed charge, and the new or existing room total.
+    // `Booking` does not carry extra_bed_charge, so read the stored value only
+    // when this update doesn't set it.
+    let effective_extra_bed = match input.extra_bed_charge.and_then(Decimal::from_f64_retain) {
+        Some(charge) => charge,
+        None => sqlx::query_scalar::<_, Option<Decimal>>(
+            "SELECT extra_bed_charge FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(ApiError::from)?
+        .unwrap_or(Decimal::ZERO),
+    };
+    let billable_total = new_total_amount.unwrap_or(existing_booking.total_amount)
+        + canonical_tourism_tax_amount
+        + effective_extra_bed;
     ensure_checkout_balance_resolved(
         &pool,
         booking_id,
         &existing_booking,
         &input,
         &new_status,
-        new_total_amount,
+        billable_total,
     )
     .await?;
 
