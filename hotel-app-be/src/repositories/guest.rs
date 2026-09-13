@@ -132,7 +132,7 @@ impl GuestRepository {
         let select_cols = r#"id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
             address_line_1 as address_line1, city, state as state_province,
             postal_code, country, title, alt_phone, true as is_active,
-            guest_type, tourism_type,
+            guest_type, tourism_type, vip_status, is_blacklisted,
             COALESCE(discount_percentage, 0) as discount_percentage, company_name,
             COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
             created_at, updated_at,
