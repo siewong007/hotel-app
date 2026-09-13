@@ -28,8 +28,7 @@ const StaysTab: React.FC<StaysTabProps> = ({ reservations, summary }) => (
       renderBookingActions={(booking) => (
         <MuiLink
           component={Link}
-          to="/bookings"
-          search={{ booking_id: booking.id }}
+          to={`/bookings?booking_id=${booking.id}`}
           underline="hover"
           sx={{
             display: 'inline-flex',
