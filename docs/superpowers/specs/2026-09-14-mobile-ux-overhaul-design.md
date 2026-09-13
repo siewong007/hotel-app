@@ -1,6 +1,6 @@
 # Mobile UX Overhaul — Design Spec
 
-Date: 2026-09-14. Status: approved (design presented and confirmed by user).
+Date: 2026-09-14. Status: implemented (all 9 plan tasks landed on `master`; gates: typecheck + lint + 1508 tests + build green).
 Goal: make the whole app genuinely usable on phones (320–430px) without degrading
 desktop productivity — "one system that works beautifully on every screen", not a
 shrunken desktop site.
@@ -234,3 +234,22 @@ credits). Topbar compacts to a search icon on `xs`.
   CSS (`min-width:0`, `100dvh`, `max-width:100%`) is the mechanical guarantee.
 - Final report: audit findings, redesigned components/pages, nav architecture,
   workflow deltas, breakpoints, perf + a11y + PWA notes, remaining issues ranked.
+
+## Remaining mobile UX issues (ranked)
+
+1. **Reservation timeline** — usable on phone (52px day cells, 7-day default,
+   tap-to-open booking popover) but still a dense grid; a day-focused agenda
+   view would be better for pure phone use. Low priority: staff have the
+   rooms board and bookings list for phone workflows.
+2. **UnifiedBookingModal** — full-screen on phone with its existing
+   sectioned layout; not re-stepped into a wizard (deliberate: avoid
+   duplicating workflow state).
+3. **ReportsAnalytics FPills** — decorative placeholders (no backend filter
+   params); left as-is on all breakpoints.
+4. **Print/PDF report views** (`ReportShell`, night-audit PDFs) — designed for
+   print width; phone view = definition-list cards; PDF export unchanged.
+5. **Room rates editor inline add-row** — stacked on phone; desktop keeps
+   the single-row inline form.
+6. **Deep staff tables converted to cards lose multi-column sorting on
+   phone** — sort controls remain in headers on desktop; mobile card lists
+   keep the page's existing filter/search controls only.
