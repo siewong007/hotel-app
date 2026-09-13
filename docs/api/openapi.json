@@ -139,6 +139,12 @@
       "GET": {},
       "POST": {}
     },
+    "/api/admin/vouchers/summary": {
+      "GET": {}
+    },
+    "/api/admin/vouchers/{id}": {
+      "GET": {}
+    },
     "/api/admin/vouchers/{id}/revoke": {
       "POST": {}
     },

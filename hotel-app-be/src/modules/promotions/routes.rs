@@ -52,6 +52,14 @@ pub fn routes() -> Router<DbPool> {
             get(handlers::list_admin_vouchers_handler).post(handlers::issue_admin_voucher_handler),
         )
         .route(
+            "/admin/vouchers/summary",
+            get(handlers::voucher_admin_summary_handler),
+        )
+        .route(
+            "/admin/vouchers/{id}",
+            get(handlers::get_admin_voucher_handler),
+        )
+        .route(
             "/admin/vouchers/{id}/revoke",
             post(handlers::revoke_admin_voucher_handler),
         )

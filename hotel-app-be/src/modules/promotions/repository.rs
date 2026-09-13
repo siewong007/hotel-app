@@ -3,7 +3,9 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{Row, query, query_scalar};
 
-use super::models::{Promotion, PublicPromotion, Voucher};
+use super::models::{
+    Promotion, PublicPromotion, Voucher, VoucherSummary, VoucherSummaryDiscount,
+};
 use super::validation::PromotionDraft;
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
@@ -91,6 +93,33 @@ const VOUCHER_COLUMNS: &str = r#"
     v.revoked_at,
     v.created_at
 "#;
+
+/// Admin projection: everything in [`VOUCHER_COLUMNS`] plus the owning guest's
+/// display name and the revocation reason. `guests.nick_name` is NOT NULL and
+/// is the established `guest_name` convention in admin joins.
+const VOUCHER_COLUMNS_ADMIN: &str = r#"
+    v.id,
+    v.promotion_id,
+    v.guest_id,
+    p.name AS promotion_name,
+    p.slug AS promotion_slug,
+    p.is_cancellable,
+    v.code,
+    v.status,
+    v.source,
+    v.expires_at,
+    v.claimed_at,
+    v.redeemed_at,
+    v.revoked_at,
+    v.revocation_reason,
+    v.created_at,
+    g.nick_name AS guest_name
+"#;
+
+/// FROM clause for staff-facing voucher reads — adds the guests join needed
+/// for `guest_name`. Guest-facing queries keep the promotions-only join.
+const VOUCHER_ADMIN_FROM: &str =
+    "FROM vouchers v JOIN promotions p ON p.id = v.promotion_id LEFT JOIN guests g ON g.id = v.guest_id";
 
 fn decimal_to_f64(value: rust_decimal::Decimal) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(0.0)
@@ -221,6 +250,14 @@ fn voucher_from_row(row: &DbRow, include_code: bool) -> Voucher {
         status: row.try_get("status").unwrap_or_default(),
         source: row.try_get("source").unwrap_or_default(),
         is_cancellable: get_bool(row, "is_cancellable"),
+        guest_name: row
+            .try_get::<Option<String>, _>("guest_name")
+            .ok()
+            .flatten(),
+        revocation_reason: row
+            .try_get::<Option<String>, _>("revocation_reason")
+            .ok()
+            .flatten(),
         expires_at: row
             .try_get::<Option<DateTime<Utc>>, _>("expires_at")
             .ok()
@@ -625,38 +662,61 @@ impl PromotionRepository {
         ))
     }
 
+    /// `status` accepts the persisted vocabulary plus the query aliases
+    /// `expired` (available, past `expires_at`) and `expiring_soon`
+    /// (available, expiring within 7 days).
     pub async fn list_admin_vouchers(
         pool: &DbPool,
         status: Option<&str>,
         search: Option<&str>,
+        promotion_id: Option<i64>,
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<Voucher>), ApiError> {
         let count_sql = r#"
                 SELECT COUNT(*) FROM vouchers v
                 JOIN promotions p ON p.id = v.promotion_id
-                WHERE ($1::text IS NULL OR v.status = $1)
+                WHERE (
+                    $1::text IS NULL
+                    OR ($1 = 'expired' AND v.status = 'available' AND v.expires_at < CURRENT_TIMESTAMP)
+                    OR ($1 = 'expiring_soon' AND v.status = 'available'
+                        AND v.expires_at >= CURRENT_TIMESTAMP
+                        AND v.expires_at < CURRENT_TIMESTAMP + INTERVAL '7 days')
+                    OR ($1 <> 'expired' AND $1 <> 'expiring_soon' AND v.status = $1)
+                )
                   AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) = LOWER($2))
+                  AND ($3::bigint IS NULL OR v.promotion_id = $3)
             "#;
         let total = query_scalar::<_, i64>(count_sql)
             .bind(status)
             .bind(search)
+            .bind(promotion_id)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
         let sql = r#"
                     SELECT {VOUCHER_COLUMNS}
-                    FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
-                    WHERE ($1::text IS NULL OR v.status = $1)
+                    {VOUCHER_ADMIN_FROM}
+                    WHERE (
+                        $1::text IS NULL
+                        OR ($1 = 'expired' AND v.status = 'available' AND v.expires_at < CURRENT_TIMESTAMP)
+                        OR ($1 = 'expiring_soon' AND v.status = 'available'
+                            AND v.expires_at >= CURRENT_TIMESTAMP
+                            AND v.expires_at < CURRENT_TIMESTAMP + INTERVAL '7 days')
+                        OR ($1 <> 'expired' AND $1 <> 'expiring_soon' AND v.status = $1)
+                    )
                       -- Raw codes are masked in staff responses. Only allow an exact
                       -- code lookup so substring searches cannot become a code oracle.
                       AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(v.code) = LOWER($2))
-                    ORDER BY v.created_at DESC LIMIT $3 OFFSET $4
+                      AND ($3::bigint IS NULL OR v.promotion_id = $3)
+                    ORDER BY v.created_at DESC LIMIT $4 OFFSET $5
                 "#
-        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
+        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS_ADMIN)
+        .replace("{VOUCHER_ADMIN_FROM}", VOUCHER_ADMIN_FROM);
         let rows = query(&sql)
             .bind(status)
             .bind(search)
+            .bind(promotion_id)
             .bind(page_size)
             .bind(offset)
             .fetch_all(pool)
@@ -707,8 +767,9 @@ impl PromotionRepository {
         pool: &DbPool,
         voucher_id: i64,
     ) -> Result<Option<Voucher>, ApiError> {
-        let sql = "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1"
-        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
+        let sql = "SELECT {VOUCHER_COLUMNS} {VOUCHER_ADMIN_FROM} WHERE v.id = $1"
+            .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS_ADMIN)
+            .replace("{VOUCHER_ADMIN_FROM}", VOUCHER_ADMIN_FROM);
         let row = query(&sql)
             .bind(voucher_id)
             .fetch_optional(pool)
@@ -784,5 +845,69 @@ impl PromotionRepository {
         .fetch_optional(&mut **tx)
         .await
         .map_err(ApiError::from)
+    }
+
+    pub async fn voucher_admin_summary(pool: &DbPool) -> Result<VoucherSummary, ApiError> {
+        let status_row = query(
+            r#"
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (WHERE status = 'available') AS available,
+                    COUNT(*) FILTER (WHERE status = 'redeemed') AS redeemed,
+                    COUNT(*) FILTER (WHERE status = 'revoked') AS revoked,
+                    COUNT(*) FILTER (
+                        WHERE status = 'available' AND expires_at < CURRENT_TIMESTAMP
+                    ) AS expired,
+                    COUNT(*) FILTER (
+                        WHERE status = 'available'
+                          AND expires_at >= CURRENT_TIMESTAMP
+                          AND expires_at < CURRENT_TIMESTAMP + INTERVAL '7 days'
+                    ) AS expiring_soon
+                FROM vouchers
+            "#,
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        let redemption_count = query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM voucher_redemptions WHERE status = 'applied'",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        let discount_rows = query(
+            r#"
+                SELECT p.currency AS currency, COALESCE(SUM(r.discount_amount), 0) AS amount
+                FROM voucher_redemptions r
+                JOIN promotions p ON p.id = r.promotion_id
+                WHERE r.status = 'applied'
+                GROUP BY p.currency
+                ORDER BY p.currency
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok(VoucherSummary {
+            total: status_row.try_get("total").unwrap_or_default(),
+            available: status_row.try_get("available").unwrap_or_default(),
+            redeemed: status_row.try_get("redeemed").unwrap_or_default(),
+            revoked: status_row.try_get("revoked").unwrap_or_default(),
+            expired: status_row.try_get("expired").unwrap_or_default(),
+            expiring_soon: status_row.try_get("expiring_soon").unwrap_or_default(),
+            redemption_count,
+            discount_given: discount_rows
+                .iter()
+                .map(|row| VoucherSummaryDiscount {
+                    currency: row
+                        .try_get("currency")
+                        .unwrap_or_else(|_| "USD".to_string()),
+                    amount: decimal_to_f64(get_decimal(row, "amount")),
+                })
+                .collect(),
+        })
     }
 }

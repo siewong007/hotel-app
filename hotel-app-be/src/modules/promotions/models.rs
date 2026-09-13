@@ -150,6 +150,12 @@ pub struct Voucher {
     /// `promotions.is_cancellable` — a non-cancellable voucher locks the
     /// booking against cancellation, so the guest must see it before applying.
     pub is_cancellable: bool,
+    /// Display name of the owning guest (`guests.nick_name`). Only populated
+    /// for staff/admin reads; guest-facing queries leave it `None`.
+    pub guest_name: Option<String>,
+    /// Why the voucher was revoked. Staff/admin reads only — guest-facing
+    /// queries leave it `None`.
+    pub revocation_reason: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
     pub claimed_at: Option<DateTime<Utc>>,
     pub redeemed_at: Option<DateTime<Utc>>,
@@ -171,6 +177,8 @@ pub struct PromotionListQuery {
     pub page_size: Option<i64>,
     pub status: Option<String>,
     pub search: Option<String>,
+    /// Optional voucher-list filter; promotion and guest lists ignore it.
+    pub promotion_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -225,6 +233,31 @@ pub struct VoucherIssueInput {
 #[serde(deny_unknown_fields)]
 pub struct VoucherRevokeInput {
     pub reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VoucherSummaryDiscount {
+    pub currency: String,
+    pub amount: f64,
+}
+
+/// Aggregate counters for the staff voucher dashboard. `expired` and
+/// `expiring_soon` are overlapping subsets of `available` (the persisted
+/// status never changes), so `available + redeemed + revoked == total`.
+#[derive(Debug, Serialize)]
+pub struct VoucherSummary {
+    pub total: i64,
+    pub available: i64,
+    pub redeemed: i64,
+    pub revoked: i64,
+    /// `available` rows whose `expires_at` is already past.
+    pub expired: i64,
+    /// `available` rows expiring within the next 7 days.
+    pub expiring_soon: i64,
+    /// `voucher_redemptions` rows with status `applied`.
+    pub redemption_count: i64,
+    /// Sum of applied `discount_amount` grouped by the promotion's currency.
+    pub discount_given: Vec<VoucherSummaryDiscount>,
 }
 
 #[cfg(test)]

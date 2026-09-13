@@ -11,7 +11,7 @@ use super::models::{
     ClaimPromotionInput, GuestPromotionListResponse, Promotion, PromotionActionInput,
     PromotionInput, PromotionListQuery, PromotionListResponse, PublicPromotion,
     PublicPromotionListResponse, Voucher, VoucherIssueInput, VoucherListResponse,
-    VoucherRevokeInput,
+    VoucherRevokeInput, VoucherSummary,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -223,6 +223,23 @@ pub async fn list_admin_vouchers_handler(
 ) -> Result<Json<VoucherListResponse>, ApiError> {
     require_permission_helper(&pool, &headers, "vouchers:read").await?;
     Ok(Json(service::list_admin_vouchers(&pool, query).await?))
+}
+
+pub async fn get_admin_voucher_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(voucher_id): Path<i64>,
+) -> Result<Json<Voucher>, ApiError> {
+    require_permission_helper(&pool, &headers, "vouchers:read").await?;
+    Ok(Json(service::get_admin_voucher(&pool, voucher_id).await?))
+}
+
+pub async fn voucher_admin_summary_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<VoucherSummary>, ApiError> {
+    require_permission_helper(&pool, &headers, "vouchers:read").await?;
+    Ok(Json(service::voucher_admin_summary(&pool).await?))
 }
 
 pub async fn issue_admin_voucher_handler(

@@ -7,7 +7,7 @@ use uuid::Uuid;
 use super::models::{
     ClaimPromotionInput, GuestPromotion, GuestPromotionListResponse, Promotion, PromotionInput,
     PromotionListQuery, PromotionListResponse, PublicPromotion, PublicPromotionListResponse,
-    Voucher, VoucherIssueInput, VoucherListResponse, VoucherRevokeInput,
+    Voucher, VoucherIssueInput, VoucherListResponse, VoucherRevokeInput, VoucherSummary,
 };
 use super::repository::PromotionRepository;
 use super::validation;
@@ -628,21 +628,35 @@ pub async fn archive_admin_promotion(
     .await
 }
 
+/// Maps the admin voucher `status` query param to a repository filter. The
+/// aliases `expired` / `expiring_soon` become date predicates in SQL — they
+/// are never persisted statuses.
+fn normalized_voucher_status_filter(value: Option<String>) -> Result<Option<String>, ApiError> {
+    match normalized_filter(value) {
+        None => Ok(None),
+        Some(raw)
+            if raw.eq_ignore_ascii_case("expired")
+                || raw.eq_ignore_ascii_case("expiring_soon") =>
+        {
+            Ok(Some(raw.to_ascii_lowercase()))
+        }
+        Some(raw) => validation::validate_voucher_status(&raw).map(Some),
+    }
+}
+
 pub async fn list_admin_vouchers(
     pool: &DbPool,
     query: PromotionListQuery,
 ) -> Result<VoucherListResponse, ApiError> {
     let (page, page_size, offset) = pagination(&query);
-    let status = normalized_filter(query.status);
-    let status = status
-        .as_deref()
-        .map(validation::validate_voucher_status)
-        .transpose()?;
+    let status = normalized_voucher_status_filter(query.status)?;
     let search = normalized_filter(query.search);
+    let promotion_id = query.promotion_id.filter(|id| *id > 0);
     let (total, items) = PromotionRepository::list_admin_vouchers(
         pool,
         status.as_deref(),
         search.as_deref(),
+        promotion_id,
         page_size,
         offset,
     )
@@ -653,6 +667,16 @@ pub async fn list_admin_vouchers(
         page,
         page_size,
     })
+}
+
+pub async fn get_admin_voucher(pool: &DbPool, voucher_id: i64) -> Result<Voucher, ApiError> {
+    PromotionRepository::find_voucher_admin(pool, voucher_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Voucher not found".to_string()))
+}
+
+pub async fn voucher_admin_summary(pool: &DbPool) -> Result<VoucherSummary, ApiError> {
+    PromotionRepository::voucher_admin_summary(pool).await
 }
 
 pub async fn issue_admin_voucher(
@@ -772,4 +796,44 @@ pub async fn revoke_admin_voucher(
     PromotionRepository::find_voucher_admin(pool, voucher_id)
         .await?
         .ok_or_else(|| ApiError::Internal("Revoked voucher was not found".to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalized_voucher_status_filter;
+
+    #[test]
+    fn voucher_status_filter_accepts_query_aliases() {
+        assert_eq!(
+            normalized_voucher_status_filter(Some("expired".to_string())).unwrap(),
+            Some("expired".to_string())
+        );
+        assert_eq!(
+            normalized_voucher_status_filter(Some("Expiring_Soon".to_string())).unwrap(),
+            Some("expiring_soon".to_string())
+        );
+    }
+
+    #[test]
+    fn voucher_status_filter_normalizes_persisted_statuses() {
+        assert_eq!(
+            normalized_voucher_status_filter(Some(" Available ".to_string())).unwrap(),
+            Some("available".to_string())
+        );
+    }
+
+    #[test]
+    fn voucher_status_filter_rejects_non_voucher_statuses() {
+        assert!(normalized_voucher_status_filter(Some("paused".to_string())).is_err());
+        assert!(normalized_voucher_status_filter(Some("archived".to_string())).is_err());
+    }
+
+    #[test]
+    fn voucher_status_filter_passes_through_empty() {
+        assert_eq!(normalized_voucher_status_filter(None).unwrap(), None);
+        assert_eq!(
+            normalized_voucher_status_filter(Some("   ".to_string())).unwrap(),
+            None
+        );
+    }
 }
