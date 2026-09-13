@@ -94,14 +94,14 @@ export function PromotionAdminTable({
     <>
       {onViewVouchers ? (
         <Tooltip title="View vouchers">
-          <IconButton size="small" aria-label="View vouchers" onClick={() => onViewVouchers(promotion)}>
+          <IconButton size="small" onClick={() => onViewVouchers(promotion)}>
             <ConfirmationNumberOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       ) : null}
       {onViewPerformance ? (
         <Tooltip title="Campaign performance">
-          <IconButton size="small" aria-label="Campaign performance" onClick={() => onViewPerformance(promotion)}>
+          <IconButton size="small" onClick={() => onViewPerformance(promotion)}>
             <InsightsOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -109,7 +109,7 @@ export function PromotionAdminTable({
       {canManage ? (
         <>
           <Tooltip title="Edit">
-            <IconButton size="small" aria-label="Edit promotion" onClick={() => onEdit(promotion)}>
+            <IconButton size="small" onClick={() => onEdit(promotion)}>
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -120,7 +120,6 @@ export function PromotionAdminTable({
               <IconButton
                 size="small"
                 color="success"
-                aria-label="Publish promotion"
                 disabled={isTransitioning}
                 onClick={() => onTransition(promotion, "publish")}
               >
@@ -133,7 +132,6 @@ export function PromotionAdminTable({
               <IconButton
                 size="small"
                 color="warning"
-                aria-label="Pause promotion"
                 disabled={isTransitioning}
                 onClick={() => onTransition(promotion, "pause")}
               >
@@ -148,7 +146,6 @@ export function PromotionAdminTable({
               <IconButton
                 size="small"
                 color="error"
-                aria-label="Cancel campaign"
                 disabled={isTransitioning}
                 onClick={() => onCancel(promotion)}
               >
@@ -161,7 +158,6 @@ export function PromotionAdminTable({
             <Tooltip title="Archive">
               <IconButton
                 size="small"
-                aria-label="Archive promotion"
                 disabled={isTransitioning}
                 onClick={() => onTransition(promotion, "archive")}
               >
