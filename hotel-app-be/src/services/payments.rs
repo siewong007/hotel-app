@@ -154,21 +154,24 @@ pub async fn calculate_payment_summary(
 ) -> Result<PaymentSummary, ApiError> {
     let stay = PaymentRepository::payment_booking_stay(pool, booking_id).await?;
     let pricing = PaymentRepository::room_pricing(pool, stay.room_id).await?;
-
-    let nights = (stay.check_out - stay.check_in).num_days();
-    let subtotal = pricing.base_price * Decimal::from(nights);
-    let service_charge = (subtotal * pricing.service_charge_percentage) / Decimal::from(100);
-    let tax_amount = Decimal::ZERO;
-    let total = subtotal + service_charge + tax_amount + pricing.keycard_deposit;
+    // Quote the booking's billable total (room + tourism tax + extra bed) —
+    // the same amount `record_payment` caps collection at and the checkout
+    // guard enforces — not a base_price*nights recomputation that ignores
+    // the booking's stored total/discount/ancillary charges.
+    let summary = PaymentRepository::workflow_summary_row(pool, booking_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
 
     Ok(PaymentSummary {
-        subtotal,
-        service_charge,
+        // subtotal + tax must equal total: subtotal carries the non-tax
+        // charges (room net total + extra bed), tax carries tourism tax.
+        subtotal: summary.total_amount + summary.extra_bed_charge,
+        service_charge: Decimal::ZERO,
         service_charge_percentage: pricing.service_charge_percentage,
-        tax_amount,
+        tax_amount: summary.tourism_tax_amount,
         tax_percentage: Decimal::ZERO,
         keycard_deposit: pricing.keycard_deposit,
-        total_amount: total,
+        total_amount: summary.billable_total(),
         payment_method: None,
     })
 }

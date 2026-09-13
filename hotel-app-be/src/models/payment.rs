@@ -224,8 +224,6 @@ pub struct PaymentWorkflowSummary {
 #[derive(Debug, Clone)]
 pub struct PaymentBookingStay {
     pub room_id: i64,
-    pub check_in: NaiveDate,
-    pub check_out: NaiveDate,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -243,7 +241,6 @@ pub struct PaidOnlineBookingRoomAssignment {
 
 #[derive(Debug, Clone)]
 pub struct PaymentRoomPricing {
-    pub base_price: Decimal,
     pub keycard_deposit: Decimal,
     pub service_charge_percentage: Decimal,
 }

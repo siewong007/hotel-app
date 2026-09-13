@@ -554,22 +554,21 @@ async fn generate_invoice_writes_an_audit_log_entry() {
 }
 
 // ---------------------------------------------------------------------
-// (2)-(6) Known-buggy today: assert the DECIDED-CORRECT value, #[ignore]d.
+// (2)-(5) Formerly known-buggy calculators, now asserting the
+// DECIDED-CORRECT value as live regression guards.
 //
 // Every one of these cleans up the fixture BEFORE the assertion/`.expect()`
-// that is expected to panic (that is the whole point of `#[ignore]`ing a
-// known bug) — an assertion panic must never skip teardown and leak fixture
-// rows on the persistent, shared dev database when run with `--ignored`
-// (review finding 8, 2026-07-27; pattern matches
-// tests/payment_characterization.rs).
+// that could panic — an assertion panic must never skip teardown and leak
+// fixture rows on the persistent, shared dev database (review finding 8,
+// 2026-07-27; pattern matches tests/payment_characterization.rs).
 // ---------------------------------------------------------------------
 
-/// `calculate_payment_summary` must quote the same billable total as the
-/// booking. Today it recomputes `base_price * nights` from `room_types` and
-/// never looks at `bookings.total_amount`/`discount_amount`/
-/// `tourism_tax_amount`/`extra_bed_charge` at all.
+/// `calculate_payment_summary` quotes the booking's billable_total
+/// (total_amount + tourism_tax_amount + extra_bed_charge) from
+/// `workflow_summary_row` — the same source `record_payment` caps
+/// collection at — rather than recomputing `base_price * nights` from
+/// `room_types` and ignoring the booking's stored totals.
 #[tokio::test]
-#[ignore = "calculate_payment_summary computes base_price*nights from room_types and ignores bookings.total_amount/discount_amount/tourism_tax_amount/extra_bed_charge — pending fix: unify invoice total calculators"]
 async fn calculate_payment_summary_should_equal_billable_total() {
     let Some((pool, _guard)) = setup_pg_pool().await else {
         return;
@@ -599,11 +598,11 @@ async fn calculate_payment_summary_should_equal_billable_total() {
     );
 }
 
-/// `generate_invoice`'s `Invoice.total_amount` must equal the booking's
-/// billable_total. Today `create_generated_invoice` recomputes
-/// `base_price * nights` the same way `calculate_payment_summary` does.
+/// `generate_invoice`'s `Invoice.total_amount` equals the booking's
+/// billable_total via `workflow_summary_row`, not a `base_price * nights`
+/// recomputation that ignores `total_amount`/`discount_amount`/
+/// `tourism_tax_amount`/`extra_bed_charge`.
 #[tokio::test]
-#[ignore = "create_generated_invoice computes base_price*nights with tax 0, ignoring bookings.total_amount/discount_amount/tourism_tax_amount/extra_bed_charge — pending fix: unify invoice total calculators"]
 async fn generate_invoice_total_should_equal_billable_total() {
     let Some((pool, _guard)) = setup_pg_pool().await else {
         return;
@@ -634,12 +633,11 @@ async fn generate_invoice_total_should_equal_billable_total() {
 }
 
 /// The checkout invoice inserted via `services::payments::ensure_invoice_for_booking`
-/// (-> `PaymentRepository::insert_checkout_invoice`) must also quote
-/// billable_total. Today it copies `bookings.total_amount` verbatim into
-/// both `subtotal` and `total_amount`, never adding `tourism_tax_amount`/
-/// `extra_bed_charge`.
+/// (-> `PaymentRepository::insert_checkout_invoice`) quotes billable_total:
+/// `total_amount` adds `tourism_tax_amount`/`extra_bed_charge` on top of the
+/// room-only `bookings.total_amount`, and the subtotal/tax/discount columns
+/// decompose it (subtotal - discount + tax = total).
 #[tokio::test]
-#[ignore = "insert_checkout_invoice copies bookings.total_amount verbatim into subtotal/total_amount, never adding tourism_tax_amount/extra_bed_charge — pending fix: unify invoice total calculators"]
 async fn checkout_invoice_total_should_equal_billable_total() {
     let Some((pool, _guard)) = setup_pg_pool().await else {
         return;
@@ -768,11 +766,10 @@ async fn checkout_guard_should_require_full_billable_total_not_just_room_total_a
 }
 
 /// A booking with only a deposit payment must not produce an invoice
-/// claiming full settlement. Today `create_generated_invoice` sets
-/// `paid_amount = total_amount` and `status = 'paid'` off a bare
-/// `EXISTS(any completed payment)`, regardless of amount.
+/// claiming full settlement: `paid_amount`/`status` are judged by
+/// `workflow_summary_row`'s `total_paid` against the billable_total, not
+/// by a bare `EXISTS(any completed payment)`.
 #[tokio::test]
-#[ignore = "create_generated_invoice sets paid_amount = total_amount and status = 'paid' off EXISTS(any completed payment), so a deposit-only booking is reported as fully settled — pending fix: unify invoice total calculators"]
 async fn deposit_only_payment_should_not_produce_a_fully_settled_invoice() {
     let Some((pool, _guard)) = setup_pg_pool().await else {
         return;

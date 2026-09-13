@@ -28,6 +28,9 @@ struct GeneratedInvoiceBookingDetailsRow {
     room_id: i64,
     room_number: String,
     room_type: String,
+    subtotal: Decimal,
+    discount_amount: Decimal,
+    room_rate: Decimal,
 }
 
 /// Column values for a `status='pending'` payment row.
@@ -438,25 +441,19 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<PaymentBookingStay, ApiError> {
-        let (room_id, check_in, check_out) = sqlx::query_as(
-            "SELECT room_id, check_in_date, check_out_date FROM bookings WHERE id = $1",
-        )
-        .bind(booking_id)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
+        let room_id: i64 = sqlx::query_scalar("SELECT room_id FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(pool)
+            .await
+            .map_err(ApiError::from)?;
 
-        Ok(PaymentBookingStay {
-            room_id,
-            check_in,
-            check_out,
-        })
+        Ok(PaymentBookingStay { room_id })
     }
 
     pub async fn room_pricing(pool: &DbPool, room_id: i64) -> Result<PaymentRoomPricing, ApiError> {
         let row = sqlx::query(
             r#"
-            SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
+            SELECT rt.keycard_deposit_amount, rt.service_charge_percentage
             FROM rooms r
             JOIN room_types rt ON r.room_type_id = rt.id
             WHERE r.id = $1
@@ -468,7 +465,6 @@ impl PaymentRepository {
         .map_err(ApiError::from)?;
 
         Ok(PaymentRoomPricing {
-            base_price: row_mappers::get_decimal(&row, "base_price"),
             keycard_deposit: row_mappers::get_decimal(&row, "keycard_deposit_amount"),
             service_charge_percentage: row_mappers::get_decimal(&row, "service_charge_percentage"),
         })
@@ -1410,7 +1406,10 @@ impl PaymentRepository {
             SELECT b.id AS booking_id, b.guest_id, g.nick_name AS customer_name,
                    g.email AS customer_email, g.phone AS customer_phone,
                    b.check_in_date AS check_in, b.check_out_date AS check_out,
-                   r.id AS room_id, r.room_number, rt.name AS room_type
+                   r.id AS room_id, r.room_number, rt.name AS room_type,
+                   COALESCE(b.subtotal, 0) AS subtotal,
+                   COALESCE(b.discount_amount, 0) AS discount_amount,
+                   COALESCE(b.room_rate, 0) AS room_rate
             FROM bookings b
             JOIN guests g ON b.guest_id = g.id
             JOIN rooms r ON b.room_id = r.id
@@ -1431,74 +1430,69 @@ impl PaymentRepository {
             customer_phone: _customer_phone,
             check_in,
             check_out,
-            room_id,
+            room_id: _room_id,
             room_number,
             room_type,
+            subtotal: room_subtotal,
+            discount_amount,
+            room_rate,
         } = booking_details;
 
-        // Whether a completed payment already exists — decides the invoice's
-        // `status`/`paid_amount`. Uses the real `status` column, cfg-gated.
-        let paid_sql =
-            "SELECT EXISTS(SELECT 1 FROM payments WHERE booking_id = $1 AND status = 'completed')";
-        let has_completed_payment: bool = sqlx::query_scalar(paid_sql)
-            .bind(booking_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
-
-        let pricing_row = sqlx::query(
-            r#"
-                SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
-                FROM rooms r
-                JOIN room_types rt ON r.room_type_id = rt.id
-                WHERE r.id = $1
-                "#,
-        )
-        .bind(room_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
-        let base_price = row_mappers::get_decimal(&pricing_row, "base_price");
-        let keycard_deposit = row_mappers::get_decimal(&pricing_row, "keycard_deposit_amount");
-        let service_charge_pct =
-            row_mappers::get_decimal(&pricing_row, "service_charge_percentage");
-
-        let nights = (check_out - check_in).num_days() as i32;
-        let subtotal = base_price * Decimal::from(nights);
-        let service_charge = (subtotal * service_charge_pct) / Decimal::from(100);
-        let tax_amount = Decimal::ZERO;
-        let total = subtotal + service_charge + tax_amount + keycard_deposit;
-        let paid_amount = if has_completed_payment {
-            total
-        } else {
-            Decimal::ZERO
-        };
-        let status = if has_completed_payment {
+        // The invoice quotes the booking's billable total (room + tourism tax
+        // + extra bed) — the same source `record_payment` caps collection at
+        // and the checkout guard enforces — not a base_price*nights
+        // recomputation that ignores the booking's stored charges/discount.
+        let summary = Self::workflow_summary_row(&mut *tx, booking_id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+        let total = summary.billable_total();
+        // Settlement is judged against the billable total: a deposit-only
+        // booking is not "paid" just because some completed payment exists.
+        let paid_amount = summary.total_paid.min(total);
+        let status = if summary.total_paid >= total {
             "paid"
         } else {
             "draft"
         };
 
-        let line_items = serde_json::json!([
-            {
-                "description": format!("Room {} ({}) - {} night(s)", room_number, room_type, nights),
-                "quantity": nights,
-                "unit_price": base_price,
-                "total": subtotal
-            },
-            {
-                "description": format!("Service Charge ({}%)", service_charge_pct),
+        let nights = (check_out - check_in).num_days() as i32;
+        let tax_amount = summary.tourism_tax_amount;
+        // Invoice `subtotal` = gross charges before discount/tax so that
+        // subtotal - discount + tax == total.
+        let subtotal = room_subtotal + summary.extra_bed_charge;
+        let service_charge = Decimal::ZERO;
+
+        let mut items = vec![serde_json::json!({
+            "description": format!("Room {} ({}) - {} night(s)", room_number, room_type, nights),
+            "quantity": nights,
+            "unit_price": room_rate,
+            "total": room_subtotal
+        })];
+        if summary.extra_bed_charge > Decimal::ZERO {
+            items.push(serde_json::json!({
+                "description": "Extra Bed",
                 "quantity": 1,
-                "unit_price": service_charge,
-                "total": service_charge
-            },
-            {
-                "description": "Keycard Deposit (Refundable)",
+                "unit_price": summary.extra_bed_charge,
+                "total": summary.extra_bed_charge
+            }));
+        }
+        if discount_amount > Decimal::ZERO {
+            items.push(serde_json::json!({
+                "description": "Discount",
                 "quantity": 1,
-                "unit_price": keycard_deposit,
-                "total": keycard_deposit
-            }
-        ]);
+                "unit_price": -discount_amount,
+                "total": -discount_amount
+            }));
+        }
+        if tax_amount > Decimal::ZERO {
+            items.push(serde_json::json!({
+                "description": "Tourism Tax",
+                "quantity": 1,
+                "unit_price": tax_amount,
+                "total": tax_amount
+            }));
+        }
+        let line_items = serde_json::json!(items);
 
         // Insert against the REAL invoices columns, cfg-gated like
         // `insert_checkout_invoice`. postgres carries billing_name/email +
@@ -1514,7 +1508,7 @@ impl PaymentRepository {
                     currency, line_items, status, invoice_type, room_charges, service_charges,
                     created_by
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, $9, $10, $11, $12, 'booking', $13, $14, $15)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'booking', $14, $15, $16)
                 RETURNING id, uuid, created_at
                 "#,
             )
@@ -1525,12 +1519,13 @@ impl PaymentRepository {
             .bind(&customer_email)
             .bind(decimal_to_db(subtotal))
             .bind(decimal_to_db(tax_amount))
+            .bind(decimal_to_db(discount_amount))
             .bind(decimal_to_db(total))
             .bind(decimal_to_db(paid_amount))
             .bind("MYR")
             .bind(&line_items)
             .bind(status)
-            .bind(decimal_to_db(subtotal))
+            .bind(decimal_to_db(room_subtotal))
             .bind(decimal_to_db(service_charge))
             .bind(user_id)
             .fetch_one(&mut *tx)
@@ -1564,7 +1559,7 @@ impl PaymentRepository {
             room_type: Some(room_type),
             subtotal,
             tax_amount,
-            discount_amount: Decimal::ZERO,
+            discount_amount,
             total_amount: total,
             paid_amount,
             balance_due: total - paid_amount,
@@ -2024,13 +2019,16 @@ impl PaymentRepository {
                 r#"
                 INSERT INTO invoices (
                     invoice_number, booking_id, billing_name, billing_email,
-                    subtotal, total_amount, line_items, status, invoice_type, created_by
+                    subtotal, tax_amount, discount_amount, total_amount,
+                    line_items, status, invoice_type, created_by
                 )
                 SELECT $1, b.id,
                        COALESCE(g.nick_name, ''),
                        g.email,
-                       b.total_amount,
-                       b.total_amount,
+                       COALESCE(b.subtotal, b.total_amount) + COALESCE(b.extra_bed_charge, 0),
+                       COALESCE(b.tourism_tax_amount, 0),
+                       COALESCE(b.discount_amount, 0),
+                       b.total_amount + COALESCE(b.tourism_tax_amount, 0) + COALESCE(b.extra_bed_charge, 0),
                        '[]'::jsonb,
                        'issued',
                        'booking',
