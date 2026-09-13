@@ -550,11 +550,10 @@ impl Fixture {
         // Promotion + voucher join fixture.
         sqlx::query(
             "INSERT INTO promotions \
-             (id, slug, name, status, promotion_kind, discount_type, discount_value, \
-              internal_code) \
+             (id, slug, name, status, promotion_kind, discount_type, discount_value) \
              OVERRIDING SYSTEM VALUE \
              VALUES ($1, 'grt986-promo', 'Grt986 Promo', 'published', 'voucher', \
-                     'percentage', 10, 'GRT986PROMO')",
+                     'percentage', 10)",
         )
         .bind(PROMOTION_ID)
         .execute(pool)
