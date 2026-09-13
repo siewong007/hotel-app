@@ -1356,7 +1356,6 @@ impl PaymentRepository {
     /// This is the ONLY writer of `deposit_forfeited` rows: the generic
     /// `record_payment` caller-type whitelist deliberately excludes the type,
     /// so a caller cannot mint kept-money rows without these checks.
-    #[allow(dead_code)] // Consumed by the checkout-guard service, introduced in the next task.
     pub async fn forfeit_deposit(
         pool: &DbPool,
         user_id: i64,

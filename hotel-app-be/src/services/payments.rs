@@ -601,6 +601,71 @@ pub async fn refund_deposit(
     }))
 }
 
+/// Forfeit part or all of a booking's held keycard deposit (lost keycard,
+/// damage). A reason is mandatory — the row's notes carry it — and the repo
+/// op enforces the refundable ceiling under the booking's FOR UPDATE lock,
+/// so a forfeit can never exceed the deposit money still held.
+pub async fn forfeit_deposit(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let reason = body
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if reason.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A forfeit reason is required".to_string(),
+        ));
+    }
+
+    let forfeit_amount_f64 = body.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let forfeit_amount = Decimal::from_f64_retain(forfeit_amount_f64).unwrap_or(Decimal::ZERO);
+
+    if forfeit_amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "Forfeit amount must be positive".to_string(),
+        ));
+    }
+
+    let row = PaymentRepository::forfeit_deposit(pool, user_id, booking_id, forfeit_amount, &reason)
+        .await?;
+
+    recompute_payment_status(pool, booking_id).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "payment_deposit_forfeited",
+            resource_type: "payment",
+            resource_id: Some(row.id),
+            details: Some(serde_json::json!({
+                "booking_id": booking_id,
+                "amount": forfeit_amount_f64,
+                "reason": reason,
+            })),
+            ..Default::default()
+        },
+    )
+    .await;
+
+    Ok(serde_json::json!({
+        "id": row.id,
+        "booking_id": row.booking_id,
+        "total_amount": row.total_amount,
+        "payment_method": row.payment_method,
+        "payment_type": row.payment_type,
+        "payment_status": row.payment_status,
+        "notes": row.notes,
+        "created_at": row.created_at,
+    }))
+}
+
 /// Revert a keycard deposit refund that was recorded by mistake.
 ///
 /// Voids the refund payment row (the record is kept, not deleted) and

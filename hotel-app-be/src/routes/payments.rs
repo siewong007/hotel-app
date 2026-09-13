@@ -46,6 +46,10 @@ pub fn routes() -> Router<DbPool> {
             post(refund_deposit),
         )
         .route(
+            "/payments/forfeit-deposit/{booking_id}",
+            post(forfeit_deposit),
+        )
+        .route(
             "/payments/revert-deposit-refund/{booking_id}",
             post(revert_deposit_refund),
         )
@@ -137,6 +141,20 @@ async fn refund_deposit(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
     handlers::payments::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
+        .await
+}
+
+// Forfeiting a held deposit (lost keycard, damage) is checkout-side money
+// handling, same as refunding it, so it shares the payments:refund gate —
+// not the heavier payments:manage used to reverse a refund.
+async fn forfeit_deposit(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
+    handlers::payments::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body))
         .await
 }
 
