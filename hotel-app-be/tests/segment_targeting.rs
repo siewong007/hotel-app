@@ -62,21 +62,45 @@ mod postgres_tests {
 
     /// `base` is the first id of a private 100-id band (994000, 994100, ...).
     /// Service-created rows (segments, campaigns) take sequence ids outside
-    /// the band, so cleanup also sweeps by the `seg994` name/slug markers.
+    /// the band, so cleanup also sweeps by marker text — every pattern is
+    /// band-scoped (`seg994%<id-band>` / `Seg994%<base>`) so a parallel test's
+    /// cleanup can never delete another test's suppression/segment rows.
     async fn cleanup(pool: &PgPool, base: i64) {
+        let id_marker = format!("seg994%{}%", base / 100);
+        let name_marker = format!("Seg994%{base}%");
+        // Marker deletes run first: campaigns referencing a service-created
+        // segment must go before the segment row itself (ON DELETE RESTRICT).
+        for (stmt, marker) in [
+            (
+                "DELETE FROM audit_logs WHERE details::text LIKE $1",
+                &name_marker,
+            ),
+            (
+                "DELETE FROM email_campaigns WHERE segment_id BETWEEN $2 AND $2 + 99 \
+                    OR name LIKE $1",
+                &name_marker,
+            ),
+            (
+                "DELETE FROM email_suppressions WHERE email LIKE $1",
+                &id_marker,
+            ),
+            ("DELETE FROM guest_segments WHERE slug LIKE $1", &id_marker),
+        ] {
+            sqlx::query(stmt)
+                .bind(marker)
+                .bind(base)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
         for stmt in [
             "DELETE FROM audit_logs WHERE resource_type IN ('guest_segment', 'email_campaign') \
                 AND resource_id BETWEEN $1 AND $1 + 99",
-            // Service-created segments carry sequence ids outside the band;
-            // their audit rows are found by the fixture name in details.
-            "DELETE FROM audit_logs WHERE details::text LIKE '%Seg994%'",
             "DELETE FROM email_deliveries WHERE guest_id BETWEEN $1 AND $1 + 99",
             "DELETE FROM email_deliveries WHERE campaign_id BETWEEN $1 AND $1 + 99",
-            "DELETE FROM email_campaigns WHERE id BETWEEN $1 AND $1 + 99 \
-                OR segment_id BETWEEN $1 AND $1 + 99 OR name LIKE 'Seg994%'",
+            "DELETE FROM email_campaigns WHERE id BETWEEN $1 AND $1 + 99",
             "DELETE FROM notification_subscriptions WHERE guest_id BETWEEN $1 AND $1 + 99",
-            "DELETE FROM email_suppressions WHERE email LIKE 'seg994-%'",
-            "DELETE FROM guest_segments WHERE id BETWEEN $1 AND $1 + 99 OR slug LIKE 'seg994-%'",
+            "DELETE FROM guest_segments WHERE id BETWEEN $1 AND $1 + 99",
             "DELETE FROM guests WHERE id BETWEEN $1 AND $1 + 99",
         ] {
             sqlx::query(stmt).bind(base).execute(pool).await.unwrap();
@@ -187,7 +211,7 @@ mod postgres_tests {
         let segment = segments_service::create_segment(
             &pool,
             ACTOR,
-            segment_input("Seg994 Country", BASE, true),
+            segment_input(&format!("Seg994 Country {BASE}"), BASE, true),
             None,
             None,
         )
@@ -244,10 +268,11 @@ mod postgres_tests {
         // must exist.)
         sqlx::query(
             "INSERT INTO email_campaigns (id, name, campaign_type, topic, subject, body_html) \
-             OVERRIDING SYSTEM VALUE VALUES ($1, 'Seg994 dedup campaign', 'announcement', $2, 's', '<p>x</p>')",
+             OVERRIDING SYSTEM VALUE VALUES ($1, $3, 'announcement', $2, 's', '<p>x</p>')",
         )
         .bind(BASE + 90)
         .bind(TOPIC)
+        .bind(format!("Seg994 dedup campaign {BASE}"))
         .execute(&pool)
         .await
         .unwrap();
@@ -276,7 +301,7 @@ mod postgres_tests {
             ACTOR,
             segment.id,
             SegmentInput {
-                name: "Seg994 Country Renamed".to_string(),
+                name: format!("Seg994 Country Renamed {BASE}"),
                 description: Some("renamed".to_string()),
                 rules: seg_rules(BASE),
                 is_active: Some(true),
@@ -286,7 +311,7 @@ mod postgres_tests {
         )
         .await
         .unwrap();
-        assert_eq!(updated.name, "Seg994 Country Renamed");
+        assert_eq!(updated.name, format!("Seg994 Country Renamed {BASE}"));
 
         segments_service::delete_segment(&pool, ACTOR, segment.id, None, None)
             .await
