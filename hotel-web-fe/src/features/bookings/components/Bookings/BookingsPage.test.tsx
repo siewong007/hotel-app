@@ -223,6 +223,7 @@ vi.mock('../../../../hooks/useDebouncedValue', () => ({
 }));
 
 import BookingsPage from './BookingsPage';
+import { expectNoCriticalAxeViolations } from '../../../../test/axe';
 
 function buildBooking(overrides: Partial<BookingWithDetails> = {}): BookingWithDetails {
   return {
@@ -325,6 +326,14 @@ function renderPage() {
 }
 
 describe('BookingsPage', () => {
+  it('reports no critical axe violations', async () => {
+    setBookingsPageData(defaultBookings, defaultBookings.length);
+    setWithDetailsData(defaultBookings);
+    const { container } = renderPage();
+    await waitFor(() => expect(screen.getAllByText(/Room 101/).length).toBeGreaterThan(0));
+    await expectNoCriticalAxeViolations(container);
+  });
+
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorageStub());
 

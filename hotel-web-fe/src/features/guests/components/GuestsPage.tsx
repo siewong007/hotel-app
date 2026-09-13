@@ -104,7 +104,7 @@ const GuestsPage: React.FC = () => {
         </Alert>
       )}
       {/* Stats + Search row */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
         <Card elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
           <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
             <Typography variant="body2" sx={{
@@ -121,7 +121,7 @@ const GuestsPage: React.FC = () => {
           placeholder="Search by name, email, or phone..."
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
-          sx={{ width: 320 }}
+          sx={{ width: { xs: '100%', sm: 320 } }}
           slotProps={{
             input: {
               startAdornment: (

@@ -73,6 +73,7 @@ vi.mock('../../guestPortal/api/portalTokenStore', () => ({
 }));
 
 import LoginPage from './LoginPage';
+import { expectNoCriticalAxeViolations } from '../../../test/axe';
 
 function renderPage() {
   const queryClient = new QueryClient({
@@ -116,6 +117,11 @@ describe('LoginPage single-step form', () => {
     expect(screen.getByLabelText(/^Password/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Login' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  });
+
+  it('reports no critical axe violations', async () => {
+    const { container } = renderPage();
+    await expectNoCriticalAxeViolations(container);
   });
 
   it('offers no passkey sign-in on the form', () => {

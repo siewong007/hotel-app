@@ -64,6 +64,12 @@ import { useCheckInFormData } from '../hooks/useCheckInFormData';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { divideMoney, isPositiveMoney, multiplyMoney, toMoneyNumber } from '../../../utils/money';
 import { getBookingChannelInfo } from '../utils/bookingChannel';
+import type { ValidationErrors, CompanyOption } from './checkIn/checkInTypes';
+import { PersonalInfoTab } from './checkIn/PersonalInfoTab';
+import { StayInfoTab } from './checkIn/StayInfoTab';
+import { PaymentInfoTab } from './checkIn/PaymentInfoTab';
+import { CustomFieldsTab } from './checkIn/CustomFieldsTab';
+import { NotesTab } from './checkIn/NotesTab';
 
 // Validation helper functions
 // Note: Email and phone are intentionally not format-validated at check-in —
@@ -106,37 +112,6 @@ const validateCardExpiry = (expiry: string): boolean => {
 
   return true;
 };
-
-interface ValidationErrors {
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  phone?: string;
-  alt_phone?: string;
-  ic_number?: string;
-  cardNumber?: string;
-  cardExpiry?: string;
-  cardName?: string;
-}
-
-// Company option for autocomplete
-interface CompanyOption {
-  id?: number;
-  inputValue?: string;
-  company_name: string;
-  registration_number?: string;
-  company_registration_number?: string; // Alias for backwards compatibility
-  contact_person?: string;
-  contact_email?: string;
-  contact_phone?: string;
-  billing_address?: string;
-  billing_city?: string;
-  billing_state?: string;
-  billing_postal_code?: string;
-  billing_country?: string;
-  payment_terms_days?: number;
-  isNew?: boolean;
-}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -713,14 +688,6 @@ export default function EnhancedCheckInModal({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  const getDayOfWeek = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'EEEE');
-    } catch {
-      return '';
-    }
-  };
-
   if (!booking || !guest) return null;
 
   // Online reservations are settled on the booking platform; the backend
@@ -926,1152 +893,134 @@ export default function EnhancedCheckInModal({
 
           {/* Tab 1: Personal Information (View Only) */}
           <TabPanel value={activeTab} index={0}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 3 }}>
-                <TextField
-                  fullWidth
-                  label="Title"
-                  value={guestData.title || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4.5 }}>
-                <TextField
-                  fullWidth
-                  required
-                  label="First Name"
-                  value={guestData.first_name || ''}
-                  onChange={(e) => handleGuestChange('first_name', e.target.value)}
-                  onBlur={(e) => handleBlur('first_name', e.target.value)}
-                  error={Boolean(touched.first_name && validationErrors.first_name)}
-                  helperText={touched.first_name ? validationErrors.first_name : undefined}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4.5 }}>
-                <TextField
-                  fullWidth
-                  required
-                  label="Last Name"
-                  value={guestData.last_name || ''}
-                  onChange={(e) => handleGuestChange('last_name', e.target.value)}
-                  onBlur={(e) => handleBlur('last_name', e.target.value)}
-                  error={Boolean(touched.last_name && validationErrors.last_name)}
-                  helperText={touched.last_name ? validationErrors.last_name : undefined}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={guestData.email || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Phone 1"
-                  value={guestData.phone || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Phone 2"
-                  value={guestData.alt_phone || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  required
-                  label="Reference/IC Number"
-                  value={guestData.ic_number || ''}
-                  onChange={(e) => handleGuestChange('ic_number', e.target.value)}
-                  onBlur={(e) => handleBlur('ic_number', e.target.value)}
-                  error={touched.ic_number && Boolean(validationErrors.ic_number)}
-                  helperText={
-                    (touched.ic_number && validationErrors.ic_number)
-                    || 'Collected at check-in if not provided during booking'
-                  }
-                />
-              </Grid>
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  label="Street Address"
-                  value={guestData.address_line1 || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="City"
-                  value={guestData.city || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="State/Province"
-                  value={guestData.state_province || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Zip Code"
-                  value={guestData.postal_code || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Country"
-                  value={guestData.country || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Nationality"
-                  value={guestData.nationality || ''}
-                  disabled
-                  slotProps={{
-                    input: { readOnly: true }
-                  }}
-                />
-              </Grid>
-            </Grid>
+          <PersonalInfoTab
+            booking={booking}
+            error={error}
+            guestData={guestData}
+            handleBlur={handleBlur}
+            handleGuestChange={handleGuestChange}
+            touched={touched}
+            validationErrors={validationErrors}
+          />
           </TabPanel>
 
           {/* Tab 2: Stay Information */}
           <TabPanel value={activeTab} index={1}>
-            <Grid container spacing={2}>
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Check-in/Check-out
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Check-in Date"
-                  type="date"
-                  value={booking.check_in_date}
-                  disabled
-                  helperText={getDayOfWeek(booking.check_in_date)}
-                  slotProps={{
-                    inputLabel: { shrink: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Check-in Time"
-                  type="time"
-                  value={bookingData.check_in_time || '15:00'}
-                  onChange={(e) => handleBookingChange('check_in_time', e.target.value)}
-                  slotProps={{
-                    inputLabel: { shrink: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Nights"
-                  value={calculateNights()}
-                  disabled
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Check-out Date"
-                  type="date"
-                  value={booking.check_out_date}
-                  disabled
-                  helperText={getDayOfWeek(booking.check_out_date)}
-                  slotProps={{
-                    inputLabel: { shrink: true }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Check-out Time"
-                  type="time"
-                  value={bookingData.check_out_time || '11:00'}
-                  onChange={(e) => handleBookingChange('check_out_time', e.target.value)}
-                  slotProps={{
-                    inputLabel: { shrink: true }
-                  }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Adults"
-                  type="number"
-                  value={booking.number_of_guests || 1}
-                  disabled
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Extra Beds"
-                  type="number"
-                  value={extraBedCount}
-                  disabled
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Room Number"
-                  value={booking.room_id}
-                  disabled
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                  Rate & Charges
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Rate Code</InputLabel>
-                  <Select
-                    value={bookingData.rate_code || 'RACK'}
-                    onChange={(e) => handleBookingChange('rate_code', e.target.value)}
-                    label="Rate Code"
-                  >
-                    {rateCodes.map(code => (
-                      <MenuItem key={code} value={code}>{code} - Standard Rack Rate</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <Autocomplete
-                  freeSolo
-                  options={marketCodes}
-                  value={bookingData.market_code || 'WKII'}
-                  onChange={(_, newValue) => handleBookingChange('market_code', newValue || '')}
-                  onInputChange={(_, newInputValue) => handleBookingChange('market_code', newInputValue)}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Market Code"
-                      placeholder="Type or select..."
-                    />
-                  )}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Discount %"
-                  type="number"
-                  value={bookingData.discount_percentage || 0}
-                  onChange={(e) => handleBookingChange('discount_percentage', parseFloat(e.target.value))}
-                  slotProps={{
-                    input: { inputProps: { min: 0, max: 100, step: 0.01 } }
-                  }}
-                />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Weekday Rate"
-                  type="number"
-                  value={weekdayRate}
-                  onChange={(e) => setWeekdayRate(e.target.value)}
-                  disabled={!overrideRate}
-                  slotProps={{
-                    input: {
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Weekend Rate"
-                  type="number"
-                  value={weekendRate}
-                  onChange={(e) => setWeekendRate(e.target.value)}
-                  disabled={!overrideRate}
-                  slotProps={{
-                    input: {
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={overrideRate}
-                      onChange={(e) => setOverrideRate(e.target.checked)}
-                    />
-                  }
-                  label="Override Rate"
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Room Charge Summary
-                  </Typography>
-                  <Grid container spacing={1}>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{
-                        color: "text.secondary"
-                      }}>Total Amount:</Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{
-                        fontWeight: "bold"
-                      }}>{formatCurrency(toMoneyNumber(booking.total_amount))}</Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-              </Grid>
-
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                  Special Posting
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="EPI Rate"
-                  type="number"
-                  value={epiRate}
-                  onChange={(e) => setEpiRate(Number(e.target.value))}
-                  slotProps={{
-                    input: { inputProps: { min: 1, step: 1 } }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  fullWidth
-                  label="Next Posting"
-                  value={nextPosting}
-                  onChange={(e) => setNextPosting(e.target.value)}
-                />
-              </Grid>
-              <Grid sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }} size={{ xs: 12, sm: 4 }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={chargeIncidentals}
-                      onChange={(e) => setChargeIncidentals(e.target.checked)}
-                    />
-                  }
-                  label="Charge Incidentals"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={vipGuest}
-                      onChange={(e) => setVipGuest(e.target.checked)}
-                    />
-                  }
-                  label="VIP Guest"
-                />
-              </Grid>
-            </Grid>
+          <StayInfoTab
+            booking={booking}
+            calculateNights={calculateNights}
+            bookingData={bookingData}
+            chargeIncidentals={chargeIncidentals}
+            currencySymbol={currencySymbol}
+            epiRate={epiRate}
+            extraBedCount={extraBedCount}
+            formatCurrency={formatCurrency}
+            handleBookingChange={handleBookingChange}
+            marketCodes={marketCodes}
+            nextPosting={nextPosting}
+            overrideRate={overrideRate}
+            rateCodes={rateCodes}
+            setChargeIncidentals={setChargeIncidentals}
+            setEpiRate={setEpiRate}
+            setNextPosting={setNextPosting}
+            setOverrideRate={setOverrideRate}
+            setVipGuest={setVipGuest}
+            setWeekdayRate={setWeekdayRate}
+            setWeekendRate={setWeekendRate}
+            vipGuest={vipGuest}
+            weekdayRate={weekdayRate}
+            weekendRate={weekendRate}
+          />
           </TabPanel>
 
           {/* Tab 3: Payment Information */}
           <TabPanel value={activeTab} index={2}>
-            <Grid container spacing={2}>
-              {/* Payment Section */}
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Payment
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              {isOnlineReservation && (
-                <Grid size={12}>
-                  <Alert severity="success" sx={{ mb: 1 }}>
-                    Payment was settled on {onlinePlatformName}. The full amount
-                    {' '}({formatCurrency(toMoneyNumber(booking.total_amount))}) is recorded
-                    automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
-                    only if you are collecting at the desk instead.
-                  </Alert>
-                </Grid>
-              )}
-              <Grid size={12}>
-                <ToggleButtonGroup
-                  value={paymentChoice}
-                  exclusive
-                  onChange={(_, val) => { if (val) setPaymentChoice(val); }}
-                  fullWidth
-                  size="large"
-                  sx={{ mb: 1 }}
-                >
-                  <ToggleButton value="pay_now" color="success" sx={{ py: 1.5, fontWeight: 600 }}>
-                    <PaymentIcon sx={{ mr: 1 }} />
-                    Make Payment Now
-                  </ToggleButton>
-                  <ToggleButton value="pay_later" color="warning" sx={{ py: 1.5, fontWeight: 600 }}>
-                    <MoneyOffIcon sx={{ mr: 1 }} />
-                    {isOnlineReservation ? 'Settled Online' : 'Pay Later'}
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Grid>
-
-              {paymentChoice === 'pay_now' && (
-                <>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth>
-                      <InputLabel>Payment Method</InputLabel>
-                      <Select
-                        value={paymentType}
-                        onChange={(e) => {
-                          setPaymentType(e.target.value);
-                          handleBookingChange('payment_method', e.target.value);
-                        }}
-                        label="Payment Method"
-                      >
-                        {paymentMethods.map(method => (
-                          <MenuItem key={method} value={method}>{method}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Amount Paid"
-                      type="number"
-                      value={amountPaid}
-                      onChange={(e) => setAmountPaid(toMoneyNumber(e.target.value))}
-                      slotProps={{
-                        input: {
-                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                          inputProps: { min: 0, step: 0.01 },
-                        }
-                      }}
-                    />
-                  </Grid>
-
-                  {(paymentType === 'Visa Card' || paymentType === 'Master Card' || paymentType === 'Debit Card' || paymentType === 'American Express' || paymentType === 'Credit Card') && (
-                    <>
-                      <Grid size={12}>
-                        <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
-                          Card Information
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Card Number"
-                          type={showCardNumber ? 'text' : 'password'}
-                          value={cardNumber}
-                          onChange={(e) => {
-                            setCardNumber(e.target.value);
-                            if (touched.cardNumber) {
-                              const error = validateField('cardNumber', e.target.value);
-                              setValidationErrors(prev => ({ ...prev, cardNumber: error }));
-                            }
-                          }}
-                          onBlur={(e) => handleBlur('cardNumber', e.target.value)}
-                          error={touched.cardNumber && !!validationErrors.cardNumber}
-                          helperText={touched.cardNumber && validationErrors.cardNumber}
-                          placeholder="•••••"
-                          slotProps={{
-                            input: {
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <IconButton
-                                    onClick={() => setShowCardNumber(!showCardNumber)}
-                                    edge="end"
-                                    aria-label={showCardNumber ? 'Hide card number' : 'Show card number'}
-                                  >
-                                    {showCardNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                                  </IconButton>
-                                </InputAdornment>
-                              ),
-                            }
-                          }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 6 }}>
-                        <TextField
-                          fullWidth
-                          label="Expire Date"
-                          placeholder="MM/YY"
-                          value={cardExpiry}
-                          onChange={(e) => {
-                            setCardExpiry(e.target.value);
-                            if (touched.cardExpiry) {
-                              const error = validateField('cardExpiry', e.target.value);
-                              setValidationErrors(prev => ({ ...prev, cardExpiry: error }));
-                            }
-                          }}
-                          onBlur={(e) => handleBlur('cardExpiry', e.target.value)}
-                          error={touched.cardExpiry && !!validationErrors.cardExpiry}
-                          helperText={(touched.cardExpiry && validationErrors.cardExpiry) || 'Format: MM/YY'}
-                        />
-                      </Grid>
-                      <Grid size={12}>
-                        <TextField
-                          fullWidth
-                          label="Name on Card"
-                          value={cardName}
-                          onChange={(e) => setCardName(e.target.value)}
-                        />
-                      </Grid>
-                    </>
-                  )}
-
-                  {paymentType === 'Direct Billing' && (
-                    <>
-                      <Grid size={12}>
-                        <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
-                          Direct Billing Information
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
-                      </Grid>
-                      <Grid size={12}>
-                        <Autocomplete
-                          value={selectedCompany}
-                          onChange={(event, newValue) => {
-                            if (newValue) {
-                              if (newValue.isNew) {
-                                setNewCompanyData({ ...newCompanyData, company_name: newValue.inputValue || '' });
-                                setNewCompanyDialogOpen(true);
-                              } else {
-                                setSelectedCompany(newValue);
-                                setDirectBillCompany(newValue.company_name);
-                              }
-                            } else {
-                              setSelectedCompany(null);
-                              setDirectBillCompany('');
-                            }
-                          }}
-                          filterOptions={(options, state) => {
-                            const inputValue = state.inputValue.toLowerCase();
-                            const filtered = options.filter(option =>
-                              option.company_name.toLowerCase().includes(inputValue)
-                            );
-                            const isExisting = options.some(option =>
-                              option.company_name.toLowerCase() === inputValue
-                            );
-                            if (inputValue !== '' && !isExisting) {
-                              filtered.push({
-                                inputValue: state.inputValue,
-                                company_name: `Add "${state.inputValue}" as new company`,
-                                isNew: true,
-                              });
-                            }
-                            return filtered;
-                          }}
-                          selectOnFocus
-                          clearOnBlur
-                          handleHomeEndKeys
-                          options={companyOptions}
-                          loading={loadingCompanies}
-                          getOptionLabel={(option) => option.isNew ? option.inputValue || '' : option.company_name}
-                          isOptionEqualToValue={(option, value) => option.company_name === value.company_name}
-                          renderOption={(props, option) => {
-                            const { key, ...otherProps } = props;
-                            return (
-                              <li key={key} {...otherProps}>
-                                {option.isNew ? (
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                    <PersonAddIcon color="primary" fontSize="small" />
-                                    <Typography color="primary">{option.company_name}</Typography>
-                                  </Box>
-                                ) : (
-                                  <Box>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      <BusinessIcon color="action" fontSize="small" />
-                                      <Typography>{option.company_name}</Typography>
-                                    </Box>
-                                    {option.contact_person && (
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          color: "text.secondary",
-                                          ml: 3.5
-                                        }}>
-                                        Contact: {option.contact_person}
-                                      </Typography>
-                                    )}
-                                  </Box>
-                                )}
-                              </li>
-                            );
-                          }}
-                          renderInput={(params) => (
-                            <TextField
-                              {...params}
-                              label="Company"
-                              placeholder="Type to search or add new company"
-                              helperText="Select existing company or type new name to register"
-                              slotProps={{
-                                ...params.slotProps,
-
-                                input: {
-                                  ...params.slotProps.input,
-                                  endAdornment: (
-                                    <>
-                                      {loadingCompanies ? <CircularProgress color="inherit" size={20} /> : null}
-                                      {params.slotProps.input.endAdornment}
-                                    </>
-                                  ),
-                                }
-                              }}
-                            />
-                          )}
-                        />
-                      </Grid>
-                      {selectedCompany && !selectedCompany.isNew && (
-                        <Grid size={12}>
-                          <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Company Details
-                            </Typography>
-                            <Grid container spacing={1}>
-                              {selectedCompany.company_registration_number && (
-                                <>
-                                  <Grid size={4}>
-                                    <Typography variant="caption" sx={{
-                                      color: "text.secondary"
-                                    }}>Reg. No:</Typography>
-                                  </Grid>
-                                  <Grid size={8}>
-                                    <Typography variant="body2">{selectedCompany.company_registration_number}</Typography>
-                                  </Grid>
-                                </>
-                              )}
-                              {selectedCompany.contact_person && (
-                                <>
-                                  <Grid size={4}>
-                                    <Typography variant="caption" sx={{
-                                      color: "text.secondary"
-                                    }}>Contact:</Typography>
-                                  </Grid>
-                                  <Grid size={8}>
-                                    <Typography variant="body2">{selectedCompany.contact_person}</Typography>
-                                  </Grid>
-                                </>
-                              )}
-                              {selectedCompany.contact_email && (
-                                <>
-                                  <Grid size={4}>
-                                    <Typography variant="caption" sx={{
-                                      color: "text.secondary"
-                                    }}>Email:</Typography>
-                                  </Grid>
-                                  <Grid size={8}>
-                                    <Typography variant="body2">{selectedCompany.contact_email}</Typography>
-                                  </Grid>
-                                </>
-                              )}
-                              {selectedCompany.contact_phone && (
-                                <>
-                                  <Grid size={4}>
-                                    <Typography variant="caption" sx={{
-                                      color: "text.secondary"
-                                    }}>Phone:</Typography>
-                                  </Grid>
-                                  <Grid size={8}>
-                                    <Typography variant="body2">{selectedCompany.contact_phone}</Typography>
-                                  </Grid>
-                                </>
-                              )}
-                            </Grid>
-                          </Paper>
-                        </Grid>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-
-              {paymentChoice === 'pay_later' && !isOnlineReservation && (
-                <Grid size={12}>
-                  <Alert severity="info">
-                    Payment will be collected later. Guest will check in with unpaid status.
-                  </Alert>
-                </Grid>
-              )}
-
-              {/* Deposit Section */}
-              <Grid sx={{ mt: 2 }} size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Deposit
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={12}>
-                <ToggleButtonGroup
-                  value={depositChoice}
-                  exclusive
-                  onChange={(_, val) => { if (val) setDepositChoice(val); }}
-                  fullWidth
-                  size="large"
-                  sx={{ mb: 1 }}
-                >
-                  <ToggleButton value="receive" color="success" sx={{ py: 1.5, fontWeight: 600 }}>
-                    <PaymentIcon sx={{ mr: 1 }} />
-                    Receive Deposit
-                  </ToggleButton>
-                  <ToggleButton value="waive" color="error" sx={{ py: 1.5, fontWeight: 600 }}>
-                    <MoneyOffIcon sx={{ mr: 1 }} />
-                    Waive Deposit
-                  </ToggleButton>
-                </ToggleButtonGroup>
-              </Grid>
-
-              {depositChoice === 'receive' && (
-                <>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <FormControl fullWidth>
-                      <InputLabel>Deposit Method</InputLabel>
-                      <Select
-                        value={depositMethod}
-                        onChange={(e) => setDepositMethod(e.target.value)}
-                        label="Deposit Method"
-                      >
-                        {paymentMethods.map(method => (
-                          <MenuItem key={method} value={method}>{method}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Deposit Amount"
-                      type="number"
-                      value={depositAmount}
-                      onChange={(e) => setDepositAmount(toMoneyNumber(e.target.value))}
-                      slotProps={{
-                        input: {
-                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                          inputProps: { min: 0, step: 0.01 },
-                        }
-                      }}
-                    />
-                  </Grid>
-                </>
-              )}
-
-              {depositChoice === 'waive' && (
-                <Grid size={12}>
-                  <TextField
-                    fullWidth
-                    label="Reason for Waiving Deposit"
-                    value={waiveReason}
-                    onChange={(e) => setWaiveReason(e.target.value)}
-                    multiline
-                    rows={2}
-                    placeholder="e.g., Returning guest, Company account, Manager approval..."
-                    helperText="Optional: provide a reason for waiving the deposit"
-                  />
-                </Grid>
-              )}
-
-              {/* Payment Summary */}
-              <Grid sx={{ mt: 1 }} size={12}>
-                <Paper sx={{ p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
-                  <Typography variant="subtitle2" gutterBottom>Payment Summary</Typography>
-                  <Grid container spacing={1}>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{
-                        color: "text.secondary"
-                      }}>Total Amount:</Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{
-                        fontWeight: 600
-                      }}>{formatCurrency(toMoneyNumber(booking.total_amount))}</Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{
-                        color: "text.secondary"
-                      }}>Payment Status:</Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Chip
-                        label={paymentChoice === 'pay_now' ? 'Paid' : isOnlineReservation ? 'Settled Online' : 'Unpaid'}
-                        size="small"
-                        color={paymentChoice === 'pay_now' || isOnlineReservation ? 'success' : 'warning'}
-                        sx={{ fontWeight: 600 }}
-                      />
-                    </Grid>
-                    {paymentChoice === 'pay_now' && (
-                      <>
-                        <Grid size={6}>
-                          <Typography variant="body2" sx={{
-                            color: "text.secondary"
-                          }}>Amount Paid:</Typography>
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: "success.main",
-                              fontWeight: 600
-                            }}>{formatCurrency(amountPaid)}</Typography>
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography variant="body2" sx={{
-                            color: "text.secondary"
-                          }}>Payment Method:</Typography>
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography variant="body2">{paymentType}</Typography>
-                        </Grid>
-                      </>
-                    )}
-                    <Grid size={12}><Divider sx={{ my: 0.5 }} /></Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{
-                        color: "text.secondary"
-                      }}>Deposit:</Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      {depositChoice === 'receive' ? (
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: "success.main",
-                            fontWeight: 600
-                          }}>
-                          {formatCurrency(depositAmount)} ({depositMethod})
-                        </Typography>
-                      ) : (
-                        <Chip label="Waived" size="small" color="error" variant="outlined" sx={{ fontWeight: 600 }} />
-                      )}
-                    </Grid>
-                    {depositChoice === 'waive' && waiveReason && (
-                      <>
-                        <Grid size={6}>
-                          <Typography variant="body2" sx={{
-                            color: "text.secondary"
-                          }}>Waive Reason:</Typography>
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: "text.secondary",
-                              fontStyle: "italic"
-                            }}>{waiveReason}</Typography>
-                        </Grid>
-                      </>
-                    )}
-                  </Grid>
-                </Paper>
-              </Grid>
-            </Grid>
+          <PaymentInfoTab
+            amountPaid={amountPaid}
+            booking={booking}
+            isOnlineReservation={isOnlineReservation}
+            onlinePlatformName={onlinePlatformName}
+            paymentMethods={paymentMethods}
+            cardExpiry={cardExpiry}
+            cardName={cardName}
+            cardNumber={cardNumber}
+            companyOptions={companyOptions}
+            currencySymbol={currencySymbol}
+            depositAmount={depositAmount}
+            depositChoice={depositChoice}
+            depositMethod={depositMethod}
+            error={error}
+            formatCurrency={formatCurrency}
+            guest={guest}
+            handleBlur={handleBlur}
+            handleBookingChange={handleBookingChange}
+            loading={loading}
+            loadingCompanies={loadingCompanies}
+            newCompanyData={newCompanyData}
+            paymentChoice={paymentChoice}
+            paymentType={paymentType}
+            selectedCompany={selectedCompany}
+            setAmountPaid={setAmountPaid}
+            setCardExpiry={setCardExpiry}
+            setCardName={setCardName}
+            setCardNumber={setCardNumber}
+            setDepositAmount={setDepositAmount}
+            setDepositChoice={setDepositChoice}
+            setDepositMethod={setDepositMethod}
+            setDirectBillCompany={setDirectBillCompany}
+            setNewCompanyData={setNewCompanyData}
+            setNewCompanyDialogOpen={setNewCompanyDialogOpen}
+            setPaymentChoice={setPaymentChoice}
+            setPaymentType={setPaymentType}
+            setSelectedCompany={setSelectedCompany}
+            setShowCardNumber={setShowCardNumber}
+            setValidationErrors={setValidationErrors}
+            setWaiveReason={setWaiveReason}
+            showCardNumber={showCardNumber}
+            touched={touched}
+            validateField={validateField}
+            validationErrors={validationErrors}
+            waiveReason={waiveReason}
+          />
           </TabPanel>
 
           {/* Tab 4: Custom Fields */}
           <TabPanel value={activeTab} index={3}>
-            <Grid container spacing={2}>
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Guest Vehicles
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Car Plate No."
-                  value={carPlateNo}
-                  onChange={(e) => setCarPlateNo(e.target.value)}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="ETA"
-                  value={eta}
-                  onChange={(e) => setEta(e.target.value)}
-                  placeholder="Estimated Time of Arrival"
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                  Travel Information
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Group Code"
-                  value={groupCode}
-                  onChange={(e) => setGroupCode(e.target.value)}
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <SearchIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Language</InputLabel>
-                  <Select
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                    label="Language"
-                  >
-                    <MenuItem value="Default Language (English)">Default Language (English)</MenuItem>
-                    <MenuItem value="Bahasa Malaysia">Bahasa Malaysia</MenuItem>
-                    <MenuItem value="Mandarin">Mandarin</MenuItem>
-                    <MenuItem value="Tamil">Tamil</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Travel Agent 1"
-                  value={travelAgent1}
-                  onChange={(e) => setTravelAgent1(e.target.value)}
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <SearchIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }
-                  }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Travel Agent 2"
-                  value={travelAgent2}
-                  onChange={(e) => setTravelAgent2(e.target.value)}
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <SearchIcon fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }
-                  }}
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  label="Drivers Info"
-                  value={driversInfo}
-                  onChange={(e) => setDriversInfo(e.target.value)}
-                  multiline
-                  rows={2}
-                />
-              </Grid>
-
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                  Special Charges
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Tourism Tax"
-                  value={booking.tourism_tax_amount || 0}
-                  disabled
-                  slotProps={{
-                    input: {
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                    }
-                  }}
-                />
-              </Grid>
-              {allowsExtraBed && maxExtraBeds > 0 ? (
-                <>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Extra Bed Count"
-                      type="number"
-                      value={extraBedCount}
-                      onChange={(e) => {
-                        const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxExtraBeds);
-                        setExtraBedCount(count);
-                        setExtraBedCharge(multiplyMoney(extraBedChargePerBed, count));
-                      }}
-                      helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
-                      slotProps={{
-                        htmlInput: { min: 0, max: maxExtraBeds }
-                      }}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Extra Bed Charge"
-                      type="number"
-                      value={extraBedCharge}
-                      onChange={(e) => setExtraBedCharge(toMoneyNumber(e.target.value))}
-                      helperText="Auto-calculated or manually adjust"
-                      slotProps={{
-                        input: {
-                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                        }
-                      }}
-                    />
-                  </Grid>
-                </>
-              ) : (
-                <>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Extra Bed Count"
-                      type="number"
-                      value={extraBedCount}
-                      disabled
-                      helperText="This room type does not allow extra beds"
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Extra Bed Charge"
-                      value={extraBedCharge}
-                      disabled
-                      slotProps={{
-                        input: {
-                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                        }
-                      }}
-                    />
-                  </Grid>
-                </>
-              )}
-            </Grid>
+          <CustomFieldsTab
+            allowsExtraBed={allowsExtraBed}
+            maxExtraBeds={maxExtraBeds}
+            extraBedChargePerBed={extraBedChargePerBed}
+            booking={booking}
+            carPlateNo={carPlateNo}
+            currencySymbol={currencySymbol}
+            driversInfo={driversInfo}
+            eta={eta}
+            extraBedCharge={extraBedCharge}
+            extraBedCount={extraBedCount}
+            formatCurrency={formatCurrency}
+            groupCode={groupCode}
+            language={language}
+            setCarPlateNo={setCarPlateNo}
+            setDriversInfo={setDriversInfo}
+            setEta={setEta}
+            setExtraBedCharge={setExtraBedCharge}
+            setExtraBedCount={setExtraBedCount}
+            setGroupCode={setGroupCode}
+            setLanguage={setLanguage}
+            setTravelAgent1={setTravelAgent1}
+            setTravelAgent2={setTravelAgent2}
+            travelAgent1={travelAgent1}
+            travelAgent2={travelAgent2}
+          />
           </TabPanel>
 
           {/* Tab 5: Notes */}
           <TabPanel value={activeTab} index={4}>
-            <Grid container spacing={2}>
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Special Requests
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  label="Special Requests"
-                  multiline
-                  rows={4}
-                  value={specialRequests}
-                  onChange={(e) => setSpecialRequests(e.target.value)}
-                  helperText="Add or edit special requests for this booking"
-                />
-              </Grid>
-              <Grid size={12}>
-                <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                  Check-in Information
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-              </Grid>
-              <Grid size={12}>
-                <Paper sx={{ p: 2, bgcolor: 'info.50', borderLeft: 4, borderColor: 'info.main' }}>
-                  <Typography variant="body2">
-                    <strong>Confirmation Number:</strong> {booking.folio_number || 'N/A'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Status:</strong> {booking.status.toUpperCase()}
-                  </Typography>
-                  {booking.pre_checkin_completed && (
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: "success.main",
-                        mt: 1
-                      }}>
-                      ✓ Pre-check-in completed
-                    </Typography>
-                  )}
-                </Paper>
-              </Grid>
-            </Grid>
+          <NotesTab
+            booking={booking}
+            setSpecialRequests={setSpecialRequests}
+            specialRequests={specialRequests}
+          />
           </TabPanel>
         </DialogContent>
 

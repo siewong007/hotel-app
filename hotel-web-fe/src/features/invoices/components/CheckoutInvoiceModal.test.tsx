@@ -72,6 +72,7 @@ vi.mock('./CheckoutInvoicePrintView', () => ({ default: () => null }));
 
 import CheckoutInvoiceModal from './CheckoutInvoiceModal';
 import { ConfirmProvider } from '../../../components/common/ConfirmProvider';
+import { expectNoCriticalAxeViolations } from '../../../test/axe';
 
 const booking: BookingWithDetails = {
   id: '42',
@@ -135,6 +136,12 @@ async function paymentDialog() {
 }
 
 describe('CheckoutInvoiceModal payment idempotency', () => {
+  it('reports no critical axe violations', async () => {
+    renderModal();
+    await screen.findByRole('dialog');
+    await expectNoCriticalAxeViolations(document.body);
+  });
+
   beforeEach(() => {
     mocks.recordPayment.mockReset();
     mocks.createLedgerPayment.mockReset();

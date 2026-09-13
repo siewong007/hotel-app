@@ -31,6 +31,7 @@ vi.mock('./MaintenanceTab', () => ({
 }));
 
 import HousekeepingPage from './HousekeepingPage';
+import { expectNoCriticalAxeViolations } from '../../../test/axe';
 
 const room = (
   overrides: Partial<HousekeepingBoardResponse['rooms'][number]> & { id: number; room_number: string },
@@ -61,6 +62,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('HousekeepingPage board', () => {
+  it('reports no critical axe violations', async () => {
+    const { container } = renderBoard([
+      room({ id: 1, room_number: '101' }),
+      room({ id: 2, room_number: '102', status: 'clean' }),
+    ]);
+    await expectNoCriticalAxeViolations(container);
+  });
+
   it('groups rooms under their status headings and shows open tasks', () => {
     renderBoard([
       room({ id: 1, room_number: '201', status: 'dirty', open_task: { id: 900, room_id: 1, task_type: 'cleaning', status: 'pending', priority: 'normal', created_at: '', updated_at: '' } as never }),

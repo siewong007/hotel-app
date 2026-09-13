@@ -64,6 +64,7 @@ vi.mock('../utils/bookingChannel', () => ({
 }));
 
 import EnhancedCheckInModal from './EnhancedCheckInModal';
+import { expectNoCriticalAxeViolations } from '../../../test/axe';
 
 const booking: Booking = {
   id: '42',
@@ -97,6 +98,21 @@ const guest: Guest = {
 } as Guest;
 
 describe('EnhancedCheckInModal payment idempotency', () => {
+  it('reports no critical axe violations', async () => {
+    render(
+      <EnhancedCheckInModal
+        open
+        booking={booking}
+        guest={guest}
+        onClose={mocks.onClose}
+        onCheckInSuccess={mocks.onCheckInSuccess}
+      />,
+    );
+    await screen.findByRole('dialog');
+    // The dialog is portaled to document.body — audit the whole document.
+    await expectNoCriticalAxeViolations(document.body);
+  });
+
   beforeEach(() => {
     mocks.checkInGuest.mockReset().mockResolvedValue(undefined);
     mocks.recordPayment.mockReset();
