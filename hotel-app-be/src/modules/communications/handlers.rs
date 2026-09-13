@@ -42,6 +42,7 @@ pub struct PageQuery {
 #[derive(Debug, Deserialize)]
 pub struct AudienceQuery {
     pub topic: String,
+    pub segment_id: Option<i64>,
 }
 
 // ----------------------------------------------------------------------
@@ -279,7 +280,9 @@ pub async fn audience_count_handler(
     Query(query): Query<AudienceQuery>,
 ) -> Result<Json<AudienceCount>, ApiError> {
     require_permission_helper(&pool, &headers, "communications:read").await?;
-    Ok(Json(service::audience_count(&pool, &query.topic).await?))
+    Ok(Json(
+        service::audience_count(&pool, &query.topic, query.segment_id).await?,
+    ))
 }
 
 pub async fn list_suppressions_handler(

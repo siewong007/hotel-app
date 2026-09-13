@@ -244,10 +244,15 @@ async fn campaign_body_for_guest(
 }
 
 async fn expand_campaign(pool: &DbPool, campaign: &EmailCampaign) -> Result<usize, ApiError> {
+    // Resolve the segment once per expansion — the live rules apply at send
+    // time; a deleted/inactive segment fails closed to zero recipients.
+    let scope =
+        crate::modules::segments::service::audience_scope_for(pool, campaign.segment_id).await?;
     let mut total = 0;
     loop {
         let batch =
-            Repo::audience_batch(pool, &campaign.topic, campaign.id, EXPANSION_BATCH).await?;
+            Repo::audience_batch(pool, &campaign.topic, campaign.id, &scope, EXPANSION_BATCH)
+                .await?;
         if batch.is_empty() {
             break;
         }

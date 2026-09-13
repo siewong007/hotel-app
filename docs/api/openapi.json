@@ -144,6 +144,24 @@
     "/api/admin/promotions/{id}/publish": {
       "POST": {}
     },
+    "/api/admin/segments": {
+      "GET": {},
+      "POST": {}
+    },
+    "/api/admin/segments/field-options": {
+      "GET": {}
+    },
+    "/api/admin/segments/preview": {
+      "POST": {}
+    },
+    "/api/admin/segments/{id}": {
+      "DELETE": {},
+      "GET": {},
+      "PUT": {}
+    },
+    "/api/admin/segments/{id}/preview": {
+      "GET": {}
+    },
     "/api/admin/vouchers": {
       "GET": {},
       "POST": {}

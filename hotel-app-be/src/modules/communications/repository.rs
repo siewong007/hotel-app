@@ -10,6 +10,8 @@ use super::models::{
 };
 use super::validation::{CampaignDraft, SuppressionDraft, TemplateDraft};
 use crate::core::db::{DbPool, DbRow, DbTransaction};
+use crate::modules::segments::models::SegmentScope;
+use crate::modules::segments::rules as segment_rules;
 use crate::core::error::ApiError;
 use crate::models::row_mappers::get_bool;
 
@@ -24,7 +26,7 @@ const CONSENT_COLUMNS: &str = r#"
 
 const CAMPAIGN_COLUMNS: &str = r#"
     id, name, campaign_type, topic, status, subject, body_html, body_text,
-    template_id, promotion_id, scheduled_at, started_at, completed_at,
+    template_id, promotion_id, segment_id, scheduled_at, started_at, completed_at,
     cancelled_at, total_recipients, sent_count, failed_count, error,
     created_by, cancelled_by, created_at, updated_at
 "#;
@@ -94,6 +96,7 @@ fn campaign_from_row(row: &DbRow) -> EmailCampaign {
         body_text: row.try_get("body_text").ok().flatten(),
         template_id: row.try_get("template_id").ok().flatten(),
         promotion_id: row.try_get("promotion_id").ok().flatten(),
+        segment_id: row.try_get("segment_id").ok().flatten(),
         scheduled_at: opt_timestamp(row, "scheduled_at"),
         started_at: opt_timestamp(row, "started_at"),
         completed_at: opt_timestamp(row, "completed_at"),
@@ -529,8 +532,8 @@ impl CommunicationsRepository {
             r#"
                 INSERT INTO email_campaigns
                     (name, campaign_type, topic, status, subject, body_html,
-                     body_text, template_id, promotion_id, created_by)
-                VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9)
+                     body_text, template_id, promotion_id, segment_id, created_by)
+                VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9, $10)
                 RETURNING id
             "#,
         )
@@ -542,6 +545,7 @@ impl CommunicationsRepository {
         .bind(&draft.body_text)
         .bind(draft.template_id)
         .bind(draft.promotion_id)
+        .bind(draft.segment_id)
         .bind(created_by)
         .fetch_one(&mut **tx)
         .await
@@ -608,8 +612,8 @@ impl CommunicationsRepository {
                 UPDATE email_campaigns SET
                     name = $1, campaign_type = $2, topic = $3, subject = $4,
                     body_html = $5, body_text = $6, template_id = $7,
-                    promotion_id = $8, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $9 AND status = 'draft'
+                    promotion_id = $8, segment_id = $9, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $10 AND status = 'draft'
             "#,
         )
         .bind(&draft.name)
@@ -620,6 +624,7 @@ impl CommunicationsRepository {
         .bind(&draft.body_text)
         .bind(draft.template_id)
         .bind(draft.promotion_id)
+        .bind(draft.segment_id)
         .bind(id)
         .execute(&mut **tx)
         .await
@@ -910,14 +915,28 @@ impl CommunicationsRepository {
     }
 
     /// Next batch of eligible recipients for a campaign that have no delivery
-    /// row yet. Eligibility mirrors `count_audience_for_topic`.
+    /// row yet. Eligibility mirrors `count_audience`. `scope` intersects the
+    /// campaign's segment rules: `Empty` fails closed, matching nobody.
+    ///
+    /// Segment rule params occupy `$4..` (topic, campaign_id, limit are
+    /// `$1..$3`); sqlx binds positionally, so the clause binds are applied
+    /// after the three fixed ones.
     pub async fn audience_batch(
         pool: &DbPool,
         topic: &str,
         campaign_id: i64,
+        scope: &SegmentScope,
         limit: i64,
     ) -> Result<Vec<AudienceGuest>, ApiError> {
-        let rows = query(
+        let (segment_sql, clause) = match scope {
+            SegmentScope::Unrestricted => (String::new(), None),
+            SegmentScope::Empty => (" AND false".to_string(), None),
+            SegmentScope::Rules(rules) => {
+                let clause = segment_rules::compile_rules(rules, 4)?;
+                (format!(" AND {}", clause.sql), Some(clause))
+            }
+        };
+        let sql = format!(
             r#"
                 SELECT g.id, g.email, g.first_name, g.nick_name FROM guests g
                 WHERE g.is_active IS TRUE
@@ -928,17 +947,20 @@ impl CommunicationsRepository {
                   AND NOT EXISTS (SELECT 1 FROM email_suppressions es
                                   WHERE es.email = LOWER(g.email))
                   AND NOT EXISTS (SELECT 1 FROM email_deliveries d
-                                  WHERE d.campaign_id = $2 AND d.guest_id = g.id)
+                                  WHERE d.campaign_id = $2 AND d.guest_id = g.id){segment_sql}
                 ORDER BY g.id
                 LIMIT $3
-            "#,
-        )
-        .bind(topic)
-        .bind(campaign_id)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
-        .map_err(ApiError::from)?;
+            "#
+        );
+        let q = query(sqlx::AssertSqlSafe(&*sql))
+            .bind(topic)
+            .bind(campaign_id)
+            .bind(limit);
+        let q = match &clause {
+            Some(clause) => segment_rules::apply_binds(q, &clause.binds),
+            None => q,
+        };
+        let rows = q.fetch_all(pool).await.map_err(ApiError::from)?;
         Ok(rows.iter().map(audience_guest_from_row).collect())
     }
 
@@ -1264,12 +1286,31 @@ impl CommunicationsRepository {
     // Audience
     // ------------------------------------------------------------------
 
-    /// Server-side audience counts for a topic. Never returns recipients.
-    pub async fn count_audience_for_topic(
+    /// Server-side audience counts for a topic, intersected with the
+    /// campaign's segment scope. Never returns recipients. Segment rule params
+    /// occupy `$2..` after `topic` ($1); `excluded_segment` counts
+    /// otherwise-eligible guests the segment rules reject (`Empty` scope makes
+    /// eligible 0 and excluded_segment the full otherwise-eligible count).
+    pub async fn count_audience(
         pool: &DbPool,
         topic: &str,
+        scope: &SegmentScope,
     ) -> Result<AudienceCount, ApiError> {
-        let row = query(r#"
+        // `eligible_sql`/`outside_sql` are injected into the two subselects.
+        let (eligible_sql, outside_sql, clause) = match scope {
+            SegmentScope::Unrestricted => (String::new(), " AND false".to_string(), None),
+            SegmentScope::Empty => (" AND false".to_string(), String::new(), None),
+            SegmentScope::Rules(rules) => {
+                let clause = segment_rules::compile_rules(rules, 2)?;
+                (
+                    format!(" AND {}", clause.sql),
+                    format!(" AND NOT {}", clause.sql),
+                    Some(clause),
+                )
+            }
+        };
+        let sql = format!(
+            r#"
                 SELECT
                     (SELECT COUNT(*) FROM guests g
                      WHERE g.is_active IS TRUE
@@ -1278,7 +1319,7 @@ impl CommunicationsRepository {
                                    WHERE ns.guest_id = g.id AND ns.channel = 'email'
                                      AND ns.topic = $1 AND ns.subscribed IS TRUE)
                        AND NOT EXISTS (SELECT 1 FROM email_suppressions es
-                                       WHERE es.email = LOWER(g.email))) AS eligible,
+                                       WHERE es.email = LOWER(g.email)){eligible_sql}) AS eligible,
                     (SELECT COUNT(*) FROM guests g
                      WHERE g.is_active IS TRUE
                        AND (g.email IS NULL OR length(trim(g.email)) = 0)) AS excluded_no_email,
@@ -1297,18 +1338,32 @@ impl CommunicationsRepository {
                                    WHERE ns.guest_id = g.id AND ns.channel = 'email'
                                      AND ns.topic = $1 AND ns.subscribed IS TRUE)
                        AND EXISTS (SELECT 1 FROM email_suppressions es
-                                   WHERE es.email = LOWER(g.email))) AS excluded_suppressed
-            "#)
-        .bind(topic)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)?;
+                                   WHERE es.email = LOWER(g.email))) AS excluded_suppressed,
+                    (SELECT COUNT(*) FROM guests g
+                     WHERE g.is_active IS TRUE
+                       AND g.email IS NOT NULL AND length(trim(g.email)) > 0
+                       AND EXISTS (SELECT 1 FROM notification_subscriptions ns
+                                   WHERE ns.guest_id = g.id AND ns.channel = 'email'
+                                     AND ns.topic = $1 AND ns.subscribed IS TRUE)
+                       AND NOT EXISTS (SELECT 1 FROM email_suppressions es
+                                       WHERE es.email = LOWER(g.email)){outside_sql}) AS excluded_segment
+            "#
+        );
+        let q = query(sqlx::AssertSqlSafe(&*sql)).bind(topic);
+        let q = match &clause {
+            // Both subselects reuse the same $2.. params — the clause binds
+            // are bound once.
+            Some(clause) => segment_rules::apply_binds(q, &clause.binds),
+            None => q,
+        };
+        let row = q.fetch_one(pool).await.map_err(ApiError::from)?;
         Ok(AudienceCount {
             eligible: row.try_get("eligible").unwrap_or_default(),
             excluded_no_email: row.try_get("excluded_no_email").unwrap_or_default(),
             excluded_inactive: row.try_get("excluded_inactive").unwrap_or_default(),
             excluded_unsubscribed: row.try_get("excluded_unsubscribed").unwrap_or_default(),
             excluded_suppressed: row.try_get("excluded_suppressed").unwrap_or_default(),
+            excluded_segment: row.try_get("excluded_segment").unwrap_or_default(),
         })
     }
 }

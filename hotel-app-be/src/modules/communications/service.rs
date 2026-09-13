@@ -28,6 +28,7 @@ use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
+use crate::modules::segments::service as segments_service;
 use crate::services::audit::AuditLog;
 
 const CHANNEL_EMAIL: &str = "email";
@@ -93,6 +94,9 @@ pub async fn create_campaign(
     {
         return Err(ApiError::BadRequest("Unknown promotion".to_string()));
     }
+    if let Some(segment_id) = draft.segment_id {
+        segments_service::require_active_segment(pool, segment_id).await?;
+    }
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let id = Repo::insert_campaign_tx(&mut tx, &draft, actor_id).await?;
     AuditLog::log_event_tx(
@@ -106,6 +110,7 @@ pub async fn create_campaign(
                 "campaign_type": draft.campaign_type,
                 "topic": draft.topic,
                 "promotion_id": draft.promotion_id,
+                "segment_id": draft.segment_id,
             })),
             ip_address,
             user_agent,
@@ -125,6 +130,9 @@ pub async fn update_campaign(
     user_agent: Option<String>,
 ) -> Result<EmailCampaign, ApiError> {
     let draft = validation::validate_campaign_input(input)?;
+    if let Some(segment_id) = draft.segment_id {
+        segments_service::require_active_segment(pool, segment_id).await?;
+    }
     let existing = require_campaign(pool, id).await?;
     if existing.status != "draft" {
         return Err(ApiError::Conflict(
@@ -194,7 +202,8 @@ pub async fn preview_campaign(pool: &DbPool, id: i64) -> Result<PreviewResponse,
     let body_html = crate::utils::sanitization::Sanitizer::sanitize_html(
         &render_campaign_body(pool, &campaign).await?,
     );
-    let audience = Repo::count_audience_for_topic(pool, &campaign.topic).await?;
+    let scope = segments_service::audience_scope_for(pool, campaign.segment_id).await?;
+    let audience = Repo::count_audience(pool, &campaign.topic, &scope).await?;
     Ok(PreviewResponse {
         subject: campaign.subject,
         body_html,
@@ -566,9 +575,14 @@ pub async fn deactivate_template(
 // Audience + suppressions
 // ----------------------------------------------------------------------
 
-pub async fn audience_count(pool: &DbPool, topic: &str) -> Result<AudienceCount, ApiError> {
+pub async fn audience_count(
+    pool: &DbPool,
+    topic: &str,
+    segment_id: Option<i64>,
+) -> Result<AudienceCount, ApiError> {
     let topic = validation::validate_topic(topic)?;
-    Repo::count_audience_for_topic(pool, &topic).await
+    let scope = segments_service::audience_scope_for(pool, segment_id).await?;
+    Repo::count_audience(pool, &topic, &scope).await
 }
 
 pub async fn list_suppressions(

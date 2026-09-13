@@ -402,6 +402,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(crate::modules::promotions::routes::routes())
         .merge(crate::modules::communications::routes::routes())
         .merge(crate::modules::revenue::routes::routes())
+        .merge(crate::modules::segments::routes::routes())
         .merge(rbac::routes())
         .merge(users::routes())
         .merge(profile::routes())
