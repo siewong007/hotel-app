@@ -66,6 +66,40 @@ pub struct Guest {
     pub complimentary_nights_credit: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // CRM profile fields (guest relations). All stay `#[sqlx(default)]` so the
+    // narrower `find_paginated` list SELECT keeps compiling without selecting
+    // them — they are populated by the single-fetch and profile paths only.
+    // `None` therefore means "not loaded" as well as "not set".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub vip_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub tags: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub job_title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub notes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub special_requests: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub marketing_opt_in: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub communication_preference: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub language_preference: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub is_blacklisted: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub blacklist_reason: Option<String>,
     /// Read-only username of the guest-portal account linked through
     /// `users.guest_id`. Guest profile updates cannot modify this account field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -165,6 +199,21 @@ pub struct GuestDuplicateCandidate {
     pub recommended_action: String,
 }
 
+/// Government-issued identifier details, returned only to callers holding
+/// `guests:reveal`. Deliberately kept OFF `Guest` so no shared SELECT or
+/// payload can leak them; populated by `services::guests::guest_profile` only.
+/// Never logged — keep these fields out of audit details.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct GuestSensitiveProfile {
+    pub date_of_birth: Option<NaiveDate>,
+    /// `guests.id_type` is the `identificationtype` enum; selected as
+    /// `id_type::TEXT` so it decodes to the stored label string.
+    pub id_type: Option<String>,
+    pub id_number: Option<String>,
+    pub id_expiry: Option<NaiveDate>,
+    pub id_country: Option<String>,
+}
+
 /// Guest 360 profile response assembled from source-of-truth records.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GuestProfile {
@@ -173,6 +222,11 @@ pub struct GuestProfile {
     pub ekyc_summary: GuestEkycStatusSummary,
     pub reservations: Vec<GuestProfileBooking>,
     pub duplicate_candidates: Vec<GuestDuplicateCandidate>,
+    /// Present only when the caller holds `guests:reveal`; omitted (not
+    /// `null`) otherwise so consumers can distinguish "no access" from
+    /// "no data".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sensitive: Option<GuestSensitiveProfile>,
 }
 
 /// Input for creating a guest
@@ -219,6 +273,30 @@ pub struct GuestUpdateInput {
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: Option<i32>,
     pub company_name: Option<String>,
+    // CRM profile fields (guest relations). Other consumers share this input
+    // type — check-in `apply_guest_update_tx` and portal
+    // `update_guest_precheckin` — but both write a fixed field whitelist, so
+    // these are accepted there yet deliberately IGNORED, same as `is_active`.
+    pub vip_status: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub job_title: Option<String>,
+    pub notes: Option<String>,
+    pub special_requests: Option<String>,
+    pub marketing_opt_in: Option<bool>,
+    pub communication_preference: Option<String>,
+    pub language_preference: Option<String>,
+    pub is_blacklisted: Option<bool>,
+    pub blacklist_reason: Option<String>,
+    // Sensitive identifier fields: `Some(_)` on the staff update path
+    // additionally requires `guests:reveal`
+    // (services::guests::update_guest enforces; Forbidden otherwise).
+    pub date_of_birth: Option<NaiveDate>,
+    /// `guests.id_type` is the `identificationtype` enum
+    /// (passport/drivers_license/national_id/other); validated in the service.
+    pub id_type: Option<String>,
+    pub id_number: Option<String>,
+    pub id_expiry: Option<NaiveDate>,
+    pub id_country: Option<String>,
 }
 
 /// Existing values needed to resolve partial guest updates.
@@ -241,6 +319,21 @@ pub struct GuestUpdateState {
     pub guest_type: GuestType,
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: i32,
+    pub vip_status: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub job_title: Option<String>,
+    pub notes: Option<String>,
+    pub special_requests: Option<String>,
+    pub marketing_opt_in: Option<bool>,
+    pub communication_preference: Option<String>,
+    pub language_preference: Option<String>,
+    pub is_blacklisted: Option<bool>,
+    pub blacklist_reason: Option<String>,
+    pub date_of_birth: Option<NaiveDate>,
+    pub id_type: Option<String>,
+    pub id_number: Option<String>,
+    pub id_expiry: Option<NaiveDate>,
+    pub id_country: Option<String>,
 }
 
 /// Fully resolved guest update values.
@@ -264,6 +357,23 @@ pub struct GuestUpdateValues {
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: i32,
     pub company_name: Option<String>,
+    pub vip_status: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub job_title: Option<String>,
+    pub notes: Option<String>,
+    pub special_requests: Option<String>,
+    pub marketing_opt_in: Option<bool>,
+    pub communication_preference: Option<String>,
+    pub language_preference: Option<String>,
+    pub is_blacklisted: Option<bool>,
+    pub blacklist_reason: Option<String>,
+    pub date_of_birth: Option<NaiveDate>,
+    /// Stored label of the `identificationtype` enum; bound with an explicit
+    /// `::identificationtype` cast at the repository.
+    pub id_type: Option<String>,
+    pub id_number: Option<String>,
+    pub id_expiry: Option<NaiveDate>,
+    pub id_country: Option<String>,
 }
 
 /// Fully resolved guest creation values.

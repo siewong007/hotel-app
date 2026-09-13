@@ -28,9 +28,10 @@ pub async fn get_guest_handler(
 
 pub async fn get_guest_profile_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<GuestProfile>, ApiError> {
-    Ok(Json(svc::guest_profile(&pool, guest_id).await?))
+    Ok(Json(svc::guest_profile(&pool, user_id, guest_id).await?))
 }
 
 pub async fn create_guest_handler(
@@ -43,10 +44,11 @@ pub async fn create_guest_handler(
 
 pub async fn update_guest_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Path(guest_id): Path<i64>,
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
-    Ok(Json(svc::update_guest(&pool, guest_id, input).await?))
+    Ok(Json(svc::update_guest(&pool, user_id, guest_id, input).await?))
 }
 
 pub async fn apply_tourism_type_from_last_check_in_handler(

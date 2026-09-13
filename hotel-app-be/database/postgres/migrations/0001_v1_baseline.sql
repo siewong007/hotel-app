@@ -2751,7 +2751,14 @@ CREATE TABLE public.guest_notes (
     is_private boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     created_by bigint,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    subject character varying(255),
+    interaction_type character varying(50) DEFAULT 'note'::character varying NOT NULL,
+    booking_id bigint,
+    follow_up_at timestamp with time zone,
+    follow_up_completed_at timestamp with time zone,
+    assigned_to bigint,
+    CONSTRAINT guest_notes_interaction_type_check CHECK (interaction_type IN ('note','call','email','in_person','follow_up'))
 );
 
 
@@ -4830,7 +4837,7 @@ CREATE TABLE public.support_conversations (
     last_activity_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT support_conversations_category_check CHECK (((category)::text = ANY ((ARRAY['booking'::character varying, 'stay'::character varying, 'billing'::character varying, 'loyalty'::character varying, 'technical'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT support_conversations_category_check CHECK (category IN ('booking','stay','billing','loyalty','technical','other','service_request','complaint')),
     CONSTRAINT support_conversations_escalation_level_check CHECK (((escalation_level >= 0) AND (escalation_level <= 3))),
     CONSTRAINT support_conversations_priority_check CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[]))),
     CONSTRAINT support_conversations_reopen_count_check CHECK ((reopen_count >= 0)),
@@ -7162,6 +7169,20 @@ CREATE INDEX idx_guest_notes_alert ON public.guest_notes USING btree (guest_id, 
 
 
 --
+-- Name: idx_guest_notes_follow_up_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_follow_up_open ON public.guest_notes USING btree (follow_up_at) WHERE ((follow_up_at IS NOT NULL) AND (follow_up_completed_at IS NULL));
+
+
+--
+-- Name: idx_guest_notes_guest_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_guest_created ON public.guest_notes USING btree (guest_id, created_at DESC);
+
+
+--
 -- Name: idx_guest_notes_guest_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8146,6 +8167,13 @@ CREATE UNIQUE INDEX uq_bookings_guest_portal_request ON public.bookings USING bt
 --
 
 CREATE UNIQUE INDEX uq_customer_ledgers_booking_room_charge ON public.customer_ledgers USING btree (booking_id) WHERE (((post_type)::text = 'room_charge'::text) AND (COALESCE(is_reversal, false) = false) AND (booking_id IS NOT NULL));
+
+
+--
+-- Name: uq_guest_preferences_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_guest_preferences_key ON public.guest_preferences USING btree (guest_id, category, preference_key);
 
 
 --
