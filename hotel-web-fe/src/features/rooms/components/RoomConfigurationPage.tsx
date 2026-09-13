@@ -44,6 +44,7 @@ import {
   RemoveCircleOutlined as MinusIcon,
   AddCircleOutlined as PlusIcon,
   SmokingRooms as SmokingIcon,
+  AddPhotoAlternate as AddPhotoIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { errorMessage } from '../../../utils';
@@ -51,6 +52,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { compareMoney, toMoneyNumber } from '../../../utils/money';
+import { apiUrl } from '../../../desktop/runtimeApi';
 import {
   useAllRoomTypes,
   useCreateRoom,
@@ -60,6 +62,7 @@ import {
   useRooms,
   useUpdateRoom,
   useUpdateRoomType,
+  useUploadRoomTypeImage,
 } from '../hooks/useRoomQueries';
 
 /* ---------- Design tokens (Room Configuration) — aliases onto --hotel-* ---------- */
@@ -180,6 +183,7 @@ const RoomConfigurationPage: React.FC = () => {
   const createRoomTypeMutation = useCreateRoomType();
   const updateRoomTypeMutation = useUpdateRoomType();
   const deleteRoomTypeMutation = useDeleteRoomType();
+  const uploadRoomTypeImageMutation = useUploadRoomTypeImage();
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | RoomStatus>('all');
@@ -199,6 +203,7 @@ const RoomConfigurationPage: React.FC = () => {
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
 
   const [formLoading, setFormLoading] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   const loadData = async () => {
     try {
@@ -411,6 +416,42 @@ const RoomConfigurationPage: React.FC = () => {
       await loadData();
     } catch (err) {
       emitApiNotification({ message: errorMessage(err, 'Failed to duplicate'), severity: 'error' });
+    }
+  };
+
+  const handleUploadTypePhoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !editingType) return;
+    try {
+      setPhotoBusy(true);
+      const updated = await uploadRoomTypeImageMutation.mutateAsync({ roomTypeId: editingType.id, file });
+      setEditingType(updated);
+      emitApiNotification({ message: 'Photo added', severity: 'success' });
+      await loadData();
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to upload photo'), severity: 'error' });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemoveTypePhoto = async (url: string) => {
+    if (!editingType) return;
+    const remaining = (editingType.images ?? []).filter((image) => image !== url);
+    try {
+      setPhotoBusy(true);
+      const updated = await updateRoomTypeMutation.mutateAsync({
+        roomTypeId: editingType.id,
+        data: { images: remaining },
+      });
+      setEditingType(updated);
+      emitApiNotification({ message: 'Photo removed', severity: 'success' });
+      await loadData();
+    } catch (err) {
+      emitApiNotification({ message: errorMessage(err, 'Failed to remove photo'), severity: 'error' });
+    } finally {
+      setPhotoBusy(false);
     }
   };
 
@@ -1327,6 +1368,97 @@ const RoomConfigurationPage: React.FC = () => {
             helperText="Lower numbers appear first"
             sx={{ mt: 1.5 }}
           />
+
+          <SectionHeader>Photos</SectionHeader>
+          {editingType ? (
+            <>
+              {(editingType.images ?? []).length > 0 && (
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
+                  {(editingType.images ?? []).map((url, index) => (
+                    <Box
+                      key={url}
+                      sx={{
+                        position: 'relative',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: `1px solid ${C.border}`,
+                        aspectRatio: '4/3',
+                        bgcolor: C.surface3,
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={apiUrl(url)}
+                        alt={`${typeForm.name || 'Room type'} photo ${index + 1}`}
+                        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                      {index === 0 && (
+                        <Box
+                          component="span"
+                          sx={{
+                            position: 'absolute',
+                            top: 6,
+                            left: 6,
+                            fontSize: 9.5,
+                            fontWeight: 700,
+                            letterSpacing: '0.4px',
+                            bgcolor: 'rgba(0,0,0,0.65)',
+                            color: '#fff',
+                            px: 0.75,
+                            py: 0.25,
+                            borderRadius: '5px',
+                          }}
+                        >
+                          COVER
+                        </Box>
+                      )}
+                      <IconButton
+                        size="small"
+                        aria-label={`Remove photo ${index + 1}`}
+                        disabled={photoBusy}
+                        onClick={() => handleRemoveTypePhoto(url)}
+                        sx={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
+                          width: 22,
+                          height: 22,
+                          bgcolor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          '&:hover': { bgcolor: 'rgba(0,0,0,0.85)' },
+                        }}
+                      >
+                        <CloseIcon sx={{ fontSize: 13 }} />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+              <Button
+                component="label"
+                variant="outlined"
+                size="small"
+                disabled={photoBusy}
+                startIcon={photoBusy ? <CircularProgress size={14} /> : <AddPhotoIcon />}
+                sx={{ mt: 1.25, textTransform: 'none', borderColor: C.borderHi, color: C.ink2 }}
+              >
+                {photoBusy ? 'Uploading…' : 'Upload photo'}
+                <input
+                  type="file"
+                  hidden
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleUploadTypePhoto}
+                />
+              </Button>
+              <Typography sx={{ fontSize: 11, color: C.ink3, mt: 0.75 }}>
+                The first photo is the cover shown on the landing page and guest booking portal. JPEG, PNG or WebP, up to 10 MB.
+              </Typography>
+            </>
+          ) : (
+            <Alert severity="info" sx={{ fontSize: 12 }}>
+              Save the room type first, then add photos here. Photos appear on the landing page gallery and the guest booking portal.
+            </Alert>
+          )}
         </Box>
 
         <Box sx={{ p: '14px 22px', borderTop: `1px solid ${C.border}`, bgcolor: C.surface2, display: 'flex', alignItems: 'center', gap: 1.25 }}>

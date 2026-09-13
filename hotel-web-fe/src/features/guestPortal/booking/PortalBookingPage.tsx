@@ -28,6 +28,7 @@ import type { AnonymousGuestDetails, AvailabilityEvent, GuestBookingConfirmation
 import type { PaymentActionResponse } from '../../../types';
 import { calendarDateInput, countStayNights, shouldInterruptSelectedOffer, stayOverlapsAvailabilityEvent, validateGuestBookingSearch } from './utils';
 import { useAvailabilitySocket } from './useAvailabilitySocket';
+import { apiUrl } from '../../../desktop/runtimeApi';
 
 const EMPTY_GUEST_DETAILS: AnonymousGuestDetails = {
   first_name: '', email: '', phone: '', tourism_type: '',
@@ -102,7 +103,10 @@ function readGuestNameTaken(error: unknown): boolean {
 }
 
 function offerImage(offer: GuestBookingOffer): string | null {
-  return offer.images?.find((image) => typeof image === 'string' && image.trim().length > 0) ?? null;
+  const raw = offer.images?.find((image) => typeof image === 'string' && image.trim().length > 0) ?? null;
+  // Uploaded photos are stored as relative /uploads/... paths; in the desktop
+  // webview they must resolve against the sidecar backend, not the page origin.
+  return raw ? apiUrl(raw) : null;
 }
 
 const PortalBookingPage: React.FC = () => {
