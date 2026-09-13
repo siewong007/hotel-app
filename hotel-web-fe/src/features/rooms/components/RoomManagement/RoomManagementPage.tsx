@@ -608,7 +608,7 @@ const RoomManagementPage: React.FC = () => {
         id: 'complimentary-info',
         label: 'Free gift booking',
         icon: <GiftIcon />,
-        color: '#7b1fa2',
+        color: 'var(--hotel-chart-4)',
         secondary: 'No cancellation',
         onClick: () => {
           showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'warning');
@@ -616,7 +616,7 @@ const RoomManagementPage: React.FC = () => {
       });
     }
     if (isReserved && reservedBooking && !reservedBooking.is_complimentary) {
-      bookingActions.push({ id: 'mark-complimentary', label: 'Mark as complimentary', icon: <GiftIcon />, color: '#7b1fa2', onClick: handleMarkComplimentary });
+      bookingActions.push({ id: 'mark-complimentary', label: 'Mark as complimentary', icon: <GiftIcon />, color: 'var(--hotel-chart-4)', onClick: handleMarkComplimentary });
     }
     if (bookingActions.length > 0) {
       layout.sections.push({ title: 'Booking', actions: bookingActions });

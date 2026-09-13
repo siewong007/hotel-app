@@ -1,25 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 
-// Palette mirrors the CSS custom properties in reports.css so SVG fills can use
-// the same `var(--x)` tokens the design data is authored with.
-const PALETTE: Record<string, string> = {
-  bg: '#F4F6F8', surface: '#FFFFFF', 'surface-2': '#F8FAFB', 'surface-3': '#EFF2F5',
-  border: '#E2E6EC', 'border-hi': '#CBD2DA',
-  ink: '#0F172A', 'ink-2': '#475569', 'ink-3': '#7B8794', 'ink-4': '#B0B8C2',
-  emerald: '#10A47C', 'emerald-deep': '#0E8C6A', 'emerald-soft': '#E7F5EF',
-  blue: '#2F7DE1', 'blue-soft': '#E8F1FB',
-  indigo: '#7A6BE2', 'indigo-soft': '#ECEAFB',
-  amber: '#C8941D', 'amber-soft': '#FBF1DC',
-  rose: '#D14256', 'rose-soft': '#FCE8EC',
-  good: '#0E7A48', bad: '#B53047',
+// The reports subsystem's short var names (`--emerald`, `--ink`…) alias onto
+// the global --hotel-* design tokens in reports.css. SVG fills pass the alias
+// straight through as a `var()` reference so charts follow the active theme.
+const TOKEN_ALIAS: Record<string, string> = {
+  bg: '--hotel-bg', surface: '--hotel-surface', 'surface-2': '--hotel-surface-raised',
+  'surface-3': '--hotel-surface-sunken', border: '--hotel-border', 'border-hi': '--hotel-border-strong',
+  ink: '--hotel-text', 'ink-2': '--hotel-text-secondary', 'ink-3': '--hotel-text-muted',
+  'ink-4': '--hotel-text-disabled',
+  emerald: '--hotel-primary', 'emerald-deep': '--hotel-primary-hover', 'emerald-soft': '--hotel-primary-subtle',
+  blue: '--hotel-info', 'blue-soft': '--hotel-info-bg',
+  indigo: '--hotel-chart-4', 'indigo-soft': '--hotel-neutral-bg',
+  amber: '--hotel-warning', 'amber-soft': '--hotel-warning-bg',
+  rose: '--hotel-danger', 'rose-soft': '--hotel-danger-bg',
+  good: '--hotel-success', bad: '--hotel-danger',
 };
 
-/** Resolve a `var(--token)` string to a real color; pass through literal colors. */
+/** Resolve a `var(--token)` string to the aliased `var(--hotel-*)` reference;
+ *  pass through literal colors and `--hotel-*` vars untouched. */
 export function cssVar(v: string): string {
   if (!v || v.slice(0, 4) !== 'var(') return v;
   const name = v.slice(4, -1).trim().replace(/^--/, '');
-  return PALETTE[name] || '#888';
+  if (name.startsWith('hotel-')) return `var(--${name})`;
+  const alias = TOKEN_ALIAS[name];
+  return alias ? `var(${alias})` : 'var(--hotel-text-muted)';
 }
 
 /** Measure container width so SVGs render at true pixel size (no stroke distortion). */
@@ -73,11 +78,14 @@ export const Pill: React.FC<{ tone?: PillTone; children: React.ReactNode; dot?: 
   tone = 'neutral', children, dot = true, sm,
 }) => {
   const T = ({
-    neutral: ['#F0F3F7', '#475569', '#94A3B8'], blue: ['#E5F0FB', '#1F66C9', '#2F7DE1'],
-    indigo: ['#ECEAFB', '#5743C8', '#7A6BE2'], amber: ['#FBF1DC', '#9A6A0E', '#C8941D'],
-    green: ['#E1F4EA', '#0E7A48', '#16A364'], red: ['#FCE5E9', '#B53047', '#D14256'],
-    muted: ['#EFF1F4', '#94A3B8', '#B0B8C2'],
-  } as Record<PillTone, string[]>)[tone] || ['#F0F3F7', '#475569', '#94A3B8'];
+    neutral: ['var(--hotel-neutral-bg)', 'var(--hotel-text-secondary)', 'var(--hotel-text-muted)'],
+    blue: ['var(--hotel-info-bg)', 'var(--hotel-info)', 'var(--hotel-info)'],
+    indigo: ['var(--hotel-neutral-bg)', 'var(--hotel-chart-4)', 'var(--hotel-chart-4)'],
+    amber: ['var(--hotel-warning-bg)', 'var(--hotel-warning)', 'var(--hotel-warning)'],
+    green: ['var(--hotel-success-bg)', 'var(--hotel-success)', 'var(--hotel-success)'],
+    red: ['var(--hotel-danger-bg)', 'var(--hotel-danger)', 'var(--hotel-danger)'],
+    muted: ['var(--hotel-neutral-bg)', 'var(--hotel-neutral)', 'var(--hotel-neutral)'],
+  } as Record<PillTone, string[]>)[tone];
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5, background: T[0], color: T[1],
@@ -165,7 +173,7 @@ export const LineAreaChart: React.FC<{
           </defs>
           {ticks.map((t, i) => (
             <g key={i}>
-              <line x1={padL} y1={y(t)} x2={w - padR} y2={y(t)} stroke="#E2E6EC" strokeWidth="1" strokeDasharray={i === 0 ? '0' : '3 4'} />
+              <line x1={padL} y1={y(t)} x2={w - padR} y2={y(t)} stroke="var(--hotel-chart-grid)" strokeWidth="1" strokeDasharray={i === 0 ? '0' : '3 4'} />
               <text x={padL - 8} y={y(t) + 3.5} textAnchor="end" className="ch-axis">{yFmt(t)}</text>
             </g>
           ))}
@@ -182,7 +190,7 @@ export const LineAreaChart: React.FC<{
             return <path key={'l' + s.key} d={line} fill="none" stroke={cssVar(s.color)} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />;
           })}
           {series.map((s) => (
-            <circle key={'d' + s.key} cx={x(data.length - 1)} cy={y(data[data.length - 1][s.key])} r="3.2" fill="#fff" stroke={cssVar(s.color)} strokeWidth="2.2" />
+            <circle key={'d' + s.key} cx={x(data.length - 1)} cy={y(data[data.length - 1][s.key])} r="3.2" fill="var(--hotel-surface-overlay)" stroke={cssVar(s.color)} strokeWidth="2.2" />
           ))}
         </svg>
       )}
@@ -217,8 +225,8 @@ export const Donut: React.FC<{
           );
         })}
       </g>
-      {centerTop && <text x={c} y={c - 2} textAnchor="middle" style={{ fontSize: 22, fontWeight: 800, fill: '#0F172A', fontFamily: '"JetBrains Mono", monospace' }}>{centerTop}</text>}
-      {centerSub && <text x={c} y={c + 16} textAnchor="middle" style={{ fontSize: 10.5, fontWeight: 600, fill: '#7B8794', letterSpacing: 0.5, textTransform: 'uppercase' }}>{centerSub}</text>}
+      {centerTop && <text x={c} y={c - 2} textAnchor="middle" style={{ fontSize: 22, fontWeight: 800, fill: 'var(--hotel-text)', fontFamily: '"JetBrains Mono", monospace' }}>{centerTop}</text>}
+      {centerSub && <text x={c} y={c + 16} textAnchor="middle" style={{ fontSize: 10.5, fontWeight: 600, fill: 'var(--hotel-text-muted)', letterSpacing: 0.5, textTransform: 'uppercase' }}>{centerSub}</text>}
     </svg>
   );
 };

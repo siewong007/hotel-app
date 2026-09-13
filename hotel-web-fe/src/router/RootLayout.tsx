@@ -43,13 +43,6 @@ export const RootLayout: React.FC = () => {
   const theme = useTheme();
   const isNarrow = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
 
-  useEffect(() => {
-    document.body.classList.toggle('hotel-board-skin-active', boardSkinActive);
-    return () => {
-      document.body.classList.remove('hotel-board-skin-active');
-    };
-  }, [boardSkinActive]);
-
   // The tab title is the configured hotel name for both the guest and staff
   // experiences; only the favicon distinguishes them. `hotelSettingsChange`
   // fires on the boot refresh and whenever Settings is saved.
@@ -157,7 +150,6 @@ export const RootLayout: React.FC = () => {
 
   return (
     <Box
-      className={boardSkinActive ? 'hotel-board-shell' : undefined}
       sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}
     >
       <CommandPaletteProvider>
@@ -173,7 +165,6 @@ export const RootLayout: React.FC = () => {
           <Container
             component="main"
             maxWidth="xl"
-            className={boardSkinActive ? 'hotel-board-skin' : undefined}
             sx={{ mt: boardSkinActive ? 3 : 4, mb: 4, px: { xs: 2, sm: 3 }, flex: 1, contain: 'layout style', isolation: 'isolate' }}
           >
             <PageErrorBoundary>

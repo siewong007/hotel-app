@@ -480,7 +480,7 @@ const RegisterPage: React.FC = () => {
                   '&:hover': {
                     background: 'transparent',
                     textDecoration: 'underline',
-                    color: 'var(--hotel-primary-light)',
+                    color: 'var(--hotel-primary-text)',
                   },
                 }}
                 onClick={() => navigate('/login')}

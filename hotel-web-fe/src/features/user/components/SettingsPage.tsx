@@ -31,7 +31,6 @@ import {
   Palette as PaletteIcon,
   LightMode as LightModeIcon,
   DarkMode as DarkModeIcon,
-  NightsStay as NightsStayIcon,
   SupportAgent as SupportIcon,
 } from "@mui/icons-material";
 import ReportSettingsCard from "./settings/ReportSettingsCard";
@@ -1277,7 +1276,7 @@ const SettingsPage: React.FC = () => {
             exclusive
             value={themeMode}
             onChange={(_, value: ThemeMode | null) => {
-              if (value === "light" || value === "dark" || value === "night")
+              if (value === "light" || value === "dark")
                 onThemeModeChange(value);
             }}
             sx={{ mt: 2 }}
@@ -1296,14 +1295,6 @@ const SettingsPage: React.FC = () => {
               </Tooltip>
               <Box component="span" sx={{ ml: 1 }}>
                 Dark
-              </Box>
-            </ToggleButton>
-            <ToggleButton value="night" aria-label="Night mode">
-              <Tooltip title="Night mode">
-                <NightsStayIcon fontSize="small" />
-              </Tooltip>
-              <Box component="span" sx={{ ml: 1 }}>
-                Night
               </Box>
             </ToggleButton>
           </ToggleButtonGroup>

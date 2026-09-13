@@ -59,18 +59,14 @@ const BookingModalFooter: React.FC<BookingModalFooterProps> = ({
         variant="contained"
         onClick={onSubmit}
         disabled={processing || !formIsValid}
-        startIcon={processing ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <CheckIcon sx={{ fontSize: 14 }} />}
+        startIcon={processing ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <CheckIcon sx={{ fontSize: 14 }} />}
         sx={{
-          background: `linear-gradient(180deg, ${D.emerald}, ${D.emeraldDeep})`,
-          border: `1px solid ${D.emeraldDeep}`,
-          color: '#fff',
           textTransform: 'none',
           px: 2,
           py: 1.1,
           borderRadius: 1,
           fontWeight: 600,
-          boxShadow: '0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px rgba(16,164,124,0.3)',
-          '&:hover': { filter: 'brightness(1.05)', background: `linear-gradient(180deg, ${D.emerald}, ${D.emeraldDeep})` },
+          boxShadow: 'none',
           '&.Mui-disabled': { background: D.surface3, color: D.ink3, border: `1px solid ${D.border}`, boxShadow: 'none' },
         }}
       >

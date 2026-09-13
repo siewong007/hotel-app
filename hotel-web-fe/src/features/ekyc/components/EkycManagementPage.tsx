@@ -143,22 +143,22 @@ function labelize(value?: string | null): string {
 // handful of palette names, so we style the chip directly to keep each status
 // visually separable. Returned object is spread into the Chip `sx`.
 const STATUS_CHIP_COLORS: Record<string, { bg: string; fg: string }> = {
-  draft: { bg: '#9e9e9e', fg: '#ffffff' },
-  submitted: { bg: '#0288d1', fg: '#ffffff' },
-  automated_review: { bg: '#0097a7', fg: '#ffffff' },
-  pending_manual_review: { bg: '#ed6c02', fg: '#ffffff' },
-  in_review: { bg: '#6a1b9a', fg: '#ffffff' },
-  additional_information_required: { bg: '#d84315', fg: '#ffffff' },
-  on_hold: { bg: '#f9a825', fg: '#1a1a1a' },
-  escalated: { bg: '#ad1457', fg: '#ffffff' },
-  approved: { bg: '#2e7d32', fg: '#ffffff' },
-  rejected: { bg: '#c62828', fg: '#ffffff' },
-  expired: { bg: '#5d4037', fg: '#ffffff' },
-  void: { bg: '#455a64', fg: '#ffffff' },
+  draft: { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-neutral)' },
+  submitted: { bg: 'var(--hotel-info-bg)', fg: 'var(--hotel-info)' },
+  automated_review: { bg: 'var(--hotel-info-bg)', fg: 'var(--hotel-info)' },
+  pending_manual_review: { bg: 'var(--hotel-warning-bg)', fg: 'var(--hotel-warning)' },
+  in_review: { bg: 'var(--hotel-info-bg)', fg: 'var(--hotel-info)' },
+  additional_information_required: { bg: 'var(--hotel-warning-bg)', fg: 'var(--hotel-warning)' },
+  on_hold: { bg: 'var(--hotel-warning-bg)', fg: 'var(--hotel-warning)' },
+  escalated: { bg: 'var(--hotel-danger-bg)', fg: 'var(--hotel-danger)' },
+  approved: { bg: 'var(--hotel-success-bg)', fg: 'var(--hotel-success)' },
+  rejected: { bg: 'var(--hotel-danger-bg)', fg: 'var(--hotel-danger)' },
+  expired: { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-neutral)' },
+  void: { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-neutral)' },
 };
 
 function statusChipSx(status: string) {
-  const colors = STATUS_CHIP_COLORS[status] ?? { bg: '#757575', fg: '#ffffff' };
+  const colors = STATUS_CHIP_COLORS[status] ?? { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-neutral)' };
   return {
     bgcolor: colors.bg,
     color: colors.fg,
@@ -252,7 +252,7 @@ const SecureDocumentImage: React.FC<{
           </Tooltip>
         </Stack>
       </Stack>
-      <Box sx={{ height: 260, display: 'grid', placeItems: 'center', bgcolor: 'grey.50', overflow: 'auto' }}>
+      <Box sx={{ height: 260, display: 'grid', placeItems: 'center', bgcolor: 'var(--hotel-surface-sunken)', overflow: 'auto' }}>
         {loadState === 'loading' && <CircularProgress size={24} />}
         {loadState === 'missing' && (
           <Stack

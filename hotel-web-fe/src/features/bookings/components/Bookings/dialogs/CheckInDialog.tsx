@@ -158,7 +158,7 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle sx={{ bgcolor: 'success.main', color: 'white', py: 2, px: 3 }}>
+      <DialogTitle sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <LoginIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
@@ -169,7 +169,7 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
       <DialogContent sx={{ pt: 3 }}>
         {booking && (
           <Box>
-            <Box sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+            <Box sx={{ p: 2, mb: 2, bgcolor: 'var(--hotel-surface-sunken)', borderRadius: 2 }}>
               <Typography variant="subtitle2" gutterBottom sx={{
                 color: "text.secondary"
               }}>
@@ -307,7 +307,7 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-sunken)', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} disabled={processing}>Cancel</Button>
         <Button variant="contained" color="success" onClick={handleConfirm} disabled={processing || !icNumber.trim()}
           startIcon={processing ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}>

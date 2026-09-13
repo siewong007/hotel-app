@@ -5,7 +5,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './auth/AuthContext';
 import { queryClient } from './api/queryClient';
-import { createAppTheme, ThemeMode } from './theme';
+import { createAppTheme, normalizeThemeMode, ThemeMode } from './theme';
 import { DesktopServiceGate } from './desktop/DesktopServiceGate';
 import { storage } from './utils/storage';
 import { ApiNotificationHost } from './components/common/ApiNotificationHost';
@@ -15,15 +15,10 @@ import { I18nProvider } from './i18n';
 import { router } from './router/router';
 import { ThemeModeContext } from './router/ThemeModeContext';
 
-function isThemeMode(value: unknown): value is ThemeMode {
-  return value === 'light' || value === 'dark' || value === 'night';
-}
-
 function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    const stored = storage.getItem<ThemeMode>('themeMode');
-    return isThemeMode(stored) ? stored : 'light';
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
+    normalizeThemeMode(storage.getItem<string>('themeMode'))
+  );
   const activeTheme = useMemo(() => createAppTheme(themeMode), [themeMode]);
   const handleThemeModeChange = (mode: ThemeMode) => {
     setThemeMode(mode);

@@ -207,7 +207,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                                 px: 0.6,
                                 py: 0.05,
                                 borderRadius: '999px',
-                                bgcolor: on ? 'rgba(255,255,255,0.25)' : 'action.selected',
+                                bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 30%, transparent)' : 'action.selected',
                               }}
                             >
                               {f.count}
@@ -327,7 +327,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 </TableContainer>
 
                 {/* Summary */}
-                <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
+                <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 6, sm: 3 }}>
                       <Typography variant="caption" sx={{
@@ -394,9 +394,10 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
         </>
       )}
 
-      {/* Invoice Preview */}
+      {/* Invoice Preview — renders the paper document on a paper surface
+          (print identity is intentionally light; see docs/DESIGN_SYSTEM.md). */}
       {invoiceCompany && showInvoicePreview && (
-        <Box id="company-invoice-content">
+        <Box id="company-invoice-content" sx={{ bgcolor: '#FFFFFF', color: '#1C1E24', p: 3, borderRadius: 1 }}>
           {/* Invoice Header */}
           <Box
             className="invoice-header"

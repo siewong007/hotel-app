@@ -109,7 +109,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle sx={{ bgcolor: 'success.main', color: 'white', py: 2, px: 3 }}>
+      <DialogTitle sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <LoginIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
@@ -121,7 +121,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
         {booking && (
           <Box>
             {/* Booking Summary */}
-            <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+            <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'var(--hotel-surface-raised)', borderRadius: 2 }}>
               <Typography variant="subtitle2" gutterBottom sx={{
                 color: "text.secondary"
               }}>
@@ -379,7 +379,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
         <Button
           onClick={onCancel}
           disabled={processing}

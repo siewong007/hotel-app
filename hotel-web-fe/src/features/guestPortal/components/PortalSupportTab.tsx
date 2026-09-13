@@ -280,7 +280,7 @@ function MessageBubble({ message }: { message: PortalSupportMessage }) {
           px: 1.5,
           py: 1,
           borderRadius: 2,
-          bgcolor: isGuest ? theme.palette.primary.main : theme.palette.grey[100],
+          bgcolor: isGuest ? theme.palette.primary.main : 'var(--hotel-surface-raised)',
           color: isGuest ? theme.palette.primary.contrastText : theme.palette.text.primary,
           wordBreak: 'break-word',
         })}
@@ -425,7 +425,7 @@ function ConversationDetail({
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: { xs: 'calc(100dvh - 172px)', md: 540 }, bgcolor: '#fffdf9' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: { xs: 'calc(100dvh - 172px)', md: 540 }, bgcolor: 'var(--hotel-surface-raised)' }}>
       <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ mx: { xs: -1, md: 0 }, mt: { xs: -1.5, md: 0 }, mb: { xs: 1, md: 0 } }}>{mobileNavigation}</Box>
         <Stack
@@ -446,7 +446,7 @@ function ConversationDetail({
           <Chip label={supportStatusLabel(conversation.status)} color={supportStatusColor(conversation.status)} size="small" />
         </Stack>
       </Box>
-      <Box role="log" aria-live="polite" aria-label="Conversation messages" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: '#f8f5ef' }}>
+      <Box role="log" aria-live="polite" aria-label="Conversation messages" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: 'var(--hotel-surface-sunken)' }}>
         {conversation.resolution_summary ? (
           <Alert severity="success" sx={{ mb: 2 }}>
             <Typography variant="subtitle2">Resolution</Typography>
@@ -456,7 +456,7 @@ function ConversationDetail({
         {messages.map(messageItem => <MessageBubble key={String(messageItem.id)} message={messageItem} />)}
       </Box>
       <Divider />
-      <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: '#fffdf9', position: { xs: 'sticky', md: 'static' }, bottom: 0, pb: { xs: 'max(16px, env(safe-area-inset-bottom))', md: 3 }, boxShadow: { xs: '0 -8px 24px rgba(6,17,14,.08)', md: 'none' } }}>
+      <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: 'var(--hotel-surface-raised)', position: { xs: 'sticky', md: 'static' }, bottom: 0, pb: { xs: 'max(16px, env(safe-area-inset-bottom))', md: 3 }, boxShadow: { xs: 'var(--hotel-shadow-md)', md: 'none' } }}>
         {sendError && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setSendError(null)}>{sendError}</Alert>}
 
         {canReply && (
@@ -563,7 +563,7 @@ export function PortalSupportTab({ token }: { token: string }) {
           mb: 3
         }}>
         <Box>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: '#06110e' }}>Message the hotel team</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: 'var(--hotel-text)' }}>Message the hotel team</Typography>
           <Typography
             variant="body2"
             sx={{
@@ -608,8 +608,8 @@ export function PortalSupportTab({ token }: { token: string }) {
         </Paper>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(280px, 34%) 1fr' }, gap: { xs: 0, md: 2 }, alignItems: 'stretch' }}>
-          <Paper variant="outlined" sx={{ display: isDesktop || !mobileDetailOpen ? 'block' : 'none', maxHeight: { md: 640 }, overflowY: 'auto', borderRadius: { xs: 2, md: 3 }, borderColor: 'rgba(6,17,14,.14)', boxShadow: { md: '0 8px 24px rgba(6,17,14,.05)' } }}>
-            <Box sx={{ px: 2, pt: 2, pb: 1 }}><Typography variant="overline" sx={{ color: '#8d6b30', fontWeight: 700, letterSpacing: '.1em' }}>Conversations</Typography></Box>
+          <Paper variant="outlined" sx={{ display: isDesktop || !mobileDetailOpen ? 'block' : 'none', maxHeight: { md: 640 }, overflowY: 'auto', borderRadius: { xs: 2, md: 3 }, borderColor: 'var(--hotel-border)', boxShadow: { md: 'var(--hotel-shadow-sm)' } }}>
+            <Box sx={{ px: 2, pt: 2, pb: 1 }}><Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: '.1em' }}>Conversations</Typography></Box>
             <List disablePadding aria-label="Support conversations">
               {items.map((conversation, index) => (
                 <Box key={String(conversation.id)}>
@@ -624,7 +624,7 @@ export function PortalSupportTab({ token }: { token: string }) {
             </List>
           </Paper>
 
-          <Paper variant="outlined" sx={{ display: isDesktop || mobileDetailOpen ? 'block' : 'none', overflow: 'hidden', borderRadius: { xs: 2, md: 3 }, borderColor: 'rgba(6,17,14,.14)', boxShadow: { md: '0 8px 24px rgba(6,17,14,.05)' }, transition: 'opacity 180ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
+          <Paper variant="outlined" sx={{ display: isDesktop || mobileDetailOpen ? 'block' : 'none', overflow: 'hidden', borderRadius: { xs: 2, md: 3 }, borderColor: 'var(--hotel-border)', boxShadow: { md: 'var(--hotel-shadow-sm)' }, transition: 'opacity 180ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }}>
             <ConversationDetail
               detail={detail}
               isLoading={detailQuery.isLoading}

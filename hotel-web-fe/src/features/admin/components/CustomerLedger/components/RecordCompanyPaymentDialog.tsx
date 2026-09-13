@@ -127,7 +127,7 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                 return (
                   <Box
                     key={ledger.id}
-                    sx={{ px: 2, py: 0.5, display: 'flex', alignItems: 'center', '&:hover': { bgcolor: 'grey.50' } }}
+                    sx={{ px: 2, py: 0.5, display: 'flex', alignItems: 'center', '&:hover': { bgcolor: 'var(--hotel-surface-sunken)' } }}
                   >
                     <FormControlLabel
                       sx={{ flex: 1, mr: 0 }}
@@ -169,7 +169,7 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
           {/* Selected Entries Summary */}
           {selectedLedgersForPayment.length > 0 && (
             <Grid size={12}>
-              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)' }}>
                 <Grid container spacing={1}>
                   <Grid size={6}>
                     <Typography variant="caption" sx={{

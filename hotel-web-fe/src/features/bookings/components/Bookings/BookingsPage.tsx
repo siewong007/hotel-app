@@ -434,7 +434,7 @@ const BookingsPage: React.FC = () => {
               loadGuests();
             }}
             disabled={rooms.length === 0}
-            sx={{ minHeight: 44, px: 2.5, bgcolor: '#2f6f52', '&:hover': { bgcolor: '#255a42' } }}
+            sx={{ minHeight: 44, px: 2.5, bgcolor: 'primary.main', '&:hover': { bgcolor: 'primary.dark' } }}
           >
             New booking
           </Button>

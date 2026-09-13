@@ -66,23 +66,23 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'available':
-        return '#4CAF50';
+        return 'var(--hotel-success)';
       case 'occupied':
-        return '#F44336';
+        return 'var(--hotel-warning)';
       case 'reserved':
-        return '#FFC107';
+        return 'var(--hotel-info)';
       case 'cleaning':
-        return '#2196F3';
+        return 'var(--hotel-info)';
       case 'reserved_dirty':
-        return '#B88900';
+        return 'var(--hotel-warning)';
       case 'maintenance':
-        return '#FF9800';
+        return 'var(--hotel-danger)';
       case 'change_room':
-        return '#9C27B0';
+        return 'var(--hotel-chart-4)';
       case 'out_of_order':
-        return '#9E9E9E';
+        return 'var(--hotel-neutral)';
       default:
-        return '#9E9E9E';
+        return 'var(--hotel-neutral)';
     }
   };
 
@@ -147,7 +147,8 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40 }}>
               <Avatar
                 sx={{
-                  bgcolor: getStatusColor(record.to_status),
+                  bgcolor: `color-mix(in srgb, ${getStatusColor(record.to_status)} 15%, transparent)`,
+                  color: getStatusColor(record.to_status),
                   width: 40,
                   height: 40,
                 }}
@@ -159,7 +160,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                   sx={{
                     width: 2,
                     flex: 1,
-                    bgcolor: 'grey.300',
+                    bgcolor: 'var(--hotel-border-strong)',
                     minHeight: 20,
                     mt: 1,
                   }}
@@ -190,7 +191,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
               </Typography>
 
               {/* Main Content Card */}
-              <Paper elevation={1} sx={{ p: 2, bgcolor: 'grey.50' }}>
+              <Paper elevation={1} sx={{ p: 2, bgcolor: 'var(--hotel-surface-raised)' }}>
                 {/* Status Change */}
                 <Box
                   sx={{
@@ -205,8 +206,8 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                         label={formatStatusLabel(record.from_status)}
                         size="small"
                         sx={{
-                          bgcolor: getStatusColor(record.from_status),
-                          color: 'white',
+                          bgcolor: `color-mix(in srgb, ${getStatusColor(record.from_status)} 12%, transparent)`,
+                          color: getStatusColor(record.from_status),
                           fontWeight: 600,
                         }}
                       />
@@ -219,8 +220,8 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                     label={formatStatusLabel(record.to_status)}
                     size="small"
                     sx={{
-                      bgcolor: getStatusColor(record.to_status),
-                      color: 'white',
+                      bgcolor: `color-mix(in srgb, ${getStatusColor(record.to_status)} 12%, transparent)`,
+                      color: getStatusColor(record.to_status),
                       fontWeight: 600,
                     }}
                   />
@@ -288,7 +289,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
                         mt: 1,
                         fontStyle: 'italic',
                         borderLeft: '3px solid',
-                        borderColor: 'grey.400',
+                        borderColor: 'var(--hotel-border-strong)',
                         pl: 1
                       }}>
                       "{record.notes}"

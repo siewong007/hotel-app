@@ -16,7 +16,6 @@ import {
   Stack,
   TextField,
   Typography,
-  alpha,
 } from '@mui/material';
 import { Payment as PaymentIcon } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../../types';
@@ -197,7 +196,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ open, booking, context, o
     >
       <DialogTitle sx={{ p: 0 }}>
         <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-          <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: alpha('#2aa198', 0.12), color: '#16877f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <PaymentIcon />
           </Box>
           <Box>

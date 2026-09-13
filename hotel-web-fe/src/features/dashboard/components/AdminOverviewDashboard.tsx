@@ -200,10 +200,9 @@ const AdminOverviewDashboard: React.FC = () => {
             title="Occupancy Rate"
             value={`${stats.occupancyRate.toFixed(1)}%`}
             subtitle={`${stats.occupiedRooms} of ${stats.totalRooms} rooms`}
-            icon={<Hotel sx={{ color: 'white', fontSize: 28 }} />}
-            color="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-            iconBackground="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-            sx={{ overflow: 'visible' }}
+            icon={<Hotel sx={{ fontSize: 28 }} />}
+            color="primary.main"
+                        sx={{ overflow: 'visible' }}
             trend={{ value: 5.2, label: 'vs last month' }}
           />
         </Grid>
@@ -212,9 +211,8 @@ const AdminOverviewDashboard: React.FC = () => {
             title="Monthly Revenue"
             value={formatCurrencyCustom(stats.monthlyRevenue, 0)}
             subtitle="This month"
-            icon={<AttachMoney sx={{ color: 'white', fontSize: 28 }} />}
-            color="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-            iconBackground="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+            icon={<AttachMoney sx={{ fontSize: 28 }} />}
+            color="success.main"
             sx={{ overflow: 'visible' }}
             trend={{ value: 12.5, label: 'vs last month' }}
           />
@@ -224,9 +222,8 @@ const AdminOverviewDashboard: React.FC = () => {
             title="Active Bookings"
             value={stats.activeBookings}
             subtitle={`Avg: ${formatCurrencyCustom(stats.averageBookingValue, 0)}`}
-            icon={<CheckCircle sx={{ color: 'white', fontSize: 28 }} />}
-            color="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
-            iconBackground="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+            icon={<CheckCircle sx={{ fontSize: 28 }} />}
+            color="info.main"
             sx={{ overflow: 'visible' }}
           />
         </Grid>
@@ -235,9 +232,8 @@ const AdminOverviewDashboard: React.FC = () => {
             title="Total Guests"
             value={stats.totalGuests}
             subtitle="Registered"
-            icon={<People sx={{ color: 'white', fontSize: 28 }} />}
-            color="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
-            iconBackground="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+            icon={<People sx={{ fontSize: 28 }} />}
+            color="warning.main"
             sx={{ overflow: 'visible' }}
           />
         </Grid>
@@ -273,7 +269,7 @@ const AdminOverviewDashboard: React.FC = () => {
                     elevation={0}
                     sx={{
                       p: 2,
-                      backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                      backgroundColor: 'var(--hotel-success-bg)',
                       borderRadius: 2,
                     }}
                   >
@@ -301,7 +297,7 @@ const AdminOverviewDashboard: React.FC = () => {
                     elevation={0}
                     sx={{
                       p: 2,
-                      backgroundColor: 'rgba(33, 150, 243, 0.1)',
+                      backgroundColor: 'var(--hotel-info-bg)',
                       borderRadius: 2,
                     }}
                   >
@@ -369,7 +365,7 @@ const AdminOverviewDashboard: React.FC = () => {
                   sx={{
                     height: 8,
                     borderRadius: 1,
-                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    backgroundColor: 'var(--hotel-success-bg)',
                     '& .MuiLinearProgress-bar': {
                       backgroundColor: 'success.main',
                     }
@@ -401,7 +397,7 @@ const AdminOverviewDashboard: React.FC = () => {
                   sx={{
                     height: 8,
                     borderRadius: 1,
-                    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+                    backgroundColor: 'var(--hotel-danger-bg)',
                     '& .MuiLinearProgress-bar': {
                       backgroundColor: 'error.main',
                     }

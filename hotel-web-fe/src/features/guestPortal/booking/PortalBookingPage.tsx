@@ -44,7 +44,7 @@ function guestDetailsError(
   if (details.tourism_type !== 'local' && details.tourism_type !== 'foreign') return t('book.errors.tourismType');
   return null;
 }
-const FALLBACK_ROOM_IMAGE = 'linear-gradient(135deg, #173B31 0%, #315E50 55%, #C7A45B 160%)';
+const FALLBACK_ROOM_IMAGE = 'linear-gradient(135deg, var(--hotel-surface-raised) 0%, var(--hotel-surface-sunken) 55%, var(--hotel-primary) 160%)';
 
 function money(amount: string | number, currency: string): string {
   const value = typeof amount === 'number' ? amount : Number(amount);
@@ -450,7 +450,7 @@ function OfferCard({ offer, onSelect }: { offer: GuestBookingOffer; onSelect: ()
   const shouldShowImage = Boolean(image && !imageFailed);
   const roomsLabel = t('book.roomsLeft', { count: offer.available_rooms });
   return (
-    <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={`${offer.room_type_name} room`} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: '#173B31' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'rgba(255,255,255,0.9)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
+    <Card component="article" variant="outlined" sx={{ height: '100%', overflow: 'hidden', transition: 'transform 200ms ease, box-shadow 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' }, '&:hover': { transform: 'translateY(-2px)', boxShadow: 3 } }}>{shouldShowImage ? <Box component="img" src={image!} alt={`${offer.room_type_name} room`} onError={() => setImageFailed(true)} sx={{ display: 'block', width: '100%', height: 176, objectFit: 'cover', bgcolor: 'var(--hotel-surface-raised)' }} /> : <Box aria-hidden="true" sx={{ height: 176, background: FALLBACK_ROOM_IMAGE, display: 'grid', placeItems: 'center', color: 'var(--hotel-text-secondary)' }}><HotelIcon sx={{ fontSize: 48 }} /></Box>}<CardContent sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 176px)' }}><Stack direction="row" spacing={2} sx={{
       justifyContent: "space-between"
     }}><Box><Typography variant="h5">{offer.room_type_name}</Typography><Typography variant="body2" sx={{
       color: "text.secondary"

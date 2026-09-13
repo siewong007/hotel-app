@@ -416,58 +416,58 @@ const ReceptionistDashboard: React.FC = () => {
   const getRoomStatusColor = (room: RoomStatus) => {
     // Occupied (checked-in guest) → Red (ALWAYS)
     if (room.status === 'occupied') {
-      return '#F44336'; // Red
+      return 'var(--hotel-warning)';
     }
 
     // Reserved → Yellow
     if (room.status === 'reserved') {
-      return '#FFC107'; // Yellow
+      return 'var(--hotel-info)';
     }
 
     // Cleaning → Blue
     if (room.status === 'cleaning') {
-      return '#2196F3'; // Blue (system-only)
+      return 'var(--hotel-info)';
     }
 
     // Dirty → Orange
     if (room.status === 'dirty' || room.status === 'reserved_dirty') {
-      return '#FF9800'; // Orange
+      return 'var(--hotel-warning)';
     }
 
     // Maintenance → Orange
     if (room.status === 'maintenance') {
-      return '#FF9800'; // Orange
+      return 'var(--hotel-warning)';
     }
 
     // Out of Order (Unavailable) → Grey
     if (room.status === 'out_of_order') {
-      return '#9E9E9E'; // Gray
+      return 'var(--hotel-neutral)';
     }
 
     // Available → Green
     if (room.status === 'available') {
-      return '#4CAF50'; // Green
+      return 'var(--hotel-success)';
     }
 
-    return '#9E9E9E'; // Gray
+    return 'var(--hotel-neutral)';
   };
 
   const getRoomStatusIcon = (status: RoomStatus['status']) => {
     switch (status) {
       case 'available':
-        return <AvailableIcon sx={{ fontSize: 32, color: 'white' }} />;
+        return <AvailableIcon sx={{ fontSize: 32, color: 'inherit' }} />;
       case 'occupied':
-        return <OccupiedIcon sx={{ fontSize: 32, color: 'white' }} />;
+        return <OccupiedIcon sx={{ fontSize: 32, color: 'inherit' }} />;
       case 'reserved':
-        return <CalendarIcon sx={{ fontSize: 32, color: 'white' }} />;
+        return <CalendarIcon sx={{ fontSize: 32, color: 'inherit' }} />;
       case 'reserved_dirty':
       case 'dirty':
       case 'cleaning':
-        return <CleaningIcon sx={{ fontSize: 32, color: 'white' }} />;
+        return <CleaningIcon sx={{ fontSize: 32, color: 'inherit' }} />;
       case 'maintenance':
-        return <MaintenanceIcon sx={{ fontSize: 32, color: 'white' }} />;
+        return <MaintenanceIcon sx={{ fontSize: 32, color: 'inherit' }} />;
       default:
-        return <HotelIcon sx={{ fontSize: 32, color: 'white' }} />;
+        return <HotelIcon sx={{ fontSize: 32, color: 'inherit' }} />;
     }
   };
 
@@ -540,7 +540,7 @@ const ReceptionistDashboard: React.FC = () => {
       {/* Summary Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)', color: 'white', boxShadow: 1 }}>
+          <Card sx={{ bgcolor: 'var(--hotel-success-bg)', border: '1px solid var(--hotel-success-border)', color: 'var(--hotel-success)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
                 sx={{
@@ -561,7 +561,7 @@ const ReceptionistDashboard: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #f44336 0%, #e57373 100%)', color: 'white', boxShadow: 1 }}>
+          <Card sx={{ bgcolor: 'var(--hotel-warning-bg)', border: '1px solid var(--hotel-warning-border)', color: 'var(--hotel-warning)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
                 sx={{
@@ -582,7 +582,7 @@ const ReceptionistDashboard: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)', color: 'white', boxShadow: 1 }}>
+          <Card sx={{ bgcolor: 'var(--hotel-info-bg)', border: '1px solid var(--hotel-info-border)', color: 'var(--hotel-info)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
                 sx={{
@@ -603,7 +603,7 @@ const ReceptionistDashboard: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card sx={{ background: 'linear-gradient(135deg, #1a73e8 0%, #4285f4 100%)', color: 'white', boxShadow: 1 }}>
+          <Card sx={{ bgcolor: 'var(--hotel-primary-subtle)', border: '1px solid var(--hotel-primary-border)', color: 'var(--hotel-primary-text)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
                 sx={{
@@ -645,7 +645,7 @@ const ReceptionistDashboard: React.FC = () => {
               {todayActivity.arrivals.length > 0 ? (
                 <Box>
                   {todayActivity.arrivals.map((arrival, index) => (
-                    <Box key={index} sx={{ py: 1, borderBottom: index < todayActivity.arrivals.length - 1 ? '1px solid #eee' : 'none' }}>
+                    <Box key={index} sx={{ py: 1, borderBottom: index < todayActivity.arrivals.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Room {arrival.room_number}
                       </Typography>
@@ -688,7 +688,7 @@ const ReceptionistDashboard: React.FC = () => {
               {todayActivity.departures.length > 0 ? (
                 <Box>
                   {todayActivity.departures.map((departure, index) => (
-                    <Box key={index} sx={{ py: 1, borderBottom: index < todayActivity.departures.length - 1 ? '1px solid #eee' : 'none' }}>
+                    <Box key={index} sx={{ py: 1, borderBottom: index < todayActivity.departures.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Room {departure.room_number}
                       </Typography>
@@ -761,11 +761,11 @@ const ReceptionistDashboard: React.FC = () => {
 
           {/* Legend */}
           <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            <Chip icon={<AvailableIcon />} label="Available" size="small" sx={{ bgcolor: '#4CAF50', color: 'white' }} />
-            <Chip icon={<OccupiedIcon />} label="Occupied" size="small" sx={{ bgcolor: '#F44336', color: 'white' }} />
-            <Chip icon={<CalendarIcon />} label="Reserved" size="small" sx={{ bgcolor: '#FFC107', color: 'white' }} />
-            <Chip icon={<CleaningIcon />} label="Cleaning (Auto)" size="small" sx={{ bgcolor: '#2196F3', color: 'white' }} />
-            <Chip icon={<MaintenanceIcon />} label="Maintenance" size="small" sx={{ bgcolor: '#FF9800', color: 'white' }} />
+            <Chip icon={<AvailableIcon />} label="Available" size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
+            <Chip icon={<OccupiedIcon />} label="Occupied" size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
+            <Chip icon={<CalendarIcon />} label="Reserved" size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
+            <Chip icon={<CleaningIcon />} label="Cleaning (Auto)" size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
+            <Chip icon={<MaintenanceIcon />} label="Maintenance" size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
           </Box>
 
           {/* Room Grid */}
@@ -781,14 +781,14 @@ const ReceptionistDashboard: React.FC = () => {
                       <Typography variant="caption">Type: {room.room_type}</Typography>
                       {room.current_guest && (
                         <>
-                          <Divider sx={{ my: 0.5, bgcolor: 'rgba(255,255,255,0.2)' }} />
+                          <Divider sx={{ my: 0.5, bgcolor: 'var(--hotel-border)' }} />
                           <Typography variant="caption">Guest: {room.current_guest}</Typography>
                         </>
                       )}
                       {/* Show status notes if available */}
                       {room.status_notes && (
                         <>
-                          <Divider sx={{ my: 0.5, bgcolor: 'rgba(255,255,255,0.2)' }} />
+                          <Divider sx={{ my: 0.5, bgcolor: 'var(--hotel-border)' }} />
                           <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mt: 0.5 }}>
                             Notes:
                           </Typography>
@@ -806,7 +806,7 @@ const ReceptionistDashboard: React.FC = () => {
                       {/* Show "Click for details" if no notes */}
                       {!room.status_notes && (
                         <>
-                          <Divider sx={{ my: 0.5, bgcolor: 'rgba(255,255,255,0.2)' }} />
+                          <Divider sx={{ my: 0.5, bgcolor: 'var(--hotel-border)' }} />
                           <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.8 }}>
                             Click for room details
                           </Typography>
@@ -841,8 +841,9 @@ const ReceptionistDashboard: React.FC = () => {
                     sx={{
                       p: 2,
                       textAlign: 'center',
-                      bgcolor: getRoomStatusColor(room),
-                      color: 'white',
+                      bgcolor: `color-mix(in srgb, ${getRoomStatusColor(room)} 12%, transparent)`,
+                      color: getRoomStatusColor(room),
+                      border: `1px solid color-mix(in srgb, ${getRoomStatusColor(room)} 32%, transparent)`,
                       cursor: 'pointer',
                       transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                       animation: 'fadeIn 0.4s ease-in-out',
@@ -861,11 +862,7 @@ const ReceptionistDashboard: React.FC = () => {
                         },
                       },
                       '&:hover': {
-                        transform: 'translateY(-4px) scale(1.02)',
-                        boxShadow: 6,
-                      },
-                      '&:active': {
-                        transform: 'translateY(-2px) scale(1.01)',
+                        boxShadow: 4,
                       },
                       position: 'relative',
                     }}
@@ -910,7 +907,7 @@ const ReceptionistDashboard: React.FC = () => {
                         mt: 0.5,
                         fontSize: '0.65rem',
                         transition: 'all 0.3s ease',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                        
                       }}
                     >
                       {getStatusLabel(room.status)}
@@ -918,7 +915,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                     {/* Check-out date indicator */}
                     {room.check_out_date && room.status === 'occupied' && (
-                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
                           Out: {new Date(room.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </Typography>
@@ -927,7 +924,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                     {/* Next check-in indicator */}
                     {!room.current_guest && room.next_check_in && (
-                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
                           Next: {new Date(room.next_check_in).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </Typography>
@@ -936,7 +933,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                     {/* Maintenance schedule indicator */}
                     {room.status === 'maintenance' && (room.maintenance_start_date || room.maintenance_end_date) && (
-                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.maintenance_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
                             Start: {new Date(room.maintenance_start_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -952,7 +949,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                     {/* Cleaning schedule indicator */}
                     {room.status === 'cleaning' && (room.cleaning_start_date || room.cleaning_end_date) && (
-                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.cleaning_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
                             Start: {new Date(room.cleaning_start_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -968,7 +965,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                     {/* Reserved period indicator */}
                     {room.status === 'reserved' && (room.reserved_start_date || room.reserved_end_date) && (
-                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
+                      <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid color-mix(in srgb, currentColor 28%, transparent)' }}>
                         {room.reserved_start_date && (
                           <Typography variant="caption" sx={{ fontSize: '0.6rem', display: 'block' }}>
                             Start: {new Date(room.reserved_start_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -1005,7 +1002,7 @@ const ReceptionistDashboard: React.FC = () => {
       )}
       {/* Check-In Dialog */}
       <Dialog open={checkinModalOpen} onClose={() => { if (!processingCheckIn) { setCheckinModalOpen(false); setCheckinBooking(null); } }} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'success.main', color: 'white', py: 2, px: 3 }}>
+        <DialogTitle sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', py: 2, px: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <LoginIcon sx={{ fontSize: 28 }} />
             <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
@@ -1016,7 +1013,7 @@ const ReceptionistDashboard: React.FC = () => {
         <DialogContent sx={{ pt: 3 }}>
           {checkinBooking && (
             <Box>
-              <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+              <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'var(--hotel-surface-sunken)', borderRadius: 2 }}>
                 <Typography variant="subtitle2" gutterBottom sx={{
                   color: "text.secondary"
                 }}>
@@ -1154,7 +1151,7 @@ const ReceptionistDashboard: React.FC = () => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-sunken)', borderTop: 1, borderColor: 'divider' }}>
           <Button onClick={() => { setCheckinModalOpen(false); setCheckinBooking(null); }} disabled={processingCheckIn}>Cancel</Button>
           <Button variant="contained" color="success" onClick={handleConfirmCheckIn} disabled={processingCheckIn || !ciIcNumber.trim()}
             startIcon={processingCheckIn ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}>

@@ -7,7 +7,6 @@ import {
   Box,
   Chip,
   LinearProgress,
-  alpha,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
@@ -95,7 +94,7 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
       <AccordionSummary
         expandIcon={<ExpandMoreIcon />}
         sx={{
-          backgroundColor: alpha(category.color, 0.05),
+          backgroundColor: `color-mix(in srgb, ${category.color} 5%, transparent)`,
           borderRadius: 2,
           '&.Mui-expanded': {
             borderBottomLeftRadius: 0,
@@ -115,7 +114,7 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
             width: 36,
             height: 36,
             borderRadius: 1,
-            backgroundColor: alpha(category.color, 0.15),
+            backgroundColor: `color-mix(in srgb, ${category.color} 15%, transparent)`,
             color: category.color,
           }}
         >
@@ -134,7 +133,7 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
           label={`${category.permissions.length} permission${category.permissions.length !== 1 ? 's' : ''}`}
           size="small"
           sx={{
-            backgroundColor: alpha(category.color, 0.1),
+            backgroundColor: `color-mix(in srgb, ${category.color} 10%, transparent)`,
             color: category.color,
             fontWeight: 500,
           }}
@@ -147,7 +146,7 @@ const PermissionCategoryAccordion: React.FC<PermissionCategoryAccordionProps> = 
             sx={{
               height: 6,
               borderRadius: 3,
-              backgroundColor: alpha(category.color, 0.1),
+              backgroundColor: `color-mix(in srgb, ${category.color} 10%, transparent)`,
               '& .MuiLinearProgress-bar': {
                 backgroundColor: category.color,
                 borderRadius: 3,

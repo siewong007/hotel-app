@@ -51,9 +51,9 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
   ) {
     return {
       label: statusTo === 'voided' || eventType.includes('void') || title.includes('void') ? 'Void' : 'Checkout',
-      color: '#d32f2f',
-      backgroundColor: 'rgba(211, 47, 47, 0.12)',
-      borderColor: 'rgba(211, 47, 47, 0.35)',
+      color: 'var(--hotel-danger)',
+      backgroundColor: 'var(--hotel-danger-bg)',
+      borderColor: 'var(--hotel-danger-border)',
       icon: eventType.includes('void') || statusTo === 'voided' ? <VoidIcon fontSize="small" /> : <CheckOutIcon fontSize="small" />,
     };
   }
@@ -66,9 +66,9 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
   ) {
     return {
       label: 'Check-in',
-      color: '#ed6c02',
-      backgroundColor: 'rgba(237, 108, 2, 0.12)',
-      borderColor: 'rgba(237, 108, 2, 0.35)',
+      color: 'var(--hotel-warning)',
+      backgroundColor: 'var(--hotel-warning-bg)',
+      borderColor: 'var(--hotel-warning-border)',
       icon: <LoginIcon fontSize="small" />,
     };
   }
@@ -76,18 +76,18 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
   if (source === 'payments') {
     return {
       label: 'Payment',
-      color: '#2e7d32',
-      backgroundColor: 'rgba(46, 125, 50, 0.12)',
-      borderColor: 'rgba(46, 125, 50, 0.35)',
+      color: 'var(--hotel-success)',
+      backgroundColor: 'var(--hotel-success-bg)',
+      borderColor: 'var(--hotel-success-border)',
       icon: <PaymentIcon fontSize="small" />,
     };
   }
 
   return {
     label: 'Update',
-    color: '#1976d2',
-    backgroundColor: 'rgba(25, 118, 210, 0.12)',
-    borderColor: 'rgba(25, 118, 210, 0.35)',
+    color: 'var(--hotel-info)',
+    backgroundColor: 'var(--hotel-info-bg)',
+    borderColor: 'var(--hotel-info-border)',
     icon: <EditIcon fontSize="small" />,
   };
 };
@@ -167,10 +167,10 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                   flexWrap: "wrap"
                 }}>
                   {[
-                    { label: 'Update', color: '#1976d2' },
-                    { label: 'Payment', color: '#2e7d32' },
-                    { label: 'Check-in', color: '#ed6c02' },
-                    { label: 'Checkout / Void', color: '#d32f2f' },
+                    { label: 'Update', color: 'var(--hotel-info)' },
+                    { label: 'Payment', color: 'var(--hotel-success)' },
+                    { label: 'Check-in', color: 'var(--hotel-warning)' },
+                    { label: 'Checkout / Void', color: 'var(--hotel-danger)' },
                   ].map((item) => (
                     <Chip
                       key={item.label}
@@ -182,7 +182,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                         fontWeight: 700,
                         borderColor: item.color,
                         color: item.color,
-                        bgcolor: `${item.color}14`,
+                        bgcolor: `color-mix(in srgb, ${item.color} 8%, transparent)`,
                         '& .MuiChip-label': { px: 1 },
                       }}
                     />
@@ -216,8 +216,8 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                             width: 30,
                             height: 30,
                             borderRadius: '50%',
-                            bgcolor: indicator.color,
-                            color: 'white',
+                            bgcolor: `color-mix(in srgb, ${indicator.color} 18%, transparent)`,
+                            color: indicator.color,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -243,8 +243,9 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                               label={indicator.label}
                               sx={{
                                 height: 22,
-                                bgcolor: indicator.color,
-                                color: 'white',
+                                bgcolor: `color-mix(in srgb, ${indicator.color} 12%, transparent)`,
+                                color: indicator.color,
+                                border: `1px solid color-mix(in srgb, ${indicator.color} 32%, transparent)`,
                                 fontWeight: 800,
                                 '& .MuiChip-label': { px: 0.9 },
                               }}

@@ -82,13 +82,13 @@ export const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
 };
 
 export const TONE: Record<ToneName, { bg: string; fg: string; dot: string }> = {
-  neutral: { bg: '#F0F3F7', fg: '#475569', dot: '#94A3B8' },
-  blue:    { bg: '#E5F0FB', fg: '#1F66C9', dot: '#2F7DE1' },
-  indigo:  { bg: '#ECEAFB', fg: '#5743C8', dot: '#7A6BE2' },
-  amber:   { bg: '#FBF1DC', fg: '#9A6A0E', dot: '#C8941D' },
-  green:   { bg: '#E1F4EA', fg: '#0E7A48', dot: '#16A364' },
-  red:     { bg: '#FCE5E9', fg: '#B53047', dot: '#D14256' },
-  muted:   { bg: '#EFF1F4', fg: '#94A3B8', dot: '#B0B8C2' },
+  neutral: { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-neutral)', dot: 'var(--hotel-neutral)' },
+  blue:    { bg: 'var(--hotel-info-bg)', fg: 'var(--hotel-info)', dot: 'var(--hotel-info)' },
+  indigo:  { bg: 'var(--hotel-info-bg)', fg: 'var(--hotel-info)', dot: 'var(--hotel-info)' },
+  amber:   { bg: 'var(--hotel-warning-bg)', fg: 'var(--hotel-warning)', dot: 'var(--hotel-warning)' },
+  green:   { bg: 'var(--hotel-success-bg)', fg: 'var(--hotel-success)', dot: 'var(--hotel-success)' },
+  red:     { bg: 'var(--hotel-danger-bg)', fg: 'var(--hotel-danger)', dot: 'var(--hotel-danger)' },
+  muted:   { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-text-muted)', dot: 'var(--hotel-text-muted)' },
 };
 
 export const STATUS_TONE: Record<LedgerUiStatus, { label: string; tone: ToneName }> = {

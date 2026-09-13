@@ -55,7 +55,7 @@ export function OtaMonthlyStatementReport({ reportData, hotelSettings, currencyS
             <TableContainer component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                     <TableCell>Ref No</TableCell>
                     <TableCell>Name</TableCell>
                     <TableCell align="right">Amount</TableCell>
@@ -79,7 +79,7 @@ export function OtaMonthlyStatementReport({ reportData, hotelSettings, currencyS
                       <TableCell>{row.check_out_date}</TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                  <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                     <TableCell colSpan={2} sx={{ fontWeight: 700 }}>Total</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(statement.totals?.amount)}</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(statement.totals?.commission)}</TableCell>
@@ -126,7 +126,7 @@ export function PaymentStatusReport({ reportData, hotelSettings, currencySymbol,
       </Box>
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={6}>
-          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#ffebee' }}>
+          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'var(--hotel-danger-bg)' }}>
             <Typography variant="h3" sx={{
               color: "error.main"
             }}>
@@ -136,7 +136,7 @@ export function PaymentStatusReport({ reportData, hotelSettings, currencySymbol,
           </Paper>
         </Grid>
         <Grid size={6}>
-          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#fff3e0' }}>
+          <Paper sx={{ p: 3, textAlign: 'center', bgcolor: 'var(--hotel-warning-bg)' }}>
             <Typography variant="h3" sx={{
               color: "warning.main"
             }}>{reportData.overdue_count || 0}</Typography>
@@ -149,7 +149,7 @@ export function PaymentStatusReport({ reportData, hotelSettings, currencySymbol,
       <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Payment Status</TableCell>
               <TableCell align="right">Count</TableCell>
               <TableCell align="right">Total Amount</TableCell>
@@ -176,7 +176,7 @@ export function PaymentStatusReport({ reportData, hotelSettings, currencySymbol,
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: '#ffebee' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-danger-bg)' }}>
                   <TableCell>Booking #</TableCell>
                   <TableCell>Guest</TableCell>
                   <TableCell>Room</TableCell>
@@ -252,7 +252,7 @@ export function ComplimentaryReport({ reportData, hotelSettings, currencySymbol,
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 2 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-warning-bg)' }}>
             <Typography variant="h5" sx={{
               color: "warning.main"
             }}>{currencySymbol}{summary?.discount_given?.toFixed(0) || 0}</Typography>
@@ -260,7 +260,7 @@ export function ComplimentaryReport({ reportData, hotelSettings, currencySymbol,
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 2 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-success-bg)' }}>
             <Typography variant="h5" sx={{
               color: "success.main"
             }}>{currencySymbol}{summary?.actual_revenue?.toFixed(0) || 0}</Typography>
@@ -273,7 +273,7 @@ export function ComplimentaryReport({ reportData, hotelSettings, currencySymbol,
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Booking #</TableCell>
               <TableCell>Guest</TableCell>
               <TableCell>Room</TableCell>
@@ -331,7 +331,7 @@ export function GuestStatisticsReport({ reportData, hotelSettings, currencySymbo
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 2 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-success-bg)' }}>
             <Typography variant="h4" sx={{
               color: "success.main"
             }}>{summary.new_guests}</Typography>
@@ -339,7 +339,7 @@ export function GuestStatisticsReport({ reportData, hotelSettings, currencySymbo
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 2 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-info-bg)' }}>
             <Typography variant="h4" sx={{
               color: "info.main"
             }}>{summary.returning_guests}</Typography>
@@ -372,7 +372,7 @@ export function GuestStatisticsReport({ reportData, hotelSettings, currencySymbo
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell>Guest Name</TableCell>
                   <TableCell align="right">Bookings</TableCell>
                   <TableCell align="right">Total Spent</TableCell>
@@ -397,7 +397,7 @@ export function GuestStatisticsReport({ reportData, hotelSettings, currencySymbo
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell>Nationality</TableCell>
                   <TableCell align="right">Count</TableCell>
                 </TableRow>

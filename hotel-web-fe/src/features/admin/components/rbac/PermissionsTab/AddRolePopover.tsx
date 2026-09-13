@@ -87,7 +87,7 @@ const AddRolePopover: React.FC<AddRolePopoverProps> = ({
               sx={{
                 py: 1,
                 '&:hover': {
-                  backgroundColor: `${getRoleColor(role.name)}10`,
+                  backgroundColor: `color-mix(in srgb, ${getRoleColor(role.name)} 6%, transparent)`,
                 },
               }}
             >

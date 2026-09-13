@@ -50,7 +50,7 @@ const BookingModeSelector: React.FC<BookingModeSelectorProps> = ({ D, glyph, boo
               cursor: 'pointer',
               fontFamily: 'inherit',
               color: on ? D.ink : D.ink2,
-              boxShadow: on ? `0 0 0 1px ${D.emerald} inset, 0 1px 3px rgba(15,23,42,0.06)` : 'none',
+              boxShadow: on ? `0 0 0 1px ${D.emerald} inset, var(--hotel-shadow-sm)` : 'none',
             }}
           >
             <Box sx={{

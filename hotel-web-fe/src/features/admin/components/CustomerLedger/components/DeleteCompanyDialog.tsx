@@ -48,7 +48,7 @@ const DeleteCompanyDialog: React.FC<DeleteCompanyDialogProps> = ({
         Are you sure you want to delete the company <strong>"{company?.company_name}"</strong>?
       </Typography>
       {company && (
-        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+        <Box sx={{ mt: 2, p: 2, bgcolor: 'var(--hotel-surface-sunken)', borderRadius: 1 }}>
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>

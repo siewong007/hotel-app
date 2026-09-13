@@ -23,19 +23,19 @@ type CopyState = 'idle' | 'copied' | 'failed';
 
 const STATUS_STYLES = {
   available: {
-    backgroundColor: '#e8f2eb',
-    color: '#225c39',
-    accent: '#1f6843',
+    backgroundColor: 'var(--hotel-success-bg)',
+    color: 'var(--hotel-success)',
+    accent: 'var(--hotel-success)',
   },
   redeemed: {
-    backgroundColor: '#ececeb',
-    color: '#555b57',
-    accent: '#6f766f',
+    backgroundColor: 'var(--hotel-neutral-bg)',
+    color: 'var(--hotel-neutral)',
+    accent: 'var(--hotel-neutral)',
   },
   revoked: {
-    backgroundColor: '#f8e9e6',
-    color: '#8a3b30',
-    accent: '#a64b3e',
+    backgroundColor: 'var(--hotel-danger-bg)',
+    color: 'var(--hotel-danger)',
+    accent: 'var(--hotel-danger)',
   },
 } as const;
 
@@ -57,7 +57,7 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
     ? 'Expired'
     : VOUCHER_STATUS_LABELS[voucher.status] ?? voucher.status;
   const statusStyle = isExpired
-    ? { backgroundColor: '#fff1d8', color: '#7b5417', accent: '#b47920' }
+    ? { backgroundColor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', accent: 'var(--hotel-warning)' }
     : STATUS_STYLES[voucher.status];
 
   const copyCode = async () => {
@@ -78,14 +78,14 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
       variant="outlined"
       sx={{
         overflow: 'hidden',
-        borderColor: 'rgba(6, 35, 27, 0.14)',
+        borderColor: 'var(--hotel-border)',
         borderRadius: 3,
-        boxShadow: '0 10px 30px rgba(6, 35, 27, 0.055)',
+        boxShadow: 'var(--hotel-shadow-sm)',
         transition: 'border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease',
         '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
         '&:hover': {
-          borderColor: 'rgba(6, 35, 27, 0.28)',
-          boxShadow: '0 16px 36px rgba(6, 35, 27, 0.09)',
+          borderColor: 'var(--hotel-border-strong)',
+          boxShadow: 'var(--hotel-shadow-md)',
           transform: 'translateY(-2px)',
         },
       }}
@@ -117,10 +117,10 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
             <Stack direction="row" spacing={1} sx={{
               alignItems: "center"
             }}>
-              <ConfirmationNumberOutlinedIcon sx={{ color: '#9b742f', fontSize: 20 }} />
+              <ConfirmationNumberOutlinedIcon sx={{ color: 'var(--hotel-primary-text)', fontSize: 20 }} />
               <Typography
                 variant="overline"
-                sx={{ color: '#7d632f', fontWeight: 800, letterSpacing: '0.13em' }}
+                sx={{ color: 'var(--hotel-primary-text)', fontWeight: 800, letterSpacing: '0.13em' }}
               >
                 Stay voucher
               </Typography>
@@ -141,7 +141,7 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
 
           <Typography
             variant="h5"
-            sx={{ mt: 2, color: '#061b15', fontWeight: 750, lineHeight: 1.2 }}
+            sx={{ mt: 2, color: 'var(--hotel-text)', fontWeight: 750, lineHeight: 1.2 }}
           >
             {voucher.promotion_name}
           </Typography>
@@ -171,9 +171,9 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
         <Box
           sx={{
             p: { xs: 2.5, sm: 3.25 },
-            backgroundColor: '#fbf5e9',
-            borderTop: { xs: '1px dashed rgba(126, 92, 32, 0.35)', md: 0 },
-            borderLeft: { xs: 0, md: '1px dashed rgba(126, 92, 32, 0.35)' },
+            backgroundColor: 'var(--hotel-surface-sunken)',
+            borderTop: { xs: '1px dashed var(--hotel-border-strong)', md: 0 },
+            borderLeft: { xs: 0, md: '1px dashed var(--hotel-border-strong)' },
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -182,14 +182,14 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
         >
           <Typography
             variant="caption"
-            sx={{ color: '#765d30', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+            sx={{ color: 'var(--hotel-primary-text)', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}
           >
             Voucher code
           </Typography>
           <Typography
             sx={{
               mt: 0.75,
-              color: '#10221d',
+              color: 'var(--hotel-text)',
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
               fontSize: 'clamp(1rem, 2vw, 1.35rem)',
               fontWeight: 800,
@@ -211,9 +211,9 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
                 alignSelf: { xs: 'stretch', sm: 'flex-start' },
                 minHeight: 44,
                 px: 2.25,
-                backgroundColor: '#0a4a38',
+                backgroundColor: 'var(--hotel-primary)',
                 boxShadow: 'none',
-                '&:hover': { backgroundColor: '#073c2e', boxShadow: 'none' },
+                '&:hover': { backgroundColor: 'var(--hotel-primary-hover)', boxShadow: 'none' },
               }}
             >
               {copyState === 'copied' ? 'Copied' : 'Copy code'}
@@ -221,12 +221,12 @@ export function VoucherCard({ voucher }: VoucherCardProps) {
           ) : null}
           <Box role="status" aria-live="polite" aria-atomic="true" sx={{ minHeight: 20, mt: 1 }}>
             {copyState === 'copied' ? (
-              <Typography variant="caption" sx={{ color: '#225c39', fontWeight: 700 }}>
+              <Typography variant="caption" sx={{ color: 'var(--hotel-success)', fontWeight: 700 }}>
                 Voucher code copied to clipboard.
               </Typography>
             ) : null}
             {copyState === 'failed' ? (
-              <Typography variant="caption" sx={{ color: '#8a3b30', fontWeight: 700 }}>
+              <Typography variant="caption" sx={{ color: 'var(--hotel-danger)', fontWeight: 700 }}>
                 Could not copy the code. Please select it manually.
               </Typography>
             ) : null}

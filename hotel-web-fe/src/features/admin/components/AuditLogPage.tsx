@@ -46,21 +46,34 @@ import {
 } from '../hooks/useAuditQueries';
 import { errorMessage } from '../../../utils/errorMessage';
 
-/* ---------- Salim Inn design tokens ---------- */
+/* ---------- Design tokens — aliases onto the global --hotel-* vars ---------- */
 const T = {
-  surface: '#FFFFFF',
-  surface2: '#F8FAFB',
-  surface3: '#EFF2F5',
-  border: '#E2E6EC',
-  borderHi: '#CBD2DA',
-  ink: '#0F172A',
-  ink2: '#475569',
-  ink3: '#7B8794',
-  ink4: '#B0B8C2',
-  slateSoft: '#F0F3F7',
-  rose: '#D14256',
-  roseSoft: '#FCE8EC',
-  roseDeep: '#9B2A3B',
+  surface: 'var(--hotel-surface)',
+  surface2: 'var(--hotel-surface-raised)',
+  surface3: 'var(--hotel-surface-sunken)',
+  border: 'var(--hotel-border)',
+  borderHi: 'var(--hotel-border-strong)',
+  ink: 'var(--hotel-text)',
+  ink2: 'var(--hotel-text-secondary)',
+  ink3: 'var(--hotel-text-muted)',
+  ink4: 'var(--hotel-text-disabled)',
+  slateSoft: 'var(--hotel-neutral-bg)',
+  rose: 'var(--hotel-danger)',
+  roseSoft: 'var(--hotel-danger-bg)',
+  roseDeep: 'var(--hotel-danger)',
+  emerald: 'var(--hotel-primary)',
+  emeraldDeep: 'var(--hotel-primary-hover)',
+  emeraldSoft: 'var(--hotel-primary-subtle)',
+  amber: 'var(--hotel-warning)',
+  amberSoft: 'var(--hotel-warning-bg)',
+  blue: 'var(--hotel-info)',
+  blueSoft: 'var(--hotel-info-bg)',
+  success: 'var(--hotel-success)',
+  successSoft: 'var(--hotel-success-bg)',
+  violet: 'var(--hotel-chart-4)',
+  violetSoft: 'color-mix(in srgb, var(--hotel-chart-4) 14%, transparent)',
+  teal: 'var(--hotel-chart-3)',
+  tealSoft: 'color-mix(in srgb, var(--hotel-chart-3) 14%, transparent)',
 };
 
 interface CatDef {
@@ -74,11 +87,11 @@ interface CatDef {
 }
 
 const CATEGORIES: CatDef[] = [
-  { id: 'rooms', name: 'Room Activity', sub: 'Inventory & status', Icon: RoomIcon, acc: '#10A47C', accDeep: '#0B6A50', accSoft: '#E7F5EF' },
-  { id: 'guests', name: 'Guest Activity', sub: 'Profiles & KYC', Icon: GuestIcon, acc: '#2F7DE1', accDeep: '#1F5FB8', accSoft: '#E8F1FB' },
-  { id: 'bookings', name: 'Booking Activity', sub: 'Reservations & stays', Icon: BookingIcon, acc: '#7A56D6', accDeep: '#5436A8', accSoft: '#EDE7FA' },
-  { id: 'system', name: 'System Configuration', sub: 'Settings & access', Icon: SystemIcon, acc: '#C8941D', accDeep: '#8A6210', accSoft: '#FBF1DC' },
-  { id: 'reports', name: 'Report Activity', sub: 'Exports & night audit', Icon: ReportIcon, acc: '#1A8FA0', accDeep: '#0F6470', accSoft: '#DCF1F4' },
+  { id: 'rooms', name: 'Room Activity', sub: 'Inventory & status', Icon: RoomIcon, acc: T.emerald, accDeep: T.emerald, accSoft: T.emeraldSoft },
+  { id: 'guests', name: 'Guest Activity', sub: 'Profiles & KYC', Icon: GuestIcon, acc: T.blue, accDeep: T.blue, accSoft: T.blueSoft },
+  { id: 'bookings', name: 'Booking Activity', sub: 'Reservations & stays', Icon: BookingIcon, acc: T.violet, accDeep: T.violet, accSoft: T.violetSoft },
+  { id: 'system', name: 'System Configuration', sub: 'Settings & access', Icon: SystemIcon, acc: T.amber, accDeep: T.amber, accSoft: T.amberSoft },
+  { id: 'reports', name: 'Report Activity', sub: 'Exports & night audit', Icon: ReportIcon, acc: T.teal, accDeep: T.teal, accSoft: T.tealSoft },
 ];
 
 type Verb = 'create' | 'update' | 'delete' | 'view' | 'run' | 'export' | 'check';
@@ -94,13 +107,13 @@ const VERB_LABEL: Record<Verb, string> = {
 };
 
 const VERB_STYLE: Record<Verb, { bg: string; fg: string }> = {
-  create: { bg: '#E7F5EF', fg: '#0B6A50' },
-  update: { bg: '#FBF1DC', fg: '#8A6210' },
-  delete: { bg: '#FCE8EC', fg: '#9B2A3B' },
-  view: { bg: '#F0F3F7', fg: '#475569' },
-  run: { bg: '#E8F1FB', fg: '#1F5FB8' },
-  export: { bg: '#EDE7FA', fg: '#5436A8' },
-  check: { bg: '#DCF1F4', fg: '#0F6470' },
+  create: { bg: 'var(--hotel-success-bg)', fg: 'var(--hotel-success)' },
+  update: { bg: 'var(--hotel-warning-bg)', fg: 'var(--hotel-warning)' },
+  delete: { bg: 'var(--hotel-danger-bg)', fg: 'var(--hotel-danger)' },
+  view: { bg: 'var(--hotel-neutral-bg)', fg: 'var(--hotel-neutral)' },
+  run: { bg: 'var(--hotel-info-bg)', fg: 'var(--hotel-info)' },
+  export: { bg: 'color-mix(in srgb, var(--hotel-chart-4) 14%, transparent)', fg: 'var(--hotel-chart-4)' },
+  check: { bg: 'color-mix(in srgb, var(--hotel-chart-3) 14%, transparent)', fg: 'var(--hotel-chart-3)' },
 };
 
 /** Derive a coarse verb from a backend action string. Order matters. */
@@ -408,7 +421,7 @@ const AuditLogPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto', bgcolor: '#F4F6F8', minHeight: '100%' }}>
+    <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto', bgcolor: 'var(--hotel-bg)', minHeight: '100%' }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap', mb: 2.25 }}>
         <Box>
@@ -432,7 +445,7 @@ const AuditLogPage: React.FC = () => {
             PDF
           </Button>
           <Button variant="contained" startIcon={<DownloadIcon />} onClick={handleExportCSV} disabled={exporting || loading}
-            sx={{ textTransform: 'none', bgcolor: '#10A47C', '&:hover': { bgcolor: '#0E8C6A' } }}>
+            sx={{ textTransform: 'none', bgcolor: 'var(--hotel-primary)', '&:hover': { bgcolor: 'var(--hotel-primary-hover)' } }}>
             Export
           </Button>
         </Box>
@@ -451,7 +464,7 @@ const AuditLogPage: React.FC = () => {
                 position: 'relative', textAlign: 'left', cursor: 'pointer',
                 bgcolor: T.surface, border: `1px solid ${on ? T.ink : T.border}`,
                 borderRadius: '12px', p: '14px 16px 12px', overflow: 'hidden',
-                boxShadow: on ? '0 2px 8px rgba(15,23,42,0.07)' : 'none',
+                boxShadow: on ? 'var(--hotel-shadow-sm)' : 'none',
                 transition: 'border-color 120ms, transform 120ms',
                 '&:hover': { borderColor: on ? T.ink : T.borderHi, transform: 'translateY(-1px)' },
                 '&::before': {
@@ -489,20 +502,20 @@ const AuditLogPage: React.FC = () => {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search this stream by user, target, code, or action…"
-          sx={{ flex: 1, minWidth: 280, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+          sx={{ flex: 1, minWidth: 280, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
           slotProps={{
             input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
           }}
         />
-        <Box sx={{ display: 'inline-flex', bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
+        <Box sx={{ display: 'inline-flex', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
           {availableVerbs.map((v) => {
             const sel = verbFilter === v;
             return (
               <Box key={v} component="button" onClick={() => setVerbFilter(v as Verb | 'all')}
                 sx={{
                   px: 1.25, py: 0.75, fontSize: 12, fontWeight: 600, borderRadius: '6px', cursor: 'pointer',
-                  border: 'none', color: sel ? '#fff' : T.ink3, bgcolor: sel ? T.ink : 'transparent',
-                  '&:hover': { color: sel ? '#fff' : T.ink },
+                  border: 'none', color: sel ? 'var(--hotel-bg)' : T.ink3, bgcolor: sel ? T.ink : 'transparent',
+                  '&:hover': { color: sel ? 'var(--hotel-bg)' : T.ink },
                 }}>
                 {v === 'all' ? 'All actions' : VERB_LABEL[v as Verb]}
               </Box>
@@ -514,7 +527,7 @@ const AuditLogPage: React.FC = () => {
           onClick={openDateMenu}
           sx={{
             display: 'inline-flex', alignItems: 'center', gap: 0.625, cursor: 'pointer',
-            bgcolor: hasDateRange ? T.ink : '#fff', color: hasDateRange ? '#fff' : T.ink2,
+            bgcolor: hasDateRange ? T.ink : T.surface, color: hasDateRange ? 'var(--hotel-bg)' : T.ink2,
             border: `1px solid ${hasDateRange ? T.ink : T.border}`, borderRadius: 999,
             px: 1.5, py: 0.75, fontSize: 12, fontWeight: 600,
             '&:hover': { borderColor: hasDateRange ? T.ink : T.borderHi },
@@ -539,7 +552,7 @@ const AuditLogPage: React.FC = () => {
               { lb: 'All time', fn: () => applyRange(undefined, undefined) },
             ].map((p) => (
               <Box key={p.lb} component="button" onClick={p.fn}
-                sx={{ px: 1, py: 0.5, fontSize: 11.5, fontWeight: 600, borderRadius: '7px', cursor: 'pointer', border: `1px solid ${T.border}`, bgcolor: '#fff', color: T.ink2, '&:hover': { borderColor: T.borderHi, color: T.ink } }}>
+                sx={{ px: 1, py: 0.5, fontSize: 11.5, fontWeight: 600, borderRadius: '7px', cursor: 'pointer', border: `1px solid ${T.border}`, bgcolor: T.surface, color: T.ink2, '&:hover': { borderColor: T.borderHi, color: T.ink } }}>
                 {p.lb}
               </Box>
             ))}
@@ -566,7 +579,7 @@ const AuditLogPage: React.FC = () => {
             <Button
               size="small" variant="contained"
               onClick={() => applyRange(draftStart || undefined, draftEnd || undefined)}
-              sx={{ textTransform: 'none', bgcolor: '#10A47C', '&:hover': { bgcolor: '#0E8C6A' } }}
+              sx={{ textTransform: 'none', bgcolor: 'var(--hotel-primary)', '&:hover': { bgcolor: 'var(--hotel-primary-hover)' } }}
             >
               Apply
             </Button>
@@ -576,7 +589,7 @@ const AuditLogPage: React.FC = () => {
       {/* Log panel */}
       <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '14px', overflow: 'hidden' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, p: '14px 18px', borderBottom: `1px solid ${T.border}`, background: `linear-gradient(180deg, ${T.surface} 0%, ${T.surface2} 100%)` }}>
-          <Box sx={{ width: 38, height: 38, borderRadius: '10px', bgcolor: activeDef.accSoft, color: activeDef.accDeep, display: 'grid', placeItems: 'center', border: `1px solid ${activeDef.acc}2E` }}>
+          <Box sx={{ width: 38, height: 38, borderRadius: '10px', bgcolor: activeDef.accSoft, color: activeDef.accDeep, display: 'grid', placeItems: 'center', border: `1px solid color-mix(in srgb, ${activeDef.acc} 18%, transparent)` }}>
             <activeDef.Icon sx={{ fontSize: 20 }} />
           </Box>
           <Box>
@@ -638,7 +651,7 @@ const AuditLogPage: React.FC = () => {
                         <Box sx={{ color: T.ink3, fontSize: 10.5, mt: '2px', fontWeight: 500 }}>{fmtDate(r.created_at)}</Box>
                       </Box>
                       <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
-                        <Box sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 10.5, fontWeight: 700, ...(isSys ? { bgcolor: T.slateSoft, color: T.ink2 } : { background: 'linear-gradient(135deg,#E7F5EF,#B8E5D5)', color: '#0B6A50' }) }}>
+                        <Box sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: 10.5, fontWeight: 700, ...(isSys ? { bgcolor: T.slateSoft, color: T.ink2 } : { background: 'var(--hotel-success-bg)', color: 'var(--hotel-success)' }) }}>
                           {isSys ? <CronIcon sx={{ fontSize: 14 }} /> : initials(r.username || 'NA')}
                         </Box>
                         <Box sx={{ minWidth: 0 }}>
@@ -655,7 +668,7 @@ const AuditLogPage: React.FC = () => {
                             <Box component="span" sx={{ fontWeight: 600 }}>{actionLabel}</Box>
                             {!hasFieldChanges && (
                               <Tooltip title="Action trigger recorded without field-level before/after changes.">
-                                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.35, fontSize: 10.5, fontWeight: 700, color: '#8A6210', bgcolor: '#FBF1DC', border: '1px solid #E8CA7A', px: 0.65, py: '1px', borderRadius: '999px', lineHeight: 1.4 }}>
+                                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.35, fontSize: 10.5, fontWeight: 700, color: 'var(--hotel-warning)', bgcolor: 'var(--hotel-warning-bg)', border: '1px solid var(--hotel-warning-border)', px: 0.65, py: '1px', borderRadius: '999px', lineHeight: 1.4 }}>
                                   <ActionOnlyIcon sx={{ fontSize: 12 }} />
                                   Action only
                                 </Box>
@@ -684,7 +697,7 @@ const AuditLogPage: React.FC = () => {
                       </Box>
                     </Box>
                     <Collapse in={open} unmountOnExit>
-                      <Box sx={{ p: '14px 18px 16px 48px', bgcolor: '#fff', borderBottom: `1px solid ${T.border}`, borderTop: `1px dashed ${T.border}`, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+                      <Box sx={{ p: '14px 18px 16px 48px', bgcolor: T.surface, borderBottom: `1px solid ${T.border}`, borderTop: `1px dashed ${T.border}`, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
                         <Box>
                           <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Event details</Box>
                           <Box sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px 12px', fontSize: 12.5 }}>
@@ -704,21 +717,21 @@ const AuditLogPage: React.FC = () => {
                               {detailAnalysis.changes.map((d, i) => (
                                 <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.changes.length - 1 ? `1px solid ${T.border}` : 'none' }}>
                                   <Box sx={{ color: T.ink3, fontWeight: 600 }}>{d.k}</Box>
-                                  <Box sx={{ color: T.rose, textDecoration: 'line-through', textDecorationColor: 'rgba(209,66,86,0.45)' }}>{d.from}</Box>
-                                  <Box sx={{ color: '#0B6A50', fontWeight: 700 }}><Box component="span" sx={{ color: T.ink4, px: 0.5 }}>→</Box>{d.to}</Box>
+                                  <Box sx={{ color: T.rose, textDecoration: 'line-through', textDecorationColor: 'var(--hotel-danger-border)' }}>{d.from}</Box>
+                                  <Box sx={{ color: 'var(--hotel-success)', fontWeight: 700 }}><Box component="span" sx={{ color: T.ink4, px: 0.5 }}>→</Box>{d.to}</Box>
                                 </Box>
                               ))}
                             </Box>
                           ) : (
                             <Box sx={{ fontSize: 12, color: T.ink3, p: '10px 12px', bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', display: 'flex', gap: 0.75, alignItems: 'center' }}>
-                              <ActionOnlyIcon sx={{ fontSize: 16, color: '#8A6210' }} />
+                              <ActionOnlyIcon sx={{ fontSize: 16, color: 'var(--hotel-warning)' }} />
                               Action-only event — no field-level changes were captured.
                             </Box>
                           )}
                           {detailAnalysis.metadata.length > 0 && (
                             <Box sx={{ mt: 1.5 }}>
                               <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Recorded metadata</Box>
-                              <Box sx={{ bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
+                              <Box sx={{ bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
                                 {detailAnalysis.metadata.map((d, i) => (
                                   <Box key={d.k} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.metadata.length - 1 ? `1px solid ${T.border}` : 'none' }}>
                                     <Box sx={{ color: T.ink3, fontWeight: 600 }}>{d.k}</Box>
@@ -755,7 +768,7 @@ const AuditLogPage: React.FC = () => {
           </Select>
           <Box sx={{ display: 'inline-flex', gap: '2px', ml: 1.5 }}>
             <IconButton size="small" disabled={curPage <= 1} onClick={() => setQuery((p) => ({ ...p, page: curPage - 1 }))} aria-label="Previous page">‹</IconButton>
-            <Box sx={{ minWidth: 28, height: 28, borderRadius: '7px', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, bgcolor: T.ink, color: '#fff' }}>{curPage}</Box>
+            <Box sx={{ minWidth: 28, height: 28, borderRadius: '7px', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, bgcolor: T.ink, color: 'var(--hotel-bg)' }}>{curPage}</Box>
             <IconButton size="small" disabled={curPage >= totalPages} onClick={() => setQuery((p) => ({ ...p, page: curPage + 1 }))} aria-label="Next page">›</IconButton>
           </Box>
         </Box>

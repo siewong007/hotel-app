@@ -3,31 +3,33 @@
    the app. Ported from the Claude Design handoff bundle. */
 
 .salim-reports {
-  --bg:        #F4F6F8;
-  --surface:   #FFFFFF;
-  --surface-2: #F8FAFB;
-  --surface-3: #EFF2F5;
-  --border:    #E2E6EC;
-  --border-hi: #CBD2DA;
-  --ink:       #0F172A;
-  --ink-2:     #475569;
-  --ink-3:     #7B8794;
-  --ink-4:     #B0B8C2;
+  /* Aliases onto the global --hotel-* tokens so this subsystem always follows
+     the active theme instead of carrying its own palette. */
+  --bg:        var(--hotel-bg);
+  --surface:   var(--hotel-surface);
+  --surface-2: var(--hotel-surface-raised);
+  --surface-3: var(--hotel-surface-sunken);
+  --border:    var(--hotel-border);
+  --border-hi: var(--hotel-border-strong);
+  --ink:       var(--hotel-text);
+  --ink-2:     var(--hotel-text-secondary);
+  --ink-3:     var(--hotel-text-muted);
+  --ink-4:     var(--hotel-text-disabled);
 
-  --emerald:      #10A47C;
-  --emerald-deep: #0E8C6A;
-  --emerald-soft: #E7F5EF;
-  --blue:    #2F7DE1;
-  --blue-soft: #E8F1FB;
-  --indigo:  #7A6BE2;
-  --indigo-soft: #ECEAFB;
-  --amber:   #C8941D;
-  --amber-soft: #FBF1DC;
-  --rose:    #D14256;
-  --rose-soft: #FCE8EC;
+  --emerald:      var(--hotel-primary);
+  --emerald-deep: var(--hotel-primary-hover);
+  --emerald-soft: var(--hotel-primary-subtle);
+  --blue:    var(--hotel-info);
+  --blue-soft: var(--hotel-info-bg);
+  --indigo:  var(--hotel-chart-4);
+  --indigo-soft: var(--hotel-neutral-bg);
+  --amber:   var(--hotel-warning);
+  --amber-soft: var(--hotel-warning-bg);
+  --rose:    var(--hotel-danger);
+  --rose-soft: var(--hotel-danger-bg);
 
-  --good: #0E7A48;
-  --bad:  #B53047;
+  --good: var(--hotel-success);
+  --bad:  var(--hotel-danger);
 
   color: var(--ink);
   font-size: 14px;
@@ -58,22 +60,22 @@
 .salim-reports .btn {
   display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px;
   border-radius: 9px; font-size: 13px; font-weight: 600;
-  background: #fff; color: var(--ink); border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border);
   transition: background 120ms, border-color 120ms, box-shadow 120ms;
 }
 .salim-reports .btn:hover { border-color: var(--border-hi); background: var(--surface-2); }
 .salim-reports .btn.primary {
-  background: linear-gradient(180deg, var(--emerald), var(--emerald-deep));
-  color: #fff; border-color: var(--emerald-deep);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 12px rgba(16,164,124,0.28);
+  background: var(--emerald);
+  color: var(--hotel-on-primary); border-color: var(--emerald);
+  box-shadow: none;
 }
-.salim-reports .btn.primary:hover { filter: brightness(1.05); }
+.salim-reports .btn.primary:hover { background: var(--emerald-deep); }
 .salim-reports .btn.sm { padding: 6px 11px; font-size: 12px; border-radius: 8px; }
 .salim-reports .btn.icon { padding: 9px; }
 
 .salim-reports .role-pill {
   display: inline-flex; align-items: center; gap: 7px;
-  background: #fff; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
   padding: 9px 12px; height: 38px; color: var(--ink-2);
   font-size: 13px; font-weight: 600;
 }
@@ -81,7 +83,7 @@
 /* ---------- FILTERS ---------- */
 .salim-reports .filters {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 12px 14px; background: #fff;
+  padding: 12px 14px; background: var(--surface);
   border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px;
 }
 .salim-reports .filters-spacer { flex: 1; }
@@ -90,7 +92,7 @@
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
   font-size: 12.5px; color: var(--ink-2); transition: border-color 120ms, background 120ms;
 }
-.salim-reports .fpill:hover { border-color: var(--border-hi); background: #fff; }
+.salim-reports .fpill:hover { border-color: var(--border-hi); background: var(--surface); }
 .salim-reports .fpill .fl { font-weight: 500; }
 .salim-reports .fpill .fv { font-weight: 700; color: var(--ink); }
 .salim-reports .fpill svg:last-child { color: var(--ink-4); }
@@ -102,11 +104,11 @@
   padding: 5px 11px; font-size: 12px; font-weight: 600; color: var(--ink-3); border-radius: 6px;
 }
 .salim-reports .seg button:hover { color: var(--ink); }
-.salim-reports .seg button.is-on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,0.10); }
+.salim-reports .seg button.is-on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,0.10); }
 
 /* ---------- LIVE STRIP ---------- */
 .salim-reports .live {
-  background: #fff; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
   overflow: hidden; margin-bottom: 16px;
 }
 .salim-reports .live-h {
@@ -152,7 +154,7 @@
 @media (max-width: 1300px) { .salim-reports .kpis { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 720px)  { .salim-reports .kpis { grid-template-columns: repeat(2, 1fr); } }
 .salim-reports .kpi {
-  background: #fff; border: 1px solid var(--border); border-radius: 13px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 13px;
   padding: 14px 15px 0; text-align: left; display: flex; flex-direction: column;
   min-height: 148px; overflow: hidden; transition: border-color 120ms, box-shadow 120ms, transform 120ms;
   width: 100%;
@@ -175,12 +177,12 @@
 /* ---------- LOCKED ---------- */
 .salim-reports .locked { position: relative; border-radius: 13px; overflow: hidden; }
 .salim-reports .locked-blur { filter: blur(5px) saturate(0.6); opacity: 0.45; pointer-events: none; user-select: none; }
-.salim-reports .locked-veil { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(248,250,251,0.35); }
+.salim-reports .locked-veil { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--hotel-bg) 55%, transparent); }
 .salim-reports .locked-chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
-  background: #fff; border: 1px solid var(--border-hi); border-radius: 100px;
+  background: var(--surface); border: 1px solid var(--border-hi); border-radius: 100px;
   font-size: 11.5px; font-weight: 700; color: var(--ink-2);
-  box-shadow: 0 4px 12px rgba(15,23,42,0.10);
+  box-shadow: var(--hotel-shadow-md);
 }
 
 /* ---------- CHART PANELS ---------- */
@@ -188,7 +190,7 @@
 .salim-reports .chart-row.two { grid-template-columns: 2fr 1fr; }
 .salim-reports .chart-row.thirds { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 1100px) { .salim-reports .chart-row.two, .salim-reports .chart-row.thirds { grid-template-columns: 1fr; } }
-.salim-reports .cpanel { background: #fff; border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; }
+.salim-reports .cpanel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; }
 .salim-reports .cpanel[data-clickable="true"] { cursor: pointer; transition: border-color 120ms, box-shadow 120ms; }
 .salim-reports .cpanel[data-clickable="true"]:hover { border-color: var(--border-hi); box-shadow: 0 6px 18px rgba(15,23,42,0.07); }
 .salim-reports .cpanel-h {
@@ -254,19 +256,22 @@
 
 /* ---------- DRAWER ---------- */
 .salim-reports-scrim {
-  position: fixed; inset: 0; background: rgba(15,23,42,0.35); backdrop-filter: blur(3px);
+  position: fixed; inset: 0; background: var(--hotel-scrim); backdrop-filter: blur(3px);
   z-index: 1300; opacity: 0; pointer-events: none; transition: opacity 180ms;
 }
 .salim-reports-scrim.is-on { opacity: 1; pointer-events: auto; }
 .salim-reports-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: min(540px, 100vw);
-  background: #FFFFFF; border-left: 1px solid #E2E6EC;
-  box-shadow: -16px 0 50px rgba(15,23,42,0.18); z-index: 1301;
+  background: var(--hotel-surface-overlay); border-left: 1px solid var(--hotel-border);
+  box-shadow: var(--hotel-shadow-lg); z-index: 1301;
   transform: translateX(100%); transition: transform 220ms cubic-bezier(0.2,0.8,0.2,1);
   display: flex; flex-direction: column;
-  --emerald: #10A47C; --emerald-soft: #E7F5EF; --border: #E2E6EC; --surface-2: #F8FAFB;
-  --surface-3: #EFF2F5; --ink: #0F172A; --ink-2: #475569; --ink-3: #7B8794; --ink-4: #B0B8C2;
-  --rose: #D14256; --rose-soft: #FCE8EC; --blue: #2F7DE1; --blue-soft: #E8F1FB; --amber: #C8941D; --amber-soft: #FBF1DC;
+  --emerald: var(--hotel-primary); --emerald-soft: var(--hotel-primary-subtle);
+  --emerald-deep: var(--hotel-primary-hover);
+  --border: var(--hotel-border); --border-hi: var(--hotel-border-strong);
+  --surface-2: var(--hotel-surface-raised); --surface-3: var(--hotel-surface-sunken);
+  --ink: var(--hotel-text); --ink-2: var(--hotel-text-secondary); --ink-3: var(--hotel-text-muted); --ink-4: var(--hotel-text-disabled);
+  --rose: var(--hotel-danger); --rose-soft: var(--hotel-danger-bg); --blue: var(--hotel-info); --blue-soft: var(--hotel-info-bg); --amber: var(--hotel-warning); --amber-soft: var(--hotel-warning-bg);
   color: var(--ink); font-size: 14px;
 }
 .salim-reports-drawer * , .salim-reports-drawer *::before, .salim-reports-drawer *::after { box-sizing: border-box; }
@@ -285,17 +290,17 @@
 .salim-reports-drawer .btn {
   display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px;
   border-radius: 9px; font-size: 13px; font-weight: 600;
-  background: #fff; color: var(--ink); border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--border);
 }
 .salim-reports-drawer .btn.sm { padding: 6px 11px; font-size: 12px; border-radius: 8px; }
 .salim-reports-drawer .btn.primary {
-  background: linear-gradient(180deg, var(--emerald), var(--emerald-deep, #0E8C6A));
-  color: #fff; border-color: var(--emerald-deep, #0E8C6A);
+  background: var(--hotel-primary);
+  color: var(--hotel-on-primary); border-color: var(--hotel-primary);
 }
 
 .salim-reports-drawer .dw-big {
   display: flex; align-items: center; justify-content: space-between;
-  background: var(--rose-soft); border: 1px solid rgba(209,66,86,0.18);
+  background: var(--rose-soft); border: 1px solid var(--hotel-danger-border);
   border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;
 }
 .salim-reports-drawer .dw-big-l { font-size: 11px; font-weight: 700; color: var(--ink-2); letter-spacing: 0.6px; text-transform: uppercase; }
@@ -329,11 +334,11 @@
 .salim-reports-drawer .vip { font-size: 9px; font-weight: 800; letter-spacing: 0.5px; color: var(--amber); background: var(--amber-soft); padding: 1px 5px; border-radius: 4px; }
 
 .salim-reports-drawer .dw-statgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
-.salim-reports-drawer .dw-statcell { background: #fff; padding: 16px 18px; }
+.salim-reports-drawer .dw-statcell { background: var(--surface); padding: 16px 18px; }
 .salim-reports-drawer .dw-statn { font-size: 28px; font-weight: 800; letter-spacing: -1px; font-family: "JetBrains Mono", monospace; line-height: 1; }
 .salim-reports-drawer .dw-statl { font-size: 11.5px; color: var(--ink-3); font-weight: 600; margin-top: 6px; }
 
-.salim-reports-drawer .dw-info { display: flex; gap: 10px; align-items: flex-start; background: var(--blue-soft); border: 1px solid rgba(47,125,225,0.18); color: var(--ink-2); border-radius: 10px; padding: 12px; font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
+.salim-reports-drawer .dw-info { display: flex; gap: 10px; align-items: flex-start; background: var(--blue-soft); border: 1px solid var(--hotel-info-border); color: var(--ink-2); border-radius: 10px; padding: 12px; font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
 .salim-reports-drawer .dw-info svg { flex-shrink: 0; margin-top: 1px; color: var(--blue); }
 .salim-reports-drawer .dw-info b { color: var(--ink); font-weight: 700; }
 .salim-reports-drawer .dw-rev { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -346,4 +351,4 @@
 .salim-reports-drawer .dw-revv { font-size: 14px; }
 
 .salim-reports-drawer .dw-body::-webkit-scrollbar { width: 8px; }
-.salim-reports-drawer .dw-body::-webkit-scrollbar-thumb { background: var(--border-hi, #CBD2DA); border-radius: 100px; }
+.salim-reports-drawer .dw-body::-webkit-scrollbar-thumb { background: var(--hotel-scrollbar-thumb); border-radius: 100px; }

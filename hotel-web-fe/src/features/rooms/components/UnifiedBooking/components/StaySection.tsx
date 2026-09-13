@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box, Typography, TextField, FormControlLabel, Checkbox } from '@mui/material';
 import { ArrowForward as ArrowForwardIcon, Bedtime as MoonIcon } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
 import { BookingTokens } from '../bookingTokens';
 import SectionHeader from './SectionHeader';
 
@@ -76,7 +75,7 @@ const StaySection: React.FC<StaySectionProps> = ({
         gap: 0.75,
         bgcolor: D.emeraldSoft,
         color: D.emerald,
-        border: `1px solid ${alpha(D.emerald, 0.3)}`,
+        border: '1px solid var(--hotel-primary-border)',
         borderRadius: 999,
         px: 1.25,
         py: 0.5,

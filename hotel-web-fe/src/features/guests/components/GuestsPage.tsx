@@ -105,7 +105,7 @@ const GuestsPage: React.FC = () => {
       )}
       {/* Stats + Search row */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-        <Card elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
+        <Card elevation={0} sx={{ border: '1px solid var(--hotel-border)', borderRadius: 2 }}>
           <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
             <Typography variant="body2" sx={{
               color: "text.secondary"
@@ -135,7 +135,7 @@ const GuestsPage: React.FC = () => {
       </Box>
       {/* Guests Table — card list on phones where the 8 columns cannot fit */}
       {isMobile ? (
-        <Paper elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
+        <Paper elevation={0} sx={{ border: '1px solid var(--hotel-border)', borderRadius: 2 }}>
           {loading ? (
             <Box sx={{ py: 6, textAlign: 'center' }}>
               <CircularProgress size={32} />
@@ -202,10 +202,10 @@ const GuestsPage: React.FC = () => {
           )}
         </Paper>
       ) : (
-      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
+      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid var(--hotel-border)', borderRadius: 2 }}>
         <Table>
           <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+            <TableRow sx={{ backgroundColor: 'var(--hotel-surface-raised)' }}>
               <TableCell><strong>User ID</strong></TableCell>
               <TableCell><strong>Name</strong></TableCell>
               <TableCell><strong>Email</strong></TableCell>

@@ -12,7 +12,6 @@ import {
   ListItemIcon,
   ListItemText,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import type { Room } from '../../../../../types';
 import type { MenuLayout } from '../types';
 import type { RoomManagementStatusInfo } from '../../../hooks/useRoomManagementFilters';
@@ -51,7 +50,7 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
           sx: {
             borderRadius: 2,
             overflow: 'hidden',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
+            boxShadow: 'var(--hotel-shadow-md)',
             border: '1px solid',
             borderColor: 'divider',
           },
@@ -84,10 +83,10 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                       px: 0.85,
                       py: 0.2,
                       borderRadius: 999,
-                      bgcolor: alpha(statusColor, 0.14),
+                      bgcolor: `color-mix(in srgb, ${statusColor} 14%, transparent)`,
                       color: getStatusAccentColor(info.computedStatus),
                       border: '1px solid',
-                      borderColor: alpha(statusColor, 0.35),
+                      borderColor: `color-mix(in srgb, ${statusColor} 35%, transparent)`,
                       fontSize: '0.6rem',
                       fontWeight: 800,
                       textTransform: 'uppercase',

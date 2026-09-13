@@ -134,10 +134,8 @@ const Dashboard: React.FC = () => {
           <StatCard
             title="Total Rooms"
             value={stats.totalRooms}
-            icon={<HotelIcon sx={{ fontSize: 32, color: 'white' }} />}
-            color="#1a73e8"
-            gradient="linear-gradient(135deg, #1a73e8 0%, #4285f4 100%)"
-            appearance="gradient"
+            icon={<HotelIcon />}
+            color="primary.main"
             titlePlacement="bottom"
             headerAlignItems="center"
           />
@@ -147,10 +145,8 @@ const Dashboard: React.FC = () => {
           <StatCard
             title="Available Rooms"
             value={stats.availableRooms}
-            icon={<HotelIcon sx={{ fontSize: 32, color: 'white' }} />}
-            color="#34a853"
-            gradient="linear-gradient(135deg, #34a853 0%, #4caf50 100%)"
-            appearance="gradient"
+            icon={<HotelIcon />}
+            color="success.main"
             titlePlacement="bottom"
             headerAlignItems="center"
           />
@@ -160,10 +156,8 @@ const Dashboard: React.FC = () => {
           <StatCard
             title="Total Guests"
             value={stats.totalGuests}
-            icon={<PersonIcon sx={{ fontSize: 32, color: 'white' }} />}
-            color="#fbbc04"
-            gradient="linear-gradient(135deg, #fbbc04 0%, #ff9800 100%)"
-            appearance="gradient"
+            icon={<PersonIcon />}
+            color="warning.main"
             titlePlacement="bottom"
             headerAlignItems="center"
           />
@@ -173,10 +167,8 @@ const Dashboard: React.FC = () => {
           <StatCard
             title="Total Bookings"
             value={stats.totalBookings}
-            icon={<BookingIcon sx={{ fontSize: 32, color: 'white' }} />}
-            color="#9c27b0"
-            gradient="linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)"
-            appearance="gradient"
+            icon={<BookingIcon />}
+            color="info.main"
             titlePlacement="bottom"
             headerAlignItems="center"
           />
@@ -326,7 +318,7 @@ const Dashboard: React.FC = () => {
                 <Paper variant="outlined">
                   <Table>
                     <TableHead>
-                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                      <TableRow sx={{ backgroundColor: 'var(--hotel-surface-raised)' }}>
                         <TableCell sx={{ fontWeight: 600 }}>Booking ID</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Room</TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>Check-in</TableCell>
@@ -336,7 +328,7 @@ const Dashboard: React.FC = () => {
                     </TableHead>
                     <TableBody>
                       {upcomingBookings.map((booking) => (
-                        <TableRow key={booking.id} sx={{ '&:hover': { backgroundColor: '#fafafa' } }}>
+                        <TableRow key={booking.id} sx={{ '&:hover': { backgroundColor: 'var(--hotel-hover)' } }}>
                           <TableCell>#{booking.id}</TableCell>
                           <TableCell>
                             <Box>

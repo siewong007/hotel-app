@@ -767,8 +767,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       </DialogTitle>
       <DialogContent dividers>
         {(readOnly || checkoutStep === 'preview') ? (
-          // STEP 1: Invoice Preview (Default View)
-          (<Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333' }}>
+          // STEP 1: Invoice Preview — the paper document on a paper surface
+          // (print identity is intentionally light; see docs/DESIGN_SYSTEM.md).
+          (<Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333', bgcolor: '#FFFFFF', p: 3, borderRadius: 1 }}>
             {error && (
               <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
                 {error}
@@ -1779,7 +1780,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
             {/* Guest Information */}
-            <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+            <Paper elevation={0} sx={{ p: 2, bgcolor: 'var(--hotel-surface-sunken)', borderRadius: 2 }}>
               <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
                 Guest Information
               </Typography>

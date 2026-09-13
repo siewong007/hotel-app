@@ -26,7 +26,7 @@ import {
 import { ErrorState, LoadingState, SectionHeading } from './PortalDashboardSections';
 import { formatPortalDate } from './dashboardUtils';
 
-const FOREST = '#06110e';
+const FOREST = 'var(--hotel-text)';
 
 /** Document slots the guest uploads. `id_back` is conditional on the ID type. */
 const DOCUMENT_SLOTS = [
@@ -224,7 +224,7 @@ export function IdentitySection({ token }: { token: string }) {
         description="Verify your identity before you arrive so check-in takes moments instead of minutes. Your documents are encrypted and only seen by our front-desk team."
       />
       {status && presentation ? (
-        <Card sx={{ mb: 3, border: '1px solid rgba(6,17,14,.12)' }}>
+        <Card sx={{ mb: 3, border: '1px solid var(--hotel-border)' }}>
           <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
             <Stack
               direction="row"

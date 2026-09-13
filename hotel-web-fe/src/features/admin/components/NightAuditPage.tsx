@@ -751,7 +751,7 @@ const NightAuditPage: React.FC = () => {
           <TableContainer component={Paper} variant="outlined">
             <Table>
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.50' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell sx={{ width: 48 }} />
                   <TableCell sx={{ fontWeight: 600 }}>Audit Date</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Run At</TableCell>
@@ -819,7 +819,7 @@ const NightAuditPage: React.FC = () => {
                       <TableRow>
                         <TableCell colSpan={7} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
                           <Collapse in={isExpanded}>
-                            <Box sx={{ bgcolor: 'grey.50', p: 2 }}>
+                            <Box sx={{ bgcolor: 'var(--hotel-surface-sunken)', p: 2 }}>
                               <CompletedReportView
                                 audit={audit}
                                 details={auditDetails[audit.id]}

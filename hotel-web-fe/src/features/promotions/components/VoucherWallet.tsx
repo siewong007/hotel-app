@@ -52,9 +52,9 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
           textAlign: 'center',
           py: { xs: 6, sm: 8 },
           px: 3,
-          border: '1px dashed rgba(6, 35, 27, 0.2)',
+          border: '1px dashed var(--hotel-border-strong)',
           borderRadius: 3,
-          backgroundColor: 'rgba(251, 245, 233, 0.65)',
+          backgroundColor: 'var(--hotel-surface-sunken)',
         }}
       >
         <Box
@@ -66,13 +66,13 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
             borderRadius: '50%',
             display: 'grid',
             placeItems: 'center',
-            color: '#8b692e',
-            backgroundColor: '#f2e6ce',
+            color: 'var(--hotel-primary-text)',
+            backgroundColor: 'var(--hotel-primary-subtle)',
           }}
         >
           <ConfirmationNumberOutlinedIcon />
         </Box>
-        <Typography variant="h6" sx={{ color: '#061b15', fontWeight: 750 }}>
+        <Typography variant="h6" sx={{ color: 'var(--hotel-text)', fontWeight: 750 }}>
           Your voucher wallet is empty
         </Typography>
         <Typography
@@ -104,7 +104,7 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
           mb: 2.5
         }}>
         <Box>
-          <Typography sx={{ color: '#061b15', fontWeight: 750 }}>
+          <Typography sx={{ color: 'var(--hotel-text)', fontWeight: 750 }}>
             {readyCount > 0
               ? `${readyCount} voucher${readyCount === 1 ? '' : 's'} ready to use`
               : 'Your saved vouchers'}
@@ -119,7 +119,7 @@ export function VoucherWallet({ token }: VoucherWalletProps) {
           label={`${vouchers.length} total`}
           size="small"
           variant="outlined"
-          sx={{ borderColor: 'rgba(6, 35, 27, 0.18)', color: '#3f514b', fontWeight: 700 }}
+          sx={{ borderColor: 'var(--hotel-border-strong)', color: 'var(--hotel-text-secondary)', fontWeight: 700 }}
         />
       </Stack>
       <Stack spacing={2.25}>

@@ -28,7 +28,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
 }) => {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <SettingsIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
@@ -92,7 +92,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
           </Box>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onClose} variant="outlined">Close</Button>
       </DialogActions>
     </Dialog>
