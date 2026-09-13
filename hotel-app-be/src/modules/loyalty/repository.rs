@@ -124,7 +124,7 @@ impl LoyaltyRepository {
         let sql = format!(
             "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE is_active = true AND {order_column} <= $1 ORDER BY {order_column} DESC, sort_order DESC LIMIT 1"
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(value)
             .fetch_one(pool)
             .await
@@ -145,7 +145,7 @@ impl LoyaltyRepository {
         let sql = format!(
             "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE is_active = true AND {order_column} > $1 ORDER BY {order_column}, sort_order LIMIT 1"
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(value)
             .fetch_optional(pool)
             .await
@@ -157,11 +157,13 @@ impl LoyaltyRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Option<LoyaltyMemberSummary>, ApiError> {
-        let row = sqlx::query(&member_summary_sql("WHERE lm.guest_id = $1"))
-            .bind(guest_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(ApiError::from)?;
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*member_summary_sql(
+            "WHERE lm.guest_id = $1",
+        )))
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?;
         Ok(row.as_ref().map(row_to_member_summary))
     }
 
@@ -169,11 +171,13 @@ impl LoyaltyRepository {
         pool: &DbPool,
         member_id: i64,
     ) -> Result<Option<LoyaltyMemberSummary>, ApiError> {
-        let row = sqlx::query(&member_summary_sql("WHERE lm.id = $1"))
-            .bind(member_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(ApiError::from)?;
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*member_summary_sql(
+            "WHERE lm.id = $1",
+        )))
+        .bind(member_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?;
         Ok(row.as_ref().map(row_to_member_summary))
     }
 
@@ -219,7 +223,7 @@ impl LoyaltyRepository {
             "{} ORDER BY lm.enrolled_at DESC, lm.id DESC",
             member_summary_sql(&where_clause)
         );
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(&*sql));
         if bind_search {
             q = q.bind(format!(
                 "%{}%",
@@ -472,7 +476,7 @@ impl LoyaltyRepository {
                 "#
         );
 
-        let mut query = sqlx::query(&sql);
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(&*sql));
         if let Some(id) = booking_id {
             query = query.bind(id);
         }
@@ -538,7 +542,7 @@ impl LoyaltyRepository {
             reward_select_sql(),
             where_clause
         );
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(&*sql));
         if bind_category {
             q = q.bind(query.category.as_deref().unwrap_or_default().trim());
         }
@@ -551,7 +555,7 @@ impl LoyaltyRepository {
         reward_id: i64,
     ) -> Result<Option<LoyaltyReward>, ApiError> {
         let sql = format!("{} WHERE lr.id = $1", reward_select_sql());
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(reward_id)
             .fetch_optional(pool)
             .await
@@ -567,7 +571,7 @@ impl LoyaltyRepository {
             "{} WHERE lr.name = $1 AND lr.is_active = true ORDER BY lr.id LIMIT 1",
             reward_select_sql()
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(name)
             .fetch_optional(pool)
             .await
@@ -681,7 +685,7 @@ impl LoyaltyRepository {
                 redemption_select_sql()
             )
         };
-        let mut q = sqlx::query(&sql);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(&*sql));
         if bind_status {
             q = q.bind(query.status.as_deref().unwrap_or_default().trim());
         }
@@ -697,7 +701,7 @@ impl LoyaltyRepository {
             "{} WHERE lr.member_id = $1 ORDER BY lr.requested_at DESC, lr.id DESC",
             redemption_select_sql()
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(member_id)
             .fetch_all(pool)
             .await
@@ -710,7 +714,7 @@ impl LoyaltyRepository {
         redemption_id: i64,
     ) -> Result<Option<LoyaltyRedemption>, ApiError> {
         let sql = format!("{} WHERE lr.id = $1", redemption_select_sql());
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(redemption_id)
             .fetch_optional(pool)
             .await

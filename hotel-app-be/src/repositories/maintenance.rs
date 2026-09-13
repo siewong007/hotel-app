@@ -118,7 +118,7 @@ pub async fn find_ticket(
 ) -> Result<Option<MaintenanceTicket>, ApiError> {
     let query = format!("{} WHERE t.id = {}", TICKET_SELECT, crate::param!(1));
 
-    let row = sqlx::query(&query)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*query))
         .bind(ticket_id)
         .fetch_optional(pool)
         .await
@@ -170,7 +170,7 @@ WHERE ($1::text IS NULL OR t.status = $1)
         crate::param!(7)
     );
 
-    let total = sqlx::query_scalar::<_, i64>(&count_query)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_query))
         .bind(status)
         .bind(room_id)
         .bind(assigned_to)
@@ -180,7 +180,7 @@ WHERE ($1::text IS NULL OR t.status = $1)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let rows = sqlx::query(&list_query)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_query))
         .bind(status)
         .bind(room_id)
         .bind(assigned_to)

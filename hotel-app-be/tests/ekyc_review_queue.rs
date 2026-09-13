@@ -62,11 +62,13 @@ async fn cleanup(pool: &PgPool) {
         ("room_types", "id", vec![ROOM_TYPE_ID]),
         ("guests", "id", vec![GUEST_SOON, GUEST_LATER, GUEST_NONE]),
     ] {
-        sqlx::query(&format!("DELETE FROM {table} WHERE {column} = ANY($1)"))
-            .bind(&ids)
-            .execute(pool)
-            .await
-            .unwrap_or_else(|error| panic!("cleanup of {table} failed: {error}"));
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DELETE FROM {table} WHERE {column} = ANY($1)"
+        )))
+        .bind(&ids)
+        .execute(pool)
+        .await
+        .unwrap_or_else(|error| panic!("cleanup of {table} failed: {error}"));
     }
 }
 

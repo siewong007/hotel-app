@@ -25,7 +25,7 @@ use hotel_app_be::services::profile as profile_service;
 use hotel_app_be::services::rbac as rbac_service;
 use hotel_app_be::services::two_factor as two_factor_service;
 use sqlx::{PgPool, postgres::PgPoolOptions};
-use totp_rs::{Algorithm, Secret, TOTP};
+use totp_rs::{Algorithm, Builder as TotpBuilder, Secret, Totp};
 
 /// Distinct from the secret `auth_session.rs` seeds into the same JWT-secret
 /// `OnceLock` -- both are 32+ chars so `AuthService::init_jwt_secret` accepts
@@ -824,20 +824,17 @@ async fn postgres_session_listing_and_revoke_removes_only_target_session() {
 // new dependency.
 // ---------------------------------------------------------------------------
 
-fn build_totp(secret_base32: &str) -> TOTP {
-    let secret_bytes = Secret::Encoded(secret_base32.to_string())
-        .to_bytes()
+fn build_totp(secret_base32: &str) -> Totp {
+    let secret = Secret::try_from_base32(secret_base32)
         .expect("decoding the base32 TOTP secret must succeed");
-    TOTP::new(
-        Algorithm::SHA1,
-        6,
-        1,
-        30,
-        secret_bytes,
-        None,
-        "".to_string(),
-    )
-    .expect("constructing a TOTP instance must succeed")
+    TotpBuilder::new()
+        .with_algorithm(Algorithm::SHA1)
+        .with_digits(6)
+        .with_skew(1)
+        .with_step_duration(30)
+        .with_secret(secret)
+        .build()
+        .expect("constructing a TOTP instance must succeed")
 }
 
 #[tokio::test]
@@ -904,9 +901,7 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
         &pool,
         user_id,
         TwoFactorVerifyRequest {
-            code: totp
-                .generate_current()
-                .expect("generating a live TOTP code must succeed"),
+            code: totp.generate_current().to_string(),
         },
     )
     .await;
@@ -932,9 +927,7 @@ async fn postgres_two_factor_status_verify_and_disable_lifecycle_with_live_totp(
         &pool,
         user_id,
         TwoFactorDisableRequest {
-            code: totp
-                .generate_current()
-                .expect("generating a live TOTP code must succeed"),
+            code: totp.generate_current().to_string(),
         },
     )
     .await
@@ -1065,9 +1058,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
-            code: totp
-                .generate_current()
-                .expect("generating a live TOTP code must succeed"),
+            code: totp.generate_current().to_string(),
             challenge_code: first_challenge.clone(),
         },
     )
@@ -1094,9 +1085,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
         &pool,
         user_id,
         TwoFactorEnableRequest {
-            code: totp
-                .generate_current()
-                .expect("generating a live TOTP code must succeed"),
+            code: totp.generate_current().to_string(),
             challenge_code: second_challenge.clone(),
         },
     )
@@ -1119,9 +1108,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
 
     // A wrong TOTP code must fail BEFORE the challenge is consumed, so a code
     // typo leaves the single-use challenge intact for a retry.
-    let mut wrong_code = totp
-        .generate_current()
-        .expect("generating a live TOTP code must succeed");
+    let mut wrong_code = totp.generate_current().to_string();
     let last_digit = wrong_code.pop().expect("TOTP codes are non-empty");
     wrong_code.push(if last_digit == '9' {
         '0'
@@ -1158,9 +1145,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     );
 
     // --- enable_2fa: must persist hashed backup codes as native text[] -------
-    let enable_code = totp
-        .generate_current()
-        .expect("generating a live TOTP code must succeed");
+    let enable_code = totp.generate_current().to_string();
     let enable = two_factor_service::enable_2fa(
         &pool,
         user_id,
@@ -1218,9 +1203,7 @@ async fn postgres_two_factor_setup_enable_regenerate_and_recovery_code_disable()
     );
 
     // --- regenerate_backup_codes: exercises update_recovery_codes ------------
-    let regen_code = totp
-        .generate_current()
-        .expect("generating a live TOTP code must succeed");
+    let regen_code = totp.generate_current().to_string();
     let regen = two_factor_service::regenerate_backup_codes(
         &pool,
         user_id,
@@ -1404,10 +1387,7 @@ async fn postgres_login_with_recovery_code_consumes_code_and_audits() {
     let totp = build_totp(&secret);
     let (totp_response, _refresh) = auth_service::login(
         &pool,
-        login_req(Some(
-            totp.generate_current()
-                .expect("generating a live TOTP code must succeed"),
-        )),
+        login_req(Some(totp.generate_current().to_string())),
         None,
         None,
         None,

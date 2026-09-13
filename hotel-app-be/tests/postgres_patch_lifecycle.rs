@@ -185,7 +185,10 @@ impl DisposableDatabases {
             .await
             .expect("connect to PostgreSQL admin database");
         admin
-            .execute(format!("CREATE DATABASE {}", quote_ident(&name)).as_str())
+            .execute(sqlx::AssertSqlSafe(format!(
+                "CREATE DATABASE {}",
+                quote_ident(&name)
+            )))
             .await
             .expect("create disposable PostgreSQL database");
         self.names.push(name.clone());
@@ -202,13 +205,10 @@ impl DisposableDatabases {
             .expect("connect to PostgreSQL admin database for cleanup");
         while let Some(name) = self.names.last().cloned() {
             admin
-                .execute(
-                    format!(
-                        "DROP DATABASE IF EXISTS {} WITH (FORCE)",
-                        quote_ident(&name)
-                    )
-                    .as_str(),
-                )
+                .execute(sqlx::AssertSqlSafe(format!(
+                    "DROP DATABASE IF EXISTS {} WITH (FORCE)",
+                    quote_ident(&name)
+                )))
                 .await
                 .expect("drop disposable PostgreSQL database");
             self.names.pop();
@@ -467,7 +467,7 @@ async fn install_v1(database: &TestDatabase) -> PgPool {
         .await
         .expect("connect to disposable PostgreSQL database");
     for script in [POSTGRES_SCHEMA, POSTGRES_SEED] {
-        sqlx::raw_sql(&psql_script_for_sqlx(script))
+        sqlx::raw_sql(sqlx::AssertSqlSafe(&*psql_script_for_sqlx(script)))
             .execute(&pool)
             .await
             .expect("install PostgreSQL V1 baseline and seed");
@@ -1099,23 +1099,17 @@ async fn schema_drift_report_normalizes_session_settings_and_tracks_view_options
         .await
         .expect("create target inventory fixture");
     baseline_pool
-        .execute(
-            format!(
-                "ALTER DATABASE {} SET TimeZone TO 'UTC'",
-                quote_ident(&baseline.name)
-            )
-            .as_str(),
-        )
+        .execute(sqlx::AssertSqlSafe(format!(
+            "ALTER DATABASE {} SET TimeZone TO 'UTC'",
+            quote_ident(&baseline.name)
+        )))
         .await
         .expect("set baseline database time zone");
     target_pool
-        .execute(
-            format!(
-                "ALTER DATABASE {} SET TimeZone TO 'Asia/Kuala_Lumpur'",
-                quote_ident(&target.name)
-            )
-            .as_str(),
-        )
+        .execute(sqlx::AssertSqlSafe(format!(
+            "ALTER DATABASE {} SET TimeZone TO 'Asia/Kuala_Lumpur'",
+            quote_ident(&target.name)
+        )))
         .await
         .expect("set target database time zone");
 

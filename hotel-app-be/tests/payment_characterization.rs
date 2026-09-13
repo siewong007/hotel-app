@@ -208,7 +208,7 @@ async fn seed_booking(pool: &PgPool, f: &BookingFixture) {
         status = f.status,
     );
 
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(&*sql))
         .bind(f.booking_id)
         .bind(format!("BK-PAY-{}", f.booking_id))
         .bind(f.guest_id)
@@ -545,13 +545,19 @@ async fn install_payment_mutation_gate(pool: &PgPool, operation: &str, advisory_
         $$
         "#,
     );
-    sqlx::query(&function_sql).execute(pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(&*function_sql))
+        .execute(pool)
+        .await
+        .unwrap();
     let trigger_sql = format!(
         "CREATE TRIGGER payment_characterization_gate_mutation \
          BEFORE {operation} ON payments FOR EACH ROW \
          EXECUTE FUNCTION payment_characterization_gate_mutation()"
     );
-    sqlx::query(&trigger_sql).execute(pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(&*trigger_sql))
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 async fn remove_payment_mutation_gate(pool: &PgPool) -> Result<(), sqlx::Error> {
@@ -584,7 +590,10 @@ async fn install_booking_recompute_failure(pool: &PgPool, booking_id: i64) {
         $$
         "#,
     );
-    sqlx::query(&function_sql).execute(pool).await.unwrap();
+    sqlx::query(sqlx::AssertSqlSafe(&*function_sql))
+        .execute(pool)
+        .await
+        .unwrap();
     sqlx::query(
         "CREATE TRIGGER payment_characterization_fail_recompute \
          BEFORE UPDATE OF payment_status ON bookings FOR EACH ROW \

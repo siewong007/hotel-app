@@ -6,7 +6,7 @@
 //! - Running schema and data bootstrap scripts
 //! - Health checks
 
-use rand::RngCore;
+use rand::RngExt;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -450,8 +450,7 @@ fn postgres_startup_log_details(log_file: &Path) -> String {
 }
 
 fn generate_postgres_password() -> String {
-    let mut bytes = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    let bytes: [u8; 32] = rand::rng().random();
     hex::encode(bytes)
 }
 
@@ -1146,8 +1145,7 @@ pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresEr
 }
 
 fn generate_bootstrap_password() -> String {
-    let mut bytes = [0u8; 18];
-    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    let bytes: [u8; 18] = rand::rng().random();
     hex::encode(bytes)
 }
 
@@ -1624,14 +1622,14 @@ pub async fn upgrade_database_from_backup(
             context
         );
         // Best-effort: remove a half-built new cluster if one exists.
-        if pgdata.exists() {
-            if let Err(err) = std::fs::remove_dir_all(&pgdata) {
-                log::error!(
-                    "Rollback: failed to remove half-built data directory {:?}: {}",
-                    pgdata,
-                    err
-                );
-            }
+        if pgdata.exists()
+            && let Err(err) = std::fs::remove_dir_all(&pgdata)
+        {
+            log::error!(
+                "Rollback: failed to remove half-built data directory {:?}: {}",
+                pgdata,
+                err
+            );
         }
         // Restore the original data directory name.
         if let Err(err) = std::fs::rename(&retired_dir, &pgdata) {

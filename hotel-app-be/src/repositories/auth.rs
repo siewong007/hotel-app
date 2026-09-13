@@ -444,13 +444,13 @@ impl AuthRepository {
              two_factor_recovery_codes, created_at, updated_at";
 
         let user = match existing_user_id {
-            Some(user_id) => sqlx::query_as::<_, User>(&format!(
+            Some(user_id) => sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
                 "UPDATE users SET username = $1, email = $2, password_hash = $3, \
                      full_name = COALESCE($4, full_name), phone = COALESCE($5, phone), \
                      is_active = true, is_verified = $6, \
                      password_changed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP \
                      WHERE id = $7 {RETURNING}"
-            ))
+            )))
             .bind(username)
             .bind(email)
             .bind(password_hash)
@@ -461,12 +461,12 @@ impl AuthRepository {
             .fetch_one(&mut **tx)
             .await
             .map_err(ApiError::from)?,
-            None => sqlx::query_as::<_, User>(&format!(
+            None => sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
                 "INSERT INTO users (username, email, password_hash, full_name, phone, \
                      user_type, guest_id, is_active, is_verified, created_at) \
                      VALUES ($1, $2, $3, $4, $5, 'guest', $6, true, $7, CURRENT_TIMESTAMP) \
                      {RETURNING}"
-            ))
+            )))
             .bind(username)
             .bind(email)
             .bind(password_hash)

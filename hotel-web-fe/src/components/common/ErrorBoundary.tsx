@@ -100,12 +100,12 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
 interface ErrorBoundaryProps {
   children: React.ReactNode;
   title?: string;
-  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  onError?: (error: unknown, errorInfo: React.ErrorInfo) => void;
   onReset?: () => void;
 }
 
 export function ErrorBoundary({ children, title, onError, onReset }: ErrorBoundaryProps) {
-  const handleError = (error: Error, errorInfo: React.ErrorInfo) => {
+  const handleError = (error: unknown, errorInfo: React.ErrorInfo) => {
     // Log error to console in development
     if (import.meta.env.DEV) {
       console.error('Error Boundary caught an error:', error, errorInfo);

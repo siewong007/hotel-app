@@ -961,8 +961,7 @@ pub async fn queue_checkout_receipt_email(
     let nights = (source.check_out_date - source.check_in_date)
         .num_days()
         .max(0);
-    let billable_total =
-        source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
+    let billable_total = source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
     let balance = (billable_total - paid).max(rust_decimal::Decimal::ZERO);
 
     let hotel = email_layout::hotel_display_name();
@@ -2259,9 +2258,7 @@ async fn queue_payment_rejected_notification(
     let recovery = match payment_retry::issue_recovery_link(pool, booking_id, payment_id).await {
         Ok(link) => link,
         Err(error) => {
-            log::error!(
-                "Failed to issue payment recovery link for booking {booking_id}: {error}"
-            );
+            log::error!("Failed to issue payment recovery link for booking {booking_id}: {error}");
             None
         }
     };
@@ -2284,9 +2281,11 @@ async fn queue_payment_rejected_notification(
     let (action_html, action_text, cta) = match recovery.as_ref() {
         Some(link) => (
             "<p>You can pay again using the button below. The link works once and \
-             then expires, so please do not share it.</p>".to_string(),
+             then expires, so please do not share it.</p>"
+                .to_string(),
             "You can pay again using the link below. It works once and then expires, \
-             so please do not share it.".to_string(),
+             so please do not share it."
+                .to_string(),
             Cta {
                 label: "Complete your payment",
                 url: &link.url,

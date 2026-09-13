@@ -35,6 +35,7 @@ import { invalidateBookingDependencies, invalidateRoomDependencies } from '../..
 import { queryKeys } from '../../../api/queryKeys';
 import { Room, RoomDetailedStatus, RoomStatusUpdateInput } from '../../../types';
 import RoomHistoryTimeline from './RoomHistoryTimeline';
+import { errorMessage } from '../../../utils/errorMessage';
 
 interface RoomEventDialogProps {
   open: boolean;
@@ -236,7 +237,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message || 'Failed to update room status');
+      setError(errorMessage(err, 'Failed to update room status'));
     } finally {
       setLoading(false);
     }
@@ -284,7 +285,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message || 'Failed to end maintenance');
+      setError(errorMessage(err, 'Failed to end maintenance'));
     } finally {
       setLoading(false);
     }
@@ -308,7 +309,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onClose();
     } catch (err) {
       console.error('Room change error:', err);
-      setError(err.message || 'Failed to execute room change');
+      setError(errorMessage(err, 'Failed to execute room change'));
     } finally {
       setLoading(false);
     }
@@ -334,8 +335,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       onClose();
     } catch (err) {
       console.error('Failed to check in guest:', err);
-      const errorMessage = err.message || err.toString() || 'Failed to check in guest';
-      setError(`Failed to check in guest: ${errorMessage}`);
+      setError(`Failed to check in guest: ${errorMessage(err, 'unknown error')}`);
     } finally {
       setLoading(false);
     }

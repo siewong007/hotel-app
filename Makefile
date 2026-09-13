@@ -43,7 +43,7 @@ setup-desktop: ## Install desktop dependencies
 # ─── Development ──────────────────────────────────────────────────────────────
 
 dev-be: ## Start backend in development mode
-	cd hotel-app-be && cargo run
+	cd hotel-app-be && cargo run --bin hotel-app-be
 
 dev-fe: ## Start frontend development server
 	cd hotel-web-fe && $(BUN) run start

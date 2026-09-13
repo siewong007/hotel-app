@@ -35,7 +35,7 @@ dependency policy). The two must agree — fix both or neither.
 
 Three-project monorepo; no root workspace — run commands from the subdirectory:
 
-- `hotel-app-be/` — Rust 1.95 backend API (Axum 0.8, SQLx 0.8, PostgreSQL 19)
+- `hotel-app-be/` — Rust 1.95 backend API (Axum 0.8, SQLx 0.9, PostgreSQL 19)
 - `hotel-web-fe/` — React 19 + TypeScript 6 (Vite 8, MUI v9, TanStack Query + Router)
 - `hotel-desktop/` — Tauri 2 wrapper: backend as sidecar + embedded PostgreSQL under `src-tauri/pgsql/`
 
@@ -116,7 +116,7 @@ Frontend:
 - Routing: TanStack Router file routes in `src/routes/*.tsx` **and** the lazy registry `src/navigation/routeRegistry.tsx` — add new pages to BOTH (not App.tsx). The sidebar reads the registry; `route_access_policies` rows only drive the RBAC admin panel.
 - Vite dev proxy forwards only `PROXY_PREFIXES` (`/api`, `/uploads`, `/health`, `/ws`) in `vite.config.ts`; every other path falls through to the SPA. A new `/api/...` endpoint needs NO proxy edit — only a new TOP-LEVEL prefix does, and that one also belongs in the desktop CORS allow-list in `src-tauri/src/commands.rs`.
 - Dates: `toISOString().split/.slice` is lint-banned (CI fails); use `src/utils/date.ts`.
-- `tsconfig.json` has `strict: false` (`strictNullChecks` on) and `lib: ES2020` — `.at()`, `Object.groupBy`, `findLast` fail typecheck even though vitest accepts them.
+- `tsconfig.json` is full `strict` on `lib: ES2024` — vitest still transpiles without type info, so typecheck remains a separate gate.
 
 Desktop mode: `HOTEL_DESKTOP_MODE` env → backend binds 127.0.0.1 on a dynamically probed
 free port starting at `BACKEND_PORT` (default 3030); the webview learns the port via

@@ -348,6 +348,11 @@ environment is for development and benchmarking only.
 
 ## Additional Documentation
 
+- [Architecture](docs/ARCHITECTURE.md) — System overview, layers, feature modules, invariants
+- [Feature Registry](docs/FEATURES.md) — What the application currently supports
+- [Development Guide](docs/DEVELOPMENT.md) — Setup, commands, database lifecycle, troubleshooting
+- [API Reference](docs/API.md) — Auth model, error contract, endpoint domains
+- [Dependencies](docs/DEPENDENCIES.md) — Significant dependencies and modernization decisions
 - [Architecture Flow](docs/architecture/architecture-flow.md) — Request flow through backend and frontend layers
 - [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
 - [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions

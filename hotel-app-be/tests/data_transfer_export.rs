@@ -13,7 +13,9 @@ async fn setup_pg_pool() -> Option<PgPool> {
     let database_url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
         Err(_) => {
-            eprintln!("Skipping PostgreSQL data-transfer export test because DATABASE_URL is not set");
+            eprintln!(
+                "Skipping PostgreSQL data-transfer export test because DATABASE_URL is not set"
+            );
             return None;
         }
     };

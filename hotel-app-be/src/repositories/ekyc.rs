@@ -622,7 +622,7 @@ impl EkycRepository {
         let like_search = exact_search.as_ref().map(|search| format!("%{}%", search));
 
         let total_row = bind_count_filters(
-            sqlx::query(&count_query),
+            sqlx::query(sqlx::AssertSqlSafe(&*count_query)),
             params,
             &exact_search,
             &like_search,
@@ -635,7 +635,7 @@ impl EkycRepository {
             .map_err(|e| ApiError::Database(format!("Failed to read eKYC count: {}", e)))?;
 
         let rows = bind_data_filters(
-            sqlx::query_as::<_, EkycApplicationSummaryRow>(&data_query),
+            sqlx::query_as::<_, EkycApplicationSummaryRow>(sqlx::AssertSqlSafe(&*data_query)),
             params,
             &exact_search,
             &like_search,
@@ -735,7 +735,7 @@ impl EkycRepository {
         column: &str,
     ) -> Result<Option<String>, ApiError> {
         let query = format!("SELECT {column} FROM ekyc_verifications WHERE id = $1");
-        sqlx::query_scalar(&query)
+        sqlx::query_scalar(sqlx::AssertSqlSafe(&*query))
             .bind(id)
             .fetch_optional(pool)
             .await

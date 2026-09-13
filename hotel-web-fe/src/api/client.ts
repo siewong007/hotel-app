@@ -15,13 +15,14 @@ import { domainForApiPath, invalidateDomain } from './queryInvalidation';
 
 // API Error class for better error handling
 export class APIError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-    public details?: unknown
-  ) {
+  statusCode?: number;
+  details?: unknown;
+
+  constructor(message: string, statusCode?: number, details?: unknown) {
     super(message);
     this.name = 'APIError';
+    this.statusCode = statusCode;
+    this.details = details;
   }
 }
 

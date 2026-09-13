@@ -1368,11 +1368,16 @@ mod tests {
                 std::fs::read(patch_dir.path().join(file)).expect("patch source must be readable")
             })
             .collect();
-        std::env::set_var("CAPTURE_DIR", capture_dir.path());
-        std::env::set_var(
-            "MUTATE_PATCH",
-            patch_dir.path().join("0003_payment_idempotency.sql"),
-        );
+        // SAFETY: test-only process env for the fake-psql capture harness; the
+        // test mutates before/after apply_catalog and no other thread reads
+        // these variables concurrently.
+        unsafe {
+            std::env::set_var("CAPTURE_DIR", capture_dir.path());
+            std::env::set_var(
+                "MUTATE_PATCH",
+                patch_dir.path().join("0003_payment_idempotency.sql"),
+            );
+        }
 
         apply_catalog(&psql_path, &connection, patch_dir.path())
             .await
@@ -1415,8 +1420,11 @@ mod tests {
                 expected_source
             );
         }
-        std::env::remove_var("CAPTURE_DIR");
-        std::env::remove_var("MUTATE_PATCH");
+        // SAFETY: see the set_var block above.
+        unsafe {
+            std::env::remove_var("CAPTURE_DIR");
+            std::env::remove_var("MUTATE_PATCH");
+        }
     }
 
     #[cfg(unix)]

@@ -130,7 +130,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
       onSave(updatedRole, permissions);
       onClose();
     } catch (err) {
-      setError(err.message || 'Failed to save role');
+      setError(errorMessage(err, 'Failed to save role'));
     }
   };
 

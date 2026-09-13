@@ -375,7 +375,7 @@ pub async fn personalized_report(
             );
         }
 
-        let mut sql = sqlx::query_scalar::<_, i64>(&query);
+        let mut sql = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*query));
         if !has_full_analytics {
             sql = sql.bind(user_id);
         }

@@ -147,8 +147,8 @@ async fn resolve(pool: &DbPool, user_id: i64) -> Result<RbacSets, sqlx::Error> {
         return Ok(hit);
     }
 
-    let permissions: HashSet<String> = sqlx::query_scalar::<_, String>(&format!(
-        "{EFFECTIVE_ROLES_CTE}{EFFECTIVE_PERMISSIONS_SQL}"
+    let permissions: HashSet<String> = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(
+        format!("{EFFECTIVE_ROLES_CTE}{EFFECTIVE_PERMISSIONS_SQL}"),
     ))
     .bind(user_id)
     .fetch_all(pool)
@@ -156,9 +156,9 @@ async fn resolve(pool: &DbPool, user_id: i64) -> Result<RbacSets, sqlx::Error> {
     .into_iter()
     .collect();
 
-    let roles: HashSet<String> = sqlx::query_scalar::<_, String>(&format!(
+    let roles: HashSet<String> = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(format!(
         "{EFFECTIVE_ROLES_CTE}{EFFECTIVE_ROLE_NAMES_SQL}"
-    ))
+    )))
     .bind(user_id)
     .fetch_all(pool)
     .await?

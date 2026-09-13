@@ -44,13 +44,19 @@ async fn range_lists_every_room_type_for_every_date_and_bulk_round_trips() {
         .await
         .expect("range read");
     assert!(!rows.is_empty());
-    let per_type = rows.iter().filter(|r| r.room_type_id == room_type_id).count();
+    let per_type = rows
+        .iter()
+        .filter(|r| r.room_type_id == room_type_id)
+        .count();
     assert_eq!(per_type, 7, "one row per date for the room type");
     assert!(
         rows.iter().all(|r| r.standard_price > Decimal::ZERO),
         "every cell resolves a positive standard rate"
     );
-    assert!(rows.iter().all(|r| r.stay_date >= FROM && r.stay_date <= TO));
+    assert!(
+        rows.iter()
+            .all(|r| r.stay_date >= FROM && r.stay_date <= TO)
+    );
 
     // Upsert one cell, then reset it — verifies both tx helpers against the
     // real CHECK constraints and leaves no residue behind.

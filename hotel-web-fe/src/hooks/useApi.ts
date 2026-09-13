@@ -49,7 +49,7 @@ export function useApi<T, P extends any[]>({
       return result;
     } catch (err) {
       setError(errorMessage(err, 'Operation failed'));
-      onError?.(err);
+      onError?.(err instanceof Error ? err : new Error(errorMessage(err)));
       return undefined;
     } finally {
       setLoading(false);

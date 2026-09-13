@@ -89,9 +89,7 @@ const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
 /// `is_super_admin` account.
 fn is_transferable_key(key: &str) -> bool {
     QualifiedTable::parse(key)
-        .map(|table| {
-            table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str())
-        })
+        .map(|table| table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str()))
         .unwrap_or(false)
 }
 

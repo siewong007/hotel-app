@@ -404,7 +404,8 @@ pub async fn login_with_google(
 
     ensure_not_locked(pool, user.id, &user.username, ip_address, user_agent).await?;
     let _ = AuthRepository::reset_login_attempts(pool, user.id).await;
-    let response = issue_authenticated_response(pool, &user, ip_address, user_agent, client_timezone).await?;
+    let response =
+        issue_authenticated_response(pool, &user, ip_address, user_agent, client_timezone).await?;
     let _ = AuditLog::log_login_success(
         pool,
         user.id,
@@ -859,5 +860,3 @@ fn generic_verification_response() -> serde_json::Value {
         "message": "If that account needs verification, a new email has been sent."
     })
 }
-
-

@@ -9,15 +9,15 @@ const rootRoute = createRootRoute({
   component: GuestRootLayout,
 });
 
-function lazyDefault<T extends ComponentType<unknown>>(
-  loader: () => Promise<{ default: T }>,
+function lazyDefault(
+  loader: () => Promise<{ default: ComponentType<any> }>,
 ) {
   return lazy(loader);
 }
 
 function page(
   path: string,
-  loader: () => Promise<{ default: ComponentType<unknown> }>,
+  loader: () => Promise<{ default: ComponentType<any> }>,
   unauth = false,
 ) {
   const Page = lazyDefault(loader);

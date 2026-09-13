@@ -54,14 +54,20 @@ pub struct PaymentRecoveryView {
 /// The capability is unguessable, so this is not the primary control -- it
 /// bounds a flood of distinct garbage tokens, each of which would otherwise
 /// cost a hash and a lookup.
-async fn require_capacity(limiters: &RateLimiters, headers: &HeaderMap, peer: SocketAddr) -> Result<(), ApiError> {
+async fn require_capacity(
+    limiters: &RateLimiters,
+    headers: &HeaderMap,
+    peer: SocketAddr,
+) -> Result<(), ApiError> {
     let ip = crate::routes::extract_client_ip(headers, peer);
     let (allowed, retry_after) = limiters.guest_portal_token_ip.check_with_retry(ip).await;
     if allowed {
         Ok(())
     } else {
         Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many payment attempts from this connection. Please try again in {retry_after} seconds."),
+            format!(
+                "Too many payment attempts from this connection. Please try again in {retry_after} seconds."
+            ),
             retry_after,
         ))
     }
@@ -108,7 +114,9 @@ pub async fn recover_paypal_create_order_handler(
     Path(token): Path<String>,
 ) -> Result<Json<PaypalCreateOrderResponse>, ApiError> {
     require_capacity(&limiters, &headers, peer).await?;
-    Ok(Json(payment_retry::recover_with_paypal(&pool, &token).await?))
+    Ok(Json(
+        payment_retry::recover_with_paypal(&pool, &token).await?,
+    ))
 }
 
 pub async fn recover_paypal_capture_handler(

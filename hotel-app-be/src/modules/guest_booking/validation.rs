@@ -25,10 +25,10 @@ pub async fn validate_stay(
 ) -> Result<ValidatedStay, ApiError> {
     // PostgreSQL connections are configured with the hotel's timezone, so
     // CURRENT_DATE is the local hotel date rather than the API host's UTC date.
-    let today: NaiveDate = query_scalar(&format!(
+    let today: NaiveDate = query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT {}",
         crate::core::sql_compat::current_date()
-    ))
+    )))
     .fetch_one(pool)
     .await
     .map_err(ApiError::from)?;

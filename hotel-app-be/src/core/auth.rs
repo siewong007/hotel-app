@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{FromRow, Row};
 use std::sync::OnceLock;
-use totp_rs::{Algorithm, Secret, TOTP};
+use totp_rs::{Algorithm, Builder as TotpBuilder, Secret};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -556,11 +556,11 @@ impl AuthService {
         // constants keeps the two from drifting apart, which would show up as
         // a permission check that answers differently depending on which
         // resolver ran.
-        let permissions = sqlx::query_scalar::<_, String>(&format!(
+        let permissions = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(format!(
             "{}{}",
             crate::core::rbac_cache::EFFECTIVE_ROLES_CTE,
             crate::core::rbac_cache::EFFECTIVE_PERMISSIONS_SQL
-        ))
+        )))
         .bind(user_id)
         .fetch_all(pool)
         .await?;
@@ -569,11 +569,11 @@ impl AuthService {
     }
 
     pub async fn get_user_roles(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
-        let roles = sqlx::query_scalar::<_, String>(&format!(
+        let roles = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(format!(
             "{}{}",
             crate::core::rbac_cache::EFFECTIVE_ROLES_CTE,
             crate::core::rbac_cache::EFFECTIVE_ROLE_NAMES_SQL
-        ))
+        )))
         .bind(user_id)
         .fetch_all(pool)
         .await?;
@@ -682,20 +682,20 @@ impl AuthService {
         let mut rng = rand::rng();
         let secret_bytes: Vec<u8> = (0..20).map(|_| rng.random::<u8>()).collect();
 
-        let secret = Secret::Raw(secret_bytes.clone());
-        let secret_base32 = secret.to_encoded().to_string();
+        let secret = Secret::new(secret_bytes.into_boxed_slice());
+        let secret_base32 = secret.to_base32();
 
-        let totp = TOTP::new(
-            Algorithm::SHA1,
-            6,  // 6 digits
-            1,  // 1 step (30 second window)
-            30, // 30 second period
-            secret_bytes,
-            Some(issuer_name.to_string()),
-            username.to_string(),
-        )?;
+        let totp = TotpBuilder::new()
+            .with_algorithm(Algorithm::SHA1)
+            .with_digits(6)
+            .with_skew(1)
+            .with_step_duration(30)
+            .with_secret(secret)
+            .with_issuer(Some(issuer_name.to_string()))
+            .with_account_name(username.to_string())
+            .build()?;
 
-        let qr_code_url = totp.get_url();
+        let qr_code_url = totp.to_url()?;
 
         Ok((secret_base32, qr_code_url))
     }
@@ -752,16 +752,14 @@ impl AuthService {
 
     /// Verify a TOTP code against the secret
     pub fn verify_totp_code(secret: &str, code: &str) -> Result<bool, Box<dyn std::error::Error>> {
-        let secret_bytes = Secret::Encoded(secret.to_string()).to_bytes()?;
-        let totp = TOTP::new(
-            Algorithm::SHA1,
-            6,
-            1,
-            30,
-            secret_bytes,
-            None,
-            "".to_string(),
-        )?;
+        let secret = Secret::try_from_base32(secret)?;
+        let totp = TotpBuilder::new()
+            .with_algorithm(Algorithm::SHA1)
+            .with_digits(6)
+            .with_skew(1)
+            .with_step_duration(30)
+            .with_secret(secret)
+            .build()?;
 
         // Allow for clock skew - check previous, current, and next time windows
         let current_time = std::time::SystemTime::now()
@@ -769,17 +767,17 @@ impl AuthService {
             .as_secs();
 
         // Check current window
-        if totp.check_current(code)? {
+        if totp.check_current(code).is_some() {
             return Ok(true);
         }
 
         // Check previous window (30 seconds ago)
-        if totp.check(code, current_time - 30) {
+        if totp.check(code, current_time - 30).is_some() {
             return Ok(true);
         }
 
         // Check next window (30 seconds ahead)
-        if totp.check(code, current_time + 30) {
+        if totp.check(code, current_time + 30).is_some() {
             return Ok(true);
         }
 

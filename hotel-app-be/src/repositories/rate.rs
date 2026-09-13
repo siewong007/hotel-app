@@ -276,7 +276,7 @@ impl RateRepository {
 
     pub async fn list_room_rates(pool: &DbPool) -> Result<Vec<RoomRateWithDetails>, ApiError> {
         let query = room_rate_details_query(None);
-        let rows = sqlx::query(&query)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
@@ -292,7 +292,7 @@ impl RateRepository {
         rate_plan_id: i64,
     ) -> Result<Vec<RoomRateWithDetails>, ApiError> {
         let query = room_rate_details_query(Some(" WHERE rr.rate_plan_id = $1"));
-        let rows = sqlx::query(&query)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
             .bind(rate_plan_id)
             .fetch_all(pool)
             .await
@@ -309,7 +309,7 @@ impl RateRepository {
         rate_id: i64,
     ) -> Result<RoomRateWithDetails, ApiError> {
         let query = room_rate_details_query(Some(" WHERE rr.id = $1"));
-        sqlx::query(&query)
+        sqlx::query(sqlx::AssertSqlSafe(&*query))
             .bind(rate_id)
             .fetch_one(pool)
             .await

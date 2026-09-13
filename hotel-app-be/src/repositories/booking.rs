@@ -87,7 +87,7 @@ impl BookingRepository {
             }};
         }
 
-        let rows = apply_binds!(sqlx::query(&list_query.data_sql))
+        let rows = apply_binds!(sqlx::query(sqlx::AssertSqlSafe(&*list_query.data_sql)))
             .fetch_all(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -97,10 +97,12 @@ impl BookingRepository {
         // standalone count (offset past the end / no matching rows).
         let total: i64 = match rows.first() {
             Some(first) => first.try_get::<i64, _>("total_count").unwrap_or(0),
-            None => apply_binds!(sqlx::query_scalar::<_, i64>(&list_query.count_sql))
-                .fetch_one(pool)
-                .await
-                .unwrap_or(0),
+            None => apply_binds!(sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(
+                &*list_query.count_sql
+            )))
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0),
         };
 
         let bookings = rows

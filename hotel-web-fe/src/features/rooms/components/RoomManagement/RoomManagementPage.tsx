@@ -96,7 +96,6 @@ const getOverdueDays = (checkOutDate: string, todayIso: string) => {
 // `first_name`/`last_name` are NOT part of the real `Guest` API type (only `full_name` is) —
 // kept optional here since the fallback that reads them is effectively dead code today.
 type BookingCreatedPayload = Booking & { room_number?: string };
-type GuestCreatedPayload = Guest & { first_name?: string; last_name?: string };
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -293,7 +292,7 @@ const RoomManagementPage: React.FC = () => {
     showSnackbar(message, 'error');
   }, [showSnackbar]);
 
-  const handleUnifiedBookingCreated = useCallback((booking: BookingCreatedPayload, guest: GuestCreatedPayload) => {
+  const handleUnifiedBookingCreated = useCallback((booking: BookingCreatedPayload, guest: Guest) => {
     // Convert to BookingWithDetails for the reserved check-in dialog. `booking`/`guest`
     // are the raw objects UnifiedBookingModal passes through onBookingCreated — they can
     // carry fields beyond the declared Booking/Guest shapes (see

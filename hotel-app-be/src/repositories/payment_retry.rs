@@ -56,7 +56,7 @@ impl PaymentRetryRepository {
             param!(3),
             param!(4)
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(booking_id)
             .bind(payment_id)
             .bind(token_hash)
@@ -82,7 +82,7 @@ impl PaymentRetryRepository {
             "SELECT {CAPABILITY_COLUMNS} FROM payment_retry_capabilities WHERE token_hash = {}",
             param!(1)
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(token_hash)
             .fetch_optional(pool)
             .await
@@ -113,7 +113,7 @@ impl PaymentRetryRepository {
             param!(2),
             now = current_timestamp()
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(replacement_payment_id)
             .bind(capability_id)
             .fetch_optional(&mut **tx)
@@ -145,7 +145,7 @@ impl PaymentRetryRepository {
             param!(1),
             param!(2)
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(capability_id)
             .bind(spent_on_payment_id)
             .fetch_optional(pool)
@@ -169,7 +169,7 @@ impl PaymentRetryRepository {
             param!(1),
             now = current_timestamp()
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(capability_id)
             .execute(pool)
             .await
@@ -194,7 +194,7 @@ impl PaymentRetryRepository {
             param!(1),
             current_timestamp()
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(booking_id)
             .fetch_all(pool)
             .await

@@ -104,9 +104,9 @@ export default defineConfig(({ mode, command }) => {
       // package, so these externals are only a safety net against accidental imports.
       rolldownOptions: {
         input: {
-          app: resolve(__dirname, 'index.html'),
-          guest: resolve(__dirname, 'guest.html'),
-          salimInn: resolve(__dirname, 'salim-inn/index.html'),
+          app: resolve(import.meta.dirname, 'index.html'),
+          guest: resolve(import.meta.dirname, 'guest.html'),
+          salimInn: resolve(import.meta.dirname, 'salim-inn/index.html'),
         },
         external: (id: string) => id === '@tauri-apps/api' || id.startsWith('@tauri-apps/api/'),
         // Strip console/debugger statements from production output only; dev

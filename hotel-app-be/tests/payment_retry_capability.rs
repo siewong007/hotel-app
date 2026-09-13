@@ -16,9 +16,7 @@ mod postgres_tests {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => {
-                eprintln!(
-                    "Skipping payment retry PostgreSQL test because DATABASE_URL is not set"
-                );
+                eprintln!("Skipping payment retry PostgreSQL test because DATABASE_URL is not set");
                 return None;
             }
         };
@@ -96,7 +94,10 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs();
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs();
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 0).await;
 
         let expires_at = Utc::now() + Duration::minutes(60);
@@ -110,12 +111,10 @@ mod postgres_tests {
         .await
         .expect("create capability");
 
-        let found = PaymentRetryRepository::find_by_token_hash(
-            &pool,
-            &format!("sha256:{suffix:064x}"),
-        )
-        .await
-        .expect("lookup capability");
+        let found =
+            PaymentRetryRepository::find_by_token_hash(&pool, &format!("sha256:{suffix:064x}"))
+                .await
+                .expect("lookup capability");
 
         // Fixtures go before the assertions: a panic here would otherwise leave
         // a booking behind and the exclusion constraint would poison every
@@ -143,13 +142,23 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 1;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 1;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 1).await;
         let hash = format!("sha256:{suffix:064x}");
 
-        PaymentRetryRepository::create(&pool, booking_id, None, &hash, Utc::now() + Duration::minutes(60))
-            .await
-            .expect("create capability");
+        PaymentRetryRepository::create(
+            &pool,
+            booking_id,
+            None,
+            &hash,
+            Utc::now() + Duration::minutes(60),
+        )
+        .await
+        .expect("create capability");
 
         // An email scanner following the link must not burn the guest's attempt.
         let mut consumed_flags = Vec::new();
@@ -174,7 +183,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 2;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 2;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 2).await;
         let hash = format!("sha256:{suffix:064x}");
 
@@ -230,7 +243,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 3;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 3;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 3).await;
 
         let capability = PaymentRetryRepository::create(
@@ -267,7 +284,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 4;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 4;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 4).await;
 
         let live = PaymentRetryRepository::create(
@@ -312,7 +333,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 5;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 5;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 5).await;
         let hash = format!("sha256:{suffix:064x}");
 
@@ -366,7 +391,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 6;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 6;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 6).await;
         let token = format!("{suffix:064x}");
 
@@ -408,7 +437,10 @@ mod postgres_tests {
         cleanup(&pool, guest_id, booking_id).await;
 
         assert!(
-            matches!(result, Err(hotel_app_be::core::error::ApiError::Forbidden(_))),
+            matches!(
+                result,
+                Err(hotel_app_be::core::error::ApiError::Forbidden(_))
+            ),
             "capture must be scoped to the payment this link produced: {result:?}"
         );
     }
@@ -418,7 +450,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 7;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 7;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 7).await;
         let token = format!("{suffix:064x}");
 
@@ -465,7 +501,11 @@ mod postgres_tests {
         let Some(pool) = pool().await else {
             return;
         };
-        let suffix = Utc::now().timestamp_nanos_opt().unwrap_or_default().unsigned_abs() + 8;
+        let suffix = Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or_default()
+            .unsigned_abs()
+            + 8;
         let (guest_id, booking_id) = seed_booking(&pool, suffix, 8).await;
         let token = format!("{suffix:064x}");
 
@@ -534,7 +574,10 @@ mod postgres_tests {
         )
         .await;
         assert!(
-            matches!(result, Err(hotel_app_be::core::error::ApiError::NotFound(_))),
+            matches!(
+                result,
+                Err(hotel_app_be::core::error::ApiError::NotFound(_))
+            ),
             "an unknown link must get the same generic answer: {result:?}"
         );
     }

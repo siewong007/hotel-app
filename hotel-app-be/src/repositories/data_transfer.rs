@@ -410,10 +410,13 @@ impl DataTransferRepository {
         pool: &DbPool,
         table: &TransferTable,
     ) -> Result<i64, ApiError> {
-        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table.source()))
-            .fetch_one(pool)
-            .await
-            .map_err(ApiError::from)
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT COUNT(*) FROM {}",
+            table.source()
+        )))
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
     }
 
     pub async fn export_transfer_table(
@@ -441,10 +444,13 @@ impl DataTransferRepository {
         tables: &[TransferTable],
     ) -> Result<(), ApiError> {
         for table in tables {
-            sqlx::query(&format!("DELETE FROM {}", table.source()))
-                .execute(&mut **tx)
-                .await
-                .map_err(ApiError::from)?;
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {}",
+                table.source()
+            )))
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
         }
         Ok(())
     }
@@ -480,7 +486,7 @@ impl DataTransferRepository {
         let sql = format!(
             "INSERT INTO {quoted} ({columns}) OVERRIDING SYSTEM VALUE SELECT {columns} FROM jsonb_populate_record(NULL::{quoted}, $1::jsonb) ON CONFLICT DO NOTHING"
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(Value::Object(values))
             .execute(&mut **tx)
             .await
@@ -495,10 +501,10 @@ impl DataTransferRepository {
     ) -> Result<(), ApiError> {
         let action = if enabled { "ENABLE" } else { "DISABLE" };
         for table in tables {
-            sqlx::query(&format!(
+            sqlx::query(sqlx::AssertSqlSafe(format!(
                 "ALTER TABLE {} {action} TRIGGER USER",
                 table.table.quoted()
-            ))
+            )))
             .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
@@ -550,11 +556,11 @@ impl DataTransferRepository {
             .collect();
 
         for key in &relaxed {
-            sqlx::query(&format!(
+            sqlx::query(sqlx::AssertSqlSafe(format!(
                 "ALTER TABLE {} ALTER CONSTRAINT {} DEFERRABLE INITIALLY DEFERRED",
                 key.table.quoted(),
                 quote_identifier(&key.constraint)
-            ))
+            )))
             .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
@@ -573,11 +579,11 @@ impl DataTransferRepository {
         relaxed: &[RelaxedForeignKey],
     ) -> Result<(), ApiError> {
         for key in relaxed {
-            sqlx::query(&format!(
+            sqlx::query(sqlx::AssertSqlSafe(format!(
                 "ALTER TABLE {} ALTER CONSTRAINT {} NOT DEFERRABLE INITIALLY IMMEDIATE",
                 key.table.quoted(),
                 quote_identifier(&key.constraint)
-            ))
+            )))
             .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
@@ -606,7 +612,7 @@ impl DataTransferRepository {
                 let reset_sql = format!(
                     "SELECT setval($1::regclass, COALESCE((SELECT MAX({quoted_column})::bigint FROM {source}), 1), EXISTS (SELECT 1 FROM {source}))"
                 );
-                sqlx::query(&reset_sql)
+                sqlx::query(sqlx::AssertSqlSafe(&*reset_sql))
                     .bind(sequence)
                     .execute(&mut **tx)
                     .await
@@ -620,18 +626,20 @@ impl DataTransferRepository {
         // `export_query` doesn't take a table name directly, but its only
         // caller today (`export_table`) already validates the table before
         // building the query string passed in here.
-        let rows: Vec<(Value,)> =
-            sqlx::query_as(&format!("SELECT row_to_json(t) FROM ({}) t", query))
-                .fetch_all(pool)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
+        let rows: Vec<(Value,)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT row_to_json(t) FROM ({}) t",
+            query
+        )))
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(rows.into_iter().map(|row| row.0).collect())
     }
 
     pub async fn clear_tables(tx: &mut DbTransaction<'_>, tables: &[&str]) -> Result<(), ApiError> {
         for table in tables {
-            sqlx::query(&format!("DELETE FROM {}", table))
+            sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {}", table)))
                 .execute(&mut **tx)
                 .await
                 .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -663,9 +671,9 @@ impl DataTransferRepository {
 
         let quoted_table = quote_identifier(table);
 
-        let existing_ids = sqlx::query_scalar::<_, i64>(&format!(
+        let existing_ids = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(format!(
             "SELECT id FROM {quoted_table} WHERE id = ANY($1)"
-        ))
+        )))
         .bind(ids)
         .fetch_all(&mut **tx)
         .await
@@ -813,10 +821,13 @@ impl DataTransferRepository {
         let action = if enabled { "ENABLE" } else { "DISABLE" };
         for table in tables {
             ensure_known_table(table)?;
-            sqlx::query(&format!("ALTER TABLE {} {} TRIGGER USER", table, action))
-                .execute(&mut **tx)
-                .await
-                .map_err(ApiError::from)?;
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "ALTER TABLE {} {} TRIGGER USER",
+                table, action
+            )))
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
         }
 
         Ok(())
@@ -903,7 +914,7 @@ impl DataTransferRepository {
             "INSERT INTO {quoted_table} ({column_list}) OVERRIDING SYSTEM VALUE SELECT {column_list} FROM jsonb_populate_record(NULL::{quoted_table}, $1::jsonb) ON CONFLICT DO NOTHING"
         );
 
-        sqlx::query(&insert_sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*insert_sql))
             .bind(Value::Object(prepared.values))
             .execute(&mut **tx)
             .await
@@ -917,7 +928,7 @@ impl DataTransferRepository {
     ) -> Result<(), ApiError> {
         for table in tables {
             let reset_sql = reset_sequence_sql(table);
-            sqlx::query(&reset_sql)
+            sqlx::query(sqlx::AssertSqlSafe(&*reset_sql))
                 .execute(&mut **tx)
                 .await
                 .map_err(ApiError::from)?;
@@ -1240,7 +1251,10 @@ mod tests {
 
         let mut sorted = order.clone();
         sorted.sort();
-        assert_eq!(sorted, selected, "every selected table must be emitted once");
+        assert_eq!(
+            sorted, selected,
+            "every selected table must be emitted once"
+        );
         // The cycle is broken, but edges outside it are still honoured.
         let position = |table: &str| order.iter().position(|name| name == table).unwrap();
         assert!(
@@ -1253,10 +1267,7 @@ mod tests {
     /// fails the next time for no visible reason.
     #[test]
     fn cycle_breaking_is_deterministic() {
-        let selected = vec![
-            "public.guests".to_string(),
-            "public.users".to_string(),
-        ];
+        let selected = vec!["public.guests".to_string(), "public.users".to_string()];
         let dependencies = HashMap::from([
             (
                 "public.guests".to_string(),

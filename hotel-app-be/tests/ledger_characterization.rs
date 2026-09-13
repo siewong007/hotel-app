@@ -1380,7 +1380,7 @@ mod postgres_tests {
         second_ledger_id: i64,
     ) {
         remove_fail_second_batch_insert(pool).await;
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             r#"
             CREATE FUNCTION ledger_characterization_fail_second_batch_insert()
             RETURNS trigger
@@ -1395,7 +1395,7 @@ mod postgres_tests {
             END;
             $$
             "#,
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();

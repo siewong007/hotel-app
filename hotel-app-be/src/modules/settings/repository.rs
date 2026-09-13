@@ -142,7 +142,7 @@ impl SettingsRepository {
             "#
         );
 
-        sqlx::query(&query)
+        sqlx::query(sqlx::AssertSqlSafe(&*query))
             .bind(check_in_time)
             .bind(check_out_time)
             .execute(pool)

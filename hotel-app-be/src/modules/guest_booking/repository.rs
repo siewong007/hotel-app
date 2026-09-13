@@ -297,9 +297,9 @@ impl GuestBookingRepository {
             ));
         }
 
-        let available: i64 = sqlx::query_scalar(&format!(
+        let available: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
                 "SELECT COUNT(*)::bigint FROM rooms r WHERE r.room_type_id = $1 AND r.is_active = true AND COALESCE(r.status, 'available') NOT IN ('maintenance', 'out_of_order') AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id AND b.status IN ({ACTIVE_BOOKING_STATUSES}) AND b.check_in_date < $3 AND b.check_out_date > $2)"
-            ))
+            )))
         .bind(room_type_id)
         .bind(check_in)
         .bind(check_out)
@@ -369,7 +369,7 @@ impl GuestBookingRepository {
                 ORDER BY rt.sort_order, rt.name
                 "#
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(check_in)
             .bind(check_out)
             .bind(occupancy)
@@ -552,7 +552,7 @@ impl GuestBookingRepository {
                 FOR UPDATE SKIP LOCKED LIMIT 1
                 "#
         );
-        sqlx::query_scalar(&sql)
+        sqlx::query_scalar(sqlx::AssertSqlSafe(&*sql))
             .bind(room_type_id)
             .bind(check_in)
             .bind(check_out)

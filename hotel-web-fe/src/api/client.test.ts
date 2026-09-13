@@ -12,8 +12,8 @@ describe('api client URL resolution', () => {
     window.history.replaceState({}, '', '/portal/book');
     let requestedUrl = '';
 
-    const fetchMock = vi.fn(async (request: Request) => {
-      requestedUrl = request.url;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      requestedUrl = input instanceof Request ? input.url : String(input);
       return new Response('[]', {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

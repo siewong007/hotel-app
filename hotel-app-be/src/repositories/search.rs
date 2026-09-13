@@ -83,7 +83,7 @@ impl SearchRepository {
             status: String,
         }
 
-        let rows = sqlx::query_as::<_, Row>(&sql)
+        let rows = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(&*sql))
             .bind(pattern)
             .bind(limit)
             .fetch_all(pool)
@@ -166,7 +166,7 @@ impl SearchRepository {
             company_name: String,
         }
 
-        let rows = sqlx::query_as::<_, Row>(&sql)
+        let rows = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(&*sql))
             .bind(pattern)
             .bind(limit)
             .fetch_all(pool)
@@ -243,7 +243,7 @@ impl SearchRepository {
             status: String,
         }
 
-        let rows = sqlx::query_as::<_, Row>(&sql)
+        let rows = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(&*sql))
             .bind(pattern)
             .bind(limit)
             .fetch_all(pool)
@@ -327,7 +327,7 @@ impl SearchRepository {
             status: String,
         }
 
-        let rows = sqlx::query_as::<_, Row>(&sql)
+        let rows = sqlx::query_as::<_, Row>(sqlx::AssertSqlSafe(&*sql))
             .bind(pattern)
             .bind(limit)
             .fetch_all(pool)

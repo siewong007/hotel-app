@@ -45,7 +45,7 @@ impl GuestPortalSessionRepository {
             "DELETE FROM guest_portal_sessions WHERE token_hash = {}",
             param!(1)
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(token_hash)
             .execute(pool)
             .await
@@ -80,7 +80,7 @@ impl GuestPortalSessionRepository {
             param!(2),
             param!(3)
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .bind(token_hash)
             .bind(expires_at)
@@ -102,7 +102,7 @@ impl GuestPortalSessionRepository {
             param!(1),
             current_timestamp()
         );
-        let row = sqlx::query(&select_sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*select_sql))
             .bind(token_hash)
             .fetch_optional(pool)
             .await
@@ -119,7 +119,7 @@ impl GuestPortalSessionRepository {
             param!(1)
         );
         // Best-effort last_used bookkeeping; a failure here must not block reads.
-        let _ = sqlx::query(&update_sql)
+        let _ = sqlx::query(sqlx::AssertSqlSafe(&*update_sql))
             .bind(token_hash)
             .execute(pool)
             .await;
@@ -155,7 +155,7 @@ impl GuestPortalSessionRepository {
             param!(1),
             BOOKING_SEARCH_PREDICATE
         );
-        let total: i64 = sqlx::query(&count_sql)
+        let total: i64 = sqlx::query(sqlx::AssertSqlSafe(&*count_sql))
             .bind(guest_id)
             .bind(search_term.as_deref())
             .fetch_one(pool)
@@ -205,7 +205,7 @@ impl GuestPortalSessionRepository {
             param!(3),
             param!(4)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .bind(search_term.as_deref())
             .bind(limit)
@@ -294,7 +294,7 @@ impl GuestPortalSessionRepository {
                  FROM guests WHERE id = {}",
             param!(1)
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .fetch_one(pool)
             .await
@@ -346,7 +346,7 @@ impl GuestPortalSessionRepository {
         );
 
         let count_sql = format!("SELECT COUNT(*) AS c FROM ({}) t", union_body);
-        let total: i64 = sqlx::query(&count_sql)
+        let total: i64 = sqlx::query(sqlx::AssertSqlSafe(&*count_sql))
             .bind(guest_id)
             .fetch_one(pool)
             .await
@@ -360,7 +360,7 @@ impl GuestPortalSessionRepository {
             param!(2),
             param!(3)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .bind(limit)
             .bind(offset)
@@ -404,7 +404,7 @@ impl GuestPortalSessionRepository {
              WHERE m.guest_id = {} LIMIT 1",
             param!(1)
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .fetch_optional(pool)
             .await
@@ -451,7 +451,7 @@ impl GuestPortalSessionRepository {
              ORDER BY lt.created_at DESC, lt.id DESC LIMIT 20",
             param!(1)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .fetch_all(pool)
             .await
@@ -486,7 +486,7 @@ impl GuestPortalSessionRepository {
              WHERE m.guest_id = {} LIMIT 1",
             param!(1)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .fetch_all(pool)
             .await
@@ -520,7 +520,7 @@ impl GuestPortalSessionRepository {
              ORDER BY rt.name ASC, rt.id ASC",
             param!(1)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .fetch_all(pool)
             .await
@@ -558,7 +558,7 @@ impl GuestPortalSessionRepository {
             active = is_active,
             today = today
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .fetch_all(pool)
             .await
             .map_err(|e| ApiError::Database(format!("Reward lookup failed: {}", e)))?;

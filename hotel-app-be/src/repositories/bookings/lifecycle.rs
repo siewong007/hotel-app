@@ -836,10 +836,11 @@ async fn ensure_checkout_balance_resolved(
     // `total_paid` excludes deposits (collateral, not charge payment), unlike
     // `completed_booking_payment_total` which counts every completed payment
     // and exists for the "has any money been collected" release checks.
-    let total_paid = crate::repositories::payment::PaymentRepository::workflow_summary_row(pool, booking_id)
-        .await?
-        .map(|summary| summary.total_paid)
-        .unwrap_or(Decimal::ZERO);
+    let total_paid =
+        crate::repositories::payment::PaymentRepository::workflow_summary_row(pool, booking_id)
+            .await?
+            .map(|summary| summary.total_paid)
+            .unwrap_or(Decimal::ZERO);
     let balance_due = checkout_balance_due(billable_total, total_paid);
     let final_company_id = input.company_id.or(existing_booking.company_id);
 
@@ -2649,7 +2650,7 @@ pub async fn apply_guest_update_tx(
         updates.join(", "),
         params.len() + 1
     );
-    let mut q = sqlx::query(&query);
+    let mut q = sqlx::query(sqlx::AssertSqlSafe(&*query));
     for p in &params {
         q = q.bind(p);
     }
@@ -2825,7 +2826,7 @@ pub async fn apply_booking_field_update_tx(
             updates.join(", "),
             params.len() + 1
         );
-        let mut q = sqlx::query(&query);
+        let mut q = sqlx::query(sqlx::AssertSqlSafe(&*query));
         for p in &params {
             q = q.bind(p);
         }

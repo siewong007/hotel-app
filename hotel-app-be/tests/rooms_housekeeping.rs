@@ -546,7 +546,7 @@ mod postgres_tests {
 
     async fn count_room_rows(pool: &PgPool, table: &str, room_id: i64) -> i64 {
         let query = format!("SELECT COUNT(*) FROM {table} WHERE room_id = $1");
-        sqlx::query_scalar::<_, i64>(&query)
+        sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*query))
             .bind(room_id)
             .fetch_one(pool)
             .await

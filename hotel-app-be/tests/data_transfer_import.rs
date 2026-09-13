@@ -20,7 +20,9 @@ async fn setup_pg_pool() -> Option<PgPool> {
     let database_url = match std::env::var("DATABASE_URL") {
         Ok(url) => url,
         Err(_) => {
-            eprintln!("Skipping PostgreSQL data-transfer import test because DATABASE_URL is not set");
+            eprintln!(
+                "Skipping PostgreSQL data-transfer import test because DATABASE_URL is not set"
+            );
             return None;
         }
     };
@@ -104,7 +106,10 @@ async fn relaxed_foreign_keys_allow_cyclic_rows_and_are_restored_afterwards() {
     let cycle: Vec<_> = descriptors
         .iter()
         .filter(|descriptor| {
-            matches!(descriptor.table.key().as_str(), "public.users" | "public.guests")
+            matches!(
+                descriptor.table.key().as_str(),
+                "public.users" | "public.guests"
+            )
         })
         .cloned()
         .collect();
@@ -283,14 +288,16 @@ async fn deferred_foreign_keys_still_reject_a_dangling_reference() {
         .await
         .expect("defer");
 
-    sqlx::query("INSERT INTO guests (id, nick_name, created_by) \
-         OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3)")
-        .bind(920_931_003_i64)
-        .bind("transfer-cycle-dangling")
-        .bind(920_931_999_i64) // no such user, and none will be inserted
-        .execute(&mut *tx)
-        .await
-        .expect("the insert itself is deferred, so it succeeds here");
+    sqlx::query(
+        "INSERT INTO guests (id, nick_name, created_by) \
+         OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3)",
+    )
+    .bind(920_931_003_i64)
+    .bind("transfer-cycle-dangling")
+    .bind(920_931_999_i64) // no such user, and none will be inserted
+    .execute(&mut *tx)
+    .await
+    .expect("the insert itself is deferred, so it succeeds here");
 
     let forced = sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
         .execute(&mut *tx)

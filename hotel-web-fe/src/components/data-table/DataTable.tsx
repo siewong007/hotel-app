@@ -16,18 +16,57 @@ import {
 } from '@mui/material';
 import {
   flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
+  useTable,
+  tableFeatures,
+  rowSortingFeature,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowPaginationFeature,
+  createSortedRowModel,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  type ColumnDef as TanStackColumnDef,
   type SortingState,
   type ColumnFiltersState,
-  type Row,
+  type RowData,
 } from '@tanstack/react-table';
 
-export interface DataTableProps<TData> {
+/**
+ * Feature sets stitched into the shared table. Both register
+ * `rowPaginationFeature` so pagination state and APIs exist on either table;
+ * only the paginated bundle registers the row model that actually slices rows
+ * — the row model cannot be toggled after registration, so it is what makes
+ * pagination opt-in per table.
+ */
+const baseTableFeatures = tableFeatures({
+  rowSortingFeature,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowPaginationFeature,
+  sortedRowModel: createSortedRowModel(),
+  filteredRowModel: createFilteredRowModel(),
+});
+
+const paginatedTableFeatures = tableFeatures({
+  rowSortingFeature,
+  columnFilteringFeature,
+  globalFilteringFeature,
+  rowPaginationFeature,
+  sortedRowModel: createSortedRowModel(),
+  filteredRowModel: createFilteredRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+});
+
+/**
+ * Column definitions are authored before a table instance exists, so they are
+ * feature-agnostic (`any` TFeatures) and pick up `meta` typing from the global
+ * `ColumnMeta` augmentation in `src/types/tanstack-table.d.ts`.
+ */
+export type ColumnDef<TData extends RowData, TValue = unknown> = TanStackColumnDef<any, TData, TValue>;
+
+type DataTableFeatures = typeof baseTableFeatures | typeof paginatedTableFeatures;
+
+export interface DataTableProps<TData extends RowData> {
   data: TData[];
   columns: ColumnDef<TData, any>[];
   emptyMessage?: React.ReactNode;
@@ -49,7 +88,7 @@ export interface DataTableProps<TData> {
   getRowId?: (row: TData, index: number) => string;
 }
 
-export function DataTable<TData>({
+export function DataTable<TData extends RowData>({
   data,
   columns,
   emptyMessage = 'No rows',
@@ -68,9 +107,10 @@ export function DataTable<TData>({
   const [sorting, setSorting] = React.useState<SortingState>(initialSorting ?? []);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(initialColumnFilters ?? []);
 
-  const table = useReactTable({
+  const table = useTable<DataTableFeatures, TData>({
+    features: enablePagination ? paginatedTableFeatures : baseTableFeatures,
     data,
-    columns,
+    columns: columns as TanStackColumnDef<DataTableFeatures, TData>[],
     state: {
       sorting,
       columnFilters,
@@ -78,15 +118,11 @@ export function DataTable<TData>({
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: enablePagination ? getPaginationRowModel() : undefined,
     initialState: enablePagination && pageSize ? { pagination: { pageSize, pageIndex: 0 } } : undefined,
     getRowId,
   });
 
-  const rows: Row<TData>[] = table.getRowModel().rows;
+  const rows = table.getRowModel().rows;
   const theme = useTheme();
   const isMobileList = useMediaQuery(theme.breakpoints.down('sm')) && Boolean(renderMobileCard);
 
@@ -168,7 +204,7 @@ export function DataTable<TData>({
           {loading ? (
             Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
               <TableRow key={`loading-${rowIndex}`}>
-                {table.getVisibleLeafColumns().map((column, colIndex) => (
+                {table.getAllLeafColumns().map((column, colIndex) => (
                   <TableCell key={column.id} align={column.columnDef.meta?.align ?? 'left'}>
                     <Skeleton
                       variant="text"
@@ -199,7 +235,7 @@ export function DataTable<TData>({
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 sx={onRowClick ? { cursor: 'pointer' } : undefined}
               >
-                {row.getVisibleCells().map((cell) => (
+                {row.getAllCells().map((cell) => (
                   <TableCell
                     key={cell.id}
                     align={cell.column.columnDef.meta?.align ?? 'left'}
@@ -219,7 +255,7 @@ export function DataTable<TData>({
           <Typography variant="caption" sx={{
             color: "text.secondary"
           }}>
-            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+            Page {table.state.pagination.pageIndex + 1} of {table.getPageCount() || 1}
           </Typography>
           <Box
             component="button"
@@ -244,5 +280,3 @@ export function DataTable<TData>({
     </TableContainer>
   );
 }
-
-export type { ColumnDef };

@@ -366,7 +366,7 @@ impl PromotionRepository {
                     LIMIT $1 OFFSET $2
                 "#
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(page_size)
             .bind(offset)
             .fetch_all(pool)
@@ -403,7 +403,7 @@ impl PromotionRepository {
                     LIMIT $3 OFFSET $4
                 "#
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(status)
             .bind(search)
             .bind(page_size)
@@ -420,7 +420,7 @@ impl PromotionRepository {
     ) -> Result<Option<Promotion>, ApiError> {
         let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1"
             .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(promotion_id)
             .fetch_optional(pool)
             .await
@@ -438,7 +438,7 @@ impl PromotionRepository {
     pub async fn find_by_slug(pool: &DbPool, slug: &str) -> Result<Option<Promotion>, ApiError> {
         let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = $1"
             .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(slug)
             .fetch_optional(pool)
             .await
@@ -471,7 +471,7 @@ impl PromotionRepository {
                       AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
                 "#
         .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(slug)
             .fetch_optional(pool)
             .await
@@ -492,7 +492,7 @@ impl PromotionRepository {
     ) -> Result<Option<Promotion>, ApiError> {
         let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1"
             .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(promotion_id)
             .fetch_optional(&mut **tx)
             .await
@@ -670,7 +670,7 @@ impl PromotionRepository {
                     LIMIT $2 OFFSET $3
                 "#
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .bind(page_size)
             .bind(offset)
@@ -734,7 +734,7 @@ impl PromotionRepository {
                 "#
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS_ADMIN)
         .replace("{VOUCHER_ADMIN_FROM}", VOUCHER_ADMIN_FROM);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(status)
             .bind(search)
             .bind(promotion_id)
@@ -758,7 +758,7 @@ impl PromotionRepository {
     ) -> Result<Option<Voucher>, ApiError> {
         let sql = "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1 AND v.guest_id = $2"
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(voucher_id)
             .bind(guest_id)
             .fetch_optional(pool)
@@ -775,7 +775,7 @@ impl PromotionRepository {
     ) -> Result<Option<Voucher>, ApiError> {
         let sql = "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.promotion_id = $1 AND v.guest_id = $2"
         .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(promotion_id)
             .bind(guest_id)
             .fetch_optional(pool)
@@ -791,7 +791,7 @@ impl PromotionRepository {
         let sql = "SELECT {VOUCHER_COLUMNS} {VOUCHER_ADMIN_FROM} WHERE v.id = $1"
             .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS_ADMIN)
             .replace("{VOUCHER_ADMIN_FROM}", VOUCHER_ADMIN_FROM);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(voucher_id)
             .fetch_optional(pool)
             .await

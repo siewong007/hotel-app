@@ -244,7 +244,7 @@ impl SupportRepository {
         conversation_id: i64,
     ) -> Result<Option<SupportConversation>, ApiError> {
         let sql = format!("{CONVERSATION_SELECT} WHERE c.id = {}", crate::param!(1));
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(conversation_id)
             .fetch_optional(pool)
             .await
@@ -262,7 +262,7 @@ impl SupportRepository {
             crate::param!(1),
             crate::param!(2)
         );
-        let row = sqlx::query(&sql)
+        let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(conversation_id)
             .bind(guest_id)
             .fetch_optional(pool)
@@ -318,7 +318,7 @@ WHERE (
             .filter(|value| !value.is_empty())
             .map(|value| format!("%{value}%"));
 
-        let total = sqlx::query_scalar::<_, i64>(&count_sql)
+        let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_sql))
             .bind(queue)
             .bind(viewer_id)
             .bind(status)
@@ -328,7 +328,7 @@ WHERE (
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let rows = sqlx::query(&list_sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_sql))
             .bind(queue)
             .bind(viewer_id)
             .bind(status)
@@ -419,12 +419,12 @@ FROM support_conversations
             crate::param!(3),
             crate::param!(4)
         );
-        let total = sqlx::query_scalar::<_, i64>(&count_sql)
+        let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_sql))
             .bind(guest_id)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let rows = sqlx::query(&list_sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_sql))
             .bind(reopen_window_days)
             .bind(guest_id)
             .bind(page_size)
@@ -474,7 +474,7 @@ ORDER BY sm.created_at ASC, sm.id ASC
 "#,
             crate::param!(1)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(conversation_id)
             .fetch_all(pool)
             .await
@@ -497,7 +497,7 @@ ORDER BY se.created_at ASC, se.id ASC
 "#,
             crate::param!(1)
         );
-        let rows = sqlx::query(&sql)
+        let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(conversation_id)
             .fetch_all(pool)
             .await

@@ -276,7 +276,7 @@ const RBACManagementPage: React.FC = () => {
         `Saved ${selectedRole.name} — ${added.length} added, ${removed.length} removed`
       );
     } catch (e) {
-      showSnackbar(e?.message || 'Failed to save permissions', 'error');
+      showSnackbar(errorMessage(e, 'Failed to save permissions'), 'error');
       reload();
     } finally {
       setSaving(false);
@@ -318,7 +318,7 @@ const RBACManagementPage: React.FC = () => {
       }
       setRoleDialog(null);
     } catch (e) {
-      showSnackbar(e?.message || 'Failed to save role', 'error');
+      showSnackbar(errorMessage(e, 'Failed to save role'), 'error');
     }
   };
   const duplicateRole = async () => {
@@ -341,7 +341,7 @@ const RBACManagementPage: React.FC = () => {
       setSelectedId(created.id);
       showSnackbar(`Duplicated as "${created.name}"`);
     } catch (e) {
-      showSnackbar(e?.message || 'Failed to duplicate role', 'error');
+      showSnackbar(errorMessage(e, 'Failed to duplicate role'), 'error');
     }
   };
   const confirmDelete = async () => {
@@ -356,7 +356,7 @@ const RBACManagementPage: React.FC = () => {
       showSnackbar(`Role "${deleteTarget.name}" deleted`);
       setDeleteTarget(null);
     } catch (e) {
-      showSnackbar(e?.message || 'Failed to delete role', 'error');
+      showSnackbar(errorMessage(e, 'Failed to delete role'), 'error');
     }
   };
 

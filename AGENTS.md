@@ -107,7 +107,7 @@ which means the fix landed and the attribute is stale.
 
 The frontend runs Vitest with Testing Library (`bun run test`). `typecheck`, `lint`, and
 `test` are three independent gates — vitest transpiles without type information, so code
-using APIs newer than `lib: ES2020` passes tests and fails typecheck.
+using APIs newer than `lib: ES2024` passes tests and fails typecheck.
 
 ## Dependency rules
 

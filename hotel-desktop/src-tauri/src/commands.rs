@@ -2,10 +2,10 @@
 //!
 //! These commands can be invoked from the frontend via `invoke()`
 
-use rand::RngCore;
+use rand::RngExt;
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
@@ -18,10 +18,8 @@ static BACKEND_RUNNING: AtomicBool = AtomicBool::new(false);
 static BACKEND_STARTING: AtomicBool = AtomicBool::new(false);
 static BACKEND_STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 static BACKEND_PORT: AtomicU16 = AtomicU16::new(3030);
-
-lazy_static::lazy_static! {
-    static ref BACKEND_PROCESS: Arc<Mutex<Option<CommandChild>>> = Arc::new(Mutex::new(None));
-}
+static BACKEND_PROCESS: LazyLock<Arc<Mutex<Option<CommandChild>>>> =
+    LazyLock::new(|| Arc::new(Mutex::new(None)));
 
 /// Status response for the application
 #[derive(serde::Serialize)]
@@ -74,8 +72,7 @@ fn get_backend_url() -> String {
 }
 
 fn generate_desktop_jwt_secret() -> String {
-    let mut secret = [0u8; 64];
-    rand::rngs::OsRng.fill_bytes(&mut secret);
+    let secret: [u8; 64] = rand::rng().random();
     hex::encode(secret)
 }
 

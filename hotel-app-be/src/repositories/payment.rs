@@ -104,10 +104,10 @@ impl PaymentRepository {
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
     ) -> Result<(), ApiError> {
-        let booking_id: Option<i64> = sqlx::query_scalar(&format!(
+        let booking_id: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT id FROM bookings WHERE id = {} FOR UPDATE",
             crate::param!(1)
-        ))
+        )))
         .bind(booking_id)
         .fetch_optional(&mut **tx)
         .await
@@ -126,10 +126,10 @@ impl PaymentRepository {
         tx: &mut DbTransaction<'_>,
         booking_id: i64,
     ) -> Result<String, ApiError> {
-        sqlx::query_scalar(&format!(
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT status FROM bookings WHERE id = {}",
             crate::param!(1)
-        ))
+        )))
         .bind(booking_id)
         .fetch_optional(&mut **tx)
         .await
@@ -155,7 +155,7 @@ impl PaymentRepository {
             crate::param!(2)
         );
 
-        sqlx::query_as::<_, PaymentEntryRow>(&sql)
+        sqlx::query_as::<_, PaymentEntryRow>(sqlx::AssertSqlSafe(&*sql))
             .bind(booking_id)
             .bind(idempotency_key)
             .fetch_optional(&mut **tx)
@@ -179,7 +179,7 @@ impl PaymentRepository {
             crate::param!(1)
         );
         for transaction_reference in references {
-            sqlx::query(&lock_sql)
+            sqlx::query(sqlx::AssertSqlSafe(&*lock_sql))
                 .bind(transaction_reference)
                 .execute(&mut **tx)
                 .await
@@ -222,7 +222,7 @@ impl PaymentRepository {
             "#,
             crate::param!(1)
         );
-        sqlx::query_as::<_, PaymentEntryRow>(&sql)
+        sqlx::query_as::<_, PaymentEntryRow>(sqlx::AssertSqlSafe(&*sql))
             .bind(transaction_reference)
             .fetch_all(&mut **tx)
             .await
@@ -246,14 +246,14 @@ impl PaymentRepository {
         transaction_reference: &str,
         payment_id: i64,
     ) -> Result<Option<i64>, ApiError> {
-        sqlx::query_scalar(&format!(
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT booking_id FROM payments \
              WHERE transaction_id = {} AND id <> {} \
                AND idempotency_fingerprint IS NOT NULL \
              ORDER BY id LIMIT 1",
             crate::param!(1),
             crate::param!(2)
-        ))
+        )))
         .bind(transaction_reference)
         .bind(payment_id)
         .fetch_optional(&mut **tx)
@@ -264,17 +264,18 @@ impl PaymentRepository {
     /// Human-readable identity for a booking, for error messages reception has
     /// to act on. Falls back to the id when the booking or room is missing.
     pub async fn booking_label_tx(tx: &mut DbTransaction<'_>, booking_id: i64) -> String {
-        let row = sqlx::query_as::<_, (Option<String>, Option<String>)>(&format!(
-            "SELECT b.booking_number, r.room_number \
+        let row =
+            sqlx::query_as::<_, (Option<String>, Option<String>)>(sqlx::AssertSqlSafe(format!(
+                "SELECT b.booking_number, r.room_number \
              FROM bookings b LEFT JOIN rooms r ON r.id = b.room_id \
              WHERE b.id = {}",
-            crate::param!(1)
-        ))
-        .bind(booking_id)
-        .fetch_optional(&mut **tx)
-        .await
-        .ok()
-        .flatten();
+                crate::param!(1)
+            )))
+            .bind(booking_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .ok()
+            .flatten();
 
         match row {
             Some((Some(booking_number), Some(room_number))) => {
@@ -308,10 +309,10 @@ impl PaymentRepository {
     }
 
     pub async fn payment_booking_id(pool: &DbPool, payment_id: i64) -> Result<i64, ApiError> {
-        sqlx::query_scalar(&format!(
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT booking_id FROM payments WHERE id = {}",
             crate::param!(1)
-        ))
+        )))
         .bind(payment_id)
         .fetch_optional(pool)
         .await
@@ -324,11 +325,11 @@ impl PaymentRepository {
         payment_id: i64,
         booking_id: i64,
     ) -> Result<Option<String>, ApiError> {
-        sqlx::query_scalar(&format!(
+        sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
             "SELECT status FROM payments WHERE id = {} AND booking_id = {} FOR UPDATE",
             crate::param!(1),
             crate::param!(2)
-        ))
+        )))
         .bind(payment_id)
         .bind(booking_id)
         .fetch_optional(&mut **tx)
@@ -514,13 +515,13 @@ impl PaymentRepository {
                     .await);
                 }
 
-                let row = sqlx::query(&format!(
+                let row = sqlx::query(sqlx::AssertSqlSafe(format!(
                     "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
                      transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at, \
                      idempotency_key, idempotency_fingerprint \
                      FROM payments WHERE id = {}",
                     crate::param!(1)
-                ))
+                )))
                 .bind(existing.id)
                 .fetch_one(&mut **tx)
                 .await
@@ -547,13 +548,13 @@ impl PaymentRepository {
                 ));
             }
 
-            let row = sqlx::query(&format!(
+            let row = sqlx::query(sqlx::AssertSqlSafe(format!(
                 "SELECT id, booking_id, processed_by, created_by, payment_method, status, amount, \
                  transaction_id, payment_gateway, card_last_four, card_brand, notes, created_at, \
                  idempotency_key, idempotency_fingerprint \
                  FROM payments WHERE id = {}",
                 crate::param!(1)
-            ))
+            )))
             .bind(existing.id)
             .fetch_one(&mut **tx)
             .await
@@ -616,21 +617,22 @@ impl PaymentRepository {
             crate::param!(10),
             crate::param!(11),
         );
-        let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) = sqlx::query_as(&insert_sql)
-            .bind(request.booking_id)
-            .bind(decimal_to_db(summary.total_amount))
-            .bind(&payment_method)
-            .bind(&request.transaction_reference)
-            .bind(&request.card_last_four)
-            .bind(&request.card_brand)
-            .bind(payment_gateway)
-            .bind(&request.notes)
-            .bind(user_id)
-            .bind(&request.idempotency_key)
-            .bind(&fingerprint)
-            .fetch_one(&mut **tx)
-            .await
-            .map_err(ApiError::from)?;
+        let (id, created_at): (i64, chrono::DateTime<chrono::Utc>) =
+            sqlx::query_as(sqlx::AssertSqlSafe(&*insert_sql))
+                .bind(request.booking_id)
+                .bind(decimal_to_db(summary.total_amount))
+                .bind(&payment_method)
+                .bind(&request.transaction_reference)
+                .bind(&request.card_last_four)
+                .bind(&request.card_brand)
+                .bind(payment_gateway)
+                .bind(&request.notes)
+                .bind(user_id)
+                .bind(&request.idempotency_key)
+                .bind(&fingerprint)
+                .fetch_one(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
 
         // Build the response directly from known inputs. The breakdown fields
         // (subtotal/service_charge/tax/keycard) and bank_name/account_reference
@@ -757,7 +759,7 @@ impl PaymentRepository {
             )
         };
 
-        let mut query = sqlx::query_as::<_, PaymentEntryRow>(&sql)
+        let mut query = sqlx::query_as::<_, PaymentEntryRow>(sqlx::AssertSqlSafe(&*sql))
             .bind(request.booking_id)
             .bind(decimal_to_db(amount))
             .bind(&request.payment_method)
@@ -958,7 +960,7 @@ impl PaymentRepository {
             "UPDATE payments SET status = 'processing' WHERE id = {} AND status = 'pending'",
             crate::param!(1)
         );
-        let result = sqlx::query(&sql)
+        let result = sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(payment_id)
             .execute(pool)
             .await
@@ -984,7 +986,7 @@ impl PaymentRepository {
             "#,
             crate::param!(1)
         );
-        sqlx::query_as::<_, (String, String)>(&sql)
+        sqlx::query_as::<_, (String, String)>(sqlx::AssertSqlSafe(&*sql))
             .bind(booking_id)
             .fetch_optional(&mut **tx)
             .await
@@ -1849,7 +1851,8 @@ impl PaymentRepository {
             updates.join(", ")
         );
 
-        let mut query_builder = sqlx::query_as::<_, PaymentEntryRow>(&query).bind(payment_id);
+        let mut query_builder =
+            sqlx::query_as::<_, PaymentEntryRow>(sqlx::AssertSqlSafe(&*query)).bind(payment_id);
 
         if request.amount.is_some() {
             query_builder = query_builder.bind(decimal_to_db(final_amount));

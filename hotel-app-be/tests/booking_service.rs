@@ -346,7 +346,7 @@ mod postgres_tests {
 
     async fn count_pg_rows(pool: &PgPool, table: &str, booking_id: i64) -> i64 {
         let query = format!("SELECT COUNT(*) FROM {table} WHERE booking_id = $1");
-        sqlx::query_scalar::<_, i64>(&query)
+        sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*query))
             .bind(booking_id)
             .fetch_one(pool)
             .await
@@ -658,17 +658,19 @@ mod postgres_tests {
     async fn install_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
         let function_name = format!("fail_void_audit_{booking_id}");
         let trigger_name = format!("trg_fail_void_audit_{booking_id}");
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP FUNCTION IF EXISTS {function_name}()"
+        )))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             r#"
             CREATE FUNCTION {function_name}() RETURNS trigger AS $$
             BEGIN
@@ -681,14 +683,14 @@ mod postgres_tests {
             END;
             $$ LANGUAGE plpgsql
             "#
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "CREATE TRIGGER {trigger_name} BEFORE INSERT ON audit_logs \
              FOR EACH ROW EXECUTE FUNCTION {function_name}()"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
@@ -697,16 +699,18 @@ mod postgres_tests {
     async fn drop_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
         let function_name = format!("fail_void_audit_{booking_id}");
         let trigger_name = format!("trg_fail_void_audit_{booking_id}");
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
-            .execute(pool)
-            .await
-            .unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP FUNCTION IF EXISTS {function_name}()"
+        )))
+        .execute(pool)
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -811,17 +815,19 @@ mod postgres_tests {
     async fn install_checkin_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
         let function_name = format!("fail_checkin_audit_{booking_id}");
         let trigger_name = format!("trg_fail_checkin_audit_{booking_id}");
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
-            .execute(pool)
-            .await
-            .unwrap();
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP FUNCTION IF EXISTS {function_name}()"
+        )))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             r#"
             CREATE FUNCTION {function_name}() RETURNS trigger AS $$
             BEGIN
@@ -834,14 +840,14 @@ mod postgres_tests {
             END;
             $$ LANGUAGE plpgsql
             "#
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "CREATE TRIGGER {trigger_name} BEFORE INSERT ON audit_logs \
              FOR EACH ROW EXECUTE FUNCTION {function_name}()"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
@@ -850,16 +856,18 @@ mod postgres_tests {
     async fn drop_checkin_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
         let function_name = format!("fail_checkin_audit_{booking_id}");
         let trigger_name = format!("trg_fail_checkin_audit_{booking_id}");
-        sqlx::query(&format!(
+        sqlx::query(sqlx::AssertSqlSafe(format!(
             "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
-        ))
+        )))
         .execute(pool)
         .await
         .unwrap();
-        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
-            .execute(pool)
-            .await
-            .unwrap();
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "DROP FUNCTION IF EXISTS {function_name}()"
+        )))
+        .execute(pool)
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

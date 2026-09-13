@@ -35,14 +35,16 @@ pub(crate) fn generate_capability_token() -> String {
 pub(crate) fn persist_capability_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
-    format!("{CAPABILITY_TOKEN_HASH_PREFIX}{}", hex::encode(hasher.finalize()))
+    format!(
+        "{CAPABILITY_TOKEN_HASH_PREFIX}{}",
+        hex::encode(hasher.finalize())
+    )
 }
 
 /// Reject anything that cannot be a freshly minted token before it reaches the
 /// database. A persisted hash carries `:` and is therefore never accepted here.
 pub(crate) fn is_well_formed_capability_token(presented: &str) -> bool {
-    presented.len() == CAPABILITY_TOKEN_HEX_LEN
-        && presented.bytes().all(|b| b.is_ascii_hexdigit())
+    presented.len() == CAPABILITY_TOKEN_HEX_LEN && presented.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// When a capability issued now should expire.
@@ -180,7 +182,7 @@ pub async fn issue_recovery_link(
         "SELECT status, payment_status, created_at FROM bookings WHERE id = {}",
         crate::param!(1)
     );
-    let context: Option<RecoveryContext> = sqlx::query_as(&sql)
+    let context: Option<RecoveryContext> = sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
         .bind(booking_id)
         .fetch_optional(pool)
         .await
@@ -218,12 +220,10 @@ pub async fn issue_recovery_link(
 
 /// When this booking's unpaid hold lapses, if auto-release is switched on.
 async fn hold_deadline_for(pool: &DbPool, created_at: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    let raw = crate::modules::settings::service::get_setting_value(
-        pool,
-        "unpaid_hold_release_hours",
-    )
-    .await
-    .ok()?;
+    let raw =
+        crate::modules::settings::service::get_setting_value(pool, "unpaid_hold_release_hours")
+            .await
+            .ok()?;
     let hours: i64 = raw.trim().parse().ok().filter(|hours| *hours > 0)?;
     Some(created_at + Duration::hours(hours))
 }
@@ -244,10 +244,12 @@ pub async fn describe_recovery(
 
     // The booking may have moved on since the mail was sent -- paid at the
     // desk, cancelled, released. The link is not an entitlement to pay.
-    if !capability.is_consumed() && !is_recoverable(
-        &booking.status,
-        booking.payment_status.as_deref().unwrap_or("unpaid"),
-    ) {
+    if !capability.is_consumed()
+        && !is_recoverable(
+            &booking.status,
+            booking.payment_status.as_deref().unwrap_or("unpaid"),
+        )
+    {
         return Err(unavailable());
     }
 
@@ -255,13 +257,15 @@ pub async fn describe_recovery(
     // guessed from its own state would offer an upload after a PayPal capture,
     // which the server then refuses -- a control that exists only to fail.
     let receipt_uploadable = match capability.replacement_payment_id {
-        Some(payment_id) => crate::repositories::payment::PaymentRepository::get_payment_for_review(
-            pool, payment_id,
-        )
-        .await?
-        .is_some_and(|payment| {
-            payment.payment_method == "bank_transfer" && payment.status == "pending"
-        }),
+        Some(payment_id) => {
+            crate::repositories::payment::PaymentRepository::get_payment_for_review(
+                pool, payment_id,
+            )
+            .await?
+            .is_some_and(|payment| {
+                payment.payment_method == "bank_transfer" && payment.status == "pending"
+            })
+        }
         None => false,
     };
 
@@ -276,7 +280,10 @@ pub async fn describe_recovery(
     Ok(crate::handlers::payment_retry::PaymentRecoveryView {
         booking_number: booking.booking_number.clone(),
         amount_due: booking.total_amount.to_string(),
-        currency: booking.currency.clone().unwrap_or_else(|| "MYR".to_string()),
+        currency: booking
+            .currency
+            .clone()
+            .unwrap_or_else(|| "MYR".to_string()),
         expires_at: capability.expires_at,
         payment_methods: methods,
         payment_id: capability.replacement_payment_id,

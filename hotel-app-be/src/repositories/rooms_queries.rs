@@ -555,7 +555,10 @@ pub async fn fetch_active_room_types(pool: &DbPool) -> Result<Vec<RoomType>, Api
         "SELECT {} FROM room_types WHERE is_active = true ORDER BY sort_order, name",
         ROOM_TYPE_COLUMNS
     );
-    let rows = sqlx::query(&query).fetch_all(pool).await.map_err(db_err)?;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
+        .fetch_all(pool)
+        .await
+        .map_err(db_err)?;
     Ok(rows.iter().map(row_to_room_type).collect())
 }
 
@@ -564,13 +567,16 @@ pub async fn fetch_all_room_types(pool: &DbPool) -> Result<Vec<RoomType>, ApiErr
         "SELECT {} FROM room_types ORDER BY sort_order, name LIMIT 1000",
         ROOM_TYPE_COLUMNS
     );
-    let rows = sqlx::query(&query).fetch_all(pool).await.map_err(db_err)?;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
+        .fetch_all(pool)
+        .await
+        .map_err(db_err)?;
     Ok(rows.iter().map(row_to_room_type).collect())
 }
 
 pub async fn fetch_room_type_by_id(pool: &DbPool, id: i64) -> Result<RoomType, ApiError> {
     let query = format!("SELECT {} FROM room_types WHERE id = $1", ROOM_TYPE_COLUMNS);
-    let row = sqlx::query(&query)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*query))
         .bind(id)
         .fetch_one(pool)
         .await
@@ -1852,7 +1858,10 @@ pub async fn fetch_all_room_occupancy(
         "SELECT {} FROM room_current_occupancy ORDER BY room_number",
         ROOM_CURRENT_OCCUPANCY_COLUMNS
     );
-    let rows = sqlx::query(&query).fetch_all(pool).await.map_err(db_err)?;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
+        .fetch_all(pool)
+        .await
+        .map_err(db_err)?;
     Ok(rows
         .iter()
         .map(row_mappers::row_to_room_current_occupancy)
@@ -1867,7 +1876,7 @@ pub async fn fetch_room_occupancy(
         "SELECT {} FROM room_current_occupancy WHERE room_id = $1",
         ROOM_CURRENT_OCCUPANCY_COLUMNS
     );
-    let row = sqlx::query(&query)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*query))
         .bind(room_id)
         .fetch_optional(pool)
         .await

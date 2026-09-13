@@ -39,8 +39,10 @@ pub async fn publish_data_changes(
 
     let response = next.run(request).await;
 
-    if matches!(method, Method::POST | Method::PUT | Method::PATCH | Method::DELETE)
-        && response.status().is_success()
+    if matches!(
+        method,
+        Method::POST | Method::PUT | Method::PATCH | Method::DELETE
+    ) && response.status().is_success()
         && let Some(domain) = domain_for_path(&path)
     {
         hub.publish_data_changed(domain);
@@ -58,7 +60,10 @@ mod tests {
     #[test]
     fn maps_mutation_paths_to_domains() {
         assert_eq!(domain_for_path("/bookings/5/check-in"), Some("bookings"));
-        assert_eq!(domain_for_path("/payments/refund-deposit/3"), Some("bookings"));
+        assert_eq!(
+            domain_for_path("/payments/refund-deposit/3"),
+            Some("bookings")
+        );
         assert_eq!(domain_for_path("/invoices/9/send"), Some("bookings"));
         assert_eq!(domain_for_path("/guests/12"), Some("guests"));
         assert_eq!(domain_for_path("/rooms/4/status"), Some("rooms"));
@@ -66,7 +71,10 @@ mod tests {
         assert_eq!(domain_for_path("/rates/1"), Some("rooms"));
         assert_eq!(domain_for_path("/ledgers/7/payments"), Some("ledgers"));
         assert_eq!(domain_for_path("/companies/3"), Some("ledgers"));
-        assert_eq!(domain_for_path("/housekeeping/tasks/1"), Some("housekeeping"));
+        assert_eq!(
+            domain_for_path("/housekeeping/tasks/1"),
+            Some("housekeeping")
+        );
         assert_eq!(domain_for_path("/night-audit/run"), Some("night-audit"));
     }
 

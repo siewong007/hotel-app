@@ -226,7 +226,7 @@ pub async fn list_customer_ledgers(
         (count, data)
     };
 
-    let total: i64 = sqlx::query_scalar(&count_sql)
+    let total: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(&*count_sql))
         .bind(query.status.as_deref())
         .bind(query.company_name.as_deref())
         .bind(query.expense_type.as_deref())
@@ -242,7 +242,7 @@ pub async fn list_customer_ledgers(
         .await
         .map_err(ApiError::from)?;
 
-    let rows = sqlx::query(&data_sql)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*data_sql))
         .bind(query.status.as_deref())
         .bind(query.company_name.as_deref())
         .bind(query.expense_type.as_deref())
@@ -390,7 +390,7 @@ pub async fn create_customer_ledger(
             LEDGER_SELECT_FIELDS
         );
 
-        let existing = sqlx::query(&existing_query)
+        let existing = sqlx::query(sqlx::AssertSqlSafe(&*existing_query))
             .bind(booking_id)
             .bind(&request.company_name)
             .bind(&request.description)
@@ -432,7 +432,7 @@ pub async fn create_customer_ledger(
         LEDGER_SELECT_FIELDS
     );
 
-    let row = sqlx::query(&query_str)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*query_str))
         .bind(&request.company_name)
         .bind(&request.company_registration_number)
         .bind(&request.contact_person)
@@ -745,7 +745,7 @@ pub async fn update_customer_ledger(
         LEDGER_SELECT_FIELDS
     );
 
-    let mut query_builder = sqlx::query(&query);
+    let mut query_builder = sqlx::query(sqlx::AssertSqlSafe(&*query));
 
     if let Some(ref v) = request.company_name {
         query_builder = query_builder.bind(v);
@@ -1127,7 +1127,7 @@ async fn lock_ledger_for_payment_tx(
         "SELECT id, company_name, amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = {} FOR UPDATE",
         crate::param!(1),
     );
-    let row = sqlx::query(&sql)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
         .bind(ledger_id)
         .fetch_optional(&mut **tx)
         .await
@@ -1180,7 +1180,7 @@ async fn find_ledger_payment_by_key_tx(
         crate::param!(1),
         crate::param!(2),
     );
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(&*sql))
         .bind(ledger_id)
         .bind(idempotency_key)
         .fetch_optional(&mut **tx)
@@ -1223,7 +1223,7 @@ async fn insert_locked_ledger_payment_tx(
             crate::param!(1),
             crate::param!(2),
         );
-        let receipt_exists: bool = sqlx::query_scalar(&receipt_sql)
+        let receipt_exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(&*receipt_sql))
             .bind(ledger.id)
             .bind(receipt_number)
             .fetch_one(&mut **tx)
@@ -1261,7 +1261,7 @@ async fn insert_locked_ledger_payment_tx(
         crate::param!(10),
         crate::param!(11),
     );
-    let payment_row = sqlx::query(&payment_sql)
+    let payment_row = sqlx::query(sqlx::AssertSqlSafe(&*payment_sql))
         .bind(ledger.id)
         .bind(values.amount)
         .bind(&values.payment_method)
@@ -1301,7 +1301,7 @@ async fn insert_locked_ledger_payment_tx(
         crate::param!(6),
         crate::param!(7),
     );
-    sqlx::query(&update_sql)
+    sqlx::query(sqlx::AssertSqlSafe(&*update_sql))
         .bind(new_total_paid)
         .bind(new_status)
         .bind(&values.payment_method)
@@ -1379,7 +1379,7 @@ async fn find_company_batch_replay_tx(
         "#,
         crate::param!(1),
     );
-    let rows = sqlx::query(&sql)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*sql))
         .bind(batch_key)
         .fetch_all(&mut **tx)
         .await
@@ -1443,7 +1443,7 @@ async fn lock_company_batch_key_tx(
         "SELECT pg_advisory_xact_lock(hashtextextended({}, 0))",
         crate::param!(1),
     );
-    sqlx::query(&sql)
+    sqlx::query(sqlx::AssertSqlSafe(&*sql))
         .bind(batch_key)
         .execute(&mut **tx)
         .await
@@ -1577,7 +1577,7 @@ pub(crate) async fn create_company_ledger_payment_with_outcome(
             crate::param!(1),
             crate::param!(2),
         );
-        sqlx::query(&fingerprint_sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*fingerprint_sql))
             .bind(&allocation_fingerprint)
             .bind(outcome.payment.id)
             .execute(&mut *tx)
@@ -1744,7 +1744,7 @@ pub async fn void_ledger(
         LEDGER_SELECT_FIELDS
     );
 
-    let row = sqlx::query(&query_str)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*query_str))
         .bind(user_id)
         .bind(&request.reason)
         .bind(ledger_id)
@@ -1814,7 +1814,7 @@ pub async fn create_ledger_reversal(
         LEDGER_SELECT_FIELDS
     );
 
-    let row = sqlx::query(&reversal_query)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*reversal_query))
         .bind(&original.company_name)
         .bind(&original.company_registration_number)
         .bind(&original.contact_person)
@@ -1869,7 +1869,7 @@ async fn ensure_ledger_payment_is_mutable_tx(
         crate::param!(1),
         crate::param!(2),
     );
-    let row = sqlx::query(&sql)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*sql))
         .bind(payment_id)
         .bind(ledger_id)
         .fetch_optional(&mut **tx)

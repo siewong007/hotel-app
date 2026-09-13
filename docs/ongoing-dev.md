@@ -4,40 +4,73 @@ Single live tracker for open work. Keep entries to one line; **delete them when 
 rather than striking them through — shipped behavior belongs in
 `docs/architecture/architecture-flow.md`, and detailed plans stay in `.claude/reports/`.
 
-Last pruned 2026-08-02: completed P0/P1 items (2FA, rate-plan creation, room-type price
-decoding, ledger void filter, room-status validation, guest 401 wrapping) were verified
-fixed in the tree and removed.
+Last pruned 2026-09-13: completed entries from the 2026-08-22 security re-audit,
+the eKYC PII history rewrite, L4 TOTP-at-rest, the `any`-type burn-down, portal
+component coverage, and the GitHub Action SHA-pinning sweep were verified in the
+tree and removed per convention.
 
 ## P0 — broken or security-relevant
 
-- P0 eKYC PII: RESOLVED 2026-08-22. `git filter-repo --invert-paths --path hotel-app-be/uploads/ekyc` rewrote all refs; verified 0 commits/0 blobs reference the path and the master tree is byte-identical to pre-rewrite (backup bundle: `../hotel-app-master-backup-20260822-193907.bundle`, keep until confident). Force-pushed master + tags; the 11 dependabot branches were deleted so dependabot recreates them from clean history; local JPG copies removed. CAVEATS: old commit SHAs are invalid — re-clone any other checkout; GitHub may serve cached objects from PR timelines/events until their GC — contact support to expedite if exposure matters; production server copies of `uploads/ekyc/*` need separate handling.
-- Security-eval re-audit 2026-08-22 against `.claude/reports/security-eval-2026-07-27/security-evaluation.md` — CLOSED since the eval: H1 (guest column typos incl. portal pre-check-in, regression-tested), H2 (compose `:?` secrets + CHANGE_ME blocklist in `validate_jwt_secret`), H3 (XFF parsed right-to-left + Caddy `header_up`, unit-tested), H4 (metrics middleware + Caddy `log`), H5 core (export audited with row counts), H6 (all seven room reads permission-gated: `bookings:read` on detailed/history, `rooms:read` on occupancy — integration-tested), H8 (portal tokens shape-checked before any limiter, per-IP ceiling on all three token routes, booking-number key capped), M1 (`failed_login_attempts` incremented atomically with the lock decision in one statement), M2 (passkey enrollment had step-up already; resets/password changes now revoke passkeys with an audit event), M3 (passkey login success/failure + enrollment audited), M4 (login audit IP/UA), M5 (all nine RBAC definition mutations audited with actor threaded from routes), M6 (RATE_LIMIT_REJECTIONS counter), M7 (403 warn in `check_permission`), M8 (SMTP env shipped), M11 (`csv_cell` formula guard shared by eKYC and audit exports; username charset rule on registration), M12 (nightly systemd backup timer + `deploy/database-backup.sh`, 7-dump mixed retention), M13 (campaign preview sanitized server-side; SMTP keeps raw HTML), M14 (loyalty WS upgrade replays the session/account-status check), M15 (ekyc client_ip delegates to `extract_client_ip`), M16 (desktop bootstrap-password file 0600), M17 (dependabot + cargo-audit cover hotel-desktop/src-tauri), M18 (AUDIT_WRITE_FAILURES counter), L1 (bcrypt on spawn_blocking), L2 (`statement_timeout=120s` per connection), L3 (verify-email/resend metered via `sensitive` limiter), L5 (email-verification tokens stored hashed), L7 (dev compose binds 5433 to loopback), L9 (ci.yml/desktop-build.yml declare `permissions: contents: read`), L10 (portal body limit per-route), L11 (dead validators deleted), L12 (log file named `backend.log`; rotation owned by host logrotate), L15 (prod dump chmod 600), L16 (grant checks cover assign + replace).
-- H7 DECIDED 2026-08-22: stay on the PostgreSQL 19 beta track per owner call. All images bumped `postgres:19beta2` -> `postgres:19beta3` (root compose, backend compose alpine variant, prod compose + deploy.sh POSTGRES_IMAGE); full backend suite verified green against a disposable beta3 container (706/0/8) including baseline+seed+patches. Beta2->beta3 picks up the 2026-08-13 security release (28 CVE fixes). WHEN 19 GOES GA (~Sept/Oct 2026): bump images again and migrate data via pg_dump/pg_restore into a FRESH volume — beta on-disk formats have no supported upgrade path to GA, so the restore drill is mandatory either way. Desktop bundles ship their own postgres binaries: bump those resources in the same desktop release and rely on the existing pgdata version gate to refuse mismatched data dirs.
-- Security-eval still OPEN (decisions/design): M10 least-privilege DB role rollout; L6 CSP vs PayPal; L14 desktop signing certs; H5 import semaphore.
-- L4 RESOLVED 2026-08-22: TOTP secrets encrypted at rest (AES-256-GCM via ring, `enc1:` prefix, key from optional `TOTP_ENCRYPTION_KEY` in .env.example + prod compose). Legacy plaintext rows pass through and re-encrypt on the next setup cycle; `enc1:` rows without a configured key fail closed with an explicit internal error. Unit tests cover roundtrip, randomised nonces, tamper, wrong-key, legacy passthrough. DEPLOY ACTION: generate `openssl rand -base64 32` and add TOTP_ENCRYPTION_KEY to the prod secrets file on next deploy.
-
+- eKYC PII follow-up (from the 2026-08-22 history rewrite): production server
+  copies of `uploads/ekyc/*` still need separate handling — the git history is
+  clean but deployed artifacts were not part of it.
+- H7 DECIDED 2026-08-22: stay on the PostgreSQL 19 beta track per owner call (images
+  at `postgres:19beta3`). WHEN 19 GOES GA (~Sept/Oct 2026): bump images again and
+  migrate data via pg_dump/pg_restore into a FRESH volume — beta on-disk formats
+  have no supported upgrade path to GA, so the restore drill is mandatory either
+  way. Desktop bundles ship their own postgres binaries: bump those resources in
+  the same desktop release and rely on the existing pgdata version gate to refuse
+  mismatched data dirs.
+- Security-eval still OPEN (decisions/design): M10 least-privilege DB role
+  rollout; L6 CSP vs PayPal; L14 desktop signing certs; H5 import semaphore.
+- L4 deploy action (from the resolved TOTP-at-rest item): generate
+  `openssl rand -base64 32` and add `TOTP_ENCRYPTION_KEY` to the prod secrets
+  file on next deploy.
 
 ## P1 — decided, not yet executed
 
-- (none — the 2026-08-22 hotel_today sweep closed loyalty/service.rs redeem validity, channel_net_revenue.rs statement_date, payment.rs invoice issue_date; the guest_booking/repository.rs:53,56 fallbacks are row-decode defaults in a sync mapper (not business-day math) and services/booking.rs:23 is a test-only util, both intentionally left)
+- (none)
 
 ## P2 — later
 
-- FE test deserts (2026-08-25 update): loyalty (LoyaltyDashboard member+admin suites, LoyaltyPortal per-tab suites) and user (SettingsPage page contract + extracted ReportSettingsCard/SystemConfigurationCard slice suites) are COVERED. Still open: dashboard 0/12, audit-log 0/3, customer-ledger 0/3, data-transfer 0/3, night-audit 0/3, onlineInventory 0/6 (several are placeholder barrels with nothing to test — real code lives under api/ and admin/); thin: rooms 2/54, admin 7/53; remaining SettingsPage cards (hotel info, times, charges, support workflow, security, appearance) not yet split into sibling components.
-- `any`-type burn-down COMPLETE (2026-08-25): hand-written non-test sites went 112 → 10, all ten documented deliberate exceptions — `router/compat.tsx` + the three guard casts in `RouteGuards.tsx`/`RootLayout.tsx` (typed-route shim contract) and AuthContext's `user: any` (AuthResponse union note). Notable honest fixes shipped with it: `getAllBookings` now declares its true enriched return (`BookingWithDetails[]`, killing a downstream double-cast), `RoomStatus.id`/`UpcomingBooking.id` corrected to UUID strings, DataTable column meta typed via TanStack `ColumnMeta` module augmentation (`src/types/tanstack-table.d.ts`), eKYC submit payload interface added.
-- Desktop packaging: Windows/Linux CI jobs; network-fetch pgsql provisioning (today Homebrew/source-local only); arm or hide the updater (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists; desktop session persistence across restarts (SameSite boundary).
-- Portal component-test coverage is now COMPLETE (2026-08-22): every guest-portal component has a suite (`GuestPaymentPanel`, `GuestPortalShell`, `PortalSupportWidget`, `GuestPortalThemeProvider` were the last gaps). Remaining, if wanted: deeper cross-section integration flows.
-- L8 resolved: every GitHub Action is SHA-pinned (SHAs resolved via GitHub API, version kept as a trailing comment). Exception: `dtolnay/rust-toolchain@1.95.0` stays on its documented version-branch pattern. L13 resolved: `nginx:1.28-alpine` verified via manifest inspect and pinned.
-- Dependabot alert #13 (moderate): glib 0.18.5 in hotel-desktop/src-tauri (unsound VariantStrIter, fixed 0.20.0). Semver-pinned by the tauri/gtk stack — requires a coordinated tauri/gtk major upgrade with desktop regression testing, not a lockfile bump.
+- FE test deserts (2026-08-25 update): loyalty and user settings suites are
+  covered. Still open: dashboard 0/12, audit-log 0/3, customer-ledger 0/3,
+  data-transfer 0/3, night-audit 0/3, onlineInventory 0/6 (several are
+  placeholder barrels — real code lives under api/ and admin/); thin: rooms
+  2/54, admin 7/53; remaining SettingsPage cards (hotel info, times, charges,
+  support workflow, security, appearance) not yet split into sibling components.
+- Desktop packaging: Windows/Linux CI jobs; network-fetch pgsql provisioning
+  (today Homebrew/source-local only); arm or hide the updater
+  (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists;
+  desktop session persistence across restarts (SameSite boundary).
+- Dependabot alert #13 (moderate): glib 0.18.5 in hotel-desktop/src-tauri
+  (unsound VariantStrIter, fixed 0.20.0). Semver-pinned by the tauri/gtk stack —
+  requires a coordinated tauri/gtk major upgrade with desktop regression
+  testing, not a lockfile bump.
+- Notifications v2 remaining: SMS channel (separate spec), DB-editable
+  transactional templates, PDF receipts.
 
 ## Decisions needed (user)
 
-- Voided bookings leave their receivable open: `services/bookings.rs::void_booking` never touches the auto-posted company/city-ledger row — it stays `pending` with `void_at` NULL. Cascade the void to the ledger row, or keep manual reconciliation? (Money policy; `tests/ledger_service.rs` documents current behavior.)
-- `GuestUpdateInput.is_active` is accepted by the API but never persisted — a silent no-op. Removing it changes the request contract.
-- FE `CustomerLedger/helpers.ts::getLedgerUiStatus:81` has an unreachable `'draft'` branch: line 76 returns `'paid'` for any non-positive balance. Whether a zero-balance un-invoiced ledger should read "Draft" instead of "Paid" is a product call.
-- Branch protection on master: no rule exists (verified via `gh api` 2026-07-26). Pick required checks, review count, and admin bypass — or delegate with the policy stated.
-- PayPal refunds/disputes: `PAYMENT.CAPTURE.REFUNDED` webhooks are signature-verified and audit-logged but never auto-applied. Auto-apply vs manual reconciliation is a money-policy call.
-- PayPal conflict banner visibility: the Payment Approvals banner needs `audit:read`, which the `manager` role (the payment approvers) lacks. Grant managers `audit:read`, or add a narrower conflicts endpoint.
-- Notifications v2 email triggers SHIPPED (2026-08-26): checkout receipt (idempotent on invoice number, enqueued from checkout's post-commit block; company-billed/emailless skipped) + pre-arrival reminder (scheduler tick, `pre_arrival_reminder_enabled`/`_hours_before` settings, 2h-floor/168h-ceiling) via patch 0008. Consent gate fixed by design: `TRANSACTIONAL_KINDS` bypass per-topic subscriptions (v1 suppressed every booking_confirmation); suppressions still apply. Unsubscribe GET/POST now on the `sensitive` limiter. Still open: SMS channel (separate spec), DB-editable transactional templates, PDF receipts.
-- Ops note: `postgres_patch_lifecycle.rs` schema-drift + patch-runner tests require a host PostgreSQL toolchain (psql/pg_dump on PATH) — they are CI-only today and fail locally with "psql: command not found"; the converge/idempotent test also passes locally when psql+pg_dump are shimmed through docker.
-- Guest portal: forgot-password flow for self-registered guests, and the maximum advance-booking window.
+- Voided bookings leave their receivable open: `services/bookings.rs::void_booking`
+  never touches the auto-posted company/city-ledger row — it stays `pending`
+  with `void_at` NULL. Cascade the void to the ledger row, or keep manual
+  reconciliation? (Money policy; `tests/ledger_service.rs` documents current
+  behavior.)
+- `GuestUpdateInput.is_active` is accepted by the API but never persisted — a
+  silent no-op. Removing it changes the request contract.
+- FE `CustomerLedger/helpers.ts::getLedgerUiStatus:81` has an unreachable
+  `'draft'` branch: line 76 returns `'paid'` for any non-positive balance.
+  Whether a zero-balance un-invoiced ledger should read "Draft" instead of
+  "Paid" is a product call.
+- Branch protection on master: no rule exists (verified via `gh api`
+  2026-07-26). Pick required checks, review count, and admin bypass — or
+  delegate with the policy stated.
+- PayPal refunds/disputes: `PAYMENT.CAPTURE.REFUNDED` webhooks are
+  signature-verified and audit-logged but never auto-applied. Auto-apply vs
+  manual reconciliation is a money-policy call.
+- PayPal conflict banner visibility: the Payment Approvals banner needs
+  `audit:read`, which the `manager` role (the payment approvers) lacks. Grant
+  managers `audit:read`, or add a narrower conflicts endpoint.
+- Guest portal: forgot-password flow for self-registered guests, and the
+  maximum advance-booking window.

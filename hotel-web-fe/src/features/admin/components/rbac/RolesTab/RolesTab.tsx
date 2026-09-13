@@ -85,7 +85,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       setCreateDialogOpen(false);
       setNewRole({ name: '', description: '' });
     } catch (err) {
-      setCreateError(err.message || 'Failed to create role');
+      setCreateError(errorMessage(err, 'Failed to create role'));
     }
   };
 
@@ -107,7 +107,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       setDeleteDialogOpen(false);
       setDeletingRole(null);
     } catch (err) {
-      setDeleteError(err.message || 'Failed to delete role');
+      setDeleteError(errorMessage(err, 'Failed to delete role'));
     }
   };
 

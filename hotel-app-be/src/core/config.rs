@@ -569,9 +569,9 @@ mod tests {
                 slow_statement_ms: 500,
                 url: "postgres://localhost/test".to_string(),
             },
-            allowed_origins: AllowedOrigins::List(vec![
-                axum::http::HeaderValue::from_static("https://hotel.example.com"),
-            ]),
+            allowed_origins: AllowedOrigins::List(vec![axum::http::HeaderValue::from_static(
+                "https://hotel.example.com",
+            )]),
             backend_port: 3030,
             desktop_mode: false,
             environment: Environment::Production,

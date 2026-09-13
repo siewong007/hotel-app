@@ -60,7 +60,7 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
   const [phone, setPhone] = useState('');
 
   useEffect(() => {
-    if (!open || !booking) return;
+    if (!open || !booking) return undefined;
     const totalAmt = toMoneyNumber(booking.total_amount);
     setPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
     setPaymentMethod(booking.payment_method || 'Cash');
@@ -86,6 +86,7 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
         cancelled = true;
       };
     }
+    return undefined;
   }, [open, booking]);
 
   // Online reservations are settled on the booking platform; the backend

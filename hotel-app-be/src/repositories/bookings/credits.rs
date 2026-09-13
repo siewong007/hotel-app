@@ -512,7 +512,7 @@ pub async fn update_guest_credits_handler(
         param_count + 2
     );
 
-    let mut q = sqlx::query(&query);
+    let mut q = sqlx::query(sqlx::AssertSqlSafe(&*query));
 
     if let Some(nights) = input.nights_available {
         q = q.bind(nights);

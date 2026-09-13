@@ -299,17 +299,19 @@ mod postgres_smoke {
             .expect("connect to postgres admin database");
 
         let _ = admin
-            .execute(format!("DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)").as_str())
+            .execute(sqlx::AssertSqlSafe(format!(
+                "DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)"
+            )))
             .await;
         admin
-            .execute(format!("CREATE DATABASE {db_ident}").as_str())
+            .execute(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_ident}")))
             .await
             .expect("create disposable schema smoke database");
 
         let result = async {
             let pool = PgPool::connect(&temp_url).await?;
             for script in [POSTGRES_SCHEMA, POSTGRES_SEED] {
-                sqlx::raw_sql(&psql_script_for_sqlx(script))
+                sqlx::raw_sql(sqlx::AssertSqlSafe(&*psql_script_for_sqlx(script)))
                     .execute(&pool)
                     .await?;
             }
@@ -367,7 +369,9 @@ mod postgres_smoke {
         .await;
 
         admin
-            .execute(format!("DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)").as_str())
+            .execute(sqlx::AssertSqlSafe(format!(
+                "DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)"
+            )))
             .await
             .expect("drop disposable schema smoke database");
 
@@ -391,10 +395,12 @@ mod postgres_smoke {
             .expect("connect to postgres admin database");
 
         let _ = admin
-            .execute(format!("DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)").as_str())
+            .execute(sqlx::AssertSqlSafe(format!(
+                "DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)"
+            )))
             .await;
         admin
-            .execute(format!("CREATE DATABASE {db_ident}").as_str())
+            .execute(sqlx::AssertSqlSafe(format!("CREATE DATABASE {db_ident}")))
             .await
             .expect("create disposable schema smoke database");
 
@@ -411,7 +417,7 @@ mod postgres_smoke {
 
             // The simple-query protocol does not understand psql meta-commands.
             for script in [POSTGRES_SCHEMA, POSTGRES_SEED] {
-                sqlx::raw_sql(&psql_script_for_sqlx(script))
+                sqlx::raw_sql(sqlx::AssertSqlSafe(&*psql_script_for_sqlx(script)))
                     .execute(&pool)
                     .await?;
             }
@@ -517,7 +523,9 @@ mod postgres_smoke {
         .await;
 
         admin
-            .execute(format!("DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)").as_str())
+            .execute(sqlx::AssertSqlSafe(format!(
+                "DROP DATABASE IF EXISTS {db_ident} WITH (FORCE)"
+            )))
             .await
             .expect("drop disposable schema smoke database");
 

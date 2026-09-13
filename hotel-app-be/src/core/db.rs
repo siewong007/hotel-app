@@ -42,7 +42,7 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
                     log::warn!("Invalid timezone value in system_settings: {}", tz);
                     conn.execute("SET timezone = 'UTC'").await?;
                 } else {
-                    conn.execute(format!("SET timezone = '{}'", tz).as_str())
+                    conn.execute(sqlx::AssertSqlSafe(format!("SET timezone = '{}'", tz)))
                         .await?;
                 }
                 // Bound every statement on this connection. Without it one

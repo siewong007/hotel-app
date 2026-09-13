@@ -216,11 +216,13 @@ impl HttpFixture {
             .await
             .expect("guest fixture cleanup must succeed");
         for table in ["room_status_change_log", "room_events", "room_history"] {
-            sqlx::query(&format!("DELETE FROM {table} WHERE room_id = $1"))
-                .bind(LEGACY_ROOM_ID)
-                .execute(pool)
-                .await
-                .expect("room-event fixture cleanup must succeed");
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE room_id = $1"
+            )))
+            .bind(LEGACY_ROOM_ID)
+            .execute(pool)
+            .await
+            .expect("room-event fixture cleanup must succeed");
         }
         sqlx::query("DELETE FROM rooms WHERE id = $1")
             .bind(LEGACY_ROOM_ID)

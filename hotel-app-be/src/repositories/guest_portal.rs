@@ -18,11 +18,11 @@ impl GuestPortalRepository {
         pool: &DbPool,
         booking_number: &str,
     ) -> Result<Option<Booking>, ApiError> {
-        let row = sqlx::query(&format!(
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "{} WHERE booking_number = {} AND status IN ('confirmed', 'pending', 'pending_payment', 'pending_confirmation')",
             BOOKING_SELECT,
             param!(1)
-        ))
+        )))
         .bind(booking_number)
         .fetch_optional(pool)
         .await
@@ -35,13 +35,13 @@ impl GuestPortalRepository {
         token: &str,
     ) -> Result<Option<Booking>, ApiError> {
         let hashed = crate::services::guest_portal::persist_booking_access_token(token);
-        let row = sqlx::query(&format!(
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "{} WHERE pre_checkin_token = {} \
              OR (pre_checkin_token = {} AND pre_checkin_token NOT LIKE 'sha256:%')",
             BOOKING_SELECT,
             param!(1),
             param!(2)
-        ))
+        )))
         .bind(&hashed)
         .bind(token)
         .fetch_optional(pool)
@@ -93,11 +93,15 @@ impl GuestPortalRepository {
     }
 
     pub async fn find_booking_by_id(pool: &DbPool, booking_id: i64) -> Result<Booking, ApiError> {
-        let row = sqlx::query(&format!("{} WHERE id = {}", BOOKING_SELECT, param!(1)))
-            .bind(booking_id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(format!("Failed to fetch updated booking: {}", e)))?;
+        let row = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "{} WHERE id = {}",
+            BOOKING_SELECT,
+            param!(1)
+        )))
+        .bind(booking_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to fetch updated booking: {}", e)))?;
         Ok(row_mappers::row_to_booking(&row))
     }
 
@@ -136,7 +140,7 @@ impl GuestPortalRepository {
             param!(2),
             param!(3)
         );
-        sqlx::query(&sql)
+        sqlx::query(sqlx::AssertSqlSafe(&*sql))
             .bind(crate::services::guest_portal::persist_booking_access_token(
                 token,
             ))
@@ -232,7 +236,7 @@ impl GuestPortalRepository {
             parameter(values.len() + 1)
         );
 
-        let mut sqlx_query = sqlx::query(&query);
+        let mut sqlx_query = sqlx::query(sqlx::AssertSqlSafe(&*query));
         for value in values {
             sqlx_query = sqlx_query.bind(value);
         }
@@ -292,7 +296,7 @@ impl GuestPortalRepository {
             parameter(values.len() + 1)
         );
 
-        let mut sqlx_query = sqlx::query(&query);
+        let mut sqlx_query = sqlx::query(sqlx::AssertSqlSafe(&*query));
         for value in values {
             sqlx_query = sqlx_query.bind(value);
         }

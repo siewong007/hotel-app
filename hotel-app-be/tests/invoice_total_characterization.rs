@@ -846,8 +846,22 @@ async fn payment_status_should_require_billable_settled_excluding_deposit_paymen
     // Pay the room-only total as a charge payment, then a keycard deposit that
     // would push the raw received total over the billable total — yet must not
     // settle it.
-    insert_completed_payment(&pool, room_payment_id, ids.booking_id, seeded.total_amount, "booking").await;
-    insert_completed_payment(&pool, deposit_payment_id, ids.booking_id, Decimal::new(5_000, 2), "deposit").await;
+    insert_completed_payment(
+        &pool,
+        room_payment_id,
+        ids.booking_id,
+        seeded.total_amount,
+        "booking",
+    )
+    .await;
+    insert_completed_payment(
+        &pool,
+        deposit_payment_id,
+        ids.booking_id,
+        Decimal::new(5_000, 2),
+        "deposit",
+    )
+    .await;
 
     let status_after_deposit: String =
         sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = $1")
@@ -870,7 +884,14 @@ async fn payment_status_should_require_billable_settled_excluding_deposit_paymen
     // Settle the remaining billable amount with a charge payment; the trigger
     // must now promote the booking to 'paid'.
     let remainder = seeded.billable_total(&pool).await - seeded.total_amount;
-    insert_completed_payment(&pool, remainder_payment_id, ids.booking_id, remainder, "booking").await;
+    insert_completed_payment(
+        &pool,
+        remainder_payment_id,
+        ids.booking_id,
+        remainder,
+        "booking",
+    )
+    .await;
 
     let status_after_settled: String =
         sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = $1")

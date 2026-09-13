@@ -124,7 +124,7 @@ impl AuditRepository {
             bind_index + 1
         );
 
-        let mut count_sqlx = sqlx::query_scalar::<_, i64>(&count_query);
+        let mut count_sqlx = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_query));
         if let Some(user_id) = params.user_id {
             count_sqlx = count_sqlx.bind(user_id);
         }
@@ -155,7 +155,7 @@ impl AuditRepository {
             .map_err(|e| ApiError::Database(format!("Failed to count audit logs: {}", e)))?;
 
         let mut data_sqlx = bind_log_filters(
-            sqlx::query_as::<_, AuditLogRow>(&data_query),
+            sqlx::query_as::<_, AuditLogRow>(sqlx::AssertSqlSafe(&*data_query)),
             params,
             category_types,
         );
@@ -240,7 +240,7 @@ impl AuditRepository {
         );
 
         bind_log_filters(
-            sqlx::query_as::<_, AuditLogRow>(&query),
+            sqlx::query_as::<_, AuditLogRow>(sqlx::AssertSqlSafe(&*query)),
             params,
             category_types,
         )
@@ -279,7 +279,7 @@ impl AuditRepository {
             where_clause
         );
 
-        let mut query = sqlx::query_as::<_, AuditResourceTypeCount>(&query);
+        let mut query = sqlx::query_as::<_, AuditResourceTypeCount>(sqlx::AssertSqlSafe(&*query));
         if let Some(ref start_date) = params.start_date {
             query = query.bind(start_date);
         }

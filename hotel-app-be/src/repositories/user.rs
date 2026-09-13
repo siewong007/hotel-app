@@ -18,9 +18,9 @@ pub struct UserRepository;
 impl UserRepository {
     /// Find a user by ID
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<User>, ApiError> {
-        sqlx::query_as::<_, User>(&format!(
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
             "SELECT {USER_COLUMNS} FROM users WHERE id = $1 AND deleted_at IS NULL"
-        ))
+        )))
         .bind(id)
         .fetch_optional(pool)
         .await
@@ -29,9 +29,9 @@ impl UserRepository {
 
     /// List every non-deleted user, for administration screens.
     pub async fn list_all(pool: &DbPool) -> Result<Vec<User>, ApiError> {
-        sqlx::query_as::<_, User>(&format!(
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
             "SELECT {USER_COLUMNS} FROM users WHERE deleted_at IS NULL ORDER BY username"
-        ))
+        )))
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
@@ -106,11 +106,11 @@ impl UserRepository {
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        let user = sqlx::query_as::<_, User>(&format!(
+        let user = sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
             "INSERT INTO users (username, email, password_hash, full_name, phone, is_active, is_verified) \
              VALUES ($1, $2, $3, $4, $5, true, true) \
              RETURNING {USER_COLUMNS}"
-        ))
+        )))
         .bind(&input.username)
         .bind(&input.email)
         .bind(password_hash)
@@ -145,7 +145,7 @@ impl UserRepository {
         input: &UserUpdateInput,
         password_hash: Option<&str>,
     ) -> Result<User, ApiError> {
-        sqlx::query_as::<_, User>(&format!(
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
             "UPDATE users \
              SET username = COALESCE($2, username), \
                  email = COALESCE($3, email), \
@@ -156,7 +156,7 @@ impl UserRepository {
                  updated_at = CURRENT_TIMESTAMP \
              WHERE id = $1 AND deleted_at IS NULL \
              RETURNING {USER_COLUMNS}"
-        ))
+        )))
         .bind(user_id)
         .bind(input.username.as_deref())
         .bind(input.email.as_deref())
@@ -232,7 +232,7 @@ impl UserRepository {
             param!(1),
             param!(2)
         );
-        sqlx::query_scalar(&query)
+        sqlx::query_scalar(sqlx::AssertSqlSafe(&*query))
             .bind(email)
             .bind(user_id)
             .fetch_one(pool)
@@ -264,7 +264,7 @@ impl UserRepository {
             param!(2),
             param!(3)
         );
-        let result = sqlx::query(&update_user)
+        let result = sqlx::query(sqlx::AssertSqlSafe(&*update_user))
             .bind(email)
             .bind(user_id)
             .bind(UNCONFIGURED_EMAIL_PATTERN)
@@ -282,7 +282,7 @@ impl UserRepository {
             param!(1),
             param!(2)
         );
-        sqlx::query(&update_guest)
+        sqlx::query(sqlx::AssertSqlSafe(&*update_guest))
             .bind(email)
             .bind(user_id)
             .execute(&mut *tx)

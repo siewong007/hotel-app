@@ -381,8 +381,7 @@ pub async fn queue_payment_confirmation_email(
     .await
     .map_err(ApiError::from)?;
 
-    let billable_total =
-        source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
+    let billable_total = source.total_amount + source.tourism_tax_amount + source.extra_bed_charge;
     let balance = (billable_total - paid).max(rust_decimal::Decimal::ZERO);
     let method = payment.payment_method.replace('_', " ");
     let locale = resolve_locale(pool, &source).await;

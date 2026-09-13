@@ -188,13 +188,13 @@ impl GuestRepository {
                  ORDER BY nick_name LIMIT {p_limit} OFFSET {p_offset}"
             );
 
-            let total = sqlx::query_scalar(&count_sql)
+            let total = sqlx::query_scalar(sqlx::AssertSqlSafe(&*count_sql))
                 .bind(&pattern)
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0);
 
-            let guests = sqlx::query_as::<_, Guest>(&data_sql)
+            let guests = sqlx::query_as::<_, Guest>(sqlx::AssertSqlSafe(&*data_sql))
                 .bind(&pattern)
                 .bind(pagination.page_size)
                 .bind(pagination.offset)
@@ -214,12 +214,12 @@ impl GuestRepository {
                  LIMIT {p_limit} OFFSET {p_offset}"
             );
 
-            let total = sqlx::query_scalar(&count_sql)
+            let total = sqlx::query_scalar(sqlx::AssertSqlSafe(&*count_sql))
                 .fetch_one(pool)
                 .await
                 .unwrap_or(0);
 
-            let guests = sqlx::query_as::<_, Guest>(&data_sql)
+            let guests = sqlx::query_as::<_, Guest>(sqlx::AssertSqlSafe(&*data_sql))
                 .bind(pagination.page_size)
                 .bind(pagination.offset)
                 .fetch_all(pool)

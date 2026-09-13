@@ -235,7 +235,7 @@ impl CommunicationsRepository {
         let sql =
             "SELECT {COLS} FROM notification_subscriptions WHERE guest_id = $1 ORDER BY topic"
                 .replace("{COLS}", SUBSCRIPTION_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .fetch_all(pool)
             .await
@@ -327,7 +327,7 @@ impl CommunicationsRepository {
     ) -> Result<Vec<ConsentEvent>, ApiError> {
         let sql = "SELECT {COLS} FROM notification_consent_events WHERE guest_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2"
         .replace("{COLS}", CONSENT_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(guest_id)
             .bind(limit)
             .fetch_all(pool)
@@ -386,7 +386,7 @@ impl CommunicationsRepository {
             .map_err(ApiError::from)?;
         let sql = "SELECT {COLS} FROM email_suppressions ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2"
         .replace("{COLS}", SUPPRESSION_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(page_size)
             .bind((page - 1) * page_size)
             .fetch_all(pool)
@@ -414,14 +414,17 @@ impl CommunicationsRepository {
     pub async fn list_templates(pool: &DbPool) -> Result<Vec<EmailTemplate>, ApiError> {
         let sql =
             "SELECT {COLS} FROM email_templates ORDER BY code".replace("{COLS}", TEMPLATE_COLUMNS);
-        let rows = query(&sql).fetch_all(pool).await.map_err(ApiError::from)?;
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
         Ok(rows.iter().map(template_from_row).collect())
     }
 
     pub async fn get_template(pool: &DbPool, id: i64) -> Result<Option<EmailTemplate>, ApiError> {
         let sql =
             "SELECT {COLS} FROM email_templates WHERE id = $1".replace("{COLS}", TEMPLATE_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(id)
             .fetch_optional(pool)
             .await
@@ -435,7 +438,7 @@ impl CommunicationsRepository {
     ) -> Result<Option<EmailTemplate>, ApiError> {
         let sql = "SELECT {COLS} FROM email_templates WHERE code = $1"
             .replace("{COLS}", TEMPLATE_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(code)
             .fetch_optional(pool)
             .await
@@ -548,7 +551,7 @@ impl CommunicationsRepository {
     pub async fn get_campaign(pool: &DbPool, id: i64) -> Result<Option<EmailCampaign>, ApiError> {
         let sql =
             "SELECT {COLS} FROM email_campaigns WHERE id = $1".replace("{COLS}", CAMPAIGN_COLUMNS);
-        let row = query(&sql)
+        let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(id)
             .fetch_optional(pool)
             .await
@@ -584,7 +587,7 @@ impl CommunicationsRepository {
                 LIMIT $3 OFFSET $4
             "#
         .replace("{COLS}", CAMPAIGN_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(&status)
             .bind(&campaign_type)
             .bind(page_size)
@@ -749,7 +752,7 @@ impl CommunicationsRepository {
                 .map_err(ApiError::from)?;
         let sql = "SELECT {COLS} FROM email_deliveries WHERE campaign_id = $1 ORDER BY id DESC LIMIT $2 OFFSET $3"
         .replace("{COLS}", DELIVERY_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(campaign_id)
             .bind(page_size)
             .bind((page - 1) * page_size)
@@ -866,7 +869,7 @@ impl CommunicationsRepository {
         let page_sql = format!(
             "SELECT {DELIVERY_COLUMNS} FROM email_deliveries              WHERE (cardinality($1::text[]) = 0 OR kind = ANY($1))                AND ($2::text IS NULL OR status = $2)              ORDER BY id DESC LIMIT $3 OFFSET $4"
         );
-        let rows = query(&page_sql)
+        let rows = query(sqlx::AssertSqlSafe(&*page_sql))
             .bind(kinds)
             .bind(status)
             .bind(limit)
@@ -881,7 +884,10 @@ impl CommunicationsRepository {
     pub async fn due_scheduled_campaigns(pool: &DbPool) -> Result<Vec<EmailCampaign>, ApiError> {
         let sql = "SELECT {COLS} FROM email_campaigns WHERE status = 'scheduled' AND scheduled_at <= CURRENT_TIMESTAMP ORDER BY scheduled_at"
         .replace("{COLS}", CAMPAIGN_COLUMNS);
-        let rows = query(&sql).fetch_all(pool).await.map_err(ApiError::from)?;
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)?;
         Ok(rows.iter().map(campaign_from_row).collect())
     }
 
@@ -1068,7 +1074,7 @@ impl CommunicationsRepository {
                 RETURNING {COLS}
             "#
         .replace("{COLS}", DELIVERY_COLUMNS);
-        let rows = query(&sql)
+        let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(worker_id)
             .bind(batch)
             .fetch_all(pool)

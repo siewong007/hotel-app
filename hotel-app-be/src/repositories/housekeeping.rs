@@ -92,7 +92,7 @@ pub async fn room_exists(pool: &DbPool, room_id: i64) -> Result<bool, ApiError> 
 pub async fn find_task(pool: &DbPool, task_id: i64) -> Result<Option<HousekeepingTask>, ApiError> {
     let query = format!("{} WHERE t.id = {}", TASK_SELECT, crate::param!(1));
 
-    let row = sqlx::query(&query)
+    let row = sqlx::query(sqlx::AssertSqlSafe(&*query))
         .bind(task_id)
         .fetch_optional(pool)
         .await
@@ -135,7 +135,7 @@ WHERE ($1::text IS NULL OR t.status = $1)
         crate::param!(8)
     );
 
-    let total = sqlx::query_scalar::<_, i64>(&count_query)
+    let total = sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_query))
         .bind(filters.status)
         .bind(filters.room_id)
         .bind(filters.assigned_to)
@@ -146,7 +146,7 @@ WHERE ($1::text IS NULL OR t.status = $1)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let rows = sqlx::query(&list_query)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*list_query))
         .bind(filters.status)
         .bind(filters.room_id)
         .bind(filters.assigned_to)
@@ -347,7 +347,7 @@ pub async fn list_open_tasks(pool: &DbPool) -> Result<Vec<HousekeepingTask>, Api
         TASK_SELECT
     );
 
-    let rows = sqlx::query(&query)
+    let rows = sqlx::query(sqlx::AssertSqlSafe(&*query))
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;

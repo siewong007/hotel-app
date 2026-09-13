@@ -40,11 +40,11 @@ impl Write for DesktopLogWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let _ = std::io::stderr().write_all(buf);
 
-        if let Some(file) = &mut self.file {
-            if let Err(err) = file.write_all(buf) {
-                eprintln!("warning: failed to write desktop log file: {}", err);
-                self.file = None;
-            }
+        if let Some(file) = &mut self.file
+            && let Err(err) = file.write_all(buf)
+        {
+            eprintln!("warning: failed to write desktop log file: {}", err);
+            self.file = None;
         }
 
         Ok(buf.len())
