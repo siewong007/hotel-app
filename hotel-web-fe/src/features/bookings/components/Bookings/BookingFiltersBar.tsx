@@ -1,17 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Autocomplete,
+  Badge,
   Box,
   Chip,
   FormControl,
+  IconButton,
   InputAdornment,
   MenuItem,
   Select,
   Stack,
   TextField,
 } from '@mui/material';
-import { Clear as ClearIcon, Search as SearchIcon } from '@mui/icons-material';
+import {
+  Clear as ClearIcon,
+  Search as SearchIcon,
+  Tune as TuneIcon,
+} from '@mui/icons-material';
 import { formatShortDate, formatShortMonth, type BookingView } from '../../utils/bookingPageUtils';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { FilterSheet } from '../../../../components/common/FilterSheet';
 
 interface BookingFiltersBarProps {
   searchQuery: string;
@@ -57,25 +65,31 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
   paymentMethods,
   onlineChannels,
   monthOptions,
-}) => (
-  <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'minmax(0, 1.4fr) repeat(4, minmax(0, 1fr))' }, gap: 1.25 }}>
-      <TextField
-        fullWidth
-        size="medium"
-        placeholder="Search booking, guest, invoice, or room number..."
-        value={searchQuery}
-        onChange={(e) => onSearchQueryChange(e.target.value)}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon />
-              </InputAdornment>
-            ),
-          }
-        }}
-      />
+}) => {
+  const isPhone = useIsPhone();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const searchField = (
+    <TextField
+      fullWidth
+      size="medium"
+      placeholder="Search booking, guest, invoice, or room number..."
+      value={searchQuery}
+      onChange={(e) => onSearchQueryChange(e.target.value)}
+      slotProps={{
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon />
+            </InputAdornment>
+          ),
+        }
+      }}
+    />
+  );
+
+  const secondaryFilters = (
+    <>
       <Autocomplete<string, false, false, true>
         freeSolo
         fullWidth
@@ -122,12 +136,30 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
           ))}
         </Select>
       </FormControl>
-    </Box>
+    </>
+  );
+
+  const sheetFilterCount =
+    (paymentMethodFilter ? 1 : 0) +
+    (onlineChannelFilter ? 1 : 0) +
+    (searchDate ? 1 : 0) +
+    (monthSearch ? 1 : 0);
+
+  const chipsRow = (
     <Stack
       direction="row"
       spacing={1}
       useFlexGap
-      sx={{
+      sx={isPhone ? {
+        mt: 1.25,
+        flexWrap: 'nowrap',
+        overflowX: 'auto',
+        mx: -1.5,
+        px: 1.5,
+        scrollbarWidth: 'none',
+        '&::-webkit-scrollbar': { display: 'none' },
+        '& .MuiChip-root': { flexShrink: 0 },
+      } : {
         flexWrap: "wrap",
         mt: 1.5
       }}>
@@ -177,7 +209,48 @@ const BookingFiltersBar: React.FC<BookingFiltersBarProps> = ({
         />
       )}
     </Stack>
-  </Box>
-);
+  );
+
+  if (isPhone) {
+    return (
+      <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>{searchField}</Box>
+          <Badge badgeContent={sheetFilterCount} color="primary">
+            <IconButton
+              aria-label="Open filters"
+              onClick={() => setFiltersOpen(true)}
+              sx={{
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+              }}
+            >
+              <TuneIcon />
+            </IconButton>
+          </Badge>
+        </Stack>
+        {chipsRow}
+        <FilterSheet
+          open={filtersOpen}
+          onClose={() => setFiltersOpen(false)}
+          onReset={onClearFilters}
+        >
+          {secondaryFilters}
+        </FilterSheet>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'minmax(0, 1.4fr) repeat(4, minmax(0, 1fr))' }, gap: 1.25 }}>
+        {searchField}
+        {secondaryFilters}
+      </Box>
+      {chipsRow}
+    </Box>
+  );
+};
 
 export default BookingFiltersBar;

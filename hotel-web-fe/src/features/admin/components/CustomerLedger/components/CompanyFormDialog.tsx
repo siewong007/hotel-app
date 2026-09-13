@@ -132,6 +132,7 @@ const CompanyFormDialog: React.FC<CompanyFormDialogProps> = ({
           <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
+              type="tel"
               label="Contact Phone"
               value={form.contact_phone}
               onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}

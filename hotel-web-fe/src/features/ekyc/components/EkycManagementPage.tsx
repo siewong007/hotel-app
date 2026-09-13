@@ -72,6 +72,7 @@ import { storage } from '../../../utils/storage';
 import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { FilterSheet } from '../../../components/common/FilterSheet';
 import {
   useAllEkycVerifications,
   useEkycApplication,
@@ -326,6 +327,7 @@ const MetricTile: React.FC<{ label: string; value: React.ReactNode; accent?: 'de
 
 const EkycManagementPage: React.FC = () => {
   const isPhone = useIsPhone();
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<EkycListParams>(() => getSavedFilters());
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [error, setError] = useState('');
@@ -524,6 +526,7 @@ const EkycManagementPage: React.FC = () => {
             alignItems: "center"
           }}>
             <Grid size={{ xs: 12, md: 3 }}>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <TextField
                 fullWidth
                 size="small"
@@ -534,7 +537,20 @@ const EkycManagementPage: React.FC = () => {
                   input: { startAdornment: <SearchIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} /> }
                 }}
               />
+              {isPhone && (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setFiltersOpen(true)}
+                  sx={{ whiteSpace: 'nowrap', minHeight: 40 }}
+                >
+                  Filters
+                </Button>
+              )}
+              </Stack>
             </Grid>
+            {!isPhone && (
+            <>
             <Grid size={{ xs: 6, md: 2 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
@@ -603,7 +619,67 @@ const EkycManagementPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 1 }}>
               <Button fullWidth onClick={resetFilters}>Reset</Button>
             </Grid>
+            </>
+            )}
           </Grid>
+          <FilterSheet
+            open={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            onReset={resetFilters}
+          >
+            <FormControl fullWidth size="small">
+              <InputLabel>Status</InputLabel>
+              <Select label="Status" value={filters.status ?? 'all'} onChange={(event) => setFilter('status', event.target.value)}>
+                <MenuItem value="all">All</MenuItem>
+                {STATUS_OPTIONS.map(status => (
+                  <MenuItem key={status} value={status}>{labelize(status)}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>Order by</InputLabel>
+              <Select
+                label="Order by"
+                value={filters.sort_by ?? 'submitted_at'}
+                onChange={(event) => {
+                  const sortBy = event.target.value;
+                  setFilters(current => ({
+                    ...current,
+                    page: 1,
+                    sort_by: sortBy,
+                    sort_order: sortBy === 'next_arrival' ? 'asc' : 'desc',
+                  }));
+                }}
+              >
+                <MenuItem value="submitted_at">Newest submission</MenuItem>
+                <MenuItem value="next_arrival">Soonest arrival</MenuItem>
+                <MenuItem value="risk_score">Highest risk</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>Risk</InputLabel>
+              <Select label="Risk" value={filters.risk_level ?? 'all'} onChange={(event) => setFilter('risk_level', event.target.value)}>
+                <MenuItem value="all">All</MenuItem>
+                {RISK_OPTIONS.map(risk => (
+                  <MenuItem key={risk} value={risk}>{labelize(risk)}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              size="small"
+              label="Country"
+              value={filters.country ?? ''}
+              onChange={(event) => setFilter('country', event.target.value)}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Document"
+              value={filters.document_type ?? ''}
+              onChange={(event) => setFilter('document_type', event.target.value)}
+            />
+          </FilterSheet>
         </Paper>
 
         <Paper variant="outlined" sx={{ borderRadius: 1, overflow: 'hidden' }}>

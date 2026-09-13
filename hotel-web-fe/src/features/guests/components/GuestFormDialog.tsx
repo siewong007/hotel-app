@@ -226,6 +226,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
           <GuestDialogField
             label="Phone"
             placeholder="Phone"
+            type="tel"
             value={formData.phone || ''}
             onChange={(value) => updateField('phone', value)}
             icon={<PhoneIcon />}

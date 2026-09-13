@@ -229,7 +229,7 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
                   helperText={!icNumber.trim() ? 'Required to complete check-in' : ' '} />
               </Grid>
               <Grid size={6}>
-                <TextField fullWidth size="small" label="Phone Number" value={phone}
+                <TextField fullWidth size="small" type="tel" label="Phone Number" value={phone}
                   onChange={(e) => setPhone(e.target.value)} helperText="Optional" />
               </Grid>
             </Grid>

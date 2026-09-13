@@ -522,6 +522,7 @@ function CampaignsTab() {
         <DialogContent>
           <TextField
             autoFocus
+            type="email"
             label="Recipient email"
             value={testEmail}
             onChange={(e) => setTestEmail(e.target.value)}
@@ -868,6 +869,7 @@ function SuppressionsTab() {
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
         <TextField
           size="small"
+          type="email"
           label="Email to suppress"
           value={email}
           onChange={(e) => setEmail(e.target.value)}

@@ -1073,7 +1073,7 @@ const ReceptionistDashboard: React.FC = () => {
                     helperText={!ciIcNumber.trim() ? 'Required to complete check-in' : ' '} />
                 </Grid>
                 <Grid size={6}>
-                  <TextField fullWidth size="small" label="Phone Number" value={ciPhone}
+                  <TextField fullWidth size="small" type="tel" label="Phone Number" value={ciPhone}
                     onChange={(e) => setCiPhone(e.target.value)} helperText="Optional" />
                 </Grid>
               </Grid>

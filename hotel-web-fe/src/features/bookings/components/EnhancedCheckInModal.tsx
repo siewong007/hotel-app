@@ -1101,6 +1101,7 @@ export default function EnhancedCheckInModal({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
+                type="tel"
                 label="Contact Phone"
                 value={newCompanyData.contact_phone || ''}
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}

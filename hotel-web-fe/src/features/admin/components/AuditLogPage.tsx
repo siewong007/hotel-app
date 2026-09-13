@@ -502,12 +502,12 @@ const AuditLogPage: React.FC = () => {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search this stream by user, target, code, or action…"
-          sx={{ flex: 1, minWidth: 280, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+          sx={{ flex: { xs: '1 1 100%', sm: 1 }, minWidth: { xs: 0, sm: 280 }, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
           slotProps={{
             input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
           }}
         />
-        <Box sx={{ display: 'inline-flex', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
+        <Box sx={{ display: 'inline-flex', maxWidth: '100%', overflowX: 'auto', scrollbarWidth: 'none', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px', '&::-webkit-scrollbar': { display: 'none' } }}>
           {availableVerbs.map((v) => {
             const sel = verbFilter === v;
             return (
