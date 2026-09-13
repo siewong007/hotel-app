@@ -79,8 +79,8 @@ async fn get_guest_profile(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::GuestProfile>, ApiError> {
-    require_permission_helper(&pool, &headers, "guests:read").await?;
-    handlers::guests::get_guest_profile_handler(State(pool), path).await
+    let user_id = require_permission_helper(&pool, &headers, "guests:read").await?;
+    handlers::guests::get_guest_profile_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_my_guests(
@@ -148,8 +148,9 @@ async fn update_guest(
     path: Path<i64>,
     Json(input): Json<models::GuestUpdateInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
-    require_permission_helper(&pool, &headers, "guests:update").await?;
-    handlers::guests::update_guest_handler(State(pool), path, Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
+    handlers::guests::update_guest_handler(State(pool), Extension(user_id), path, Json(input))
+        .await
 }
 
 async fn apply_tourism_type_from_last_check_in(

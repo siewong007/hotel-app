@@ -630,6 +630,9 @@ mod postgres_tests {
 
         let updated = guest_service::update_guest(
             &pool,
+            // No sensitive fields are set below, so the guests:reveal check is
+            // never reached and this user id needs no grant.
+            985_001,
             guest_id,
             GuestUpdateInput {
                 first_name: Some("Gst985Updated".to_string()),
@@ -654,6 +657,7 @@ mod postgres_tests {
                 tourism_type: Some(TourismType::Foreign),
                 discount_percentage: Some(10),
                 company_name: None,
+                ..Default::default()
             },
         )
         .await
@@ -759,9 +763,14 @@ mod postgres_tests {
         )
         .await;
 
-        let profile = guest_service::guest_profile(&pool, 985_201)
+        let profile = guest_service::guest_profile(&pool, 985_001, 985_201)
             .await
             .expect("profile must resolve");
+
+        assert!(
+            profile.sensitive.is_none(),
+            "a user without guests:reveal must not receive sensitive identifiers"
+        );
 
         let flagged = profile
             .duplicate_candidates

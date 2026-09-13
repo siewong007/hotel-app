@@ -6,8 +6,8 @@ use crate::models::row_mappers;
 use crate::models::{
     CompleteGuestProfileRequest, Guest, GuestBookingRow, GuestCreateValues, GuestCreditRow,
     GuestPaginationParams, GuestPortalProfileUpdate, GuestProfileBooking, GuestRoomCreditRow,
-    GuestSummary, GuestTourismTaxSignal, GuestUpdateState, GuestUpdateValues, LinkGuestInput,
-    LinkedGuestCreditRow,
+    GuestSensitiveProfile, GuestSummary, GuestTourismTaxSignal, GuestUpdateState,
+    GuestUpdateValues, LinkGuestInput, LinkedGuestCreditRow,
 };
 use crate::repositories::auth::is_guest_name_unique_violation;
 use crate::utils::pagination::Pagination;
@@ -37,6 +37,13 @@ fn unique_violation_matches(error: &sqlx::Error, constraint_name: &str) -> bool 
 
 impl GuestRepository {
     /// Find guest by ID
+    ///
+    /// Selects the CRM columns (`vip_status`, `tags`, `notes`, …) that the
+    /// narrower `find_paginated` list payload deliberately omits — the model
+    /// fields are `#[sqlx(default)]`, so each SELECT chooses which set it
+    /// populates. Sensitive identifier columns (`id_*`, `date_of_birth`) stay
+    /// off `Guest` entirely; they are fetched separately through
+    /// [`Self::sensitive_profile`] under the `guests:reveal` permission.
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Guest>, ApiError> {
         let query = r#"
                 SELECT id, nick_name, first_name, last_name, email, phone, ic_number, nationality,
@@ -47,6 +54,9 @@ impl GuestRepository {
                        company_name,
                        COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                        created_at, updated_at,
+                       vip_status, tags, job_title, notes, special_requests,
+                       marketing_opt_in, communication_preference, language_preference,
+                       is_blacklisted, blacklist_reason,
                        NULL::BIGINT as bookings_count,
                        NULL::DATE as last_stay_date
                 FROM guests
@@ -58,6 +68,25 @@ impl GuestRepository {
             .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Sensitive identifier columns, fetched only for callers holding
+    /// `guests:reveal`. Kept off `Guest` so no shared SELECT can leak them.
+    pub async fn sensitive_profile(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Option<GuestSensitiveProfile>, ApiError> {
+        sqlx::query_as::<_, GuestSensitiveProfile>(
+            r#"
+            SELECT date_of_birth, id_type::TEXT as id_type, id_number, id_expiry, id_country
+            FROM guests
+            WHERE id = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
     }
 
     /// The contact fields the Google-guest profile-completion check cares
@@ -431,7 +460,11 @@ impl GuestRepository {
             SELECT first_name, last_name, email, phone, ic_number, nationality,
                    address_line_1 as address_line1, city, state as state_province,
                    postal_code, country, title, alt_phone, company_name,
-                   guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage
+                   guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage,
+                   vip_status, tags, job_title, notes, special_requests,
+                   marketing_opt_in, communication_preference, language_preference,
+                   is_blacklisted, blacklist_reason,
+                   date_of_birth, id_type::TEXT as id_type, id_number, id_expiry, id_country
             FROM guests
             WHERE id = $1 AND deleted_at IS NULL
             "#,
@@ -468,9 +501,24 @@ impl GuestRepository {
                 tourism_type = $16,
                 discount_percentage = $17,
                 company_name = $18,
+                vip_status = $19,
+                tags = $20,
+                job_title = $21,
+                notes = $22,
+                special_requests = $23,
+                marketing_opt_in = $24,
+                communication_preference = $25,
+                language_preference = $26,
+                is_blacklisted = $27,
+                blacklist_reason = $28,
+                date_of_birth = $29,
+                id_type = $30::identificationtype,
+                id_number = $31,
+                id_expiry = $32,
+                id_country = $33,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $19
-            RETURNING id, nick_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at, NULL::BIGINT as bookings_count, NULL::DATE as last_stay_date
+            WHERE id = $34
+            RETURNING id, nick_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at, vip_status, tags, job_title, notes, special_requests, marketing_opt_in, communication_preference, language_preference, is_blacklisted, blacklist_reason, NULL::BIGINT as bookings_count, NULL::DATE as last_stay_date
             "#
         )
         .bind(&values.nick_name)
@@ -491,6 +539,21 @@ impl GuestRepository {
         .bind(&values.tourism_type)
         .bind(values.discount_percentage)
         .bind(&values.company_name)
+        .bind(&values.vip_status)
+        .bind(&values.tags)
+        .bind(&values.job_title)
+        .bind(&values.notes)
+        .bind(&values.special_requests)
+        .bind(values.marketing_opt_in)
+        .bind(&values.communication_preference)
+        .bind(&values.language_preference)
+        .bind(values.is_blacklisted)
+        .bind(&values.blacklist_reason)
+        .bind(values.date_of_birth)
+        .bind(&values.id_type)
+        .bind(&values.id_number)
+        .bind(values.id_expiry)
+        .bind(&values.id_country)
         .bind(guest_id)
         .fetch_one(pool)
         .await
