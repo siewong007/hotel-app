@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PromotionsApi } from '../../promotions/api/promotionsApi';
+import { SegmentsApi } from '../../segments/api';
 import { CommunicationsApi } from '../api';
 import type {
   CampaignInput,
@@ -58,6 +59,7 @@ const EMPTY_CAMPAIGN: CampaignInput = {
   body_html: '',
   promotion_id: null,
   template_id: null,
+  segment_id: null,
 };
 
 function CampaignDialog({
@@ -83,6 +85,16 @@ function CampaignDialog({
         status: 'live',
       }),
     enabled: open && form.campaign_type === 'promotion',
+  });
+  const segments = useQuery({
+    queryKey: ['segments', 'campaign-options'],
+    queryFn: () => SegmentsApi.list({ is_active: true, page_size: 100 }),
+    enabled: open,
+  });
+  const audience = useQuery({
+    queryKey: ['communications', 'audience', form.campaign_type, form.segment_id],
+    queryFn: () => CommunicationsApi.audienceCount(form.campaign_type, form.segment_id),
+    enabled: open,
   });
   const save = useMutation({
     mutationFn: (input: CampaignInput) =>
@@ -155,6 +167,37 @@ function CampaignDialog({
                 </MenuItem>
               ))}
             </TextField>
+          )}
+          <TextField
+            select
+            label="Guest segment"
+            value={form.segment_id ?? ''}
+            onChange={(e) =>
+              set({ segment_id: e.target.value ? Number(e.target.value) : null })
+            }
+            helperText={
+              segments.isError
+                ? 'Segments could not be loaded'
+                : form.segment_id
+                  ? 'Only segment members who are subscribed and unsuppressed receive this campaign'
+                  : 'Optional — leave empty to reach every eligible subscriber'
+            }
+            disabled={segments.isLoading || segments.isError}
+          >
+            <MenuItem value="">All eligible guests</MenuItem>
+            {(segments.data?.items ?? []).map((s) => (
+              <MenuItem key={s.id} value={s.id}>
+                {s.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          {audience.data && (
+            <Alert severity="info" icon={false} sx={{ py: 0.5 }}>
+              Audience: <strong>{audience.data.eligible}</strong> eligible
+              {form.segment_id
+                ? ` — ${audience.data.excluded_segment} eligible guests fall outside the segment`
+                : ''}
+            </Alert>
           )}
           <TextField
             label="Subject"
@@ -314,6 +357,7 @@ function CampaignsTab() {
                               body_text: c.body_text,
                               template_id: c.template_id,
                               promotion_id: c.promotion_id,
+                              segment_id: c.segment_id,
                             },
                           })
                         }
@@ -379,7 +423,11 @@ function CampaignsTab() {
                 email: {preview.audience.excluded_no_email}, inactive:{' '}
                 {preview.audience.excluded_inactive}, unsubscribed:{' '}
                 {preview.audience.excluded_unsubscribed}, suppressed:{' '}
-                {preview.audience.excluded_suppressed})
+                {preview.audience.excluded_suppressed}
+                {preview.audience.excluded_segment > 0
+                  ? `, outside segment: ${preview.audience.excluded_segment}`
+                  : ''}
+                )
               </Alert>
               <Box
                 sx={{ border: '1px solid', borderColor: 'divider', p: 2, borderRadius: 1 }}

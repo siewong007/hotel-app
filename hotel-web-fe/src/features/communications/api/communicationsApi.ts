@@ -77,9 +77,11 @@ export const CommunicationsApi = {
       .json<DeliveryListResponse>();
   },
 
-  audienceCount(topic: string): Promise<AudienceCount> {
+  audienceCount(topic: string, segmentId?: number | null): Promise<AudienceCount> {
     return api
-      .get('admin/communications/audience', { searchParams: toSearchParams({ topic }) })
+      .get('admin/communications/audience', {
+        searchParams: toSearchParams({ topic, segment_id: segmentId }),
+      })
       .json<AudienceCount>();
   },
 

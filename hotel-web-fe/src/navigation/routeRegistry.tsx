@@ -20,6 +20,7 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import PeopleIcon from '@mui/icons-material/People';
 import PriceChangeIcon from '@mui/icons-material/PriceChange';
 import PersonIcon from '@mui/icons-material/Person';
+import GroupWorkIcon from '@mui/icons-material/GroupWork';
 import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
@@ -101,6 +102,7 @@ const NotificationsPage = lazyRoute(() => import('../features/notifications/page
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
 const RevenueOverviewPage = lazyRoute(() => import('../features/revenue/pages/RevenueOverviewPage'));
 const RatesPage = lazyRoute(() => import('../features/rates/pages/RatesPage'));
+const SegmentsPage = lazyRoute(() => import('../features/segments/pages/SegmentsPage'));
 const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
 const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
 const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
@@ -356,6 +358,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: PriceChangeIcon,
     breadcrumbLabel: 'Rates',
     navLabel: 'Rates',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'segments',
+    path: '/segments',
+    component: SegmentsPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: GroupWorkIcon,
+    breadcrumbLabel: 'Segments',
+    navLabel: 'Segments',
     navGroup: 'revenue',
     accessControlled: true,
   },

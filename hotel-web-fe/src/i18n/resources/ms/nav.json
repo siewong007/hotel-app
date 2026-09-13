@@ -91,6 +91,10 @@
       "label": "Kadar",
       "breadcrumb": "Kadar"
     },
+    "segments": {
+      "label": "Segmen",
+      "breadcrumb": "Segmen Tetamu"
+    },
     "rbac": {
       "label": "Kawalan Akses",
       "breadcrumb": "Kawalan Akses"

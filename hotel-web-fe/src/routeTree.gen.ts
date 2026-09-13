@@ -46,6 +46,7 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as RevenueRouteImport } from './routes/revenue'
 import { Route as RoomConfigRouteImport } from './routes/room-config'
 import { Route as RoomManagementRouteImport } from './routes/room-management'
+import { Route as SegmentsRouteImport } from './routes/segments'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TimelineRouteImport } from './routes/timeline'
@@ -249,6 +250,11 @@ const RoomManagementRoute = RoomManagementRouteImport.update({
   path: '/room-management',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SegmentsRoute = SegmentsRouteImport.update({
+  id: '/segments',
+  path: '/segments',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -375,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
+  '/segments': typeof SegmentsRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
@@ -431,6 +438,7 @@ export interface FileRoutesByTo {
   '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
+  '/segments': typeof SegmentsRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
@@ -488,6 +496,7 @@ export interface FileRoutesById {
   '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
+  '/segments': typeof SegmentsRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
@@ -546,6 +555,7 @@ export interface FileRouteTypes {
     | '/revenue'
     | '/room-config'
     | '/room-management'
+    | '/segments'
     | '/settings'
     | '/support'
     | '/timeline'
@@ -602,6 +612,7 @@ export interface FileRouteTypes {
     | '/revenue'
     | '/room-config'
     | '/room-management'
+    | '/segments'
     | '/settings'
     | '/support'
     | '/timeline'
@@ -658,6 +669,7 @@ export interface FileRouteTypes {
     | '/revenue'
     | '/room-config'
     | '/room-management'
+    | '/segments'
     | '/settings'
     | '/support'
     | '/timeline'
@@ -715,6 +727,7 @@ export interface RootRouteChildren {
   RevenueRoute: typeof RevenueRoute
   RoomConfigRoute: typeof RoomConfigRoute
   RoomManagementRoute: typeof RoomManagementRoute
+  SegmentsRoute: typeof SegmentsRoute
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
   TimelineRoute: typeof TimelineRoute
@@ -994,6 +1007,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RoomManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/segments': {
+      id: '/segments'
+      path: '/segments'
+      fullPath: '/segments'
+      preLoaderRoute: typeof SegmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -1164,6 +1184,7 @@ const rootRouteChildren: RootRouteChildren = {
   RevenueRoute: RevenueRoute,
   RoomConfigRoute: RoomConfigRoute,
   RoomManagementRoute: RoomManagementRoute,
+  SegmentsRoute: SegmentsRoute,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
   TimelineRoute: TimelineRoute,
