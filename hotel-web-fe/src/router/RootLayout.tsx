@@ -7,6 +7,7 @@ import { CrossAppRedirect } from '../guest/CrossAppRedirect';
 import { AppSidebar } from '../components/layout/sidebar/AppSidebar';
 import { AppTopbar } from '../components/layout/AppTopbar';
 import { MobileNavBar } from '../components/layout/MobileNavBar';
+import { MobileQuickActions } from '../components/layout/MobileQuickActions';
 import { CommandPaletteProvider } from '../components/layout/CommandPalette';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
@@ -186,6 +187,7 @@ export const RootLayout: React.FC = () => {
         </Box>
 
         <MobileNavBar />
+        <MobileQuickActions />
 
         <Suspense fallback={<MinimalLoadingFallback />}>
           <FirstLoginPasskeyPrompt
