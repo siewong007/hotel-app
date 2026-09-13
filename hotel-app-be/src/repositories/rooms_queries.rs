@@ -97,6 +97,11 @@ fn row_to_room_type(row: &DbRow) -> RoomType {
         extra_bed_charge,
         is_active,
         sort_order: row.try_get("sort_order").unwrap_or(0),
+        images: row
+            .try_get::<serde_json::Value, _>("images")
+            .ok()
+            .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+            .unwrap_or_default(),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     }
@@ -548,7 +553,7 @@ pub async fn delete_room_cascade(pool: &DbPool, room_id: i64) -> Result<(), ApiE
 
 const ROOM_TYPE_COLUMNS: &str = r#"id, name, code, description, base_price, weekday_rate, weekend_rate,
        max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-       extra_bed_charge, is_active, sort_order, created_at, updated_at"#;
+       extra_bed_charge, is_active, sort_order, images, created_at, updated_at"#;
 
 pub async fn fetch_active_room_types(pool: &DbPool) -> Result<Vec<RoomType>, ApiError> {
     let query = format!(
@@ -646,6 +651,8 @@ pub struct RoomTypeUpdate<'a> {
     pub extra_bed_charge: Option<Decimal>,
     pub is_active: Option<bool>,
     pub sort_order: Option<i32>,
+    /// `None` leaves the column untouched; `Some(vec)` replaces the list.
+    pub images: &'a Option<Vec<String>>,
 }
 
 pub async fn update_room_type(
@@ -670,6 +677,7 @@ pub async fn update_room_type(
             extra_bed_charge = COALESCE($13, extra_bed_charge),
             is_active = COALESCE($14, is_active),
             sort_order = COALESCE($15, sort_order),
+            images = COALESCE($16, images),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
         "#,
@@ -689,6 +697,12 @@ pub async fn update_room_type(
     .bind(opt_decimal_to_db(input.extra_bed_charge))
     .bind(input.is_active)
     .bind(input.sort_order)
+    .bind(
+        input
+            .images
+            .as_ref()
+            .map(|v| serde_json::to_value(v).unwrap_or_default()),
+    )
     .execute(pool)
     .await
     .map_err(db_err)?;

@@ -20,6 +20,22 @@ use axum::{
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 
+/// Deletes a file previously stored under the public room-image directory.
+/// `path` comes from the database, so it is treated as untrusted: only
+/// `/uploads/room-types/<file>` values with a bare filename are touched.
+fn delete_public_room_image(path: &str) {
+    const PREFIX: &str = "/uploads/room-types/";
+    let Some(name) = path.strip_prefix(PREFIX) else {
+        return;
+    };
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
+        return;
+    }
+    let _ = std::fs::remove_file(
+        std::path::PathBuf::from("uploads/public/room-types").join(name),
+    );
+}
+
 fn normalize_transition_permission(permission: &str) -> &str {
     match permission {
         "housekeeping" => "housekeeping:update",
@@ -504,6 +520,14 @@ pub async fn update_room_type_handler(
         .extra_bed_charge
         .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
 
+    // Snapshot the current list so files dropped by this update can be
+    // removed from disk afterwards.
+    let before_images = if input.images.is_some() {
+        rq::fetch_room_type_by_id(&pool, id).await?.images
+    } else {
+        Vec::new()
+    };
+
     rq::update_room_type(
         &pool,
         id,
@@ -522,12 +546,19 @@ pub async fn update_room_type_handler(
             extra_bed_charge: extra_bed_charge_decimal,
             is_active: input.is_active,
             sort_order: input.sort_order,
+            images: &input.images,
         },
     )
     .await?;
 
     // Fetch the updated room type
     let room_type = rq::fetch_room_type_by_id(&pool, id).await?;
+
+    if let Some(new_images) = &input.images {
+        for removed in before_images.iter().filter(|p| !new_images.contains(p)) {
+            delete_public_room_image(removed);
+        }
+    }
 
     // Audit log: room type updated
     let _ = AuditLog::log_event(
@@ -1468,4 +1499,28 @@ pub async fn get_rooms_with_occupancy_handler(
 
     let rooms_with_occupancy = rq::fetch_rooms_with_occupancy(&pool).await?;
     Ok(Json(rooms_with_occupancy))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::delete_public_room_image;
+
+    #[test]
+    fn delete_public_room_image_rejects_foreign_paths() {
+        // None of these may touch the filesystem; the calls must simply return.
+        delete_public_room_image("/uploads/room-types/../../etc/passwd");
+        delete_public_room_image("uploads/room-types/x.jpg");
+        delete_public_room_image("/uploads/room-types/");
+        delete_public_room_image("/uploads/room-types/sub/x.jpg");
+        delete_public_room_image("/etc/passwd");
+    }
+
+    #[test]
+    fn delete_public_room_image_removes_guarded_file() {
+        let dir = std::path::PathBuf::from("uploads/public/room-types");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("t.jpg"), b"x").unwrap();
+        delete_public_room_image("/uploads/room-types/t.jpg");
+        assert!(!dir.join("t.jpg").exists());
+    }
 }
