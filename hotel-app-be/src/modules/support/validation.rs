@@ -1,6 +1,9 @@
 use crate::core::error::ApiError;
 use crate::utils::sanitization::Sanitizer;
 
+/// Mirrors the `support_conversations_category_check` constraint extended by
+/// patch `0019_guest_relations.sql` (`service_request` + `complaint`). Keep in
+/// sync with the CHECK expression.
 pub const SUPPORT_CATEGORIES: &[&str] = &[
     "booking",
     "stay",
@@ -8,6 +11,8 @@ pub const SUPPORT_CATEGORIES: &[&str] = &[
     "loyalty",
     "technical",
     "other",
+    "service_request",
+    "complaint",
 ];
 pub const SUPPORT_PRIORITIES: &[&str] = &["low", "normal", "high", "urgent"];
 pub const SUPPORT_STATUSES: &[&str] = &[
@@ -31,6 +36,8 @@ pub const SUPPORT_ACTIONS: &[&str] = &[
 pub const MAX_MESSAGE_CHARS: usize = 4_000;
 pub const MAX_REASON_CHARS: usize = 2_000;
 pub const MAX_RESOLUTION_CODE_CHARS: usize = 64;
+/// `support_conversations.subject` varchar(160).
+pub const MAX_SUBJECT_CHARS: usize = 160;
 
 pub fn normalized_choice(value: &str) -> String {
     value.trim().to_ascii_lowercase().replace([' ', '-'], "_")
@@ -111,6 +118,24 @@ pub fn sanitize_optional_reason(value: Option<String>) -> Result<Option<String>,
     Ok(Some(sanitized))
 }
 
+/// `support_conversations.subject` varchar(160): optional free text; blank
+/// sanitizes to `None` so callers can fall back to the category default.
+pub fn sanitize_optional_subject(value: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let sanitized = Sanitizer::sanitize_text(&value).trim().to_string();
+    if sanitized.is_empty() {
+        return Ok(None);
+    }
+    if sanitized.chars().count() > MAX_SUBJECT_CHARS {
+        return Err(ApiError::BadRequest(format!(
+            "Support subjects cannot exceed {MAX_SUBJECT_CHARS} characters"
+        )));
+    }
+    Ok(Some(sanitized))
+}
+
 pub fn sanitize_resolution_code(value: Option<String>) -> Result<Option<String>, ApiError> {
     let Some(value) = value else {
         return Ok(None);
@@ -136,7 +161,24 @@ mod tests {
     #[test]
     fn validates_normalized_categories() {
         assert_eq!(validate_category(" STAY ").unwrap(), "stay");
+        assert_eq!(validate_category("Service Request").unwrap(), "service_request");
+        assert_eq!(validate_category("complaint").unwrap(), "complaint");
         assert!(validate_category("maintenance").is_err());
+    }
+
+    #[test]
+    fn sanitizes_optional_subject() {
+        assert_eq!(sanitize_optional_subject(None).unwrap(), None);
+        assert_eq!(
+            sanitize_optional_subject(Some("  ".to_string())).unwrap(),
+            None
+        );
+        assert_eq!(
+            sanitize_optional_subject(Some(" Broken\u{0000} AC ".to_string())).unwrap(),
+            Some("Broken AC".to_string())
+        );
+        assert!(sanitize_optional_subject(Some("s".repeat(161))).is_err());
+        assert!(sanitize_optional_subject(Some("s".repeat(160))).is_ok());
     }
 
     #[test]

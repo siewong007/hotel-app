@@ -10,10 +10,10 @@ use std::net::SocketAddr;
 
 use super::hub::{SupportHub, serve_socket};
 use super::models::{
-    CreateGuestSupportConversationRequest, GuestSupportConversationDetail,
-    GuestSupportConversationListResponse, GuestSupportMessageRequest, SupportActionRequest,
-    SupportConversationDetail, SupportConversationListResponse, SupportListQuery,
-    SupportMessageRequest,
+    CreateGuestSupportConversationRequest, CreateStaffConversationRequest,
+    GuestSupportConversationDetail, GuestSupportConversationListResponse,
+    GuestSupportMessageRequest, SupportActionRequest, SupportConversationDetail,
+    SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -101,6 +101,27 @@ pub async fn list_support_agents_handler(
 ) -> Result<Json<Vec<super::models::SupportAgent>>, ApiError> {
     require_any_permission_helper(&pool, &headers, &["support:assign", "support:manage"]).await?;
     Ok(Json(service::list_support_agents(&pool).await?))
+}
+
+pub async fn create_staff_conversation_handler(
+    State(pool): State<DbPool>,
+    Extension(hub): Extension<SupportHub>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(request): Json<CreateStaffConversationRequest>,
+) -> Result<Json<SupportConversationDetail>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "support:write").await?;
+    Ok(Json(
+        service::create_staff_conversation(
+            &pool,
+            &hub,
+            actor_id,
+            request,
+            client_ip(&headers, peer_addr),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 pub async fn send_staff_message_handler(

@@ -6,10 +6,11 @@ use uuid::Uuid;
 
 use super::hub::{SupportEvent, SupportHub};
 use super::models::{
-    CreateGuestSupportConversationRequest, GuestSupportConversation,
-    GuestSupportConversationDetail, GuestSupportConversationListResponse,
-    GuestSupportMessageRequest, SupportActionInput, SupportConversationDetail,
-    SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
+    CreateGuestSupportConversationRequest, CreateStaffConversationRequest,
+    GuestSupportConversation, GuestSupportConversationDetail,
+    GuestSupportConversationListResponse, GuestSupportMessageRequest, SupportActionInput,
+    SupportConversationDetail, SupportConversationListResponse, SupportListQuery,
+    SupportMessageRequest,
 };
 use super::repository::{
     ConversationFilters, ConversationMutation, NewConversation, SupportEventValues,
@@ -21,10 +22,14 @@ use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::core::settings_cache;
 use crate::models::AuditEvent;
+use crate::repositories::guest::GuestRepository;
 use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 
 const DEFAULT_REOPEN_WINDOW_DAYS: i64 = 7;
+// Mirrors the seeded `support_categories` system setting (patch
+// `0019_guest_relations.sql`); keep in sync with
+// `validation::SUPPORT_CATEGORIES` and the DB CHECK constraint.
 const DEFAULT_SUPPORT_CATEGORIES: &[&str] = &[
     "booking",
     "stay",
@@ -32,6 +37,8 @@ const DEFAULT_SUPPORT_CATEGORIES: &[&str] = &[
     "loyalty",
     "technical",
     "other",
+    "service_request",
+    "complaint",
 ];
 
 fn request_id_is_valid(value: Option<&str>) -> Result<(), ApiError> {
@@ -84,7 +91,7 @@ async fn enabled_support_categories(pool: &DbPool) -> Vec<String> {
     let raw = settings_cache::get_string(
         pool,
         "support_categories",
-        r#"["booking","stay","billing","loyalty","technical","other"]"#,
+        r#"["booking","stay","billing","loyalty","technical","other","service_request","complaint"]"#,
     )
     .await;
     let mut categories = serde_json::from_str::<Vec<String>>(&raw)
@@ -325,6 +332,157 @@ pub async fn list_support_agents(
     pool: &DbPool,
 ) -> Result<Vec<super::models::SupportAgent>, ApiError> {
     SupportRepository::list_agents(pool).await
+}
+
+/// File a support conversation on a guest's behalf (walk-in, phone call,
+/// complaint desk). The conversation lands in the staff queue as
+/// `waiting_for_staff` with the opening message authored by the staff member.
+///
+/// Category validation mirrors the guest-create path exactly — the static
+/// allowlist plus the enabled `support_categories` setting. `support_enabled`
+/// is deliberately not consulted: that toggle gates the guest portal, not
+/// staff work on a guest's behalf.
+pub async fn create_staff_conversation(
+    pool: &DbPool,
+    hub: &SupportHub,
+    actor_id: i64,
+    request: CreateStaffConversationRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<SupportConversationDetail, ApiError> {
+    if !GuestRepository::exists(pool, request.guest_id).await? {
+        return Err(ApiError::NotFound("Guest not found".to_string()));
+    }
+    let category = validate_enabled_support_category(pool, &request.category).await?;
+    let message = validation::sanitize_required_message(&request.message)?;
+    let subject = validation::sanitize_optional_subject(request.subject)?
+        .unwrap_or_else(|| subject_for_category(&category));
+    if let Some(booking_id) = request.booking_id
+        && !SupportRepository::booking_belongs_to_guest(pool, booking_id, request.guest_id).await?
+    {
+        return Err(ApiError::NotFound("Booking not found".to_string()));
+    }
+    let priority = match request.priority.as_deref() {
+        Some(value) => validation::validate_priority(value)?,
+        None => "normal".to_string(),
+    };
+    // Assigning on create is the same privilege as the `assign` action, so it
+    // keeps the action's permission and active-agent checks.
+    if let Some(assignee_id) = request.assignee_id {
+        check_permission(pool, actor_id, "support:assign").await?;
+        if !SupportRepository::is_active_support_agent(pool, assignee_id).await? {
+            return Err(ApiError::BadRequest(
+                "Selected user is not an active support agent".to_string(),
+            ));
+        }
+    }
+    let (first_sla, resolution_sla) = priority_sla(pool, &priority).await;
+    let now = Utc::now();
+    let number = conversation_number();
+    let new_conversation = NewConversation {
+        conversation_number: &number,
+        guest_id: request.guest_id,
+        booking_id: request.booking_id,
+        subject: &subject,
+        category: &category,
+        priority: &priority,
+        first_response_due_at: now + first_sla,
+        resolution_due_at: now + resolution_sla,
+    };
+    let mut transaction = pool.begin().await.map_err(ApiError::from)?;
+    let conversation_id =
+        SupportRepository::insert_conversation(&mut *transaction, &new_conversation).await?;
+    SupportRepository::insert_message(
+        &mut *transaction,
+        conversation_id,
+        "staff",
+        None,
+        Some(actor_id),
+        &message,
+        None,
+    )
+    .await?;
+    SupportRepository::insert_event(
+        &mut *transaction,
+        SupportEventValues {
+            conversation_id,
+            actor_guest_id: None,
+            actor_user_id: Some(actor_id),
+            event_type: "created",
+            from_status: None,
+            to_status: Some("waiting_for_staff"),
+            details: Some(json!({"category": category, "created_by": "staff"})),
+        },
+    )
+    .await?;
+    if let Some(assignee_id) = request.assignee_id {
+        // `NewConversation` carries no assignee column, so apply the assign
+        // action's update + event pair inside the same transaction. The row
+        // was just inserted at version 1 with the column defaults.
+        let mutation = ConversationMutation {
+            status: "waiting_for_staff".to_string(),
+            priority: priority.clone(),
+            assigned_team: "front_desk".to_string(),
+            assigned_to_user_id: Some(assignee_id),
+            escalation_level: 0,
+            escalated_at: None,
+            first_response_due_at: Some(now + first_sla),
+            resolution_due_at: Some(now + resolution_sla),
+            first_response_at: None,
+            resolved_at: None,
+            closed_at: None,
+            resolution_code: None,
+            resolution_summary: None,
+            reopen_count: 0,
+            expected_version: Some(1),
+        };
+        if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation)
+            .await?
+        {
+            return Err(ApiError::Conflict(
+                "This conversation changed. Refresh it before taking another action".to_string(),
+            ));
+        }
+        SupportRepository::insert_event(
+            &mut *transaction,
+            SupportEventValues {
+                conversation_id,
+                actor_guest_id: None,
+                actor_user_id: Some(actor_id),
+                event_type: "assigned",
+                from_status: Some("waiting_for_staff"),
+                to_status: Some("waiting_for_staff"),
+                details: Some(json!({"assignee_id": assignee_id})),
+            },
+        )
+        .await?;
+    }
+    transaction.commit().await.map_err(ApiError::from)?;
+    hub.publish(SupportEvent::conversation_changed(
+        request.guest_id,
+        conversation_id,
+    ));
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(actor_id),
+            action: "staff_support_conversation_created",
+            resource_type: "support_conversation",
+            resource_id: Some(conversation_id),
+            details: Some(json!({
+                "guest_id": request.guest_id,
+                "category": category,
+                "booking_id": request.booking_id,
+                "priority": priority,
+                "assignee_id": request.assignee_id,
+            })),
+            ip_address,
+            user_agent,
+        },
+    )
+    .await;
+    staff_detail(pool, conversation_id).await
 }
 
 pub async fn send_staff_message(

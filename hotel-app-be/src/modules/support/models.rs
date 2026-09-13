@@ -169,6 +169,20 @@ pub struct CreateGuestSupportConversationRequest {
     pub client_request_id: String,
 }
 
+/// Staff-side creation: files a conversation on a guest's behalf (walk-in,
+/// phone call, complaint desk). Lands in the staff queue as
+/// `waiting_for_staff` with the first message authored by the staff member.
+#[derive(Debug, Deserialize)]
+pub struct CreateStaffConversationRequest {
+    pub guest_id: i64,
+    pub category: String,
+    pub subject: Option<String>,
+    pub message: String,
+    pub booking_id: Option<i64>,
+    pub priority: Option<String>,
+    pub assignee_id: Option<i64>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct GuestSupportMessageRequest {
     pub message: String,

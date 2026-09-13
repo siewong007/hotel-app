@@ -12,7 +12,8 @@ pub fn routes() -> Router<DbPool> {
     Router::new()
         .route(
             "/support/conversations",
-            get(handlers::list_staff_conversations_handler),
+            get(handlers::list_staff_conversations_handler)
+                .post(handlers::create_staff_conversation_handler),
         )
         .route(
             "/support/agents",
