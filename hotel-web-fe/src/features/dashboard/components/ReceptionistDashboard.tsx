@@ -51,6 +51,8 @@ import { errorMessage } from '../../../utils';
 import { toHotelDateString } from '../../../utils/date';
 import { Room, BookingUpdateRequest, CheckInRequest } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { Link } from '../../../router';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { getBookingChannelInfo } from '../../bookings/utils/bookingChannel';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
@@ -99,6 +101,7 @@ type BookingWithDay = BookingWithDetails & {
 };
 
 const ReceptionistDashboard: React.FC = () => {
+  const isPhone = useIsPhone();
   const { hasRole } = useAuth();
   const isReceptionist = hasRole('receptionist') || hasRole('manager') || hasRole('admin');
   const hasLoadedRef = useRef(false);
@@ -538,8 +541,8 @@ const ReceptionistDashboard: React.FC = () => {
         </IconButton>
       </Box>
       {/* Summary Stats */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+      <Grid container spacing={{ xs: 1.25, sm: 2 }} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 6, sm: 6, md: 3 }}>
           <Card sx={{ bgcolor: 'var(--hotel-success-bg)', border: '1px solid var(--hotel-success-border)', color: 'var(--hotel-success)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
@@ -560,7 +563,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 6, sm: 6, md: 3 }}>
           <Card sx={{ bgcolor: 'var(--hotel-warning-bg)', border: '1px solid var(--hotel-warning-border)', color: 'var(--hotel-warning)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
@@ -581,7 +584,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 6, sm: 6, md: 3 }}>
           <Card sx={{ bgcolor: 'var(--hotel-info-bg)', border: '1px solid var(--hotel-info-border)', color: 'var(--hotel-info)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
@@ -602,7 +605,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <Grid size={{ xs: 6, sm: 6, md: 3 }}>
           <Card sx={{ bgcolor: 'var(--hotel-primary-subtle)', border: '1px solid var(--hotel-primary-border)', color: 'var(--hotel-primary-text)', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box
@@ -644,8 +647,8 @@ const ReceptionistDashboard: React.FC = () => {
               </Typography>
               {todayActivity.arrivals.length > 0 ? (
                 <Box>
-                  {todayActivity.arrivals.map((arrival, index) => (
-                    <Box key={index} sx={{ py: 1, borderBottom: index < todayActivity.arrivals.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
+                  {(isPhone ? todayActivity.arrivals.slice(0, 5) : todayActivity.arrivals).map((arrival, index, list) => (
+                    <Box key={index} sx={{ py: 1, borderBottom: index < list.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Room {arrival.room_number}
                       </Typography>
@@ -656,6 +659,16 @@ const ReceptionistDashboard: React.FC = () => {
                       </Typography>
                     </Box>
                   ))}
+                  {isPhone && todayActivity.arrivals.length > 5 && (
+                    <Typography
+                      variant="body2"
+                      component={Link}
+                      to="/bookings?view=arriving"
+                      sx={{ display: 'block', mt: 1, color: 'primary.main', fontWeight: 600 }}
+                    >
+                      View all {todayActivity.arrivals.length} arrivals
+                    </Typography>
+                  )}
                 </Box>
               ) : (
                 <Typography variant="body2" sx={{
@@ -687,8 +700,8 @@ const ReceptionistDashboard: React.FC = () => {
               </Typography>
               {todayActivity.departures.length > 0 ? (
                 <Box>
-                  {todayActivity.departures.map((departure, index) => (
-                    <Box key={index} sx={{ py: 1, borderBottom: index < todayActivity.departures.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
+                  {(isPhone ? todayActivity.departures.slice(0, 5) : todayActivity.departures).map((departure, index, list) => (
+                    <Box key={index} sx={{ py: 1, borderBottom: index < list.length - 1 ? '1px solid var(--hotel-border-subtle)' : 'none' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         Room {departure.room_number}
                       </Typography>
@@ -699,6 +712,16 @@ const ReceptionistDashboard: React.FC = () => {
                       </Typography>
                     </Box>
                   ))}
+                  {isPhone && todayActivity.departures.length > 5 && (
+                    <Typography
+                      variant="body2"
+                      component={Link}
+                      to="/bookings?view=departing"
+                      sx={{ display: 'block', mt: 1, color: 'primary.main', fontWeight: 600 }}
+                    >
+                      View all {todayActivity.departures.length} departures
+                    </Typography>
+                  )}
                 </Box>
               ) : (
                 <Typography variant="body2" sx={{
@@ -760,7 +783,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Box>
 
           {/* Legend */}
-          <Box sx={{ mb: 3, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ mb: { xs: 2, sm: 3 }, display: 'flex', flexWrap: 'wrap', gap: { xs: 1, sm: 2 } }}>
             <Chip icon={<AvailableIcon />} label="Available" size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
             <Chip icon={<OccupiedIcon />} label="Occupied" size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
             <Chip icon={<CalendarIcon />} label="Reserved" size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
@@ -769,9 +792,9 @@ const ReceptionistDashboard: React.FC = () => {
           </Box>
 
           {/* Room Grid */}
-          <Grid container spacing={2}>
+          <Grid container spacing={{ xs: 1, sm: 2 }}>
             {rooms.map((room) => (
-              <Grid key={room.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+              <Grid key={room.id} size={{ xs: 4, sm: 4, md: 3, lg: 2 }}>
                 <Tooltip
                   title={
                     <Box>
@@ -839,7 +862,7 @@ const ReceptionistDashboard: React.FC = () => {
                       setStatusDialogOpen(true);
                     }}
                     sx={{
-                      p: 2,
+                      p: { xs: 1, sm: 2 },
                       textAlign: 'center',
                       bgcolor: `color-mix(in srgb, ${getRoomStatusColor(room)} 12%, transparent)`,
                       color: getRoomStatusColor(room),
@@ -847,7 +870,7 @@ const ReceptionistDashboard: React.FC = () => {
                       cursor: 'pointer',
                       transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                       animation: 'fadeIn 0.4s ease-in-out',
-                      minHeight: 180,
+                      minHeight: { xs: 116, sm: 180 },
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
