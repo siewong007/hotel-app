@@ -90,15 +90,16 @@ describe('SidebarContent', () => {
     // Non-accessControlled utility items stay visible without any policy.
     expect(screen.getByText('Help')).toBeTruthy();
     // No visible item in a labeled group means no caption either.
-    expect(screen.queryByText('Operations')).toBeNull();
+    expect(screen.queryByText('Front Office')).toBeNull();
   });
 
   it('shows every group label and gated item for an admin policy set', () => {
     grantAllPolicies();
     renderContent();
 
-    for (const label of ['Operations', 'Finance', 'Engagement', 'Property', 'Administration']) {
-      expect(screen.getByText(label)).toBeTruthy();
+    for (const label of ['Front Office', 'Guests', 'Revenue & Marketing', 'Finance', 'Administration']) {
+      // 'Guests' matches both the group caption and the guest-config nav item.
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     expect(screen.getByText('Night Audit')).toBeTruthy();
     // The bookings item is visible, so the CTA renders too.
@@ -121,7 +122,7 @@ describe('SidebarContent', () => {
     grantAllPolicies();
     renderContent();
 
-    const caption = screen.getByText('Operations').closest('button');
+    const caption = screen.getByText('Front Office').closest('button');
     expect(caption?.getAttribute('aria-expanded')).toBe('true');
 
     fireEvent.click(caption!);
@@ -136,7 +137,7 @@ describe('SidebarContent', () => {
     mocks.pathname = '/bookings';
     renderContent();
 
-    const caption = screen.getByText('Operations').closest('button');
+    const caption = screen.getByText('Front Office').closest('button');
     fireEvent.click(caption!);
 
     // The active child forces the section open even after a manual fold.
