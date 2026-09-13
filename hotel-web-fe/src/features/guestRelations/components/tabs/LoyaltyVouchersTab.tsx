@@ -25,7 +25,7 @@ import {
 import type { GuestLoyaltySummary, GuestVoucher } from '../../../../types';
 import { Link } from '../../../../router';
 import { formatStatusLabel } from '../../../../utils/formatters';
-import { formatHotelDate, formatHotelDateTime, isHotelDatePast } from '../../../../utils/date';
+import { formatHotelDate, formatHotelDateTime } from '../../../../utils/date';
 import { getQueryErrorMessage } from '../../../../api/queryConfig';
 import { ProfileDetailRow, ProfileMetric } from '../../../guests/components/GuestProfileParts';
 import { useGuestLoyalty, useGuestVouchers } from '../../hooks/useGuestRelationsQueries';
@@ -73,6 +73,7 @@ const loyaltyStatusColor = (status: string): ChipProps['color'] =>
 const VOUCHER_STATUS_COLORS: Record<string, ChipProps['color']> = {
   available: 'success',
   redeemed: 'info',
+  revoked: 'error',
   void: 'default',
   cancelled: 'default',
   expired: 'warning',
@@ -84,7 +85,7 @@ const VOUCHER_STATUS_COLORS: Record<string, ChipProps['color']> = {
 const voucherDisplayStatus = (voucher: GuestVoucher): string =>
   voucher.status === 'available' &&
   voucher.expires_at != null &&
-  isHotelDatePast(voucher.expires_at)
+  new Date(voucher.expires_at).getTime() < Date.now()
     ? 'expired'
     : voucher.status;
 
