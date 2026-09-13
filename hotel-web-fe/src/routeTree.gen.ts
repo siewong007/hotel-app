@@ -32,6 +32,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoyaltyRouteImport } from './routes/loyalty'
 import { Route as MyRewardsRouteImport } from './routes/my-rewards'
 import { Route as NightAuditRouteImport } from './routes/night-audit'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as OffersRouteImport } from './routes/offers'
 import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
 import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
@@ -172,6 +173,11 @@ const MyRewardsRoute = MyRewardsRouteImport.update({
 const NightAuditRoute = NightAuditRouteImport.update({
   id: '/night-audit',
   path: '/night-audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OffersRoute = OffersRouteImport.update({
@@ -331,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
+  '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/online-inventory': typeof OnlineInventoryRoute
   '/payment-approvals': typeof PaymentApprovalsRoute
@@ -382,6 +389,7 @@ export interface FileRoutesByTo {
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
+  '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/online-inventory': typeof OnlineInventoryRoute
   '/payment-approvals': typeof PaymentApprovalsRoute
@@ -434,6 +442,7 @@ export interface FileRoutesById {
   '/loyalty': typeof LoyaltyRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
+  '/notifications': typeof NotificationsRoute
   '/offers': typeof OffersRoute
   '/online-inventory': typeof OnlineInventoryRoute
   '/payment-approvals': typeof PaymentApprovalsRoute
@@ -487,6 +496,7 @@ export interface FileRouteTypes {
     | '/loyalty'
     | '/my-rewards'
     | '/night-audit'
+    | '/notifications'
     | '/offers'
     | '/online-inventory'
     | '/payment-approvals'
@@ -538,6 +548,7 @@ export interface FileRouteTypes {
     | '/loyalty'
     | '/my-rewards'
     | '/night-audit'
+    | '/notifications'
     | '/offers'
     | '/online-inventory'
     | '/payment-approvals'
@@ -589,6 +600,7 @@ export interface FileRouteTypes {
     | '/loyalty'
     | '/my-rewards'
     | '/night-audit'
+    | '/notifications'
     | '/offers'
     | '/online-inventory'
     | '/payment-approvals'
@@ -641,6 +653,7 @@ export interface RootRouteChildren {
   LoyaltyRoute: typeof LoyaltyRoute
   MyRewardsRoute: typeof MyRewardsRoute
   NightAuditRoute: typeof NightAuditRoute
+  NotificationsRoute: typeof NotificationsRoute
   OffersRoute: typeof OffersRoute
   OnlineInventoryRoute: typeof OnlineInventoryRoute
   PaymentApprovalsRoute: typeof PaymentApprovalsRoute
@@ -830,6 +843,13 @@ declare module '@tanstack/react-router' {
       path: '/night-audit'
       fullPath: '/night-audit'
       preLoaderRoute: typeof NightAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/offers': {
@@ -1041,6 +1061,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoyaltyRoute: LoyaltyRoute,
   MyRewardsRoute: MyRewardsRoute,
   NightAuditRoute: NightAuditRoute,
+  NotificationsRoute: NotificationsRoute,
   OffersRoute: OffersRoute,
   OnlineInventoryRoute: OnlineInventoryRoute,
   PaymentApprovalsRoute: PaymentApprovalsRoute,
