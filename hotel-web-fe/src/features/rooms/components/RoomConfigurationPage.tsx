@@ -1114,7 +1114,7 @@ const RoomConfigurationPage: React.FC = () => {
               {editingType ? `Editing ${typeForm.name}` : 'Define a reusable room template'}
             </Typography>
           </Box>
-          <IconButton sx={{ ml: 'auto' }} onClick={() => setDrawerOpen(false)}>
+          <IconButton sx={{ ml: 'auto' }} onClick={() => setDrawerOpen(false)} aria-label="Close">
             <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Box>
@@ -1187,11 +1187,11 @@ const RoomConfigurationPage: React.FC = () => {
           <SectionHeader>Bed Setup</SectionHeader>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', border: `1px solid ${C.borderHi}`, borderRadius: '8px', overflow: 'hidden' }}>
-              <IconButton size="small" onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })}>
+              <IconButton size="small" onClick={() => setTF({ bed_count: Math.max(1, typeForm.bed_count - 1) })} aria-label="Decrease bed count">
                 <MinusIcon sx={{ fontSize: 18 }} />
               </IconButton>
               <Box sx={{ minWidth: 36, textAlign: 'center', fontWeight: 700, fontSize: 13 }}>{typeForm.bed_count}</Box>
-              <IconButton size="small" onClick={() => setTF({ bed_count: typeForm.bed_count + 1 })}>
+              <IconButton size="small" onClick={() => setTF({ bed_count: typeForm.bed_count + 1 })} aria-label="Increase bed count">
                 <PlusIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Box>

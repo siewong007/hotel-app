@@ -3,20 +3,22 @@ import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import { useNavigate } from '../../../router';
 import { PromotionCatalog } from '../components/PromotionCatalog';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { GuestPortalThemeProvider } from '../../guestPortal/theme/GuestPortalThemeProvider';
 
 export default function OffersPage() {
   const navigate = useNavigate();
   const hotelName = getHotelSettings().hotel_name;
 
   return (
+    <GuestPortalThemeProvider>
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Box
         component="header"
-        sx={{
-          background: 'linear-gradient(135deg, #0d47a1 0%, #1976d2 55%, #42a5f5 100%)',
-          color: 'common.white',
+        sx={(theme) => ({
+          background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 55%, ${theme.palette.primary.light} 100%)`,
+          color: 'primary.contrastText',
           py: { xs: 5, md: 8 },
-        }}
+        })}
       >
         <Container maxWidth="lg">
           <Stack
@@ -69,5 +71,6 @@ export default function OffersPage() {
         <PromotionCatalog />
       </Container>
     </Box>
+    </GuestPortalThemeProvider>
   );
 }

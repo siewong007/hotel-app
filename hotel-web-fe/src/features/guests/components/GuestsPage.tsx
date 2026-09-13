@@ -20,6 +20,8 @@ import {
   Stack,
   IconButton,
   Tooltip,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -34,6 +36,8 @@ import GuestProfileDialog from './GuestProfileDialog';
 const PAGE_SIZE = 50;
 
 const GuestsPage: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
@@ -129,7 +133,75 @@ const GuestsPage: React.FC = () => {
           }}
         />
       </Box>
-      {/* Guests Table */}
+      {/* Guests Table — card list on phones where the 8 columns cannot fit */}
+      {isMobile ? (
+        <Paper elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
+          {loading ? (
+            <Box sx={{ py: 6, textAlign: 'center' }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : guests.length === 0 ? (
+            <Box sx={{ py: 6, textAlign: 'center' }}>
+              <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                {searchQuery ? `No guests found matching "${searchQuery}"` : 'No guest users registered yet'}
+              </Typography>
+            </Box>
+          ) : (
+            guests.map((guest) => (
+              <Box
+                key={guest.id}
+                onClick={() => setSelectedGuestId(guest.id)}
+                sx={{
+                  p: 2,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  cursor: 'pointer',
+                  '&:last-child': { borderBottom: 0 },
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+              >
+                <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {guest.nick_name || `Guest ${guest.id}`}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary", wordBreak: 'break-all' }}>
+                      {guest.email}
+                    </Typography>
+                    {guest.phone && (
+                      <Typography variant="caption" sx={{ display: 'block', color: "text.secondary" }}>
+                        {guest.phone}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ display: 'block', color: "text.secondary" }}>
+                      {guest.bookings_count ?? 0} stays
+                      {guest.last_stay_date &&
+                        ` · last ${new Date(guest.last_stay_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                      {' · joined '}
+                      {new Date(guest.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </Typography>
+                  </Box>
+                  <Box
+                    component="span"
+                    sx={{
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                      flexShrink: 0,
+                      bgcolor: guest.is_active ? 'success.light' : 'error.light',
+                      color: guest.is_active ? 'success.dark' : 'error.dark',
+                    }}
+                  >
+                    {guest.is_active ? 'Active' : 'Inactive'}
+                  </Box>
+                </Stack>
+              </Box>
+            ))
+          )}
+        </Paper>
+      ) : (
       <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
         <Table>
           <TableHead>
@@ -224,6 +296,7 @@ const GuestsPage: React.FC = () => {
           </TableBody>
         </Table>
       </TableContainer>
+      )}
       {/* Pagination */}
       {guestPagination.hasMultiplePages && (
         <Stack

@@ -404,7 +404,7 @@ const AdminDashboard: React.FC = () => {
             Real-time overview of hotel operations and room status
           </Typography>
         </Box>
-        <IconButton onClick={loadDashboardData} color="primary" size="large">
+        <IconButton onClick={loadDashboardData} color="primary" size="large" aria-label="Refresh dashboard">
           <RefreshIcon />
         </IconButton>
       </Box>

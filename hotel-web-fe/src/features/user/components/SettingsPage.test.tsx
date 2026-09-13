@@ -142,6 +142,10 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
     await screen.findByText('Hotel Settings');
 
+    // An edit is required to arm the save bar — a clean form cannot be saved.
+    fireEvent.change(screen.getByLabelText('Hotel Name'), {
+      target: { value: 'Edited Name' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /Save Settings/ }));
 
     expect(await screen.findByText('database unreachable')).toBeTruthy();
@@ -174,14 +178,14 @@ describe('SettingsPage', () => {
     expect(mocks.onThemeModeChange).toHaveBeenCalledWith('dark');
   });
 
-  it('reloads settings from the server via Reset Changes', async () => {
+  it('reloads settings from the server via Discard changes', async () => {
     render(<SettingsPage />);
     const hotelName = await screen.findByLabelText('Hotel Name');
 
     fireEvent.change(hotelName, {
       target: { value: 'Discarded Edit' },
     });
-    fireEvent.click(await screen.findByRole('button', { name: 'Reset Changes' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
 
     await waitFor(() => expect(mocks.refetch).toHaveBeenCalled());
     // The refetch response re-applies the stored name over the local edit.

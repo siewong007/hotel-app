@@ -1444,6 +1444,7 @@ export default function EnhancedCheckInModal({
                                   <IconButton
                                     onClick={() => setShowCardNumber(!showCardNumber)}
                                     edge="end"
+                                    aria-label={showCardNumber ? 'Hide card number' : 'Show card number'}
                                   >
                                     {showCardNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
                                   </IconButton>
@@ -1871,9 +1872,7 @@ export default function EnhancedCheckInModal({
                     input: {
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small">
-                            <SearchIcon />
-                          </IconButton>
+                          <SearchIcon fontSize="small" />
                         </InputAdornment>
                       ),
                     }
@@ -1906,9 +1905,7 @@ export default function EnhancedCheckInModal({
                     input: {
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small">
-                            <SearchIcon />
-                          </IconButton>
+                          <SearchIcon fontSize="small" />
                         </InputAdornment>
                       ),
                     }
@@ -1925,9 +1922,7 @@ export default function EnhancedCheckInModal({
                     input: {
                       endAdornment: (
                         <InputAdornment position="end">
-                          <IconButton size="small">
-                            <SearchIcon />
-                          </IconButton>
+                          <SearchIcon fontSize="small" />
                         </InputAdornment>
                       ),
                     }

@@ -573,7 +573,7 @@ const NightAuditPage: React.FC = () => {
         }}>
           Night Audit
         </Typography>
-        <IconButton onClick={() => { fetchPreview(); fetchHistory(); }}>
+        <IconButton onClick={() => { fetchPreview(); fetchHistory(); }} aria-label="Refresh night audit">
           <RefreshIcon />
         </IconButton>
       </Box>
@@ -772,7 +772,7 @@ const NightAuditPage: React.FC = () => {
                         sx={{ cursor: 'pointer', '& > .MuiTableCell-root': { borderBottom: isExpanded ? 'none' : undefined } }}
                       >
                         <TableCell>
-                          <IconButton size="small">
+                          <IconButton size="small" aria-label={isExpanded ? 'Collapse audit details' : 'Expand audit details'}>
                             {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                           </IconButton>
                         </TableCell>

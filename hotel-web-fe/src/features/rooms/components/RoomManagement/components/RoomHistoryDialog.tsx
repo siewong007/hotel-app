@@ -65,6 +65,7 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
           <IconButton
             onClick={onClose}
             sx={{ color: 'white' }}
+            aria-label="Close room history"
           >
             <CancelIcon />
           </IconButton>

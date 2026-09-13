@@ -724,7 +724,7 @@ const EkycManagementPage: React.FC = () => {
                 {selectedSummary && <Chip size="small" color={riskColor(selectedSummary.risk_level)} label={`${labelize(selectedSummary.risk_level)} ${selectedSummary.risk_score}`} />}
               </Stack>
             </Box>
-            <IconButton onClick={() => setSelectedId(undefined)}>
+            <IconButton onClick={() => setSelectedId(undefined)} aria-label="Close details">
               <CloseIcon />
             </IconButton>
           </Stack>

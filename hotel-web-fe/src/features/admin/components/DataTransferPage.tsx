@@ -1260,7 +1260,7 @@ const DataTransferPage: React.FC = () => {
               </Typography>
             </Box>
           </Box>
-          <IconButton onClick={() => setPreviewOpen(false)} size="small">
+          <IconButton onClick={() => setPreviewOpen(false)} size="small" aria-label="Close preview">
             <CloseIcon />
           </IconButton>
         </Box>

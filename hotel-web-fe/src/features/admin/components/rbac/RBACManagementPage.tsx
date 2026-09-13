@@ -384,7 +384,7 @@ const RBACManagementPage: React.FC = () => {
         <Alert
           severity="error"
           action={
-            <IconButton color="inherit" size="small" onClick={reload}>
+            <IconButton color="inherit" size="small" onClick={reload} aria-label="Retry">
               <RefreshIcon />
             </IconButton>
           }

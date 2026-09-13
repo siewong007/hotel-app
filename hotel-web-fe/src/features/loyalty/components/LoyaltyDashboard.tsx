@@ -687,10 +687,10 @@ const LoyaltyDashboard: React.FC = () => {
                       {reward.monetary_value ? `${currencySymbol}${reward.monetary_value}` : '-'}
                     </TableCell>
                     <TableCell>
-                      <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary">
+                      <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={`Edit reward ${reward.name}`}>
                         <EditIcon />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error">
+                      <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={`Delete reward ${reward.name}`}>
                         <DeleteIcon />
                       </IconButton>
                     </TableCell>

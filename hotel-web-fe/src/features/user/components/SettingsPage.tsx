@@ -1,5 +1,5 @@
 import { errorMessage } from '../../../utils/errorMessage';
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -12,6 +12,7 @@ import {
   Divider,
   CircularProgress,
   Chip,
+  Paper,
   Stack,
   Switch,
   FormControlLabel,
@@ -278,6 +279,8 @@ const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     if (settingsQuery.data) {
+      pendingBaseline.current = true;
+      baselineArmed.current = false;
       applySettingsToForm(settingsQuery.data);
     }
   }, [settingsQuery.data]);
@@ -286,20 +289,21 @@ const SettingsPage: React.FC = () => {
     setError("");
     const result = await settingsQuery.refetch();
     if (result.data) {
+      // Arm baseline recapture here too — refetch may return a structurally
+      // identical object, in which case the data effect above never re-runs.
+      pendingBaseline.current = true;
+      baselineArmed.current = false;
       applySettingsToForm(result.data);
     }
   };
 
-  const saveSettings = async () => {
-    setError("");
-    setSuccess("");
+  // The settings object the form currently describes — one source used by
+  // both the save payload and the unsaved-changes comparison.
+  const buildSettings = (): HotelSettings => {
+    const normalizedReportBodyFontSize =
+      normalizeReportFontSize(reportFontSize);
 
-    try {
-      const normalizedReportBodyFontSize =
-        normalizeReportFontSize(reportFontSize);
-
-      // Prepare settings object
-      const settings: HotelSettings = {
+    return {
         hotel_name: hotelName,
         hotel_address: hotelAddress,
         hotel_phone: hotelPhone,
@@ -364,10 +368,36 @@ const SettingsPage: React.FC = () => {
         market_codes: marketCodes,
         booking_channels: bookingChannels,
         payment_methods: paymentMethods,
-      };
+    };
+  };
 
+  // Baseline of the last loaded/saved form — the dirty check compares the
+  // form's JSON against this. Capturing must wait one commit past the apply
+  // effect so the setters have flushed into state, hence the arm flag.
+  const pendingBaseline = useRef(false);
+  const baselineArmed = useRef(false);
+  const [baselineJson, setBaselineJson] = useState<string | null>(null);
+  useEffect(() => {
+    if (pendingBaseline.current && baselineArmed.current) {
+      pendingBaseline.current = false;
+      baselineArmed.current = false;
+      setBaselineJson(JSON.stringify(buildSettings()));
+    } else if (pendingBaseline.current) {
+      baselineArmed.current = true;
+    }
+  });
+  const isDirty =
+    baselineJson !== null && JSON.stringify(buildSettings()) !== baselineJson;
+
+  const saveSettings = async () => {
+    setError("");
+    setSuccess("");
+
+    try {
+      const settings = buildSettings();
       const result = await saveSettingsMutation.mutateAsync(settings);
       const savedSettings = result.settings;
+      setBaselineJson(JSON.stringify(settings));
 
       // Save currency to localStorage and trigger update
       setCurrentCurrency(savedSettings.currency);
@@ -1136,20 +1166,52 @@ const SettingsPage: React.FC = () => {
         paymentMethods={paymentMethods}
         onPaymentMethodsChange={setPaymentMethods}
       />
-      {/* Save Button */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
-        <Button variant="outlined" onClick={loadSettings} disabled={saving}>
-          Reset Changes
-        </Button>
-        <Button
-          variant="contained"
-          onClick={saveSettings}
-          disabled={saving}
-          startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+      {/* Sticky save bar — the dirty state was previously invisible anywhere
+          but this bottom row, which a long form scrolls far away from. */}
+      <Paper
+        elevation={8}
+        role="status"
+        aria-live="polite"
+        sx={{
+          position: 'sticky',
+          bottom: 0,
+          zIndex: 10,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 2,
+          flexWrap: 'wrap',
+          mt: 3,
+          px: 2.5,
+          py: 1.5,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+        }}
+      >
+        <Typography
+          variant="body2"
+          sx={{
+            fontWeight: isDirty ? 700 : 500,
+            color: isDirty ? 'warning.main' : 'text.secondary',
+          }}
         >
-          {saving ? "Saving..." : "Save Settings"}
-        </Button>
-      </Box>
+          {isDirty ? 'You have unsaved changes' : 'All changes saved'}
+        </Typography>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
+          <Button variant="outlined" onClick={loadSettings} disabled={saving || (isAdmin && !isDirty)}>
+            Discard changes
+          </Button>
+          <Button
+            variant="contained"
+            onClick={saveSettings}
+            disabled={saving || (isAdmin && !isDirty)}
+            startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+          >
+            {saving ? "Saving..." : "Save Settings"}
+          </Button>
+        </Box>
+      </Paper>
     </Box>
   );
 };

@@ -1459,6 +1459,7 @@ const ModernReportsPage: React.FC = () => {
                     color="primary"
                     onClick={() => handleSaveChannel(channel)}
                     disabled={savingChannelId === channel.id}
+                    aria-label={`Save channel ${channel.name ?? ''}`}
                   >
                     {savingChannelId === channel.id ? <CircularProgress size={20} /> : <SaveIcon />}
                   </IconButton>
@@ -2450,7 +2451,7 @@ const ModernReportsPage: React.FC = () => {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: 1, borderColor: 'divider' }}>
           <Typography variant="h6">Print Preview</Typography>
-          <IconButton onClick={handleClosePrintPreview} size="small">
+          <IconButton onClick={handleClosePrintPreview} size="small" aria-label="Close print preview">
             <CloseIcon />
           </IconButton>
         </Box>

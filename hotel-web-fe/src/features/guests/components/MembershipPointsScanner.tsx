@@ -126,7 +126,7 @@ const MembershipPointsScanner: React.FC<MembershipPointsScannerProps> = ({ onSuc
               <QrIcon color="primary" />
               <Typography variant="h6">Add Membership Points</Typography>
             </Box>
-            <IconButton onClick={handleClose} size="small">
+            <IconButton onClick={handleClose} size="small" aria-label="Close">
               <CloseIcon />
             </IconButton>
           </Box>

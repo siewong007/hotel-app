@@ -122,6 +122,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
                     size="small"
                     onClick={() => onSearchChange('')}
                     sx={{ p: 0.25 }}
+                    aria-label="Clear search"
                   >
                     <CloseIcon sx={{ fontSize: 14 }} />
                   </IconButton>

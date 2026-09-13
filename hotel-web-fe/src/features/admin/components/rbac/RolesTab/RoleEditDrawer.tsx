@@ -168,7 +168,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
         }}>
           {role ? `Edit Role: ${role.name}` : 'Edit Role'}
         </Typography>
-        <IconButton onClick={onClose} size="small">
+        <IconButton onClick={onClose} size="small" aria-label="Close">
           <CloseIcon />
         </IconButton>
       </Box>

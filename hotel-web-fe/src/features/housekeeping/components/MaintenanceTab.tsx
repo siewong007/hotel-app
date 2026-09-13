@@ -21,6 +21,8 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -98,6 +100,8 @@ const initialFormState: NewTicketFormState = {
 };
 
 export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<NewTicketFormState>(initialFormState);
   const ticketsQuery = useMaintenanceTickets();
@@ -166,6 +170,89 @@ export default function MaintenanceTab({ canWrite }: { canWrite: boolean }) {
             py: 8
           }}>
           <CircularProgress />
+        </Stack>
+      ) : isMobile ? (
+        <Stack spacing={1.5}>
+          {tickets.length === 0 ? (
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", py: 3, textAlign: 'center' }}
+            >
+              No maintenance tickets
+            </Typography>
+          ) : (
+            tickets.map((ticket) => (
+              <Box
+                key={ticket.id}
+                sx={{
+                  p: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  sx={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {ticket.title}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      {ticket.ticket_number}
+                      {ticket.room_number ? ` · Room ${ticket.room_number}` : ''}
+                      {' · '}{statusLabel(ticket.category)}
+                      {ticket.assigned_to_name ? ` · ${ticket.assigned_to_name}` : ''}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                    <Chip size="small" color={priorityColor(ticket.priority)} label={statusLabel(ticket.priority)} />
+                    <Chip size="small" color={ticketStatusColor(ticket.status)} label={statusLabel(ticket.status)} />
+                  </Stack>
+                </Stack>
+                {canWrite ? (
+                  <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 1.5, flexWrap: 'wrap' }}>
+                    {ticket.status === 'open' || ticket.status === 'on_hold' ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<PlayArrowIcon />}
+                        disabled={isBusy}
+                        onClick={() => updateTicket.mutate({ id: ticket.id, input: { status: 'in_progress' } })}
+                      >
+                        Start
+                      </Button>
+                    ) : null}
+                    {ticket.status === 'in_progress' ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="success"
+                        startIcon={<CheckCircleIcon />}
+                        disabled={isBusy}
+                        onClick={() => updateTicket.mutate({ id: ticket.id, input: { status: 'resolved' } })}
+                      >
+                        Resolve
+                      </Button>
+                    ) : null}
+                    {ticket.status !== 'closed' ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="inherit"
+                        startIcon={<CloseIcon />}
+                        disabled={isBusy}
+                        onClick={() => updateTicket.mutate({ id: ticket.id, input: { status: 'closed' } })}
+                      >
+                        Close
+                      </Button>
+                    ) : null}
+                  </Stack>
+                ) : null}
+              </Box>
+            ))
+          )}
         </Stack>
       ) : (
         <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>

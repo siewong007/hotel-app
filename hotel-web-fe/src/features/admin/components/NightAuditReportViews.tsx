@@ -110,7 +110,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
             onClick={() => toggleSection(section.entry_type)}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <IconButton size="small">
+              <IconButton size="small" aria-label={expandedSections.has(section.entry_type) ? 'Collapse section' : 'Expand section'}>
                 {expandedSections.has(section.entry_type) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
               </IconButton>
               <Typography variant="subtitle2" sx={{

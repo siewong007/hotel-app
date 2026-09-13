@@ -445,6 +445,7 @@ const RoomReservationTimeline: React.FC = () => {
             <IconButton
               onClick={loadData}
               size="small"
+              aria-label="Refresh timeline"
               sx={{ border: `1.5px solid ${PALETTE.ink}`, borderRadius: '4px', color: PALETTE.ink }}
             >
               <Refresh fontSize="small" />

@@ -295,7 +295,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                   <Typography variant="body2" sx={{ fontFamily: 'monospace', flexGrow: 1 }}>
                     {setupData.secret}
                   </Typography>
-                  <IconButton size="small" onClick={() => copyToClipboard(setupData.secret)}>
+                  <IconButton size="small" onClick={() => copyToClipboard(setupData.secret)} aria-label="Copy setup key">
                     <CopyIcon fontSize="small" />
                   </IconButton>
                 </Box>

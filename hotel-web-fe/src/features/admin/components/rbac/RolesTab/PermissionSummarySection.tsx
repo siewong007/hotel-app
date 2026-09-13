@@ -158,7 +158,7 @@ const PermissionSummarySection: React.FC<PermissionSummarySectionProps> = ({
                     }}
                   />
                 </Box>
-                <IconButton size="small" sx={{ p: 0 }}>
+                <IconButton size="small" sx={{ p: 0 }} aria-label={isExpanded ? 'Collapse section' : 'Expand section'}>
                   {isExpanded ? (
                     <ExpandLessIcon fontSize="small" />
                   ) : (

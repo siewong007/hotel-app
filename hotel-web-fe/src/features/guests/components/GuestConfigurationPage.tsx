@@ -899,6 +899,7 @@ const GuestConfigurationPage: React.FC = () => {
                   size="small"
                   onClick={() => handleSearchChange('')}
                   sx={{ color: GUEST_DESIGN.ink4 }}
+                  aria-label="Clear search"
                 >
                   <CloseIcon sx={{ fontSize: 16 }} />
                 </IconButton>

@@ -222,12 +222,14 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                             color="primary"
                             onClick={() => onSavePaymentDate(payment)}
                             disabled={savingPaymentDate}
+                            aria-label="Save payment date"
                           >
                             {savingPaymentDate ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
                           </IconButton>
                           <IconButton
                             size="small"
                             onClick={() => setEditingPaymentId(null)}
+                            aria-label="Cancel edit"
                           >
                             <CloseIcon fontSize="small" />
                           </IconButton>
@@ -241,6 +243,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                           <IconButton
                             size="small"
                             color="primary"
+                            aria-label="Edit payment date"
                             onClick={() => {
                               setEditingPaymentId(payment.id);
                               setEditingPaymentDate(formatDateForInput(payment.payment_date));
