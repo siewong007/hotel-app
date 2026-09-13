@@ -46,6 +46,7 @@ export const ekycConsent: LegalDocument = {
     {
       id: 'what-we-take',
       heading: { en: '1. What we ask for', ms: '1. Apa yang kami minta' },
+      emphasis: 'requirement',
       bullets: [
         {
           en: 'Your identity document type, number, issuing country, and issue and expiry dates.',
@@ -102,6 +103,7 @@ export const ekycConsent: LegalDocument = {
     {
       id: 'voluntary',
       heading: { en: '5. This is voluntary, and you can change your mind', ms: '5. Ini adalah sukarela, dan anda boleh berubah fikiran' },
+      emphasis: 'info',
       body: [
         {
           en: 'You do not have to verify your identity online. You can book, pay and stay without it, and you will not be charged more or offered less for declining. If you decline, we will simply sight your identification at reception when you arrive, as we do for every guest.',

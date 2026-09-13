@@ -58,6 +58,7 @@ export const paymentTerms: LegalDocument = {
     {
       id: 'what-you-pay',
       heading: { en: '1. What you are paying', ms: '1. Apa yang anda bayar' },
+      emphasis: 'requirement',
       body: [
         {
           en: 'The amount presented to you is the total for the booking shown: the room rate for every night of the stay, plus any taxes and levies itemised on your quote. Tourism Tax is included in that total where it applies to you.',
@@ -86,6 +87,7 @@ export const paymentTerms: LegalDocument = {
     {
       id: 'when-confirmed',
       heading: { en: '3. When your booking is confirmed', ms: '3. Bila tempahan anda disahkan' },
+      emphasis: 'requirement',
       body: [
         {
           en: 'Your booking is confirmed when we have received full payment and matched it to your reservation. Until that happens the room is held but not guaranteed, and an unpaid online booking may be released automatically once its holding period expires.',
@@ -114,6 +116,7 @@ export const paymentTerms: LegalDocument = {
     {
       id: 'bank-transfer',
       heading: { en: '5. Paying by bank transfer', ms: '5. Pembayaran melalui pindahan bank' },
+      emphasis: 'requirement',
       body: [
         {
           en: 'A bank transfer is not confirmed instantly. When you submit a bank transfer you are telling us that you have made, or will make, a transfer to the account shown. A member of our staff then checks it against our bank records and approves it. Your booking remains unconfirmed until that check is complete.',
@@ -146,6 +149,7 @@ export const paymentTerms: LegalDocument = {
     {
       id: 'problems',
       heading: { en: '7. If something goes wrong', ms: '7. Sekiranya berlaku masalah' },
+      emphasis: 'info',
       body: [
         {
           en: `If you are charged twice, charged the wrong amount, or your payment does not appear against your booking, contact us as soon as you can at ${HOTEL_LEGAL_IDENTITY.email} or ${HOTEL_LEGAL_IDENTITY.phone}. Reception operates ${HOTEL_LEGAL_IDENTITY.receptionHours}. Please have your booking number and the payment reference to hand.`,

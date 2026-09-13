@@ -93,6 +93,7 @@ export const buildTermsOfService = (
       {
         id: 'booking-confirmation',
         heading: { en: '2. How a booking is confirmed', ms: '2. Cara tempahan disahkan' },
+        emphasis: 'requirement',
         body: [
           {
             en: 'A reservation is a request until we confirm it. A booking is confirmed only after full payment has been received and matched to your reservation. Until then the room is held but not guaranteed, and the rate may change if the hold lapses.',
@@ -135,6 +136,7 @@ export const buildTermsOfService = (
       {
         id: 'cancellation',
         heading: { en: '4. Cancellation, changes and no-shows', ms: '4. Pembatalan, perubahan dan ketidakhadiran' },
+        emphasis: 'requirement',
         body: [
           {
             en: 'You can cancel a booking you have not yet paid for at any time through the guest portal, and it takes effect immediately. Online cancellation may be suspended from time to time; if it is, the portal will say so and you can contact us instead.',
@@ -211,6 +213,7 @@ export const buildTermsOfService = (
       {
         id: 'law',
         heading: { en: '8. Governing law and contact', ms: '8. Undang-undang yang mentadbir dan hubungan' },
+        emphasis: 'info',
         body: [
           {
             en: 'These terms are governed by the laws of Malaysia and are subject to the jurisdiction of the Malaysian courts.',

@@ -44,6 +44,13 @@ export interface LegalSection {
   body?: LocalizedText[];
   /** Ordered bullet points rendered after `body`. */
   bullets?: LocalizedText[];
+  /**
+   * Presentation hint: 'requirement' renders the section as a callout for
+   * obligations the guest must meet (payment, cancellation); 'info' marks
+   * helpful context. Absent = plain section. Metadata only — never changes
+   * wording, so it does not trigger a consent version bump.
+   */
+  emphasis?: 'requirement' | 'info';
 }
 
 export interface LegalDocument {

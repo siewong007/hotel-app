@@ -39,6 +39,7 @@ export const privacyNotice: LegalDocument = {
     {
       id: 'controller',
       heading: { en: '1. Who is responsible for your data', ms: '1. Pihak yang bertanggungjawab ke atas data anda' },
+      emphasis: 'info',
       body: [
         {
           en: `The data controller is ${HOTEL_LEGAL_IDENTITY.registeredName}, of ${HOTEL_ADDRESS_ONE_LINE}. Questions about this notice, and requests about your data, go to ${HOTEL_LEGAL_IDENTITY.dataProtectionContactEmail} or ${HOTEL_LEGAL_IDENTITY.phone}.`,
@@ -185,6 +186,7 @@ export const privacyNotice: LegalDocument = {
     {
       id: 'is-it-obligatory',
       heading: { en: '8. Is giving us this data obligatory?', ms: '8. Adakah pemberian data ini diwajibkan?' },
+      emphasis: 'requirement',
       body: [
         {
           en: 'Some of it is. We cannot accept a booking without a name, a contact email, and your declared guest type, because we cannot confirm the stay, reach you, or assess Tourism Tax without them. On arrival, hotel-keeping and tax rules oblige us to record the identification of the guests staying in the room. If you do not provide these, we will not be able to take the booking or complete check-in.',
@@ -217,6 +219,7 @@ export const privacyNotice: LegalDocument = {
     {
       id: 'your-rights',
       heading: { en: '10. Your rights, and how to complain', ms: '10. Hak anda, dan cara membuat aduan' },
+      emphasis: 'info',
       body: [
         {
           en: 'Under the Personal Data Protection Act 2010 you have the right to ask us for a copy of the personal data we hold about you, to have inaccurate data corrected, to limit how we process it, to withdraw consent, and — following the 2024 amendments to the Act — to ask us to transmit your data to another data controller where that is technically feasible.',
