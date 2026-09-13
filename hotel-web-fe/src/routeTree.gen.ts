@@ -38,6 +38,7 @@ import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
 import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PromotionsRouteImport } from './routes/promotions'
+import { Route as RatesRouteImport } from './routes/rates'
 import { Route as RbacRouteImport } from './routes/rbac'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
@@ -207,6 +208,11 @@ const PromotionsRoute = PromotionsRouteImport.update({
   path: '/promotions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RatesRoute = RatesRouteImport.update({
+  id: '/rates',
+  path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RbacRoute = RbacRouteImport.update({
   id: '/rbac',
   path: '/rbac',
@@ -355,6 +361,7 @@ export interface FileRoutesByFullPath {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
@@ -409,6 +416,7 @@ export interface FileRoutesByTo {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
@@ -464,6 +472,7 @@ export interface FileRoutesById {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
@@ -520,6 +529,7 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
@@ -574,6 +584,7 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
@@ -628,6 +639,7 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
@@ -683,6 +695,7 @@ export interface RootRouteChildren {
   PaymentApprovalsRoute: typeof PaymentApprovalsRoute
   ProfileRoute: typeof ProfileRoute
   PromotionsRoute: typeof PromotionsRoute
+  RatesRoute: typeof RatesRoute
   RbacRoute: typeof RbacRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
@@ -912,6 +925,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromotionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rates': {
+      id: '/rates'
+      path: '/rates'
+      fullPath: '/rates'
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rbac': {
       id: '/rbac'
       path: '/rbac'
@@ -1116,6 +1136,7 @@ const rootRouteChildren: RootRouteChildren = {
   PaymentApprovalsRoute: PaymentApprovalsRoute,
   ProfileRoute: ProfileRoute,
   PromotionsRoute: PromotionsRoute,
+  RatesRoute: RatesRoute,
   RbacRoute: RbacRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,

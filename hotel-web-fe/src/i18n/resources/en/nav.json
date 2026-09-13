@@ -15,97 +15,29 @@
     "other": "Other"
   },
   "routes": {
-    "dashboard": {
-      "label": "Overview",
-      "breadcrumb": "Overview"
-    },
-    "timeline": {
-      "label": "Timeline",
-      "breadcrumb": "Reservation Timeline"
-    },
-    "guest-config": {
-      "label": "Guests",
-      "breadcrumb": "Guest Management"
+    "audit-log": {
+      "label": "Audit Log",
+      "breadcrumb": "Audit Log"
     },
     "bookings": {
       "label": "Bookings",
       "breadcrumb": "Bookings"
     },
-    "room-management": {
-      "label": "Rooms",
-      "breadcrumb": "Room Management"
-    },
-    "online-inventory": {
-      "label": "Online Inventory",
-      "breadcrumb": "Online Inventory Control"
-    },
-    "reports": {
-      "label": "Reports",
-      "breadcrumb": "Reports"
-    },
-    "housekeeping": {
-      "label": "Housekeeping",
-      "breadcrumb": "Housekeeping"
-    },
-    "support": {
-      "label": "Support",
-      "breadcrumb": "Guest Support"
-    },
-    "profile": {
-      "label": "My Profile",
-      "breadcrumb": "My Profile"
-    },
-    "help": {
-      "label": "Help",
-      "breadcrumb": "Help & Support"
-    },
-    "room-config": {
-      "label": "Room Configuration",
-      "breadcrumb": "Room Configuration"
-    },
-    "settings": {
-      "label": "Hotel Settings",
-      "breadcrumb": "Hotel Settings"
-    },
-    "rbac": {
-      "label": "Access Control",
-      "breadcrumb": "Access Control"
+    "communications": {
+      "label": "Communications",
+      "breadcrumb": "Communications"
     },
     "company-ledger": {
       "label": "Ledger",
       "breadcrumb": "Company Ledger"
     },
-    "night-audit": {
-      "label": "Night Audit",
-      "breadcrumb": "Night Audit"
-    },
-    "payment-approvals": {
-      "label": "Payment Approvals",
-      "breadcrumb": "Payment Approvals"
-    },
-    "audit-log": {
-      "label": "Audit Log",
-      "breadcrumb": "Audit Log"
-    },
     "complimentary": {
       "label": "Complimentary Nights",
       "breadcrumb": "Complimentary Nights"
     },
-    "loyalty": {
-      "label": "Loyalty",
-      "breadcrumb": "Loyalty"
-    },
-    "promotions": {
-      "label": "Promotions",
-      "breadcrumb": "Promotions & Vouchers"
-    },
-    "communications": {
-      "label": "Communications",
-      "breadcrumb": "Communications"
-    },
-    "notifications": {
-      "label": "Notifications",
-      "breadcrumb": "Notifications"
+    "dashboard": {
+      "label": "Overview",
+      "breadcrumb": "Overview"
     },
     "data-transfer": {
       "label": "Data Transfer",
@@ -114,6 +46,78 @@
     "ekyc-admin": {
       "label": "eKYC Admin",
       "breadcrumb": "eKYC Admin"
+    },
+    "guest-config": {
+      "label": "Guests",
+      "breadcrumb": "Guest Management"
+    },
+    "help": {
+      "label": "Help",
+      "breadcrumb": "Help & Support"
+    },
+    "housekeeping": {
+      "label": "Housekeeping",
+      "breadcrumb": "Housekeeping"
+    },
+    "loyalty": {
+      "label": "Loyalty",
+      "breadcrumb": "Loyalty"
+    },
+    "night-audit": {
+      "label": "Night Audit",
+      "breadcrumb": "Night Audit"
+    },
+    "notifications": {
+      "label": "Notifications",
+      "breadcrumb": "Notifications"
+    },
+    "online-inventory": {
+      "label": "Online Inventory",
+      "breadcrumb": "Online Inventory Control"
+    },
+    "payment-approvals": {
+      "label": "Payment Approvals",
+      "breadcrumb": "Payment Approvals"
+    },
+    "profile": {
+      "label": "My Profile",
+      "breadcrumb": "My Profile"
+    },
+    "promotions": {
+      "label": "Promotions",
+      "breadcrumb": "Promotions & Vouchers"
+    },
+    "rates": {
+      "label": "Rates",
+      "breadcrumb": "Rates"
+    },
+    "rbac": {
+      "label": "Access Control",
+      "breadcrumb": "Access Control"
+    },
+    "reports": {
+      "label": "Reports",
+      "breadcrumb": "Reports"
+    },
+    "room-config": {
+      "label": "Room Configuration",
+      "breadcrumb": "Room Configuration"
+    },
+    "room-management": {
+      "label": "Rooms",
+      "breadcrumb": "Room Management"
+    },
+    "settings": {
+      "label": "Hotel Settings",
+      "breadcrumb": "Hotel Settings"
+    },
+    "support": {
+      "label": "Support",
+      "breadcrumb": "Guest Support"
+    },
+    "timeline": {
+      "label": "Timeline",
+      "breadcrumb": "Reservation Timeline"
     }
   },
   "userMenu": {
