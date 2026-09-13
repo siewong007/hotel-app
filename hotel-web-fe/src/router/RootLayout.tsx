@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { isPublicGuestPath } from '../guest/guestDocumentPaths';
 import { CrossAppRedirect } from '../guest/CrossAppRedirect';
 import { NavigationTabs } from '../components/layout/NavigationTabs';
+import { CommandPaletteProvider } from '../components/layout/CommandPalette';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
@@ -152,6 +153,7 @@ export const RootLayout: React.FC = () => {
   }
 
   return (
+    <CommandPaletteProvider>
     <Box
       className={boardSkinActive ? 'hotel-board-shell' : undefined}
       sx={{ flexGrow: 1, minHeight: '100vh', backgroundColor: 'background.default' }}
@@ -191,5 +193,6 @@ export const RootLayout: React.FC = () => {
         </PageErrorBoundary>
       </Container>
     </Box>
+    </CommandPaletteProvider>
   );
 };
