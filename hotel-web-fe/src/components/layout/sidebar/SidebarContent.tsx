@@ -35,7 +35,7 @@ interface SidebarContentProps {
  * temporary mobile drawer: brand, command-palette trigger, New booking CTA,
  * the grouped registry nav, the account card, and the rail collapse toggle.
  * `visibleItems` uses the same `canAccessNavigationRoute` memo as
- * CommandPalette/NavigationTabs so all three surfaces agree on access.
+ * CommandPalette so both surfaces agree on access.
  */
 export const SidebarContent: React.FC<SidebarContentProps> = ({
   collapsed,

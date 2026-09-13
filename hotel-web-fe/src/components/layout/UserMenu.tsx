@@ -30,7 +30,7 @@ interface UserMenuProps {
 
 /**
  * Account menu: profile, hotel settings (staff only), help, sign out.
- * Extracted from NavigationTabs' user pill — the trigger is a real <button>
+ * Extracted from the old top-navigation user pill — the trigger is a real <button>
  * so it is keyboard-focusable, which the div-onClick original was not.
  */
 export const UserMenu: React.FC<UserMenuProps> = ({ variant = 'avatar' }) => {

@@ -30,7 +30,7 @@ export const useCommandPalette = () => {
   return ctx;
 };
 
-// Owns the ⌘K command palette previously embedded in NavigationTabs: state,
+// Owns the ⌘K command palette previously embedded in the top navigation: state,
 // recents, federated search and the Popover itself. Mounted once in RootLayout
 // (inside the staff shell) so any trigger can open it via useCommandPalette().
 export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
