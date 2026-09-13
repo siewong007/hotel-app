@@ -1,9 +1,10 @@
-import { alpha, type Theme } from '@mui/material/styles';
+import type { Theme } from '@mui/material/styles';
 
 /**
  * Design tokens for the New Booking modal's single-screen layout.
- * Derived from the active MUI theme so the modal tracks light/dark mode.
- * Shared by UnifiedBookingModal and its extracted section components.
+ * `var(--hotel-*)` references resolve through the active theme mode, so the
+ * modal tracks light/dark automatically. Shared by UnifiedBookingModal and
+ * its extracted section components.
  */
 export interface BookingTokens {
   bg: string;
@@ -28,34 +29,29 @@ export interface BookingTokens {
   orangeSoft: string;
 }
 
-export function buildBookingTokens(theme: Theme): BookingTokens {
-  const isDark = theme.palette.mode === 'dark';
-  const primary = theme.palette.primary.main;
-  const secondary = theme.palette.secondary.main;
-  const info = theme.palette.info.main;
-  const warning = theme.palette.warning.main;
-  const success = theme.palette.success.main;
-
+// The `theme` argument is kept for call-site compatibility; every value is a
+// CSS variable that already follows the active mode.
+export function buildBookingTokens(_theme: Theme): BookingTokens {
   return {
-    bg: theme.palette.background.default,
-    surface: theme.palette.background.paper,
-    surface2: isDark ? 'var(--hotel-popup-muted-bg)' : '#F8FAFB',
-    surface3: isDark ? 'var(--hotel-subtle-bg)' : '#EFF2F5',
-    border: isDark ? 'var(--hotel-popup-border)' : '#E2E6EC',
-    borderHi: isDark ? theme.palette.grey[400] : '#CBD2DA',
-    ink: theme.palette.text.primary,
-    ink2: theme.palette.text.secondary,
-    ink3: isDark ? theme.palette.grey[500] : '#7B8794',
-    emerald: primary,
-    emeraldDeep: theme.palette.primary.dark,
-    emeraldSoft: alpha(primary, isDark ? 0.18 : 0.12),
-    blue: info,
-    blueSoft: alpha(info, isDark ? 0.18 : 0.10),
-    green: success,
-    amber: warning,
-    purple: secondary,
-    purpleSoft: alpha(secondary, isDark ? 0.18 : 0.12),
-    orange: isDark ? '#fb9a73' : '#D97757',
-    orangeSoft: alpha(isDark ? '#fb9a73' : '#D97757', isDark ? 0.18 : 0.12),
+    bg: 'var(--hotel-bg)',
+    surface: 'var(--hotel-surface)',
+    surface2: 'var(--hotel-surface-raised)',
+    surface3: 'var(--hotel-surface-sunken)',
+    border: 'var(--hotel-border)',
+    borderHi: 'var(--hotel-border-strong)',
+    ink: 'var(--hotel-text)',
+    ink2: 'var(--hotel-text-secondary)',
+    ink3: 'var(--hotel-text-muted)',
+    emerald: 'var(--hotel-primary)',
+    emeraldDeep: 'var(--hotel-primary-hover)',
+    emeraldSoft: 'var(--hotel-primary-subtle)',
+    blue: 'var(--hotel-info)',
+    blueSoft: 'var(--hotel-info-bg)',
+    green: 'var(--hotel-success)',
+    amber: 'var(--hotel-warning)',
+    purple: 'var(--hotel-chart-4)',
+    purpleSoft: 'color-mix(in srgb, var(--hotel-chart-4) 16%, transparent)',
+    orange: 'var(--hotel-warning)',
+    orangeSoft: 'var(--hotel-warning-bg)',
   };
 }

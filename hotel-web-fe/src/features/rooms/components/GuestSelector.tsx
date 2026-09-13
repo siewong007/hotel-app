@@ -375,7 +375,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               >
                 <MenuItem value="local">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip label={TOURISM_TYPE_CONFIG.local.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
+                    <Chip label={TOURISM_TYPE_CONFIG.local.label} size="small" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', border: '1px solid var(--hotel-info-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
@@ -383,7 +383,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 </MenuItem>
                 <MenuItem value="foreign">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip label={TOURISM_TYPE_CONFIG.foreign.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
+                    <Chip label={TOURISM_TYPE_CONFIG.foreign.label} size="small" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', border: '1px solid var(--hotel-warning-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
@@ -413,7 +413,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               >
                 <MenuItem value="non_member">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Chip label={GUEST_TYPE_CONFIG.non_member.label} size="small" sx={{ bgcolor: GUEST_TYPE_CONFIG.non_member.color, color: 'white' }} />
+                    <Chip label={GUEST_TYPE_CONFIG.non_member.label} size="small" sx={{ bgcolor: 'var(--hotel-neutral-bg)', color: 'var(--hotel-neutral)', border: '1px solid var(--hotel-neutral-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>{GUEST_TYPE_CONFIG.non_member.discountLabel}</Typography>
@@ -422,7 +422,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 <MenuItem value="member">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <MemberIcon sx={{ color: GUEST_TYPE_CONFIG.member.color, fontSize: 18 }} />
-                    <Chip label={GUEST_TYPE_CONFIG.member.label} size="small" sx={{ bgcolor: GUEST_TYPE_CONFIG.member.color, color: 'white' }} />
+                    <Chip label={GUEST_TYPE_CONFIG.member.label} size="small" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', border: '1px solid var(--hotel-success-border)' }} />
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
                     }}>{GUEST_TYPE_CONFIG.member.discountLabel}</Typography>

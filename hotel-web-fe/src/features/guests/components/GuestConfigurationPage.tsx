@@ -846,11 +846,11 @@ const GuestConfigurationPage: React.FC = () => {
               py: 1.1,
               borderRadius: 1.5,
               bgcolor: GUEST_DESIGN.green700,
-              color: '#fff',
+              color: 'var(--hotel-on-primary)',
               fontSize: 13,
               fontWeight: 700,
               textTransform: 'none',
-              boxShadow: '0 4px 14px -8px rgba(31,129,99,0.5)',
+              boxShadow: 'var(--hotel-shadow-sm)',
               '&:hover': { bgcolor: GUEST_DESIGN.green600 },
             }}
           >
@@ -926,16 +926,16 @@ const GuestConfigurationPage: React.FC = () => {
                     fontSize: 12.5,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    border: active ? `1px solid ${GUEST_DESIGN.ink}` : `1px solid ${GUEST_DESIGN.rule}`,
-                    bgcolor: active ? GUEST_DESIGN.ink : 'background.paper',
-                    color: active ? '#fff' : GUEST_DESIGN.ink2,
+                    border: active ? '1px solid var(--hotel-primary)' : `1px solid ${GUEST_DESIGN.rule}`,
+                    bgcolor: active ? 'var(--hotel-primary)' : 'background.paper',
+                    color: active ? 'var(--hotel-on-primary)' : GUEST_DESIGN.ink2,
                     fontFamily: 'inherit',
                     transition: 'background-color 120ms',
-                    '&:hover': { bgcolor: active ? GUEST_DESIGN.ink : GUEST_DESIGN.paper2 },
+                    '&:hover': { bgcolor: active ? 'var(--hotel-primary-hover)' : GUEST_DESIGN.paper2 },
                   }}
                 >
                   {f.icon && (
-                    <Box sx={{ display: 'inline-flex', color: active ? '#fff' : (f.tone || GUEST_DESIGN.ink3) }}>
+                    <Box sx={{ display: 'inline-flex', color: active ? 'var(--hotel-on-primary)' : (f.tone || GUEST_DESIGN.ink3) }}>
                       {f.icon}
                     </Box>
                   )}
@@ -950,8 +950,8 @@ const GuestConfigurationPage: React.FC = () => {
                       borderRadius: 999,
                       minWidth: 18,
                       textAlign: 'center',
-                      bgcolor: active ? 'rgba(255,255,255,0.18)' : (f.tone ? alpha(f.tone, 0.12) : GUEST_DESIGN.paper3),
-                      color: active ? '#fff' : (f.tone || GUEST_DESIGN.ink3),
+                      bgcolor: active ? 'color-mix(in srgb, var(--hotel-on-primary) 18%, transparent)' : (f.tone ? `color-mix(in srgb, ${f.tone} 12%, transparent)` : GUEST_DESIGN.paper3),
+                      color: active ? 'var(--hotel-on-primary)' : (f.tone || GUEST_DESIGN.ink3),
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >
@@ -1052,7 +1052,7 @@ const GuestConfigurationPage: React.FC = () => {
                           placeItems: 'center',
                           fontWeight: 700,
                           fontSize: 13,
-                          border: '1px solid rgba(0,0,0,0.05)',
+                          border: '1px solid var(--hotel-border-subtle)',
                         }}>
                           {initialsOf(g.nick_name)}
                         </Box>
@@ -1199,7 +1199,7 @@ const GuestConfigurationPage: React.FC = () => {
                 showLastButton
                 sx={{
                   '& .MuiPaginationItem-root': { fontSize: 12, fontWeight: 600 },
-                  '& .Mui-selected': { bgcolor: `${GUEST_DESIGN.green700} !important`, color: '#fff' },
+                  '& .Mui-selected': { bgcolor: `${GUEST_DESIGN.green700} !important`, color: 'var(--hotel-on-primary)' },
                 }}
               />
             </Box>
@@ -1400,11 +1400,11 @@ const GuestConfigurationPage: React.FC = () => {
                         py: 1.5,
                         borderRadius: 1.25,
                         bgcolor: GUEST_DESIGN.green700,
-                        color: '#fff',
+                        color: 'var(--hotel-on-primary)',
                         fontWeight: 700,
                         fontSize: 13.5,
                         textTransform: 'none',
-                        boxShadow: '0 4px 14px -8px rgba(31,129,99,0.5)',
+                        boxShadow: 'var(--hotel-shadow-sm)',
                         '&:hover': { bgcolor: GUEST_DESIGN.green600 },
                       }}
                     >

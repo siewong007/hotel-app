@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, alpha } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { RoomStatusType, getStatusConfig } from '../../config';
 
 interface RoomStatusBadgeProps {
@@ -43,15 +43,15 @@ const RoomStatusBadge: React.FC<RoomStatusBadgeProps> = ({
       case 'outlined':
         return {
           backgroundColor: 'transparent',
-          color: config.bgColor,
-          border: `2px solid ${config.bgColor}`,
+          color: config.textColor,
+          border: `1px solid ${config.borderColor}`,
         };
       case 'soft':
       default:
         return {
-          backgroundColor: alpha(config.bgColor, 0.15),
-          color: config.bgColor,
-          border: `1px solid ${alpha(config.bgColor, 0.3)}`,
+          backgroundColor: config.bgColor,
+          color: config.textColor,
+          border: `1px solid ${config.borderColor}`,
         };
     }
   };

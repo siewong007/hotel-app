@@ -145,7 +145,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                     '&:hover': {
                       backgroundColor: 'action.hover',
                       transform: 'translateX(4px)',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                      boxShadow: 'var(--hotel-shadow-sm)',
                     },
                   }}
                 >
@@ -181,7 +181,7 @@ const PasskeysTab: React.FC<PasskeysTabProps> = ({
                             size="small"
                             sx={{
                               background: deviceConfig.gradient,
-                              color: 'white',
+                              color: deviceConfig.color,
                               fontWeight: 500,
                               fontSize: '0.7rem',
                               height: 20,

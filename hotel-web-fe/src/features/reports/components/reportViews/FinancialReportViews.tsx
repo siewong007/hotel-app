@@ -51,7 +51,7 @@ export function GeneralJournalReport({ reportData, hotelSettings, currencySymbol
       </Box>
       {reportData.sections.map((section: GeneralJournalSection, idx: number) => (
         <Box key={idx} sx={{ mb: 3 }}>
-          <Typography variant="h6" sx={{ bgcolor: 'grey.200', p: 1 }}>{section.name}</Typography>
+          <Typography variant="h6" sx={{ bgcolor: 'var(--hotel-surface-sunken)', p: 1 }}>{section.name}</Typography>
           <TableContainer>
             <Table size="small">
               <TableHead>
@@ -79,7 +79,7 @@ export function GeneralJournalReport({ reportData, hotelSettings, currencySymbol
                     </TableCell>
                   </TableRow>
                 ))}
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell colSpan={3}><strong>Total</strong></TableCell>
                   <TableCell align="right"><strong>{currencySymbol}{Number(section.total_debit || 0).toFixed(2)}</strong></TableCell>
                   <TableCell align="right"><strong>{currencySymbol}{Number(section.total_credit || 0).toFixed(2)}</strong></TableCell>
@@ -144,12 +144,12 @@ export function CompanyLedgerStatementReport({ reportData, hotelSettings, curren
       <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'primary.main' }}>
-              <TableCell sx={{ color: 'white' }} align="center">Current</TableCell>
-              <TableCell sx={{ color: 'white' }} align="center">31-60 Days</TableCell>
-              <TableCell sx={{ color: 'white' }} align="center">61-90 Days</TableCell>
-              <TableCell sx={{ color: 'white' }} align="center">91-120 Days</TableCell>
-              <TableCell sx={{ color: 'white' }} align="center">Over 120 Days</TableCell>
+            <TableRow sx={{ bgcolor: 'var(--hotel-primary-subtle)' }}>
+              <TableCell sx={{ color: 'var(--hotel-primary-text)' }} align="center">Current</TableCell>
+              <TableCell sx={{ color: 'var(--hotel-primary-text)' }} align="center">31-60 Days</TableCell>
+              <TableCell sx={{ color: 'var(--hotel-primary-text)' }} align="center">61-90 Days</TableCell>
+              <TableCell sx={{ color: 'var(--hotel-primary-text)' }} align="center">91-120 Days</TableCell>
+              <TableCell sx={{ color: 'var(--hotel-primary-text)' }} align="center">Over 120 Days</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -167,7 +167,7 @@ export function CompanyLedgerStatementReport({ reportData, hotelSettings, curren
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Date</TableCell>
               <TableCell>Check-in</TableCell>
               <TableCell>Check-out</TableCell>
@@ -191,7 +191,7 @@ export function CompanyLedgerStatementReport({ reportData, hotelSettings, curren
                 <TableCell align="right">{currencySymbol}{Number(txn.open_amount || 0).toFixed(2)}</TableCell>
               </TableRow>
             ))}
-            <TableRow sx={{ bgcolor: 'grey.200' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell colSpan={5}><strong>Total</strong></TableCell>
               <TableCell align="right"><strong>{currencySymbol}{Number(totals?.original_amount || 0).toFixed(2)}</strong></TableCell>
               <TableCell align="right"><strong>{currencySymbol}{Number(totals?.payments_received || 0).toFixed(2)}</strong></TableCell>
@@ -219,7 +219,7 @@ export function BalanceSheetReport({ reportData, hotelSettings, currencySymbol, 
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Account</strong></TableCell>
               <TableCell align="right"><strong>Debit</strong></TableCell>
               <TableCell align="right"><strong>Credit</strong></TableCell>
@@ -289,7 +289,7 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-info-bg)' }}>
             <Typography variant="h3" sx={{
               color: "primary.main"
             }}>{summary?.total_bookings || 0}</Typography>
@@ -297,7 +297,7 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-success-bg)' }}>
             <Typography variant="h4" sx={{
               color: "success.main"
             }}>
@@ -307,7 +307,7 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-warning-bg)' }}>
             <Typography variant="h4" sx={{
               color: "warning.main"
             }}>
@@ -317,7 +317,7 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-primary-subtle)' }}>
             <Typography variant="h4" sx={{
               color: "secondary.main"
             }}>
@@ -330,13 +330,13 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
       {/* Payment Method Summary */}
       {by_payment_method && by_payment_method.length > 0 && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" sx={{ bgcolor: 'info.main', color: 'white', p: 1, mb: 1 }}>
+          <Typography variant="h6" sx={{ bgcolor: 'var(--hotel-info-bg)', color: 'var(--hotel-info)', p: 1, mb: 1 }}>
             Summary by Payment Method
           </Typography>
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell><strong>Payment Method</strong></TableCell>
                   <TableCell align="center"><strong>Count</strong></TableCell>
                   <TableCell align="right"><strong>Amount</strong></TableCell>
@@ -356,13 +356,13 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
         </Box>
       )}
       {/* Detailed Payment Records */}
-      <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1, mb: 1 }}>
+      <Typography variant="h6" sx={{ bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', p: 1, mb: 1 }}>
         Payment Records ({payments?.length || 0})
       </Typography>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Date</strong></TableCell>
               <TableCell><strong>Booking #</strong></TableCell>
               <TableCell><strong>Guest</strong></TableCell>
@@ -376,7 +376,7 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
           </TableHead>
           <TableBody>
             {payments && payments.length > 0 ? payments.map((p: ShiftReportPayment, idx: number) => (
-              <TableRow key={idx} sx={{ '&:nth-of-type(odd)': { bgcolor: 'grey.50' } }}>
+              <TableRow key={idx} sx={{ '&:nth-of-type(odd)': { bgcolor: 'var(--hotel-surface-sunken)' } }}>
                 <TableCell>{p.date}</TableCell>
                 <TableCell>{p.booking_number}</TableCell>
                 <TableCell>{p.guest_name}</TableCell>
@@ -418,7 +418,7 @@ export function ShiftReportView({ reportData, hotelSettings, currencySymbol, sta
             )}
             {/* Totals Row */}
             {payments && payments.length > 0 && (
-              <TableRow sx={{ bgcolor: 'grey.200' }}>
+              <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                 <TableCell colSpan={7}><strong>TOTAL</strong></TableCell>
                 <TableCell align="right">
                   <strong>{currencySymbol}{Number(summary?.total_revenue || 0).toFixed(2)}</strong>
@@ -462,7 +462,7 @@ export function RoomsSoldReport({ reportData, hotelSettings, currencySymbol, sta
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Folio</TableCell>
               <TableCell>Room</TableCell>
               <TableCell>Room Type</TableCell>

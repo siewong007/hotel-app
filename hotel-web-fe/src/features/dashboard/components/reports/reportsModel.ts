@@ -110,7 +110,7 @@ const SOURCES: SourceSlice[] = [
   { label: 'Booking.com', value: 70760, bookings: 108, color: 'var(--blue)' },
   { label: 'Agoda', value: 50120, bookings: 84, color: 'var(--indigo)' },
   { label: 'Corporate', value: 41280, bookings: 38, color: 'var(--amber)' },
-  { label: 'Walk-in', value: 26540, bookings: 61, color: '#5BB6A0' },
+  { label: 'Walk-in', value: 26540, bookings: 61, color: 'var(--hotel-chart-3)' },
   { label: 'Expedia', value: 14740, bookings: 22, color: 'var(--rose)' },
 ];
 
@@ -118,7 +118,7 @@ const AGEING: AgeingBucket[] = [
   { bucket: 'Current', value: 21300, color: 'var(--emerald)' },
   { bucket: '1–30 days', value: 14800, color: 'var(--blue)' },
   { bucket: '31–60 days', value: 9200, color: 'var(--amber)' },
-  { bucket: '61–90 days', value: 4600, color: '#E08A2B' },
+  { bucket: '61–90 days', value: 4600, color: 'var(--hotel-warning)' },
   { bucket: '90+ days', value: 2240, color: 'var(--rose)' },
 ];
 
@@ -211,7 +211,7 @@ function buildModel(
   const revenueStates: RevenueState[] = [
     { label: 'Booked', desc: 'Confirmed future bookings', value: 86400, color: 'var(--blue)' },
     { label: 'Earned', desc: 'Completed room nights', value: roomRev, color: 'var(--emerald)' },
-    { label: 'Collected', desc: 'Payments received', value: Math.max(roomRev - 41200, 0), color: '#5BB6A0' },
+    { label: 'Collected', desc: 'Payments received', value: Math.max(roomRev - 41200, 0), color: 'var(--hotel-chart-3)' },
     { label: 'Outstanding', desc: 'Unpaid invoices', value: outstanding, color: 'var(--amber)' },
   ];
 

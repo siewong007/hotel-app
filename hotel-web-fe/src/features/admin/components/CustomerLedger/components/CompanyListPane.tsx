@@ -152,7 +152,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
                       px: 0.6,
                       py: 0.05,
                       borderRadius: '999px',
-                      bgcolor: filter === f.key ? 'rgba(255,255,255,0.25)' : 'action.selected',
+                      bgcolor: filter === f.key ? 'color-mix(in srgb, var(--hotel-bg) 30%, transparent)' : 'action.selected',
                     }}
                   >
                     {f.count}

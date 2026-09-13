@@ -62,27 +62,28 @@ import {
   useUpdateRoomType,
 } from '../hooks/useRoomQueries';
 
-/* ---------- Design tokens (Salim Inn · Room Configuration) ---------- */
+/* ---------- Design tokens (Room Configuration) — aliases onto --hotel-* ---------- */
 const C = {
-  surface: '#FFFFFF',
-  surface2: '#F8FAFB',
-  surface3: '#EFF2F5',
-  border: '#E2E6EC',
-  borderHi: '#CBD2DA',
-  ink: '#0F172A',
-  ink2: '#475569',
-  ink3: '#7B8794',
-  emerald: '#10A47C',
-  emeraldDeep: '#0E8C6A',
-  emeraldDarker: '#0B6A50',
-  emeraldSoft: '#E7F5EF',
-  blue: '#2F7DE1',
-  blueSoft: '#E8F1FB',
-  amber: '#C8941D',
-  amberSoft: '#FBF1DC',
-  rose: '#D14256',
-  roseSoft: '#FCE8EC',
-  slateSoft: '#F0F3F7',
+  surface: 'var(--hotel-surface)',
+  surface2: 'var(--hotel-surface-raised)',
+  surface3: 'var(--hotel-surface-sunken)',
+  border: 'var(--hotel-border)',
+  borderHi: 'var(--hotel-border-strong)',
+  ink: 'var(--hotel-text)',
+  ink2: 'var(--hotel-text-secondary)',
+  ink3: 'var(--hotel-text-muted)',
+  emerald: 'var(--hotel-primary)',
+  emeraldDeep: 'var(--hotel-primary-hover)',
+  emeraldDarker: 'var(--hotel-primary-active)',
+  emeraldSoft: 'var(--hotel-primary-subtle)',
+  blue: 'var(--hotel-info)',
+  blueSoft: 'var(--hotel-info-bg)',
+  amber: 'var(--hotel-warning)',
+  amberSoft: 'var(--hotel-warning-bg)',
+  amberBorder: 'var(--hotel-warning-border)',
+  rose: 'var(--hotel-danger)',
+  roseSoft: 'var(--hotel-danger-bg)',
+  slateSoft: 'var(--hotel-neutral-bg)',
 };
 
 const BED_TYPES = ['Single', 'Twin', 'Double', 'Queen', 'King', 'Super King', 'Bunk'];
@@ -588,7 +589,7 @@ const RoomConfigurationPage: React.FC = () => {
         alignItems: 'center',
         gap: 0.75,
         bgcolor: active ? C.ink : C.surface,
-        color: active ? '#fff' : C.ink2,
+        color: active ? 'var(--hotel-bg)' : C.ink2,
         border: `1px solid ${active ? C.ink : C.border}`,
         borderRadius: 999,
         px: 1.5,
@@ -603,8 +604,8 @@ const RoomConfigurationPage: React.FC = () => {
       <Box
         component="span"
         sx={{
-          bgcolor: active ? 'rgba(255,255,255,0.22)' : C.surface3,
-          color: active ? '#fff' : C.ink3,
+          bgcolor: active ? 'color-mix(in srgb, var(--hotel-bg) 20%, transparent)' : C.surface3,
+          color: active ? 'var(--hotel-bg)' : C.ink3,
           px: 0.75,
           borderRadius: 999,
           fontSize: 10.5,
@@ -625,7 +626,7 @@ const RoomConfigurationPage: React.FC = () => {
       <Box
         sx={{
           position: 'relative',
-          bgcolor: '#fff',
+          bgcolor: C.surface,
           border: `1px solid ${C.border}`,
           borderRadius: '11px',
           p: '12px 14px',
@@ -636,7 +637,7 @@ const RoomConfigurationPage: React.FC = () => {
           transition: 'border-color 120ms, box-shadow 120ms, transform 120ms',
           '&:hover': {
             borderColor: C.borderHi,
-            boxShadow: '0 2px 6px rgba(15,23,42,0.05)',
+            boxShadow: 'var(--hotel-shadow-sm)',
             transform: 'translateY(-1px)',
           },
           '&:hover .rc-actions': { display: 'flex' },
@@ -658,7 +659,7 @@ const RoomConfigurationPage: React.FC = () => {
               <IconButton
                 size="small"
                 onClick={() => handleToggleRoomStatus(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: '#fff' }}
+                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
               >
                 <ActiveIcon sx={{ fontSize: 13, color: statusColor[st] }} />
               </IconButton>
@@ -667,7 +668,7 @@ const RoomConfigurationPage: React.FC = () => {
               <IconButton
                 size="small"
                 onClick={() => openEditRoom(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: '#fff' }}
+                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
               >
                 <EditIcon sx={{ fontSize: 13, color: C.ink3 }} />
               </IconButton>
@@ -676,7 +677,7 @@ const RoomConfigurationPage: React.FC = () => {
               <IconButton
                 size="small"
                 onClick={() => setDeletingRoom(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: '#fff' }}
+                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
               >
                 <DeleteIcon sx={{ fontSize: 13, color: C.rose }} />
               </IconButton>
@@ -698,8 +699,8 @@ const RoomConfigurationPage: React.FC = () => {
               height: 10,
               borderRadius: '50%',
               bgcolor: statusColor[st],
-              border: '2px solid #fff',
-              boxShadow: `0 0 0 1px ${statusColor[st]}99`,
+              border: '2px solid var(--hotel-surface)',
+              boxShadow: `0 0 0 1px color-mix(in srgb, ${statusColor[st]} 60%, transparent)`,
             }}
             title={st}
           />
@@ -718,9 +719,9 @@ const RoomConfigurationPage: React.FC = () => {
                   justifyContent: 'center',
                   width: 24,
                   height: 20,
-                  color: '#8A5A16',
-                  bgcolor: '#FFF4D7',
-                  border: '1px solid #F2D28B',
+                  color: C.amber,
+                  bgcolor: C.amberSoft,
+                  border: `1px solid ${C.amberBorder}`,
                   borderRadius: '6px',
                 }}
               >
@@ -737,7 +738,7 @@ const RoomConfigurationPage: React.FC = () => {
             <Chip
               label="Custom"
               size="small"
-              sx={{ height: 18, fontSize: 9.5, fontWeight: 700, bgcolor: '#FDF1E0', color: C.amber }}
+              sx={{ height: 18, fontSize: 9.5, fontWeight: 700, bgcolor: C.amberSoft, color: C.amber }}
             />
           )}
         </Box>
@@ -816,7 +817,7 @@ const RoomConfigurationPage: React.FC = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search room number, type or floor…"
-          sx={{ minWidth: 280, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+          sx={{ minWidth: 280, bgcolor: C.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
           slotProps={{
             input: {
               startAdornment: (
@@ -840,9 +841,9 @@ const RoomConfigurationPage: React.FC = () => {
           value={groupBy}
           onChange={(_, v) => v && setGroupBy(v)}
           sx={{
-            bgcolor: '#fff',
+            bgcolor: C.surface,
             '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, fontSize: 12, px: 1.5, gap: 0.75 },
-            '& .Mui-selected': { bgcolor: `${C.ink} !important`, color: '#fff !important' },
+            '& .Mui-selected': { bgcolor: `${C.ink} !important`, color: 'var(--hotel-bg) !important' },
           }}
         >
           <ToggleButton value="type">
@@ -860,7 +861,7 @@ const RoomConfigurationPage: React.FC = () => {
             p: 4,
             textAlign: 'center',
             color: C.ink3,
-            bgcolor: '#fff',
+            bgcolor: C.surface,
             border: `1.5px dashed ${C.borderHi}`,
             borderRadius: '11px',
           }}
@@ -921,7 +922,7 @@ const RoomConfigurationPage: React.FC = () => {
                     display: 'grid',
                     placeItems: 'center',
                     flexShrink: 0,
-                    border: `1px solid ${C.emerald}29`,
+                    border: `1px solid color-mix(in srgb, ${C.emerald} 16%, transparent)`,
                   }}
                 >
                   {isType ? <BedIcon /> : <BuildingIcon />}
@@ -949,7 +950,7 @@ const RoomConfigurationPage: React.FC = () => {
                           alignItems: 'baseline',
                           gap: 0.5,
                           bgcolor: C.emeraldSoft,
-                          border: `1px solid ${C.emerald}33`,
+                          border: `1px solid color-mix(in srgb, ${C.emerald} 20%, transparent)`,
                           color: C.emeraldDarker,
                           px: 1.125,
                           py: 0.5,
@@ -1049,7 +1050,7 @@ const RoomConfigurationPage: React.FC = () => {
             <Collapse in={open} unmountOnExit>
               <Box sx={{ p: '16px 18px 18px', bgcolor: C.surface2 }}>
                 {total === 0 && !isType && (
-                  <Box sx={{ p: 3, textAlign: 'center', color: C.ink3, bgcolor: '#fff', border: `1.5px dashed ${C.borderHi}`, borderRadius: '11px' }}>
+                  <Box sx={{ p: 3, textAlign: 'center', color: C.ink3, bgcolor: C.surface, border: `1.5px dashed ${C.borderHi}`, borderRadius: '11px' }}>
                     No rooms in this {g.kind === 'floor' ? 'floor' : 'group'} yet.
                   </Box>
                 )}
@@ -1126,7 +1127,7 @@ const RoomConfigurationPage: React.FC = () => {
               Preview
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ width: 38, height: 38, borderRadius: '9px', bgcolor: C.emeraldSoft, color: C.emeraldDeep, display: 'grid', placeItems: 'center', border: `1px solid ${C.emerald}2E` }}>
+              <Box sx={{ width: 38, height: 38, borderRadius: '9px', bgcolor: C.emeraldSoft, color: C.emeraldDeep, display: 'grid', placeItems: 'center', border: `1px solid color-mix(in srgb, ${C.emerald} 18%, transparent)` }}>
                 <BedIcon sx={{ fontSize: 18 }} />
               </Box>
               <Box sx={{ minWidth: 0, flex: 1 }}>

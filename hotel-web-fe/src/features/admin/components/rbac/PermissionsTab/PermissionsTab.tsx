@@ -8,7 +8,6 @@ import {
   Paper,
   Stack,
   Chip,
-  alpha,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -149,7 +148,7 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
                 label={role.name}
                 size="small"
                 sx={{
-                  backgroundColor: alpha(getRoleColor(role.name), 0.1),
+                  backgroundColor: `color-mix(in srgb, ${getRoleColor(role.name)} 10%, transparent)`,
                   color: getRoleColor(role.name),
                   fontWeight: 500,
                   fontSize: '0.75rem',

@@ -48,7 +48,7 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-success-bg)' }}>
             <Typography variant="h3" sx={{
               color: "success.main"
             }}>{reportData.arrivals_count || 0}</Typography>
@@ -56,7 +56,7 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-warning-bg)' }}>
             <Typography variant="h3" sx={{
               color: "warning.main"
             }}>{reportData.departures_count || 0}</Typography>
@@ -64,7 +64,7 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-info-bg)' }}>
             <Typography variant="h3" sx={{
               color: "primary.main"
             }}>{reportData.in_house_count || 0}</Typography>
@@ -72,7 +72,7 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
           </Paper>
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+          <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-primary-subtle)' }}>
             <Typography variant="h3" sx={{
               color: "secondary.main"
             }}>{reportData.occupancy_rate?.toFixed(1) || 0}%</Typography>
@@ -81,13 +81,13 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
         </Grid>
       </Grid>
       {/* Arrivals */}
-      <Typography variant="h6" sx={{ bgcolor: 'success.main', color: 'white', p: 1, mb: 1 }}>
+      <Typography variant="h6" sx={{ bgcolor: 'var(--hotel-success-bg)', color: 'var(--hotel-success)', p: 1, mb: 1 }}>
         Today's Arrivals ({reportData.arrivals?.length || 0})
       </Typography>
       <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Booking #</TableCell>
               <TableCell>Guest Name</TableCell>
               <TableCell>Room</TableCell>
@@ -112,13 +112,13 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
         </Table>
       </TableContainer>
       {/* Departures */}
-      <Typography variant="h6" sx={{ bgcolor: 'warning.main', color: 'white', p: 1, mb: 1 }}>
+      <Typography variant="h6" sx={{ bgcolor: 'var(--hotel-warning-bg)', color: 'var(--hotel-warning)', p: 1, mb: 1 }}>
         Today's Departures ({reportData.departures?.length || 0})
       </Typography>
       <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Booking #</TableCell>
               <TableCell>Guest Name</TableCell>
               <TableCell>Room</TableCell>
@@ -143,13 +143,13 @@ export function DailyOperationsReport({ reportData, hotelSettings, currencySymbo
         </Table>
       </TableContainer>
       {/* In-House */}
-      <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1, mb: 1 }}>
+      <Typography variant="h6" sx={{ bgcolor: 'var(--hotel-primary-subtle)', color: 'var(--hotel-primary-text)', p: 1, mb: 1 }}>
         In-House Guests ({reportData.in_house?.length || 0})
       </Typography>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Booking #</TableCell>
               <TableCell>Guest Name</TableCell>
               <TableCell>Room</TableCell>
@@ -246,7 +246,7 @@ export function OccupancyReport({ reportData, hotelSettings, currencySymbol, sta
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Room Type</TableCell>
               <TableCell align="right">Bookings</TableCell>
               <TableCell align="right">Revenue</TableCell>
@@ -283,7 +283,7 @@ export function RevenueReport({ reportData, hotelSettings, currencySymbol, start
           {reportData.period?.start} to {reportData.period?.end}
         </Typography>
       </Box>
-      <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+      <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: 'var(--hotel-success-bg)' }}>
         <Typography variant="h3" sx={{
           color: "success.main"
         }}>
@@ -298,7 +298,7 @@ export function RevenueReport({ reportData, hotelSettings, currencySymbol, start
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell>Type</TableCell>
                   <TableCell align="right">Revenue</TableCell>
                 </TableRow>
@@ -321,7 +321,7 @@ export function RevenueReport({ reportData, hotelSettings, currencySymbol, start
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell>Source</TableCell>
                   <TableCell align="right">Revenue</TableCell>
                 </TableRow>
@@ -344,7 +344,7 @@ export function RevenueReport({ reportData, hotelSettings, currencySymbol, start
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell>Status</TableCell>
                   <TableCell align="right">Revenue</TableCell>
                 </TableRow>
@@ -388,7 +388,7 @@ export function RoomPerformanceReport({ reportData, hotelSettings, currencySymbo
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell>Room Type</TableCell>
                   <TableCell align="right">Rooms</TableCell>
                   <TableCell align="right">Bookings</TableCell>
@@ -417,7 +417,7 @@ export function RoomPerformanceReport({ reportData, hotelSettings, currencySymbo
           <TableContainer component={Paper} variant="outlined">
             <Table size="small">
               <TableHead>
-                <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                <TableRow sx={{ bgcolor: 'var(--hotel-warning-bg)' }}>
                   <TableCell>Room #</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell align="right">Bookings</TableCell>
@@ -443,7 +443,7 @@ export function RoomPerformanceReport({ reportData, hotelSettings, currencySymbo
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Room #</TableCell>
               <TableCell>Type</TableCell>
               <TableCell align="right">Bookings</TableCell>

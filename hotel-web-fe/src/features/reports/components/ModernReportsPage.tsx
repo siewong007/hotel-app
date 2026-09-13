@@ -169,7 +169,7 @@ const REPORT_CONFIGS = [
     label: 'Daily Operations',
     description: "Today's arrivals, departures & in-house",
     icon: <TodayIcon />,
-    color: '#2e7d32',
+    color: 'var(--hotel-success)',
     category: 'operations',
   },
   {
@@ -177,7 +177,7 @@ const REPORT_CONFIGS = [
     label: 'Occupancy Report',
     description: 'Occupancy rate, ADR & RevPAR metrics',
     icon: <HotelIcon />,
-    color: '#1565c0',
+    color: 'var(--hotel-info)',
     category: 'operations',
   },
   {
@@ -185,7 +185,7 @@ const REPORT_CONFIGS = [
     label: 'Revenue Report',
     description: 'Revenue by room type, source & payment',
     icon: <MoneyIcon />,
-    color: '#00695c',
+    color: 'var(--hotel-chart-3)',
     category: 'financial',
   },
   {
@@ -193,7 +193,7 @@ const REPORT_CONFIGS = [
     label: 'Channel Net Revenue',
     description: 'OTA commission & hotel net revenue',
     icon: <TrendingIcon />,
-    color: '#7b1fa2',
+    color: 'var(--hotel-chart-4)',
     category: 'financial',
   },
   {
@@ -201,7 +201,7 @@ const REPORT_CONFIGS = [
     label: 'OTA Monthly Statement',
     description: 'Monthly remittance by platform',
     icon: <ReceiptIcon />,
-    color: '#00695c',
+    color: 'var(--hotel-chart-3)',
     category: 'financial',
   },
   {
@@ -209,7 +209,7 @@ const REPORT_CONFIGS = [
     label: 'Payment Status',
     description: 'Outstanding payments & overdue tracking',
     icon: <PaymentIcon />,
-    color: '#d84315',
+    color: 'var(--hotel-danger)',
     category: 'financial',
   },
   {
@@ -217,7 +217,7 @@ const REPORT_CONFIGS = [
     label: 'Complimentary Report',
     description: 'Track complimentary stays & discounts',
     icon: <GiftIcon />,
-    color: '#6a1b9a',
+    color: 'var(--hotel-chart-4)',
     category: 'operations',
   },
   {
@@ -225,7 +225,7 @@ const REPORT_CONFIGS = [
     label: 'Guest Statistics',
     description: 'Guest demographics & patterns',
     icon: <PeopleIcon />,
-    color: '#00838f',
+    color: 'var(--hotel-chart-2)',
     category: 'analytics',
   },
   {
@@ -233,7 +233,7 @@ const REPORT_CONFIGS = [
     label: 'Room Performance',
     description: 'Room & room type analysis',
     icon: <RoomIcon />,
-    color: '#4527a0',
+    color: 'var(--hotel-chart-4)',
     category: 'analytics',
   },
   // Legacy Accounting Reports
@@ -242,7 +242,7 @@ const REPORT_CONFIGS = [
     label: 'Guest Ledger',
     description: 'Double-entry accounting journal',
     icon: <LedgerIcon />,
-    color: '#546e7a',
+    color: 'var(--hotel-neutral)',
     category: 'accounting',
   },
   {
@@ -250,7 +250,7 @@ const REPORT_CONFIGS = [
     label: 'Company Ledger',
     description: 'Company account statements',
     icon: <BusinessIcon />,
-    color: '#546e7a',
+    color: 'var(--hotel-neutral)',
     category: 'accounting',
   },
   {
@@ -258,7 +258,7 @@ const REPORT_CONFIGS = [
     label: 'Balance Sheet',
     description: 'Summary of account balances',
     icon: <TrendingIcon />,
-    color: '#546e7a',
+    color: 'var(--hotel-neutral)',
     category: 'accounting',
   },
   {
@@ -266,7 +266,7 @@ const REPORT_CONFIGS = [
     label: 'Payment Records',
     description: 'Daily payment details by booking',
     icon: <ReceiptIcon />,
-    color: '#546e7a',
+    color: 'var(--hotel-neutral)',
     category: 'accounting',
   },
   {
@@ -274,7 +274,7 @@ const REPORT_CONFIGS = [
     label: 'Rooms Sold',
     description: 'Room occupancy details',
     icon: <CalendarIcon />,
-    color: '#546e7a',
+    color: 'var(--hotel-neutral)',
     category: 'accounting',
   },
 ];
@@ -591,7 +591,7 @@ const ModernReportsPage: React.FC = () => {
       <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 2 }}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>Name</TableCell>
               <TableCell>Type</TableCell>
               <TableCell>Commission</TableCell>
@@ -781,7 +781,7 @@ const ModernReportsPage: React.FC = () => {
         </Box>
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid size={{ xs: 6, md: 3 }}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-success-bg)' }}>
               <Typography variant="h5" sx={{
                 color: "success.main"
               }}>{formatMoney(summary?.total_gross_revenue)}</Typography>
@@ -789,7 +789,7 @@ const ModernReportsPage: React.FC = () => {
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-warning-bg)' }}>
               <Typography variant="h5" sx={{
                 color: "warning.main"
               }}>{formatMoney(summary?.total_platform_commission)}</Typography>
@@ -797,7 +797,7 @@ const ModernReportsPage: React.FC = () => {
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-info-bg)' }}>
               <Typography variant="h5" sx={{
                 color: "primary.main"
               }}>{formatMoney(summary?.total_net_hotel_revenue)}</Typography>
@@ -805,7 +805,7 @@ const ModernReportsPage: React.FC = () => {
             </Paper>
           </Grid>
           <Grid size={{ xs: 6, md: 3 }}>
-            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'var(--hotel-primary-subtle)' }}>
               <Typography variant="h5" sx={{
                 color: "secondary.main"
               }}>
@@ -843,7 +843,7 @@ const ModernReportsPage: React.FC = () => {
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                 <TableCell>Channel</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell align="right">Room Nights</TableCell>
@@ -870,7 +870,7 @@ const ModernReportsPage: React.FC = () => {
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                 {renderSortableHeader('business_date', 'Business Date')}
                 {renderSortableHeader('booking_number', 'Booking')}
                 {renderSortableHeader('guest_name', 'Guest')}
@@ -966,9 +966,9 @@ const ModernReportsPage: React.FC = () => {
             <Card
               sx={{
                 cursor: 'pointer',
-                border: selectedReport === config.type ? `3px solid ${config.color}` : '1px solid #e0e0e0',
-                bgcolor: selectedReport === config.type ? `${config.color}10` : 'white',
-                '&:hover': { boxShadow: 4, transform: 'translateY(-2px)' },
+                border: selectedReport === config.type ? `3px solid ${config.color}` : '1px solid var(--hotel-border)',
+                bgcolor: selectedReport === config.type ? `color-mix(in srgb,  12%, transparent)` : 'var(--hotel-surface-raised)',
+                '&:hover': { boxShadow: 3 },
                 transition: 'all 0.2s',
               }}
               onClick={() => handleReportTypeChange(config.type)}
@@ -1204,7 +1204,7 @@ const ModernReportsPage: React.FC = () => {
             sx={[
               {
                 p: 3,
-                bgcolor: 'white',
+                bgcolor: 'var(--hotel-surface-raised)',
                 minHeight: '100%',
               },
               reportContentSx,

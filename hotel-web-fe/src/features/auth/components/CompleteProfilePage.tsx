@@ -209,7 +209,7 @@ const CompleteProfilePage: React.FC = () => {
               sx={{
                 mt: 3,
                 py: 1.5,
-                background: 'var(--hotel-action-gradient)',
+                background: 'var(--hotel-primary)',
                 fontWeight: 600,
               }}
               disabled={submitting}

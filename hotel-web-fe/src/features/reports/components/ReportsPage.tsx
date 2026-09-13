@@ -355,16 +355,16 @@ const ReportsPage: React.FC = () => {
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Date</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Room</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Folio</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Guest Name</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Status</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Payment</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Check-In</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Check-Out</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Amount</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Deposit</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Date</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Room</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Folio</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Guest Name</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Status</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Payment</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Check-In</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }}>Check-Out</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }} align="right">Amount</TableCell>
+                <TableCell sx={{ backgroundColor: 'var(--hotel-surface-raised)', fontWeight: 600 }} align="right">Deposit</TableCell>
 
               </TableRow>
             </TableHead>

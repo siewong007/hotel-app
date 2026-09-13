@@ -699,7 +699,7 @@ export default function EnhancedCheckInModal({
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', pb: 2 }}>
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', pb: 2 }}>
           <Box>
             <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               Walk-in Guest - Folio: {booking.folio_number || booking.id}
@@ -748,7 +748,7 @@ export default function EnhancedCheckInModal({
           )}
 
           {/* Booking Summary */}
-          <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+          <Paper sx={{ p: 2, mb: 2, bgcolor: 'var(--hotel-surface-sunken)', border: 1, borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
               <HotelIcon color="primary" fontSize="small" />
               <Typography variant="subtitle2" sx={{
@@ -1024,7 +1024,7 @@ export default function EnhancedCheckInModal({
           </TabPanel>
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', justifyContent: 'space-between' }}>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-sunken)', justifyContent: 'space-between' }}>
           <Box>
             <Button onClick={onClose} disabled={loading} sx={{ mr: 1 }}>
               Cancel

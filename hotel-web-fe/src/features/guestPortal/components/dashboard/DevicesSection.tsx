@@ -24,8 +24,8 @@ import { DeviceIcon, detectDeviceType } from '../../../user/components/profile/d
 import { sessionActivityLine } from '../../../user/components/profile/sessionLocation';
 import { ErrorState } from './PortalDashboardSections';
 
-const FOREST = '#06110e';
-const GOLD_TEXT = '#8d6b30';
+const FOREST = 'var(--hotel-text)';
+const GOLD_TEXT = 'var(--hotel-primary-text)';
 
 function notify(message: string, severity: 'success' | 'error') {
   emitApiNotification({ message, severity });
@@ -126,7 +126,7 @@ export function DevicesSection() {
       component="section"
       aria-label="Signed-in devices"
       variant="outlined"
-      sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: '#fffdf9' }}
+      sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3, bgcolor: 'var(--hotel-surface-raised)' }}
     >
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
         <Box sx={{ color: GOLD_TEXT, lineHeight: 0, mt: 0.25 }}>

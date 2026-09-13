@@ -173,7 +173,7 @@ export function DataTable<TData extends RowData>({
       <Table aria-busy={loading || undefined}>
         <TableHead>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id} sx={{ bgcolor: 'grey.50' }}>
+            <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
                 const canSort = header.column.getCanSort();
                 const sortDir = header.column.getIsSorted();

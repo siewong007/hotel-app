@@ -53,12 +53,12 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
                     : [value, 'Room nights']
               }
             />
-            <Bar yAxisId="nights" dataKey="nights" fill="#90caf9" radius={[4, 4, 0, 0]} />
+            <Bar yAxisId="nights" dataKey="nights" fill="var(--hotel-chart-2)" radius={[4, 4, 0, 0]} />
             <Line
               yAxisId="occupancy"
               type="monotone"
               dataKey="occupancy"
-              stroke="#2e7d32"
+              stroke="var(--hotel-chart-1)"
               strokeWidth={2}
               dot={false}
             />

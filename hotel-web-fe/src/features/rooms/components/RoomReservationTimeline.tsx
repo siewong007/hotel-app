@@ -22,7 +22,6 @@ import {
   IconButton,
   Popover,
   Divider,
-  alpha,
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -59,33 +58,33 @@ const ROW_PAD_Y = 8;
 // ── Concept B "sketchy" palette ───────────────────────────────────────────
 const PALETTE = {
   pageBg: 'var(--hotel-bg)',
-  panelBg: 'var(--hotel-paper)',
-  headerBg: 'var(--hotel-muted-bg)',
-  ink: 'var(--hotel-text-primary)',
+  panelBg: 'var(--hotel-surface)',
+  headerBg: 'var(--hotel-hover)',
+  ink: 'var(--hotel-text)',
   inkMuted: 'var(--hotel-text-secondary)',
   inkSubtle: 'var(--hotel-text-secondary)',
   todayAccent: 'var(--hotel-primary)',
-  rowDivider: 'var(--hotel-divider)',
-  zebra: 'var(--hotel-subtle-bg)',
-  inkWash: 'color-mix(in srgb, var(--hotel-text-primary) 8%, transparent)',
-  inkHover: 'color-mix(in srgb, var(--hotel-text-primary) 5%, transparent)',
+  rowDivider: 'var(--hotel-border)',
+  zebra: 'var(--hotel-active)',
+  inkWash: 'color-mix(in srgb, var(--hotel-text) 8%, transparent)',
+  inkHover: 'color-mix(in srgb, var(--hotel-text) 5%, transparent)',
 };
 
-// Sketchy status colors (bar fill + border). Falls back through unified status helper.
+// Status bar fill + border — tinted status tokens (see theme/tokens.ts).
 function statusBarColors(status: string, isComplimentary?: boolean): { bg: string; border: string } {
-  if (isComplimentary) return { bg: '#55efc4', border: '#00b894' };
+  if (isComplimentary) return { bg: 'var(--hotel-success-bg)', border: 'var(--hotel-success)' };
   switch (status) {
     case 'checked_in':
     case 'auto_checked_in':
     case 'occupied':
-      return { bg: '#ffd166', border: '#c9a100' };
+      return { bg: 'var(--hotel-warning-bg)', border: 'var(--hotel-warning)' };
     case 'reserved':
     case 'confirmed':
-      return { bg: '#74b9ff', border: '#1a6fc9' };
+      return { bg: 'var(--hotel-info-bg)', border: 'var(--hotel-info)' };
     case 'pending':
-      return { bg: '#a29bfe', border: '#6c5ce7' };
+      return { bg: 'color-mix(in srgb, var(--hotel-chart-4) 16%, transparent)', border: 'var(--hotel-chart-4)' };
     default:
-      return { bg: '#dcd6ca', border: '#666' };
+      return { bg: 'var(--hotel-neutral-bg)', border: 'var(--hotel-neutral)' };
   }
 }
 
@@ -356,10 +355,10 @@ const RoomReservationTimeline: React.FC = () => {
 
   // Status pill colors for legend (matches statusBarColors above).
   const LEGEND: Array<{ label: string; color: string }> = [
-    { label: 'Occupied', color: '#ffd166' },
-    { label: 'Reserved', color: '#74b9ff' },
-    { label: 'Pending', color: '#a29bfe' },
-    { label: 'Complimentary', color: '#55efc4' },
+    { label: 'Occupied', color: 'var(--hotel-warning)' },
+    { label: 'Reserved', color: 'var(--hotel-info)' },
+    { label: 'Pending', color: 'var(--hotel-chart-4)' },
+    { label: 'Complimentary', color: 'var(--hotel-success)' },
   ];
 
   return (
@@ -651,7 +650,7 @@ const RoomReservationTimeline: React.FC = () => {
                             justifyContent: 'center',
                             transition: 'filter 0.15s',
                             background: isSynthetic
-                              ? `repeating-linear-gradient(45deg, ${sc.bg} 0 8px, ${alpha(sc.bg, 0.7)} 8px 16px)`
+                              ? `repeating-linear-gradient(45deg, ${sc.bg} 0 8px, color-mix(in srgb, ${sc.bg} 55%, transparent) 8px 16px)`
                               : sc.bg,
                             '&:hover': { filter: 'brightness(1.05)' },
                           }}
@@ -854,8 +853,9 @@ const RoomReservationTimeline: React.FC = () => {
                   label={getUnifiedStatusLabel(hoveredBooking.status)}
                   size="small"
                   sx={{
-                    bgcolor: getUnifiedStatusColor(hoveredBooking.status),
-                    color: 'white',
+                    bgcolor: `color-mix(in srgb, ${getUnifiedStatusColor(hoveredBooking.status)} 14%, transparent)`,
+                    color: getUnifiedStatusColor(hoveredBooking.status),
+                    border: `1px solid color-mix(in srgb, ${getUnifiedStatusColor(hoveredBooking.status)} 35%, transparent)`,
                     fontWeight: 600,
                     fontSize: '0.65rem',
                     height: 22,
@@ -908,15 +908,15 @@ const RoomReservationTimeline: React.FC = () => {
                 elevation={0}
                 sx={{
                   p: 0.75,
-                  bgcolor: alpha('#00b894', 0.12),
-                  border: `1px solid #00b894`,
+                  bgcolor: 'var(--hotel-success-bg)',
+                  border: '1px solid var(--hotel-success-border)',
                   borderRadius: '4px',
                   mb: 0.75,
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CardGiftcard sx={{ fontSize: 16, color: '#00b894' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#00b894' }}>
+                  <CardGiftcard sx={{ fontSize: 16, color: 'var(--hotel-success)' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: 'var(--hotel-success)' }}>
                     Complimentary: {hoveredBooking.complimentary_nights || 0} nights
                   </Typography>
                 </Box>
@@ -976,7 +976,7 @@ const SketchyBtn: React.FC<{
       lineHeight: 1.2,
       userSelect: 'none',
       whiteSpace: 'nowrap',
-      '&:hover': { bgcolor: filled ? 'var(--hotel-primary-dark)' : PALETTE.inkHover },
+      '&:hover': { bgcolor: filled ? 'var(--hotel-primary-active)' : PALETTE.inkHover },
     }}
   >
     {children}

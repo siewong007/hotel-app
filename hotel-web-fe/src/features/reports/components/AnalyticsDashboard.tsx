@@ -62,7 +62,19 @@ interface BookingAnalytics {
   monthlyTrends: Array<{ month: string; bookings: number; revenue: number }>;
 }
 
-const COLORS = ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0', '#00bcd4', '#ffeb3b'];
+// Constrained chart series — five semantic tokens max, no rainbow.
+const COLORS = [
+  'var(--hotel-chart-1)', 'var(--hotel-chart-2)', 'var(--hotel-chart-3)',
+  'var(--hotel-chart-4)', 'var(--hotel-chart-5)',
+];
+
+const AXIS_TICK = { fill: 'var(--hotel-text-muted)', fontSize: 12 };
+const TOOLTIP_STYLE = {
+  backgroundColor: 'var(--hotel-surface-overlay)',
+  border: '1px solid var(--hotel-border)',
+  borderRadius: 10,
+  color: 'var(--hotel-text)',
+} as const;
 
 const OccupancyPieChart: React.FC<{ data: ChartData }> = ({ data }) => {
   const chartData = data.labels.map((label, index) => ({
@@ -80,14 +92,15 @@ const OccupancyPieChart: React.FC<{ data: ChartData }> = ({ data }) => {
           labelLine={false}
           label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
           outerRadius={80}
-          fill="#8884d8"
+          fill="var(--hotel-chart-1)"
+          stroke="var(--hotel-surface)"
           dataKey="value"
         >
           {chartData.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={data.datasets[0]?.backgroundColor?.[index] || COLORS[index % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Legend />
       </PieChart>
     </ResponsiveContainer>
@@ -103,15 +116,15 @@ const RevenueLineChart: React.FC<{ data: ChartData; formatCurrency: (value: numb
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="month" />
-        <YAxis />
-        <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--hotel-chart-grid)" />
+        <XAxis dataKey="month" tick={AXIS_TICK} />
+        <YAxis tick={AXIS_TICK} />
+        <Tooltip formatter={(value) => formatCurrency(Number(value))} contentStyle={TOOLTIP_STYLE} />
         <Legend />
         <Line
           type="monotone"
           dataKey="revenue"
-          stroke="#2196f3"
+          stroke="var(--hotel-chart-1)"
           strokeWidth={2}
           dot={{ r: 4 }}
           activeDot={{ r: 6 }}
@@ -131,10 +144,10 @@ const RoomTypeBarChart: React.FC<{ data: ChartData }> = ({ data }) => {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={chartData}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="roomType" />
-        <YAxis />
-        <Tooltip />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--hotel-chart-grid)" />
+        <XAxis dataKey="roomType" tick={AXIS_TICK} />
+        <YAxis tick={AXIS_TICK} />
+        <Tooltip contentStyle={TOOLTIP_STYLE} />
         <Legend />
         <Bar dataKey="bookings" name="Bookings" radius={[8, 8, 0, 0]}>
           {chartData.map((entry, index) => (
@@ -192,7 +205,7 @@ const AnalyticsDashboard: React.FC = () => {
         datasets: [{
           label: 'Room Status',
           data: [occupancy.occupiedRooms, occupancy.availableRooms],
-          backgroundColor: ['#f44336', '#4caf50'],
+          backgroundColor: ['var(--hotel-chart-1)', 'var(--hotel-chart-5)'],
           borderWidth: 1
         }]
       };
@@ -202,8 +215,8 @@ const AnalyticsDashboard: React.FC = () => {
         datasets: [{
           label: `Revenue (${currencySymbol})`,
           data: analytics.monthlyTrends.map(t => t.revenue),
-          borderColor: '#2196f3',
-          backgroundColor: 'rgba(33, 150, 243, 0.1)',
+          borderColor: 'var(--hotel-chart-1)',
+          backgroundColor: 'var(--hotel-primary-subtle)',
           borderWidth: 2
         }]
       };
@@ -213,7 +226,7 @@ const AnalyticsDashboard: React.FC = () => {
         datasets: [{
           label: 'Bookings by Room Type',
           data: Object.values(analytics.bookingsByRoomType) as number[],
-          backgroundColor: ['#2196f3', '#4caf50', '#ff9800', '#f44336', '#9c27b0'].slice(0, Object.keys(analytics.bookingsByRoomType).length),
+          backgroundColor: COLORS.slice(0, Object.keys(analytics.bookingsByRoomType).length),
           borderWidth: 1
         }]
       };

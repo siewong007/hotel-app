@@ -42,39 +42,42 @@ import { UsersTab } from './UsersTab';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { errorMessage } from '../../../../utils/errorMessage';
 
-/* ---------- Salim Inn design tokens ---------- */
+/* ---------- Design tokens — aliases onto the global --hotel-* vars ---------- */
 const T = {
-  surface: '#FFFFFF',
-  surface2: '#F8FAFB',
-  surface3: '#EFF2F5',
-  surface4: '#E6EBF0',
-  border: '#E2E6EC',
-  borderHi: '#CBD2DA',
-  ink: '#0F172A',
-  ink2: '#475569',
-  ink3: '#7B8794',
-  ink4: '#B0B8C2',
-  emerald: '#10A47C',
-  emeraldDeep: '#0E8C6A',
-  emeraldDarker: '#0B6A50',
-  emeraldSoft: '#E7F5EF',
-  blue: '#2F7DE1',
-  blueSoft: '#E8F1FB',
-  blueDeep: '#1F5FB8',
-  amber: '#C8941D',
-  amberSoft: '#FBF1DC',
-  amberDeep: '#8A6210',
-  rose: '#D14256',
-  roseSoft: '#FCE8EC',
-  roseDeep: '#9B2A3B',
-  violet: '#7A56D6',
-  violetSoft: '#EDE7FA',
-  violetDeep: '#5436A8',
-  teal: '#1A8FA0',
-  tealSoft: '#DCF1F4',
-  tealDeep: '#0F6470',
-  slateSoft: '#F0F3F7',
+  surface: 'var(--hotel-surface)',
+  surface2: 'var(--hotel-surface-raised)',
+  surface3: 'var(--hotel-surface-sunken)',
+  surface4: 'var(--hotel-hover)',
+  border: 'var(--hotel-border)',
+  borderHi: 'var(--hotel-border-strong)',
+  ink: 'var(--hotel-text)',
+  ink2: 'var(--hotel-text-secondary)',
+  ink3: 'var(--hotel-text-muted)',
+  ink4: 'var(--hotel-text-disabled)',
+  emerald: 'var(--hotel-primary)',
+  emeraldDeep: 'var(--hotel-primary-hover)',
+  emeraldDarker: 'var(--hotel-primary-active)',
+  emeraldSoft: 'var(--hotel-primary-subtle)',
+  blue: 'var(--hotel-info)',
+  blueSoft: 'var(--hotel-info-bg)',
+  blueDeep: 'var(--hotel-info)',
+  amber: 'var(--hotel-warning)',
+  amberSoft: 'var(--hotel-warning-bg)',
+  amberDeep: 'var(--hotel-warning)',
+  rose: 'var(--hotel-danger)',
+  roseSoft: 'var(--hotel-danger-bg)',
+  roseDeep: 'var(--hotel-danger)',
+  violet: 'var(--hotel-chart-4)',
+  violetSoft: 'color-mix(in srgb, var(--hotel-chart-4) 14%, transparent)',
+  violetDeep: 'var(--hotel-chart-4)',
+  teal: 'var(--hotel-chart-3)',
+  tealSoft: 'color-mix(in srgb, var(--hotel-chart-3) 14%, transparent)',
+  tealDeep: 'var(--hotel-chart-3)',
+  slateSoft: 'var(--hotel-neutral-bg)',
 };
+
+/** Border tint for a color that may be a `var(--hotel-*)` token. */
+const tintBorder = (color: string, pct = 22) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 type Accent = { deep: string; soft: string };
 
@@ -404,13 +407,13 @@ const RBACManagementPage: React.FC = () => {
         sx={{
           display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.75, py: 1,
           borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          color: on ? '#fff' : T.ink3, bgcolor: on ? T.ink : 'transparent',
-          '&:hover': { color: on ? '#fff' : T.ink },
+          color: on ? 'var(--hotel-bg)' : T.ink3, bgcolor: on ? T.ink : 'transparent',
+          '&:hover': { color: on ? 'var(--hotel-bg)' : T.ink },
         }}
       >
         {id === 'roles' ? <SecurityIcon sx={{ fontSize: 18 }} /> : <PeopleIcon sx={{ fontSize: 18 }} />}
         {label}
-        <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, px: 0.875, borderRadius: 999, bgcolor: on ? 'rgba(255,255,255,0.18)' : T.surface3, color: on ? '#fff' : T.ink3, fontWeight: 700 }}>
+        <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, px: 0.875, borderRadius: 999, bgcolor: on ? 'color-mix(in srgb, var(--hotel-bg) 18%, transparent)' : T.surface3, color: on ? 'var(--hotel-bg)' : T.ink3, fontWeight: 700 }}>
           {count}
         </Box>
       </Box>
@@ -418,7 +421,7 @@ const RBACManagementPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto', bgcolor: '#F4F6F8', minHeight: '100%' }}>
+    <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto', bgcolor: 'var(--hotel-bg)', minHeight: '100%' }}>
       {/* Page header */}
       <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 3, flexWrap: 'wrap', mb: 2.25 }}>
         <Box>
@@ -428,7 +431,7 @@ const RBACManagementPage: React.FC = () => {
             <span style={{ color: T.ink2, fontWeight: 600 }}>Roles &amp; Permissions</span>
           </Box>
           <Typography component="h1" sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: T.emeraldSoft, color: T.emeraldDarker, display: 'grid', placeItems: 'center', border: `1px solid ${T.emerald}29` }}>
+            <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: T.emeraldSoft, color: T.emeraldDarker, display: 'grid', placeItems: 'center', border: `1px solid color-mix(in srgb, ${T.emerald} 16%, transparent)` }}>
               <SecurityIcon sx={{ fontSize: 20 }} />
             </Box>
             Roles &amp; Permissions
@@ -446,7 +449,7 @@ const RBACManagementPage: React.FC = () => {
         </Tooltip>
       </Box>
       {/* Page tabs */}
-      <Box sx={{ display: 'inline-flex', bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '11px', p: '4px', mb: 2 }}>
+      <Box sx={{ display: 'inline-flex', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '11px', p: '4px', mb: 2 }}>
         <PtabBtn id="roles" label="Roles & Permissions" count={`${roles.length} / ${totalPerms}`} />
         <PtabBtn id="users" label="Users" count={`${users.length}`} />
       </Box>
@@ -483,7 +486,7 @@ const RBACManagementPage: React.FC = () => {
                       border: `1px solid ${on ? T.ink : 'transparent'}`, mb: '2px',
                       bgcolor: on ? T.surface2 : 'transparent', '&:hover': { bgcolor: T.surface2 },
                     }}>
-                    <Box sx={{ width: 32, height: 32, borderRadius: '9px', display: 'grid', placeItems: 'center', bgcolor: acc.soft, color: acc.deep, fontWeight: 800, fontSize: 12, border: `1px solid ${acc.deep}1F` }}>
+                    <Box sx={{ width: 32, height: 32, borderRadius: '9px', display: 'grid', placeItems: 'center', bgcolor: acc.soft, color: acc.deep, fontWeight: 800, fontSize: 12, border: `1px solid color-mix(in srgb, ${acc.deep} 12%, transparent)` }}>
                       {initials(r.name)}
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
@@ -515,17 +518,17 @@ const RBACManagementPage: React.FC = () => {
                 const heroUsers = usersByRole[selectedRole.id] || [];
                 return (
                   <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 2.25, p: '18px 22px', background: `linear-gradient(180deg,${T.surface},${T.surface2})`, borderBottom: `1px solid ${T.border}`, alignItems: 'start' }}>
-                    <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: acc.soft, color: acc.deep, border: `1px solid ${acc.deep}24`, display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>
+                    <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: acc.soft, color: acc.deep, border: `1px solid color-mix(in srgb, ${acc.deep} 14%, transparent)`, display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>
                       {initials(selectedRole.name)}
                     </Box>
                     <Box sx={{ minWidth: 0 }}>
                       <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         ROLE
-                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: acc.soft, color: acc.deep, px: 1, py: '2px', borderRadius: 999, textTransform: 'none', fontWeight: 700, fontSize: 11, border: `1px solid ${acc.deep}24` }}>
+                        <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: acc.soft, color: acc.deep, px: 1, py: '2px', borderRadius: 999, textTransform: 'none', fontWeight: 700, fontSize: 11, border: `1px solid color-mix(in srgb, ${acc.deep} 14%, transparent)` }}>
                           {isBuiltin(selectedRole) ? <><LockIcon sx={{ fontSize: 12 }} /> Built-in</> : 'Custom'}
                         </Box>
                         {locked && (
-                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: T.roseSoft, color: T.roseDeep, px: 1, py: '2px', borderRadius: 999, textTransform: 'none', fontWeight: 700, fontSize: 11, border: `1px solid ${T.rose}38` }}>
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, bgcolor: T.roseSoft, color: T.roseDeep, px: 1, py: '2px', borderRadius: 999, textTransform: 'none', fontWeight: 700, fontSize: 11, border: `1px solid color-mix(in srgb, ${T.rose} 22%, transparent)` }}>
                             <BoltIcon sx={{ fontSize: 12 }} /> Full access
                           </Box>
                         )}
@@ -560,12 +563,12 @@ const RBACManagementPage: React.FC = () => {
                       <Box sx={{ display: 'flex' }}>
                         {heroUsers.slice(0, 5).map((u, i) => (
                           <Box key={u.id} title={u.full_name || u.username}
-                            sx={{ width: 26, height: 26, borderRadius: '50%', bgcolor: acc.soft, color: acc.deep, fontSize: 10.5, fontWeight: 700, display: 'grid', placeItems: 'center', border: '2px solid #fff', ml: i === 0 ? 0 : '-6px' }}>
+                            sx={{ width: 26, height: 26, borderRadius: '50%', bgcolor: acc.soft, color: acc.deep, fontSize: 10.5, fontWeight: 700, display: 'grid', placeItems: 'center', border: '2px solid var(--hotel-surface)', ml: i === 0 ? 0 : '-6px' }}>
                             {initials(u.full_name || u.username)}
                           </Box>
                         ))}
                         {heroUsers.length > 5 && (
-                          <Box sx={{ width: 26, height: 26, borderRadius: '50%', bgcolor: T.surface3, color: T.ink2, fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', border: '2px solid #fff', ml: '-6px' }}>
+                          <Box sx={{ width: 26, height: 26, borderRadius: '50%', bgcolor: T.surface3, color: T.ink2, fontSize: 10, fontWeight: 700, display: 'grid', placeItems: 'center', border: '2px solid var(--hotel-surface)', ml: '-6px' }}>
                             +{heroUsers.length - 5}
                           </Box>
                         )}
@@ -587,19 +590,19 @@ const RBACManagementPage: React.FC = () => {
                 <TextField
                   size="small" value={permSearch} onChange={(e) => setPermSearch(e.target.value)}
                   placeholder="Search permissions by name, code or description…"
-                  sx={{ flex: 1, minWidth: 240, bgcolor: '#fff', '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
+                  sx={{ flex: 1, minWidth: 240, bgcolor: T.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
                   slotProps={{
                     input: { startAdornment: (<InputAdornment position="start"><SearchIcon sx={{ fontSize: 18, color: T.ink3 }} /></InputAdornment>) }
                   }}
                 />
-                <Box sx={{ display: 'inline-flex', bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
+                <Box sx={{ display: 'inline-flex', bgcolor: T.surface, border: `1px solid ${T.border}`, borderRadius: '9px', p: '3px' }}>
                   {([
                     ['all', `All ${totalPerms}`],
                     ['on', `Enabled ${enabledCount}`],
                     ['off', `Disabled ${totalPerms - enabledCount}`],
                   ] as const).map(([k, lb]) => (
                     <Box key={k} component="button" onClick={() => setFilter(k)}
-                      sx={{ px: 1.25, py: 0.75, fontSize: 12, fontWeight: 600, borderRadius: '6px', cursor: 'pointer', border: 'none', color: filter === k ? '#fff' : T.ink3, bgcolor: filter === k ? T.ink : 'transparent' }}>
+                      sx={{ px: 1.25, py: 0.75, fontSize: 12, fontWeight: 600, borderRadius: '6px', cursor: 'pointer', border: 'none', color: filter === k ? 'var(--hotel-bg)' : T.ink3, bgcolor: filter === k ? T.ink : 'transparent' }}>
                       {lb}
                     </Box>
                   ))}
@@ -607,7 +610,7 @@ const RBACManagementPage: React.FC = () => {
                 <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', fontSize: 12, fontWeight: 600, color: T.ink2 }}>
                   <span>Coverage</span>
                   <Box sx={{ width: 80, height: 6, borderRadius: 4, bgcolor: T.surface4, overflow: 'hidden' }}>
-                    <Box sx={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${T.emerald},${T.emeraldDeep})` }} />
+                    <Box sx={{ height: '100%', width: `${pct}%`, background: T.emerald }} />
                   </Box>
                   <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: T.ink }}>{pct}%</Box>
                 </Box>
@@ -644,10 +647,10 @@ const RBACManagementPage: React.FC = () => {
                     const allOn = onInCat === cat.permissions.length;
 
                     blocks.push(
-                      <Box key={cat.name} sx={{ border: `1px solid ${open ? T.borderHi : T.border}`, borderRadius: '12px', mt: 1.25, bgcolor: '#fff', overflow: 'hidden' }}>
+                      <Box key={cat.name} sx={{ border: `1px solid ${open ? T.borderHi : T.border}`, borderRadius: '12px', mt: 1.25, bgcolor: T.surface, overflow: 'hidden' }}>
                         <Box onClick={() => setOpenCats((prev) => { const n = new Set(prev); n.has(cat.name) ? n.delete(cat.name) : n.add(cat.name); return n; })}
-                          sx={{ display: 'grid', gridTemplateColumns: '36px 1fr auto auto auto', alignItems: 'center', gap: 1.5, p: '11px 14px', cursor: 'pointer', background: `linear-gradient(180deg,#fff,${T.surface2})`, borderBottom: open ? `1px solid ${T.border}` : 'none' }}>
-                          <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: `${cat.color}1A`, color: cat.color, border: `1px solid ${cat.color}29` }}>
+                          sx={{ display: 'grid', gridTemplateColumns: '36px 1fr auto auto auto', alignItems: 'center', gap: 1.5, p: '11px 14px', cursor: 'pointer', background: T.surface, borderBottom: open ? `1px solid ${T.border}` : 'none' }}>
+                          <Box sx={{ width: 36, height: 36, borderRadius: '10px', display: 'grid', placeItems: 'center', bgcolor: `color-mix(in srgb, ${cat.color} 10%, transparent)`, color: cat.color, border: `1px solid color-mix(in srgb, ${cat.color} 16%, transparent)` }}>
                             <SecurityIcon sx={{ fontSize: 18 }} />
                           </Box>
                           <Box sx={{ minWidth: 0 }}>
@@ -683,7 +686,7 @@ const RBACManagementPage: React.FC = () => {
                                       bgcolor: locked ? T.rose : on ? T.emerald : T.surface4,
                                       border: `1px solid ${locked ? T.roseDeep : on ? T.emeraldDeep : T.borderHi}`,
                                       transition: 'background 160ms',
-                                      '&::after': { content: '""', position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', bgcolor: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.18)', transform: (on || locked) ? 'translateX(16px)' : 'none', transition: 'transform 160ms' },
+                                      '&::after': { content: '""', position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', bgcolor: T.surface, boxShadow: 'var(--hotel-shadow-sm)', transform: (on || locked) ? 'translateX(16px)' : 'none', transition: 'transform 160ms' },
                                     }} />
                                   <Box sx={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                                     <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, fontWeight: 700, color: T.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{permCode(p)}</Box>
@@ -699,7 +702,7 @@ const RBACManagementPage: React.FC = () => {
                                     ) : others.slice(0, 5).map((r) => {
                                       const a = roleAccent(r);
                                       return (
-                                        <Box key={r.id} title={r.name} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: 11, fontWeight: 700, px: 0.875, py: '3px', borderRadius: 999, bgcolor: a.soft, color: a.deep, border: `1px solid ${a.deep}29` }}>
+                                        <Box key={r.id} title={r.name} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, fontSize: 11, fontWeight: 700, px: 0.875, py: '3px', borderRadius: 999, bgcolor: a.soft, color: a.deep, border: `1px solid color-mix(in srgb, ${a.deep} 16%, transparent)` }}>
                                           <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: a.deep }} />
                                           {r.name}
                                         </Box>
@@ -719,7 +722,7 @@ const RBACManagementPage: React.FC = () => {
                     <>
                       {blocks}
                       {hiddenCats.length > 0 && (
-                        <Box sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: '36px 1fr auto', alignItems: 'center', gap: 1.75, p: '12px 14px', border: `1px dashed ${T.borderHi}`, borderRadius: '12px', background: `repeating-linear-gradient(135deg,${T.surface2} 0 12px,#fff 12px 24px)` }}>
+                        <Box sx={{ mt: 1.5, display: 'grid', gridTemplateColumns: '36px 1fr auto', alignItems: 'center', gap: 1.75, p: '12px 14px', border: `1px dashed ${T.borderHi}`, borderRadius: '12px', background: "var(--hotel-surface-sunken)" }}>
                           <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: T.slateSoft, color: T.ink2, display: 'grid', placeItems: 'center', border: `1px solid ${T.border}` }}>
                             <LockIcon sx={{ fontSize: 16 }} />
                           </Box>
@@ -727,7 +730,7 @@ const RBACManagementPage: React.FC = () => {
                             <strong style={{ color: T.ink }}>{hiddenCats.length} module{hiddenCats.length === 1 ? '' : 's'} hidden</strong> — this role has no permissions in:
                             <Box sx={{ display: 'flex', gap: 0.625, flexWrap: 'wrap', mt: 0.75 }}>
                               {hiddenCats.map((c) => (
-                                <Box key={c.name} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625, fontSize: 11, fontWeight: 700, color: c.color, bgcolor: `${c.color}14`, border: `1px solid ${c.color}2E`, px: 1, py: '3px', borderRadius: 999 }}>
+                                <Box key={c.name} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625, fontSize: 11, fontWeight: 700, color: c.color, bgcolor: `color-mix(in srgb, ${c.color} 8%, transparent)`, border: `1px solid color-mix(in srgb, ${c.color} 18%, transparent)`, px: 1, py: '3px', borderRadius: 999 }}>
                                   {c.displayName}
                                 </Box>
                               ))}
@@ -748,8 +751,8 @@ const RBACManagementPage: React.FC = () => {
 
               {/* Save bar */}
               {dirty && !locked && (
-                <Box sx={{ position: 'sticky', bottom: 16, m: '14px 14px 0', bgcolor: T.ink, color: '#fff', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', gap: 1.5, boxShadow: '0 10px 30px rgba(15,23,42,0.18)' }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: T.amber, boxShadow: `0 0 0 4px ${T.amber}38` }} />
+                <Box sx={{ position: 'sticky', bottom: 16, m: '14px 14px 0', bgcolor: T.ink, color: 'var(--hotel-bg)', borderRadius: '12px', p: '10px 14px 10px 18px', display: 'flex', alignItems: 'center', gap: 1.5, boxShadow: 'var(--hotel-shadow-lg)' }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: T.amber, boxShadow: `0 0 0 4px color-mix(in srgb, ${T.amber} 22%, transparent)` }} />
                   <Box sx={{ fontSize: 13, fontWeight: 600 }}>
                     <Box component="em" sx={{ fontStyle: 'normal', color: T.amber }}>Unsaved changes</Box> —{' '}
                     {[...draftSet].filter((id) => !currentSet.has(id)).length +
@@ -757,7 +760,7 @@ const RBACManagementPage: React.FC = () => {
                     permission(s) modified
                   </Box>
                   <Box sx={{ flex: 1 }} />
-                  <Button size="small" onClick={discard} disabled={saving} sx={{ textTransform: 'none', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', bgcolor: 'rgba(255,255,255,0.08)' }}>
+                  <Button size="small" onClick={discard} disabled={saving} sx={{ textTransform: 'none', color: 'var(--hotel-bg)', border: '1px solid color-mix(in srgb, var(--hotel-bg) 18%, transparent)', bgcolor: 'color-mix(in srgb, var(--hotel-bg) 8%, transparent)' }}>
                     Discard
                   </Button>
                   <Button size="small" variant="contained" onClick={save} disabled={saving} startIcon={saving ? <CircularProgress size={14} /> : <CheckIcon />}

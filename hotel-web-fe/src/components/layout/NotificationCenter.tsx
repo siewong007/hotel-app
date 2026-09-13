@@ -37,10 +37,10 @@ const SEVERITY_META: Record<
   ApiNotificationSeverity,
   { color: string; Icon: React.ComponentType<{ fontSize?: 'small' | 'inherit' | 'medium' | 'large' }> }
 > = {
-  error: { color: '#d32f2f', Icon: ErrorOutlineIcon },
-  warning: { color: '#ed6c02', Icon: WarningAmberIcon },
-  info: { color: '#0288d1', Icon: InfoOutlinedIcon },
-  success: { color: '#2e7d32', Icon: CheckCircleOutlineIcon },
+  error: { color: 'var(--hotel-danger)', Icon: ErrorOutlineIcon },
+  warning: { color: 'var(--hotel-warning)', Icon: WarningAmberIcon },
+  info: { color: 'var(--hotel-info)', Icon: InfoOutlinedIcon },
+  success: { color: 'var(--hotel-success)', Icon: CheckCircleOutlineIcon },
 };
 
 const PRIORITY_LABEL = {
@@ -200,7 +200,7 @@ export const NotificationCenter: React.FC = () => {
                     '&:last-of-type': { borderBottom: 'none' },
                   }}
                 >
-                  <Box sx={{ color: '#d32f2f', display: 'flex', mt: '2px' }}>
+                  <Box sx={{ color: 'var(--hotel-danger)', display: 'flex', mt: '2px' }}>
                     <ErrorOutlineIcon fontSize="small" />
                   </Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>

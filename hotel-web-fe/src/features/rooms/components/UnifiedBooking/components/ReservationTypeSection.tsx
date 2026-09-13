@@ -6,7 +6,6 @@ import {
   CardGiftcard as GiftIcon,
   Public as PublicIcon,
 } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
 import { BookingTokens } from '../bookingTokens';
 import { ReservationType } from '../bookingTypes';
 import SectionHeader from './SectionHeader';
@@ -29,7 +28,8 @@ interface ReservationTypeSectionProps {
   currencySymbol: string;
 }
 
-/** Map a booking channel name → 1-2 letter logo + brand colour. */
+/** Map a booking channel name → 1-2 letter logo + brand colour.
+ *  OTA brand colours are intentionally literal — they identify the channel. */
 const channelLogo = (name: string, emerald: string): { letters: string; bg: string; fg: string } => {
   const lc = name.toLowerCase();
   if (lc.includes('agoda'))     return { letters: 'A',  bg: '#FF4E63', fg: '#fff' };
@@ -39,8 +39,8 @@ const channelLogo = (name: string, emerald: string): { letters: string; bg: stri
   if (lc.includes('airbnb'))    return { letters: 'A',  bg: '#FF5A5F', fg: '#fff' };
   if (lc.includes('hotels'))    return { letters: 'H',  bg: '#D32F2F', fg: '#fff' };
   if (lc.includes('trip'))      return { letters: 'TR', bg: '#287DFA', fg: '#fff' };
-  if (lc.includes('direct'))    return { letters: '⌂',  bg: emerald, fg: '#fff' };
-  return { letters: '+', bg: '#94A3B8', fg: '#fff' };
+  if (lc.includes('direct'))    return { letters: '⌂',  bg: emerald, fg: 'var(--hotel-on-primary)' };
+  return { letters: '+', bg: 'var(--hotel-neutral)', fg: 'var(--hotel-surface)' };
 };
 
 const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
@@ -115,7 +115,7 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
 
       {/* Channel picker — only for Online */}
       {reservationType === 'online' && (
-        <Box sx={{ mt: 1.5, bgcolor: D.blueSoft, border: `1px solid ${alpha(D.blue, 0.25)}`, borderRadius: 1.5, p: 1.75 }}>
+        <Box sx={{ mt: 1.5, bgcolor: D.blueSoft, border: '1px solid var(--hotel-info-border)', borderRadius: 1.5, p: 1.75 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12, fontWeight: 700, color: D.blue, mb: 1.25 }}>
             <PublicIcon sx={{ fontSize: 14 }} /> Booking channel <Box component="span" sx={{ color: D.blue }}>*</Box>
           </Box>
@@ -132,7 +132,7 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 1,
-                    bgcolor: on ? D.blue : D.surface,
+                    bgcolor: on ? D.blueSoft : D.surface,
                     border: `1px solid ${on ? D.blue : D.border}`,
                     borderRadius: 999,
                     pl: '5px',
@@ -140,10 +140,10 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
                     py: '5px',
                     fontSize: 12,
                     fontWeight: on ? 600 : 500,
-                    color: on ? '#fff' : D.ink2,
+                    color: on ? D.blue : D.ink2,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
-                    boxShadow: on ? `0 2px 8px ${alpha(D.blue, 0.30)}` : 'none',
+                    boxShadow: 'none',
                   }}
                 >
                   <Box sx={{
@@ -155,8 +155,8 @@ const ReservationTypeSection: React.FC<ReservationTypeSectionProps> = ({
                     fontSize: 10,
                     fontWeight: 800,
                     letterSpacing: '-0.5px',
-                    bgcolor: on ? 'rgba(255,255,255,0.2)' : logo.bg,
-                    color: on ? '#fff' : logo.fg,
+                    bgcolor: logo.bg,
+                    color: logo.fg,
                   }}>
                     {logo.letters}
                   </Box>

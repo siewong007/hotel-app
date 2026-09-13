@@ -582,7 +582,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
               <CircularProgress size={30} />
             </Box>
           ) : detailedStatus && (
-            <Card elevation={0} sx={{ bgcolor: 'grey.50' }}>
+            <Card elevation={0} sx={{ bgcolor: 'var(--hotel-surface-raised)' }}>
               <CardContent>
                 <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
                   Room Details

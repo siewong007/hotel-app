@@ -3,7 +3,6 @@
 
 import React from 'react';
 import { Box, Paper, Typography, ToggleButton, ToggleButtonGroup, TextField, InputAdornment } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import {
   Hotel as HotelIcon,
   Block as BlockIcon,
@@ -20,6 +19,11 @@ import type {
   RoomFilterOption,
   RoomAttributeFilters,
 } from '../../../hooks/useRoomManagementFilters';
+
+/** Alpha-composite a color that may be a `var(--hotel-*)` token — MUI `alpha()`
+ *  can't parse CSS variables, `color-mix` handles both hex and var(). */
+const tint = (color: string, pct: number) =>
+  `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 interface RoomManagementHeaderProps {
   rooms: Room[];
@@ -100,8 +104,8 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
               width: 44,
               height: 44,
               borderRadius: 1.5,
-              bgcolor: alpha('#c69a5b', 0.18),
-              color: '#a06a2c',
+              bgcolor: 'var(--hotel-primary-subtle)',
+              color: 'var(--hotel-primary-text)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -157,9 +161,9 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
                   minWidth: 64,
                   borderRadius: 1.5,
                   textAlign: 'center',
-                  bgcolor: alpha(s.color, 0.12),
+                  bgcolor: tint(s.color, 12),
                   border: '1px solid',
-                  borderColor: alpha(s.color, 0.4),
+                  borderColor: tint(s.color, 40),
                   color: s.color,
                 }}
               >
@@ -196,17 +200,17 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
                 value={item.value}
                 sx={{
                   border: '1px solid !important',
-                  borderColor: selected ? `${alpha(item.color === 'transparent' ? '#000' : item.color, 0.55)} !important` : 'divider',
+                  borderColor: selected ? `${tint(item.color === 'transparent' ? 'var(--hotel-text)' : item.color, 55)} !important` : 'divider',
                   borderRadius: '999px !important',
                   px: 1.5,
                   py: 0.4,
                   gap: 0.75,
                   color: 'text.primary',
                   bgcolor: selected
-                    ? (item.color === 'transparent' ? 'action.selected' : alpha(item.color, 0.12))
+                    ? (item.color === 'transparent' ? 'action.selected' : tint(item.color, 12))
                     : 'background.paper',
                   textTransform: 'none',
-                  '&:hover': { bgcolor: item.color === 'transparent' ? 'action.hover' : alpha(item.color, 0.08) },
+                  '&:hover': { bgcolor: item.color === 'transparent' ? 'action.hover' : tint(item.color, 8) },
                 }}
               >
                 <Box
@@ -233,9 +237,9 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
 
         {/* Quick attribute filters (independent toggles) */}
         {([
-          { key: 'smoking' as const, label: 'Smoking', count: smokingCount, color: '#a06a2c', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
-          { key: 'daily' as const, label: 'Daily cleaning', count: dailyCleaningCount, color: '#2f7a45', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
-          { key: 'nodaily' as const, label: 'No cleaning', count: noCleaningCount, color: '#8d6e63', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
+          { key: 'smoking' as const, label: 'Smoking', count: smokingCount, color: 'var(--hotel-warning)', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
+          { key: 'daily' as const, label: 'Daily cleaning', count: dailyCleaningCount, color: 'var(--hotel-success)', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
+          { key: 'nodaily' as const, label: 'No cleaning', count: noCleaningCount, color: 'var(--hotel-neutral)', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
         ]).map((item) => {
           const selected = attrFilters[item.key];
           return (
@@ -251,12 +255,12 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
                 py: 0.5,
                 cursor: 'pointer',
                 border: '1px solid',
-                borderColor: selected ? alpha(item.color, 0.55) : 'divider',
+                borderColor: selected ? tint(item.color, 55) : 'divider',
                 borderRadius: '999px',
                 color: 'text.primary',
-                bgcolor: selected ? alpha(item.color, 0.12) : 'background.paper',
+                bgcolor: selected ? tint(item.color, 12) : 'background.paper',
                 font: 'inherit',
-                '&:hover': { bgcolor: selected ? alpha(item.color, 0.18) : alpha(item.color, 0.06) },
+                '&:hover': { bgcolor: selected ? tint(item.color, 18) : tint(item.color, 6) },
                 '& svg': { color: item.color },
               }}
             >
@@ -287,12 +291,12 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
                     py: 0.5,
                     cursor: 'pointer',
                     border: '1px solid',
-                    borderColor: selected ? alpha('#5b7fbe', 0.55) : 'divider',
+                    borderColor: selected ? tint('var(--hotel-info)', 55) : 'divider',
                     borderRadius: '999px',
                     color: 'text.primary',
-                    bgcolor: selected ? alpha('#5b7fbe', 0.12) : 'background.paper',
+                    bgcolor: selected ? 'var(--hotel-info-bg)' : 'background.paper',
                     font: 'inherit',
-                    '&:hover': { bgcolor: selected ? alpha('#5b7fbe', 0.18) : alpha('#5b7fbe', 0.06) },
+                    '&:hover': { bgcolor: selected ? tint('var(--hotel-info)', 18) : 'action.hover' },
                   }}
                 >
                   <Typography variant="caption" sx={{ fontWeight: 700 }}>
@@ -338,13 +342,13 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
               py: 0.5,
               cursor: 'pointer',
               border: '1px solid',
-              borderColor: prioritySort ? alpha('#c25e10', 0.55) : 'divider',
+              borderColor: prioritySort ? tint('var(--hotel-warning)', 55) : 'divider',
               borderRadius: '999px',
               color: 'text.primary',
-              bgcolor: prioritySort ? alpha('#c25e10', 0.12) : 'background.paper',
+              bgcolor: prioritySort ? 'var(--hotel-warning-bg)' : 'background.paper',
               font: 'inherit',
-              '&:hover': { bgcolor: prioritySort ? alpha('#c25e10', 0.18) : alpha('#c25e10', 0.06) },
-              '& svg': { color: '#c25e10' },
+              '&:hover': { bgcolor: prioritySort ? tint('var(--hotel-warning)', 18) : 'action.hover' },
+              '& svg': { color: 'var(--hotel-warning)' },
             }}
           >
             <SortIcon sx={{ fontSize: 15 }} />

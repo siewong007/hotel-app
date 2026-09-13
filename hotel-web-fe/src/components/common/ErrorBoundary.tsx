@@ -52,7 +52,7 @@ function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wron
             sx={{
               mt: 2,
               p: 2,
-              bgcolor: 'grey.100',
+              bgcolor: 'var(--hotel-surface-sunken)',
               borderRadius: 1,
               textAlign: 'left',
               maxHeight: 200,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Chip, alpha } from '@mui/material';
+import { Chip } from '@mui/material';
 import type { Role } from '../../../../../types';
 import { getRoleColor } from '../constants';
 
@@ -29,16 +29,16 @@ const RoleChip: React.FC<RoleChipProps> = ({
       disabled={disabled}
       variant="outlined"
       sx={{
-        backgroundColor: alpha(color, 0.1),
+        backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
         color: color,
-        borderColor: alpha(color, 0.5),
+        borderColor: `color-mix(in srgb, ${color} 50%, transparent)`,
         fontWeight: 500,
         '&:hover': {
-          backgroundColor: alpha(color, 0.2),
+          backgroundColor: `color-mix(in srgb, ${color} 20%, transparent)`,
           borderColor: color,
         },
         '& .MuiChip-deleteIcon': {
-          color: alpha(color, 0.7),
+          color: `color-mix(in srgb, ${color} 70%, transparent)`,
           '&:hover': {
             color: color,
           },

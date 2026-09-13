@@ -133,7 +133,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
           )}
 
           {/* Current Booking Info */}
-          <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
+          <Box sx={{ bgcolor: 'var(--hotel-surface-raised)', p: 2, borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>Current Booking</Typography>
             <Grid container spacing={1}>
               <Grid size={6}>

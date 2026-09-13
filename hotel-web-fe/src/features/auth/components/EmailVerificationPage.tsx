@@ -81,7 +81,7 @@ const EmailVerificationPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'var(--hotel-page-bg)',
+        background: 'var(--hotel-bg)',
         position: 'relative',
         '&::before': {
           content: '""',
@@ -90,8 +90,8 @@ const EmailVerificationPage: React.FC = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'var(--hotel-soft-glow)',
-          opacity: 0.3,
+          background:
+            'radial-gradient(circle at 78% 12%, rgba(201, 169, 106, 0.10), transparent 34%), radial-gradient(circle at 12% 88%, rgba(127, 168, 220, 0.05), transparent 40%)',
         },
       }}
     >
@@ -102,10 +102,9 @@ const EmailVerificationPage: React.FC = () => {
             p: 5,
             width: '100%',
             borderRadius: 3,
-            background: 'var(--hotel-panel-bg)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid var(--hotel-divider)',
-            boxShadow: '0 20px 60px var(--hotel-shadow-color)',
+            background: 'var(--hotel-surface-overlay)',
+            border: '1px solid var(--hotel-border)',
+            boxShadow: 'var(--hotel-shadow-lg)',
             textAlign: 'center',
           }}
         >
@@ -114,10 +113,11 @@ const EmailVerificationPage: React.FC = () => {
               display: 'inline-flex',
               p: 2,
               borderRadius: 2,
-              background: 'var(--hotel-action-gradient)',
+              background: 'var(--hotel-primary-subtle)',
+              border: '1px solid var(--hotel-primary-border)',
               mb: 2,
             }}>
-              <EmailIcon sx={{ fontSize: 48, color: 'white' }} />
+              <EmailIcon sx={{ fontSize: 48, color: 'var(--hotel-primary)' }} />
             </Box>
             <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
               Email Verification
@@ -159,10 +159,10 @@ const EmailVerificationPage: React.FC = () => {
                 variant="contained"
                 onClick={handleLoginRedirect}
                 sx={{
-                  background: 'var(--hotel-action-gradient)',
+                  background: 'var(--hotel-primary)',
                   fontWeight: 600,
                   '&:hover': {
-                    background: 'var(--hotel-action-gradient-hover)',
+                    background: 'var(--hotel-primary-hover)',
                   },
                 }}
               >
@@ -192,10 +192,10 @@ const EmailVerificationPage: React.FC = () => {
                 variant="contained"
                 onClick={handleLoginRedirect}
                 sx={{
-                  background: 'var(--hotel-action-gradient)',
+                  background: 'var(--hotel-primary)',
                   fontWeight: 600,
                   '&:hover': {
-                    background: 'var(--hotel-action-gradient-hover)',
+                    background: 'var(--hotel-primary-hover)',
                   },
                 }}
               >

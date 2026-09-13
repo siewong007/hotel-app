@@ -91,7 +91,7 @@ const ComplimentaryBookingsTable: React.FC<ComplimentaryBookingsTableProps> = ({
       <TableContainer component={Paper}>
         <Table aria-busy={loading || undefined}>
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.50' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell>{sortableHeader('created_at', 'Booking #')}</TableCell>
               <TableCell>{sortableHeader('guest_name', 'Guest')}</TableCell>
               <TableCell>{sortableHeader('room_number', 'Room')}</TableCell>

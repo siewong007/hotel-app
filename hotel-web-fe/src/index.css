@@ -6,8 +6,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--hotel-bg, #f4f7f4);
-  color: var(--hotel-text-primary, #202124);
+  background-color: var(--hotel-bg, #0B0E13);
+  color: var(--hotel-text, #E9EAF0);
 }
 
 code {
@@ -37,7 +37,7 @@ html, body, #root {
      not, so the top of a tall card always stays reachable. */
   align-items: flex-start;
   min-height: 100vh;
-  background: var(--hotel-page-bg);
+  background: var(--hotel-bg);
 }
 
 .auth-container { margin-block: auto !important; }
@@ -54,19 +54,20 @@ html, body, #root {
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  /* Warm lobby glow — the only decorative gradient in the app. */
   background:
-    linear-gradient(105deg, rgba(5, 24, 18, .94) 0%, rgba(11, 45, 34, .82) 44%, rgba(11, 45, 34, .22) 100%),
-    radial-gradient(circle at 82% 18%, rgba(217, 181, 114, .25), transparent 30%);
+    radial-gradient(circle at 78% 12%, rgba(201, 169, 106, .10), transparent 34%),
+    radial-gradient(circle at 12% 88%, rgba(127, 168, 220, .05), transparent 40%);
 }
 
 .auth-container { max-width: 560px !important; }
 
 .auth-card {
   position: relative;
-  border-radius: 28px !important;
-  background: rgba(255, 253, 247, .97) !important;
-  border: 1px solid rgba(255, 255, 255, .72) !important;
-  box-shadow: 0 32px 90px rgba(0, 0, 0, .28) !important;
+  border-radius: 24px !important;
+  background: var(--hotel-surface-overlay, #1C222C) !important;
+  border: 1px solid var(--hotel-border, #2A3242) !important;
+  box-shadow: var(--hotel-shadow-lg, 0 16px 48px rgba(0, 0, 0, .55)) !important;
 }
 
 /* The eyebrow text is the configured hotel name. `--auth-brand-eyebrow` is set
@@ -76,7 +77,7 @@ html, body, #root {
   content: var(--auth-brand-eyebrow, 'Hotel');
   display: block;
   margin-bottom: 28px;
-  color: #315b4b;
+  color: var(--hotel-primary-text, #D8BD85);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .2em;
@@ -86,20 +87,20 @@ html, body, #root {
 .auth-heading h1 {
   font-family: Georgia, 'Times New Roman', serif !important;
   font-weight: 400 !important;
-  letter-spacing: -.055em !important;
+  letter-spacing: -.045em !important;
   text-transform: none !important;
-  color: #102a21 !important;
+  color: var(--hotel-text, #E9EAF0) !important;
   background: none !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
-.auth-choice-card { border-radius: 18px !important; border: 1px solid rgba(18, 58, 46, .12) !important; box-shadow: none !important; }
-.auth-choice-card:focus-within { outline: 3px solid rgba(32, 114, 87, .28); outline-offset: 2px; }
+.auth-choice-card { border-radius: 16px !important; border: 1px solid var(--hotel-border-subtle, #202733) !important; box-shadow: none !important; }
+.auth-choice-card:focus-within { outline: 3px solid var(--hotel-primary-subtle, rgba(201, 169, 106, .14)); outline-offset: 2px; }
 
-.auth-card .MuiOutlinedInput-root { border-radius: 12px; background: rgba(255,255,255,.72); }
+.auth-card .MuiOutlinedInput-root { border-radius: 12px; background: var(--hotel-surface-sunken, #0D1117); }
 .auth-card .MuiButton-root { min-height: 44px; border-radius: 12px; text-transform: none; }
-.auth-card .MuiButton-contained { box-shadow: 0 10px 24px rgba(31, 91, 69, .2); }
-.auth-card :focus-visible { outline: 3px solid rgba(32, 114, 87, .32); outline-offset: 2px; }
+.auth-card .MuiButton-contained { box-shadow: none; }
+.auth-card :focus-visible { outline: 3px solid var(--hotel-focus-ring, rgba(201, 169, 106, .55)); outline-offset: 2px; }
 
 @media (max-width: 600px) {
   .auth-page { padding-inline: 8px; }
@@ -121,16 +122,16 @@ html {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--hotel-scrollbar-track, #e0f2f1);
+  background: var(--hotel-scrollbar-track, #12161D);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--hotel-scrollbar-thumb, #80cbc4);
+  background: var(--hotel-scrollbar-thumb, #3C4659);
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--hotel-scrollbar-thumb-hover, #26a69a);
+  background: var(--hotel-scrollbar-thumb-hover, #4A5468);
 }
 
 /* ===================================

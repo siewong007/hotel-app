@@ -61,7 +61,7 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
       maxWidth="md"
       fullWidth
     >
-      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'var(--hotel-on-primary)', py: 2, px: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <HotelIcon sx={{ fontSize: 28 }} />
           <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
@@ -73,7 +73,7 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
         <Grid container spacing={3}>
           {/* Current Room Info */}
           <Grid size={12}>
-            <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
+            <Paper sx={{ p: 2, bgcolor: 'var(--hotel-surface-raised)' }}>
               <Typography variant="subtitle2" gutterBottom>
                 Current Room
               </Typography>
@@ -233,7 +233,7 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
           )}
         </Grid>
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'var(--hotel-surface-raised)', borderTop: 1, borderColor: 'divider' }}>
         <Button onClick={onCancel} disabled={changing}>
           Cancel
         </Button>

@@ -104,8 +104,8 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
               justifyContent: 'space-between',
               p: 1.5,
               cursor: 'pointer',
-              bgcolor: 'grey.50',
-              '&:hover': { bgcolor: 'grey.100' },
+              bgcolor: 'var(--hotel-surface-sunken)',
+              '&:hover': { bgcolor: 'var(--hotel-surface-sunken)' },
             }}
             onClick={() => toggleSection(section.entry_type)}
           >
@@ -143,7 +143,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                     <TableCell><strong>Booking #</strong></TableCell>
                     <TableCell><strong>Room</strong></TableCell>
                     <TableCell><strong>Description</strong></TableCell>
@@ -165,7 +165,7 @@ export function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                  <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                     <TableCell colSpan={3}><strong>Total</strong></TableCell>
                     <TableCell align="right">
                       <strong>{Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-'}</strong>
@@ -215,7 +215,7 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Account</strong></TableCell>
               <TableCell align="right"><strong>Debits</strong></TableCell>
               <TableCell align="right"><strong>Credits</strong></TableCell>
@@ -233,7 +233,7 @@ export function GuestLedgerSummary({ sections }: { sections: JournalSection[] })
                 </TableCell>
               </TableRow>
             ))}
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Total</strong></TableCell>
               <TableCell align="right"><strong>{formatCurrency(totalDebit)}</strong></TableCell>
               <TableCell align="right"><strong>{formatCurrency(totalCredit)}</strong></TableCell>
@@ -258,7 +258,7 @@ export function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }
       <TableContainer component={Paper} variant="outlined">
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Room</strong></TableCell>
               <TableCell><strong>Type</strong></TableCell>
               <TableCell><strong>Guest Name</strong></TableCell>
@@ -275,7 +275,7 @@ export function RoomSoldDetail({ bookings }: { bookings: PostedBookingDetail[] }
                 </TableRow>
               );
             })}
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
+            <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
               <TableCell><strong>Total Room Sold</strong></TableCell>
               <TableCell><strong>{bookings.length}</strong></TableCell>
               <TableCell />
@@ -341,7 +341,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
     <TableContainer component={Paper} variant="outlined">
       <Table size="small">
         <TableHead>
-          <TableRow sx={{ bgcolor: 'grey.100' }}>
+          <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
             <TableCell><strong>{title}</strong></TableCell>
             <TableCell align="center"><strong>Bookings</strong></TableCell>
             <TableCell align="right"><strong>Amount</strong></TableCell>
@@ -357,7 +357,7 @@ function BreakdownTable({ title, items }: { title: string; items: RevenueBreakdo
               <TableCell align="right">{formatCurrency(Number(item.amount))}</TableCell>
             </TableRow>
           ))}
-          <TableRow sx={{ bgcolor: 'grey.100' }}>
+          <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
             <TableCell><strong>Total</strong></TableCell>
             <TableCell align="center"><strong>{totalCount}</strong></TableCell>
             <TableCell align="right"><strong>{formatCurrency(totalAmount)}</strong></TableCell>
@@ -464,7 +464,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
           <Table size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                 <TableCell><strong>Booking #</strong></TableCell>
                 <TableCell><strong>Guest</strong></TableCell>
                 <TableCell><strong>Room</strong></TableCell>
