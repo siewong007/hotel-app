@@ -101,6 +101,7 @@ export default function PromotionManagementPage() {
     null,
   );
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [drawerVoucherId, setDrawerVoucherId] = useState<number | null>(null);
 
   const promotionParams = useMemo(
     () => ({
@@ -700,6 +701,7 @@ export default function PromotionManagementPage() {
               isLoading={vouchersQuery.isLoading}
               canManage={canManageVouchers}
               isRevoking={revokeMutation.isPending}
+              onView={(voucher) => setDrawerVoucherId(voucher.id)}
               onRevoke={revokeVoucher}
               onPageChange={setVoucherPage}
               onPageSizeChange={(pageSize) => {
