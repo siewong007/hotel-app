@@ -3,7 +3,9 @@ import type {
   PromotionInput,
   PromotionKind,
   PromotionStatus,
+  VoucherDisplayStatus,
   VoucherStatus,
+  VoucherStatusFilter,
 } from './types';
 
 export const PROMOTION_STATUS_LABELS: Record<PromotionStatus, string> = {
@@ -17,6 +19,18 @@ export const VOUCHER_STATUS_LABELS: Record<VoucherStatus, string> = {
   available: 'Available',
   redeemed: 'Redeemed',
   revoked: 'Revoked',
+};
+
+export const VOUCHER_DISPLAY_STATUS_LABELS: Record<VoucherDisplayStatus, string> = {
+  available: 'Available',
+  expired: 'Expired',
+  redeemed: 'Redeemed',
+  revoked: 'Revoked',
+};
+
+export const VOUCHER_STATUS_FILTER_LABELS: Record<VoucherStatusFilter, string> = {
+  ...VOUCHER_DISPLAY_STATUS_LABELS,
+  expiring_soon: 'Expiring soon',
 };
 
 export const PROMOTION_KIND_OPTIONS: Array<{ value: PromotionKind; label: string }> = [

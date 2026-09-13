@@ -71,6 +71,8 @@ export const queryKeys = {
     all: housekeeping,
     board: () => [...housekeeping, 'board'] as const,
     tasks: (params?: KeyParams) => [...housekeeping, 'tasks', paramsOrEmpty(params)] as const,
+    assignableStaff: (scope: string) =>
+      [...housekeeping, 'assignable-staff', scope] as const,
   },
   maintenance: {
     all: maintenance,
@@ -89,6 +91,11 @@ export const queryKeys = {
     adminList: (params?: unknown) => [...adminPromotionLists, params ?? {}] as const,
     adminVouchers: (params?: unknown) =>
       [...promotions, 'admin', 'vouchers', params ?? {}] as const,
+    adminVoucher: (voucherId: number) =>
+      [...promotions, 'admin', 'voucher', voucherId] as const,
+    voucherSummary: () => [...promotions, 'admin', 'voucherSummary'] as const,
+    adminPromotionDetail: (promotionId: number) =>
+      [...promotions, 'admin', 'promotion', promotionId] as const,
   },
   roomTypes: {
     all: roomTypes,

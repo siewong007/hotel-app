@@ -102,6 +102,33 @@ export function useAdminVouchers(params: VoucherListParams, enabled = true) {
   });
 }
 
+export function useAdminVoucher(voucherId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.promotions.adminVoucher(voucherId ?? 0),
+    queryFn: () => PromotionsApi.getVoucher(voucherId as number),
+    enabled: enabled && voucherId != null,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+export function useVoucherSummary(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.promotions.voucherSummary(),
+    queryFn: () => PromotionsApi.getVoucherSummary(),
+    enabled,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+export function useAdminPromotion(promotionId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.promotions.adminPromotionDetail(promotionId ?? 0),
+    queryFn: () => PromotionsApi.getAdminPromotion(promotionId as number),
+    enabled: enabled && promotionId != null,
+    staleTime: queryStaleTime.short,
+  });
+}
+
 export function useIssueVoucher() {
   const queryClient = useQueryClient();
   return useMutation({

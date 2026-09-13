@@ -12,6 +12,7 @@ import type {
   VoucherListParams,
   VoucherListResponse,
   VoucherRevokeInput,
+  VoucherSummary,
 } from '../types';
 
 function toSearchParams(
@@ -60,10 +61,22 @@ export const PromotionsApi = {
       .json<Promotion>();
   },
 
+  getAdminPromotion(promotionId: number): Promise<Promotion> {
+    return api.get(`admin/promotions/${promotionId}`).json<Promotion>();
+  },
+
   listVouchers(params?: VoucherListParams): Promise<VoucherListResponse> {
     return api
       .get('admin/vouchers', { searchParams: toSearchParams(params) })
       .json<VoucherListResponse>();
+  },
+
+  getVoucher(voucherId: number): Promise<Voucher> {
+    return api.get(`admin/vouchers/${voucherId}`).json<Voucher>();
+  },
+
+  getVoucherSummary(): Promise<VoucherSummary> {
+    return api.get('admin/vouchers/summary').json<VoucherSummary>();
   },
 
   issueVoucher(input: VoucherIssueInput): Promise<Voucher> {

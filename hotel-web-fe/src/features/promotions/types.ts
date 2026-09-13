@@ -98,6 +98,14 @@ export interface PromotionLifecycleInput {
 
 export type VoucherStatus = 'available' | 'redeemed' | 'revoked';
 
+/** Display-only voucher status: `available` rows past `expires_at` read as
+ *  expired. Never persisted — matches the backend `status=expired` alias. */
+export type VoucherDisplayStatus = VoucherStatus | 'expired';
+
+/** `status` query param values — display statuses plus the `expiring_soon`
+ *  alias (a filter can never be a row's own display status). */
+export type VoucherStatusFilter = VoucherDisplayStatus | 'expiring_soon';
+
 export interface Voucher {
   id: number;
   promotion_id: number;
@@ -112,6 +120,8 @@ export interface Voucher {
   is_cancellable?: boolean;
   guest_id?: number | null;
   guest_name?: string | null;
+  /** Why the voucher was revoked; populated on admin reads only. */
+  revocation_reason?: string | null;
   expires_at?: string | null;
   claimed_at?: string | null;
   redeemed_at?: string | null;
@@ -123,9 +133,25 @@ export interface VoucherListParams {
   page?: number;
   page_size?: number;
   search?: string;
-  status?: VoucherStatus;
+  status?: VoucherStatusFilter;
   promotion_id?: number;
   guest_id?: number;
+}
+
+export interface VoucherSummaryDiscount {
+  currency: string;
+  amount: number;
+}
+
+export interface VoucherSummary {
+  total: number;
+  available: number;
+  redeemed: number;
+  revoked: number;
+  expired: number;
+  expiring_soon: number;
+  redemption_count: number;
+  discount_given: VoucherSummaryDiscount[];
 }
 
 export interface VoucherListResponse {
