@@ -50,26 +50,6 @@ export class ReportsService {
     return await api.put(`booking-channels/${id}`, { json: input }).json<BookingChannel>();
   }
 
-  static async downloadReportPDF(params: {
-    reportType: string;
-    startDate: string;
-    endDate: string;
-    shift?: string;
-    drawer?: string;
-    companyName?: string;
-  }): Promise<Blob> {
-    const searchParams = new URLSearchParams({
-      report_type: params.reportType,
-      start_date: params.startDate,
-      end_date: params.endDate,
-    });
-
-    if (params.shift) searchParams.append('shift', params.shift);
-    if (params.drawer) searchParams.append('drawer', params.drawer);
-    if (params.companyName) searchParams.append('company_name', params.companyName);
-
-    return await api.get('reports/pdf', { searchParams }).blob();
-  }
 }
 
 export interface BookingChannel {

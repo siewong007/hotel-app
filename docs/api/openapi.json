@@ -199,6 +199,9 @@
     "/api/auth/2fa/verify": {
       "POST": {}
     },
+    "/api/auth/accept-invite": {
+      "POST": {}
+    },
     "/api/auth/access": {
       "GET": {}
     },
@@ -953,6 +956,12 @@
       "GET": {},
       "POST": {}
     },
+    "/api/users/directory": {
+      "GET": {}
+    },
+    "/api/users/invite": {
+      "POST": {}
+    },
     "/api/users/roles": {
       "POST": {}
     },
@@ -961,11 +970,30 @@
       "GET": {},
       "PATCH": {}
     },
+    "/api/users/{user_id}/reactivate": {
+      "POST": {}
+    },
+    "/api/users/{user_id}/resend-invite": {
+      "POST": {}
+    },
     "/api/users/{user_id}/roles": {
       "PUT": {}
     },
     "/api/users/{user_id}/roles/{role_id}": {
       "DELETE": {}
+    },
+    "/api/users/{user_id}/sessions": {
+      "DELETE": {},
+      "GET": {}
+    },
+    "/api/users/{user_id}/sessions/{session_id}": {
+      "DELETE": {}
+    },
+    "/api/users/{user_id}/suspend": {
+      "POST": {}
+    },
+    "/api/users/{user_id}/unlock": {
+      "POST": {}
     },
     "/api/webhooks/paypal": {
       "POST": {}

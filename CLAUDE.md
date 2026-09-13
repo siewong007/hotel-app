@@ -100,7 +100,7 @@ hardcoded spots in `tests/postgres_patch_lifecycle.rs` — two `version BETWEEN 
 bounds, the expected-revision list, and `assert_expected_revisions`' `revisions.len()`.
 A stale bound does not fail loudly; it silently drops the newest patch from coverage while
 the suite stays green. `deploy/deploy-staging.sh` and `.github/workflows/deploy-staging.yml`
-need the same two entries and NOTHING enforces them. Catalog head is `0015`.
+need the same two entries and NOTHING enforces them. Catalog head is `0018`.
 The V1 baseline checksum in `_begin.sql`/`seed.sql` is a FROZEN lineage token, not a hash of
 the baseline file (they diverged long ago). Never "recompute" it: `_begin.sql` compares it to
 what `seed.sql` recorded in each live database, so rotating it aborts every patch everywhere.

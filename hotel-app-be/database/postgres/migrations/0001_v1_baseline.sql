@@ -320,6 +320,27 @@ COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempot
 
 
 --
+-- Name: prevent_audit_log_mutation(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prevent_audit_log_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+    RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+END;
+$$;
+
+
+--
+-- Name: FUNCTION prevent_audit_log_mutation(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
+
+
+--
 -- Name: gen_uuidv7(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -8101,6 +8122,13 @@ ALTER INDEX public.idx_audit_logs_resource ATTACH PARTITION public.audit_logs_de
 --
 
 ALTER INDEX public.idx_audit_logs_user_id ATTACH PARTITION public.audit_logs_default_user_id_idx;
+
+
+--
+-- Name: audit_logs trg_audit_logs_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.audit_logs FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();
 
 
 --

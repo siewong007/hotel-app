@@ -14,7 +14,7 @@
 
 use std::time::Duration;
 
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{Datelike, NaiveDateTime, NaiveTime};
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -49,6 +49,12 @@ pub fn spawn(pool: DbPool) {
 /// One scheduler iteration: if automation is enabled, post any business dates
 /// that are due but not yet closed, oldest first.
 async fn tick(pool: &DbPool) -> Result<(), ApiError> {
+    // Audit-partition maintenance runs on this cadence regardless of whether
+    // night-audit automation is on — `audit_logs` is written by every domain,
+    // and letting the pre-created window lapse would silently push all new
+    // audit rows into the unbounded default partition.
+    ensure_audit_partitions_once_daily(pool).await;
+
     if !is_enabled(pool).await {
         return Ok(());
     }
@@ -95,6 +101,33 @@ async fn is_enabled(pool: &DbPool) -> bool {
         raw.trim().to_ascii_lowercase().as_str(),
         "true" | "1" | "yes" | "on"
     )
+}
+
+/// Day-of-epoch of the last successful partition ensure; `i64::MIN` forces the
+/// first tick to run it. A failed ensure retries on the next tick (the marker
+/// only advances on success), so a transient DB blip self-heals. Two racing
+/// ticks may both ensure — the call is idempotent, so that is harmless.
+static LAST_PARTITION_ENSURE_EPOCH_DAY: std::sync::atomic::AtomicI64 =
+    std::sync::atomic::AtomicI64::new(i64::MIN);
+
+async fn ensure_audit_partitions_once_daily(pool: &DbPool) {
+    let today_epoch_day: i64 = match hotel_local_now(pool).await {
+        Ok(now) => now.date().num_days_from_ce().into(),
+        Err(_) => return,
+    };
+    if LAST_PARTITION_ENSURE_EPOCH_DAY.load(std::sync::atomic::Ordering::Relaxed) >= today_epoch_day
+    {
+        return;
+    }
+    match crate::repositories::audit::AuditRepository::ensure_upcoming_partitions(pool).await {
+        Ok(()) => {
+            LAST_PARTITION_ENSURE_EPOCH_DAY
+                .store(today_epoch_day, std::sync::atomic::Ordering::Relaxed);
+        }
+        Err(error) => {
+            log::warn!("audit_logs partition ensure failed (retries next tick): {error}");
+        }
+    }
 }
 
 fn parse_time(raw: &str) -> NaiveTime {

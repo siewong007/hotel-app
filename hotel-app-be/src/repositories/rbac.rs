@@ -467,44 +467,45 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    pub async fn get_user_permissions(
+    /// Effective permissions as full [`Permission`] rows — direct roles UNION
+    /// team-conferred roles, expiry-filtered, i.e. the same set
+    /// `check_permission` enforces. The admin detail view must show what the
+    /// account can actually do, not just what its direct role rows grant.
+    pub async fn get_user_effective_permissions(
         pool: &DbPool,
         user_id: i64,
     ) -> Result<Vec<Permission>, ApiError> {
-        sqlx::query_as::<_, Permission>(
-            r#"
-            SELECT DISTINCT p.id, p.name, p.resource, p.action, p.description, p.created_at
-            FROM permissions p
-            INNER JOIN role_permissions rp ON p.id = rp.permission_id
-            INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-            WHERE ur.user_id = $1
-            ORDER BY p.resource, p.action
-            "#,
-        )
+        sqlx::query_as::<_, Permission>(sqlx::AssertSqlSafe(format!(
+            "{} \
+             SELECT DISTINCT p.id, p.name, p.resource, p.action, p.description, p.created_at \
+             FROM permissions p \
+             INNER JOIN role_permissions rp ON p.id = rp.permission_id \
+             INNER JOIN effective_roles er ON er.role_id = rp.role_id \
+             ORDER BY p.resource, p.action",
+            crate::core::rbac_cache::EFFECTIVE_ROLES_CTE
+        )))
         .bind(user_id)
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    /// Permission *names* the user effectively holds, as a set.
+    /// Permission *names* the user effectively holds, as a set — the same
+    /// definition `check_permission` enforces (direct roles UNION
+    /// team-conferred roles, expiry-filtered).
     ///
-    /// Cheaper than [`Self::get_user_permissions`] (one text column, no
-    /// ordering, no row mapping) because the escalation guard only ever asks
+    /// Cheaper than [`Self::get_user_effective_permissions`] (one text column,
+    /// no ordering, no row mapping) because the escalation guard only ever asks
     /// membership questions.
     pub async fn permission_names_for_user(
         pool: &DbPool,
         user_id: i64,
     ) -> Result<HashSet<String>, ApiError> {
-        let names: Vec<String> = sqlx::query_scalar(
-            r#"
-            SELECT DISTINCT p.name
-            FROM permissions p
-            INNER JOIN role_permissions rp ON p.id = rp.permission_id
-            INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-            WHERE ur.user_id = $1
-            "#,
-        )
+        let names: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "{}{}",
+            crate::core::rbac_cache::EFFECTIVE_ROLES_CTE,
+            crate::core::rbac_cache::EFFECTIVE_PERMISSIONS_SQL
+        )))
         .bind(user_id)
         .fetch_all(pool)
         .await
@@ -566,7 +567,7 @@ impl RbacRepository {
             .await?
             .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
         let roles = Self::get_user_roles(pool, user_id).await?;
-        let permissions = Self::get_user_permissions(pool, user_id).await?;
+        let permissions = Self::get_user_effective_permissions(pool, user_id).await?;
 
         Ok(UserWithRolesAndPermissions {
             user,
