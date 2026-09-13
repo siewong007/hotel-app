@@ -1651,6 +1651,40 @@ ALTER TABLE public.guests ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: guest_segments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.guest_segments (
+    id bigint NOT NULL,
+    name character varying(120) NOT NULL,
+    slug character varying(160) NOT NULL,
+    description text,
+    rules jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT guest_segments_name_not_blank CHECK ((length(btrim(name::text)) > 0)),
+    CONSTRAINT guest_segments_rules_shape CHECK ((jsonb_typeof(rules) = 'object'::text))
+);
+
+
+--
+-- Name: guest_segments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.guest_segments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_segments_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: room_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2447,6 +2481,7 @@ CREATE TABLE public.email_campaigns (
     body_text text,
     template_id bigint,
     promotion_id bigint,
+    segment_id bigint,
     scheduled_at timestamp with time zone,
     started_at timestamp with time zone,
     completed_at timestamp with time zone,
@@ -5649,6 +5684,22 @@ ALTER TABLE ONLY public.guests
 
 
 --
+-- Name: guest_segments guest_segments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: guest_segments guest_segments_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_slug_key UNIQUE (slug);
+
+
+--
 -- Name: housekeeping_tasks housekeeping_tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7025,6 +7076,13 @@ CREATE INDEX idx_email_campaigns_status ON public.email_campaigns USING btree (s
 
 
 --
+-- Name: idx_email_campaigns_segment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_email_campaigns_segment ON public.email_campaigns USING btree (segment_id) WHERE (segment_id IS NOT NULL);
+
+
+--
 -- Name: idx_email_deliveries_campaign; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7162,6 +7220,13 @@ CREATE INDEX idx_guests_email_trgm ON public.guests USING gin (email public.gin_
 --
 
 CREATE INDEX idx_guests_guest_type ON public.guests USING btree (guest_type);
+
+
+--
+-- Name: idx_guest_segments_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_segments_active ON public.guest_segments USING btree (is_active) WHERE (is_active = true);
 
 
 --
@@ -8870,6 +8935,14 @@ ALTER TABLE ONLY public.email_campaigns
 
 
 --
+-- Name: email_campaigns email_campaigns_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_campaigns
+    ADD CONSTRAINT email_campaigns_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.guest_segments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: email_campaigns email_campaigns_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9043,6 +9116,22 @@ ALTER TABLE ONLY public.guests
 
 ALTER TABLE ONLY public.guests
     ADD CONSTRAINT guests_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: guest_segments guest_segments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: guest_segments guest_segments_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
