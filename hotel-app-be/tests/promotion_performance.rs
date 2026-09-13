@@ -453,7 +453,7 @@ mod postgres_tests {
         let Some(pool) = setup_pg_pool().await else {
             return;
         };
-        let base = 993_300;
+        let base = 993_400;
         cleanup_fixtures(&pool, base).await;
 
         seed_promotion(&pool, base, "published", "live", true).await;
