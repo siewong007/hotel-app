@@ -5,6 +5,7 @@ pub mod guest_booking;
 pub mod loyalty;
 pub mod promotions;
 pub mod realtime;
+pub mod revenue;
 pub mod settings;
 pub mod support;
 pub mod teams;
