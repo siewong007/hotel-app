@@ -62,6 +62,11 @@
     const strong = document.createElement('strong');
     strong.textContent = roomType.name;
     caption.appendChild(strong);
+    if (roomType.code) {
+      const subtitle = document.createElement('span');
+      subtitle.textContent = roomType.code;
+      caption.appendChild(subtitle);
+    }
     figure.append(img, caption);
     grid.insertBefore(figure, firstStaticCard);
   }

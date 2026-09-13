@@ -106,7 +106,8 @@ function offerImage(offer: GuestBookingOffer): string | null {
   const raw = offer.images?.find((image) => typeof image === 'string' && image.trim().length > 0) ?? null;
   // Uploaded photos are stored as relative /uploads/... paths; in the desktop
   // webview they must resolve against the sidecar backend, not the page origin.
-  return raw ? apiUrl(raw) : null;
+  // Absolute URLs pass through untouched.
+  return raw?.startsWith('/') ? apiUrl(raw) : raw;
 }
 
 const PortalBookingPage: React.FC = () => {

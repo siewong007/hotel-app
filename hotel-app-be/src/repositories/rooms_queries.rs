@@ -715,7 +715,7 @@ pub async fn append_room_type_image(
     id: i64,
     path: &str,
 ) -> Result<(), ApiError> {
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE room_types SET images = COALESCE(images, '[]'::jsonb) || jsonb_build_array($2::text), updated_at = CURRENT_TIMESTAMP WHERE id = $1",
     )
     .bind(id)
@@ -723,6 +723,11 @@ pub async fn append_room_type_image(
     .execute(pool)
     .await
     .map_err(db_err)?;
+    // The caller deletes the stored file on Err — surface a missing type so an
+    // upload can't orphan a publicly-served file.
+    if result.rows_affected() == 0 {
+        return Err(ApiError::NotFound("Room type not found".to_string()));
+    }
     Ok(())
 }
 

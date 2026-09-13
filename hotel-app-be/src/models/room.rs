@@ -193,6 +193,7 @@ pub struct RoomType {
     pub is_active: bool,
     pub sort_order: i32,
     /// Public image URLs (e.g. `/uploads/room-types/<file>`); first is the cover.
+    #[serde(default)]
     pub images: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

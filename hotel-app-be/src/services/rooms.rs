@@ -54,8 +54,9 @@ fn room_image_extension(bytes: &[u8]) -> Option<&'static str> {
 }
 
 /// Pull the `file` field out of a room-image upload, streaming in chunks and
-/// aborting past the size cap (the `Multipart` extractor ignores
-/// `DefaultBodyLimit`, so `field.bytes()` would buffer the whole upload).
+/// aborting past the size cap. The route raises axum's `DefaultBodyLimit` to
+/// the same cap; reading chunks (rather than `field.bytes()`) keeps a large
+/// upload from being buffered wholesale and yields the size-specific message.
 async fn image_upload_bytes(mut multipart: Multipart) -> Result<Vec<u8>, ApiError> {
     while let Some(mut field) = multipart
         .next_field()
@@ -93,6 +94,8 @@ pub async fn upload_room_type_image_handler(
     multipart: Multipart,
 ) -> Result<Json<RoomType>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
+    // Fail fast on a missing type — a 404 here never touches the filesystem.
+    rq::fetch_room_type_by_id(&pool, id).await?;
     let bytes = image_upload_bytes(multipart).await?;
     if bytes.is_empty() {
         return Err(ApiError::BadRequest(
@@ -1598,7 +1601,8 @@ pub async fn get_rooms_with_occupancy_handler(
 #[cfg(test)]
 mod tests {
     use super::{
-        ApiError, delete_public_room_image, image_upload_bytes, room_image_extension,
+        ApiError, MAX_ROOM_IMAGE_BYTES, delete_public_room_image, image_upload_bytes,
+        room_image_extension,
     };
     use axum::body::Body;
     use axum::extract::{FromRequest, Multipart};
@@ -1635,6 +1639,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn image_upload_rejects_oversized_field() {
+        // Past the cap the read must fail rather than buffer the whole field.
+        // This harness carries no DefaultBodyLimit extension, so axum's 2MB
+        // multipart default trips first; on the real route the 10MB route layer
+        // and the per-field MAX_ROOM_IMAGE_BYTES check bound it identically.
+        let payload = vec![b'x'; MAX_ROOM_IMAGE_BYTES + 1];
+        let err = image_upload_bytes(image_multipart(&payload).await)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, ApiError::BadRequest(_)),
+            "expected BadRequest, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
     async fn image_upload_rejects_missing_file_field() {
         let boundary = "testboundary";
         let body = format!("--{boundary}--\r\n");
@@ -1668,12 +1688,22 @@ mod tests {
 
     #[test]
     fn delete_public_room_image_rejects_foreign_paths() {
-        // None of these may touch the filesystem; the calls must simply return.
+        // A sentinel one directory up must survive: if the guard naively joined
+        // `../guard-sentinel.txt`, this file is exactly what would be deleted.
+        let dir = std::path::PathBuf::from("uploads/public");
+        std::fs::create_dir_all(&dir).unwrap();
+        let sentinel = dir.join("guard-sentinel.txt");
+        std::fs::write(&sentinel, b"keep").unwrap();
+
         delete_public_room_image("/uploads/room-types/../../etc/passwd");
         delete_public_room_image("uploads/room-types/x.jpg");
         delete_public_room_image("/uploads/room-types/");
         delete_public_room_image("/uploads/room-types/sub/x.jpg");
+        delete_public_room_image("/uploads/room-types/../guard-sentinel.txt");
         delete_public_room_image("/etc/passwd");
+
+        assert!(sentinel.exists());
+        let _ = std::fs::remove_file(&sentinel);
     }
 
     #[test]

@@ -1388,7 +1388,7 @@ const RoomConfigurationPage: React.FC = () => {
                     >
                       <Box
                         component="img"
-                        src={apiUrl(url)}
+                        src={url.startsWith('/') ? apiUrl(url) : url}
                         alt={`${typeForm.name || 'Room type'} photo ${index + 1}`}
                         sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                       />
