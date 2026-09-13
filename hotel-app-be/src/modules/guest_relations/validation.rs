@@ -125,7 +125,7 @@ pub fn sanitize_subject(value: Option<String>) -> Result<Option<String>, ApiErro
 
 /// `guest_notes.content` text: the required body of a note/interaction.
 pub fn validate_content(value: &str) -> Result<String, ApiError> {
-    let sanitized = Sanitizer::sanitize_text(value).trim().to_string();
+    let sanitized = Sanitizer::sanitize_notes(value).trim().to_string();
     if sanitized.is_empty() {
         return Err(ApiError::BadRequest("Note content is required".to_string()));
     }
@@ -139,7 +139,7 @@ pub fn validate_content(value: &str) -> Result<String, ApiError> {
 
 /// `guest_reviews.response` text: required when staff post a response.
 pub fn validate_review_response(value: &str) -> Result<String, ApiError> {
-    let sanitized = Sanitizer::sanitize_text(value).trim().to_string();
+    let sanitized = Sanitizer::sanitize_notes(value).trim().to_string();
     if sanitized.is_empty() {
         return Err(ApiError::BadRequest(
             "A review response is required".to_string(),
