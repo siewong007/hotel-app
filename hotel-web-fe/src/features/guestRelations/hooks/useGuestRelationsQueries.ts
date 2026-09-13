@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { GuestRelationsService } from '../../../api/guestRelations.service';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateGuestDependencies } from '../../../api/queryInvalidation';
@@ -32,6 +38,39 @@ export function useGuestInteractions(
     queryFn: () => GuestRelationsService.getInteractions(guestId as number | string, params),
     enabled: enabled && isUsableGuestId(guestId),
     placeholderData: keepPreviousData,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+/**
+ * Load-more variant of `useGuestInteractions` for the Interactions timeline:
+ * `useInfiniteQuery` accumulates pages and — unlike manual page-by-page
+ * accumulation — refetches every loaded page when a mutation invalidates the
+ * shared `queryKeys.guests.interactions(guestId, …)` prefix.
+ */
+export function useGuestInteractionsFeed(
+  guestId?: number | string | null,
+  options?: { pageSize?: number; includeCompletedFollowups?: boolean },
+  enabled = true,
+) {
+  const pageSize = options?.pageSize ?? 20;
+  const includeCompletedFollowups = options?.includeCompletedFollowups ?? false;
+  return useInfiniteQuery({
+    queryKey: queryKeys.guests.interactions(guestId ?? '', {
+      feed: true,
+      page_size: pageSize,
+      include_completed_followups: includeCompletedFollowups,
+    }),
+    queryFn: ({ pageParam }) =>
+      GuestRelationsService.getInteractions(guestId as number | string, {
+        page: pageParam,
+        page_size: pageSize,
+        include_completed_followups: includeCompletedFollowups,
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page * lastPage.page_size < lastPage.total ? lastPage.page + 1 : undefined,
+    enabled: enabled && isUsableGuestId(guestId),
     staleTime: queryStaleTime.short,
   });
 }

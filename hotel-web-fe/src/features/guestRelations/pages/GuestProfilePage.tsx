@@ -28,6 +28,8 @@ import GuestProfileHeader from '../components/GuestProfileHeader';
 import OpenSupportDialog from '../components/OpenSupportDialog';
 import OverviewTab from '../components/tabs/OverviewTab';
 import StaysTab from '../components/tabs/StaysTab';
+import PreferencesTab from '../components/tabs/PreferencesTab';
+import InteractionsTab from '../components/tabs/InteractionsTab';
 import { guestDisplayName } from '../utils';
 
 interface GuestProfilePageProps {
@@ -119,6 +121,11 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
 
   const [activeTab, setActiveTab] = useState(0);
   const clampedTab = Math.min(activeTab, tabDefs.length - 1);
+
+  // "Add Note" quick action — switches to the Interactions tab and asks it to
+  // focus the add form. The tab consumes the request so later manual visits
+  // don't steal focus back.
+  const [addNoteRequested, setAddNoteRequested] = useState(false);
 
   const goToTab = (key: ProfileTabKey) => {
     const index = tabDefs.findIndex((tab) => tab.key === key);
@@ -268,7 +275,10 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
             canOpenSupport={canWriteSupport}
             onEdit={() => handleEditClick(guest)}
             onNewBooking={() => setBookingDialogOpen(true)}
-            onAddNote={() => goToTab('interactions')}
+            onAddNote={() => {
+              goToTab('interactions');
+              setAddNoteRequested(true);
+            }}
             onOpenSupport={() => setSupportDialogOpen(true)}
           />
 
@@ -310,7 +320,22 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
                   index={offset + 2}
                   idPrefix="guest-profile"
                 >
-                  <TabStub label={tab.label} />
+                  {tab.key === 'preferences' ? (
+                    <PreferencesTab
+                      guestId={numericGuestId}
+                      profile={profile}
+                      canEdit={canUpdateGuest}
+                    />
+                  ) : tab.key === 'interactions' ? (
+                    <InteractionsTab
+                      guestId={numericGuestId}
+                      reservations={profile.reservations}
+                      addNoteRequested={addNoteRequested}
+                      onAddNoteHandled={() => setAddNoteRequested(false)}
+                    />
+                  ) : (
+                    <TabStub label={tab.label} />
+                  )}
                 </TabPanel>
               ))}
             </Box>
