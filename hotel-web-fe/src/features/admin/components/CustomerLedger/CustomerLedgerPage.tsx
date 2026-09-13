@@ -355,7 +355,7 @@ const CustomerLedgerPage: React.FC = () => {
     const handleSettingsChange = () => setHotelSettings(getHotelSettings());
     window.addEventListener('hotelSettingsChange', handleSettingsChange);
     return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
-  }, [loadData]);
+  }, [loadData, loadGuests]);
 
   useEffect(() => {
     const hasLedgerTarget = Boolean(

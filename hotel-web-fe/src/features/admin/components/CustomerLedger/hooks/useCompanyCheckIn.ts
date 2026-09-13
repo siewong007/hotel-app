@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { BookingsService, GuestsService, RoomsService } from '../../../../../api';
 import { api } from '../../../../../api/client';
 import type { Booking, BookingWithDetails, Company, Guest, Room } from '../../../../../types';
@@ -56,14 +56,14 @@ export function useCompanyCheckIn({ showSnackbar, reloadWorkspace }: UseCompanyC
   const [newCheckInGuestForm, setNewCheckInGuestForm] = useState(EMPTY_GUEST_FORM);
 
   // Load guests for check-in
-  const loadGuests = async () => {
+  const loadGuests = useCallback(async () => {
     try {
       const guestsData = await GuestsService.getAllGuests();
       setGuests(guestsData.sort((a, b) => a.nick_name.localeCompare(b.nick_name)));
     } catch (err) {
       console.error('Failed to load guests:', err);
     }
-  };
+  }, []);
 
   // Load available rooms for given dates
   const loadAvailableRooms = async (checkIn: string, checkOut: string) => {
