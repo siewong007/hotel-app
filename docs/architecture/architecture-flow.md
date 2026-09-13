@@ -127,6 +127,15 @@ day. Rust code must use `core/db.rs::hotel_today(executor)` for business-day
 decisions (due dates, occupancy gating, report windows) — never
 `chrono::Local`/`Utc` date math.
 
+## Guest relations
+
+The staff CRM workspace (`modules/guest_relations/`, `/guest-relations/guests`)
+is a join surface over the canonical `guests` identity — interactions,
+preferences, reviews, loyalty, vouchers, support, and communications read under
+one `/guests/{id}` tree without owning those domains. Boundary table, identity
+model, endpoint/permission map (incl. `guests:reveal` for sensitive
+identifiers): [guest-relations.md](guest-relations.md).
+
 ## Guest portal security
 
 Pre-checkin tokens are 256-bit (`generate_session_token`) and invalidated on

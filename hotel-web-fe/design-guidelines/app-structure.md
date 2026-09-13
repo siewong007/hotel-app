@@ -24,7 +24,9 @@ guests see only their own pages.
 ### Main (daily front-desk work)
 - `/bookings` — Bookings: search, create, edit, check-in/out; the busiest screen
 - `/timeline` — room-reservation timeline: rooms × dates calendar grid
-- `/guest-config` — guest profiles and guest data management
+- `/guest-relations/guests` — Guest Relations: guest list, profiles and guest
+  data management (`/guest-config` redirects here); each guest opens a 360
+  page at `/guest-relations/guests/$guestId`
 - `/room-management` — room status board (occupancy, housekeeping state)
 
 ### Operations

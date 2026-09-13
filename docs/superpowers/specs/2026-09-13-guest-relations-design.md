@@ -135,6 +135,11 @@ repository.rs models.rs validation.rs`. Registered via `.merge()` in
 
 Endpoints (all under existing `/guests/{id}` and `/support` prefixes):
 
+> **Amendment (as shipped):** the `/guests/{id}/notes` routes below were
+> registered as `/guests/{id}/interactions` — the notes vocabulary moved to
+> `interaction_type`, and `routes.rs` deliberately does not register both
+> paths. The catalog patch shipped as `0019_guest_relations.sql`.
+
 | Endpoint | Permission | Purpose |
 |---|---|---|
 | `GET /guests/{id}/notes` | `guests:read` | Interactions + notes timeline (paged, newest first) |

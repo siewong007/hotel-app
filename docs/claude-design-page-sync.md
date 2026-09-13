@@ -59,7 +59,8 @@ change this — see Unresolved).
 | /portal | PortalDashboardPage | Guest Portal | Guest session auth | Web (guest device) |
 | /bookings | BookingsPage | Main | Staff (access-controlled) | Web+Desktop |
 | /timeline | RoomReservationTimeline | Main | Staff (access-controlled) | Web+Desktop |
-| /guest-config | GuestConfigurationPage | Main | Staff (access-controlled) | Web+Desktop |
+| /guest-relations/guests | GuestRelationsPage | Operations | Staff (access-controlled) | Web+Desktop |
+| /guest-relations/guests/$guestId | GuestProfilePage | Operations | Staff (access-controlled) | Web+Desktop |
 | /room-management | RoomManagementPage | Main | Staff (access-controlled) | Web+Desktop |
 | /reports | ModernReportsPage | Operations | Staff (access-controlled) | Web+Desktop |
 | /housekeeping | HousekeepingPage | Operations | Staff (access-controlled) | Web+Desktop |
@@ -78,6 +79,10 @@ change this — see Unresolved).
 | /data-transfer | DataTransferPage | Admin | Admin (access-controlled) | Web+Desktop |
 | /ekyc-admin | EkycManagementPage | Admin | Admin (access-controlled) | Web+Desktop |
 | /$ (catch-all) | NotFoundComponent | Error | Public (redirects to /) | Web+Desktop |
+
+Redirects (routes with no page of their own): `/guest-config` →
+`/guest-relations/guests` (forwards `?search=`/`?guest_id=`); `/guest-relations` →
+`/guest-relations/guests`.
 
 Modal overlays (not separate pages, per dynamic/modal policy): FirstLoginPasskeyPrompt
 (first-login passkey setup, rendered in RootLayout) — would be a state/variant of its parent
