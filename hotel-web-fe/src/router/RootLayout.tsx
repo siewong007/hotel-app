@@ -41,7 +41,7 @@ export const RootLayout: React.FC = () => {
     isAuthenticated && !isTimelinePage && !isGuestPortal && !isOffersPage && !isGuestModelHome;
   const [navDrawerOpen, setNavDrawerOpen] = useState(false);
   const theme = useTheme();
-  const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
+  const isNarrow = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
 
   useEffect(() => {
     document.body.classList.toggle('hotel-board-skin-active', boardSkinActive);

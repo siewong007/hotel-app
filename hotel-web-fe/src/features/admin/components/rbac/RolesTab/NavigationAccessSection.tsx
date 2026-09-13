@@ -15,6 +15,7 @@ import {
 } from '../../../../../navigation/routeRegistry';
 import { NAV_GROUP_ORDER } from '../../../../../navigation/navGroups';
 import { useRouteLabels } from '../../../../../navigation/routeLabels';
+import { useTranslation } from '../../../../../i18n';
 
 interface NavigationAccessSectionProps {
   selectedNavItems: string[];
@@ -36,11 +37,12 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
   disabled = false,
 }) => {
   const { groupLabel } = useRouteLabels();
+  const { tOr } = useTranslation('nav');
 
   // Group policies by the registry's navGroup so this matrix mirrors the
   // sidebar — the DB's nav_group column still holds the legacy
   // 'main'/'admin'/'config' vocabulary and must not drive grouping.
-  const navByCategory = useMemo(() => {
+  const navByGroup = useMemo(() => {
     const byId = new Map(navigationRouteDefinitions.map((r) => [r.id, r]));
     const sections: NavPolicySection[] = NAV_GROUP_ORDER.map((group) => ({
       group,
@@ -61,11 +63,11 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
       (policy) => policy.is_navigation && !byId.get(policy.route_id)?.navGroup
     );
     if (orphans.length > 0) {
-      sections.push({ group: 'other', label: 'Other', items: orphans });
+      sections.push({ group: 'other', label: tOr('groups.other', 'Other'), items: orphans });
     }
 
     return { sections, byId };
-  }, [routePolicies, groupLabel]);
+  }, [routePolicies, groupLabel, tOr]);
 
   return (
     <Box>
@@ -77,7 +79,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
         }}>
         Which tabs can this role access?
       </Typography>
-      {navByCategory.sections.map((section) => (
+      {navByGroup.sections.map((section) => (
         <Box key={section.group} sx={{ mb: 2 }}>
           <Typography
             variant="caption"
@@ -102,7 +104,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
             {section.items.map((item) => {
               const isEnabled = selectedNavItems.includes(item.route_id);
               const IconComponent =
-                navByCategory.byId.get(item.route_id)?.icon ?? SettingsIcon;
+                navByGroup.byId.get(item.route_id)?.icon ?? SettingsIcon;
               const requiredPerms = Array.from(new Set([
                 ...item.nav_permissions,
                 ...item.required_permissions,

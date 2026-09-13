@@ -193,7 +193,6 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             '--hotel-secondary-light': selected.secondary.light,
             '--hotel-secondary-dark': selected.secondary.dark,
             '--hotel-on-accent': onAccent,
-            '--hotel-appbar-bg': appBarBackground,
             '--hotel-page-bg': appBackground,
             '--hotel-panel-bg': panelBackground,
             '--hotel-muted-bg': mutedBackground,

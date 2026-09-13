@@ -21,7 +21,9 @@ interface AppSidebarProps {
  */
 export const AppSidebar: React.FC<AppSidebarProps> = ({ mobileOpen, onMobileClose }) => {
   const theme = useTheme();
-  const isNarrow = useMediaQuery(theme.breakpoints.down('md'));
+  // `noSsr` resolves the query client-side on first render — without it the
+  // mobile first paint flashes the permanent desktop drawer for a frame.
+  const isNarrow = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
   const [collapsed, setCollapsed] = React.useState(
     () => storage.getItem<boolean>('navCollapsed') ?? false
   );

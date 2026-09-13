@@ -12,6 +12,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
+import { useTranslation } from '../../i18n';
 import { storage } from '../../utils/storage';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import { searchArticles } from '../../features/help/utils';
@@ -38,6 +39,7 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
   const { hasPermission, hasRole, getRoutePolicy, user } = useAuth();
   const isGuest = hasRole('guest') || user?.user_type === 'guest';
   const { navLabel: navLabelFor } = useRouteLabels();
+  const { t: tNav } = useTranslation('nav');
   const helpArticles = useHelpArticles();
   const visibleItems = React.useMemo(
     () =>
@@ -351,7 +353,11 @@ export const CommandPaletteProvider: React.FC<{ children: React.ReactNode }> = (
           </Box>
         )}
 
-        <Box role="listbox" sx={{ maxHeight: 380, overflowY: 'auto', py: 0.5 }}>
+        <Box
+          role="listbox"
+          aria-label={tNav('aria.searchResults')}
+          sx={{ maxHeight: 380, overflowY: 'auto', py: 0.5 }}
+        >
           {flatItems.length === 0 && (
             <Box sx={{ px: 2, py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.85rem' }}>
               {term.length >= 2 ? 'No matches' : serverLoading ? 'Searching…' : 'Type at least 2 characters, or browse below'}

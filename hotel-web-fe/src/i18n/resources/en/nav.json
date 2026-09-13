@@ -10,7 +10,8 @@
     "utility": "Utilities",
     "main": "Main",
     "admin": "Administration",
-    "config": "Configuration"
+    "config": "Configuration",
+    "other": "Other"
   },
   "routes": {
     "dashboard": { "label": "Overview", "breadcrumb": "Overview" },
@@ -50,6 +51,7 @@
     "openMenu": "Open menu",
     "moreSections": "More sections",
     "search": "Search pages and actions",
+    "searchResults": "Search results",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "breadcrumbs": "Breadcrumbs",

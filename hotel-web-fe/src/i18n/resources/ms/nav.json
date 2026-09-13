@@ -10,7 +10,8 @@
     "utility": "Utiliti",
     "main": "Utama",
     "admin": "Pentadbiran",
-    "config": "Konfigurasi"
+    "config": "Konfigurasi",
+    "other": "Lain-lain"
   },
   "routes": {
     "dashboard": { "label": "Papan Pemuka", "breadcrumb": "Papan Pemuka" },
@@ -50,6 +51,7 @@
     "openMenu": "Buka menu",
     "moreSections": "Bahagian lain",
     "search": "Cari halaman dan tindakan",
+    "searchResults": "Hasil carian",
     "collapseSidebar": "Runtuhkan bar sisi",
     "expandSidebar": "Kembangkan bar sisi",
     "breadcrumbs": "Breadcrumbs",

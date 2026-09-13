@@ -65,6 +65,21 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
       ),
     [hasPermission, hasRole, getRoutePolicy]
   );
+
+  // Warm the first routes once the nav settles — the only preload path for
+  // touch users, who never fire the hover/focus preloads below.
+  React.useEffect(() => {
+    if (visibleItems.length === 0) return;
+    const idle = window.requestIdleCallback?.(() => {
+      visibleItems.slice(0, 4).forEach((item) => preloadRoute(item.path));
+    });
+    if (idle !== undefined) return () => window.cancelIdleCallback?.(idle);
+    const t = window.setTimeout(() => {
+      visibleItems.slice(0, 4).forEach((item) => preloadRoute(item.path));
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [visibleItems]);
+
   const sections = React.useMemo(() => navSections(visibleItems), [visibleItems]);
   const bookingsRoute = visibleItems.find((item) => item.path === '/bookings');
 
@@ -102,7 +117,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           component={Link}
           to="/"
           onClick={onNavigate}
-          aria-label={hotelName}
+          aria-label={hotelName || 'Hotel'}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -151,12 +166,8 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
           <Box
             component="button"
             type="button"
-            role="button"
             aria-label={searchLabel}
             onClick={openPalette}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') openPalette();
-            }}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -217,6 +228,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
                 aria-label="New booking"
                 onClick={handleNewBooking}
                 onMouseEnter={() => preloadRoute('/bookings')}
+                onFocus={() => preloadRoute('/bookings')}
                 sx={{ display: 'flex', mx: 'auto', color: 'primary.main' }}
               >
                 <AddIcon fontSize="small" />
