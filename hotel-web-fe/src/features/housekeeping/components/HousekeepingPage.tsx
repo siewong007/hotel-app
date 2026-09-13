@@ -120,7 +120,7 @@ function RoomTaskRow({
             <Stack direction="row" spacing={0.75} useFlexGap sx={{
               flexWrap: "wrap"
             }}>
-              <Chip size="small" color={priorityColor(task.priority)} label={statusLabel(task.priority)} />
+              <Chip size="small" variant="outlined" color={priorityColor(task.priority)} label={`Priority: ${statusLabel(task.priority)}`} />
               <Chip size="small" color={taskStatusColor(task.status)} label={statusLabel(task.status)} />
               {task.assigned_to_name ? <Chip size="small" label={task.assigned_to_name} /> : null}
               {task.scheduled_date ? <Chip size="small" label={task.scheduled_date} /> : null}
@@ -281,7 +281,7 @@ export default function HousekeepingPage() {
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  {formatLocalDate()} · {filteredRooms.length} rooms
+                  {formatLocalDate()} · {filteredRooms.length} rooms — grouped by room status; open tasks on each card
                 </Typography>
               </Box>
               <Stack

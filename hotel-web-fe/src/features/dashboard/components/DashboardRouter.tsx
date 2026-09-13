@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import ReportsAnalytics from './reports/ReportsAnalytics';
-import UserProfilePage from '../../user/components/UserProfilePage';
+import ReceptionistDashboard from './ReceptionistDashboard';
 
 const DashboardRouter: React.FC = () => {
   const { hasRole } = useAuth();
@@ -21,9 +21,10 @@ const DashboardRouter: React.FC = () => {
     }
   }, [isAdminOrSuper, isExec, isEmployee, navigate]);
 
-  // Employee (Receptionist) sees their profile page by default
+  // Front desk lands on the operational "today" board — arrivals, departures
+  // and room states — not their own profile page.
   if (isEmployee && !isAdminOrSuper && !isExec) {
-    return <UserProfilePage />;
+    return <ReceptionistDashboard />;
   }
 
   // Admin, Super User, and Exec User (Manager) see the analytics dashboard

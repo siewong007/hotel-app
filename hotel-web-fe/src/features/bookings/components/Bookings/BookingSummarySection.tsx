@@ -108,17 +108,22 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
 
   return (
     <>
+      {/* On phones the strip scrolls horizontally so the booking list — the
+          actionable content — is not buried under six stacked stat cards. */}
       <Box
         sx={{
           display: 'grid',
           gap: 2,
           mb: 2.5,
           gridTemplateColumns: {
-            xs: '1fr',
+            xs: `repeat(${summaryStatCards.length}, minmax(230px, 1fr))`,
             sm: 'repeat(2, minmax(0, 1fr))',
             md: 'repeat(3, minmax(0, 1fr))',
             lg: `repeat(${summaryGridColumns}, minmax(0, 1fr))`,
           },
+          overflowX: { xs: 'auto', sm: 'visible' },
+          scrollSnapType: { xs: 'x proximity', sm: 'none' },
+          pb: { xs: 1, sm: 0 },
         }}
       >
         {summaryStatCards.map((stat) => (
@@ -129,6 +134,7 @@ const BookingSummarySection: React.FC<BookingSummarySectionProps> = ({
             sx={{
               height: '100%',
               cursor: 'pointer',
+              scrollSnapAlign: 'start',
               borderLeft: stat.alert ? `4px solid ${stat.color}` : '1px solid',
               borderColor: stat.alert ? stat.color : 'divider',
               bgcolor: activeView === stat.view ? alpha(stat.color, 0.08) : 'background.paper',

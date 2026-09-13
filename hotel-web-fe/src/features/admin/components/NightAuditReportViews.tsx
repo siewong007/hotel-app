@@ -316,11 +316,11 @@ interface RoomCounts {
   dirty: number;
 }
 
-function RoomStatusChips({ rooms }: { rooms: RoomCounts }) {
+function RoomStatusChips({ rooms, label = 'Room Status' }: { rooms: RoomCounts; label?: string }) {
   return (
     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 3 }}>
       <Typography variant="subtitle2" sx={{ color: 'text.secondary', mr: 1 }}>
-        Room Status
+        {label}
       </Typography>
       <Chip label={`${rooms.available} Available`} color="success" variant="outlined" size="small" />
       <Chip label={`${rooms.occupied} Occupied`} color="error" variant="outlined" size="small" />
@@ -398,11 +398,24 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
 
   return (
     <Paper sx={{ p: 3, mb: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-          Night Audit Preview
-        </Typography>
-        <Chip label="Not run yet" color="info" size="small" variant="outlined" />
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+            Night Audit Preview
+          </Typography>
+          <Chip label="Not run yet" color="info" size="small" variant="outlined" />
+        </Box>
+        {/* Primary action lives in the header too — with a full preview below,
+            the footer button rendered far under the fold. */}
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={onRun}
+          disabled={running || preview.total_unposted === 0}
+          startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
+        >
+          {running ? 'Running...' : 'Run Night Audit'}
+        </Button>
       </Box>
       <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
         {formatAuditDate(auditDate)}
@@ -424,7 +437,7 @@ export function PendingPreviewView({ preview, auditDate, running, onRun }: Pendi
         </Grid>
       </Grid>
 
-      <RoomStatusChips rooms={preview.room_snapshot} />
+      <RoomStatusChips rooms={preview.room_snapshot} label="Room status (audit date)" />
 
       {/* Projected revenue breakdowns */}
       {hasBreakdowns && (
@@ -571,7 +584,7 @@ export function CompletedReportView({
         reserved: audit.rooms_reserved,
         maintenance: audit.rooms_maintenance,
         dirty: audit.rooms_dirty,
-      }} />
+      }} label="Room status (when audited)" />
 
       {audit.notes && (
         <Box sx={{ mb: 2 }}>

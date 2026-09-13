@@ -48,6 +48,7 @@ import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { BookingWithDetails, Guest, Booking } from '../../../types';
 import { errorMessage } from '../../../utils';
+import { toHotelDateString } from '../../../utils/date';
 import { Room, BookingUpdateRequest, CheckInRequest } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -93,14 +94,8 @@ interface TodayActivity {
 }
 
 type BookingWithDay = BookingWithDetails & {
-  checkInTime: number;
-  checkOutTime: number;
-};
-
-const toDayTime = (value: string) => {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime();
+  checkInDay: string;
+  checkOutDay: string;
 };
 
 const ReceptionistDashboard: React.FC = () => {
@@ -146,14 +141,14 @@ const ReceptionistDashboard: React.FC = () => {
         BookingsService.getAllBookings(),
       ]) as [Room[], BookingWithDetails[]];
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayTime = today.getTime();
+      // "Today" is the hotel business day, not the browser's — booking dates
+      // arrive as YYYY-MM-DD so plain string comparison orders them correctly.
+      const todayStr = toHotelDateString(new Date());
 
       const bookingsWithDays: BookingWithDay[] = bookingsData.map((booking) => ({
         ...booking,
-        checkInTime: toDayTime(booking.check_in_date),
-        checkOutTime: toDayTime(booking.check_out_date),
+        checkInDay: toHotelDateString(booking.check_in_date),
+        checkOutDay: toHotelDateString(booking.check_out_date),
       }));
 
       const bookingsByRoom = new Map<string, BookingWithDay[]>();
@@ -169,10 +164,10 @@ const ReceptionistDashboard: React.FC = () => {
           bookingsByRoom.set(roomId, [booking]);
         }
 
-        if (booking.status !== 'voided' && booking.checkInTime === todayTime) {
+        if (booking.status !== 'voided' && booking.checkInDay === todayStr) {
           todayCheckIns.push(booking);
         }
-        if (booking.status !== 'voided' && booking.checkOutTime === todayTime) {
+        if (booking.status !== 'voided' && booking.checkOutDay === todayStr) {
           todayCheckOuts.push(booking);
         }
       });
@@ -187,8 +182,8 @@ const ReceptionistDashboard: React.FC = () => {
           // Occupied if status is checked_in AND dates overlap today
           return (
             booking.status === 'checked_in' &&
-            booking.checkInTime <= todayTime &&
-            booking.checkOutTime >= todayTime
+            booking.checkInDay <= todayStr &&
+            booking.checkOutDay >= todayStr
           );
         });
 
@@ -197,7 +192,7 @@ const ReceptionistDashboard: React.FC = () => {
           // Reserved if status is pending/confirmed AND check-in is today
           return (
             (booking.status === 'pending' || booking.status === 'confirmed') &&
-            booking.checkInTime === todayTime
+            booking.checkInDay === todayStr
           );
         });
 
@@ -206,15 +201,15 @@ const ReceptionistDashboard: React.FC = () => {
           // Reserved if status is pending/confirmed AND check-in is in the future
           return (
             (booking.status === 'pending' || booking.status === 'confirmed') &&
-            booking.checkInTime > todayTime
+            booking.checkInDay > todayStr
           );
         });
 
         // Find next reservation
         let nextBooking: BookingWithDay | undefined;
         roomBookings.forEach((booking) => {
-          if (booking.status !== 'confirmed' || booking.checkInTime <= todayTime) return;
-          if (!nextBooking || booking.checkInTime < nextBooking.checkInTime) {
+          if (booking.status !== 'confirmed' || booking.checkInDay <= todayStr) return;
+          if (!nextBooking || booking.checkInDay < nextBooking.checkInDay) {
             nextBooking = booking;
           }
         });

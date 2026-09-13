@@ -11,6 +11,7 @@ import {
   AutoAwesome as SparkleIcon,
 } from '@mui/icons-material';
 import type { Room } from '../../../../../types';
+import { formatHotelDate } from '../../../../../utils/date';
 import type { RoomStatusType } from '../../../config';
 import type {
   RoomFilterOption,
@@ -115,7 +116,7 @@ const RoomManagementHeader: React.FC<RoomManagementHeaderProps> = ({
         {/* Center: today's date */}
         <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
           <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            {new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
+            {formatHotelDate(new Date())} · live status
           </Typography>
         </Box>
 

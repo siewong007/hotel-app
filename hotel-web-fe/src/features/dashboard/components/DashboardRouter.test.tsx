@@ -20,8 +20,8 @@ vi.mock('./reports/ReportsAnalytics', () => ({
   default: () => <div data-testid="reports-analytics" />,
 }));
 
-vi.mock('../../user/components/UserProfilePage', () => ({
-  default: () => <div data-testid="user-profile" />,
+vi.mock('./ReceptionistDashboard', () => ({
+  default: () => <div data-testid="receptionist-dashboard" />,
 }));
 
 import DashboardRouter from './DashboardRouter';
@@ -43,18 +43,18 @@ describe('DashboardRouter', () => {
 
     render(<DashboardRouter />);
 
-    expect(screen.getByTestId(expected === 'reports' ? 'reports-analytics' : 'user-profile')).toBeTruthy();
+    expect(screen.getByTestId(expected === 'reports' ? 'reports-analytics' : 'receptionist-dashboard')).toBeTruthy();
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it('lands receptionist/employee roles on the profile page', () => {
+  it('lands receptionist/employee roles on the operational dashboard', () => {
     for (const role of ['receptionist', 'employee']) {
       cleanup();
       mocks.roles = [role];
 
       render(<DashboardRouter />);
 
-      expect(screen.getByTestId('user-profile')).toBeTruthy();
+      expect(screen.getByTestId('receptionist-dashboard')).toBeTruthy();
       expect(mocks.navigate).not.toHaveBeenCalled();
     }
   });
@@ -74,7 +74,7 @@ describe('DashboardRouter', () => {
 
     render(<DashboardRouter />);
 
-    expect(screen.getByTestId('user-profile')).toBeTruthy();
+    expect(screen.getByTestId('receptionist-dashboard')).toBeTruthy();
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 });
