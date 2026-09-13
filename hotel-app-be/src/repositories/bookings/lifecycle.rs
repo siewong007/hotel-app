@@ -3000,7 +3000,7 @@ pub async fn record_checkin_payment_tx(
 /// Online bookings are prepaid (OTA/web), so on arrival we record the amount
 /// still owed as a `booking` payment so the folio reflects the collected money
 /// and `payment_status` recomputes to `paid`. The remainder is computed in SQL
-/// (billable total minus completed non-refund, non-deposit payments) and the row is inserted
+/// (billable total minus completed non-refund, non-deposit, non-forfeited payments) and the row is inserted
 /// only when that remainder is positive, so the call is safe to run
 /// unconditionally — it no-ops when the booking is already fully paid and never
 /// double-charges an existing payment. Returns `true` when a payment row was
