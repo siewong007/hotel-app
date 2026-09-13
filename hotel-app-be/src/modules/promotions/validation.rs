@@ -1,14 +1,22 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 
+use super::lifecycle;
 use super::models::PromotionInput;
 use crate::core::error::ApiError;
 use crate::utils::sanitization::Sanitizer;
 
-pub const PROMOTION_STATUSES: &[&str] = &["draft", "published", "paused", "archived"];
 pub const PROMOTION_KINDS: &[&str] = &["deal", "voucher"];
 pub const DISCOUNT_TYPES: &[&str] = &["percentage", "fixed_amount"];
 pub const VOUCHER_STATUSES: &[&str] = &["available", "redeemed", "revoked"];
+pub const PROMOTION_OBJECTIVES: &[&str] = &[
+    "occupancy",
+    "acquisition",
+    "retention",
+    "upsell",
+    "loyalty",
+    "other",
+];
 
 #[derive(Debug, Clone)]
 pub struct PromotionDraft {
@@ -33,19 +41,26 @@ pub struct PromotionDraft {
     pub is_public: bool,
     pub is_cancellable: bool,
     pub room_type_ids: Vec<i64>,
+    pub internal_code: Option<String>,
+    pub objective: Option<String>,
+    pub booking_channel_ids: Vec<i64>,
+    pub loyalty_tier_ids: Vec<i64>,
 }
 
 pub fn normalized_choice(value: &str) -> String {
     value.trim().to_ascii_lowercase().replace([' ', '-'], "_")
 }
 
-pub fn validate_status(value: &str) -> Result<String, ApiError> {
+/// Admin list filter: accepts a stored status or a derived lifecycle value
+/// (`scheduled`/`live`/`expired`). The service maps the result through
+/// [`lifecycle::lifecycle_clause`].
+pub fn validate_lifecycle_filter(value: &str) -> Result<String, ApiError> {
     let value = normalized_choice(value);
-    if PROMOTION_STATUSES.contains(&value.as_str()) {
+    if lifecycle::LIFECYCLES.contains(&value.as_str()) {
         Ok(value)
     } else {
         Err(ApiError::BadRequest(
-            "Unsupported promotion status".to_string(),
+            "Unsupported campaign lifecycle filter".to_string(),
         ))
     }
 }
@@ -126,6 +141,52 @@ pub fn normalize_voucher_code(value: &str) -> Result<String, ApiError> {
         ));
     }
     Ok(value)
+}
+
+fn normalize_internal_code(value: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let value = value.trim().to_ascii_uppercase();
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if value.chars().count() > 64
+        || !value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+    {
+        return Err(ApiError::BadRequest(
+            "Internal code must use up to 64 letters, numbers, hyphens, or underscores"
+                .to_string(),
+        ));
+    }
+    Ok(Some(value))
+}
+
+fn validate_objective(value: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let value = normalized_choice(&value);
+    if value.is_empty() {
+        return Ok(None);
+    }
+    if PROMOTION_OBJECTIVES.contains(&value.as_str()) {
+        Ok(Some(value))
+    } else {
+        Err(ApiError::BadRequest("Unsupported campaign objective".to_string()))
+    }
+}
+
+fn validate_id_list(value: Option<Vec<i64>>, field: &str) -> Result<Vec<i64>, ApiError> {
+    let mut ids = value.unwrap_or_default();
+    if ids.iter().any(|id| *id <= 0) {
+        return Err(ApiError::BadRequest(format!("Invalid {field}")));
+    }
+    ids.sort_unstable();
+    ids.dedup();
+    Ok(ids)
 }
 
 fn decimal_from_f64(value: f64, field: &str) -> Result<Decimal, ApiError> {
@@ -229,12 +290,10 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
             "Currency must be a three-letter ISO code".to_string(),
         ));
     }
-    let mut room_type_ids = input.room_type_ids.unwrap_or_default();
-    if room_type_ids.iter().any(|id| *id <= 0) {
-        return Err(ApiError::BadRequest("Invalid room type target".to_string()));
-    }
-    room_type_ids.sort_unstable();
-    room_type_ids.dedup();
+    let room_type_ids = validate_id_list(input.room_type_ids, "room type target")?;
+    let booking_channel_ids =
+        validate_id_list(input.booking_channel_ids, "booking channel target")?;
+    let loyalty_tier_ids = validate_id_list(input.loyalty_tier_ids, "loyalty tier target")?;
 
     Ok(PromotionDraft {
         slug: normalize_slug(&input.slug)?,
@@ -258,6 +317,10 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
         is_public: input.is_public.unwrap_or(false),
         is_cancellable: input.is_cancellable.unwrap_or(true),
         room_type_ids,
+        internal_code: normalize_internal_code(input.internal_code)?,
+        objective: validate_objective(input.objective)?,
+        booking_channel_ids,
+        loyalty_tier_ids,
     })
 }
 
@@ -301,6 +364,10 @@ mod tests {
             is_public: None,
             is_cancellable: None,
             room_type_ids: None,
+            internal_code: None,
+            objective: None,
+            booking_channel_ids: None,
+            loyalty_tier_ids: None,
             expected_version: None,
         };
         assert!(validate_promotion_input(input).is_err());
@@ -330,6 +397,10 @@ mod tests {
             is_public: None,
             is_cancellable: None,
             room_type_ids: None,
+            internal_code: None,
+            objective: None,
+            booking_channel_ids: None,
+            loyalty_tier_ids: None,
             expected_version: None,
         };
 
@@ -360,6 +431,10 @@ mod tests {
             is_public: Some(true),
             is_cancellable: None,
             room_type_ids: None,
+            internal_code: None,
+            objective: None,
+            booking_channel_ids: None,
+            loyalty_tier_ids: None,
             expected_version: None,
         };
 

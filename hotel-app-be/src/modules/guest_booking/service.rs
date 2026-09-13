@@ -351,6 +351,9 @@ async fn voucher_for_quote(
             "Vouchers require a signed-in account.".to_string(),
         ));
     };
+    // Channel targeting resolves against the portal's own channel — this path
+    // is the guest portal, so the channel is always the direct one.
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
     Repository::eligible_voucher(
         pool,
         voucher_id,
@@ -362,6 +365,7 @@ async fn voucher_for_quote(
             nights: (stay.check_out_date - stay.check_in_date).num_days(),
             subtotal,
             currency,
+            booking_channel_id,
         },
     )
     .await
@@ -617,6 +621,7 @@ pub async fn quote_with_eligible_vouchers(
         },
     )
     .await?;
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
     let eligible_voucher_ids = Repository::eligible_voucher_ids(
         pool,
         VoucherEligibilityQuery {
@@ -627,6 +632,7 @@ pub async fn quote_with_eligible_vouchers(
             nights: (quote.check_out_date - quote.check_in_date).num_days(),
             subtotal: quote.subtotal,
             currency: &quote.currency,
+            booking_channel_id,
         },
     )
     .await?;
@@ -988,6 +994,7 @@ pub async fn create(
                     nights: (quote.check_out_date - quote.check_in_date).num_days(),
                     subtotal: quote.subtotal,
                     currency: &quote.currency,
+                    booking_channel_id,
                 },
             )
             .await?,

@@ -122,6 +122,9 @@
       "GET": {},
       "POST": {}
     },
+    "/api/admin/promotions/targeting-options": {
+      "GET": {}
+    },
     "/api/admin/promotions/{id}": {
       "GET": {},
       "PUT": {}
@@ -129,8 +132,14 @@
     "/api/admin/promotions/{id}/archive": {
       "POST": {}
     },
+    "/api/admin/promotions/{id}/cancel": {
+      "POST": {}
+    },
     "/api/admin/promotions/{id}/pause": {
       "POST": {}
+    },
+    "/api/admin/promotions/{id}/performance": {
+      "GET": {}
     },
     "/api/admin/promotions/{id}/publish": {
       "POST": {}

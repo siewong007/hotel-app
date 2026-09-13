@@ -82,6 +82,11 @@ pub struct VoucherEligibilityQuery<'a> {
     pub nights: i64,
     pub subtotal: Decimal,
     pub currency: &'a str,
+    /// The channel the booking would land on. A promotion with a non-empty
+    /// `promotion_channels` set only redeems when the channel is in the set;
+    /// `None` (channel unresolved) therefore fails closed for targeted
+    /// campaigns and passes for untargeted ones.
+    pub booking_channel_id: Option<i64>,
 }
 
 /// One night's share of a redemption. `discount_amount` combines the
@@ -419,6 +424,7 @@ impl GuestBookingRepository {
             nights,
             subtotal,
             currency,
+            booking_channel_id,
         } = query;
         let row = sqlx::query(r#"
                 SELECT v.id AS voucher_id, p.id AS promotion_id, p.name AS promotion_name,
@@ -437,6 +443,8 @@ impl GuestBookingRepository {
                   AND p.currency = $8
                   AND (NOT EXISTS (SELECT 1 FROM promotion_room_types pr0 WHERE pr0.promotion_id = p.id)
                     OR EXISTS (SELECT 1 FROM promotion_room_types pr WHERE pr.promotion_id = p.id AND pr.room_type_id = $3))
+                  AND (NOT EXISTS (SELECT 1 FROM promotion_channels pc0 WHERE pc0.promotion_id = p.id)
+                    OR EXISTS (SELECT 1 FROM promotion_channels pc WHERE pc.promotion_id = p.id AND pc.booking_channel_id = $9))
             "#)
         .bind(voucher_id)
         .bind(guest_id)
@@ -446,6 +454,7 @@ impl GuestBookingRepository {
         .bind(nights)
         .bind(decimal_to_db(subtotal))
         .bind(currency)
+        .bind(booking_channel_id)
         .fetch_optional(pool)
         .await
         .map_err(ApiError::from)?
@@ -475,6 +484,7 @@ impl GuestBookingRepository {
             nights,
             subtotal,
             currency,
+            booking_channel_id,
         } = query;
         sqlx::query_scalar(r#"
                 SELECT v.id
@@ -490,6 +500,8 @@ impl GuestBookingRepository {
                   AND p.currency = $7
                   AND (NOT EXISTS (SELECT 1 FROM promotion_room_types pr0 WHERE pr0.promotion_id = p.id)
                     OR EXISTS (SELECT 1 FROM promotion_room_types pr WHERE pr.promotion_id = p.id AND pr.room_type_id = $2))
+                  AND (NOT EXISTS (SELECT 1 FROM promotion_channels pc0 WHERE pc0.promotion_id = p.id)
+                    OR EXISTS (SELECT 1 FROM promotion_channels pc WHERE pc.promotion_id = p.id AND pc.booking_channel_id = $8))
                 ORDER BY v.id
             "#)
         .bind(guest_id)
@@ -499,6 +511,7 @@ impl GuestBookingRepository {
         .bind(nights)
         .bind(decimal_to_db(subtotal))
         .bind(currency)
+        .bind(booking_channel_id)
         .fetch_all(pool)
         .await
         .map_err(ApiError::from)
