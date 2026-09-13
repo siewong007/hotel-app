@@ -5,7 +5,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::models::{
-    CampaignChannelMixRow, CampaignPerformance, CampaignPerNightTotals, CampaignRedemptionTotals,
+    CampaignChannelMixRow, CampaignPerNightTotals, CampaignPerformance, CampaignRedemptionTotals,
     CampaignVoucherFunnel, ClaimPromotionInput, GuestPromotion, GuestPromotionListResponse,
     Promotion, PromotionActionInput, PromotionInput, PromotionListQuery, PromotionListResponse,
     PublicPromotion, PublicPromotionListResponse, TargetingChannelOption, TargetingOptionsResponse,
@@ -132,7 +132,10 @@ async fn ensure_portal_channel_targetable(
     if promotion.booking_channel_ids.is_empty() {
         return Ok(());
     }
-    let direct = crate::modules::guest_booking::repository::GuestBookingRepository::direct_booking_channel(pool)
+    let direct =
+        crate::modules::guest_booking::repository::GuestBookingRepository::direct_booking_channel(
+            pool,
+        )
         .await?;
     if direct.is_some_and(|id| promotion.booking_channel_ids.contains(&id)) {
         Ok(())
@@ -492,12 +495,8 @@ pub async fn create_admin_promotion(
     let promotion_id = PromotionRepository::insert_promotion(&mut tx, &draft, actor_id).await?;
     PromotionRepository::replace_room_type_targets(&mut tx, promotion_id, &draft.room_type_ids)
         .await?;
-    PromotionRepository::replace_channel_targets(
-        &mut tx,
-        promotion_id,
-        &draft.booking_channel_ids,
-    )
-    .await?;
+    PromotionRepository::replace_channel_targets(&mut tx, promotion_id, &draft.booking_channel_ids)
+        .await?;
     PromotionRepository::replace_tier_targets(&mut tx, promotion_id, &draft.loyalty_tier_ids)
         .await?;
     AuditLog::log_event_tx(
@@ -553,12 +552,8 @@ pub async fn update_admin_promotion(
     }
     PromotionRepository::replace_room_type_targets(&mut tx, promotion_id, &draft.room_type_ids)
         .await?;
-    PromotionRepository::replace_channel_targets(
-        &mut tx,
-        promotion_id,
-        &draft.booking_channel_ids,
-    )
-    .await?;
+    PromotionRepository::replace_channel_targets(&mut tx, promotion_id, &draft.booking_channel_ids)
+        .await?;
     PromotionRepository::replace_tier_targets(&mut tx, promotion_id, &draft.loyalty_tier_ids)
         .await?;
     AuditLog::log_event_tx(
@@ -708,7 +703,13 @@ pub async fn pause_admin_promotion(
     user_agent: Option<String>,
 ) -> Result<Promotion, ApiError> {
     transition_wrapper(
-        pool, actor_id, promotion_id, "paused", input, ip_address, user_agent,
+        pool,
+        actor_id,
+        promotion_id,
+        "paused",
+        input,
+        ip_address,
+        user_agent,
     )
     .await
 }
@@ -976,7 +977,10 @@ pub async fn campaign_performance(
     let applied = totals.try_get::<i64, _>("applied").unwrap_or_default();
     let conversion_rate = (total_vouchers > 0).then(|| applied as f64 / total_vouchers as f64);
     let amount = |row: &crate::core::db::DbRow, column: &str| {
-        get_decimal(row, column).to_string().parse::<f64>().unwrap_or(0.0)
+        get_decimal(row, column)
+            .to_string()
+            .parse::<f64>()
+            .unwrap_or(0.0)
     };
 
     Ok(CampaignPerformance {
@@ -1016,7 +1020,10 @@ pub async fn campaign_performance(
                     .ok()
                     .flatten()
                     .unwrap_or_else(|| "Unassigned".to_string()),
-                channel_type: row.try_get::<Option<String>, _>("channel_type").ok().flatten(),
+                channel_type: row
+                    .try_get::<Option<String>, _>("channel_type")
+                    .ok()
+                    .flatten(),
                 redemptions: row.try_get("redemptions").unwrap_or_default(),
                 net_total: amount(row, "net_total"),
             })

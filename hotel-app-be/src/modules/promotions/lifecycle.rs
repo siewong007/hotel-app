@@ -107,12 +107,7 @@ mod tests {
         );
         // Open start that already passed with an open end stays live.
         assert_eq!(
-            lifecycle_for(
-                "published",
-                Some(now - Duration::days(1)),
-                None,
-                now,
-            ),
+            lifecycle_for("published", Some(now - Duration::days(1)), None, now,),
             "live"
         );
     }

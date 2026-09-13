@@ -4,9 +4,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-use super::models::{
-    RateCalendarCell, RateCalendarRoomType, RevenueChannelMix, RevenueDailyPoint,
-};
+use super::models::{RateCalendarCell, RateCalendarRoomType, RevenueChannelMix, RevenueDailyPoint};
 use super::validation::RevenueRange;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -76,13 +74,13 @@ impl RevenueRepository {
                 (SELECT COUNT(*) FROM rooms WHERE status <> 'out_of_order') AS sellable_rooms
             "#,
         )
-            .bind(range.from)
-            .bind(range.to)
-            .bind(room_type_id)
-            .bind(channel_id)
-            .fetch_one(pool)
-            .await
-            .map_err(ApiError::from)?;
+        .bind(range.from)
+        .bind(range.to)
+        .bind(room_type_id)
+        .bind(channel_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)?;
         Ok(StaySums {
             room_revenue: row.get::<Decimal, _>("room_revenue"),
             room_nights_sold: row.get::<i64, _>("room_nights_sold"),
@@ -126,13 +124,13 @@ impl RevenueRepository {
             ORDER BY stay_date
             "#,
         )
-            .bind(range.from)
-            .bind(range.to)
-            .bind(room_type_id)
-            .bind(channel_id)
-            .fetch_all(pool)
-            .await
-            .map_err(ApiError::from)?;
+        .bind(range.from)
+        .bind(range.to)
+        .bind(room_type_id)
+        .bind(channel_id)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
         Ok(rows
             .iter()
             .map(|row| RevenueDailyPoint {
@@ -292,9 +290,8 @@ impl RevenueRepository {
             let physical_rooms: i64 = row.get("physical_rooms");
             let sold_rooms: i64 = row.get("sold_rooms");
             let occupancy_pct = if physical_rooms > 0 {
-                (Decimal::from(sold_rooms) * Decimal::from(100)
-                    / Decimal::from(physical_rooms))
-                .round_dp(1)
+                (Decimal::from(sold_rooms) * Decimal::from(100) / Decimal::from(physical_rooms))
+                    .round_dp(1)
             } else {
                 Decimal::ZERO
             };

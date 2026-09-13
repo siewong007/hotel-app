@@ -3,9 +3,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{Row, query, query_scalar};
 
-use super::models::{
-    Promotion, PublicPromotion, Voucher, VoucherSummary, VoucherSummaryDiscount,
-};
+use super::models::{Promotion, PublicPromotion, Voucher, VoucherSummary, VoucherSummaryDiscount};
 use super::validation::PromotionDraft;
 use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
@@ -153,8 +151,7 @@ const VOUCHER_COLUMNS_ADMIN: &str = r#"
 
 /// FROM clause for staff-facing voucher reads — adds the guests join needed
 /// for `guest_name`. Guest-facing queries keep the promotions-only join.
-const VOUCHER_ADMIN_FROM: &str =
-    "FROM vouchers v JOIN promotions p ON p.id = v.promotion_id LEFT JOIN guests g ON g.id = v.guest_id";
+const VOUCHER_ADMIN_FROM: &str = "FROM vouchers v JOIN promotions p ON p.id = v.promotion_id LEFT JOIN guests g ON g.id = v.guest_id";
 
 fn decimal_to_f64(value: rust_decimal::Decimal) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(0.0)
@@ -169,9 +166,7 @@ fn is_constraint_violation(error: &sqlx::Error, pg_code: &str, constraint: &str)
         return false;
     };
     let matches_code = database_error.code().as_deref() == Some(pg_code)
-        || database_error
-            .message()
-            .contains("constraint failed");
+        || database_error.message().contains("constraint failed");
     matches_code
         && (database_error.constraint() == Some(constraint)
             || database_error.message().contains(constraint))
@@ -186,8 +181,7 @@ fn id_list(row: &DbRow, column: &str) -> Vec<i64> {
 
 fn promotion_from_row(row: &DbRow) -> Promotion {
     let status: String = row.try_get("status").unwrap_or_default();
-    let claim_starts_at: Option<DateTime<Utc>> =
-        row.try_get("claim_starts_at").ok().flatten();
+    let claim_starts_at: Option<DateTime<Utc>> = row.try_get("claim_starts_at").ok().flatten();
     let claim_ends_at: Option<DateTime<Utc>> = row.try_get("claim_ends_at").ok().flatten();
     Promotion {
         id: row.try_get("id").unwrap_or_default(),
@@ -235,10 +229,7 @@ fn promotion_from_row(row: &DbRow) -> Promotion {
             .try_get::<Option<String>, _>("internal_code")
             .ok()
             .flatten(),
-        objective: row
-            .try_get::<Option<String>, _>("objective")
-            .ok()
-            .flatten(),
+        objective: row.try_get::<Option<String>, _>("objective").ok().flatten(),
         room_type_ids: id_list(row, "room_type_ids"),
         booking_channel_ids: id_list(row, "booking_channel_ids"),
         loyalty_tier_ids: id_list(row, "loyalty_tier_ids"),
@@ -519,7 +510,8 @@ impl PromotionRepository {
         draft: &PromotionDraft,
         actor_id: i64,
     ) -> Result<i64, ApiError> {
-        query_scalar(r#"
+        query_scalar(
+            r#"
                 INSERT INTO promotions (
                     slug, name, description, terms, promotion_kind, discount_type,
                     discount_value, max_discount_amount, currency, claim_starts_at,
@@ -530,7 +522,8 @@ impl PromotionRepository {
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
                     $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
                 ) RETURNING id
-            "#)
+            "#,
+        )
         .bind(&draft.slug)
         .bind(&draft.name)
         .bind(&draft.description)
@@ -567,7 +560,8 @@ impl PromotionRepository {
         draft: &PromotionDraft,
         actor_id: i64,
     ) -> Result<Option<i64>, ApiError> {
-        query_scalar(r#"
+        query_scalar(
+            r#"
                 UPDATE promotions SET
                     slug = $1, name = $2, description = $3, terms = $4,
                     promotion_kind = $5, discount_type = $6, discount_value = $7,
@@ -581,7 +575,8 @@ impl PromotionRepository {
                   AND ($25::integer IS NULL OR version = $25)
                   AND status IN ('draft', 'paused')
                 RETURNING id
-            "#)
+            "#,
+        )
         .bind(&draft.slug)
         .bind(&draft.name)
         .bind(&draft.description)
@@ -644,12 +639,14 @@ impl PromotionRepository {
             .await
             .map_err(ApiError::from)?;
         for channel_id in booking_channel_ids {
-            query("INSERT INTO promotion_channels (promotion_id, booking_channel_id) VALUES ($1, $2)")
-                .bind(promotion_id)
-                .bind(channel_id)
-                .execute(&mut **tx)
-                .await
-                .map_err(ApiError::from)?;
+            query(
+                "INSERT INTO promotion_channels (promotion_id, booking_channel_id) VALUES ($1, $2)",
+            )
+            .bind(promotion_id)
+            .bind(channel_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
         }
         Ok(())
     }
@@ -1029,9 +1026,7 @@ impl PromotionRepository {
         })
     }
 
-    pub async fn targeting_options(
-        pool: &DbPool,
-    ) -> Result<(Vec<DbRow>, Vec<DbRow>), ApiError> {
+    pub async fn targeting_options(pool: &DbPool) -> Result<(Vec<DbRow>, Vec<DbRow>), ApiError> {
         let channels = query(
             "SELECT id, name, channel_type FROM booking_channels WHERE is_active = true ORDER BY name",
         )
@@ -1049,7 +1044,10 @@ impl PromotionRepository {
 
     /// Claim funnel: one row per voucher status/source counter for the
     /// campaign's issued vouchers.
-    pub async fn campaign_voucher_funnel(pool: &DbPool, promotion_id: i64) -> Result<DbRow, ApiError> {
+    pub async fn campaign_voucher_funnel(
+        pool: &DbPool,
+        promotion_id: i64,
+    ) -> Result<DbRow, ApiError> {
         query(r#"
                 SELECT COUNT(*) AS total,
                        COUNT(*) FILTER (WHERE status = 'available') AS available,
@@ -1095,7 +1093,8 @@ impl PromotionRepository {
         pool: &DbPool,
         promotion_id: i64,
     ) -> Result<DbRow, ApiError> {
-        query(r#"
+        query(
+            r#"
                 SELECT COUNT(*) AS nights,
                        COALESCE(SUM(a.gross_amount), 0)::text AS gross_amount,
                        COALESCE(SUM(a.discount_amount), 0)::text AS discount_amount,
@@ -1103,7 +1102,8 @@ impl PromotionRepository {
                 FROM voucher_redemption_allocations a
                 JOIN voucher_redemptions r ON r.id = a.redemption_id
                 WHERE r.promotion_id = $1 AND r.status = 'applied'
-            "#)
+            "#,
+        )
         .bind(promotion_id)
         .fetch_one(pool)
         .await
@@ -1115,7 +1115,8 @@ impl PromotionRepository {
         pool: &DbPool,
         promotion_id: i64,
     ) -> Result<Vec<DbRow>, ApiError> {
-        query(r#"
+        query(
+            r#"
                 SELECT b.booking_channel_id AS channel_id,
                        bc.name,
                        bc.channel_type,
@@ -1127,7 +1128,8 @@ impl PromotionRepository {
                 WHERE r.promotion_id = $1 AND r.status = 'applied'
                 GROUP BY b.booking_channel_id, bc.name, bc.channel_type
                 ORDER BY redemptions DESC, bc.name
-            "#)
+            "#,
+        )
         .bind(promotion_id)
         .fetch_all(pool)
         .await

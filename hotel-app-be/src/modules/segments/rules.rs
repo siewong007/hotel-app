@@ -93,16 +93,46 @@ const NUM_OPS: &[&str] = &["eq", "gte", "lte"];
 
 fn field_spec(field: &str) -> Option<FieldSpec> {
     Some(match field {
-        "country" => FieldSpec { kind: FieldKind::Text("g.country"), ops: TEXT_OPS },
-        "nationality" => FieldSpec { kind: FieldKind::Text("g.nationality"), ops: TEXT_OPS },
-        "language_preference" => FieldSpec { kind: FieldKind::Text("g.language_preference"), ops: TEXT_OPS },
-        "communication_preference" => FieldSpec { kind: FieldKind::Text("g.communication_preference"), ops: TEXT_OPS },
-        "vip_status" => FieldSpec { kind: FieldKind::Text("g.vip_status"), ops: TEXT_OPS },
-        "guest_type" => FieldSpec { kind: FieldKind::Text("g.guest_type::text"), ops: &["eq", "ne", "in"] },
-        "marketing_opt_in" => FieldSpec { kind: FieldKind::Bool("g.marketing_opt_in"), ops: &["eq"] },
-        "tags" => FieldSpec { kind: FieldKind::Tags, ops: &["contains", "not_contains"] },
-        "total_stays" => FieldSpec { kind: FieldKind::Int("g.total_stays"), ops: NUM_OPS },
-        "total_spend" => FieldSpec { kind: FieldKind::Num("g.total_spend"), ops: &["gte", "lte"] },
+        "country" => FieldSpec {
+            kind: FieldKind::Text("g.country"),
+            ops: TEXT_OPS,
+        },
+        "nationality" => FieldSpec {
+            kind: FieldKind::Text("g.nationality"),
+            ops: TEXT_OPS,
+        },
+        "language_preference" => FieldSpec {
+            kind: FieldKind::Text("g.language_preference"),
+            ops: TEXT_OPS,
+        },
+        "communication_preference" => FieldSpec {
+            kind: FieldKind::Text("g.communication_preference"),
+            ops: TEXT_OPS,
+        },
+        "vip_status" => FieldSpec {
+            kind: FieldKind::Text("g.vip_status"),
+            ops: TEXT_OPS,
+        },
+        "guest_type" => FieldSpec {
+            kind: FieldKind::Text("g.guest_type::text"),
+            ops: &["eq", "ne", "in"],
+        },
+        "marketing_opt_in" => FieldSpec {
+            kind: FieldKind::Bool("g.marketing_opt_in"),
+            ops: &["eq"],
+        },
+        "tags" => FieldSpec {
+            kind: FieldKind::Tags,
+            ops: &["contains", "not_contains"],
+        },
+        "total_stays" => FieldSpec {
+            kind: FieldKind::Int("g.total_stays"),
+            ops: NUM_OPS,
+        },
+        "total_spend" => FieldSpec {
+            kind: FieldKind::Num("g.total_spend"),
+            ops: &["gte", "lte"],
+        },
         "age_years" => FieldSpec {
             kind: FieldKind::Int("EXTRACT(YEAR FROM AGE(g.date_of_birth))::int"),
             ops: &["gte", "lte"],
@@ -114,8 +144,14 @@ fn field_spec(field: &str) -> Option<FieldSpec> {
             ),
             ops: &["gte", "lte"],
         },
-        "loyalty_tier_id" => FieldSpec { kind: FieldKind::TierId, ops: &["eq", "in"] },
-        "has_loyalty_membership" => FieldSpec { kind: FieldKind::LoyaltyMember, ops: &["eq"] },
+        "loyalty_tier_id" => FieldSpec {
+            kind: FieldKind::TierId,
+            ops: &["eq", "in"],
+        },
+        "has_loyalty_membership" => FieldSpec {
+            kind: FieldKind::LoyaltyMember,
+            ops: &["eq"],
+        },
         _ => return None,
     })
 }
@@ -126,7 +162,9 @@ fn text_value(value: &Option<JsonValue>, field: &str) -> Result<String, ApiError
         .and_then(JsonValue::as_str)
         .ok_or_else(|| invalid(&format!("Field {field} needs a string value")))?;
     if s.is_empty() || s.chars().count() > 200 {
-        return Err(invalid(&format!("Field {field} value must be 1-200 characters")));
+        return Err(invalid(&format!(
+            "Field {field} value must be 1-200 characters"
+        )));
     }
     Ok(s.to_string())
 }
@@ -170,7 +208,9 @@ fn text_list(value: &Option<JsonValue>, field: &str) -> Result<Vec<String>, ApiE
         );
     }
     if out.is_empty() {
-        return Err(invalid(&format!("Field {field} needs a non-empty string array")));
+        return Err(invalid(&format!(
+            "Field {field} needs a non-empty string array"
+        )));
     }
     Ok(out)
 }
@@ -183,12 +223,15 @@ fn int_list(value: &Option<JsonValue>, field: &str) -> Result<Vec<i64>, ApiError
     let mut out = Vec::with_capacity(items.len());
     for item in items {
         out.push(
-            item.as_i64()
-                .ok_or_else(|| invalid(&format!("Field {field} needs a non-empty integer array")))?,
+            item.as_i64().ok_or_else(|| {
+                invalid(&format!("Field {field} needs a non-empty integer array"))
+            })?,
         );
     }
     if out.is_empty() {
-        return Err(invalid(&format!("Field {field} needs a non-empty integer array")));
+        return Err(invalid(&format!(
+            "Field {field} needs a non-empty integer array"
+        )));
     }
     Ok(out)
 }
@@ -254,7 +297,10 @@ fn compile_condition(
             }
             "not_contains" => {
                 binds.push(SegmentBind::Text(text_value(&cond.value, &cond.field)?));
-                format!("NOT ({} = ANY(COALESCE(g.tags, '{{}}'::text[])))", param(next_param))
+                format!(
+                    "NOT ({} = ANY(COALESCE(g.tags, '{{}}'::text[])))",
+                    param(next_param)
+                )
             }
             _ => unreachable!(),
         },
@@ -382,16 +428,20 @@ mod tests {
 
     #[test]
     fn rejects_unknown_field_and_op() {
-        assert!(compile_rules(
-            &rules(json!([{ "conditions": [cond("email", "eq", json!("x"))] }])),
-            1
-        )
-        .is_err());
-        assert!(compile_rules(
-            &rules(json!([{ "conditions": [cond("country", "gte", json!("x"))] }])),
-            1
-        )
-        .is_err());
+        assert!(
+            compile_rules(
+                &rules(json!([{ "conditions": [cond("email", "eq", json!("x"))] }])),
+                1
+            )
+            .is_err()
+        );
+        assert!(
+            compile_rules(
+                &rules(json!([{ "conditions": [cond("country", "gte", json!("x"))] }])),
+                1
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -452,7 +502,11 @@ mod tests {
         .unwrap();
         assert!(clause.sql.contains("la.current_tier_id = ANY($2)"));
         assert!(clause.sql.contains("lm.status = 'active'"));
-        assert!(clause.sql.contains("EXTRACT(YEAR FROM AGE(g.date_of_birth))::int >= $3"));
+        assert!(
+            clause
+                .sql
+                .contains("EXTRACT(YEAR FROM AGE(g.date_of_birth))::int >= $3")
+        );
         assert!(clause.sql.contains("MAX(b.check_out_date)"));
         assert!(clause.sql.contains("$4"));
         assert!(matches!(clause.binds[0], SegmentBind::Ints(ref v) if v == &vec![1, 2]));

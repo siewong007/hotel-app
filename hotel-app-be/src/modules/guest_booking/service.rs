@@ -32,10 +32,10 @@ use crate::modules::consent::service::{self as consent_service, ConsentContext, 
 use crate::modules::consent::validation as consent_validation;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::ProfileCompletion;
+use crate::services::profile::completion_for_guest;
 use crate::services::promotion_pricing::{
     PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
 };
-use crate::services::profile::completion_for_guest;
 use crate::utils::sanitization::Sanitizer;
 
 const PORTAL_SOURCE: &str = "website";
@@ -1797,16 +1797,14 @@ mod tests {
     #[test]
     fn percentage_voucher_is_capped() {
         let rates = vec![rate(10, 100)];
-        let pricing =
-            voucher_pricing(&rates, &[], &voucher("percentage", 25, Some(10))).unwrap();
+        let pricing = voucher_pricing(&rates, &[], &voucher("percentage", 25, Some(10))).unwrap();
         assert_eq!(pricing.discount, Decimal::from(10));
     }
 
     #[test]
     fn fixed_voucher_cannot_make_total_negative() {
         let rates = vec![rate(10, 100)];
-        let pricing =
-            voucher_pricing(&rates, &[], &voucher("fixed_amount", 250, None)).unwrap();
+        let pricing = voucher_pricing(&rates, &[], &voucher("fixed_amount", 250, None)).unwrap();
         assert_eq!(pricing.discount, Decimal::from(100));
     }
 
@@ -1851,8 +1849,8 @@ mod tests {
     fn percentage_voucher_discounts_only_what_credits_left_payable() {
         // 400 stay, one 300 night comped -> 100 payable, 25% off that is 25.
         let rates = vec![rate(10, 100), rate(11, 300)];
-        let settled = settlement(&rates, &[date(11)], Some(&voucher("percentage", 25, None)))
-            .unwrap();
+        let settled =
+            settlement(&rates, &[date(11)], Some(&voucher("percentage", 25, None))).unwrap();
         assert_eq!(settled.discount_amount, Decimal::from(325));
         assert_eq!(settled.total_amount, Decimal::from(75));
     }
@@ -1860,8 +1858,12 @@ mod tests {
     #[test]
     fn credits_and_voucher_together_never_produce_a_negative_total() {
         let rates = vec![rate(10, 100), rate(11, 300)];
-        let settled =
-            settlement(&rates, &[date(11)], Some(&voucher("fixed_amount", 500, None))).unwrap();
+        let settled = settlement(
+            &rates,
+            &[date(11)],
+            Some(&voucher("fixed_amount", 500, None)),
+        )
+        .unwrap();
         assert_eq!(settled.discount_amount, Decimal::from(400));
         assert_eq!(settled.total_amount, Decimal::ZERO);
     }
@@ -1878,13 +1880,10 @@ mod tests {
     fn voucher_allocations_reconcile_with_stay_totals() {
         // 600 stay: the 300 night comped, a 10% voucher on the 300 payable -> 30.
         let rates = vec![rate(10, 100), rate(11, 300), rate(12, 200)];
-        let settled = settlement(&rates, &[date(11)], Some(&voucher("percentage", 10, None)))
-            .unwrap();
-        let rows = nightly_redemption_allocations(
-            &rates,
-            &[date(11)],
-            settled.voucher_pricing.as_ref(),
-        );
+        let settled =
+            settlement(&rates, &[date(11)], Some(&voucher("percentage", 10, None))).unwrap();
+        let rows =
+            nightly_redemption_allocations(&rates, &[date(11)], settled.voucher_pricing.as_ref());
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].gross_amount, Decimal::from(100));
         assert_eq!(rows[0].discount_amount, Decimal::from(10));

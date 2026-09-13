@@ -3,9 +3,7 @@
 
 use sqlx::{Row, query, query_scalar};
 
-use super::models::{
-    GuestSegment, LoyaltyTierOption, SegmentDistinctValues, SegmentSampleGuest,
-};
+use super::models::{GuestSegment, LoyaltyTierOption, SegmentDistinctValues, SegmentSampleGuest};
 use super::rules::{self, CompiledClause};
 use super::service::SegmentDraft;
 use crate::core::db::{DbPool, DbRow, DbTransaction};
@@ -78,9 +76,7 @@ impl SegmentRepository {
     }
 
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<GuestSegment>, ApiError> {
-        let sql = format!(
-            "SELECT {SEGMENT_COLUMNS} FROM guest_segments WHERE id = $1"
-        );
+        let sql = format!("SELECT {SEGMENT_COLUMNS} FROM guest_segments WHERE id = $1");
         let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(id)
             .fetch_optional(pool)

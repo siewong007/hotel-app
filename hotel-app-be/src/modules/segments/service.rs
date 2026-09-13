@@ -1,8 +1,8 @@
 //! Segment workflows: validation, slug derivation, audit, preview, and the
 //! `audience_scope_for` contract consumed by communications targeting.
 
-use serde_json::json;
 use serde_json::Value as JsonValue;
+use serde_json::json;
 
 use super::models::{
     GuestSegment, SegmentFieldOptions, SegmentInput, SegmentListQuery, SegmentListResponse,
@@ -158,8 +158,7 @@ pub async fn list_segments(
     for segment in items {
         // Segments are stored validated, so compile failure means corruption —
         // surface it as a 500 rather than silently reporting 0 members.
-        let member_count =
-            SegmentRepository::count_matching(pool, &compile(&segment, 1)?).await?;
+        let member_count = SegmentRepository::count_matching(pool, &compile(&segment, 1)?).await?;
         summaries.push(SegmentSummary {
             id: segment.id,
             name: segment.name,

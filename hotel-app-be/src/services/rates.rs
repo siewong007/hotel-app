@@ -318,8 +318,10 @@ fn room_rate_bulk_values(input: BulkRoomRateInput) -> Result<RoomRateBulkValues,
         NaiveDate::parse_from_str(value, "%Y-%m-%d")
             .map_err(|_| ApiError::BadRequest(format!("Invalid {label} date. Use YYYY-MM-DD")))
     };
-    let (effective_from, effective_to) =
-        (parse(&input.effective_from, "effective_from")?, parse(&input.effective_to, "effective_to")?);
+    let (effective_from, effective_to) = (
+        parse(&input.effective_from, "effective_from")?,
+        parse(&input.effective_to, "effective_to")?,
+    );
     if input.room_type_ids.is_empty() {
         return Err(ApiError::BadRequest(
             "room_type_ids must not be empty".to_string(),

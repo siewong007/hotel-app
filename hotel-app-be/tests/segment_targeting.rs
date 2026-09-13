@@ -209,7 +209,10 @@ mod postgres_tests {
             .await
             .unwrap();
         assert_eq!(count.eligible, 2, "BASE+1 and BASE+7 pass every gate");
-        assert!(count.excluded_segment >= 1, "BASE+3 is eligible but outside");
+        assert!(
+            count.excluded_segment >= 1,
+            "BASE+3 is eligible but outside"
+        );
         assert!(count.excluded_suppressed >= 1, "BASE+4 is suppressed");
         assert!(count.excluded_no_email >= 1, "BASE+5 has no email");
         assert!(count.excluded_inactive >= 1, "BASE+6 is inactive");

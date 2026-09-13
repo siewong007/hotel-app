@@ -167,9 +167,11 @@ mod postgres_tests {
             .await
             .expect("rate calendar");
 
-        assert!(room_types
-            .iter()
-            .any(|rt| rt.room_type_id == BASE && rt.code == "RCA"));
+        assert!(
+            room_types
+                .iter()
+                .any(|rt| rt.room_type_id == BASE && rt.code == "RCA")
+        );
 
         // Oct 1 is a Thursday: HIGH (priority 20) beats LOW (priority 10).
         let oct1 = cell(&cells, BASE, 1);
@@ -218,28 +220,37 @@ mod postgres_tests {
             price,
         };
 
-        let created =
-            hotel_app_be::services::rates::bulk_upsert_room_rates(&pool, BASE, input(180.0, "2026-11-10"))
-                .await
-                .expect("bulk insert");
+        let created = hotel_app_be::services::rates::bulk_upsert_room_rates(
+            &pool,
+            BASE,
+            input(180.0, "2026-11-10"),
+        )
+        .await
+        .expect("bulk insert");
         assert_eq!(created.len(), 2);
         assert!(created.iter().all(|r| r.price == Decimal::from(180)));
 
         // Identical call must update the same rows, not insert duplicates.
-        let updated =
-            hotel_app_be::services::rates::bulk_upsert_room_rates(&pool, BASE, input(190.0, "2026-11-10"))
-                .await
-                .expect("bulk update");
+        let updated = hotel_app_be::services::rates::bulk_upsert_room_rates(
+            &pool,
+            BASE,
+            input(190.0, "2026-11-10"),
+        )
+        .await
+        .expect("bulk update");
         assert_eq!(updated.len(), 2);
         let created_ids: Vec<i64> = created.iter().map(|r| r.id).collect();
         assert!(updated.iter().all(|r| created_ids.contains(&r.id)));
         assert!(updated.iter().all(|r| r.price == Decimal::from(190)));
 
         // A different band bound inserts new rows rather than updating.
-        let inserted =
-            hotel_app_be::services::rates::bulk_upsert_room_rates(&pool, BASE, input(200.0, "2026-11-15"))
-                .await
-                .expect("bulk second band");
+        let inserted = hotel_app_be::services::rates::bulk_upsert_room_rates(
+            &pool,
+            BASE,
+            input(200.0, "2026-11-15"),
+        )
+        .await
+        .expect("bulk second band");
         assert!(inserted.iter().all(|r| !created_ids.contains(&r.id)));
 
         // Validation: empty type list, inverted range, missing plan.

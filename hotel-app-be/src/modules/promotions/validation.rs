@@ -157,8 +157,7 @@ fn normalize_internal_code(value: Option<String>) -> Result<Option<String>, ApiE
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
     {
         return Err(ApiError::BadRequest(
-            "Internal code must use up to 64 letters, numbers, hyphens, or underscores"
-                .to_string(),
+            "Internal code must use up to 64 letters, numbers, hyphens, or underscores".to_string(),
         ));
     }
     Ok(Some(value))
@@ -175,7 +174,9 @@ fn validate_objective(value: Option<String>) -> Result<Option<String>, ApiError>
     if PROMOTION_OBJECTIVES.contains(&value.as_str()) {
         Ok(Some(value))
     } else {
-        Err(ApiError::BadRequest("Unsupported campaign objective".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported campaign objective".to_string(),
+        ))
     }
 }
 

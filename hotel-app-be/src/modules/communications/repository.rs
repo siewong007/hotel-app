@@ -10,10 +10,10 @@ use super::models::{
 };
 use super::validation::{CampaignDraft, SuppressionDraft, TemplateDraft};
 use crate::core::db::{DbPool, DbRow, DbTransaction};
-use crate::modules::segments::models::SegmentScope;
-use crate::modules::segments::rules as segment_rules;
 use crate::core::error::ApiError;
 use crate::models::row_mappers::get_bool;
+use crate::modules::segments::models::SegmentScope;
+use crate::modules::segments::rules as segment_rules;
 
 const SUBSCRIPTION_COLUMNS: &str = r#"
     id, guest_id, channel, topic, subscribed, source, policy_version, created_at, updated_at

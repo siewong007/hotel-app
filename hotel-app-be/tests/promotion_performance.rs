@@ -25,9 +25,7 @@ mod postgres_tests {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => {
-                eprintln!(
-                    "Skipping PostgreSQL campaign test because DATABASE_URL is not set"
-                );
+                eprintln!("Skipping PostgreSQL campaign test because DATABASE_URL is not set");
                 return None;
             }
         };
@@ -85,13 +83,7 @@ mod postgres_tests {
 
     /// `window` selects the claim window: `"live"` (open), `"scheduled"`
     /// (future start), or `"expired"` (past end).
-    async fn seed_promotion(
-        pool: &PgPool,
-        id: i64,
-        status: &str,
-        window: &str,
-        is_public: bool,
-    ) {
+    async fn seed_promotion(pool: &PgPool, id: i64, status: &str, window: &str, is_public: bool) {
         let (starts, ends) = match window {
             "scheduled" => (
                 Some(Utc::now() + Duration::days(3)),
@@ -200,32 +192,23 @@ mod postgres_tests {
         )
         .await
         .expect("cancelling a published campaign must succeed");
-        let cancelled = PromotionRepository::find_by_id(&pool, base).await.unwrap().unwrap();
+        let cancelled = PromotionRepository::find_by_id(&pool, base)
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(cancelled.status, "cancelled");
         assert_eq!(cancelled.lifecycle, "cancelled");
 
-        let again = service::cancel_admin_promotion(
-            &pool,
-            1000,
-            base,
-            action_input(None),
-            None,
-            None,
-        )
-        .await;
+        let again =
+            service::cancel_admin_promotion(&pool, 1000, base, action_input(None), None, None)
+                .await;
         assert!(
             matches!(again, Err(ApiError::Conflict(_))),
             "cancelling twice must be a 409, got {again:?}"
         );
-        let archived = service::cancel_admin_promotion(
-            &pool,
-            1000,
-            base + 4,
-            action_input(None),
-            None,
-            None,
-        )
-        .await;
+        let archived =
+            service::cancel_admin_promotion(&pool, 1000, base + 4, action_input(None), None, None)
+                .await;
         assert!(
             matches!(archived, Err(ApiError::Conflict(_))),
             "cancelling an archived campaign must be a 409, got {archived:?}"
@@ -235,15 +218,8 @@ mod postgres_tests {
             .expect("cancelling a paused campaign must succeed");
 
         // A cancelled campaign is unclaimable (claim requires published).
-        let claim = service::claim_guest_promotion(
-            &pool,
-            base + 50,
-            base,
-            claim_input(),
-            None,
-            None,
-        )
-        .await;
+        let claim =
+            service::claim_guest_promotion(&pool, base + 50, base, claim_input(), None, None).await;
         assert!(claim.is_err(), "a cancelled campaign must not be claimable");
 
         // The admin list filter accepts lifecycle values.
@@ -308,8 +284,8 @@ mod postgres_tests {
         seed_guest(&pool, base + 3).await;
 
         // Guest without the tier can neither claim nor be issued.
-        let claim = service::claim_guest_promotion(&pool, base + 1, base, claim_input(), None, None)
-            .await;
+        let claim =
+            service::claim_guest_promotion(&pool, base + 1, base, claim_input(), None, None).await;
         assert!(
             matches!(claim, Err(ApiError::Conflict(_))),
             "claim outside the tier set must be a 409, got {claim:?}"
@@ -378,15 +354,9 @@ mod postgres_tests {
         .await
         .unwrap();
 
-        let claim = service::claim_guest_promotion(
-            &pool,
-            base + 2,
-            base + 5,
-            claim_input(),
-            None,
-            None,
-        )
-        .await;
+        let claim =
+            service::claim_guest_promotion(&pool, base + 2, base + 5, claim_input(), None, None)
+                .await;
         assert!(
             matches!(claim, Err(ApiError::Conflict(_))),
             "a channel-targeted campaign must reject the portal (direct) claim, got {claim:?}"
@@ -395,7 +365,15 @@ mod postgres_tests {
         // The same predicate is enforced at voucher eligibility: a voucher
         // held against the OTA-targeted campaign is eligible on that channel
         // and ineligible on the direct channel.
-        seed_voucher(&pool, base + 20, base + 5, base + 3, "available", "admin_issue").await;
+        seed_voucher(
+            &pool,
+            base + 20,
+            base + 5,
+            base + 3,
+            "available",
+            "admin_issue",
+        )
+        .await;
         sqlx::query(
             "INSERT INTO room_types (id, code, name, base_price) \
              OVERRIDING SYSTEM VALUE VALUES ($1, $2, $3, 100)",
@@ -433,10 +411,9 @@ mod postgres_tests {
             on_ota.is_ok(),
             "the voucher must be eligible on its targeted channel, got {on_ota:?}"
         );
-        let eligible_ids =
-            GuestBookingRepository::eligible_voucher_ids(&pool, query(direct))
-                .await
-                .unwrap();
+        let eligible_ids = GuestBookingRepository::eligible_voucher_ids(&pool, query(direct))
+            .await
+            .unwrap();
         assert!(
             !eligible_ids.contains(&(base + 20)),
             "the eligibility list must hide the voucher on the direct channel"
