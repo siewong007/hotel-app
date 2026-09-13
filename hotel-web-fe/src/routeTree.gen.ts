@@ -28,6 +28,7 @@ import { Route as GuestConfigRouteImport } from './routes/guest-config'
 import { Route as GuestPortalRouteImport } from './routes/guest-portal'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LoyaltyRouteImport } from './routes/loyalty'
@@ -156,6 +157,11 @@ const HelpRoute = HelpRouteImport.update({
 const HousekeepingRoute = HousekeepingRouteImport.update({
   id: '/housekeeping',
   path: '/housekeeping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InsightsRoute = InsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -351,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/insights': typeof InsightsRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
@@ -406,6 +413,7 @@ export interface FileRoutesByTo {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/insights': typeof InsightsRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
@@ -462,6 +470,7 @@ export interface FileRoutesById {
   '/guest-portal': typeof GuestPortalRoute
   '/help': typeof HelpRouteWithChildren
   '/housekeeping': typeof HousekeepingRoute
+  '/insights': typeof InsightsRoute
   '/jobs': typeof JobsRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
@@ -519,6 +528,7 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/insights'
     | '/jobs'
     | '/login'
     | '/loyalty'
@@ -574,6 +584,7 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/insights'
     | '/jobs'
     | '/login'
     | '/loyalty'
@@ -629,6 +640,7 @@ export interface FileRouteTypes {
     | '/guest-portal'
     | '/help'
     | '/housekeeping'
+    | '/insights'
     | '/jobs'
     | '/login'
     | '/loyalty'
@@ -685,6 +697,7 @@ export interface RootRouteChildren {
   GuestPortalRoute: typeof GuestPortalRoute
   HelpRoute: typeof HelpRouteWithChildren
   HousekeepingRoute: typeof HousekeepingRoute
+  InsightsRoute: typeof InsightsRoute
   JobsRoute: typeof JobsRoute
   LoginRoute: typeof LoginRoute
   LoyaltyRoute: typeof LoyaltyRoute
@@ -853,6 +866,13 @@ declare module '@tanstack/react-router' {
       path: '/housekeeping'
       fullPath: '/housekeeping'
       preLoaderRoute: typeof HousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/insights': {
+      id: '/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof InsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -1126,6 +1146,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestPortalRoute: GuestPortalRoute,
   HelpRoute: HelpRouteWithChildren,
   HousekeepingRoute: HousekeepingRoute,
+  InsightsRoute: InsightsRoute,
   JobsRoute: JobsRoute,
   LoginRoute: LoginRoute,
   LoyaltyRoute: LoyaltyRoute,

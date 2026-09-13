@@ -882,19 +882,8 @@ mod checkout_payment_guard_tests {
 }
 
 async fn booking_revenue_for_date(pool: &DbPool, date: NaiveDate) -> Result<f64, ApiError> {
-    let row = sqlx::query(
-        r#"
-        SELECT COALESCE(SUM(total_amount), 0) AS revenue
-        FROM bookings
-        WHERE status != 'voided' AND created_at::date = $1
-        "#,
-    )
-    .bind(date)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(decimal_to_f64(row_mappers::get_decimal(&row, "revenue")))
+    // Single definition lives in modules::insights::queries.
+    crate::modules::insights::queries::revenue_for_date(pool, date).await
 }
 
 pub async fn get_booking_stats_handler(

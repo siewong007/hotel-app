@@ -62,6 +62,7 @@ const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
 const DashboardRouter = lazyRoute(() => import('../features/dashboard/components/DashboardRouter'));
 const BookingsPage = lazyRoute(() => import('../features/bookings/components/Bookings'));
 const ModernReportsPage = lazyRoute(() => import('../features/reports/components/ModernReportsPage'));
+const ReportLibraryPage = lazyRoute(() => import('../features/insights/pages/ReportLibraryPage'));
 const LoyaltyPortal = lazyRoute(() => import('../features/loyalty/components/LoyaltyPortal'));
 const LoyaltyDashboard = lazyRoute(() => import('../features/loyalty/components/LoyaltyDashboard'));
 const UserProfilePage = lazyRoute(() => import('../features/user/components/UserProfilePage'));
@@ -322,6 +323,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     accessControlled: true,
   },
   // ── insights ────────────────────────────────────────────────────────────
+  {
+    id: 'insights',
+    path: '/insights',
+    component: ReportLibraryPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: AssessmentIcon,
+    breadcrumbLabel: 'Insights',
+    navLabel: 'Insights',
+    navGroup: 'insights',
+    accessControlled: true,
+  },
   {
     id: 'reports',
     path: '/reports',

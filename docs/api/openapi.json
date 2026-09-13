@@ -608,6 +608,15 @@
     "/api/housekeeping/tasks/{id}": {
       "PATCH": {}
     },
+    "/api/insights/overview": {
+      "GET": {}
+    },
+    "/api/insights/reports": {
+      "GET": {}
+    },
+    "/api/insights/reports/{id}": {
+      "GET": {}
+    },
     "/api/invoices": {
       "GET": {}
     },
@@ -1071,6 +1080,9 @@
     },
     {
       "name": "infra"
+    },
+    {
+      "name": "insights"
     },
     {
       "name": "invoices"

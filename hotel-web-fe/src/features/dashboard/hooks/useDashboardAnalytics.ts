@@ -1,10 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
-import type { BookingStatsResponse } from '../../../api/bookings.service';
-import { useBookingStats } from '../../bookings/hooks/useBookingQueries';
-import { useGuestsPage } from '../../guests/hooks/useGuestQueries';
-import { useRoomTypes, useRooms } from '../../rooms/hooks/useRoomQueries';
-import type { Room, RoomType } from '../../../types';
+import { useInsightsOverview } from '../../insights/hooks';
+import type { InsightsOverview } from '../../insights/types';
 
 export interface RoomStats {
   totalRooms: number;
@@ -46,19 +43,20 @@ const emptyRoomStats: RoomStats = {
   cleaningRooms: 0,
 };
 
-const emptyBookingStatsResponse: BookingStatsResponse = {
-  total: 0,
-  checked_in: 0,
-  confirmed: 0,
-  today_check_ins: 0,
-  today_check_outs: 0,
-  pending: 0,
-  active: 0,
-  total_revenue: 0,
-  revenue_last_7_days: [],
+const emptyBookingStats: BookingStats = {
+  totalBookings: 0,
+  todayCheckIns: 0,
+  todayCheckOuts: 0,
+  pendingBookings: 0,
 };
 
-const guestTotalParams = { page: 1, page_size: 1 } as const;
+const emptyData: DashboardAnalyticsData = {
+  roomStats: emptyRoomStats,
+  bookingStats: emptyBookingStats,
+  roomTypeStats: [],
+  totalGuests: 0,
+  revenueData: [],
+};
 
 const toDateKey = (date: Date) => {
   const year = date.getFullYear();
@@ -67,16 +65,8 @@ const toDateKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-const getRoomStatus = (room: Room) =>
-  (room.status || (room.available ? 'available' : 'occupied')).toLowerCase();
-
-const isOccupiedRoom = (room: Room) => {
-  const status = getRoomStatus(room);
-  return status === 'occupied' || status === 'checked_in';
-};
-
 function buildRevenueData(
-  revenuePoints: BookingStatsResponse['revenue_last_7_days'] | undefined,
+  revenuePoints: InsightsOverview['revenue_last_7_days'] | undefined,
   now: Date
 ) {
   const days: { key: string; name: string; revenue: number }[] = [];
@@ -100,80 +90,47 @@ function buildRevenueData(
 }
 
 export function buildDashboardAnalyticsData(
-  rooms: Room[],
-  bookingStatsResponse: BookingStatsResponse | undefined,
-  totalGuests: number,
-  roomTypes: RoomType[],
+  overview: InsightsOverview | undefined,
   now = new Date()
 ): DashboardAnalyticsData {
-  const backendStats = bookingStatsResponse ?? emptyBookingStatsResponse;
-
-  const roomStats = rooms.reduce<RoomStats>((stats, room) => {
-    const status = getRoomStatus(room);
-    if (status === 'maintenance' || status === 'out_of_order') stats.maintenanceRooms += 1;
-    else if (status === 'cleaning' || status === 'dirty' || status === 'reserved_dirty') stats.cleaningRooms += 1;
-    else if (status === 'occupied' || status === 'checked_in') stats.occupiedRooms += 1;
-    else if (status === 'reserved') stats.reservedRooms += 1;
-    else stats.availableRooms += 1;
-    return stats;
-  }, { ...emptyRoomStats, totalRooms: rooms.length });
-
-  const bookingStats: BookingStats = {
-    totalBookings: backendStats.total,
-    todayCheckIns: backendStats.today_check_ins,
-    todayCheckOuts: backendStats.today_check_outs,
-    pendingBookings: backendStats.pending,
-  };
-
-  const roomTypeStats = roomTypes
-    .map((roomType) => {
-      const roomsOfType = rooms.filter((room) => room.room_type === roomType.name);
-      const occupied = roomsOfType.filter(isOccupiedRoom).length;
-      return {
-        name: roomType.name,
-        count: roomsOfType.length,
-        occupied,
-        available: roomsOfType.length - occupied,
-      };
-    })
-    .filter((roomType) => roomType.count > 0);
+  if (!overview) return emptyData;
 
   return {
-    roomStats,
-    bookingStats,
-    roomTypeStats,
-    totalGuests,
-    revenueData: buildRevenueData(backendStats.revenue_last_7_days, now),
+    roomStats: {
+      totalRooms: overview.rooms.total,
+      availableRooms: overview.rooms.available,
+      occupiedRooms: overview.rooms.occupied,
+      reservedRooms: overview.rooms.reserved,
+      maintenanceRooms: overview.rooms.maintenance,
+      cleaningRooms: overview.rooms.cleaning,
+    },
+    bookingStats: {
+      totalBookings: overview.bookings.total,
+      todayCheckIns: overview.bookings.today_check_ins,
+      todayCheckOuts: overview.bookings.today_check_outs,
+      pendingBookings: overview.bookings.pending,
+    },
+    roomTypeStats: overview.room_types.map((rt) => ({
+      name: rt.name,
+      count: rt.total,
+      occupied: rt.occupied,
+      available: rt.available,
+    })),
+    totalGuests: overview.guests_total,
+    revenueData: buildRevenueData(overview.revenue_last_7_days, now),
   };
 }
 
 export function useDashboardAnalytics(enabled = true) {
-  const roomsQuery = useRooms(enabled);
-  const bookingStatsQuery = useBookingStats(enabled);
-  const guestsTotalQuery = useGuestsPage(guestTotalParams, enabled);
-  const roomTypesQuery = useRoomTypes(enabled);
+  const overview = useInsightsOverview(enabled);
 
-  const data = useMemo(() => buildDashboardAnalyticsData(
-    roomsQuery.data ?? [],
-    bookingStatsQuery.data,
-    guestsTotalQuery.data?.total ?? 0,
-    roomTypesQuery.data ?? []
-  ), [bookingStatsQuery.data, guestsTotalQuery.data?.total, roomTypesQuery.data, roomsQuery.data]);
-
-  const refetch = useCallback(() => Promise.all([
-    roomsQuery.refetch(),
-    bookingStatsQuery.refetch(),
-    guestsTotalQuery.refetch(),
-    roomTypesQuery.refetch(),
-  ]), [bookingStatsQuery, guestsTotalQuery, roomTypesQuery, roomsQuery]);
-
-  const firstError = roomsQuery.error || bookingStatsQuery.error || guestsTotalQuery.error || roomTypesQuery.error;
+  const refetch = useCallback(() => overview.refetch(), [overview]);
 
   return {
-    data,
-    loading: roomsQuery.isPending || bookingStatsQuery.isPending || guestsTotalQuery.isPending || roomTypesQuery.isPending,
-    fetching: roomsQuery.isFetching || bookingStatsQuery.isFetching || guestsTotalQuery.isFetching || roomTypesQuery.isFetching,
-    error: getQueryErrorMessage(firstError, 'Failed to load analytics data'),
+    data: buildDashboardAnalyticsData(overview.data),
+    loading: overview.isPending,
+    fetching: overview.isFetching,
+    error: getQueryErrorMessage(overview.error, 'Failed to load analytics data'),
     refetch,
   };
 }
