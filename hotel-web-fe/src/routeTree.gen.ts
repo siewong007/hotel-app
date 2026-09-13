@@ -51,6 +51,7 @@ import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/in
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
+import { Route as GuestRelationsIndexRouteImport } from './routes/guest-relations/index'
 import { Route as HelpSlugRouteImport } from './routes/help.$slug'
 import { Route as LegalIdentityVerificationRouteImport } from './routes/legal/identity-verification'
 import { Route as LegalPaymentTermsRouteImport } from './routes/legal/payment-terms'
@@ -60,6 +61,8 @@ import { Route as PortalIndexRouteImport } from './routes/portal/index'
 import { Route as PortalBookRouteImport } from './routes/portal/book'
 import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
 import { Route as BookingRecoverPaymentTokenRouteImport } from './routes/booking.recover-payment.$token'
+import { Route as GuestRelationsGuestsIndexRouteImport } from './routes/guest-relations/guests/index'
+import { Route as GuestRelationsGuestsGuestIdRouteImport } from './routes/guest-relations/guests/$guestId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -271,6 +274,11 @@ const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
   path: '/guest-checkin/verify',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuestRelationsIndexRoute = GuestRelationsIndexRouteImport.update({
+  id: '/guest-relations/',
+  path: '/guest-relations/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpSlugRoute = HelpSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -316,6 +324,18 @@ const BookingRecoverPaymentTokenRoute =
   BookingRecoverPaymentTokenRouteImport.update({
     id: '/booking/recover-payment/$token',
     path: '/booking/recover-payment/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GuestRelationsGuestsIndexRoute =
+  GuestRelationsGuestsIndexRouteImport.update({
+    id: '/guest-relations/guests/',
+    path: '/guest-relations/guests/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GuestRelationsGuestsGuestIdRoute =
+  GuestRelationsGuestsGuestIdRouteImport.update({
+    id: '/guest-relations/guests/$guestId',
+    path: '/guest-relations/guests/$guestId',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -369,8 +389,11 @@ export interface FileRoutesByFullPath {
   '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
+  '/guest-relations/': typeof GuestRelationsIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/booking/recover-payment/$token': typeof BookingRecoverPaymentTokenRoute
+  '/guest-relations/guests/$guestId': typeof GuestRelationsGuestsGuestIdRoute
+  '/guest-relations/guests/': typeof GuestRelationsGuestsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -422,8 +445,11 @@ export interface FileRoutesByTo {
   '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin': typeof GuestCheckinIndexRoute
+  '/guest-relations': typeof GuestRelationsIndexRoute
   '/portal': typeof PortalIndexRoute
   '/booking/recover-payment/$token': typeof BookingRecoverPaymentTokenRoute
+  '/guest-relations/guests/$guestId': typeof GuestRelationsGuestsGuestIdRoute
+  '/guest-relations/guests': typeof GuestRelationsGuestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -476,8 +502,11 @@ export interface FileRoutesById {
   '/portal/book': typeof PortalBookRoute
   '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
+  '/guest-relations/': typeof GuestRelationsIndexRoute
   '/portal/': typeof PortalIndexRoute
   '/booking/recover-payment/$token': typeof BookingRecoverPaymentTokenRoute
+  '/guest-relations/guests/$guestId': typeof GuestRelationsGuestsGuestIdRoute
+  '/guest-relations/guests/': typeof GuestRelationsGuestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -531,8 +560,11 @@ export interface FileRouteTypes {
     | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin/'
+    | '/guest-relations/'
     | '/portal/'
     | '/booking/recover-payment/$token'
+    | '/guest-relations/guests/$guestId'
+    | '/guest-relations/guests/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -584,8 +616,11 @@ export interface FileRouteTypes {
     | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin'
+    | '/guest-relations'
     | '/portal'
     | '/booking/recover-payment/$token'
+    | '/guest-relations/guests/$guestId'
+    | '/guest-relations/guests'
   id:
     | '__root__'
     | '/'
@@ -637,8 +672,11 @@ export interface FileRouteTypes {
     | '/portal/book'
     | '/unsubscribe/$token'
     | '/guest-checkin/'
+    | '/guest-relations/'
     | '/portal/'
     | '/booking/recover-payment/$token'
+    | '/guest-relations/guests/$guestId'
+    | '/guest-relations/guests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -690,8 +728,11 @@ export interface RootRouteChildren {
   PortalBookRoute: typeof PortalBookRoute
   UnsubscribeTokenRoute: typeof UnsubscribeTokenRoute
   GuestCheckinIndexRoute: typeof GuestCheckinIndexRoute
+  GuestRelationsIndexRoute: typeof GuestRelationsIndexRoute
   PortalIndexRoute: typeof PortalIndexRoute
   BookingRecoverPaymentTokenRoute: typeof BookingRecoverPaymentTokenRoute
+  GuestRelationsGuestsGuestIdRoute: typeof GuestRelationsGuestsGuestIdRoute
+  GuestRelationsGuestsIndexRoute: typeof GuestRelationsGuestsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -990,6 +1031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuestCheckinVerifyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guest-relations/': {
+      id: '/guest-relations/'
+      path: '/guest-relations'
+      fullPath: '/guest-relations/'
+      preLoaderRoute: typeof GuestRelationsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help/$slug': {
       id: '/help/$slug'
       path: '/$slug'
@@ -1051,6 +1099,20 @@ declare module '@tanstack/react-router' {
       path: '/booking/recover-payment/$token'
       fullPath: '/booking/recover-payment/$token'
       preLoaderRoute: typeof BookingRecoverPaymentTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-relations/guests/': {
+      id: '/guest-relations/guests/'
+      path: '/guest-relations/guests'
+      fullPath: '/guest-relations/guests/'
+      preLoaderRoute: typeof GuestRelationsGuestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guest-relations/guests/$guestId': {
+      id: '/guest-relations/guests/$guestId'
+      path: '/guest-relations/guests/$guestId'
+      fullPath: '/guest-relations/guests/$guestId'
+      preLoaderRoute: typeof GuestRelationsGuestsGuestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -1115,8 +1177,11 @@ const rootRouteChildren: RootRouteChildren = {
   PortalBookRoute: PortalBookRoute,
   UnsubscribeTokenRoute: UnsubscribeTokenRoute,
   GuestCheckinIndexRoute: GuestCheckinIndexRoute,
+  GuestRelationsIndexRoute: GuestRelationsIndexRoute,
   PortalIndexRoute: PortalIndexRoute,
   BookingRecoverPaymentTokenRoute: BookingRecoverPaymentTokenRoute,
+  GuestRelationsGuestsGuestIdRoute: GuestRelationsGuestsGuestIdRoute,
+  GuestRelationsGuestsIndexRoute: GuestRelationsGuestsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

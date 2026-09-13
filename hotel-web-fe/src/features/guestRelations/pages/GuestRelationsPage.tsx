@@ -127,9 +127,9 @@ const GuestRelationsPage: React.FC = () => {
     guestsQuery.error || stats.error || roomsQuery.error;
   const pageError = error || getQueryErrorMessage(queryError, '') || null;
 
-  // Deep links (`?search=` / `?guest_id=`) — same contract as the legacy page
-  // so global-search results keep landing here until Task 16 wires the
-  // `/guest-relations` routes.
+  // Deep links (`?search=` / `?guest_id=`) — same contract as the legacy page;
+  // `/guest-config` redirects here with its search params forwarded, so
+  // global-search results keep landing on a filtered list.
   const routedGuestSearch = pageSearchParams.get('search') || '';
   const routedGuestId = pageSearchParams.get('guest_id') || '';
 
@@ -250,8 +250,8 @@ const GuestRelationsPage: React.FC = () => {
     setEditDialogOpen(true);
   };
 
-  // Row click / View: the guest-360 route is wired in Task 16 — until then the
-  // string path is a no-op navigation target (compat navigate is untyped).
+  // Row click / View opens the guest-360 page registered at
+  // `/guest-relations/guests/$guestId` (compat navigate is untyped).
   const handleOpenGuest = (guest: Guest) => {
     navigate(`/guest-relations/guests/${guest.id}`);
   };

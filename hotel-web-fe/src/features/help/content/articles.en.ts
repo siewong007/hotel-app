@@ -249,7 +249,7 @@ export const ARTICLES_EN: HelpArticle[] = [
     summary: 'Search, edit, and maintain guest records — including profile completeness and portal account transfers.',
     category: 'guests',
     keywords: ['guest', 'profile', 'edit guest', 'guest history', 'ic number', 'portal account'],
-    routePath: '/guest-config',
+    routePath: '/guest-relations/guests',
     requiredPermissions: ['guests:read', 'guests:update'],
     lastReviewed: '2026-09-13',
     relatedSlugs: ['create-a-booking', 'notifications-guest-support', 'import-export-data'],

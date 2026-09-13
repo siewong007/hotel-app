@@ -16,7 +16,7 @@
   "routes": {
     "dashboard": { "label": "Papan Pemuka", "breadcrumb": "Papan Pemuka" },
     "timeline": { "label": "Garis Masa", "breadcrumb": "Garis Masa Tempahan" },
-    "guest-config": { "label": "Tetamu", "breadcrumb": "Pengurusan Tetamu" },
+    "guest-relations": { "label": "Hubungan Tetamu", "breadcrumb": "Hubungan Tetamu" },
     "bookings": { "label": "Tempahan", "breadcrumb": "Tempahan" },
     "room-management": { "label": "Bilik", "breadcrumb": "Pengurusan Bilik" },
     "online-inventory": { "label": "Inventori Dalam Talian", "breadcrumb": "Kawalan Inventori Dalam Talian" },

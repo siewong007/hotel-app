@@ -246,7 +246,7 @@ export const ARTICLES_MS: HelpArticle[] = [
     summary: 'Cari, edit dan selenggara rekod tetamu — termasuk kesempurnaan profil dan pemindahan akaun portal.',
     category: 'guests',
     keywords: ['tetamu', 'profil', 'edit tetamu', 'sejarah tetamu', 'nombor ic', 'akaun portal'],
-    routePath: '/guest-config',
+    routePath: '/guest-relations/guests',
     requiredPermissions: ['guests:read', 'guests:update'],
     lastReviewed: '2026-09-13',
     relatedSlugs: ['create-a-booking', 'notifications-guest-support', 'import-export-data'],

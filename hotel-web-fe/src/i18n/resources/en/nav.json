@@ -16,7 +16,7 @@
   "routes": {
     "dashboard": { "label": "Overview", "breadcrumb": "Overview" },
     "timeline": { "label": "Timeline", "breadcrumb": "Reservation Timeline" },
-    "guest-config": { "label": "Guests", "breadcrumb": "Guest Management" },
+    "guest-relations": { "label": "Guest Relations", "breadcrumb": "Guest Relations" },
     "bookings": { "label": "Bookings", "breadcrumb": "Bookings" },
     "room-management": { "label": "Rooms", "breadcrumb": "Room Management" },
     "online-inventory": { "label": "Online Inventory", "breadcrumb": "Online Inventory Control" },

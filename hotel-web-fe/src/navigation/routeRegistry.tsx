@@ -77,7 +77,7 @@ const FirstLoginPasskeyPrompt = lazyRoute(() => import('../features/auth/compone
 const RoomReservationTimeline = lazyRoute(() => import('../features/rooms/components/RoomReservationTimeline'));
 const RoomConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomConfigurationPage'));
 const RoomManagementPage = lazyRoute(() => import('../features/rooms/components/RoomManagement'));
-const GuestConfigurationPage = lazyRoute(() => import('../features/guests/components/GuestConfigurationPage'));
+const GuestRelationsPage = lazyRoute(() => import('../features/guestRelations/pages/GuestRelationsPage'));
 const GuestCheckInLanding = lazyRoute(() => import('../features/bookings/components/GuestCheckInLanding'));
 const GuestCheckInVerify = lazyRoute(() => import('../features/bookings/components/GuestCheckInVerify'));
 const GuestCheckInForm = lazyRoute(() => import('../features/bookings/components/GuestCheckInForm'));
@@ -159,14 +159,14 @@ const routeDefinitions: AppRouteDefinition[] = [
     accessControlled: true,
   },
   {
-    id: 'guest-config',
-    path: '/guest-config',
-    component: GuestConfigurationPage,
+    id: 'guest-relations',
+    path: '/guest-relations/guests',
+    component: GuestRelationsPage,
     animationType: 'slide',
     visibility: 'auth',
     icon: PeopleIcon,
-    breadcrumbLabel: 'Guest Management',
-    navLabel: 'Guests',
+    breadcrumbLabel: 'Guest Relations',
+    navLabel: 'Guest Relations',
     navGroup: 'operations',
     accessControlled: true,
   },

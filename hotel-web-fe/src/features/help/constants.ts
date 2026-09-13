@@ -30,7 +30,7 @@ export interface HelpCategoryDef {
 export const HELP_CATEGORIES: HelpCategoryDef[] = [
   { id: 'getting-started', icon: RocketLaunchOutlinedIcon },
   { id: 'bookings', icon: EventNoteOutlinedIcon, routePath: '/bookings' },
-  { id: 'guests', icon: PeopleOutlinedIcon, routePath: '/guest-config' },
+  { id: 'guests', icon: PeopleOutlinedIcon, routePath: '/guest-relations/guests' },
   { id: 'rooms-inventory', icon: HomeWorkOutlinedIcon, routePath: '/room-management' },
   { id: 'payments-ledgers', icon: PaymentsOutlinedIcon, routePath: '/company-ledger' },
   { id: 'rates-promotions', icon: LocalOfferOutlinedIcon, routePath: '/promotions' },
