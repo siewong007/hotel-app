@@ -37,6 +37,17 @@ async fn pg_pool() -> Option<PgPool> {
     Some(
         PgPoolOptions::new()
             .max_connections(2)
+            // Fixture cleanup deletes users, which SET NULLs audit_logs; the
+            // baseline's append-only trigger forbids that, so test pools opt
+            // out session-locally.
+            .after_connect(|conn, _| {
+                Box::pin(async move {
+                    sqlx::query("SET app.allow_audit_mutation = 'on'")
+                        .execute(conn)
+                        .await
+                        .map(|_| ())
+                })
+            })
             .connect(&database_url)
             .await
             .expect("failed to connect to PostgreSQL test database"),

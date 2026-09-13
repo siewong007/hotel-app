@@ -19,6 +19,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  Tab,
+  Tabs,
 } from "@mui/material";
 import {
   Business as BusinessIcon,
@@ -55,8 +57,10 @@ import {
 } from "../../../utils/hotelSettings";
 import {
   useHotelSettingsQuery,
+  useResetSystemSettingsMutation,
   useSaveHotelSettingsMutation,
 } from "../hooks/useSettingsQueries";
+import { useConfirm } from "../../../components/common/ConfirmProvider";
 // Common timezones for hotels
 const TIMEZONES = [
   {
@@ -138,6 +142,59 @@ const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
   other: "Something else",
 };
 
+/** Settings keys owned by each workspace tab, for "Reset to defaults". */
+const SECTION_KEYS = {
+  hotel: [
+    "hotel_name",
+    "hotel_address",
+    "hotel_phone",
+    "hotel_email",
+    "hotel_business_number",
+    "check_in_time",
+    "check_out_time",
+    "night_shift_time",
+    "night_audit_auto_enabled",
+    "currency",
+    "timezone",
+  ],
+  finance: [
+    "deposit_amount",
+    "service_tax_rate",
+    "tourism_tax_rate",
+    "default_payment_terms_days",
+    "unpaid_hold_release_hours",
+  ],
+  reports: [
+    "report_font_size",
+    "report_font_family",
+    "report_heading_font_size",
+    "report_section_heading_font_size",
+    "report_table_font_size",
+    "report_caption_font_size",
+    "report_chip_font_size",
+  ],
+  guest: [
+    "guest_booking_cancellation_enabled",
+    "support_enabled",
+    "support_categories",
+    "support_first_response_low_minutes",
+    "support_first_response_normal_minutes",
+    "support_first_response_high_minutes",
+    "support_first_response_urgent_minutes",
+    "support_resolution_low_minutes",
+    "support_resolution_normal_minutes",
+    "support_resolution_high_minutes",
+    "support_resolution_urgent_minutes",
+    "support_reopen_window_days",
+  ],
+  security: [
+    "max_login_attempts",
+    "totp_issuer_name",
+    "passkey_relying_party_name",
+  ],
+  system: ["rate_codes", "market_codes", "booking_channels", "payment_methods"],
+} as const;
+
 const SettingsPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const { themeMode, onThemeModeChange } = useThemeMode();
@@ -150,6 +207,9 @@ const SettingsPage: React.FC = () => {
   const saving = saveSettingsMutation.isPending;
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [activeTab, setActiveTab] = useState<keyof typeof SECTION_KEYS | "appearance">("hotel");
+  const confirm = useConfirm();
+  const resetSettingsMutation = useResetSystemSettingsMutation();
 
   // Hotel Information
   const [hotelName, setHotelName] = useState("");
@@ -431,6 +491,46 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  /** Restore one tab's settings to their seeded defaults, then re-apply. */
+  const resetSection = async (keys: readonly string[]) => {
+    setError("");
+    setSuccess("");
+    const accepted = await confirm({
+      message:
+        "Reset this section to its factory defaults? The change is audited and each key can be edited again afterwards.",
+      severity: "warning",
+    });
+    if (!accepted) return;
+    try {
+      await resetSettingsMutation.mutateAsync([...keys]);
+      const result = await settingsQuery.refetch();
+      if (result.data) {
+        pendingBaseline.current = true;
+        baselineArmed.current = false;
+        applySettingsToForm(result.data);
+      }
+      setSuccess("Section reset to defaults");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setError(errorMessage(err, "Failed to reset settings"));
+    }
+  };
+
+  /** Right-aligned per-tab reset button; only admins can change settings. */
+  const sectionResetButton = (keys: readonly string[]) =>
+    isAdmin ? (
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+        <Button
+          size="small"
+          variant="text"
+          onClick={() => resetSection(keys)}
+          disabled={resetSettingsMutation.isPending || saving}
+        >
+          Reset to defaults
+        </Button>
+      </Box>
+    ) : null;
+
   if (loading) {
     return (
       <Box
@@ -468,7 +568,25 @@ const SettingsPage: React.FC = () => {
           {success}
         </Alert>
       )}
-      {/* Hotel Information */}
+      <Tabs
+        value={activeTab}
+        onChange={(_, value) => setActiveTab(value)}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
+      >
+        <Tab value="hotel" label="Hotel" />
+        <Tab value="finance" label="Charges & Tax" />
+        <Tab value="reports" label="Reports" />
+        <Tab value="guest" label="Guest Policies" />
+        <Tab value="security" label="Security" />
+        <Tab value="appearance" label="Appearance" />
+        <Tab value="system" label="Code Lists" />
+      </Tabs>
+      {activeTab === "hotel" && (
+        <>
+          {sectionResetButton(SECTION_KEYS.hotel)}
+          {/* Hotel Information */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
@@ -718,7 +836,12 @@ const SettingsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
-      {/* Charges & Deposits */}
+        </>
+      )}
+      {activeTab === "finance" && (
+        <>
+          {sectionResetButton(SECTION_KEYS.finance)}
+          {/* Charges & Deposits */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
@@ -853,7 +976,12 @@ const SettingsPage: React.FC = () => {
           </Alert>
         </CardContent>
       </Card>
-      {/* Report Settings */}
+        </>
+      )}
+      {activeTab === "reports" && (
+        <>
+          {sectionResetButton(SECTION_KEYS.reports)}
+          {/* Report Settings */}
       <ReportSettingsCard
         isAdmin={isAdmin}
         reportFontSize={reportFontSize}
@@ -871,6 +999,11 @@ const SettingsPage: React.FC = () => {
         reportChipFontSize={reportChipFontSize}
         onReportChipFontSizeChange={setReportChipFontSize}
       />
+        </>
+      )}
+      {activeTab === "guest" && (
+        <>
+          {sectionResetButton(SECTION_KEYS.guest)}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6">Guest Booking Cancellation</Typography>
@@ -1054,7 +1187,12 @@ const SettingsPage: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
-      {/* Security & Identity */}
+        </>
+      )}
+      {activeTab === "security" && (
+        <>
+          {sectionResetButton(SECTION_KEYS.security)}
+          {/* Security & Identity */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
@@ -1109,7 +1247,12 @@ const SettingsPage: React.FC = () => {
           </Grid>
         </CardContent>
       </Card>
-      {/* Appearance */}
+        </>
+      )}
+      {activeTab === "appearance" && (
+        <>
+          {/* Appearance — a local device preference, not a system setting, so
+              there is nothing here for "reset to defaults" to restore. */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
@@ -1166,7 +1309,12 @@ const SettingsPage: React.FC = () => {
           </ToggleButtonGroup>
         </CardContent>
       </Card>
-      {/* System Configuration */}
+        </>
+      )}
+      {activeTab === "system" && (
+        <>
+          {sectionResetButton(SECTION_KEYS.system)}
+          {/* System Configuration */}
       <SystemConfigurationCard
         isAdmin={isAdmin}
         rateCodes={rateCodes}
@@ -1178,6 +1326,8 @@ const SettingsPage: React.FC = () => {
         paymentMethods={paymentMethods}
         onPaymentMethodsChange={setPaymentMethods}
       />
+        </>
+      )}
       {/* Sticky save bar — the dirty state was previously invisible anywhere
           but this bottom row, which a long form scrolls far away from. */}
       <Paper

@@ -88,6 +88,7 @@ VALUES
     ('guests:delete'),
     ('guests:manage'),
     ('guests:read'),
+    ('guests:reveal'),
     ('guests:update'),
     ('housekeeping:create'),
     ('housekeeping:manage'),
@@ -249,8 +250,12 @@ VALUES
     ('ekyc'),
     ('ekyc-admin'),
     ('guest-config'),
+    ('guest-relations'),
+    ('guest-relations-detail'),
     ('help'),
     ('housekeeping'),
+    ('insights'),
+    ('jobs'),
     ('loyalty'),
     ('night-audit'),
     ('online-inventory'),
@@ -265,6 +270,7 @@ VALUES
     ('settings'),
     ('segments'),
     ('support'),
+    ('system-health'),
     ('teams'),
     ('timeline');
 
@@ -540,7 +546,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('ekyc:manage_reason_codes', 'ekyc', 'manage_reason_codes', 'Manage eKYC reason codes', true),
 ('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', true),
 ('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', true),
-('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true)
+('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true),
+-- Mirrored by patch 0019 for databases installed before it existed. Kept last:
+-- patched databases append it after every prior seeded permission, so it must
+-- take the next identity value here too.
+('guests:reveal', 'guests', 'reveal', 'Reveal sensitive guest identification fields', true)
 ON CONFLICT (name) DO UPDATE SET
     description = EXCLUDED.description,
     resource = EXCLUDED.resource,
@@ -570,7 +580,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 -- Manager permissions
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager' AND p.name IN (
-    'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage',
+    'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage', 'guests:reveal',
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
     'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'support:manage',
@@ -877,7 +887,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('report_caption_font_size', '13', 'number', 'reports', 'Caption and secondary label font size in pixels for generated reports', false),
 ('report_chip_font_size', '12', 'number', 'reports', 'Status chip font size in pixels for generated reports', false),
 ('support_enabled', 'true', 'boolean', 'support', 'Enable guest portal support conversations', false),
-('support_categories', '["booking","stay","billing","loyalty","technical","other"]', 'json', 'support', 'Guest-selectable support conversation categories', false),
+('support_categories', '["booking","stay","billing","loyalty","technical","other","service_request","complaint"]', 'json', 'support', 'Guest-selectable support conversation categories', false),
 ('support_first_response_low_minutes', '240', 'number', 'support', 'First-response SLA for low priority support conversations in minutes', false),
 ('support_first_response_normal_minutes', '60', 'number', 'support', 'First-response SLA for normal priority support conversations in minutes', false),
 ('support_first_response_high_minutes', '15', 'number', 'support', 'First-response SLA for high priority support conversations in minutes', false),
@@ -1093,6 +1103,14 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
         'Days a member of a role listed in require_two_factor_roles may sign in before two-factor enrolment is enforced. 0 enforces immediately.', false)
 ON CONFLICT (key) DO NOTHING;
 
+-- Record the seeded value as the default for every setting that does not
+-- already carry one. This runs inside the same transaction as the INSERTs, so
+-- on a fresh install `value` IS the seeded default. On desktop re-runs the
+-- IS NULL guard keeps a previously recorded default even when the hotel has
+-- since edited the live value. Changing a key's default later is deliberate
+-- work: update this seed and write a patch, exactly like changing the value.
+UPDATE system_settings SET default_value = value WHERE default_value IS NULL;
+
 -- This policy is part of the required route-policy set, so it must be present
 -- before the integrity checks below.
 INSERT INTO route_access_policies (
@@ -1131,6 +1149,7 @@ VALUES
     ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('insights', '/insights', 'Insights', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('revenue', '/revenue', 'Revenue', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('rates', '/rates', 'Rates', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('segments', '/segments', 'Segments', 'revenue', '["segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_segments:read","segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
@@ -1144,12 +1163,16 @@ VALUES
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('loyalty', '/loyalty', 'Loyalty', 'admin', '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('system-health', '/system-health', 'System Health', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('jobs', '/jobs', 'Jobs', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('help', '/help', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
-    ('teams', '/teams', 'Teams', 'config', '["teams:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["teams:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true)
+    ('teams', '/teams', 'Teams', 'config', '["teams:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["teams:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('guest-relations', '/guest-relations/guests', 'Guest Relations', 'operations', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('guest-relations-detail', '/guest-relations/guests/$guestId', NULL, NULL, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, false, true)
 ON CONFLICT (route_id) DO UPDATE SET
     path = EXCLUDED.path,
     nav_label = EXCLUDED.nav_label,

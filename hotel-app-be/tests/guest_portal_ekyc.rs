@@ -79,6 +79,16 @@ mod postgres_tests {
         Some(
             PgPoolOptions::new()
                 .max_connections(2)
+                // The baseline's append-only trigger on audit_logs forbids the fixture
+                // cleanups below; test pools opt out session-locally.
+                .after_connect(|conn, _| {
+                    Box::pin(async move {
+                        sqlx::query("SET app.allow_audit_mutation = 'on'")
+                            .execute(conn)
+                            .await
+                            .map(|_| ())
+                    })
+                })
                 .connect(&database_url)
                 .await
                 .expect("failed to connect to PostgreSQL test database"),

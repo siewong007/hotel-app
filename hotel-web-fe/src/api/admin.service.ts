@@ -24,6 +24,10 @@ export interface SystemSetting {
   value: string;
   description?: string | null;
   category?: string | null;
+  value_type?: string | null;
+  is_public?: boolean;
+  /** The seeded default the key can be reset to; absent on older databases. */
+  default_value?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -144,5 +148,10 @@ export class AdminService {
 
   static async updateSystemSetting(key: string, value: string): Promise<SystemSetting> {
     return await api.patch(`settings/${key}`, { json: { value } }).json<SystemSetting>();
+  }
+
+  /** Restore a setting to its seeded default. 400 when the key has none. */
+  static async resetSystemSetting(key: string): Promise<SystemSetting> {
+    return await api.post(`settings/${key}/reset`).json<SystemSetting>();
   }
 }

@@ -54,12 +54,29 @@ pub async fn get_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> 
     Ok(guest)
 }
 
-pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile, ApiError> {
+pub async fn guest_profile(
+    pool: &DbPool,
+    user_id: i64,
+    guest_id: i64,
+) -> Result<GuestProfile, ApiError> {
     let guest = get_guest(pool, guest_id).await?;
     let summary = GuestRepository::guest_summary(pool, guest_id).await?;
     let reservations = GuestRepository::guest_profile_bookings(pool, guest_id).await?;
     let duplicate_candidates = duplicate_candidates(pool, &guest).await?;
     let ekyc_summary = guest.ekyc_summary.clone();
+
+    // Sensitive identifiers are attached only when the caller holds
+    // `guests:reveal` (`guests:manage` implies it via check_permission).
+    // `None` serializes as an absent field, so a `guests:read`-only caller
+    // cannot distinguish "no access" from "no data".
+    let sensitive = if AuthService::check_permission(pool, user_id, "guests:reveal")
+        .await
+        .unwrap_or(false)
+    {
+        GuestRepository::sensitive_profile(pool, guest_id).await?
+    } else {
+        None
+    };
 
     Ok(GuestProfile {
         guest,
@@ -67,6 +84,7 @@ pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile,
         ekyc_summary,
         reservations,
         duplicate_candidates,
+        sensitive,
     })
 }
 
@@ -154,11 +172,53 @@ pub async fn create_guest(
     Ok(guest)
 }
 
+/// `guests.vip_status` is varchar(20) free text — no fixed vocabulary is
+/// consumed anywhere in the backend (verified 2026-09: only the FE
+/// data-transfer type and a partial index reference it), so it is bounded by
+/// column width only.
+const MAX_VIP_STATUS_LEN: usize = 20;
+/// `guests.job_title` varchar(100).
+const MAX_JOB_TITLE_LEN: usize = 100;
+/// `guests.communication_preference` varchar(50).
+const MAX_COMMUNICATION_PREFERENCE_LEN: usize = 50;
+/// `guests.language_preference` varchar(10).
+const MAX_LANGUAGE_PREFERENCE_LEN: usize = 10;
+/// `guests.id_number` varchar(100).
+const MAX_ID_NUMBER_LEN: usize = 100;
+/// `guests.id_country` varchar(100).
+const MAX_ID_COUNTRY_LEN: usize = 100;
+/// `guests.tags` is an unbounded text[]; the API caps count and item length.
+const MAX_GUEST_TAGS: usize = 20;
+const MAX_GUEST_TAG_LEN: usize = 50;
+/// Labels of the `public.identificationtype` enum backing `guests.id_type`.
+const VALID_GUEST_ID_TYPES: [&str; 4] =
+    ["passport", "drivers_license", "national_id", "other"];
+
 pub async fn update_guest(
     pool: &DbPool,
+    user_id: i64,
     guest_id: i64,
     input: GuestUpdateInput,
 ) -> Result<Guest, ApiError> {
+    // Sensitive identifier fields additionally require `guests:reveal` on top
+    // of the route-level `guests:update`. `Some(_)` is the intent signal —
+    // `None` means "leave as stored" and needs no extra grant.
+    let touches_sensitive = input.date_of_birth.is_some()
+        || input.id_type.is_some()
+        || input.id_number.is_some()
+        || input.id_expiry.is_some()
+        || input.id_country.is_some();
+    if touches_sensitive
+        && !AuthService::check_permission(pool, user_id, "guests:reveal")
+            .await
+            .unwrap_or(false)
+    {
+        return Err(ApiError::Forbidden(
+            "Updating sensitive guest identifiers requires the guests:reveal permission"
+                .to_string(),
+        ));
+    }
+
     let existing = GuestRepository::update_state(pool, guest_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
@@ -198,6 +258,77 @@ pub async fn update_guest(
         )));
     }
 
+    // Extended CRM fields: `None` preserves the stored value; `Some` resolves
+    // through sanitize/bound helpers. Text fields follow the `company_name`
+    // convention — an empty sanitized result clears the column to NULL.
+    let vip_status = match input.vip_status {
+        Some(ref value) => bounded_guest_text(value, "vip_status", MAX_VIP_STATUS_LEN)?,
+        None => existing.vip_status,
+    };
+    let tags = resolve_guest_tags(input.tags, existing.tags)?;
+    let job_title = match input.job_title {
+        Some(ref value) => bounded_guest_text(value, "job_title", MAX_JOB_TITLE_LEN)?,
+        None => existing.job_title,
+    };
+    let notes = match input.notes {
+        Some(ref value) => optional_guest_text(value),
+        None => existing.notes,
+    };
+    let special_requests = match input.special_requests {
+        Some(ref value) => optional_guest_text(value),
+        None => existing.special_requests,
+    };
+    let marketing_opt_in = input.marketing_opt_in.or(existing.marketing_opt_in);
+    let communication_preference = match input.communication_preference {
+        Some(ref value) => bounded_guest_text(
+            value,
+            "communication_preference",
+            MAX_COMMUNICATION_PREFERENCE_LEN,
+        )?,
+        None => existing.communication_preference,
+    };
+    let language_preference = match input.language_preference {
+        Some(ref value) => {
+            bounded_guest_text(value, "language_preference", MAX_LANGUAGE_PREFERENCE_LEN)?
+        }
+        None => existing.language_preference,
+    };
+    let is_blacklisted = input.is_blacklisted.or(existing.is_blacklisted);
+    let blacklist_reason = if input.is_blacklisted == Some(false) {
+        // Clearing the flag also clears the recorded reason.
+        None
+    } else {
+        match input.blacklist_reason {
+            Some(ref value) => optional_guest_text(value),
+            None => existing.blacklist_reason,
+        }
+    };
+    if blacklist_reason.is_none()
+        && (input.is_blacklisted == Some(true)
+            || (input.blacklist_reason.is_some() && is_blacklisted == Some(true)))
+    {
+        return Err(ApiError::BadRequest(
+            "blacklist_reason is required when setting is_blacklisted".to_string(),
+        ));
+    }
+
+    // Sensitive identifier fields — reaching this point with `Some` input
+    // means the `guests:reveal` check above already passed.
+    let date_of_birth = input.date_of_birth.or(existing.date_of_birth);
+    let id_type = match input.id_type {
+        Some(ref value) => resolve_guest_id_type(value)?,
+        None => existing.id_type,
+    };
+    let id_number = match input.id_number {
+        Some(ref value) => bounded_guest_text(value, "id_number", MAX_ID_NUMBER_LEN)?,
+        None => existing.id_number,
+    };
+    let id_expiry = input.id_expiry.or(existing.id_expiry);
+    let id_country = match input.id_country {
+        Some(ref value) => bounded_guest_text(value, "id_country", MAX_ID_COUNTRY_LEN)?,
+        None => existing.id_country,
+    };
+
     let values = GuestUpdateValues {
         nick_name,
         first_name,
@@ -219,6 +350,21 @@ pub async fn update_guest(
             .discount_percentage
             .unwrap_or(existing.discount_percentage),
         company_name,
+        vip_status,
+        tags,
+        job_title,
+        notes,
+        special_requests,
+        marketing_opt_in,
+        communication_preference,
+        language_preference,
+        is_blacklisted,
+        blacklist_reason,
+        date_of_birth,
+        id_type,
+        id_number,
+        id_expiry,
+        id_country,
     };
 
     let updated_guest = GuestRepository::update_detailed(pool, guest_id, &values).await?;
@@ -605,6 +751,75 @@ fn normalize_guest_text(value: Option<String>) -> Option<String> {
     })
 }
 
+/// Sanitize a free-text guest field. An empty sanitized result means "clear
+/// the column" (NULL) — the same convention `company_name` already uses.
+fn optional_guest_text(value: &str) -> Option<String> {
+    let sanitized = Sanitizer::sanitize_text(value.trim()).trim().to_string();
+    (!sanitized.is_empty()).then_some(sanitized)
+}
+
+/// `optional_guest_text` plus a column-width bound on the sanitized value.
+fn bounded_guest_text(
+    value: &str,
+    field: &str,
+    max_len: usize,
+) -> Result<Option<String>, ApiError> {
+    let Some(sanitized) = optional_guest_text(value) else {
+        return Ok(None);
+    };
+    if sanitized.chars().count() > max_len {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be at most {max_len} characters"
+        )));
+    }
+    Ok(Some(sanitized))
+}
+
+/// `tags` replaces the whole list: `None` keeps the stored array, `Some`
+/// (including an empty array) rewrites it. Empty items are dropped after
+/// sanitizing; count and per-item length are bounded.
+fn resolve_guest_tags(
+    input: Option<Vec<String>>,
+    existing: Option<Vec<String>>,
+) -> Result<Option<Vec<String>>, ApiError> {
+    let Some(tags) = input else {
+        return Ok(existing);
+    };
+    if tags.len() > MAX_GUEST_TAGS {
+        return Err(ApiError::BadRequest(format!(
+            "tags supports at most {MAX_GUEST_TAGS} entries"
+        )));
+    }
+    let mut cleaned = Vec::with_capacity(tags.len());
+    for tag in &tags {
+        let Some(tag) = optional_guest_text(tag) else {
+            continue;
+        };
+        if tag.chars().count() > MAX_GUEST_TAG_LEN {
+            return Err(ApiError::BadRequest(format!(
+                "each tag must be at most {MAX_GUEST_TAG_LEN} characters"
+            )));
+        }
+        cleaned.push(tag);
+    }
+    Ok(Some(cleaned))
+}
+
+/// `guests.id_type` is the `identificationtype` enum; input is normalized to
+/// a stored label and rejected when it matches none of them.
+fn resolve_guest_id_type(value: &str) -> Result<Option<String>, ApiError> {
+    let Some(normalized) = optional_guest_text(value).map(|v| v.to_lowercase()) else {
+        return Ok(None);
+    };
+    if !VALID_GUEST_ID_TYPES.contains(&normalized.as_str()) {
+        return Err(ApiError::BadRequest(format!(
+            "id_type must be one of: {}",
+            VALID_GUEST_ID_TYPES.join(", ")
+        )));
+    }
+    Ok(Some(normalized))
+}
+
 fn resolve_guest_tourism_type(tourism_type: Option<TourismType>) -> TourismType {
     tourism_type.unwrap_or(TourismType::Local)
 }
@@ -839,6 +1054,16 @@ mod tests {
             complimentary_nights_credit: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            vip_status: None,
+            tags: None,
+            job_title: None,
+            notes: None,
+            special_requests: None,
+            marketing_opt_in: None,
+            communication_preference: None,
+            language_preference: None,
+            is_blacklisted: None,
+            blacklist_reason: None,
             account_username: None,
             account_is_active: None,
             bookings_count: None,

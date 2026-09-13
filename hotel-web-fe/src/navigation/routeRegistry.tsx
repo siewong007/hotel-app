@@ -14,6 +14,7 @@ import Inventory2Icon from '@mui/icons-material/Inventory2';
 import KingBedIcon from '@mui/icons-material/KingBed';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import LoyaltyIcon from '@mui/icons-material/Loyalty';
+import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import PaymentsIcon from '@mui/icons-material/Payments';
@@ -27,6 +28,7 @@ import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
 import type { RouteAccessPolicy } from '../types';
 
@@ -63,6 +65,7 @@ const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
 const DashboardRouter = lazyRoute(() => import('../features/dashboard/components/DashboardRouter'));
 const BookingsPage = lazyRoute(() => import('../features/bookings/components/Bookings'));
 const ModernReportsPage = lazyRoute(() => import('../features/reports/components/ModernReportsPage'));
+const ReportLibraryPage = lazyRoute(() => import('../features/insights/pages/ReportLibraryPage'));
 const LoyaltyPortal = lazyRoute(() => import('../features/loyalty/components/LoyaltyPortal'));
 const LoyaltyDashboard = lazyRoute(() => import('../features/loyalty/components/LoyaltyDashboard'));
 const UserProfilePage = lazyRoute(() => import('../features/user/components/UserProfilePage'));
@@ -99,6 +102,8 @@ const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPa
 const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
 const CommunicationsPage = lazyRoute(() => import('../features/communications/pages/CommunicationsPage'));
 const NotificationsPage = lazyRoute(() => import('../features/notifications/pages/NotificationsPage'));
+const SystemHealthPage = lazyRoute(() => import('../features/admin/system/SystemHealthPage'));
+const JobsPage = lazyRoute(() => import('../features/admin/system/JobsPage'));
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
 const RevenueOverviewPage = lazyRoute(() => import('../features/revenue/pages/RevenueOverviewPage'));
 const RatesPage = lazyRoute(() => import('../features/rates/pages/RatesPage'));
@@ -325,6 +330,18 @@ const routeDefinitions: AppRouteDefinition[] = [
   },
   // ── insights ────────────────────────────────────────────────────────────
   {
+    id: 'insights',
+    path: '/insights',
+    component: ReportLibraryPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: AssessmentIcon,
+    breadcrumbLabel: 'Insights',
+    navLabel: 'Insights',
+    navGroup: 'insights',
+    accessControlled: true,
+  },
+  {
     id: 'reports',
     path: '/reports',
     component: ModernReportsPage,
@@ -419,6 +436,30 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: SyncAltIcon,
     breadcrumbLabel: 'Data Transfer',
     navLabel: 'Data Transfer',
+    navGroup: 'administration',
+    accessControlled: true,
+  },
+  {
+    id: 'system-health',
+    path: '/system-health',
+    component: SystemHealthPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: MonitorHeartIcon,
+    breadcrumbLabel: 'System Health',
+    navLabel: 'System Health',
+    navGroup: 'administration',
+    accessControlled: true,
+  },
+  {
+    id: 'jobs',
+    path: '/jobs',
+    component: JobsPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: WorkHistoryIcon,
+    breadcrumbLabel: 'Jobs',
+    navLabel: 'Jobs',
     navGroup: 'administration',
     accessControlled: true,
   },

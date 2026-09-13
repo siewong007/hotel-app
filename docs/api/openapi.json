@@ -226,6 +226,9 @@
     "/api/auth/2fa/verify": {
       "POST": {}
     },
+    "/api/auth/accept-invite": {
+      "POST": {}
+    },
     "/api/auth/access": {
       "GET": {}
     },
@@ -632,6 +635,15 @@
     "/api/housekeeping/tasks/{id}": {
       "PATCH": {}
     },
+    "/api/insights/overview": {
+      "GET": {}
+    },
+    "/api/insights/reports": {
+      "GET": {}
+    },
+    "/api/insights/reports/{id}": {
+      "GET": {}
+    },
     "/api/invoices": {
       "GET": {}
     },
@@ -946,6 +958,9 @@
     "/api/settings/{key}": {
       "PATCH": {}
     },
+    "/api/settings/{key}/reset": {
+      "POST": {}
+    },
     "/api/support/agents": {
       "GET": {}
     },
@@ -959,6 +974,21 @@
       "POST": {}
     },
     "/api/support/conversations/{id}/messages": {
+      "POST": {}
+    },
+    "/api/system/health": {
+      "GET": {}
+    },
+    "/api/system/jobs/failures": {
+      "GET": {}
+    },
+    "/api/system/notifications": {
+      "GET": {}
+    },
+    "/api/system/notifications/read-all": {
+      "POST": {}
+    },
+    "/api/system/notifications/{id}/read": {
       "POST": {}
     },
     "/api/system/process-checkins": {
@@ -989,6 +1019,12 @@
       "GET": {},
       "POST": {}
     },
+    "/api/users/directory": {
+      "GET": {}
+    },
+    "/api/users/invite": {
+      "POST": {}
+    },
     "/api/users/roles": {
       "POST": {}
     },
@@ -997,11 +1033,30 @@
       "GET": {},
       "PATCH": {}
     },
+    "/api/users/{user_id}/reactivate": {
+      "POST": {}
+    },
+    "/api/users/{user_id}/resend-invite": {
+      "POST": {}
+    },
     "/api/users/{user_id}/roles": {
       "PUT": {}
     },
     "/api/users/{user_id}/roles/{role_id}": {
       "DELETE": {}
+    },
+    "/api/users/{user_id}/sessions": {
+      "DELETE": {},
+      "GET": {}
+    },
+    "/api/users/{user_id}/sessions/{session_id}": {
+      "DELETE": {}
+    },
+    "/api/users/{user_id}/suspend": {
+      "POST": {}
+    },
+    "/api/users/{user_id}/unlock": {
+      "POST": {}
     },
     "/api/webhooks/paypal": {
       "POST": {}
@@ -1061,6 +1116,9 @@
     },
     {
       "name": "infra"
+    },
+    {
+      "name": "insights"
     },
     {
       "name": "invoices"

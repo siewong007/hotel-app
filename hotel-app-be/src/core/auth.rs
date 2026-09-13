@@ -638,7 +638,7 @@ impl AuthService {
         Ok(token)
     }
 
-    fn hash_email_verification_token(token: &str) -> String {
+    pub(crate) fn hash_email_verification_token(token: &str) -> String {
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
         hex::encode(hasher.finalize())

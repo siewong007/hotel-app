@@ -71,17 +71,59 @@ pub fn spawn(pool: DbPool) {
         let mut last_birthday_run: Option<NaiveDate> = None;
         loop {
             tokio::time::sleep(POLL_INTERVAL).await;
-            if let Err(e) = tick_campaigns(&pool).await {
+
+            let started = std::time::Instant::now();
+            let outcome = tick_campaigns(&pool).await;
+            crate::core::job_runs::record(
+                &pool,
+                "email_campaigns",
+                outcome
+                    .as_ref()
+                    .ok()
+                    .map(|n| serde_json::json!({ "enqueued": n })),
+                outcome.as_ref().err().map(|e| e.to_string()),
+                started.elapsed(),
+            )
+            .await;
+            if let Err(e) = &outcome {
                 log::warn!("Campaign scheduler tick failed: {e}");
             }
-            match tick_birthdays(&pool, &mut last_birthday_run).await {
-                Ok(issued) if issued > 0 => {
+
+            let started = std::time::Instant::now();
+            let outcome = tick_birthdays(&pool, &mut last_birthday_run).await;
+            crate::core::job_runs::record(
+                &pool,
+                "birthday_vouchers",
+                outcome
+                    .as_ref()
+                    .ok()
+                    .map(|n| serde_json::json!({ "issued": n })),
+                outcome.as_ref().err().map(|e| e.to_string()),
+                started.elapsed(),
+            )
+            .await;
+            match &outcome {
+                Ok(issued) if *issued > 0 => {
                     log::info!("Birthday scheduler issued {issued} voucher(s)")
                 }
                 Ok(_) => {}
                 Err(e) => log::warn!("Birthday scheduler tick failed: {e}"),
             }
-            if let Err(e) = tick_pre_arrival_reminders(&pool).await {
+
+            let started = std::time::Instant::now();
+            let outcome = tick_pre_arrival_reminders(&pool).await;
+            crate::core::job_runs::record(
+                &pool,
+                "pre_arrival_reminders",
+                outcome
+                    .as_ref()
+                    .ok()
+                    .map(|n| serde_json::json!({ "sent": n })),
+                outcome.as_ref().err().map(|e| e.to_string()),
+                started.elapsed(),
+            )
+            .await;
+            if let Err(e) = &outcome {
                 log::warn!("Pre-arrival scheduler tick failed: {e}");
             }
         }

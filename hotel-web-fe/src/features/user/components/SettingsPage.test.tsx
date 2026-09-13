@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   isPending: false,
   refetch: vi.fn(),
   saveSettings: vi.fn(),
+  resetSettings: vi.fn(),
+  confirm: vi.fn(),
   onThemeModeChange: vi.fn(),
 }));
 
@@ -35,6 +37,15 @@ vi.mock('../hooks/useSettingsQueries', () => ({
     mutateAsync: mocks.saveSettings,
     isPending: false,
   }),
+  useResetSystemSettingsMutation: () => ({
+    mutateAsync: mocks.resetSettings,
+    isPending: false,
+  }),
+}));
+
+// The page asks before resetting a section; tests auto-accept.
+vi.mock('../../../components/common/ConfirmProvider', () => ({
+  useConfirm: () => mocks.confirm,
 }));
 
 import SettingsPage from './SettingsPage';
@@ -93,6 +104,8 @@ describe('SettingsPage', () => {
       .mockReset()
       .mockImplementation(async (settings: HotelSettings) => ({ settings }));
     mocks.onThemeModeChange.mockReset();
+    mocks.resetSettings.mockReset().mockResolvedValue(undefined);
+    mocks.confirm.mockReset().mockResolvedValue(true);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
@@ -114,8 +127,10 @@ describe('SettingsPage', () => {
     expect((screen.getByLabelText('Hotel Name') as HTMLInputElement).value).toBe(
       'Grand Test Hotel',
     );
-    expect(screen.getByText('Booking.com (B.C)')).toBeTruthy();
     expect((screen.getByLabelText('Hotel Name') as HTMLInputElement).disabled).toBe(false);
+    // Booking channels live behind the Code Lists tab.
+    fireEvent.click(screen.getByRole('tab', { name: 'Code Lists' }));
+    expect(await screen.findByText('Booking.com (B.C)')).toBeTruthy();
   });
 
   it('saves an edited hotel name through the mutation payload', async () => {
@@ -172,8 +187,9 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
     await screen.findByText('Hotel Settings');
 
+    fireEvent.click(screen.getByRole('tab', { name: 'Appearance' }));
     // The toggle button exposes both an aria-label and visible text.
-    fireEvent.click(screen.getAllByRole('button', { name: 'Dark mode' })[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Dark mode' }))[0]);
 
     expect(mocks.onThemeModeChange).toHaveBeenCalledWith('dark');
   });

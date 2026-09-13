@@ -62,7 +62,20 @@ pub fn spawn(pool: DbPool) {
         );
         loop {
             tokio::time::sleep(interval).await;
-            if let Err(e) = tick(&pool, &transport, &worker_id, batch).await {
+            let started = std::time::Instant::now();
+            let outcome = tick(&pool, &transport, &worker_id, batch).await;
+            crate::core::job_runs::record(
+                &pool,
+                "email_delivery_worker",
+                outcome
+                    .as_ref()
+                    .ok()
+                    .map(|n| serde_json::json!({ "claimed": n })),
+                outcome.as_ref().err().map(|e| e.to_string()),
+                started.elapsed(),
+            )
+            .await;
+            if let Err(e) = &outcome {
                 log::warn!("Email delivery worker tick failed: {e}");
             }
         }

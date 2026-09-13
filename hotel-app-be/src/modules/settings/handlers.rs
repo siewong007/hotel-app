@@ -11,11 +11,14 @@ use axum::{
     response::Json,
 };
 
-/// Get all system settings
+/// Get all system settings, optionally narrowed to one category
 pub async fn get_system_settings_handler(
     State(pool): State<DbPool>,
+    axum::extract::Query(query): axum::extract::Query<SettingsListQuery>,
 ) -> Result<Json<Vec<SystemSetting>>, ApiError> {
-    Ok(Json(settings_service::list_system_settings(&pool).await?))
+    Ok(Json(
+        settings_service::list_system_settings(&pool, query.category.as_deref()).await?,
+    ))
 }
 
 /// Get the publicly readable settings (no authentication required)
@@ -34,6 +37,17 @@ pub async fn update_system_setting_handler(
 ) -> Result<Json<SystemSetting>, ApiError> {
     Ok(Json(
         settings_service::update_system_setting(&pool, &key, input, user_id).await?,
+    ))
+}
+
+/// Reset a system setting to its recorded default
+pub async fn reset_system_setting_handler(
+    State(pool): State<DbPool>,
+    Path(key): Path<String>,
+    user_id: i64,
+) -> Result<Json<SystemSetting>, ApiError> {
+    Ok(Json(
+        settings_service::reset_system_setting(&pool, &key, user_id).await?,
     ))
 }
 

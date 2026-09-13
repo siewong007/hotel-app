@@ -2,16 +2,21 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{User, UserCreateInput, UserProfile, UserUpdateInput};
+use crate::models::{
+    StaffDirectoryEntry, StaffDirectoryQuery, User, UserCreateInput, UserProfile, UserUpdateInput,
+};
 use crate::param;
 
 const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
 
 /// Column list backing every query that decodes a [`User`]. Kept in one place so
-/// the struct and its queries cannot drift apart.
+/// the struct and its queries cannot drift apart. Columns after
+/// `two_factor_recovery_codes` are administration state; the model marks them
+/// `#[sqlx(default)]` so narrower projections still decode.
 const USER_COLUMNS: &str = "id, username, email, full_name, phone, is_active, is_verified, \
      user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, \
-     created_at, updated_at";
+     created_at, updated_at, last_login_at, is_locked, locked_until, \
+     failed_login_attempts, is_super_admin";
 
 pub struct UserRepository;
 
@@ -27,14 +32,128 @@ impl UserRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
-    /// List every non-deleted user, for administration screens.
+    /// List every non-deleted *staff* user, for administration screens.
+    /// Guest-portal accounts share the `users` table (`user_type = 'guest'`)
+    /// and must never appear in staff administration lists.
     pub async fn list_all(pool: &DbPool) -> Result<Vec<User>, ApiError> {
         sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
-            "SELECT {USER_COLUMNS} FROM users WHERE deleted_at IS NULL ORDER BY username"
+            "SELECT {USER_COLUMNS} FROM users \
+             WHERE deleted_at IS NULL AND user_type = 'staff' ORDER BY username"
         )))
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Paginated staff directory: search across identity columns, filter by
+    /// account status or role name, whitelist-sorted. `status` accepts
+    /// `active` | `suspended` | `locked`.
+    pub async fn list_staff_directory(
+        pool: &DbPool,
+        query: &StaffDirectoryQuery,
+        page_size: i64,
+        offset: i64,
+    ) -> Result<(i64, Vec<StaffDirectoryEntry>), ApiError> {
+        let search = query
+            .search
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| format!("%{}%", value.to_lowercase()));
+        let status = query
+            .status
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let role = query
+            .role
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+
+        let sort_column = match query.sort_by.as_deref() {
+            Some("email") => "u.email",
+            Some("full_name") => "u.full_name",
+            Some("last_login_at") => "u.last_login_at",
+            Some("created_at") => "u.created_at",
+            Some("is_active") => "u.is_active",
+            _ => "u.username",
+        };
+        let sort_order = if query
+            .sort_order
+            .as_deref()
+            .is_some_and(|order| order.eq_ignore_ascii_case("desc"))
+        {
+            "DESC"
+        } else {
+            "ASC"
+        };
+
+        // Filtered set of staff ids first (count + page), then a second read
+        // joins roles for just the page — one round trip, no row bloat.
+        let ids_sql = format!(
+            "SELECT u.id FROM users u \
+             WHERE u.deleted_at IS NULL AND u.user_type = 'staff' \
+               AND ($1::text IS NULL OR ( \
+                    lower(u.username) LIKE $1 OR lower(u.email) LIKE $1 \
+                    OR lower(COALESCE(u.full_name, '')) LIKE $1 \
+                    OR lower(COALESCE(u.phone, '')) LIKE $1)) \
+               AND ($2::text IS NULL OR ( \
+                    ($2 = 'active' AND u.is_active AND NOT u.is_locked) OR \
+                    ($2 = 'suspended' AND NOT u.is_active) OR \
+                    ($2 = 'locked' AND u.is_locked))) \
+               AND ($3::text IS NULL OR EXISTS ( \
+                    SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
+                    WHERE ur.user_id = u.id AND r.name = $3)) \
+             ORDER BY {sort_column} {sort_order}, u.id \
+             LIMIT $4 OFFSET $5"
+        );
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users u \
+             WHERE u.deleted_at IS NULL AND u.user_type = 'staff' \
+               AND ($1::text IS NULL OR ( \
+                    lower(u.username) LIKE $1 OR lower(u.email) LIKE $1 \
+                    OR lower(COALESCE(u.full_name, '')) LIKE $1 \
+                    OR lower(COALESCE(u.phone, '')) LIKE $1)) \
+               AND ($2::text IS NULL OR ( \
+                    ($2 = 'active' AND u.is_active AND NOT u.is_locked) OR \
+                    ($2 = 'suspended' AND NOT u.is_active) OR \
+                    ($2 = 'locked' AND u.is_locked))) \
+               AND ($3::text IS NULL OR EXISTS ( \
+                    SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id \
+                    WHERE ur.user_id = u.id AND r.name = $3))",
+        )
+        .bind(search.as_deref())
+        .bind(status)
+        .bind(role)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let rows = sqlx::query_as::<_, StaffDirectoryEntry>(sqlx::AssertSqlSafe(format!(
+            "SELECT u.id, u.username, u.email, u.full_name, u.phone, \
+                    u.is_active, u.is_verified, u.is_locked, u.is_super_admin, \
+                    u.last_login_at, u.created_at, u.updated_at, \
+                    COALESCE(array_agg(r.name ORDER BY r.name) \
+                             FILTER (WHERE r.name IS NOT NULL), '{{}}') AS roles \
+             FROM users u \
+             LEFT JOIN user_roles ur ON ur.user_id = u.id \
+             LEFT JOIN roles r ON r.id = ur.role_id \
+             WHERE u.id IN ({ids_sql}) \
+             GROUP BY u.id \
+             ORDER BY {sort_column} {sort_order}, u.id"
+        )))
+        .bind(search.as_deref())
+        .bind(status)
+        .bind(role)
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok((total, rows))
     }
 
     /// The linked guest record for a user, if any. `Ok(None)` covers both "no
@@ -293,6 +412,163 @@ impl UserRepository {
         Ok(true)
     }
 
+    /// Flip `is_active` for a staff account. Returns the updated user.
+    pub async fn set_active(
+        pool: &DbPool,
+        user_id: i64,
+        is_active: bool,
+    ) -> Result<User, ApiError> {
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "UPDATE users SET is_active = $2, updated_at = CURRENT_TIMESTAMP \
+             WHERE id = $1 AND deleted_at IS NULL AND user_type = 'staff' \
+             RETURNING {USER_COLUMNS}"
+        )))
+        .bind(user_id)
+        .bind(is_active)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Staff user not found".to_string()))
+    }
+
+    /// Clear the login lockout state (`is_locked`, `locked_until`,
+    /// `failed_login_attempts`) without touching any other account field.
+    pub async fn clear_lockout(pool: &DbPool, user_id: i64) -> Result<User, ApiError> {
+        sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "UPDATE users SET is_locked = false, locked_until = NULL, \
+                    failed_login_attempts = 0, updated_at = CURRENT_TIMESTAMP \
+             WHERE id = $1 AND deleted_at IS NULL AND user_type = 'staff' \
+             RETURNING {USER_COLUMNS}"
+        )))
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Staff user not found".to_string()))
+    }
+
+    /// How many active super-admins exist — the last one must not be
+    /// suspendable or the permission catalogue becomes unmanageable.
+    pub async fn count_active_super_admins(pool: &DbPool) -> Result<i64, ApiError> {
+        sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users \
+             WHERE is_super_admin AND is_active AND deleted_at IS NULL \
+               AND user_type = 'staff'",
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Create an invited staff account: no password yet, unverified, active.
+    /// The invite token is minted separately by the service layer so the two
+    /// writes stay in this transaction's commit boundary.
+    pub async fn create_invited_with_roles(
+        pool: &DbPool,
+        invite: &NewInvite<'_>,
+    ) -> Result<User, ApiError> {
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let user = sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO users (username, email, password_hash, full_name, phone, \
+                    is_active, is_verified, user_type, email_verification_token, \
+                    email_token_expires_at) \
+             VALUES ($1, $2, NULL, $3, $4, true, false, 'staff', $5, $6) \
+             RETURNING {USER_COLUMNS}"
+        )))
+        .bind(invite.username)
+        .bind(invite.email)
+        .bind(invite.full_name)
+        .bind(invite.phone)
+        .bind(invite.token_hash)
+        .bind(invite.token_expires_at)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        for role_id in invite.role_ids {
+            sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            )
+            .bind(user.id)
+            .bind(role_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+        }
+
+        tx.commit()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(user)
+    }
+
+    /// Whether a *staff* account still has a pending invitation (password not
+    /// yet set). Used to decide whether a resend is meaningful.
+    pub async fn invitation_pending(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1 AND user_type = 'staff' \
+             AND deleted_at IS NULL AND password_hash IS NULL)",
+        )
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Accept an invitation: the hashed token must match a staff account whose
+    /// password is still NULL and whose token has not expired. Sets the first
+    /// password, marks the account verified and clears the token in one update.
+    /// Returns the user id on success.
+    pub async fn accept_invitation(
+        pool: &DbPool,
+        token_hash: &str,
+        password_hash: &str,
+    ) -> Result<Option<i64>, ApiError> {
+        sqlx::query_scalar(
+            "UPDATE users SET password_hash = $2, is_verified = true, \
+                    email_verification_token = NULL, email_token_expires_at = NULL, \
+                    password_changed_at = CURRENT_TIMESTAMP, \
+                    updated_at = CURRENT_TIMESTAMP \
+             WHERE email_verification_token = $1 \
+               AND email_token_expires_at > CURRENT_TIMESTAMP \
+               AND password_hash IS NULL AND user_type = 'staff' \
+               AND deleted_at IS NULL \
+             RETURNING id",
+        )
+        .bind(token_hash)
+        .bind(password_hash)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Re-mint an invite token for a still-passwordless staff account.
+    pub async fn refresh_invite_token(
+        pool: &DbPool,
+        user_id: i64,
+        token_hash: &str,
+        token_expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool, ApiError> {
+        let result = sqlx::query(
+            "UPDATE users SET email_verification_token = $2, email_token_expires_at = $3, \
+                    updated_at = CURRENT_TIMESTAMP \
+             WHERE id = $1 AND user_type = 'staff' AND password_hash IS NULL \
+               AND deleted_at IS NULL",
+        )
+        .bind(user_id)
+        .bind(token_hash)
+        .bind(token_expires_at)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(result.rows_affected() == 1)
+    }
+
     /// Get password hash for a user
     pub async fn get_password_hash(pool: &DbPool, user_id: i64) -> Result<String, ApiError> {
         sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
@@ -393,4 +669,17 @@ impl UserRepository {
 
         Ok(())
     }
+}
+
+/// Everything needed to insert an invited (passwordless) staff account in one
+/// transaction. The token is already hashed — the raw value never reaches the
+/// repository.
+pub struct NewInvite<'a> {
+    pub username: &'a str,
+    pub email: &'a str,
+    pub full_name: Option<&'a str>,
+    pub phone: Option<&'a str>,
+    pub role_ids: &'a [i64],
+    pub token_hash: &'a str,
+    pub token_expires_at: chrono::DateTime<chrono::Utc>,
 }

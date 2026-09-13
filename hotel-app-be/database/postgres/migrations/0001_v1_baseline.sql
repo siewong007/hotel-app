@@ -320,6 +320,35 @@ COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempot
 
 
 --
+-- Name: prevent_audit_log_mutation(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prevent_audit_log_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+    -- Escape hatch for fixture cleanup only: integration tests set this GUC
+    -- per pooled connection so they can purge rows they wrote. Nothing in the
+    -- application sets it. A principal that can run SET could equally drop the
+    -- trigger, so the GUC widens nothing -- the trigger exists to stop
+    -- accidental and application-level mutation, not the database owner.
+    IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION prevent_audit_log_mutation(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
+
+
+--
 -- Name: gen_uuidv7(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2722,7 +2751,14 @@ CREATE TABLE public.guest_notes (
     is_private boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     created_by bigint,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    subject character varying(255),
+    interaction_type character varying(50) DEFAULT 'note'::character varying NOT NULL,
+    booking_id bigint,
+    follow_up_at timestamp with time zone,
+    follow_up_completed_at timestamp with time zone,
+    assigned_to bigint,
+    CONSTRAINT guest_notes_interaction_type_check CHECK (interaction_type IN ('note','call','email','in_person','follow_up'))
 );
 
 
@@ -4801,7 +4837,7 @@ CREATE TABLE public.support_conversations (
     last_activity_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT support_conversations_category_check CHECK (((category)::text = ANY ((ARRAY['booking'::character varying, 'stay'::character varying, 'billing'::character varying, 'loyalty'::character varying, 'technical'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT support_conversations_category_check CHECK (category IN ('booking','stay','billing','loyalty','technical','other','service_request','complaint')),
     CONSTRAINT support_conversations_escalation_level_check CHECK (((escalation_level >= 0) AND (escalation_level <= 3))),
     CONSTRAINT support_conversations_priority_check CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[]))),
     CONSTRAINT support_conversations_reopen_count_check CHECK ((reopen_count >= 0)),
@@ -4912,6 +4948,7 @@ CREATE TABLE public.system_settings (
     is_public boolean DEFAULT false,
     is_encrypted boolean DEFAULT false,
     validation_pattern character varying(255),
+    default_value text,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_by bigint,
@@ -7132,6 +7169,20 @@ CREATE INDEX idx_guest_notes_alert ON public.guest_notes USING btree (guest_id, 
 
 
 --
+-- Name: idx_guest_notes_follow_up_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_follow_up_open ON public.guest_notes USING btree (follow_up_at) WHERE ((follow_up_at IS NOT NULL) AND (follow_up_completed_at IS NULL));
+
+
+--
+-- Name: idx_guest_notes_guest_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_guest_created ON public.guest_notes USING btree (guest_id, created_at DESC);
+
+
+--
 -- Name: idx_guest_notes_guest_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8119,6 +8170,13 @@ CREATE UNIQUE INDEX uq_customer_ledgers_booking_room_charge ON public.customer_l
 
 
 --
+-- Name: uq_guest_preferences_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_guest_preferences_key ON public.guest_preferences USING btree (guest_id, category, preference_key);
+
+
+--
 -- Name: uq_support_messages_client_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8228,6 +8286,13 @@ ALTER INDEX public.idx_audit_logs_resource ATTACH PARTITION public.audit_logs_de
 --
 
 ALTER INDEX public.idx_audit_logs_user_id ATTACH PARTITION public.audit_logs_default_user_id_idx;
+
+
+--
+-- Name: audit_logs trg_audit_logs_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.audit_logs FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();
 
 
 --
@@ -10229,6 +10294,50 @@ CREATE TABLE public.hotel_schema_revisions (
     applied_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     app_build text,
     PRIMARY KEY (generation, version)
+);
+
+-- One row per background-loop iteration, written by the schedulers spawned in
+-- main.rs. `status` is 'ok' or 'error'; `detail` carries per-tick counters
+-- (e.g. rows processed) and `error` the last failure message. This is a
+-- heartbeat log, not a job queue: loops write it best-effort so a monitoring
+-- surface can answer "is the loop alive, and did it last succeed?".
+CREATE TABLE public.job_runs (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    job_name character varying(100) NOT NULL,
+    status character varying(20) NOT NULL,
+    detail jsonb,
+    error text,
+    duration_ms integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_job_runs_job_created ON public.job_runs USING btree (job_name, created_at DESC);
+CREATE INDEX idx_job_runs_created ON public.job_runs USING btree (created_at DESC);
+
+-- Staff-facing alerts (distinct from the guest email pipeline in
+-- email_deliveries): one shared row per event, addressed to a permission name
+-- rather than enumerated users, with per-user read state tracked separately.
+-- Producers today: background-job failures via core::job_runs.
+CREATE TABLE public.staff_notifications (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    audience_permission character varying(100) NOT NULL,
+    kind character varying(50) NOT NULL,
+    subject character varying(200),
+    title character varying(300) NOT NULL,
+    body text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_staff_notifications_audience ON public.staff_notifications
+    USING btree (audience_permission, created_at DESC);
+CREATE INDEX idx_staff_notifications_kind_subject ON public.staff_notifications
+    USING btree (kind, subject, created_at DESC);
+
+CREATE TABLE public.staff_notification_reads (
+    notification_id bigint NOT NULL REFERENCES public.staff_notifications(id) ON DELETE CASCADE,
+    user_id bigint NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (notification_id, user_id)
 );
 
 COMMIT;
