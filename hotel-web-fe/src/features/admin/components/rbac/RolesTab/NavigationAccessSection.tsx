@@ -1,53 +1,20 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Typography,
   Switch,
   FormControlLabel,
   Divider,
-  alpha,
   Tooltip,
-  Collapse,
 } from '@mui/material';
-import {
-  EventNote as EventNoteIcon,
-  People as PeopleIcon,
-  Hotel as HotelIcon,
-  Category as CategoryIcon,
-  CalendarMonth as CalendarIcon,
-  HomeWork as HomeWorkIcon,
-  AccountBalance as AccountBalanceIcon,
-  CardGiftcard as CardGiftcardIcon,
-  Star as StarIcon,
-  Assessment as AssessmentIcon,
-  VerifiedUser as VerifiedUserIcon,
-  Security as SecurityIcon,
-  Settings as SettingsIcon,
-} from '@mui/icons-material';
+import { Settings as SettingsIcon } from '@mui/icons-material';
 import type { RouteAccessPolicy } from '../../../../../types';
-
-// Icon mapping by backend route id.
-const NAV_ICON_MAP: Record<string, React.ElementType> = {
-  timeline: EventNoteIcon,
-  'guest-config': PeopleIcon,
-  bookings: CalendarIcon,
-  'room-management': HomeWorkIcon,
-  'room-config': HotelIcon,
-  'company-ledger': AccountBalanceIcon,
-  complimentary: CardGiftcardIcon,
-  loyalty: StarIcon,
-  reports: AssessmentIcon,
-  'ekyc-admin': VerifiedUserIcon,
-  rbac: SecurityIcon,
-  settings: SettingsIcon,
-};
-
-const NAVIGATION_CATEGORY_LABELS: Record<string, string> = {
-  main: 'Main',
-  operations: 'Operations',
-  admin: 'Administration',
-  config: 'Configuration',
-};
+import {
+  navigationRouteDefinitions,
+  type NavGroup,
+} from '../../../../../navigation/routeRegistry';
+import { NAV_GROUP_ORDER } from '../../../../../navigation/navGroups';
+import { useRouteLabels } from '../../../../../navigation/routeLabels';
 
 interface NavigationAccessSectionProps {
   selectedNavItems: string[];
@@ -56,25 +23,49 @@ interface NavigationAccessSectionProps {
   disabled?: boolean;
 }
 
+type NavPolicySection = {
+  group: NavGroup | 'other';
+  label: string;
+  items: RouteAccessPolicy[];
+};
+
 const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
   selectedNavItems,
   routePolicies,
   onToggleNavItem,
   disabled = false,
 }) => {
-  // Group navigation items by category
-  const navByCategory = routePolicies
-    .filter((policy) => policy.is_navigation)
-    .reduce((acc, policy) => {
-    const category = policy.nav_group || 'config';
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(policy);
-    return acc;
-  }, {} as Record<string, RouteAccessPolicy[]>);
+  const { groupLabel } = useRouteLabels();
 
-  const categories = ['main', 'operations', 'admin', 'config'];
+  // Group policies by the registry's navGroup so this matrix mirrors the
+  // sidebar — the DB's nav_group column still holds the legacy
+  // 'main'/'admin'/'config' vocabulary and must not drive grouping.
+  const navByCategory = useMemo(() => {
+    const byId = new Map(navigationRouteDefinitions.map((r) => [r.id, r]));
+    const sections: NavPolicySection[] = NAV_GROUP_ORDER.map((group) => ({
+      group,
+      // The sidebar suppresses headings for label-less groups, but this
+      // matrix needs a caption for every section — nav.json labels all 8.
+      label: groupLabel(group),
+      items: routePolicies.filter(
+        (policy) =>
+          policy.is_navigation &&
+          byId.get(policy.route_id)?.navGroup === group
+      ),
+    })).filter((section) => section.items.length > 0);
+
+    // A policy whose route_id is absent from the registry (e.g. the seeded
+    // 'teams' row, which has no frontend route) matches no group — surface it
+    // under a catch-all instead of silently hiding the toggle.
+    const orphans = routePolicies.filter(
+      (policy) => policy.is_navigation && !byId.get(policy.route_id)?.navGroup
+    );
+    if (orphans.length > 0) {
+      sections.push({ group: 'other', label: 'Other', items: orphans });
+    }
+
+    return { sections, byId };
+  }, [routePolicies, groupLabel]);
 
   return (
     <Box>
@@ -86,97 +77,93 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
         }}>
         Which tabs can this role access?
       </Typography>
-      {categories.map((category) => {
-        const items = navByCategory[category] || [];
-        if (items.length === 0) return null;
+      {navByCategory.sections.map((section) => (
+        <Box key={section.group} sx={{ mb: 2 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 600,
+              color: "text.secondary",
+              display: 'block',
+              mb: 1,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5
+            }}>
+            {section.label}
+          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0.5,
+              pl: 1,
+            }}
+          >
+            {section.items.map((item) => {
+              const isEnabled = selectedNavItems.includes(item.route_id);
+              const IconComponent =
+                navByCategory.byId.get(item.route_id)?.icon ?? SettingsIcon;
+              const requiredPerms = Array.from(new Set([
+                ...item.nav_permissions,
+                ...item.required_permissions,
+              ]));
 
-        return (
-          <Box key={category} sx={{ mb: 2 }}>
-            <Typography
-              variant="caption"
-              sx={{
-                fontWeight: 600,
-                color: "text.secondary",
-                display: 'block',
-                mb: 1,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5
-              }}>
-              {NAVIGATION_CATEGORY_LABELS[category]}
-            </Typography>
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0.5,
-                pl: 1,
-              }}
-            >
-              {items.map((item) => {
-                const isEnabled = selectedNavItems.includes(item.route_id);
-                const IconComponent = NAV_ICON_MAP[item.route_id] || SettingsIcon;
-                const requiredPerms = Array.from(new Set([
-                  ...item.nav_permissions,
-                  ...item.required_permissions,
-                ]));
-
-                return (
-                  <Tooltip
-                    key={item.route_id}
-                    title={
-                      requiredPerms.length > 0
-                        ? `Also grants: ${requiredPerms.join(', ')}`
-                        : item.path
+              return (
+                <Tooltip
+                  key={item.route_id}
+                  title={
+                    requiredPerms.length > 0
+                      ? `Also grants: ${requiredPerms.join(', ')}`
+                      : item.path
+                  }
+                  placement="right"
+                  arrow
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={isEnabled}
+                        onChange={(e) => onToggleNavItem(item.route_id, e.target.checked)}
+                        disabled={disabled}
+                      />
                     }
-                    placement="right"
-                    arrow
-                  >
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          size="small"
-                          checked={isEnabled}
-                          onChange={(e) => onToggleNavItem(item.route_id, e.target.checked)}
-                          disabled={disabled}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <IconComponent
+                          sx={{
+                            fontSize: 18,
+                            color: isEnabled ? 'primary.main' : 'text.disabled',
+                          }}
                         />
-                      }
-                      label={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <IconComponent
-                            sx={{
-                              fontSize: 18,
-                              color: isEnabled ? 'primary.main' : 'text.disabled',
-                            }}
-                          />
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              color: isEnabled ? 'text.primary' : 'text.secondary',
-                              fontWeight: isEnabled ? 500 : 400,
-                            }}
-                          >
-                            {item.nav_label || item.route_id}
-                          </Typography>
-                        </Box>
-                      }
-                      sx={{
-                        mx: 0,
-                        py: 0.5,
-                        px: 1,
-                        borderRadius: 1,
-                        '&:hover': {
-                          backgroundColor: 'action.hover',
-                        },
-                      }}
-                    />
-                  </Tooltip>
-                );
-              })}
-            </Box>
-            {category !== 'system' && <Divider sx={{ mt: 2 }} />}
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: isEnabled ? 'text.primary' : 'text.secondary',
+                            fontWeight: isEnabled ? 500 : 400,
+                          }}
+                        >
+                          {item.nav_label || item.route_id}
+                        </Typography>
+                      </Box>
+                    }
+                    sx={{
+                      mx: 0,
+                      py: 0.5,
+                      px: 1,
+                      borderRadius: 1,
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
+                  />
+                </Tooltip>
+              );
+            })}
           </Box>
-        );
-      })}
+          <Divider sx={{ mt: 2 }} />
+        </Box>
+      ))}
     </Box>
   );
 };
