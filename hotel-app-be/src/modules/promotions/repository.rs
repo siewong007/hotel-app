@@ -35,11 +35,35 @@ const PROMOTION_COLUMNS: &str = r#"
     p.per_guest_limit,
     p.is_public,
     p.is_cancellable,
+    p.internal_code,
+    p.objective,
+    rt_ids.ids AS room_type_ids,
+    ch_ids.ids AS booking_channel_ids,
+    lt_ids.ids AS loyalty_tier_ids,
     CAST(p.version AS BIGINT) AS version,
     p.created_by,
     p.updated_by,
     p.created_at,
     p.updated_at
+"#;
+
+/// FROM clause for staff-facing promotion reads. The lateral joins fold the
+/// three targeting sets into the row so list endpoints don't pay a query per
+/// promotion per join table.
+const PROMOTION_ADMIN_FROM: &str = r#"
+    FROM promotions p
+    LEFT JOIN LATERAL (
+        SELECT array_agg(room_type_id ORDER BY room_type_id) AS ids
+        FROM promotion_room_types t WHERE t.promotion_id = p.id
+    ) rt_ids ON true
+    LEFT JOIN LATERAL (
+        SELECT array_agg(booking_channel_id ORDER BY booking_channel_id) AS ids
+        FROM promotion_channels t WHERE t.promotion_id = p.id
+    ) ch_ids ON true
+    LEFT JOIN LATERAL (
+        SELECT array_agg(loyalty_tier_id ORDER BY loyalty_tier_id) AS ids
+        FROM promotion_loyalty_tiers t WHERE t.promotion_id = p.id
+    ) lt_ids ON true
 "#;
 
 /// Same projection as [`PROMOTION_COLUMNS`] but WITHOUT the staff-only
@@ -72,9 +96,20 @@ const PROMOTION_COLUMNS_PUBLIC: &str = r#"
     p.per_guest_limit,
     p.is_public,
     p.is_cancellable,
+    rt_ids.ids AS room_type_ids,
     CAST(p.version AS BIGINT) AS version,
     p.created_at,
     p.updated_at
+"#;
+
+/// Public catalogue reads only need room-type targeting — channel and tier
+/// sets are staff-only detail.
+const PROMOTION_PUBLIC_FROM: &str = r#"
+    FROM promotions p
+    LEFT JOIN LATERAL (
+        SELECT array_agg(room_type_id ORDER BY room_type_id) AS ids
+        FROM promotion_room_types t WHERE t.promotion_id = p.id
+    ) rt_ids ON true
 "#;
 
 const VOUCHER_COLUMNS: &str = r#"
@@ -142,7 +177,18 @@ fn is_constraint_violation(error: &sqlx::Error, pg_code: &str, constraint: &str)
             || database_error.message().contains(constraint))
 }
 
-fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
+fn id_list(row: &DbRow, column: &str) -> Vec<i64> {
+    row.try_get::<Option<Vec<i64>>, _>(column)
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
+
+fn promotion_from_row(row: &DbRow) -> Promotion {
+    let status: String = row.try_get("status").unwrap_or_default();
+    let claim_starts_at: Option<DateTime<Utc>> =
+        row.try_get("claim_starts_at").ok().flatten();
+    let claim_ends_at: Option<DateTime<Utc>> = row.try_get("claim_ends_at").ok().flatten();
     Promotion {
         id: row.try_get("id").unwrap_or_default(),
         slug: row.try_get("slug").unwrap_or_default(),
@@ -152,7 +198,14 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
             .ok()
             .flatten(),
         terms: row.try_get::<Option<String>, _>("terms").ok().flatten(),
-        status: row.try_get("status").unwrap_or_default(),
+        lifecycle: super::lifecycle::lifecycle_for(
+            &status,
+            claim_starts_at,
+            claim_ends_at,
+            Utc::now(),
+        )
+        .to_string(),
+        status,
         promotion_kind: row.try_get("promotion_kind").unwrap_or_default(),
         discount_type: row.try_get("discount_type").unwrap_or_default(),
         discount_value: decimal_to_f64(get_decimal(row, "discount_value")),
@@ -160,14 +213,8 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
         currency: row
             .try_get("currency")
             .unwrap_or_else(|_| "USD".to_string()),
-        claim_starts_at: row
-            .try_get::<Option<DateTime<Utc>>, _>("claim_starts_at")
-            .ok()
-            .flatten(),
-        claim_ends_at: row
-            .try_get::<Option<DateTime<Utc>>, _>("claim_ends_at")
-            .ok()
-            .flatten(),
+        claim_starts_at,
+        claim_ends_at,
         stay_starts_on: row
             .try_get::<Option<NaiveDate>, _>("stay_starts_on")
             .ok()
@@ -184,7 +231,17 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
         per_guest_limit: row.try_get("per_guest_limit").unwrap_or(1),
         is_public: get_bool(row, "is_public"),
         is_cancellable: get_bool(row, "is_cancellable"),
-        room_type_ids,
+        internal_code: row
+            .try_get::<Option<String>, _>("internal_code")
+            .ok()
+            .flatten(),
+        objective: row
+            .try_get::<Option<String>, _>("objective")
+            .ok()
+            .flatten(),
+        room_type_ids: id_list(row, "room_type_ids"),
+        booking_channel_ids: id_list(row, "booking_channel_ids"),
+        loyalty_tier_ids: id_list(row, "loyalty_tier_ids"),
         version: row.try_get("version").unwrap_or(1),
         created_by: row.try_get::<Option<i64>, _>("created_by").ok().flatten(),
         updated_by: row.try_get::<Option<i64>, _>("updated_by").ok().flatten(),
@@ -195,7 +252,7 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
 
 /// Row mapper for [`PROMOTION_COLUMNS_PUBLIC`] — the row never contains
 /// `created_by`/`updated_by`, so there is no field to accidentally read here.
-fn public_promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> PublicPromotion {
+fn public_promotion_from_row(row: &DbRow) -> PublicPromotion {
     PublicPromotion {
         id: row.try_get("id").unwrap_or_default(),
         slug: row.try_get("slug").unwrap_or_default(),
@@ -237,7 +294,7 @@ fn public_promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> PublicProm
         per_guest_limit: row.try_get("per_guest_limit").unwrap_or(1),
         is_public: get_bool(row, "is_public"),
         is_cancellable: get_bool(row, "is_cancellable"),
-        room_type_ids,
+        room_type_ids: id_list(row, "room_type_ids"),
         version: row.try_get("version").unwrap_or(1),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
@@ -298,44 +355,6 @@ fn voucher_from_row(row: &DbRow, include_code: bool) -> Voucher {
 pub struct PromotionRepository;
 
 impl PromotionRepository {
-    async fn room_type_ids(pool: &DbPool, promotion_id: i64) -> Result<Vec<i64>, ApiError> {
-        query_scalar("SELECT room_type_id FROM promotion_room_types WHERE promotion_id = $1 ORDER BY room_type_id")
-        .bind(promotion_id)
-        .fetch_all(pool)
-        .await
-        .map_err(ApiError::from)
-    }
-
-    async fn promotions_from_rows(
-        pool: &DbPool,
-        rows: Vec<DbRow>,
-    ) -> Result<Vec<Promotion>, ApiError> {
-        let mut promotions = Vec::with_capacity(rows.len());
-        for row in rows {
-            let promotion_id = row.try_get("id").map_err(ApiError::from)?;
-            promotions.push(promotion_from_row(
-                &row,
-                Self::room_type_ids(pool, promotion_id).await?,
-            ));
-        }
-        Ok(promotions)
-    }
-
-    async fn public_promotions_from_rows(
-        pool: &DbPool,
-        rows: Vec<DbRow>,
-    ) -> Result<Vec<PublicPromotion>, ApiError> {
-        let mut promotions = Vec::with_capacity(rows.len());
-        for row in rows {
-            let promotion_id = row.try_get("id").map_err(ApiError::from)?;
-            promotions.push(public_promotion_from_row(
-                &row,
-                Self::room_type_ids(pool, promotion_id).await?,
-            ));
-        }
-        Ok(promotions)
-    }
-
     pub async fn list_public(
         pool: &DbPool,
         page_size: i64,
@@ -356,7 +375,7 @@ impl PromotionRepository {
             .map_err(ApiError::from)?;
         let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
-                    FROM promotions p
+                    {PROMOTION_PUBLIC_FROM}
                     WHERE p.status = 'published'
                       AND p.is_public = true
                       AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= CURRENT_TIMESTAMP)
@@ -365,92 +384,90 @@ impl PromotionRepository {
                     ORDER BY p.claim_ends_at NULLS LAST, p.created_at DESC
                     LIMIT $1 OFFSET $2
                 "#
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC)
+        .replace("{PROMOTION_PUBLIC_FROM}", PROMOTION_PUBLIC_FROM);
         let rows = query(sqlx::AssertSqlSafe(&*sql))
             .bind(page_size)
             .bind(offset)
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
-        Ok((total, Self::public_promotions_from_rows(pool, rows).await?))
+        Ok((total, rows.iter().map(public_promotion_from_row).collect()))
     }
 
+    /// `lifecycle_filter` is a validated lifecycle name; the clause it maps to
+    /// is a fixed literal selected by [`lifecycle::lifecycle_clause`], so no
+    /// user input reaches the SQL text.
     pub async fn list_admin(
         pool: &DbPool,
-        status: Option<&str>,
+        lifecycle_filter: Option<&str>,
         search: Option<&str>,
         page_size: i64,
         offset: i64,
     ) -> Result<(i64, Vec<Promotion>), ApiError> {
-        let count_sql = r#"
+        let clause = lifecycle_filter
+            .and_then(super::lifecycle::lifecycle_clause)
+            .unwrap_or("true");
+        let count_sql = format!(
+            r#"
                 SELECT COUNT(*)
-                FROM promotions p
-                WHERE ($1::text IS NULL OR p.status = $1)
-                  AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
-            "#;
-        let total = query_scalar::<_, i64>(count_sql)
-            .bind(status)
+                {PROMOTION_ADMIN_FROM}
+                WHERE ({clause})
+                  AND ($1::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($1) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($1) || '%')
+            "#,
+        );
+        let total = query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*count_sql))
             .bind(search)
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = r#"
-                    SELECT {PROMOTION_COLUMNS}
-                    FROM promotions p
-                    WHERE ($1::text IS NULL OR p.status = $1)
-                      AND ($2::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($2) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($2) || '%')
+        let sql = format!(
+            r#"
+                    SELECT {{PROMOTION_COLUMNS}}
+                    {{PROMOTION_ADMIN_FROM}}
+                    WHERE ({clause})
+                      AND ($1::text IS NULL OR LOWER(p.name) LIKE '%' || LOWER($1) || '%' OR LOWER(p.slug) LIKE '%' || LOWER($1) || '%')
                     ORDER BY p.updated_at DESC
-                    LIMIT $3 OFFSET $4
+                    LIMIT $2 OFFSET $3
                 "#
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS)
+        .replace("{PROMOTION_ADMIN_FROM}", PROMOTION_ADMIN_FROM);
         let rows = query(sqlx::AssertSqlSafe(&*sql))
-            .bind(status)
             .bind(search)
             .bind(page_size)
             .bind(offset)
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
-        Ok((total, Self::promotions_from_rows(pool, rows).await?))
+        Ok((total, rows.iter().map(promotion_from_row).collect()))
     }
 
     pub async fn find_by_id(
         pool: &DbPool,
         promotion_id: i64,
     ) -> Result<Option<Promotion>, ApiError> {
-        let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1"
-            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let sql = "SELECT {PROMOTION_COLUMNS} {PROMOTION_ADMIN_FROM} WHERE p.id = $1"
+            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS)
+            .replace("{PROMOTION_ADMIN_FROM}", PROMOTION_ADMIN_FROM);
         let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(promotion_id)
             .fetch_optional(pool)
             .await
             .map_err(ApiError::from)?;
-        let Some(row) = row else {
-            return Ok(None);
-        };
-        let id = row.try_get("id").map_err(ApiError::from)?;
-        Ok(Some(promotion_from_row(
-            &row,
-            Self::room_type_ids(pool, id).await?,
-        )))
+        Ok(row.as_ref().map(promotion_from_row))
     }
 
     pub async fn find_by_slug(pool: &DbPool, slug: &str) -> Result<Option<Promotion>, ApiError> {
-        let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.slug = $1"
-            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let sql = "SELECT {PROMOTION_COLUMNS} {PROMOTION_ADMIN_FROM} WHERE p.slug = $1"
+            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS)
+            .replace("{PROMOTION_ADMIN_FROM}", PROMOTION_ADMIN_FROM);
         let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(slug)
             .fetch_optional(pool)
             .await
             .map_err(ApiError::from)?;
-        let Some(row) = row else {
-            return Ok(None);
-        };
-        let id = row.try_get("id").map_err(ApiError::from)?;
-        Ok(Some(promotion_from_row(
-            &row,
-            Self::room_type_ids(pool, id).await?,
-        )))
+        Ok(row.as_ref().map(promotion_from_row))
     }
 
     pub async fn find_public_by_slug(
@@ -462,7 +479,7 @@ impl PromotionRepository {
         // fetchable by guessing its slug.
         let sql = r#"
                     SELECT {PROMOTION_COLUMNS}
-                    FROM promotions p
+                    {PROMOTION_PUBLIC_FROM}
                     WHERE p.slug = $1
                       AND p.status = 'published'
                       AND p.is_public = true
@@ -470,34 +487,31 @@ impl PromotionRepository {
                       AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= CURRENT_TIMESTAMP)
                       AND (p.claim_limit IS NULL OR p.claimed_count < p.claim_limit)
                 "#
-        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC);
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS_PUBLIC)
+        .replace("{PROMOTION_PUBLIC_FROM}", PROMOTION_PUBLIC_FROM);
         let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(slug)
             .fetch_optional(pool)
             .await
             .map_err(ApiError::from)?;
-        let Some(row) = row else {
-            return Ok(None);
-        };
-        let id = row.try_get("id").map_err(ApiError::from)?;
-        Ok(Some(public_promotion_from_row(
-            &row,
-            Self::room_type_ids(pool, id).await?,
-        )))
+        Ok(row.as_ref().map(public_promotion_from_row))
     }
 
+    /// Same projection as the pool reads, including targeting sets — claim and
+    /// issue paths enforce targeting inside the transaction.
     pub async fn find_by_id_tx(
         tx: &mut DbTransaction<'_>,
         promotion_id: i64,
     ) -> Result<Option<Promotion>, ApiError> {
-        let sql = "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1"
-            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
+        let sql = "SELECT {PROMOTION_COLUMNS} {PROMOTION_ADMIN_FROM} WHERE p.id = $1"
+            .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS)
+            .replace("{PROMOTION_ADMIN_FROM}", PROMOTION_ADMIN_FROM);
         let row = query(sqlx::AssertSqlSafe(&*sql))
             .bind(promotion_id)
             .fetch_optional(&mut **tx)
             .await
             .map_err(ApiError::from)?;
-        Ok(row.map(|row| promotion_from_row(&row, Vec::new())))
+        Ok(row.as_ref().map(promotion_from_row))
     }
 
     pub async fn insert_promotion(
@@ -510,10 +524,11 @@ impl PromotionRepository {
                     slug, name, description, terms, promotion_kind, discount_type,
                     discount_value, max_discount_amount, currency, claim_starts_at,
                     claim_ends_at, stay_starts_on, stay_ends_on, min_nights, max_nights,
-                    min_subtotal, claim_limit, per_guest_limit, is_public, is_cancellable, created_by, updated_by
+                    min_subtotal, claim_limit, per_guest_limit, is_public, is_cancellable,
+                    internal_code, objective, created_by, updated_by
                 ) VALUES (
                     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                    $15, $16, $17, $18, $19, $20, $21, $22
+                    $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
                 ) RETURNING id
             "#)
         .bind(&draft.slug)
@@ -536,6 +551,8 @@ impl PromotionRepository {
         .bind(draft.per_guest_limit)
         .bind(draft.is_public)
         .bind(draft.is_cancellable)
+        .bind(&draft.internal_code)
+        .bind(&draft.objective)
         .bind(actor_id)
         .bind(actor_id)
         .fetch_one(&mut **tx)
@@ -558,9 +575,10 @@ impl PromotionRepository {
                     claim_ends_at = $11, stay_starts_on = $12, stay_ends_on = $13,
                     min_nights = $14, max_nights = $15, min_subtotal = $16,
                     claim_limit = $17, per_guest_limit = $18, is_public = $19,
-                    is_cancellable = $20, updated_by = $21, updated_at = CURRENT_TIMESTAMP, version = version + 1
-                WHERE id = $22
-                  AND ($23::integer IS NULL OR version = $23)
+                    is_cancellable = $20, internal_code = $21, objective = $22,
+                    updated_by = $23, updated_at = CURRENT_TIMESTAMP, version = version + 1
+                WHERE id = $24
+                  AND ($25::integer IS NULL OR version = $25)
                   AND status IN ('draft', 'paused')
                 RETURNING id
             "#)
@@ -584,6 +602,8 @@ impl PromotionRepository {
         .bind(draft.per_guest_limit)
         .bind(draft.is_public)
         .bind(draft.is_cancellable)
+        .bind(&draft.internal_code)
+        .bind(&draft.objective)
         .bind(actor_id)
         .bind(promotion_id)
         .bind(expected_version)
@@ -611,6 +631,70 @@ impl PromotionRepository {
                 .map_err(ApiError::from)?;
         }
         Ok(())
+    }
+
+    pub async fn replace_channel_targets(
+        tx: &mut DbTransaction<'_>,
+        promotion_id: i64,
+        booking_channel_ids: &[i64],
+    ) -> Result<(), ApiError> {
+        query("DELETE FROM promotion_channels WHERE promotion_id = $1")
+            .bind(promotion_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        for channel_id in booking_channel_ids {
+            query("INSERT INTO promotion_channels (promotion_id, booking_channel_id) VALUES ($1, $2)")
+                .bind(promotion_id)
+                .bind(channel_id)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+        }
+        Ok(())
+    }
+
+    pub async fn replace_tier_targets(
+        tx: &mut DbTransaction<'_>,
+        promotion_id: i64,
+        loyalty_tier_ids: &[i64],
+    ) -> Result<(), ApiError> {
+        query("DELETE FROM promotion_loyalty_tiers WHERE promotion_id = $1")
+            .bind(promotion_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(ApiError::from)?;
+        for tier_id in loyalty_tier_ids {
+            query("INSERT INTO promotion_loyalty_tiers (promotion_id, loyalty_tier_id) VALUES ($1, $2)")
+                .bind(promotion_id)
+                .bind(tier_id)
+                .execute(&mut **tx)
+                .await
+                .map_err(ApiError::from)?;
+        }
+        Ok(())
+    }
+
+    /// True when the guest holds an active loyalty membership at one of
+    /// `tier_ids`. Callers skip this entirely when the set is empty.
+    pub async fn guest_in_loyalty_tiers(
+        pool: &DbPool,
+        guest_id: i64,
+        tier_ids: &[i64],
+    ) -> Result<bool, ApiError> {
+        query_scalar(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM loyalty_members lm
+                JOIN loyalty_accounts la ON la.member_id = lm.id
+                WHERE lm.guest_id = $1 AND lm.status = 'active'
+                  AND la.current_tier_id = ANY($2)
+            )"#,
+        )
+        .bind(guest_id)
+        .bind(tier_ids)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
     }
 
     pub async fn set_status(
@@ -943,5 +1027,110 @@ impl PromotionRepository {
                 })
                 .collect(),
         })
+    }
+
+    pub async fn targeting_options(
+        pool: &DbPool,
+    ) -> Result<(Vec<DbRow>, Vec<DbRow>), ApiError> {
+        let channels = query(
+            "SELECT id, name, channel_type FROM booking_channels WHERE is_active = true ORDER BY name",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        let tiers = query(
+            "SELECT id, code, name FROM loyalty_tiers WHERE is_active = true ORDER BY sort_order, name",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok((channels, tiers))
+    }
+
+    /// Claim funnel: one row per voucher status/source counter for the
+    /// campaign's issued vouchers.
+    pub async fn campaign_voucher_funnel(pool: &DbPool, promotion_id: i64) -> Result<DbRow, ApiError> {
+        query(r#"
+                SELECT COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE status = 'available') AS available,
+                       COUNT(*) FILTER (WHERE status = 'redeemed') AS redeemed,
+                       COUNT(*) FILTER (WHERE status = 'revoked') AS revoked,
+                       COUNT(*) FILTER (WHERE status = 'available' AND expires_at < CURRENT_TIMESTAMP) AS expired,
+                       COUNT(*) FILTER (WHERE source = 'guest_claim') AS guest_claims,
+                       COUNT(*) FILTER (WHERE source = 'admin_issue') AS admin_issues
+                FROM vouchers
+                WHERE promotion_id = $1
+            "#)
+        .bind(promotion_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// Redemption totals over applied rows — reversed rows count separately so
+    /// operators see both sides of the ledger.
+    pub async fn campaign_redemption_totals(
+        pool: &DbPool,
+        promotion_id: i64,
+    ) -> Result<DbRow, ApiError> {
+        query(r#"
+                SELECT COUNT(*) FILTER (WHERE status = 'applied') AS applied,
+                       COUNT(*) FILTER (WHERE status = 'reversed') AS reversed,
+                       COALESCE(SUM(gross_subtotal) FILTER (WHERE status = 'applied'), 0)::text AS gross_subtotal,
+                       COALESCE(SUM(discount_amount) FILTER (WHERE status = 'applied'), 0)::text AS discount_amount,
+                       COALESCE(SUM(net_total) FILTER (WHERE status = 'applied'), 0)::text AS net_total,
+                       COUNT(DISTINCT booking_id) FILTER (WHERE status = 'applied') AS bookings,
+                       COUNT(DISTINCT guest_id) FILTER (WHERE status = 'applied') AS guests
+                FROM voucher_redemptions
+                WHERE promotion_id = $1
+            "#)
+        .bind(promotion_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// Stay-night attribution — one row per night the campaign discounted.
+    pub async fn campaign_per_night_totals(
+        pool: &DbPool,
+        promotion_id: i64,
+    ) -> Result<DbRow, ApiError> {
+        query(r#"
+                SELECT COUNT(*) AS nights,
+                       COALESCE(SUM(a.gross_amount), 0)::text AS gross_amount,
+                       COALESCE(SUM(a.discount_amount), 0)::text AS discount_amount,
+                       COALESCE(SUM(a.net_amount), 0)::text AS net_amount
+                FROM voucher_redemption_allocations a
+                JOIN voucher_redemptions r ON r.id = a.redemption_id
+                WHERE r.promotion_id = $1 AND r.status = 'applied'
+            "#)
+        .bind(promotion_id)
+        .fetch_one(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
+    /// Channel mix of the bookings the campaign's vouchers redeemed against.
+    pub async fn campaign_channel_mix(
+        pool: &DbPool,
+        promotion_id: i64,
+    ) -> Result<Vec<DbRow>, ApiError> {
+        query(r#"
+                SELECT b.booking_channel_id AS channel_id,
+                       bc.name,
+                       bc.channel_type,
+                       COUNT(*) AS redemptions,
+                       COALESCE(SUM(r.net_total), 0)::text AS net_total
+                FROM voucher_redemptions r
+                JOIN bookings b ON b.id = r.booking_id
+                LEFT JOIN booking_channels bc ON bc.id = b.booking_channel_id
+                WHERE r.promotion_id = $1 AND r.status = 'applied'
+                GROUP BY b.booking_channel_id, bc.name, bc.channel_type
+                ORDER BY redemptions DESC, bc.name
+            "#)
+        .bind(promotion_id)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)
     }
 }

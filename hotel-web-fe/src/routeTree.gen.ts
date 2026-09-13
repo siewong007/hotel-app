@@ -16,6 +16,7 @@ import { Route as R423RouteImport } from './routes/423'
 import { Route as AdminPortalRouteImport } from './routes/admin-portal'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as BookingsRouteImport } from './routes/bookings'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CommunicationsRouteImport } from './routes/communications'
 import { Route as CompanyLedgerRouteImport } from './routes/company-ledger'
 import { Route as CompleteProfileRouteImport } from './routes/complete-profile'
@@ -40,9 +41,11 @@ import { Route as OnlineInventoryRouteImport } from './routes/online-inventory'
 import { Route as PaymentApprovalsRouteImport } from './routes/payment-approvals'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PromotionsRouteImport } from './routes/promotions'
+import { Route as RatesRouteImport } from './routes/rates'
 import { Route as RbacRouteImport } from './routes/rbac'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as RevenueRouteImport } from './routes/revenue'
 import { Route as RoomConfigRouteImport } from './routes/room-config'
 import { Route as RoomManagementRouteImport } from './routes/room-management'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -97,6 +100,11 @@ const AuditLogRoute = AuditLogRouteImport.update({
 const BookingsRoute = BookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunicationsRoute = CommunicationsRouteImport.update({
@@ -219,6 +227,11 @@ const PromotionsRoute = PromotionsRouteImport.update({
   path: '/promotions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RatesRoute = RatesRouteImport.update({
+  id: '/rates',
+  path: '/rates',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RbacRoute = RbacRouteImport.update({
   id: '/rbac',
   path: '/rbac',
@@ -232,6 +245,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RevenueRoute = RevenueRouteImport.update({
+  id: '/revenue',
+  path: '/revenue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoomConfigRoute = RoomConfigRouteImport.update({
@@ -345,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -369,9 +388,11 @@ export interface FileRoutesByFullPath {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
@@ -401,6 +422,7 @@ export interface FileRoutesByTo {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -425,9 +447,11 @@ export interface FileRoutesByTo {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
@@ -458,6 +482,7 @@ export interface FileRoutesById {
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
   '/bookings': typeof BookingsRoute
+  '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
   '/complete-profile': typeof CompleteProfileRoute
@@ -482,9 +507,11 @@ export interface FileRoutesById {
   '/payment-approvals': typeof PaymentApprovalsRoute
   '/profile': typeof ProfileRoute
   '/promotions': typeof PromotionsRoute
+  '/rates': typeof RatesRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
+  '/revenue': typeof RevenueRoute
   '/room-config': typeof RoomConfigRoute
   '/room-management': typeof RoomManagementRoute
   '/settings': typeof SettingsRoute
@@ -516,6 +543,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -540,9 +568,11 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
     | '/settings'
@@ -572,6 +602,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -596,9 +627,11 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
     | '/settings'
@@ -628,6 +661,7 @@ export interface FileRouteTypes {
     | '/admin-portal'
     | '/audit-log'
     | '/bookings'
+    | '/campaigns'
     | '/communications'
     | '/company-ledger'
     | '/complete-profile'
@@ -652,9 +686,11 @@ export interface FileRouteTypes {
     | '/payment-approvals'
     | '/profile'
     | '/promotions'
+    | '/rates'
     | '/rbac'
     | '/register'
     | '/reports'
+    | '/revenue'
     | '/room-config'
     | '/room-management'
     | '/settings'
@@ -685,6 +721,7 @@ export interface RootRouteChildren {
   AdminPortalRoute: typeof AdminPortalRoute
   AuditLogRoute: typeof AuditLogRoute
   BookingsRoute: typeof BookingsRoute
+  CampaignsRoute: typeof CampaignsRoute
   CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
   CompleteProfileRoute: typeof CompleteProfileRoute
@@ -709,9 +746,11 @@ export interface RootRouteChildren {
   PaymentApprovalsRoute: typeof PaymentApprovalsRoute
   ProfileRoute: typeof ProfileRoute
   PromotionsRoute: typeof PromotionsRoute
+  RatesRoute: typeof RatesRoute
   RbacRoute: typeof RbacRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
+  RevenueRoute: typeof RevenueRoute
   RoomConfigRoute: typeof RoomConfigRoute
   RoomManagementRoute: typeof RoomManagementRoute
   SettingsRoute: typeof SettingsRoute
@@ -782,6 +821,13 @@ declare module '@tanstack/react-router' {
       path: '/bookings'
       fullPath: '/bookings'
       preLoaderRoute: typeof BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/communications': {
@@ -952,6 +998,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PromotionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rates': {
+      id: '/rates'
+      path: '/rates'
+      fullPath: '/rates'
+      preLoaderRoute: typeof RatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/rbac': {
       id: '/rbac'
       path: '/rbac'
@@ -971,6 +1024,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/revenue': {
+      id: '/revenue'
+      path: '/revenue'
+      fullPath: '/revenue'
+      preLoaderRoute: typeof RevenueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/room-config': {
@@ -1134,6 +1194,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminPortalRoute: AdminPortalRoute,
   AuditLogRoute: AuditLogRoute,
   BookingsRoute: BookingsRoute,
+  CampaignsRoute: CampaignsRoute,
   CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,
   CompleteProfileRoute: CompleteProfileRoute,
@@ -1158,9 +1219,11 @@ const rootRouteChildren: RootRouteChildren = {
   PaymentApprovalsRoute: PaymentApprovalsRoute,
   ProfileRoute: ProfileRoute,
   PromotionsRoute: PromotionsRoute,
+  RatesRoute: RatesRoute,
   RbacRoute: RbacRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,
+  RevenueRoute: RevenueRoute,
   RoomConfigRoute: RoomConfigRoute,
   RoomManagementRoute: RoomManagementRoute,
   SettingsRoute: SettingsRoute,

@@ -1680,6 +1680,40 @@ ALTER TABLE public.guests ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: guest_segments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.guest_segments (
+    id bigint NOT NULL,
+    name character varying(120) NOT NULL,
+    slug character varying(160) NOT NULL,
+    description text,
+    rules jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT guest_segments_name_not_blank CHECK ((length(btrim(name::text)) > 0)),
+    CONSTRAINT guest_segments_rules_shape CHECK ((jsonb_typeof(rules) = 'object'::text))
+);
+
+
+--
+-- Name: guest_segments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.guest_segments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_segments_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: room_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2476,6 +2510,7 @@ CREATE TABLE public.email_campaigns (
     body_text text,
     template_id bigint,
     promotion_id bigint,
+    segment_id bigint,
     scheduled_at timestamp with time zone,
     started_at timestamp with time zone,
     completed_at timestamp with time zone,
@@ -4042,6 +4077,28 @@ ALTER TABLE public.points_transactions ALTER COLUMN id ADD GENERATED ALWAYS AS I
 
 
 --
+-- Name: promotion_channels; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.promotion_channels (
+    promotion_id bigint NOT NULL,
+    booking_channel_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: promotion_loyalty_tiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.promotion_loyalty_tiers (
+    promotion_id bigint NOT NULL,
+    loyalty_tier_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: promotion_room_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4080,6 +4137,8 @@ CREATE TABLE public.promotions (
     per_guest_limit integer DEFAULT 1 NOT NULL,
     is_public boolean DEFAULT true NOT NULL,
     is_cancellable boolean DEFAULT true NOT NULL,
+    internal_code character varying(64),
+    objective character varying(24),
     version integer DEFAULT 1 NOT NULL,
     created_by bigint,
     updated_by bigint,
@@ -4095,10 +4154,11 @@ CREATE TABLE public.promotions (
     CONSTRAINT promotions_min_subtotal_valid CHECK ((min_subtotal >= (0)::numeric)),
     CONSTRAINT promotions_name_not_blank CHECK ((length(TRIM(BOTH FROM name)) > 0)),
     CONSTRAINT promotions_nights_valid CHECK (((min_nights >= 1) AND ((max_nights IS NULL) OR (max_nights >= min_nights)))),
+    CONSTRAINT promotions_objective_check CHECK (((objective IS NULL) OR ((objective)::text = ANY ((ARRAY['occupancy'::character varying, 'acquisition'::character varying, 'retention'::character varying, 'upsell'::character varying, 'loyalty'::character varying, 'other'::character varying])::text[])))),
     CONSTRAINT promotions_per_guest_limit_valid CHECK ((per_guest_limit >= 1)),
     CONSTRAINT promotions_promotion_kind_check CHECK (((promotion_kind)::text = ANY ((ARRAY['deal'::character varying, 'voucher'::character varying])::text[]))),
     CONSTRAINT promotions_slug_not_blank CHECK ((length(TRIM(BOTH FROM slug)) > 0)),
-    CONSTRAINT promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'paused'::character varying, 'archived'::character varying])::text[]))),
+    CONSTRAINT promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'paused'::character varying, 'cancelled'::character varying, 'archived'::character varying])::text[]))),
     CONSTRAINT promotions_stay_window_valid CHECK (((stay_starts_on IS NULL) OR (stay_ends_on IS NULL) OR (stay_ends_on >= stay_starts_on))),
     CONSTRAINT promotions_version_valid CHECK ((version >= 1))
 );
@@ -5654,6 +5714,22 @@ ALTER TABLE ONLY public.guests
 
 
 --
+-- Name: guest_segments guest_segments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: guest_segments guest_segments_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_slug_key UNIQUE (slug);
+
+
+--
 -- Name: housekeeping_tasks housekeeping_tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5963,6 +6039,22 @@ ALTER TABLE ONLY public.permissions
 
 ALTER TABLE ONLY public.points_transactions
     ADD CONSTRAINT points_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: promotion_channels promotion_channels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_channels
+    ADD CONSTRAINT promotion_channels_pkey PRIMARY KEY (promotion_id, booking_channel_id);
+
+
+--
+-- Name: promotion_loyalty_tiers promotion_loyalty_tiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_loyalty_tiers
+    ADD CONSTRAINT promotion_loyalty_tiers_pkey PRIMARY KEY (promotion_id, loyalty_tier_id);
 
 
 --
@@ -7014,6 +7106,13 @@ CREATE INDEX idx_email_campaigns_status ON public.email_campaigns USING btree (s
 
 
 --
+-- Name: idx_email_campaigns_segment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_email_campaigns_segment ON public.email_campaigns USING btree (segment_id) WHERE (segment_id IS NOT NULL);
+
+
+--
 -- Name: idx_email_deliveries_campaign; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7151,6 +7250,13 @@ CREATE INDEX idx_guests_email_trgm ON public.guests USING gin (email public.gin_
 --
 
 CREATE INDEX idx_guests_guest_type ON public.guests USING btree (guest_type);
+
+
+--
+-- Name: idx_guest_segments_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_segments_active ON public.guest_segments USING btree (is_active) WHERE (is_active = true);
 
 
 --
@@ -7539,6 +7645,20 @@ CREATE INDEX idx_posted_nights_date ON public.night_audit_posted_nights USING bt
 
 
 --
+-- Name: idx_promotion_channels_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_channels_channel ON public.promotion_channels USING btree (booking_channel_id, promotion_id);
+
+
+--
+-- Name: idx_promotion_loyalty_tiers_tier; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_loyalty_tiers_tier ON public.promotion_loyalty_tiers USING btree (loyalty_tier_id, promotion_id);
+
+
+--
 -- Name: idx_promotion_room_types_room_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7550,6 +7670,13 @@ CREATE INDEX idx_promotion_room_types_room_type ON public.promotion_room_types U
 --
 
 CREATE INDEX idx_promotions_public_window ON public.promotions USING btree (status, is_public, claim_starts_at, claim_ends_at);
+
+
+--
+-- Name: promotions_internal_code_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX promotions_internal_code_key ON public.promotions USING btree (internal_code) WHERE (internal_code IS NOT NULL);
 
 
 --
@@ -8845,6 +8972,14 @@ ALTER TABLE ONLY public.email_campaigns
 
 
 --
+-- Name: email_campaigns email_campaigns_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_campaigns
+    ADD CONSTRAINT email_campaigns_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.guest_segments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: email_campaigns email_campaigns_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9018,6 +9153,22 @@ ALTER TABLE ONLY public.guests
 
 ALTER TABLE ONLY public.guests
     ADD CONSTRAINT guests_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: guest_segments guest_segments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: guest_segments guest_segments_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -9418,6 +9569,38 @@ ALTER TABLE ONLY public.points_transactions
 
 ALTER TABLE ONLY public.points_transactions
     ADD CONSTRAINT points_transactions_membership_id_fkey FOREIGN KEY (membership_id) REFERENCES public.loyalty_memberships(id) ON DELETE CASCADE;
+
+
+--
+-- Name: promotion_channels promotion_channels_booking_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_channels
+    ADD CONSTRAINT promotion_channels_booking_channel_id_fkey FOREIGN KEY (booking_channel_id) REFERENCES public.booking_channels(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: promotion_channels promotion_channels_promotion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_channels
+    ADD CONSTRAINT promotion_channels_promotion_id_fkey FOREIGN KEY (promotion_id) REFERENCES public.promotions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: promotion_loyalty_tiers promotion_loyalty_tiers_loyalty_tier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_loyalty_tiers
+    ADD CONSTRAINT promotion_loyalty_tiers_loyalty_tier_id_fkey FOREIGN KEY (loyalty_tier_id) REFERENCES public.loyalty_tiers(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: promotion_loyalty_tiers promotion_loyalty_tiers_promotion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_loyalty_tiers
+    ADD CONSTRAINT promotion_loyalty_tiers_promotion_id_fkey FOREIGN KEY (promotion_id) REFERENCES public.promotions(id) ON DELETE CASCADE;
 
 
 --

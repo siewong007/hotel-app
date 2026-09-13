@@ -33,7 +33,7 @@ export const HELP_CATEGORIES: HelpCategoryDef[] = [
   { id: 'guests', icon: PeopleOutlinedIcon, routePath: '/guest-config' },
   { id: 'rooms-inventory', icon: HomeWorkOutlinedIcon, routePath: '/room-management' },
   { id: 'payments-ledgers', icon: PaymentsOutlinedIcon, routePath: '/company-ledger' },
-  { id: 'rates-promotions', icon: LocalOfferOutlinedIcon, routePath: '/promotions' },
+  { id: 'rates-promotions', icon: LocalOfferOutlinedIcon, routePath: '/campaigns' },
   { id: 'reports-night-audit', icon: AssessmentOutlinedIcon, routePath: '/reports' },
   { id: 'communications', icon: EmailOutlinedIcon, routePath: '/communications' },
   { id: 'staff-access', icon: SecurityOutlinedIcon, routePath: '/rbac' },

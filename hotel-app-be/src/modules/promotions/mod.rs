@@ -6,6 +6,7 @@
 //! pricing snapshot is available.
 
 pub mod handlers;
+pub mod lifecycle;
 pub mod models;
 pub mod repository;
 pub mod routes;

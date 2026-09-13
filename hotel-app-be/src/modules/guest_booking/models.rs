@@ -180,6 +180,10 @@ pub struct GuestBookingQuote {
     /// Whether the applied voucher permits cancelling the booking
     /// (`None` when no voucher is applied). The review step warns on `false`.
     pub voucher_is_cancellable: Option<bool>,
+    /// Shared-engine pricing for the applied voucher; `create()` persists its
+    /// nightly split. Internal only — never serialized to the guest.
+    #[serde(skip)]
+    pub voucher_pricing: Option<crate::services::promotion_pricing::PromotionPricing>,
 }
 
 #[derive(Debug, Clone, Serialize)]

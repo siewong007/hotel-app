@@ -570,7 +570,7 @@ async fn revision_snapshot(pool: &PgPool) -> RevisionSnapshot {
         r#"
         SELECT version, name, checksum, applied_at::text
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 18 -- keep upper bound in sync with newest catalog patch
+        WHERE generation = 1 AND version BETWEEN 2 AND 22 -- keep upper bound in sync with newest catalog patch
         ORDER BY version
         "#,
     )
@@ -601,7 +601,10 @@ async fn object_snapshot(pool: &PgPool) -> ObjectSnapshot {
                   ('payments', 'idempotency_fingerprint'),
                   ('customer_ledger_payments', 'idempotency_key'),
                   ('customer_ledger_payments', 'idempotency_fingerprint'),
-                  ('refresh_tokens', 'client_timezone')
+                  ('refresh_tokens', 'client_timezone'),
+                  ('promotions', 'internal_code'),
+                  ('promotions', 'objective'),
+                  ('email_campaigns', 'segment_id')
               )
             UNION ALL
             SELECT
@@ -613,7 +616,10 @@ async fn object_snapshot(pool: &PgPool) -> ObjectSnapshot {
                   'uq_users_google_subject',
                   'idx_customer_ledger_payments_receipt_unique',
                   'uq_ledger_payments_ledger_idempotency',
-                  'uq_payments_booking_idempotency'
+                  'uq_payments_booking_idempotency',
+                  'promotions_internal_code_key',
+                  'idx_email_campaigns_segment',
+                  'idx_guest_segments_active'
               )
             UNION ALL
             SELECT
@@ -623,10 +629,13 @@ async fn object_snapshot(pool: &PgPool) -> ObjectSnapshot {
             JOIN pg_class AS table_row ON table_row.oid = constraint_row.conrelid
             JOIN pg_namespace AS schema_row ON schema_row.oid = table_row.relnamespace
             WHERE schema_row.nspname = 'public'
-              AND table_row.relname = 'bookings'
-              AND constraint_row.conname IN (
-                  'bookings_status_check',
-                  'bookings_no_room_date_overlap'
+              AND (table_row.relname, constraint_row.conname) IN (
+                  ('bookings', 'bookings_status_check'),
+                  ('bookings', 'bookings_no_room_date_overlap'),
+                  ('promotions', 'promotions_status_check'),
+                  ('guest_segments', 'guest_segments_rules_shape'),
+                  ('guest_segments', 'guest_segments_slug_key'),
+                  ('email_campaigns', 'email_campaigns_segment_id_fkey')
               )
             UNION ALL
             SELECT
@@ -654,7 +663,7 @@ fn object_definitions(objects: &ObjectSnapshot) -> Vec<(&str, &str, &str)> {
 }
 
 fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checksum: &str) {
-    assert_eq!(revisions.len(), 17);
+    assert_eq!(revisions.len(), 21);
     assert_eq!(
         revisions
             .iter()
@@ -742,13 +751,33 @@ fn assert_expected_revisions(revisions: &RevisionSnapshot, google_subject_checks
                 "billable-payment-status",
                 "sha256:5043cc326977b0de7fb54c330d1801e361e5e720fae779f6803718ce1b3f538f",
             ),
+            (
+                19,
+                "revenue-read-permission",
+                "sha256:c9ca11ba9ac3ab064535edea655e9339c3043daec7a670f22be4cf6280727826",
+            ),
+            (
+                20,
+                "rates-route-policy",
+                "sha256:77733624dbb1716d7c9d273d03df4beb804d8990ee8a6f6ceff3354fafc1fe11",
+            ),
+            (
+                21,
+                "campaign-targeting",
+                "sha256:c3f853d0163e87d37f9b7a891e90b351479c7fdf3646d5f8326af16008904c65",
+            ),
+            (
+                22,
+                "guest-segments",
+                "sha256:ab6955f2efa4347542f37135b6ad830b6c8ea094a7b589fa494725316487dfbd",
+            ),
         ]
     );
 }
 
 fn assert_expected_objects(objects: &ObjectSnapshot) {
     let definitions = object_definitions(objects);
-    assert_eq!(definitions.len(), 13);
+    assert_eq!(definitions.len(), 23);
     for expected in [
         (
             "column",
@@ -776,6 +805,17 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
             "character varying(255) NULL",
         ),
         ("column", "refresh_tokens.client_timezone", "text NULL"),
+        (
+            "column",
+            "promotions.internal_code",
+            "character varying(64) NULL",
+        ),
+        (
+            "column",
+            "promotions.objective",
+            "character varying(24) NULL",
+        ),
+        ("column", "email_campaigns.segment_id", "bigint NULL"),
     ] {
         assert!(
             definitions.contains(&expected),
@@ -787,6 +827,7 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
         "uq_ledger_payments_ledger_idempotency",
         "uq_payments_booking_idempotency",
         "uq_users_google_subject",
+        "promotions_internal_code_key",
     ] {
         assert!(
             definitions
@@ -810,6 +851,34 @@ fn assert_expected_objects(objects: &ObjectSnapshot) {
                     && definition.contains("'pending_confirmation'::character varying")
             }),
             "{name} must cover both pending statuses"
+        );
+    }
+    assert!(
+        definitions.iter().any(|(kind, name, definition)| {
+            *kind == "constraint"
+                && *name == "promotions_status_check"
+                && definition.contains("'cancelled'::character varying")
+        }),
+        "promotions_status_check must accept the cancelled status"
+    );
+    for name in ["idx_email_campaigns_segment", "idx_guest_segments_active"] {
+        assert!(
+            definitions.iter().any(|(kind, object_name, definition)| {
+                *kind == "index" && *object_name == name && definition.starts_with("CREATE INDEX")
+            }),
+            "missing final index {name}"
+        );
+    }
+    for name in [
+        "guest_segments_rules_shape",
+        "guest_segments_slug_key",
+        "email_campaigns_segment_id_fkey",
+    ] {
+        assert!(
+            definitions
+                .iter()
+                .any(|(kind, object_name, _)| *kind == "constraint" && *object_name == name),
+            "missing final constraint {name}"
         );
     }
     assert!(
@@ -1715,7 +1784,7 @@ async fn postgres_v1_patch_runners_serialize() {
         r#"
         SELECT version, COUNT(*)
         FROM hotel_schema_revisions
-        WHERE generation = 1 AND version BETWEEN 2 AND 18 -- keep upper bound in sync with newest catalog patch
+        WHERE generation = 1 AND version BETWEEN 2 AND 22 -- keep upper bound in sync with newest catalog patch
         GROUP BY version
         ORDER BY version
         "#,

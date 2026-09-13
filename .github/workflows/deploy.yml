@@ -196,6 +196,14 @@ jobs:
             "$bundle_dir/database/patches/0017_remove_seeded_rate_plans.sql"
           cp hotel-app-be/database/postgres/patches/0018_billable_payment_status.sql \
             "$bundle_dir/database/patches/0018_billable_payment_status.sql"
+          cp hotel-app-be/database/postgres/patches/0019_revenue_read_permission.sql \
+            "$bundle_dir/database/patches/0019_revenue_read_permission.sql"
+          cp hotel-app-be/database/postgres/patches/0020_rates_route_policy.sql \
+            "$bundle_dir/database/patches/0020_rates_route_policy.sql"
+          cp hotel-app-be/database/postgres/patches/0021_campaign_targeting.sql \
+            "$bundle_dir/database/patches/0021_campaign_targeting.sql"
+          cp hotel-app-be/database/postgres/patches/0022_guest_segments.sql \
+            "$bundle_dir/database/patches/0022_guest_segments.sql"
 
           (
             cd "$bundle_dir"
@@ -228,6 +236,10 @@ jobs:
               database/patches/0016_hotel_business_number.sql \
               database/patches/0017_remove_seeded_rate_plans.sql \
               database/patches/0018_billable_payment_status.sql \
+              database/patches/0019_revenue_read_permission.sql \
+              database/patches/0020_rates_route_policy.sql \
+              database/patches/0021_campaign_targeting.sql \
+              database/patches/0022_guest_segments.sql \
               > SHA256SUMS
           )
           tar -C "$bundle_dir" -czf "$bundle_path" .

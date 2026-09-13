@@ -80,7 +80,7 @@ function CampaignDialog({
       PromotionsApi.listAdmin({
         page: 1,
         page_size: 100,
-        status: 'published',
+        status: 'live',
       }),
     enabled: open && form.campaign_type === 'promotion',
   });

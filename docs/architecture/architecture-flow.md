@@ -127,6 +127,23 @@ day. Rust code must use `core/db.rs::hotel_today(executor)` for business-day
 decisions (due dates, occupancy gating, report windows) — never
 `chrono::Local`/`Utc` date math.
 
+## Revenue attribution and promotion pricing
+
+- `bookings.booking_channel_id` (FK → `booking_channels`) is the canonical
+  booking-source attribution for revenue reporting. `bookings.source` and
+  `bookings.channel` are legacy free-text varchars — displayed as entered,
+  never used for analytics. `bookings.net_revenue` stores the post-commission
+  amount computed at write time.
+- Promotion → booking attribution runs through `voucher_redemptions`
+  (promotion_id, booking_id, gross/discount/net). `voucher_redemption_allocations`
+  spreads each redemption across stay nights; per-night `discount_amount`
+  combines the complimentary-credit share and the voucher share so the rows
+  always reconcile with the parent redemption.
+- All discount math lives in `services/promotion_pricing.rs`
+  (`calculate_promotion_pricing`) — the single engine used by guest-booking
+  quotes and redemption writes. Do not reimplement percentage/fixed discount
+  math elsewhere.
+
 ## Guest portal security
 
 Pre-checkin tokens are 256-bit (`generate_session_token`) and invalidated on

@@ -5,15 +5,19 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::models::{
-    ClaimPromotionInput, GuestPromotion, GuestPromotionListResponse, Promotion, PromotionInput,
-    PromotionListQuery, PromotionListResponse, PublicPromotion, PublicPromotionListResponse,
-    Voucher, VoucherIssueInput, VoucherListResponse, VoucherRevokeInput, VoucherSummary,
+    CampaignChannelMixRow, CampaignPerformance, CampaignPerNightTotals, CampaignRedemptionTotals,
+    CampaignVoucherFunnel, ClaimPromotionInput, GuestPromotion, GuestPromotionListResponse,
+    Promotion, PromotionActionInput, PromotionInput, PromotionListQuery, PromotionListResponse,
+    PublicPromotion, PublicPromotionListResponse, TargetingChannelOption, TargetingOptionsResponse,
+    TargetingTierOption, Voucher, VoucherIssueInput, VoucherListResponse, VoucherRevokeInput,
+    VoucherSummary,
 };
 use super::repository::PromotionRepository;
 use super::validation;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
+use crate::models::row_mappers::get_decimal;
 use crate::modules::loyalty::models::RedeemRewardInput;
 use crate::modules::loyalty::repository::LoyaltyRepository;
 use crate::modules::loyalty::service as loyalty_service;
@@ -94,6 +98,49 @@ fn ensure_admin_issueable(promotion: &Promotion) -> Result<(), ApiError> {
         ));
     }
     promotion_is_within_claim_window(promotion)
+}
+
+/// Loyalty-tier targeting gates acquisition: a guest outside the targeted
+/// tiers can neither claim nor be issued the campaign's vouchers. An empty
+/// tier set targets everyone.
+async fn ensure_tier_targetable(
+    pool: &DbPool,
+    promotion: &Promotion,
+    guest_id: i64,
+) -> Result<(), ApiError> {
+    if promotion.loyalty_tier_ids.is_empty() {
+        return Ok(());
+    }
+    if PromotionRepository::guest_in_loyalty_tiers(pool, guest_id, &promotion.loyalty_tier_ids)
+        .await?
+    {
+        Ok(())
+    } else {
+        Err(ApiError::Conflict(
+            "This campaign is reserved for specific loyalty tiers".to_string(),
+        ))
+    }
+}
+
+/// Channel targeting gates the portal: every guest-portal claim resolves to
+/// the direct booking channel, so a campaign whose channel set excludes it is
+/// not claimable online. An empty channel set is reachable on every channel.
+async fn ensure_portal_channel_targetable(
+    pool: &DbPool,
+    promotion: &Promotion,
+) -> Result<(), ApiError> {
+    if promotion.booking_channel_ids.is_empty() {
+        return Ok(());
+    }
+    let direct = crate::modules::guest_booking::repository::GuestBookingRepository::direct_booking_channel(pool)
+        .await?;
+    if direct.is_some_and(|id| promotion.booking_channel_ids.contains(&id)) {
+        Ok(())
+    } else {
+        Err(ApiError::Conflict(
+            "This campaign is not available for online booking".to_string(),
+        ))
+    }
 }
 
 fn pagination(query: &PromotionListQuery) -> (i64, i64, i64) {
@@ -236,6 +283,7 @@ pub async fn issue_welcome_deluxe_voucher(
             ApiError::Internal("Welcome Deluxe promotion is not configured".to_string())
         })?;
     ensure_admin_issueable(&promotion)?;
+    ensure_tier_targetable(pool, &promotion, guest_id).await?;
 
     if let Some(voucher) =
         PromotionRepository::find_voucher_by_promotion_guest(pool, promotion.id, guest_id, true)
@@ -310,12 +358,13 @@ pub async fn claim_guest_promotion(
         return Ok(voucher);
     }
 
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
-    let promotion = PromotionRepository::find_by_id_tx(&mut tx, promotion_id)
+    // Targeting gates run on a pool read before the transaction: pool queries
+    // inside the tx would hold two connections per claim and can starve the
+    // pool under concurrent claims.
+    let promotion = PromotionRepository::find_by_id(pool, promotion_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Promotion not found".to_string()))?;
     if promotion.slug == JULY_DELUXE_LOYALTY_PROMOTION_SLUG {
-        drop(tx);
         let reward =
             LoyaltyRepository::find_active_reward_by_name(pool, JULY_DELUXE_LOYALTY_REWARD_NAME)
                 .await?
@@ -342,6 +391,16 @@ pub async fn claim_guest_promotion(
         .await?
         .ok_or_else(|| ApiError::Internal("Redeemed loyalty voucher was not found.".to_string()));
     }
+    ensure_guest_claimable(&promotion)?;
+    ensure_tier_targetable(pool, &promotion, guest_id).await?;
+    ensure_portal_channel_targetable(pool, &promotion).await?;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    // Re-read inside the transaction: status or claim capacity may have moved
+    // since the pre-check, so the mutation path validates current state.
+    let promotion = PromotionRepository::find_by_id_tx(&mut tx, promotion_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Promotion not found".to_string()))?;
     ensure_guest_claimable(&promotion)?;
 
     let voucher_id = PromotionRepository::insert_voucher_if_new(
@@ -395,15 +454,15 @@ pub async fn list_admin_promotions(
     query: PromotionListQuery,
 ) -> Result<PromotionListResponse, ApiError> {
     let (page, page_size, offset) = pagination(&query);
-    let status = normalized_filter(query.status);
-    let status = status
+    let lifecycle = normalized_filter(query.status);
+    let lifecycle = lifecycle
         .as_deref()
-        .map(validation::validate_status)
+        .map(validation::validate_lifecycle_filter)
         .transpose()?;
     let search = normalized_filter(query.search);
     let (total, items) = PromotionRepository::list_admin(
         pool,
-        status.as_deref(),
+        lifecycle.as_deref(),
         search.as_deref(),
         page_size,
         offset,
@@ -432,6 +491,14 @@ pub async fn create_admin_promotion(
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let promotion_id = PromotionRepository::insert_promotion(&mut tx, &draft, actor_id).await?;
     PromotionRepository::replace_room_type_targets(&mut tx, promotion_id, &draft.room_type_ids)
+        .await?;
+    PromotionRepository::replace_channel_targets(
+        &mut tx,
+        promotion_id,
+        &draft.booking_channel_ids,
+    )
+    .await?;
+    PromotionRepository::replace_tier_targets(&mut tx, promotion_id, &draft.loyalty_tier_ids)
         .await?;
     AuditLog::log_event_tx(
         &mut tx,
@@ -486,6 +553,14 @@ pub async fn update_admin_promotion(
     }
     PromotionRepository::replace_room_type_targets(&mut tx, promotion_id, &draft.room_type_ids)
         .await?;
+    PromotionRepository::replace_channel_targets(
+        &mut tx,
+        promotion_id,
+        &draft.booking_channel_ids,
+    )
+    .await?;
+    PromotionRepository::replace_tier_targets(&mut tx, promotion_id, &draft.loyalty_tier_ids)
+        .await?;
     AuditLog::log_event_tx(
         &mut tx,
         AuditEvent {
@@ -503,12 +578,14 @@ pub async fn update_admin_promotion(
     updated_promotion(pool, promotion_id).await
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn transition_admin_promotion(
     pool: &DbPool,
     actor_id: i64,
     promotion_id: i64,
     next_status: &str,
     expected_version: Option<i64>,
+    reason: Option<String>,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<Promotion, ApiError> {
@@ -523,12 +600,20 @@ async fn transition_admin_promotion(
                 "Only published promotions can be paused".to_string(),
             ));
         }
+        // Cancellation is terminal: the campaign stops claiming and its
+        // outstanding vouchers freeze because redemption requires `published`.
+        // It is intentionally irreversible — start a new campaign instead.
+        "cancelled" if matches!(current.status.as_str(), "cancelled" | "archived") => {
+            return Err(ApiError::Conflict(
+                "A cancelled or archived campaign cannot be cancelled again".to_string(),
+            ));
+        }
         "archived" if current.status == "archived" => {
             return Err(ApiError::Conflict(
                 "This promotion is already archived".to_string(),
             ));
         }
-        "paused" | "archived" => {}
+        "paused" | "cancelled" | "archived" => {}
         _ => {
             return Err(ApiError::BadRequest(
                 "Unsupported promotion action".to_string(),
@@ -556,9 +641,11 @@ async fn transition_admin_promotion(
             action: &format!("promotion.{next_status}"),
             resource_type: "promotion",
             resource_id: Some(promotion_id),
-            details: Some(
-                json!({"previous_status": current.status, "previous_version": current.version}),
-            ),
+            details: Some(json!({
+                "previous_status": current.status,
+                "previous_version": current.version,
+                "reason": reason,
+            })),
             ip_address,
             user_agent,
         },
@@ -568,20 +655,44 @@ async fn transition_admin_promotion(
     updated_promotion(pool, promotion_id).await
 }
 
-pub async fn publish_admin_promotion(
+#[allow(clippy::too_many_arguments)]
+async fn transition_wrapper(
     pool: &DbPool,
     actor_id: i64,
     promotion_id: i64,
-    expected_version: Option<i64>,
+    next_status: &str,
+    input: PromotionActionInput,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<Promotion, ApiError> {
+    let reason = validation::sanitize_optional_reason(input.reason)?;
     transition_admin_promotion(
         pool,
         actor_id,
         promotion_id,
+        next_status,
+        input.expected_version,
+        reason,
+        ip_address,
+        user_agent,
+    )
+    .await
+}
+
+pub async fn publish_admin_promotion(
+    pool: &DbPool,
+    actor_id: i64,
+    promotion_id: i64,
+    input: PromotionActionInput,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<Promotion, ApiError> {
+    transition_wrapper(
+        pool,
+        actor_id,
+        promotion_id,
         "published",
-        expected_version,
+        input,
         ip_address,
         user_agent,
     )
@@ -592,16 +703,30 @@ pub async fn pause_admin_promotion(
     pool: &DbPool,
     actor_id: i64,
     promotion_id: i64,
-    expected_version: Option<i64>,
+    input: PromotionActionInput,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<Promotion, ApiError> {
-    transition_admin_promotion(
+    transition_wrapper(
+        pool, actor_id, promotion_id, "paused", input, ip_address, user_agent,
+    )
+    .await
+}
+
+pub async fn cancel_admin_promotion(
+    pool: &DbPool,
+    actor_id: i64,
+    promotion_id: i64,
+    input: PromotionActionInput,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<Promotion, ApiError> {
+    transition_wrapper(
         pool,
         actor_id,
         promotion_id,
-        "paused",
-        expected_version,
+        "cancelled",
+        input,
         ip_address,
         user_agent,
     )
@@ -612,16 +737,16 @@ pub async fn archive_admin_promotion(
     pool: &DbPool,
     actor_id: i64,
     promotion_id: i64,
-    expected_version: Option<i64>,
+    input: PromotionActionInput,
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<Promotion, ApiError> {
-    transition_admin_promotion(
+    transition_wrapper(
         pool,
         actor_id,
         promotion_id,
         "archived",
-        expected_version,
+        input,
         ip_address,
         user_agent,
     )
@@ -703,6 +828,14 @@ pub async fn issue_admin_voucher(
         Some(code) => validation::normalize_voucher_code(&code)?,
         None => generate_voucher_code(),
     };
+    // Issueability and tier targeting are pool reads: running them inside the
+    // transaction would hold two connections per request (pool starvation).
+    let promotion = PromotionRepository::find_by_id(pool, input.promotion_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Promotion not found".to_string()))?;
+    ensure_admin_issueable(&promotion)?;
+    ensure_tier_targetable(pool, &promotion, input.guest_id).await?;
+
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let promotion = PromotionRepository::find_by_id_tx(&mut tx, input.promotion_id)
         .await?
@@ -796,6 +929,99 @@ pub async fn revoke_admin_voucher(
     PromotionRepository::find_voucher_admin(pool, voucher_id)
         .await?
         .ok_or_else(|| ApiError::Internal("Revoked voucher was not found".to_string()))
+}
+
+/// Pick lists for the campaign editor's targeting controls. Lives behind
+/// `promotions:read` because the campaigns workspace needs it and the generic
+/// `/api/booking-channels` list is gated on analytics/reports permissions.
+pub async fn targeting_options(pool: &DbPool) -> Result<TargetingOptionsResponse, ApiError> {
+    use sqlx::Row;
+    let (channels, tiers) = PromotionRepository::targeting_options(pool).await?;
+    Ok(TargetingOptionsResponse {
+        channels: channels
+            .iter()
+            .map(|row| TargetingChannelOption {
+                id: row.try_get("id").unwrap_or_default(),
+                name: row.try_get("name").unwrap_or_default(),
+                channel_type: row.try_get("channel_type").unwrap_or_default(),
+            })
+            .collect(),
+        loyalty_tiers: tiers
+            .iter()
+            .map(|row| TargetingTierOption {
+                id: row.try_get("id").unwrap_or_default(),
+                code: row.try_get::<Option<String>, _>("code").ok().flatten(),
+                name: row.try_get("name").unwrap_or_default(),
+            })
+            .collect(),
+    })
+}
+
+/// Per-campaign performance built entirely from voucher/redemption rows —
+/// counts the claim funnel, applied vs reversed redemptions, stay-night
+/// attribution, and the booking-channel mix. No impressions or clicks exist
+/// to report on, so none are returned.
+pub async fn campaign_performance(
+    pool: &DbPool,
+    promotion_id: i64,
+) -> Result<CampaignPerformance, ApiError> {
+    use sqlx::Row;
+    let promotion = updated_promotion(pool, promotion_id).await?;
+    let funnel = PromotionRepository::campaign_voucher_funnel(pool, promotion_id).await?;
+    let totals = PromotionRepository::campaign_redemption_totals(pool, promotion_id).await?;
+    let nights = PromotionRepository::campaign_per_night_totals(pool, promotion_id).await?;
+    let mix = PromotionRepository::campaign_channel_mix(pool, promotion_id).await?;
+
+    let total_vouchers = funnel.try_get::<i64, _>("total").unwrap_or_default();
+    let applied = totals.try_get::<i64, _>("applied").unwrap_or_default();
+    let conversion_rate = (total_vouchers > 0).then(|| applied as f64 / total_vouchers as f64);
+    let amount = |row: &crate::core::db::DbRow, column: &str| {
+        get_decimal(row, column).to_string().parse::<f64>().unwrap_or(0.0)
+    };
+
+    Ok(CampaignPerformance {
+        promotion_id,
+        currency: promotion.currency,
+        vouchers: CampaignVoucherFunnel {
+            total: total_vouchers,
+            available: funnel.try_get("available").unwrap_or_default(),
+            redeemed: funnel.try_get("redeemed").unwrap_or_default(),
+            revoked: funnel.try_get("revoked").unwrap_or_default(),
+            expired: funnel.try_get("expired").unwrap_or_default(),
+            guest_claims: funnel.try_get("guest_claims").unwrap_or_default(),
+            admin_issues: funnel.try_get("admin_issues").unwrap_or_default(),
+        },
+        redemptions: CampaignRedemptionTotals {
+            applied,
+            reversed: totals.try_get("reversed").unwrap_or_default(),
+            gross_subtotal: amount(&totals, "gross_subtotal"),
+            discount_amount: amount(&totals, "discount_amount"),
+            net_total: amount(&totals, "net_total"),
+            bookings: totals.try_get("bookings").unwrap_or_default(),
+            guests: totals.try_get("guests").unwrap_or_default(),
+            conversion_rate,
+        },
+        per_night: CampaignPerNightTotals {
+            nights: nights.try_get("nights").unwrap_or_default(),
+            gross_amount: amount(&nights, "gross_amount"),
+            discount_amount: amount(&nights, "discount_amount"),
+            net_amount: amount(&nights, "net_amount"),
+        },
+        channel_mix: mix
+            .iter()
+            .map(|row| CampaignChannelMixRow {
+                channel_id: row.try_get::<Option<i64>, _>("channel_id").ok().flatten(),
+                name: row
+                    .try_get::<Option<String>, _>("name")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "Unassigned".to_string()),
+                channel_type: row.try_get::<Option<String>, _>("channel_type").ok().flatten(),
+                redemptions: row.try_get("redemptions").unwrap_or_default(),
+                net_total: amount(row, "net_total"),
+            })
+            .collect(),
+    })
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@
     "overview": "Utama",
     "operations": "Operasi",
     "finance": "Kewangan",
+    "revenue": "Hasil",
     "engagement": "Penglibatan",
     "property": "Hartanah",
     "insights": "Wawasan",
@@ -14,31 +15,110 @@
     "other": "Lain-lain"
   },
   "routes": {
-    "dashboard": { "label": "Papan Pemuka", "breadcrumb": "Papan Pemuka" },
-    "timeline": { "label": "Garis Masa", "breadcrumb": "Garis Masa Tempahan" },
-    "guest-config": { "label": "Tetamu", "breadcrumb": "Pengurusan Tetamu" },
-    "bookings": { "label": "Tempahan", "breadcrumb": "Tempahan" },
-    "room-management": { "label": "Bilik", "breadcrumb": "Pengurusan Bilik" },
-    "online-inventory": { "label": "Inventori Dalam Talian", "breadcrumb": "Kawalan Inventori Dalam Talian" },
-    "reports": { "label": "Laporan", "breadcrumb": "Laporan" },
-    "housekeeping": { "label": "Pengemasan", "breadcrumb": "Pengemasan" },
-    "support": { "label": "Sokongan", "breadcrumb": "Sokongan Tetamu" },
-    "profile": { "label": "Profil Saya", "breadcrumb": "Profil Saya" },
-    "help": { "label": "Bantuan", "breadcrumb": "Bantuan & Sokongan" },
-    "room-config": { "label": "Konfigurasi Bilik", "breadcrumb": "Konfigurasi Bilik" },
-    "settings": { "label": "Tetapan Hotel", "breadcrumb": "Tetapan Hotel" },
-    "rbac": { "label": "Kawalan Akses", "breadcrumb": "Kawalan Akses" },
-    "company-ledger": { "label": "Lejar", "breadcrumb": "Lejar Syarikat" },
-    "night-audit": { "label": "Audit Malam", "breadcrumb": "Audit Malam" },
-    "payment-approvals": { "label": "Kelulusan Pembayaran", "breadcrumb": "Kelulusan Pembayaran" },
-    "audit-log": { "label": "Log Audit", "breadcrumb": "Log Audit" },
-    "complimentary": { "label": "Malam Percuma", "breadcrumb": "Malam Percuma" },
-    "loyalty": { "label": "Kesetiaan", "breadcrumb": "Kesetiaan" },
-    "promotions": { "label": "Promosi", "breadcrumb": "Promosi & Baucar" },
-    "communications": { "label": "Komunikasi", "breadcrumb": "Komunikasi" },
-    "notifications": { "label": "Pemberitahuan", "breadcrumb": "Pemberitahuan" },
-    "data-transfer": { "label": "Pemindahan Data", "breadcrumb": "Pemindahan Data" },
-    "ekyc-admin": { "label": "Pentadbir eKYC", "breadcrumb": "Pentadbir eKYC" }
+    "audit-log": {
+      "label": "Log Audit",
+      "breadcrumb": "Log Audit"
+    },
+    "bookings": {
+      "label": "Tempahan",
+      "breadcrumb": "Tempahan"
+    },
+    "communications": {
+      "label": "Komunikasi",
+      "breadcrumb": "Komunikasi"
+    },
+    "company-ledger": {
+      "label": "Lejar",
+      "breadcrumb": "Lejar Syarikat"
+    },
+    "complimentary": {
+      "label": "Malam Percuma",
+      "breadcrumb": "Malam Percuma"
+    },
+    "dashboard": {
+      "label": "Papan Pemuka",
+      "breadcrumb": "Papan Pemuka"
+    },
+    "data-transfer": {
+      "label": "Pemindahan Data",
+      "breadcrumb": "Pemindahan Data"
+    },
+    "ekyc-admin": {
+      "label": "Pentadbir eKYC",
+      "breadcrumb": "Pentadbir eKYC"
+    },
+    "guest-config": {
+      "label": "Tetamu",
+      "breadcrumb": "Pengurusan Tetamu"
+    },
+    "help": {
+      "label": "Bantuan",
+      "breadcrumb": "Bantuan & Sokongan"
+    },
+    "housekeeping": {
+      "label": "Pengemasan",
+      "breadcrumb": "Pengemasan"
+    },
+    "loyalty": {
+      "label": "Kesetiaan",
+      "breadcrumb": "Kesetiaan"
+    },
+    "night-audit": {
+      "label": "Audit Malam",
+      "breadcrumb": "Audit Malam"
+    },
+    "notifications": {
+      "label": "Pemberitahuan",
+      "breadcrumb": "Pemberitahuan"
+    },
+    "online-inventory": {
+      "label": "Inventori Dalam Talian",
+      "breadcrumb": "Kawalan Inventori Dalam Talian"
+    },
+    "payment-approvals": {
+      "label": "Kelulusan Pembayaran",
+      "breadcrumb": "Kelulusan Pembayaran"
+    },
+    "profile": {
+      "label": "Profil Saya",
+      "breadcrumb": "Profil Saya"
+    },
+    "campaigns": {
+      "label": "Kempen",
+      "breadcrumb": "Kempen"
+    },
+    "rates": {
+      "label": "Kadar",
+      "breadcrumb": "Kadar"
+    },
+    "rbac": {
+      "label": "Kawalan Akses",
+      "breadcrumb": "Kawalan Akses"
+    },
+    "reports": {
+      "label": "Laporan",
+      "breadcrumb": "Laporan"
+    },
+    "room-config": {
+      "label": "Konfigurasi Bilik",
+      "breadcrumb": "Konfigurasi Bilik"
+    },
+    "room-management": {
+      "label": "Bilik",
+      "breadcrumb": "Pengurusan Bilik"
+    },
+    "settings": {
+      "label": "Tetapan Hotel",
+      "breadcrumb": "Tetapan Hotel"
+    },
+    "support": {
+      "label": "Sokongan",
+      "breadcrumb": "Sokongan Tetamu"
+    },
+    "timeline": {
+      "label": "Garis Masa",
+      "breadcrumb": "Garis Masa Tempahan"
+    }
   },
   "userMenu": {
     "profile": "Profil Saya",

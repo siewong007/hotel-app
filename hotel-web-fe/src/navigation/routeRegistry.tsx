@@ -19,11 +19,13 @@ import NightsStayIcon from '@mui/icons-material/NightsStay';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import PaymentsIcon from '@mui/icons-material/Payments';
 import PeopleIcon from '@mui/icons-material/People';
+import PriceChangeIcon from '@mui/icons-material/PriceChange';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import WorkHistoryIcon from '@mui/icons-material/WorkHistory';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
@@ -31,7 +33,7 @@ import type { RouteAccessPolicy } from '../types';
 
 export type RouteAnimation = 'fade' | 'slide' | 'grow';
 export type NavGroup =
-  | 'overview' | 'operations' | 'finance' | 'engagement'
+  | 'overview' | 'operations' | 'finance' | 'revenue' | 'engagement'
   | 'property' | 'insights' | 'administration' | 'utility';
 
 interface AccessChecker {
@@ -102,6 +104,8 @@ const NotificationsPage = lazyRoute(() => import('../features/notifications/page
 const SystemHealthPage = lazyRoute(() => import('../features/admin/system/SystemHealthPage'));
 const JobsPage = lazyRoute(() => import('../features/admin/system/JobsPage'));
 const OnlineInventoryPage = lazyRoute(() => import('../features/onlineInventory/pages/OnlineInventoryPage'));
+const RevenueOverviewPage = lazyRoute(() => import('../features/revenue/pages/RevenueOverviewPage'));
+const RatesPage = lazyRoute(() => import('../features/rates/pages/RatesPage'));
 const LegalTermsPage = lazyRoute(() => import('../features/legal/pages/TermsPage'));
 const LegalPrivacyPage = lazyRoute(() => import('../features/legal/pages/PrivacyPage'));
 const LegalPaymentTermsPage = lazyRoute(() => import('../features/legal/pages/PaymentTermsPage'));
@@ -274,15 +278,15 @@ const routeDefinitions: AppRouteDefinition[] = [
     accessControlled: true,
   },
   {
-    id: 'promotions',
-    path: '/promotions',
+    id: 'campaigns',
+    path: '/campaigns',
     component: PromotionManagementPage,
     animationType: 'fade',
     visibility: 'auth',
     icon: LocalOfferIcon,
-    breadcrumbLabel: 'Promotions & Vouchers',
-    navLabel: 'Promotions',
-    navGroup: 'engagement',
+    breadcrumbLabel: 'Campaigns',
+    navLabel: 'Campaigns',
+    navGroup: 'revenue',
     accessControlled: true,
   },
   {
@@ -345,6 +349,31 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Reports',
     navLabel: 'Reports',
     navGroup: 'insights',
+    accessControlled: true,
+  },
+  // ── revenue ─────────────────────────────────────────────────────────────
+  {
+    id: 'revenue',
+    path: '/revenue',
+    component: RevenueOverviewPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: TrendingUpIcon,
+    breadcrumbLabel: 'Revenue',
+    navLabel: 'Revenue',
+    navGroup: 'revenue',
+    accessControlled: true,
+  },
+  {
+    id: 'rates',
+    path: '/rates',
+    component: RatesPage,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: PriceChangeIcon,
+    breadcrumbLabel: 'Rates',
+    navLabel: 'Rates',
+    navGroup: 'revenue',
     accessControlled: true,
   },
   // ── administration ──────────────────────────────────────────────────────

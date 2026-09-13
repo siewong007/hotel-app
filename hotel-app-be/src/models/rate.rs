@@ -209,6 +209,27 @@ pub struct RoomRateWithDetails {
     pub effective_to: Option<NaiveDate>,
 }
 
+/// Input for bulk room-rate band upserts (rate calendar bulk editing).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BulkRoomRateInput {
+    pub rate_plan_id: i64,
+    pub room_type_ids: Vec<i64>,
+    pub effective_from: String,
+    /// Inclusive bound, matching `room_rates.effective_to` semantics.
+    pub effective_to: String,
+    pub price: f64,
+}
+
+/// Parsed values for one bulk band upsert.
+#[derive(Debug, Clone)]
+pub struct RoomRateBulkValues {
+    pub rate_plan_id: i64,
+    pub room_type_ids: Vec<i64>,
+    pub effective_from: NaiveDate,
+    pub effective_to: NaiveDate,
+    pub price: Decimal,
+}
+
 /// Query for applicable rate lookup.
 #[derive(Debug, Deserialize)]
 pub struct ApplicableRateQuery {

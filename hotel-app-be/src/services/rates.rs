@@ -4,9 +4,10 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::AuditEvent;
 use crate::models::{
-    ApplicableRateQuery, RatePlan, RatePlanCreateValues, RatePlanInput, RatePlanUpdateInput,
-    RatePlanUpdateValues, RatePlanWithRates, RoomRate, RoomRateCreateValues, RoomRateInput,
-    RoomRateUpdateInput, RoomRateUpdateValues, RoomRateWithDetails, RoomType,
+    ApplicableRateQuery, BulkRoomRateInput, RatePlan, RatePlanCreateValues, RatePlanInput,
+    RatePlanUpdateInput, RatePlanUpdateValues, RatePlanWithRates, RoomRate, RoomRateBulkValues,
+    RoomRateCreateValues, RoomRateInput, RoomRateUpdateInput, RoomRateUpdateValues,
+    RoomRateWithDetails, RoomType,
 };
 use crate::repositories::rate::RateRepository;
 use crate::services::audit::AuditLog;
@@ -122,6 +123,56 @@ pub async fn delete_room_rate(pool: &DbPool, user_id: i64, rate_id: i64) -> Resu
 
 pub async fn room_types_for_rates(pool: &DbPool) -> Result<Vec<RoomType>, ApiError> {
     RateRepository::active_room_types(pool).await
+}
+
+/// Bulk band upsert behind the rate calendar's bulk editor: one band per
+/// room type, exact-bounds match repriced in place, otherwise inserted —
+/// all inside one transaction with a single audit event.
+pub async fn bulk_upsert_room_rates(
+    pool: &DbPool,
+    user_id: i64,
+    input: BulkRoomRateInput,
+) -> Result<Vec<RoomRate>, ApiError> {
+    let values = room_rate_bulk_values(input)?;
+    RateRepository::find_rate_plan(pool, values.rate_plan_id).await?;
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let mut upserted = Vec::with_capacity(values.room_type_ids.len());
+    for room_type_id in &values.room_type_ids {
+        let band = RateRepository::upsert_room_rate_band_tx(
+            &mut tx,
+            &RoomRateCreateValues {
+                rate_plan_id: values.rate_plan_id,
+                room_type_id: *room_type_id,
+                price: values.price,
+                effective_from: values.effective_from,
+                effective_to: Some(values.effective_to),
+            },
+        )
+        .await?;
+        upserted.push(band);
+    }
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        AuditEvent {
+            user_id: Some(user_id),
+            action: "room_rates_bulk_upsert",
+            resource_type: "rate_plan",
+            resource_id: Some(values.rate_plan_id),
+            details: Some(json!({
+                "room_type_ids": values.room_type_ids,
+                "effective_from": values.effective_from,
+                "effective_to": values.effective_to,
+                "price": values.price.to_string(),
+                "bands_written": upserted.len(),
+            })),
+            ..Default::default()
+        },
+    )
+    .await;
+    Ok(upserted)
 }
 
 pub async fn applicable_rate(
@@ -259,6 +310,35 @@ fn room_rate_create_values(input: RoomRateInput) -> Result<RoomRateCreateValues,
         price,
         effective_from,
         effective_to,
+    })
+}
+
+fn room_rate_bulk_values(input: BulkRoomRateInput) -> Result<RoomRateBulkValues, ApiError> {
+    let parse = |value: &str, label: &str| {
+        NaiveDate::parse_from_str(value, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest(format!("Invalid {label} date. Use YYYY-MM-DD")))
+    };
+    let (effective_from, effective_to) =
+        (parse(&input.effective_from, "effective_from")?, parse(&input.effective_to, "effective_to")?);
+    if input.room_type_ids.is_empty() {
+        return Err(ApiError::BadRequest(
+            "room_type_ids must not be empty".to_string(),
+        ));
+    }
+    if effective_from > effective_to {
+        return Err(ApiError::BadRequest(
+            "effective_from must not be after effective_to".to_string(),
+        ));
+    }
+    let price = Decimal::from_f64_retain(input.price)
+        .filter(|p| p.is_sign_positive() && !p.is_zero())
+        .ok_or_else(|| ApiError::BadRequest("price must be a positive number".to_string()))?;
+    Ok(RoomRateBulkValues {
+        rate_plan_id: input.rate_plan_id,
+        room_type_ids: input.room_type_ids,
+        effective_from,
+        effective_to,
+        price,
     })
 }
 

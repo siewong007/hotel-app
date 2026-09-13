@@ -37,7 +37,7 @@ describe('PromotionsApi', () => {
       page: 2,
       page_size: 25,
       search: 'summer',
-      status: 'published',
+      status: 'live',
       promotion_kind: 'voucher',
     });
 
@@ -46,7 +46,7 @@ describe('PromotionsApi', () => {
       page: '2',
       page_size: '25',
       search: 'summer',
-      status: 'published',
+      status: 'live',
       promotion_kind: 'voucher',
     });
 
@@ -70,6 +70,8 @@ describe('PromotionsApi', () => {
       per_guest_limit: 1,
       is_public: true,
       room_type_ids: [],
+      booking_channel_ids: [],
+      loyalty_tier_ids: [],
     });
     await PromotionsApi.update(17, { name: 'Updated summer stay', expected_version: 4 });
     await PromotionsApi.transition(17, 'publish', { expected_version: 4 });

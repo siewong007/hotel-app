@@ -12,7 +12,8 @@ use super::models::{
     OnlineInventoryQuery, RoomTypeInventory, UpdateOnlineInventoryRequest, VoucherPricing,
 };
 use super::repository::{
-    GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionValues,
+    GuestBookingRepository as Repository, VoucherEligibilityQuery, VoucherRedemptionAllocation,
+    VoucherRedemptionValues,
 };
 use super::validation::{
     ValidatedStay, validate_anonymous_guest, validate_client_request_id,
@@ -31,6 +32,9 @@ use crate::modules::consent::service::{self as consent_service, ConsentContext, 
 use crate::modules::consent::validation as consent_validation;
 use crate::services::audit::AuditLog;
 use crate::services::google_identity::ProfileCompletion;
+use crate::services::promotion_pricing::{
+    PromotionDiscount, PromotionPricing, calculate_promotion_pricing,
+};
 use crate::services::profile::completion_for_guest;
 use crate::utils::sanitization::Sanitizer;
 
@@ -212,34 +216,119 @@ async fn complimentary_context(
 ///
 /// Credits settle their nights first, then the voucher discounts whatever is
 /// still payable — so the two can never combine to push the total below zero.
-/// Returns `(discount_amount, total_amount)`, where `discount_amount` is the
-/// combined discount that keeps `total = subtotal - discount` true for the
-/// booking row.
-fn settlement(
-    subtotal: Decimal,
+/// `discount_amount` is the combined discount that keeps
+/// `total = subtotal - discount` true for the booking row; `total_amount` is
+/// the room total before tourism tax. All voucher math delegates to the shared
+/// promotion-pricing engine.
+struct Settlement {
+    /// Combined discount (credits + voucher); stored on `bookings.discount_amount`.
+    discount_amount: Decimal,
+    /// Room total before tourism tax: `subtotal - discount_amount`.
+    total_amount: Decimal,
+    /// Credit-funded share of `discount_amount`.
     complimentary_discount: Decimal,
+    /// Engine result for the voucher — the quote carries it so `create()`
+    /// persists exactly the nightly split the guest was shown.
+    voucher_pricing: Option<PromotionPricing>,
+}
+
+/// Per-night payable amounts: comped nights contribute zero (credits settle
+/// them first), so a voucher only discounts what the guest still owes.
+fn payable_nightly_amounts(
+    nightly_rates: &[NightlyRate],
+    complimentary_dates: &[NaiveDate],
+) -> Vec<Decimal> {
+    nightly_rates
+        .iter()
+        .map(|rate| {
+            if complimentary_dates.contains(&rate.date) {
+                Decimal::ZERO
+            } else {
+                rate.amount
+            }
+        })
+        .collect()
+}
+
+/// Run the shared pricing engine for a voucher against the payable nights.
+/// Eligibility already validated the promotion's ranges, so an engine error
+/// here is a bug, not bad input.
+fn voucher_pricing(
+    nightly_rates: &[NightlyRate],
+    complimentary_dates: &[NaiveDate],
+    voucher: &VoucherPricing,
+) -> Result<PromotionPricing, ApiError> {
+    let discount = match voucher.discount_type.as_str() {
+        "percentage" => {
+            PromotionDiscount::percentage(voucher.discount_value, voucher.max_discount_amount)
+        }
+        _ => PromotionDiscount::fixed(voucher.discount_value, voucher.max_discount_amount),
+    };
+    calculate_promotion_pricing(
+        &payable_nightly_amounts(nightly_rates, complimentary_dates),
+        discount,
+        2,
+    )
+    .map_err(|error| ApiError::Internal(format!("Voucher pricing failed: {error}")))
+}
+
+fn settlement(
+    nightly_rates: &[NightlyRate],
+    complimentary_dates: &[NaiveDate],
     voucher: Option<&VoucherPricing>,
-) -> (Decimal, Decimal) {
-    let payable_subtotal = (subtotal - complimentary_discount).max(Decimal::ZERO);
-    let voucher_amount = voucher
-        .map(|voucher| voucher_discount(payable_subtotal, voucher))
+) -> Result<Settlement, ApiError> {
+    let subtotal = nightly_rates
+        .iter()
+        .fold(Decimal::ZERO, |total, rate| total + rate.amount)
+        .round_dp(2);
+    let complimentary_discount = complimentary_discount(nightly_rates, complimentary_dates);
+    let voucher_pricing = voucher
+        .map(|voucher| voucher_pricing(nightly_rates, complimentary_dates, voucher))
+        .transpose()?;
+    let voucher_amount = voucher_pricing
+        .as_ref()
+        .map(|pricing| pricing.discount)
         .unwrap_or(Decimal::ZERO);
     let discount_amount = (complimentary_discount + voucher_amount).round_dp(2);
     let total_amount = (subtotal - discount_amount).round_dp(2);
-    (discount_amount, total_amount)
+    Ok(Settlement {
+        discount_amount,
+        total_amount,
+        complimentary_discount,
+        voucher_pricing,
+    })
 }
 
-fn voucher_discount(subtotal: Decimal, voucher: &VoucherPricing) -> Decimal {
-    let discount = if voucher.discount_type == "percentage" {
-        subtotal * voucher.discount_value / Decimal::from(100)
-    } else {
-        voucher.discount_value
-    };
-    let discount = voucher
-        .max_discount_amount
-        .map(|maximum| discount.min(maximum))
-        .unwrap_or(discount);
-    discount.min(subtotal).max(Decimal::ZERO).round_dp(2)
+/// Split a redemption across stay nights: comped nights record their full
+/// rate as discount (settled by credits), payable nights record the voucher
+/// share the engine allocated. Order matches `nightly_rates`, and the sums
+/// always reconcile with the parent `voucher_redemptions` row.
+fn nightly_redemption_allocations(
+    nightly_rates: &[NightlyRate],
+    complimentary_dates: &[NaiveDate],
+    voucher_pricing: Option<&PromotionPricing>,
+) -> Vec<VoucherRedemptionAllocation> {
+    nightly_rates
+        .iter()
+        .enumerate()
+        .map(|(index, rate)| {
+            let credit_share = if complimentary_dates.contains(&rate.date) {
+                rate.amount
+            } else {
+                Decimal::ZERO
+            };
+            let voucher_share = voucher_pricing
+                .map(|pricing| pricing.nights[index].discount)
+                .unwrap_or(Decimal::ZERO);
+            let discount_amount = credit_share + voucher_share;
+            VoucherRedemptionAllocation {
+                stay_date: rate.date,
+                gross_amount: rate.amount,
+                discount_amount,
+                net_amount: rate.amount - discount_amount,
+            }
+        })
+        .collect()
 }
 
 async fn voucher_for_quote(
@@ -262,6 +351,9 @@ async fn voucher_for_quote(
             "Vouchers require a signed-in account.".to_string(),
         ));
     };
+    // Channel targeting resolves against the portal's own channel — this path
+    // is the guest portal, so the channel is always the direct one.
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
     Repository::eligible_voucher(
         pool,
         voucher_id,
@@ -273,6 +365,7 @@ async fn voucher_for_quote(
             nights: (stay.check_out_date - stay.check_in_date).num_days(),
             subtotal,
             currency,
+            booking_channel_id,
         },
     )
     .await
@@ -299,7 +392,6 @@ async fn quote_for_inventory(
         .iter()
         .fold(Decimal::ZERO, |total, rate| total + rate.amount)
         .round_dp(2);
-    let complimentary_discount = complimentary_discount(&nightly_rates, &complimentary.dates);
     // Voucher eligibility (min-spend and the like) still reads the gross
     // subtotal, so applying credits never changes which vouchers qualify.
     let voucher = voucher_for_quote(
@@ -312,8 +404,9 @@ async fn quote_for_inventory(
         voucher_id,
     )
     .await?;
-    let (discount_amount, room_total) =
-        settlement(subtotal, complimentary_discount, voucher.as_ref());
+    let settled = settlement(&nightly_rates, &complimentary.dates, voucher.as_ref())?;
+    let discount_amount = settled.discount_amount;
+    let room_total = settled.total_amount;
     // Room prices are tax-inclusive. `tax_amount` here is tourism tax for a
     // foreign guest, billed on top of the room total (same levy the front
     // desk stores on `bookings.tourism_tax_amount`).
@@ -352,9 +445,10 @@ async fn quote_for_inventory(
         voucher_is_cancellable: voucher.as_ref().map(|voucher| voucher.is_cancellable),
         complimentary_nights: complimentary.dates.len() as i32,
         complimentary_dates: complimentary.dates.clone(),
-        complimentary_discount,
+        complimentary_discount: settled.complimentary_discount,
         credits_available: complimentary.credits_available,
         hold_release_hours,
+        voucher_pricing: settled.voucher_pricing,
     })
 }
 
@@ -527,6 +621,7 @@ pub async fn quote_with_eligible_vouchers(
         },
     )
     .await?;
+    let booking_channel_id = Repository::direct_booking_channel(pool).await?;
     let eligible_voucher_ids = Repository::eligible_voucher_ids(
         pool,
         VoucherEligibilityQuery {
@@ -537,6 +632,7 @@ pub async fn quote_with_eligible_vouchers(
             nights: (quote.check_out_date - quote.check_in_date).num_days(),
             subtotal: quote.subtotal,
             currency: &quote.currency,
+            booking_channel_id,
         },
     )
     .await?;
@@ -898,6 +994,7 @@ pub async fn create(
                     nights: (quote.check_out_date - quote.check_in_date).num_days(),
                     subtotal: quote.subtotal,
                     currency: &quote.currency,
+                    booking_channel_id,
                 },
             )
             .await?,
@@ -1018,6 +1115,11 @@ pub async fn create(
                 subtotal: quote.subtotal,
                 discount_amount: quote.discount_amount,
                 total_amount: quote.total_amount,
+                allocations: nightly_redemption_allocations(
+                    &quote.nightly_rates,
+                    &quote.complimentary_dates,
+                    quote.voucher_pricing.as_ref(),
+                ),
             },
         )
         .await?;
@@ -1680,38 +1782,32 @@ mod anonymous_access_token_expiry_tests {
 mod tests {
     use super::*;
 
-    #[test]
-    fn percentage_voucher_is_capped() {
-        let voucher = VoucherPricing {
+    fn voucher(kind: &str, value: i64, cap: Option<i64>) -> VoucherPricing {
+        VoucherPricing {
             voucher_id: 1,
             promotion_id: 2,
             promotion_name: "Deal".to_string(),
-            discount_type: "percentage".to_string(),
-            discount_value: Decimal::from(25),
-            max_discount_amount: Some(Decimal::from(10)),
+            discount_type: kind.to_string(),
+            discount_value: Decimal::from(value),
+            max_discount_amount: cap.map(Decimal::from),
             is_cancellable: true,
-        };
-        assert_eq!(
-            voucher_discount(Decimal::from(100), &voucher),
-            Decimal::from(10)
-        );
+        }
+    }
+
+    #[test]
+    fn percentage_voucher_is_capped() {
+        let rates = vec![rate(10, 100)];
+        let pricing =
+            voucher_pricing(&rates, &[], &voucher("percentage", 25, Some(10))).unwrap();
+        assert_eq!(pricing.discount, Decimal::from(10));
     }
 
     #[test]
     fn fixed_voucher_cannot_make_total_negative() {
-        let voucher = VoucherPricing {
-            voucher_id: 1,
-            promotion_id: 2,
-            promotion_name: "Deal".to_string(),
-            discount_type: "fixed_amount".to_string(),
-            discount_value: Decimal::from(250),
-            max_discount_amount: None,
-            is_cancellable: true,
-        };
-        assert_eq!(
-            voucher_discount(Decimal::from(100), &voucher),
-            Decimal::from(100)
-        );
+        let rates = vec![rate(10, 100)];
+        let pricing =
+            voucher_pricing(&rates, &[], &voucher("fixed_amount", 250, None)).unwrap();
+        assert_eq!(pricing.discount, Decimal::from(100));
     }
 
     fn date(day: u32) -> NaiveDate {
@@ -1746,59 +1842,62 @@ mod tests {
     #[test]
     fn credits_covering_every_night_leave_nothing_to_pay() {
         let rates = vec![rate(10, 100), rate(11, 300)];
-        let comped = complimentary_discount(&rates, &[date(10), date(11)]);
-        let (discount, total) = settlement(Decimal::from(400), comped, None);
-        assert_eq!(discount, Decimal::from(400));
-        assert_eq!(total, Decimal::ZERO);
+        let settled = settlement(&rates, &[date(10), date(11)], None).unwrap();
+        assert_eq!(settled.discount_amount, Decimal::from(400));
+        assert_eq!(settled.total_amount, Decimal::ZERO);
     }
 
     #[test]
     fn percentage_voucher_discounts_only_what_credits_left_payable() {
         // 400 stay, one 300 night comped -> 100 payable, 25% off that is 25.
-        let voucher = VoucherPricing {
-            voucher_id: 1,
-            promotion_id: 2,
-            promotion_name: "Deal".to_string(),
-            discount_type: "percentage".to_string(),
-            discount_value: Decimal::from(25),
-            max_discount_amount: None,
-            is_cancellable: true,
-        };
-        let (discount, total) = settlement(Decimal::from(400), Decimal::from(300), Some(&voucher));
-        assert_eq!(discount, Decimal::from(325));
-        assert_eq!(total, Decimal::from(75));
+        let rates = vec![rate(10, 100), rate(11, 300)];
+        let settled = settlement(&rates, &[date(11)], Some(&voucher("percentage", 25, None)))
+            .unwrap();
+        assert_eq!(settled.discount_amount, Decimal::from(325));
+        assert_eq!(settled.total_amount, Decimal::from(75));
     }
 
     #[test]
     fn credits_and_voucher_together_never_produce_a_negative_total() {
-        let voucher = VoucherPricing {
-            voucher_id: 1,
-            promotion_id: 2,
-            promotion_name: "Deal".to_string(),
-            discount_type: "fixed_amount".to_string(),
-            discount_value: Decimal::from(500),
-            max_discount_amount: None,
-            is_cancellable: true,
-        };
-        let (discount, total) = settlement(Decimal::from(400), Decimal::from(300), Some(&voucher));
-        assert_eq!(discount, Decimal::from(400));
-        assert_eq!(total, Decimal::ZERO);
+        let rates = vec![rate(10, 100), rate(11, 300)];
+        let settled =
+            settlement(&rates, &[date(11)], Some(&voucher("fixed_amount", 500, None))).unwrap();
+        assert_eq!(settled.discount_amount, Decimal::from(400));
+        assert_eq!(settled.total_amount, Decimal::ZERO);
     }
 
     #[test]
     fn a_stay_with_no_credits_prices_exactly_as_before() {
-        let voucher = VoucherPricing {
-            voucher_id: 1,
-            promotion_id: 2,
-            promotion_name: "Deal".to_string(),
-            discount_type: "percentage".to_string(),
-            discount_value: Decimal::from(10),
-            max_discount_amount: None,
-            is_cancellable: true,
-        };
-        let (discount, total) = settlement(Decimal::from(400), Decimal::ZERO, Some(&voucher));
-        assert_eq!(discount, Decimal::from(40));
-        assert_eq!(total, Decimal::from(360));
+        let rates = vec![rate(10, 100), rate(11, 300)];
+        let settled = settlement(&rates, &[], Some(&voucher("percentage", 10, None))).unwrap();
+        assert_eq!(settled.discount_amount, Decimal::from(40));
+        assert_eq!(settled.total_amount, Decimal::from(360));
+    }
+
+    #[test]
+    fn voucher_allocations_reconcile_with_stay_totals() {
+        // 600 stay: the 300 night comped, a 10% voucher on the 300 payable -> 30.
+        let rates = vec![rate(10, 100), rate(11, 300), rate(12, 200)];
+        let settled = settlement(&rates, &[date(11)], Some(&voucher("percentage", 10, None)))
+            .unwrap();
+        let rows = nightly_redemption_allocations(
+            &rates,
+            &[date(11)],
+            settled.voucher_pricing.as_ref(),
+        );
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].gross_amount, Decimal::from(100));
+        assert_eq!(rows[0].discount_amount, Decimal::from(10));
+        assert_eq!(rows[0].net_amount, Decimal::from(90));
+        // The comped night records its full rate as discount (settled by credits).
+        assert_eq!(rows[1].gross_amount, Decimal::from(300));
+        assert_eq!(rows[1].discount_amount, Decimal::from(300));
+        assert_eq!(rows[1].net_amount, Decimal::ZERO);
+        assert_eq!(rows[2].discount_amount, Decimal::from(20));
+        let sum_discount: Decimal = rows.iter().map(|row| row.discount_amount).sum();
+        let sum_net: Decimal = rows.iter().map(|row| row.net_amount).sum();
+        assert_eq!(sum_discount, settled.discount_amount);
+        assert_eq!(sum_net, settled.total_amount);
     }
 
     #[test]
