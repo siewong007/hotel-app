@@ -177,11 +177,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   reserved_dirty: {
-    color: 'warning',
-    bgColor: 'var(--hotel-warning-bg)',
-    textColor: 'var(--hotel-warning)',
-    borderColor: 'var(--hotel-warning-border)',
-    accentColor: 'var(--hotel-warning)',
+    // Visual - violet tone (reserved + dirty blend; distinct from both)
+    color: 'secondary',
+    bgColor: 'var(--hotel-violet-bg)',
+    textColor: 'var(--hotel-violet)',
+    borderColor: 'var(--hotel-violet-border)',
+    accentColor: 'var(--hotel-violet)',
 
     label: 'Reserved / Dirty',
     shortLabel: 'Res Dirty',
@@ -199,12 +200,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   dirty: {
-    // Visual - warning tone
+    // Visual - orange tone (needs cleaning; distinct from occupied amber)
     color: 'warning',
-    bgColor: 'var(--hotel-warning-bg)',
-    textColor: 'var(--hotel-warning)',
-    borderColor: 'var(--hotel-warning-border)',
-    accentColor: 'var(--hotel-warning)',
+    bgColor: 'var(--hotel-orange-bg)',
+    textColor: 'var(--hotel-orange)',
+    borderColor: 'var(--hotel-orange-border)',
+    accentColor: 'var(--hotel-orange)',
 
     // Content
     label: 'Dirty',
@@ -225,12 +226,12 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   maintenance: {
-    // Visual - neutral tone
-    color: 'default',
-    bgColor: 'var(--hotel-neutral-bg)',
-    textColor: 'var(--hotel-neutral)',
-    borderColor: 'var(--hotel-neutral-border)',
-    accentColor: 'var(--hotel-neutral)',
+    // Visual - danger tone (room blocked; consistent with timeline)
+    color: 'error',
+    bgColor: 'var(--hotel-danger-bg)',
+    textColor: 'var(--hotel-danger)',
+    borderColor: 'var(--hotel-danger-border)',
+    accentColor: 'var(--hotel-danger)',
 
     // Content
     label: 'Maintenance',

@@ -73,8 +73,10 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
         return 'var(--hotel-info)';
       case 'cleaning':
         return 'var(--hotel-info)';
+      case 'dirty':
+        return 'var(--hotel-orange)';
       case 'reserved_dirty':
-        return 'var(--hotel-warning)';
+        return 'var(--hotel-violet)';
       case 'maintenance':
         return 'var(--hotel-danger)';
       case 'change_room':
