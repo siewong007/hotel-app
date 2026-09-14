@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fmtCompactMoney, fmtInt, fmtPct, fmtShortDate } from './format';
+import { fmtCompactMoney, fmtInt, fmtPct, fmtShortDate, thinTicks } from './format';
 
 describe('chart formatters', () => {
   it('fmtCompactMoney abbreviates thousands and millions', () => {
@@ -24,5 +24,15 @@ describe('chart formatters', () => {
   it('fmtShortDate renders day + short month', () => {
     expect(fmtShortDate('2026-09-14')).toBe('14 Sep');
     expect(fmtShortDate('not-a-date')).toBe('not-a-date');
+  });
+
+  it('thinTicks keeps first/last and caps the count', () => {
+    const days = Array.from({ length: 90 }, (_, i) => `d${i}`);
+    const ticks = thinTicks(days);
+    expect(ticks.length).toBeLessThanOrEqual(8);
+    expect(ticks[0]).toBe('d0');
+    expect(ticks[ticks.length - 1]).toBe('d89');
+    expect(thinTicks(['a', 'b'])).toEqual(['a', 'b']);
+    expect(thinTicks([])).toEqual([]);
   });
 });

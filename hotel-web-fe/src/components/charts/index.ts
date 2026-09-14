@@ -1,5 +1,5 @@
 export { useChartTheme, type ChartTheme } from './theme';
-export { fmtCompactMoney, fmtInt, fmtMoney, fmtPct, fmtShortDate } from './format';
+export { fmtCompactMoney, fmtInt, fmtMoney, fmtPct, fmtShortDate, thinTicks } from './format';
 export { ChartEmpty, ChartError, ChartLoading, ChartStateGate } from './states';
 export { HotelBarChart, type HotelBarChartProps } from './HotelBarChart';
 export { HotelLineChart, type HotelLineChartProps } from './HotelLineChart';

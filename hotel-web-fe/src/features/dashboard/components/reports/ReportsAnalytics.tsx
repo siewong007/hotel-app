@@ -12,6 +12,7 @@ import {
   HotelPieChart,
   HotelSparkline,
   fmtShortDate,
+  thinTicks,
   useChartTheme,
 } from '../../../../components/charts';
 import { Icon, IconName } from './Icon';
@@ -322,7 +323,7 @@ const ReportsAnalyticsInner: React.FC = () => {
                     ]}
                     enableArea
                     areaOpacity={0.14}
-                    axisBottom={{ format: fmtShortDate, tickValues: model.daily.filter((_, i) => i % 5 === 0).map((d) => d.date) }}
+                    axisBottom={{ format: fmtShortDate, tickValues: thinTicks(model.daily.map((d) => d.date)) }}
                     axisLeft={{ format: fmtMoneyK }}
                     sliceTooltip={({ slice }) => (
                       <div>
@@ -398,7 +399,7 @@ const ReportsAnalyticsInner: React.FC = () => {
                   enableArea
                   areaOpacity={0.16}
                   yScale={{ type: 'linear', min: 0, max: 100, stacked: false }}
-                  axisBottom={{ format: fmtShortDate, tickValues: model.daily.filter((_, i) => i % 5 === 0).map((d) => d.date) }}
+                  axisBottom={{ format: fmtShortDate, tickValues: thinTicks(model.daily.map((d) => d.date)) }}
                   axisLeft={{ format: (v) => fmtPct(Number(v), 0) }}
                   sliceTooltip={({ slice }) => (
                     <div>

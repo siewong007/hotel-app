@@ -9,6 +9,7 @@ import {
   fmtMoney,
   fmtPct,
   fmtShortDate,
+  thinTicks,
 } from '../../../components/charts';
 import { formatHotelDate } from '../../../utils/date';
 import type { RevenueDailyPoint } from '../types';
@@ -47,6 +48,8 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
     [daily],
   );
 
+  const dayTicks = useMemo(() => thinTicks(daily.map((p) => p.date)), [daily]);
+
   return (
     <Card>
       <CardHeader title="Occupancy & room nights" subheader="By stay date" />
@@ -58,7 +61,7 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
             keys={['Room nights']}
             indexBy="date"
             ariaLabel="Room nights sold per stay date"
-            axisBottom={{ format: fmtShortDate }}
+            axisBottom={{ format: fmtShortDate, tickValues: dayTicks }}
             axisLeft={{ format: fmtInt }}
             enableLabel={false}
             tooltip={({ indexValue, data: d }) => (
@@ -76,7 +79,7 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({ daily }) => {
             data={occupancySeries}
             ariaLabel="Occupancy rate per stay date"
             yScale={{ type: 'linear', min: 0, max: 100, stacked: false }}
-            axisBottom={{ format: fmtShortDate }}
+            axisBottom={{ format: fmtShortDate, tickValues: dayTicks }}
             axisLeft={{ format: (v) => fmtPct(Number(v), 0) }}
             enableArea
             areaOpacity={0.16}

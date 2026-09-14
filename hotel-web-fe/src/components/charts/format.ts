@@ -28,3 +28,14 @@ export const fmtShortDate = (isoDay: string): string => {
     ? isoDay
     : `${d.getDate()} ${d.toLocaleString('en', { month: 'short' })}`;
 };
+
+/** Thin a dense date/category domain to ~maxTicks evenly spaced entries,
+ *  always keeping first and last — pass as `axisBottom.tickValues` so labels
+ *  never overlap on long ranges. */
+export const thinTicks = <T>(values: T[], maxTicks = 8): T[] => {
+  if (values.length <= maxTicks) return values;
+  const step = (values.length - 1) / (maxTicks - 1);
+  const keep = new Set<number>();
+  for (let i = 0; i < maxTicks; i++) keep.add(Math.round(i * step));
+  return values.filter((_, i) => keep.has(i));
+};
