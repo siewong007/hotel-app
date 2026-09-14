@@ -62,6 +62,38 @@ describe('InvoicesService.revertDepositRefund', () => {
   });
 });
 
+describe('InvoicesService.revertDepositVoid', () => {
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  it('POSTs to the revert-deposit-void endpoint for the booking', async () => {
+    const responsePayload = {
+      booking_id: 42,
+      reverted_payment_id: 7,
+      deposit_restored: true,
+    };
+    post.mockReturnValue({ json: () => Promise.resolve(responsePayload) });
+
+    const result = await InvoicesService.revertDepositVoid(42);
+
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledWith('payments/revert-deposit-void/42');
+    expect(result).toEqual(responsePayload);
+  });
+
+  it('surfaces backend error messages as an APIError', async () => {
+    const httpError = buildKyHttpError(400, { error: 'No voided deposit to revert' });
+    post.mockReturnValue({ json: () => Promise.reject(httpError) });
+
+    await expect(InvoicesService.revertDepositVoid(42)).rejects.toMatchObject({
+      message: 'No voided deposit to revert',
+      statusCode: 400,
+    });
+    await expect(InvoicesService.revertDepositVoid(42)).rejects.toBeInstanceOf(APIError);
+  });
+});
+
 describe('InvoicesService.recordPayment', () => {
   beforeEach(() => {
     post.mockReset();
