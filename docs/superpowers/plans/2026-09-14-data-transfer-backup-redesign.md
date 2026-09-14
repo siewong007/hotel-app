@@ -62,7 +62,7 @@ applied to the bookkeeping table only.
 
 ## Format — `hotel-backup` v3 (single JSON document)
 
-File: `saliminn-backup-<YYYY-MM-DDTHHMMSSZ>.json`, `application/json`, one object:
+File: `saliminn-backup-<YYYYmmddTHHMMSSZ>.json`, `application/json`, one object:
 
 ```json
 {

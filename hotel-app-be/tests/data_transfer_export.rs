@@ -275,6 +275,36 @@ async fn export_emits_the_v3_document() {
         );
     }
 
+    // --- coverage: nothing is silently omitted. Every table the catalog
+    // introspection can see must be declared, either as a transferable entity
+    // or as a named exclusion. A future schema table missing from both lists
+    // would otherwise drop out of the manifest with no signal.
+    // `_`-prefixed names are scratch/non-schema by convention (e.g. a manual
+    // `_legacy_*_backfill` left in a dev database) — never part of the schema,
+    // so they sit outside the declaration contract.
+    let declared: std::collections::HashSet<&str> = entity_names
+        .iter()
+        .copied()
+        .chain(
+            exclusions
+                .iter()
+                .filter_map(|exclusion| exclusion["name"].as_str()),
+        )
+        .collect();
+    let catalog = DataTransferRepository::transfer_tables(&pool)
+        .await
+        .expect("transfer_tables must run against the live catalog");
+    let undeclared: Vec<String> = catalog
+        .iter()
+        .map(|table| table.table.key())
+        .filter(|key| !key.rsplit('.').next().is_some_and(|name| name.starts_with('_')))
+        .filter(|key| !declared.contains(key.as_str()))
+        .collect();
+    assert!(
+        undeclared.is_empty(),
+        "catalog tables missing from both manifest.entities and manifest.exclusions: {undeclared:?}"
+    );
+
     // --- tables: every entity emitted, alphabetical on the wire ---
     let tables = document["tables"]
         .as_object()
