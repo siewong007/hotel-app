@@ -1,4 +1,4 @@
-import { Alert, Box, CircularProgress, Grid, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Grid, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 import { useNavigate } from '../../../router';
 import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
@@ -57,7 +57,21 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
 
   if (error) {
     return (
-      <Alert severity="error" role="alert">
+      <Alert
+        severity="error"
+        role="alert"
+        action={
+          <Button
+            color="inherit"
+            size="small"
+            onClick={() =>
+              void (isPortal ? portalQuery.refetch() : publicQuery.refetch())
+            }
+          >
+            {t('common:actions.retry')}
+          </Button>
+        }
+      >
         {guestErrorMessage(error, t('offers.loadFailed'))}
       </Alert>
     );

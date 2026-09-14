@@ -724,7 +724,7 @@ function BookingDetailsDialog({
           <Typography><strong>{t("dashboard.bookings.details.total")}:</strong> {formatPortalCurrency(booking.total_amount)}</Typography>
         </Stack>
         {hasReceipt ? (
-          <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "success.50" }}>
+          <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "var(--hotel-success-bg)", borderColor: "var(--hotel-success-border)" }}>
             <Stack
               direction="row"
               spacing={2}

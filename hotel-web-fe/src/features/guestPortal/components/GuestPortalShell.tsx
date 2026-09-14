@@ -191,9 +191,8 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           position="sticky"
           elevation={0}
           sx={{
-            bgcolor: 'var(--hotel-text)',
+            bgcolor: FOREST,
             borderBottom: '1px solid color-mix(in srgb, var(--hotel-primary) 30%, transparent)',
-            
           }}
         >
           <Container maxWidth="xl" disableGutters>
