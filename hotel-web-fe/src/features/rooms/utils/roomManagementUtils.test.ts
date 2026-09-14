@@ -165,11 +165,12 @@ describe('roomManagementUtils', () => {
     ]);
     expect(validateCreditDateSelection('2026-06-15', '2026-06-18', ranges)).toEqual({
       valid: false,
-      message: expect.stringContaining('already reserved'),
+      messageKey: 'validation.dateReserved',
+      vars: { date: expect.any(String) },
     });
     expect(validateCreditDateSelection('2026-06-17', '2026-06-18', ranges)).toEqual({
       valid: true,
-      message: '',
+      messageKey: '',
     });
   });
 

@@ -4,6 +4,7 @@ import { BookingsService } from '../../../api';
 import type { BookingWithDetails } from '../../../types';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { errorMessage } from '../../../utils/errorMessage';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 interface UseBookingNotesParams {
   reload: () => Promise<void> | void;
@@ -15,6 +16,7 @@ interface StoppableEvent {
 }
 
 export function useBookingNotes({ reload, showSnackbar }: UseBookingNotesParams) {
+  const { t } = useTranslation('rooms');
   const [bookingNotesDialogOpen, setBookingNotesDialogOpen] = useState(false);
   const [bookingNotesEditBooking, setBookingNotesEditBooking] = useState<BookingWithDetails | null>(null);
   const [editedBookingNotes, setEditedBookingNotes] = useState('');
@@ -46,18 +48,18 @@ export function useBookingNotes({ reload, showSnackbar }: UseBookingNotesParams)
         remarks: editedBookingNotes,
         cleaning_preference: editedCleaningPreference,
       });
-      showSnackbar('Notes updated successfully', 'success');
+      showSnackbar(t('notifications.bookingNotesUpdated'), 'success');
       setBookingNotesDialogOpen(false);
       setBookingNotesEditBooking(null);
       setEditedBookingNotes('');
       setEditedCleaningPreference(null);
       await reload();
     } catch (error) {
-      showSnackbar(errorMessage(error, 'Failed to update notes'), 'error');
+      showSnackbar(errorMessage(error, t('errors.updateNotes')), 'error');
     } finally {
       setSavingBookingNotes(false);
     }
-  }, [bookingNotesEditBooking, editedBookingNotes, editedCleaningPreference, reload, showSnackbar]);
+  }, [bookingNotesEditBooking, editedBookingNotes, editedCleaningPreference, reload, showSnackbar, t]);
 
   return {
     bookingNotesDialogOpen,

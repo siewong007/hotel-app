@@ -9,6 +9,7 @@ import {
 } from '@mui/icons-material';
 import { ChipPropsColorOverrides } from '@mui/material/Chip';
 import { OverridableStringUnion } from '@mui/types';
+import type { UseTranslationResult } from '../../i18n/useTranslation';
 
 /**
  * Room Status Type Definition
@@ -523,3 +524,73 @@ export function getUnifiedStatusShortLabel(status: string): string {
   // Return the status as-is for unknown statuses
   return status;
 }
+
+// ---------------------------------------------------------------------------
+// Localized status labels
+//
+// Translation-key counterparts of the English `label`/`shortLabel`/
+// `description`/`detailMessage`/`actionLabel` fields baked into the config
+// objects above. The config fields stay as the non-React fallback (and the
+// English reference); components should prefer these t-aware getters so the
+// board follows the active interface language.
+// ---------------------------------------------------------------------------
+
+type StatusTranslate = UseTranslationResult['t'];
+
+const humanizeStatusValue = (value: string): string =>
+  value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** Display bucket a status folds into — booking statuses map to room ones. */
+const displayStatusKey = (status: string): string => {
+  const bookingConfig = BOOKING_STATUS_CONFIG[status as BookingStatusType];
+  if (bookingConfig) {
+    return bookingConfig.displayAs;
+  }
+  if (status in ROOM_STATUS_CONFIG) {
+    return status;
+  }
+  return status;
+};
+
+const translatedStatus = (
+  t: StatusTranslate,
+  group:
+    | 'statusLabels'
+    | 'statusShort'
+    | 'statusDescriptions'
+    | 'statusDetails'
+    | 'statusActions',
+  status: string
+): string => {
+  const key = displayStatusKey(status);
+  const translated = t(`${group}.${key}`);
+  // A missing key renders as its last path segment (the status key itself) —
+  // humanize the original status rather than leak an enum verbatim.
+  return translated === key ? humanizeStatusValue(status) : translated;
+};
+
+/** Localized full status label — the `statuses` board display name. */
+export const getLocalizedStatusLabel = (t: StatusTranslate, status: string): string =>
+  translatedStatus(t, 'statusLabels', status);
+
+/** Localized short status label — compact chips, card pills, legends. */
+export const getLocalizedStatusShortLabel = (t: StatusTranslate, status: string): string =>
+  translatedStatus(t, 'statusShort', status);
+
+/** Localized long description — status chip tooltips. */
+export const getLocalizedStatusDescription = (t: StatusTranslate, status: string): string =>
+  translatedStatus(t, 'statusDescriptions', status);
+
+/** Localized detail message — one-line operational hint. */
+export const getLocalizedStatusDetail = (t: StatusTranslate, status: string): string =>
+  translatedStatus(t, 'statusDetails', status);
+
+/** Localized action label, or undefined when the status requires no action. */
+export const getLocalizedStatusAction = (
+  t: StatusTranslate,
+  status: RoomStatusType
+): string | undefined => {
+  const config = ROOM_STATUS_CONFIG[status];
+  if (!config?.requiresAction || !config.actionLabel) return undefined;
+  return translatedStatus(t, 'statusActions', status);
+};

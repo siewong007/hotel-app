@@ -19,6 +19,7 @@ import {
 import type { BookingWithDetails, Room } from '../../../../../types';
 import type { MenuLayout } from '../types';
 import type { RoomManagementStatusInfo } from '../../../hooks/useRoomManagementFilters';
+import { useTranslation } from '../../../../../i18n/useTranslation';
 import { getStatusAccentColor } from '../../../config';
 import { getRoomStatusColor, getRoomStatusLabel } from '../roomCardPresentation';
 import {
@@ -51,6 +52,7 @@ interface RoomMenuModel {
 }
 
 const deriveRoomMenuModel = (
+  t: ReturnType<typeof useTranslation>['t'],
   room: Room,
   getStatusInfo: (room: Room) => RoomManagementStatusInfo,
   getMenuLayout: (room: Room | null) => MenuLayout,
@@ -59,7 +61,7 @@ const deriveRoomMenuModel = (
   const layout = getMenuLayout(room);
   const displayRoom = { ...room, status: info.computedStatus };
   const statusColor = getRoomStatusColor(displayRoom);
-  const statusLabel = getRoomStatusLabel(displayRoom);
+  const statusLabel = getRoomStatusLabel(t, displayRoom);
   const activeBooking = info.booking || info.reservedBooking || null;
   const showAside = info.isOccupied || info.isReservedToday;
   const ratePerNight = getPositiveRatePerNight(activeBooking);
@@ -99,11 +101,13 @@ const RoomMenuSheet: React.FC<{
   onClose: () => void;
   model: RoomMenuModel | null;
   formatCurrency: (value: number) => string;
-}> = ({ open, onClose, model, formatCurrency }) => (
+}> = ({ open, onClose, model, formatCurrency }) => {
+  const { t } = useTranslation('rooms');
+  return (
   <BottomSheet
     open={open}
     onClose={onClose}
-    title={model ? `Room ${model.selectedRoom.room_number}` : undefined}
+    title={model ? t('contextMenu.roomTitle', { room: model.selectedRoom.room_number }) : undefined}
     headerAction={model ? <Box sx={{ ...statusPillSx(model), flexShrink: 0 }}>{model.statusLabel}</Box> : undefined}
   >
     {model && (() => {
@@ -123,22 +127,22 @@ const RoomMenuSheet: React.FC<{
             <Box sx={{ mt: 0.75, display: 'flex', flexDirection: 'column', gap: 0.25 }}>
               {ratePerNight != null && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {'Rate · '}
+                  {`${t('contextMenu.rate')} · `}
                   <Box component="span" sx={{ fontWeight: 800, color: 'text.primary' }}>
                     {formatCurrency(ratePerNight)}
                   </Box>
-                  {' per night'}
+                  {` ${t('contextMenu.perNight')}`}
                 </Typography>
               )}
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {`${info.isOccupied ? 'Current booking' : 'Next booking'} · `}
+                {`${info.isOccupied ? t('contextMenu.currentBooking') : t('contextMenu.nextBooking')} · `}
                 <Box component="span" sx={{ fontWeight: 700, color: 'text.primary' }}>
                   {formatMenuBookingDate(activeBooking.check_in_date)} – {formatMenuBookingDate(activeBooking.check_out_date)}
                 </Box>
                 {bookingByline && ` — ${bookingByline}`}
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                {'Housekeeping · '}
+                {`${t('contextMenu.housekeeping')} · `}
                 <Box component="span" sx={{ fontWeight: 700, color: statusColor }}>
                   {statusLabel}
                 </Box>
@@ -227,7 +231,8 @@ const RoomMenuSheet: React.FC<{
       );
     })()}
   </BottomSheet>
-);
+  );
+};
 
 const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
   menuPosition,
@@ -238,7 +243,8 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
   formatCurrency,
 }) => {
   const isPhone = useIsPhone();
-  const model = room ? deriveRoomMenuModel(room, getStatusInfo, getMenuLayout) : null;
+  const { t } = useTranslation('rooms');
+  const model = room ? deriveRoomMenuModel(t, room, getStatusInfo, getMenuLayout) : null;
 
   if (isPhone) {
     return (
@@ -279,7 +285,7 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
               <Box sx={{ px: 2, pt: 0.5, pb: 1.25 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
                   <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
-                    Room {selectedRoom.room_number}
+                    {t('contextMenu.roomTitle', { room: selectedRoom.room_number })}
                   </Typography>
                   <Box sx={statusPillSx(model)}>
                     {model.statusLabel}
@@ -386,20 +392,20 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                 {ratePerNight != null && (
                   <Box>
                     <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.6rem', letterSpacing: 1.2, lineHeight: 1.4 }}>
-                      Rate
+                      {t('contextMenu.rate')}
                     </Typography>
                     <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.2 }}>
                       {formatCurrency(ratePerNight)}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
-                      per night
+                      {t('contextMenu.perNight')}
                     </Typography>
                   </Box>
                 )}
 
                 <Box>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.6rem', letterSpacing: 1.2, lineHeight: 1.4 }}>
-                    {info.isOccupied ? 'Current Booking' : 'Next Booking'}
+                    {info.isOccupied ? t('contextMenu.currentBooking') : t('contextMenu.nextBooking')}
                   </Typography>
                   <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.3 }}>
                     {formatMenuBookingDate(activeBooking.check_in_date)} – {formatMenuBookingDate(activeBooking.check_out_date)}
@@ -411,7 +417,7 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
 
                 <Box>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.6rem', letterSpacing: 1.2, lineHeight: 1.4 }}>
-                    Housekeeping
+                    {t('contextMenu.housekeeping')}
                   </Typography>
                   <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: statusColor, lineHeight: 1.3 }}>
                     {model.statusLabel}
