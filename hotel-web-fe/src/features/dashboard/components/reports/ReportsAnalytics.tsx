@@ -1,41 +1,66 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Skeleton, Box } from '@mui/material';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { CollapsibleSection } from '../../../../components/common/CollapsibleSection';
 import { useAuth } from '../../../../auth/AuthContext';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
+import {
+  ChartStateGate,
+  HotelBarChart,
+  HotelLineChart,
+  HotelPieChart,
+  HotelSparkline,
+  fmtShortDate,
+  useChartTheme,
+} from '../../../../components/charts';
 import { Icon, IconName } from './Icon';
-import { Sparkline, Delta, LineAreaChart, Donut, BarRows } from './charts';
+import { AGEING_TONE, Delta } from './charts';
 import { ReportsFormatProvider, useReportsFormat } from './formatContext';
-import { useReportsModel, prevOf, Kpi, KpiKind, Unit } from './reportsModel';
+import { useReportsModel, Kpi, KpiKind, Unit, CompareMode, RangeDays, ReportsQuery } from './reportsModel';
 import { OutstandingDrawer, OccupancyDrawer, RevenueDrawer, FlowDrawer, DrawerState } from './drawers';
 import './reports.css';
 
-type Compare = 'prev' | 'month' | 'year';
-const COMPARE_CAPTION: Record<Compare, string> = {
-  prev: 'vs previous 30 days',
-  month: 'vs same period last month',
-  year: 'vs same period last year',
-};
+const RANGE_OPTIONS: { v: RangeDays; l: string }[] = [
+  { v: 7, l: '7 days' }, { v: 30, l: '30 days' }, { v: 90, l: '90 days' },
+];
+
+const compareCaption = (compare: CompareMode, rangeDays: RangeDays): string =>
+  compare === 'month'
+    ? 'vs same period last month'
+    : compare === 'year'
+      ? 'vs same period last year'
+      : `vs previous ${rangeDays} days`;
 
 // ---------- small presentational atoms ----------
-const Seg: React.FC<{ value: Compare; onChange: (v: Compare) => void; options: { v: Compare; l: string }[] }> = ({ value, onChange, options }) => (
-  <div className="seg">
-    {options.map((o) => (
-      <button key={o.v} className={value === o.v ? 'is-on' : ''} onClick={() => onChange(o.v)}>{o.l}</button>
-    ))}
-  </div>
-);
+function Seg<T extends string | number>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { v: T; l: string }[] }) {
+  return (
+    <div className="seg">
+      {options.map((o) => (
+        <button key={String(o.v)} className={value === o.v ? 'is-on' : ''} onClick={() => onChange(o.v)}>{o.l}</button>
+      ))}
+    </div>
+  );
+}
 
-const FPill: React.FC<{ icon?: IconName; label: string; value?: string; dot?: string }> = ({ icon, label, value, dot }) => (
-  <button className="fpill">
-    {icon && <Icon name={icon} size={14} />}
-    {dot && <span className="fdot" style={{ background: dot }} />}
+/** A real filter control in the old fpill shape: icon + label + <select>. */
+const FSelect: React.FC<{
+  icon: IconName;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}> = ({ icon, label, value, onChange, options }) => (
+  <label className="fpill fpill-select">
+    <Icon name={icon} size={14} />
     <span className="fl">{label}</span>
-    {value && <span className="fv">{value}</span>}
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
     <Icon name="chev-down" size={13} />
-  </button>
+  </label>
 );
 
 const Locked: React.FC<{ children: React.ReactNode; label?: string }> = ({ children, label }) => (
@@ -116,12 +141,11 @@ const LiveTile: React.FC<{ icon: IconName; n: React.ReactNode; label: string; to
 
 interface KpiCardProps {
   icon: IconName; label: string; kpi: Kpi; kind: KpiKind; unit: Unit;
-  accent: string; showDeltas: boolean; compare: Compare; onClick: () => void; locked?: boolean;
+  accent: string; showDeltas: boolean; compareCaption: string; onClick: () => void; locked?: boolean;
 }
-const KpiCard: React.FC<KpiCardProps> = ({ icon, label, kpi, kind, unit, accent, showDeltas, compare, onClick, locked }) => {
+const KpiCard: React.FC<KpiCardProps> = ({ icon, label, kpi, kind, unit, accent, showDeltas, compareCaption, onClick, locked }) => {
   const { fmtMoney, fmtInt, fmtPct } = useReportsFormat();
   const display = unit === '%' ? fmtPct(kpi.value) : unit === 'RM' ? fmtMoney(kpi.value) : fmtInt(kpi.value);
-  const prev = prevOf(kpi, kind, compare);
   const inner = (
     <button className="kpi" onClick={locked ? undefined : onClick} data-clickable={!locked}>
       <div className="kpi-top">
@@ -132,11 +156,13 @@ const KpiCard: React.FC<KpiCardProps> = ({ icon, label, kpi, kind, unit, accent,
       <div className="kpi-val">{display}</div>
       <div className="kpi-foot">
         {showDeltas
-          ? <Delta cur={kpi.value} prev={prev} pp={unit === '%'} invert={kind === 'outstanding'} />
+          ? <Delta cur={kpi.value} prev={kpi.prev} pp={unit === '%'} invert={kind === 'outstanding'} />
           : <span style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>&nbsp;</span>}
-        <span className="kpi-cmp">{COMPARE_CAPTION[compare]}</span>
+        <span className="kpi-cmp">{compareCaption}</span>
       </div>
-      <div className="kpi-spark"><Sparkline data={kpi.spark} color={accent} w={210} h={34} /></div>
+      <div className="kpi-spark">
+        <HotelSparkline values={kpi.spark} color={accent} height={34} ariaLabel={`${label} trend`} />
+      </div>
     </button>
   );
   return locked ? <Locked label="Finance only">{inner}</Locked> : inner;
@@ -161,15 +187,19 @@ const accent = 'var(--emerald)';
 
 const ReportsAnalyticsInner: React.FC = () => {
   const { hasPermission, hasRole } = useAuth();
-  const { fmtMoney, fmtMoneyK, fmtPct } = useReportsFormat();
-  const { model, loading, error } = useReportsModel();
+  const { fmtMoney, fmtMoneyK, fmtInt, fmtPct } = useReportsFormat();
+  const { palette } = useChartTheme();
   const isPhone = useIsPhone();
-  const [compare, setCompare] = useState<Compare>('prev');
+  const [query, setQuery] = useState<ReportsQuery>({ rangeDays: 30, compare: 'prev' });
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const hotelName = getHotelSettings().hotel_name;
 
+  const canViewRevenue =
+    hasPermission('revenue:read') || hasRole('admin') || hasRole('super_admin') || hasRole('manager');
   const canViewFinancials =
     hasPermission('ledgers:read') || hasRole('admin') || hasRole('super_admin') || hasRole('manager');
+
+  const { model, loading, liveLoading, error } = useReportsModel(query, canViewRevenue);
 
   const open = (d: NonNullable<DrawerState>) => setDrawer(d);
   const close = () => setDrawer(null);
@@ -179,6 +209,9 @@ const ReportsAnalyticsInner: React.FC = () => {
   }
 
   const sourceTotal = model.sources.reduce((a, s) => a + s.value, 0);
+  const sourceBookings = (label: string) =>
+    model.sources.find((s) => s.label === label)?.bookings ?? 0;
+  const cmpCaption = compareCaption(query.compare, query.rangeDays);
   const k = model.kpis;
 
   const headerActions = (
@@ -203,28 +236,37 @@ const ReportsAnalyticsInner: React.FC = () => {
         {headerActions}
       </div>
 
-      {/* FILTERS */}
+      {/* FILTERS — all wired: range + compare always work; room-type/source
+          selects only offer values that exist in the loaded data. */}
       <div className="filters">
-        {/* decorative pills — no filter function; phones keep only Compare */}
+        <Seg value={query.rangeDays} onChange={(rangeDays) => setQuery((q) => ({ ...q, rangeDays }))} options={RANGE_OPTIONS} />
         {!isPhone && (
           <>
-            <FPill icon="calendar" label="Last 30 days" />
-            <FPill icon="building" label="Property" value="Main" />
-            <FPill icon="bed" label="Room type" value="All" />
-            <FPill icon="globe" label="Source" value="All" />
-            <FPill icon="filter" label="Status" value="All" />
+            <FSelect icon="bed" label="Room type" value={String(query.roomTypeId ?? 'all')}
+              onChange={(v) => setQuery((q) => ({ ...q, roomTypeId: v === 'all' ? undefined : Number(v) }))}
+              options={[
+                { value: 'all', label: 'All' },
+                ...model.roomTypes.map((r) => ({ value: String(r.id), label: r.type })),
+              ]} />
+            <FSelect icon="globe" label="Source" value={String(query.channelId ?? 'all')}
+              onChange={(v) => setQuery((q) => ({ ...q, channelId: v === 'all' ? undefined : Number(v) }))}
+              options={[
+                { value: 'all', label: 'All' },
+                ...model.sources.filter((s) => s.channelId != null)
+                  .map((s) => ({ value: String(s.channelId), label: s.label })),
+              ]} />
             <div className="filters-spacer" />
           </>
         )}
         <div className="cmp">
           <span className="cmp-l">Compare</span>
-          <Seg value={compare} onChange={setCompare} options={[
-            { v: 'prev', l: 'Prev period' }, { v: 'month', l: 'Last month' }, { v: 'year', l: 'Last year' },
+          <Seg value={query.compare} onChange={(compare) => setQuery((q) => ({ ...q, compare }))} options={[
+            { v: 'prev' as CompareMode, l: 'Prev period' }, { v: 'month' as CompareMode, l: 'Last month' }, { v: 'year' as CompareMode, l: 'Last year' },
           ]} />
         </div>
       </div>
 
-      {loading ? (
+      {liveLoading ? (
         <DashboardSkeleton />
       ) : (
         <>
@@ -252,28 +294,50 @@ const ReportsAnalyticsInner: React.FC = () => {
           {/* KPI CARDS */}
           <div className="kpis">
             <KpiCard icon="percent" label="Occupancy rate" kpi={k.occupancy} kind="occupancy" unit="%"
-              accent={accent} showDeltas compare={compare} onClick={() => open({ type: 'occupancy' })} />
+              accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'occupancy' })} />
             <KpiCard icon="gauge" label="ADR" kpi={k.adr} kind="adr" unit="RM"
-              accent={accent} showDeltas compare={compare} onClick={() => open({ type: 'revenue', metric: 'adr' })} locked={!canViewFinancials} />
+              accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'adr' })} locked={!canViewFinancials} />
             <KpiCard icon="gauge" label="RevPAR" kpi={k.revpar} kind="revpar" unit="RM"
-              accent={accent} showDeltas compare={compare} onClick={() => open({ type: 'revenue', metric: 'revpar' })} locked={!canViewFinancials} />
+              accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'revpar' })} locked={!canViewFinancials} />
             <KpiCard icon="coins" label="Room revenue" kpi={k.roomRev} kind="roomRev" unit="RM"
-              accent={accent} showDeltas compare={compare} onClick={() => open({ type: 'revenue', metric: 'roomRev' })} locked={!canViewFinancials} />
+              accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'roomRev' })} locked={!canViewFinancials} />
             <KpiCard icon="coins" label="Total revenue" kpi={k.totalRev} kind="totalRev" unit="RM"
-              accent={accent} showDeltas compare={compare} onClick={() => open({ type: 'revenue', metric: 'totalRev' })} locked={!canViewFinancials} />
+              accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'revenue', metric: 'totalRev' })} locked={!canViewFinancials} />
             <KpiCard icon="wallet" label="Outstanding" kpi={k.outstanding} kind="outstanding" unit="RM"
-              accent={accent} showDeltas compare={compare} onClick={() => open({ type: 'outstanding' })} locked={!canViewFinancials} />
+              accent={accent} showDeltas compareCaption={cmpCaption} onClick={() => open({ type: 'outstanding' })} locked={!canViewFinancials} />
           </div>
 
           {/* CHARTS — revenue trend + source mix */}
           <div className="chart-row two">
             {canViewFinancials ? (
               <Panel phoneCollapsible title="Daily revenue trend" icon="chart"
-                sub={`Room ${fmtMoneyK(model.roomRev)} · Other ${fmtMoneyK(model.otherRev)} · last 30 days`}
-                right={<Legend items={[{ label: 'Room revenue', color: 'var(--emerald)' }, { label: 'Other revenue', color: 'var(--blue)' }]} />}>
-                <LineAreaChart data={model.daily} height={250}
-                  series={[{ key: 'room', color: 'var(--emerald)', fill: true }, { key: 'other', color: 'var(--blue)', fill: true }]}
-                  yFmt={(v) => fmtMoneyK(v)} xEvery={5} />
+                sub={`Room ${fmtMoneyK(model.roomRev)} · Other ${fmtMoneyK(model.otherRev)} · last ${model.periodDays} days`}
+                right={<Legend items={[{ label: 'Room revenue', color: palette[0] }, { label: 'Other revenue', color: palette[1] }]} />}>
+                <ChartStateGate loading={loading} isEmpty={model.daily.length === 0}>
+                  <HotelLineChart
+                    height={250}
+                    ariaLabel="Daily revenue trend by stay date"
+                    data={[
+                      { id: 'Room revenue', data: model.daily.map((d) => ({ x: d.date, y: d.room })) },
+                      { id: 'Other revenue', data: model.daily.map((d) => ({ x: d.date, y: d.other })) },
+                    ]}
+                    enableArea
+                    areaOpacity={0.14}
+                    axisBottom={{ format: fmtShortDate, tickValues: model.daily.filter((_, i) => i % 5 === 0).map((d) => d.date) }}
+                    axisLeft={{ format: fmtMoneyK }}
+                    sliceTooltip={({ slice }) => (
+                      <div>
+                        <strong>{fmtShortDate(String(slice.points[0]?.data.x))}</strong>
+                        {slice.points.map((p) => (
+                          <div key={p.seriesId} style={{ color: p.seriesColor }}>
+                            {p.seriesId}: {fmtMoney(Number(p.data.y))}
+                          </div>
+                        ))}
+                        <div>Occupancy: {fmtPct(model.daily[slice.points[0]?.indexInSeries ?? 0]?.occ ?? 0)}</div>
+                      </div>
+                    )}
+                  />
+                </ChartStateGate>
               </Panel>
             ) : (
               <Panel phoneCollapsible title="Daily revenue trend" icon="chart" sub="Revenue analytics">
@@ -282,19 +346,37 @@ const ReportsAnalyticsInner: React.FC = () => {
             )}
 
             {canViewFinancials ? (
-              <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe" sub="By room revenue">
-                <div className="donut-wrap">
-                  <Donut data={model.sources} centerTop={fmtMoneyK(sourceTotal)} centerSub="Total" />
-                  <div className="donut-leg">
-                    {model.sources.map((s, i) => (
-                      <div className="dl-row" key={i}>
-                        <span className="dl-dot" style={{ background: s.color.startsWith('var(') ? undefined : s.color }} />
-                        <span className="dl-lbl">{s.label}</span>
-                        <span className="dl-pct">{((s.value / sourceTotal) * 100).toFixed(0)}%</span>
+              <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe" sub="By net revenue · booking creation dates">
+                <ChartStateGate loading={loading} isEmpty={model.sources.length === 0}>
+                  <div className="donut-wrap">
+                    <div className="donut-chart">
+                      <HotelPieChart
+                        height={190}
+                        data={model.sources.map((s) => ({ id: s.label, value: s.value }))}
+                        tooltip={({ datum }) => (
+                          <div>
+                            <strong>{String(datum.id)}</strong>
+                            <div>{fmtMoney(Number(datum.value))}</div>
+                            <div>{fmtInt(sourceBookings(String(datum.id)))} bookings</div>
+                          </div>
+                        )}
+                      />
+                      <div className="donut-center">
+                        <div className="dc-v">{fmtMoneyK(sourceTotal)}</div>
+                        <div className="dc-l">Total</div>
                       </div>
-                    ))}
+                    </div>
+                    <div className="donut-leg">
+                      {model.sources.map((s, i) => (
+                        <div className="dl-row" key={i}>
+                          <span className="dl-dot" style={{ background: palette[i % palette.length] }} />
+                          <span className="dl-lbl">{s.label}</span>
+                          <span className="dl-pct">{sourceTotal ? ((s.value / sourceTotal) * 100).toFixed(0) : 0}%</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </ChartStateGate>
               </Panel>
             ) : (
               <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe">
@@ -306,19 +388,56 @@ const ReportsAnalyticsInner: React.FC = () => {
           {/* CHARTS — occupancy trend + room type */}
           <div className="chart-row two">
             <Panel phoneCollapsible collapseOnPhone title="Occupancy trend" icon="percent"
-              sub={`Avg ${fmtPct(k.occupancy.value)} · ${model.periodRooms} rooms · last 30 days`}
+              sub={`Avg ${fmtPct(k.occupancy.value)} · ${model.periodRooms} rooms · last ${model.periodDays} days`}
               right={<Legend items={[{ label: 'Daily occupancy', color: accent }]} />}>
-              <LineAreaChart data={model.daily} height={230} pct
-                series={[{ key: 'occ', color: accent, fill: true }]}
-                yFmt={(v) => v + '%'} xEvery={5} />
+              <ChartStateGate loading={loading} isEmpty={model.daily.length === 0}>
+                <HotelLineChart
+                  height={230}
+                  ariaLabel="Daily occupancy rate by stay date"
+                  data={[{ id: 'Occupancy', data: model.daily.map((d) => ({ x: d.date, y: d.occ })) }]}
+                  colors={[accent]}
+                  enableArea
+                  areaOpacity={0.16}
+                  yScale={{ type: 'linear', min: 0, max: 100, stacked: false }}
+                  axisBottom={{ format: fmtShortDate, tickValues: model.daily.filter((_, i) => i % 5 === 0).map((d) => d.date) }}
+                  axisLeft={{ format: (v) => fmtPct(Number(v), 0) }}
+                  sliceTooltip={({ slice }) => (
+                    <div>
+                      <strong>{fmtShortDate(String(slice.points[0]?.data.x))}</strong>
+                      <div>Occupancy: {fmtPct(Number(slice.points[0]?.data.y))}</div>
+                      <div>{model.daily[slice.points[0]?.indexInSeries ?? 0]?.occRooms ?? 0} rooms sold</div>
+                    </div>
+                  )}
+                />
+              </ChartStateGate>
             </Panel>
 
             {canViewFinancials ? (
-              <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed" sub="By revenue">
-                <BarRows rows={model.roomTypes.map((r) => ({
-                  label: r.type, value: r.rev, color: 'var(--emerald)',
-                  display: fmtMoneyK(r.rev), sub: `${fmtPct(r.occ, 0)} occ · ${fmtMoney(r.adr)} ADR`,
-                }))} />
+              <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed" sub="By room revenue">
+                <ChartStateGate loading={loading} isEmpty={model.roomTypes.length === 0}>
+                  <HotelBarChart
+                    height={Math.max(140, model.roomTypes.length * 46)}
+                    layout="horizontal"
+                    ariaLabel="Room revenue by room type"
+                    data={model.roomTypes.map((r) => ({ type: r.type, rev: r.rev, occ: r.occ, adr: r.adr, rooms: r.rooms }))}
+                    keys={['rev']}
+                    indexBy="type"
+                    colors={[accent]}
+                    axisLeft={{ tickSize: 0, tickPadding: 6 }}
+                    axisBottom={null}
+                    enableGridX={false}
+                    enableLabel={false}
+                    margin={{ top: 4, right: 8, bottom: 4, left: 96 }}
+                    tooltip={({ indexValue, data: d }) => (
+                      <div>
+                        <strong>{String(indexValue)}</strong>
+                        <div>{fmtMoney(Number(d.rev))} room revenue</div>
+                        <div>{fmtPct(Number(d.occ), 0)} occupancy · {fmtMoney(Number(d.adr))} ADR</div>
+                        <div>{fmtInt(Number(d.rooms))} rooms</div>
+                      </div>
+                    )}
+                  />
+                </ChartStateGate>
               </Panel>
             ) : (
               <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed">
@@ -332,9 +451,31 @@ const ReportsAnalyticsInner: React.FC = () => {
             {canViewFinancials ? (
               <Panel phoneCollapsible collapseOnPhone title="Outstanding ageing" icon="wallet" clickable onClick={() => open({ type: 'outstanding' })}
                 sub="Click to drill down" right={<Icon name="arrow-up-right" size={14} style={{ color: 'var(--ink-4)' }} />}>
-                <BarRows rows={model.ageing.map((a) => ({
-                  label: a.bucket, value: a.value, color: a.color, display: fmtMoneyK(a.value),
-                }))} />
+                <ChartStateGate loading={loading} isEmpty={model.ageing.every((a) => a.value === 0)}
+                  emptyMessage="No open invoices">
+                  <HotelBarChart
+                    height={Math.max(140, model.ageing.length * 40)}
+                    layout="horizontal"
+                    ariaLabel="Outstanding invoice ageing"
+                    data={model.ageing.map((a) => ({ bucket: a.bucket, value: a.value, key: a.key, count: a.count }))}
+                    keys={['value']}
+                    indexBy="bucket"
+                    colors={({ indexValue }) =>
+                      AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''] ?? palette[0]
+                    }
+                    axisLeft={{ tickSize: 0, tickPadding: 6 }}
+                    axisBottom={null}
+                    enableGridX={false}
+                    enableLabel={false}
+                    margin={{ top: 4, right: 8, bottom: 4, left: 76 }}
+                    tooltip={({ indexValue, data: d }) => (
+                      <div>
+                        <strong>{String(indexValue)}</strong>
+                        <div>{fmtMoney(Number(d.value))} · {fmtInt(Number(d.count))} invoices</div>
+                      </div>
+                    )}
+                  />
+                </ChartStateGate>
               </Panel>
             ) : (
               <Panel phoneCollapsible collapseOnPhone title="Outstanding ageing" icon="wallet">
@@ -358,7 +499,7 @@ const ReportsAnalyticsInner: React.FC = () => {
 
           <div className="foot-note">
             <Icon name="info" size={13} />
-            Operational tiles (arrivals, departures, in-house, occupancy, housekeeping) reflect live booking and room data. Financial breakdowns — ADR/RevPAR, booking-source mix, outstanding ageing and per-type revenue — are illustrative sample figures pending the analytics endpoints.
+            Operational tiles (arrivals, departures, in-house, housekeeping) reflect live booking and room data. Revenue, occupancy-trend, channel-mix, per-type and pipeline figures come from revenue analytics — stay dates for trends, booking-creation dates for channel share. Outstanding ageing reads open invoices as of today.
           </div>
         </>
       )}

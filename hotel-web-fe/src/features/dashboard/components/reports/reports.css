@@ -96,6 +96,13 @@
 .salim-reports .fpill .fl { font-weight: 500; }
 .salim-reports .fpill .fv { font-weight: 700; color: var(--ink); }
 .salim-reports .fpill svg:last-child { color: var(--ink-4); }
+.salim-reports .fpill-select { cursor: pointer; }
+.salim-reports .fpill-select select {
+  appearance: none; border: 0; background: transparent; font: inherit;
+  font-weight: 700; color: var(--ink); cursor: pointer; outline: none;
+  max-width: 130px; text-overflow: ellipsis;
+}
+.salim-reports .fpill-select select option { color: var(--ink); background: var(--surface); }
 .salim-reports .fdot { width: 9px; height: 9px; border-radius: 50%; }
 .salim-reports .cmp { display: inline-flex; align-items: center; gap: 9px; }
 .salim-reports .cmp-l { font-size: 12px; color: var(--ink-3); font-weight: 600; }
@@ -204,29 +211,31 @@
 .salim-reports .cpanel-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
 .salim-reports .cpanel-b { padding: 16px; flex: 1; }
 
-.salim-reports .ch-axis { font-size: 10px; fill: var(--ink-3); font-family: "JetBrains Mono", monospace; font-weight: 500; }
 .salim-reports .legend { display: flex; align-items: center; gap: 14px; }
 .salim-reports .legend-i { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
 .salim-reports .legend-d { width: 9px; height: 9px; border-radius: 3px; }
 
 /* donut */
 .salim-reports .donut-wrap { display: flex; align-items: center; gap: 20px; }
+.salim-reports .donut-chart { position: relative; width: 200px; flex-shrink: 0; }
+.salim-reports .donut-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; pointer-events: none;
+}
+.salim-reports .donut-center .dc-v {
+  font-size: 20px; font-weight: 800; color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+}
+.salim-reports .donut-center .dc-l {
+  font-size: 10px; font-weight: 600; color: var(--ink-3);
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
 .salim-reports .donut-leg { flex: 1; display: flex; flex-direction: column; gap: 9px; }
 .salim-reports .dl-row { display: flex; align-items: center; gap: 9px; }
 .salim-reports .dl-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .salim-reports .dl-lbl { font-size: 12.5px; color: var(--ink-2); font-weight: 600; flex: 1; }
 .salim-reports .dl-pct { font-size: 12.5px; font-weight: 700; font-family: "JetBrains Mono", monospace; color: var(--ink); }
 
-/* bar rows */
-.salim-reports .barrows { display: flex; flex-direction: column; gap: 13px; }
-.salim-reports .barrow { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 12px; }
-.salim-reports .barrow[style*="pointer"]:hover .barrow-fill { filter: brightness(1.08); }
-.salim-reports .barrow-l { min-width: 0; }
-.salim-reports .barrow-lbl { font-size: 12.5px; font-weight: 600; color: var(--ink); display: block; }
-.salim-reports .barrow-sub { font-size: 10.5px; color: var(--ink-3); }
-.salim-reports .barrow-track { height: 9px; background: var(--surface-3); border-radius: 100px; overflow: hidden; }
-.salim-reports .barrow-fill { display: block; height: 100%; border-radius: 100px; min-width: 4px; transition: width 400ms cubic-bezier(0.2,0.8,0.2,1); }
-.salim-reports .barrow-v { font-size: 12.5px; font-weight: 700; font-family: "JetBrains Mono", monospace; text-align: right; min-width: 56px; }
 
 /* mini lists */
 .salim-reports .minilist { display: flex; flex-direction: column; }
@@ -308,13 +317,6 @@
 .salim-reports-drawer .dw-sech { font-size: 11px; font-weight: 700; color: var(--ink-3); letter-spacing: 0.8px; text-transform: uppercase; margin: 18px 0 12px; display: flex; align-items: center; gap: 8px; }
 .salim-reports-drawer .dw-sech-ct { background: var(--surface-3); color: var(--ink-2); padding: 1px 7px; border-radius: 100px; font-size: 10.5px; }
 .salim-reports-drawer .dw-sec { margin-bottom: 6px; }
-.salim-reports-drawer .barrows { display: flex; flex-direction: column; gap: 13px; }
-.salim-reports-drawer .barrow { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 12px; }
-.salim-reports-drawer .barrow-lbl { font-size: 12.5px; font-weight: 600; color: var(--ink); display: block; }
-.salim-reports-drawer .barrow-sub { font-size: 10.5px; color: var(--ink-3); }
-.salim-reports-drawer .barrow-track { height: 9px; background: var(--surface-3); border-radius: 100px; overflow: hidden; }
-.salim-reports-drawer .barrow-fill { display: block; height: 100%; border-radius: 100px; min-width: 4px; }
-.salim-reports-drawer .barrow-v { font-size: 12.5px; font-weight: 700; font-family: "JetBrains Mono", monospace; text-align: right; min-width: 56px; }
 
 .salim-reports-drawer .dw-tabs { display: flex; gap: 2px; margin: 20px 0 4px; border-bottom: 1px solid var(--border); }
 .salim-reports-drawer .dw-tab { padding: 9px 12px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 7px; }
@@ -380,8 +382,6 @@
   .salim-reports .kpis > * {
     flex: 0 0 68%; min-width: 236px; max-width: 300px; scroll-snap-align: start;
   }
-  .salim-reports .barrow,
-  .salim-reports-drawer .barrow { grid-template-columns: 96px 1fr auto; gap: 8px; }
   .salim-reports .donut-wrap { flex-direction: column; align-items: center; }
 }
 @media (pointer: coarse) {

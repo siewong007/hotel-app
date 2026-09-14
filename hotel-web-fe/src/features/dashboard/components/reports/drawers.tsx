@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, IconName } from './Icon';
-import { BarRows, Money, Pill } from './charts';
+import { AGEING_TONE, Money, Pill } from './charts';
+import { HotelBarChart } from '../../../../components/charts';
 import { useReportsFormat } from './formatContext';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { BottomSheet } from '../../../../components/common/BottomSheet';
@@ -59,8 +60,8 @@ const Drawer: React.FC<DrawerShellProps> = ({ open, onClose, icon, title, sub, c
 
 function ageTone(a: string) {
   if (a === 'Current') return 'green' as const;
-  if (a === '1–30 days') return 'blue' as const;
-  if (a === '31–60 days') return 'amber' as const;
+  if (a === '1–30 days' || a === '1_30') return 'blue' as const;
+  if (a === '31–60 days' || a === '31_60') return 'amber' as const;
   return 'red' as const;
 }
 
@@ -91,11 +92,29 @@ export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; m
 
       <div className="dw-sech">Ageing buckets</div>
       <div className="dw-sec">
-        <BarRows rows={model.ageing.map((a) => ({
-          label: a.bucket, value: a.value, color: a.color,
-          display: fmtMoney(a.value),
-          sub: ((a.value / total) * 100).toFixed(0) + '% of total',
-        }))} />
+        <HotelBarChart
+          height={Math.max(160, model.ageing.length * 44)}
+          layout="horizontal"
+          ariaLabel="Outstanding invoice ageing buckets"
+          data={model.ageing.map((a) => ({ bucket: a.bucket, value: a.value, key: a.key, count: a.count }))}
+          keys={['value']}
+          indexBy="bucket"
+          colors={({ indexValue }) =>
+            AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''] ?? 'var(--hotel-chart-1)'
+          }
+          axisLeft={{ tickSize: 0, tickPadding: 6 }}
+          axisBottom={null}
+          enableGridX={false}
+          enableLabel={false}
+          margin={{ top: 4, right: 8, bottom: 4, left: 84 }}
+          tooltip={({ indexValue, data: d }) => (
+            <div>
+              <strong>{String(indexValue)}</strong>
+              <div>{fmtMoney(Number(d.value))} · {Number(d.count)} invoices</div>
+              <div>{total > 0 ? ((Number(d.value) / total) * 100).toFixed(0) : 0}% of total</div>
+            </div>
+          )}
+        />
       </div>
 
       <div className="dw-tabs">
@@ -140,7 +159,7 @@ export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; mod
       <div className="dw-statgrid">
         {model.roomStatus.map((s, i) => (
           <div className="dw-statcell" key={i}>
-            <div className="dw-statn" style={{ color: s.color.startsWith('var(') ? undefined : s.color }}>{s.count}</div>
+            <div className="dw-statn" style={{ color: s.color }}>{s.count}</div>
             <div className="dw-statl">{s.label}</div>
           </div>
         ))}
@@ -148,10 +167,30 @@ export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; mod
 
       <div className="dw-sech">Occupancy by room type</div>
       <div className="dw-sec">
-        <BarRows rows={model.roomTypes.map((r) => ({
-          label: r.type, value: r.occ, color: r.occ >= 80 ? 'var(--emerald)' : r.occ >= 74 ? 'var(--blue)' : 'var(--amber)',
-          display: fmtPct(r.occ), sub: r.rooms + ' rooms',
-        }))} />
+        <HotelBarChart
+          height={Math.max(140, model.roomTypes.length * 44)}
+          layout="horizontal"
+          ariaLabel="Occupancy rate by room type"
+          data={model.roomTypes.map((r) => ({ type: r.type, occ: r.occ, rooms: r.rooms }))}
+          keys={['occ']}
+          indexBy="type"
+          valueScale={{ type: 'linear', min: 0, max: 100 }}
+          colors={({ data: d }) =>
+            Number(d.occ) >= 80 ? 'var(--hotel-primary)' : Number(d.occ) >= 60 ? 'var(--hotel-info)' : 'var(--hotel-warning)'
+          }
+          axisLeft={{ tickSize: 0, tickPadding: 6 }}
+          axisBottom={{ tickSize: 0, tickPadding: 6, format: (v) => `${v}%` }}
+          enableGridX
+          enableLabel={false}
+          margin={{ top: 4, right: 16, bottom: 26, left: 96 }}
+          tooltip={({ indexValue, data: d }) => (
+            <div>
+              <strong>{String(indexValue)}</strong>
+              <div>{fmtPct(Number(d.occ))} occupied</div>
+              <div>{Number(d.rooms)} rooms</div>
+            </div>
+          )}
+        />
       </div>
 
       <div className="dw-sech">Departures today <span className="dw-sech-ct">{model.departures.length}</span></div>
@@ -198,7 +237,7 @@ export const RevenueDrawer: React.FC<{ open: boolean; onClose: () => void; metri
       <div className="dw-rev">
         {model.revenueStates.map((s, i) => (
           <div className="dw-revrow" key={i}>
-            <span className="dw-revdot" style={{ background: s.color.startsWith('var(') ? undefined : s.color }} />
+            <span className="dw-revdot" style={{ background: s.color }} />
             <div className="dw-revl"><div className="dw-revt">{s.label}</div><div className="dw-revs">{s.desc}</div></div>
             <div className="dw-revv"><Money value={s.value} prefix={symbol} /></div>
           </div>

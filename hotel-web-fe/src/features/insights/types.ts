@@ -31,6 +31,32 @@ export interface RoomTypeLoad {
   available: number;
 }
 
+/** One expected check-in on the business date (mirrors `ArrivalRow` BE). */
+export interface ArrivalRosterRow {
+  booking_id: number;
+  booking_number: string;
+  guest_name: string;
+  room_number: string;
+  room_type: string;
+  source: string;
+  nights: number;
+  eta: string;
+  balance: number;
+  vip: boolean;
+}
+
+/** One expected check-out on the business date (mirrors `DepartureRow` BE). */
+export interface DepartureRosterRow {
+  booking_id: number;
+  booking_number: string;
+  guest_name: string;
+  room_number: string;
+  room_type: string;
+  out: string;
+  balance: number;
+  nights: number;
+}
+
 export interface InsightsOverview {
   business_date: string;
   rooms: RoomBuckets;
@@ -40,6 +66,8 @@ export interface InsightsOverview {
   revenue_last_7_days: RevenuePoint[];
   guests_total: number;
   room_types: RoomTypeLoad[];
+  arrivals: ArrivalRosterRow[];
+  departures: DepartureRosterRow[];
 }
 
 export type ReportDateBasis = 'stay' | 'booking' | 'accounting';

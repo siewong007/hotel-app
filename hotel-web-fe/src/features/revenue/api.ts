@@ -1,5 +1,5 @@
 import { api } from '../../api/client';
-import type { RevenueOverview, RevenueOverviewParams } from './types';
+import type { Receivables, RevenueOverview, RevenueOverviewParams } from './types';
 
 function toSearchParams(params: RevenueOverviewParams): URLSearchParams {
   const searchParams = new URLSearchParams();
@@ -16,5 +16,9 @@ export const RevenueApi = {
     return api
       .get('revenue/overview', { searchParams: toSearchParams(params) })
       .json<RevenueOverview>();
+  },
+
+  receivables(): Promise<Receivables> {
+    return api.get('revenue/receivables').json<Receivables>();
   },
 };

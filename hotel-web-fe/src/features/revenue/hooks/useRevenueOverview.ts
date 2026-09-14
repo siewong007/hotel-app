@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { RevenueApi } from '../api';
 import type { RevenueOverviewParams } from '../types';
 
-export function useRevenueOverview(params: RevenueOverviewParams) {
+export function useRevenueOverview(params: RevenueOverviewParams, enabled = true) {
   return useQuery({
     queryKey: ['revenue', 'overview', params],
     queryFn: () => RevenueApi.overview(params),
+    enabled,
   });
 }

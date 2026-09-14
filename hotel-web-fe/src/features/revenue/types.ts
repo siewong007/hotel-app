@@ -10,6 +10,8 @@ export interface RevenueKpis {
   void_rate: string;
   no_show_rate: string;
   direct_share: string;
+  service_revenue: string;
+  total_revenue: string;
 }
 
 export interface RevenueRangeInfo {
@@ -20,9 +22,28 @@ export interface RevenueRangeInfo {
 export interface RevenueDailyPoint {
   date: string;
   room_revenue: string;
+  other_revenue: string;
   room_nights_sold: number;
   occupancy_rate: string;
   adr: string;
+}
+
+export interface RoomTypePerformance {
+  room_type_id: number;
+  name: string;
+  rooms: number;
+  nights_sold: number;
+  occupancy_rate: string;
+  adr: string;
+  room_revenue: string;
+}
+
+/** Distinct economic events — never sum these together. */
+export interface RevenuePipeline {
+  booked: string;
+  earned: string;
+  collected: string;
+  outstanding: string;
 }
 
 export interface RevenueChannelMix {
@@ -46,6 +67,32 @@ export interface RevenueOverview {
   deltas_pct: RevenueDeltas;
   daily: RevenueDailyPoint[];
   channels: RevenueChannelMix[];
+  room_types: RoomTypePerformance[];
+  pipeline: RevenuePipeline;
+}
+
+export interface ReceivablesBucket {
+  key: string;
+  label: string;
+  total: string;
+  count: number;
+}
+
+export interface DebtorRow {
+  name: string;
+  invoice_number: string;
+  balance: string;
+  bucket: string;
+  due_date: string | null;
+  room: string | null;
+}
+
+export interface Receivables {
+  as_of: string;
+  total: string;
+  buckets: ReceivablesBucket[];
+  guests: DebtorRow[];
+  companies: DebtorRow[];
 }
 
 export interface RevenueOverviewParams {

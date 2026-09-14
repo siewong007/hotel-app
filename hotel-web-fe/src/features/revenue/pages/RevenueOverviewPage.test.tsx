@@ -41,6 +41,8 @@ const kpis = {
   void_rate: '0.02',
   no_show_rate: '0.01',
   direct_share: '0.60',
+  service_revenue: '1500.00',
+  total_revenue: '13500.00',
 };
 
 const data: RevenueOverview = {
@@ -60,9 +62,13 @@ const data: RevenueOverview = {
     void_rate: -1,
     no_show_rate: 0,
     direct_share: 2,
+    service_revenue: 3,
+    total_revenue: 5,
   },
-  daily: [{ date: '2026-09-14', room_revenue: '900.00', room_nights_sold: 6, occupancy_rate: '0.75', adr: '150.00' }],
+  daily: [{ date: '2026-09-14', room_revenue: '900.00', other_revenue: '120.00', room_nights_sold: 6, occupancy_rate: '0.75', adr: '150.00' }],
   channels: [{ channel_id: 1, channel_name: 'Direct', channel_type: 'direct', bookings: 30, net_revenue: '9000.00', share_pct: '0.75' }],
+  room_types: [],
+  pipeline: { booked: '4000.00', earned: '12000.00', collected: '11000.00', outstanding: '3200.00' },
 };
 
 describe('RevenueOverviewPage', () => {

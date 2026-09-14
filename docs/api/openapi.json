@@ -908,6 +908,9 @@
     "/api/revenue/rate-calendar": {
       "GET": {}
     },
+    "/api/revenue/receivables": {
+      "GET": {}
+    },
     "/api/room-rates": {
       "GET": {},
       "POST": {}

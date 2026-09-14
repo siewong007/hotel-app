@@ -15,6 +15,8 @@ const kpis: RevenueKpis = {
   void_rate: '5.9',
   no_show_rate: '2.1',
   direct_share: '61.8',
+  service_revenue: '1980.00',
+  total_revenue: '14320.00',
 };
 
 const deltas: RevenueDeltas = {
@@ -28,6 +30,8 @@ const deltas: RevenueDeltas = {
   void_rate: -1.2,
   no_show_rate: 0.4,
   direct_share: null,
+  service_revenue: 6.0,
+  total_revenue: 11.2,
 };
 
 describe('RevenueKpiGrid', () => {
@@ -60,6 +64,8 @@ describe('RevenueKpiGrid', () => {
       void_rate: '0',
       no_show_rate: '0',
       direct_share: '0',
+      service_revenue: '0',
+      total_revenue: '0',
     };
     render(<RevenueKpiGrid kpis={empty} deltas={deltas} currency="USD" />);
     // room_revenue, ADR, and RevPAR all render $0.00.
