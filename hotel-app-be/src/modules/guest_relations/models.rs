@@ -58,6 +58,16 @@ pub struct InteractionListQuery {
     pub include_completed_followups: Option<bool>,
 }
 
+/// `GET /guest-relations/follow-ups` params — `due` is one of
+/// `overdue | today | upcoming | all` (default `all`, unknown values are
+/// treated as `all` by the repository match).
+#[derive(Debug, Deserialize)]
+pub struct FollowUpQueueQuery {
+    pub due: Option<String>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
 /// Paged envelope for the interactions timeline — same `{ data, total, page,
 /// page_size }` shape as `GuestPaginatedResponse` (the support inbox uses
 /// `items`; guest-domain lists use `data`).

@@ -14,9 +14,10 @@ use axum::{
 use serde_json::json;
 
 use super::models::{
-    GuestCommunicationsSummary, GuestInteraction, GuestInteractionInput, GuestInteractionUpdate,
-    GuestLoyaltySummary, GuestPreference, GuestPreferencesPut, GuestReviewResponseInput,
-    GuestReviewRow, GuestVoucherRow, InteractionListQuery, InteractionListResponse,
+    FollowUpQueueItem, FollowUpQueueQuery, GuestCommunicationsSummary, GuestInteraction,
+    GuestInteractionInput, GuestInteractionUpdate, GuestLoyaltySummary, GuestPreference,
+    GuestPreferencesPut, GuestReviewResponseInput, GuestReviewRow, GuestVoucherRow,
+    InteractionListQuery, InteractionListResponse, OverviewResponse,
 };
 use super::service;
 use crate::core::db::DbPool;
@@ -151,5 +152,36 @@ pub async fn list_support_conversations_handler(
     require_permission_helper(&pool, &headers, "support:read").await?;
     Ok(Json(
         service::list_support_conversations(&pool, guest_id).await?,
+    ))
+}
+
+/// `GET /guest-relations/overview` — cross-guest dashboard aggregate. The
+/// caller needs `guests:read`; the service further gates the `support` /
+/// `reviews` sections by `support:read` / `reviews:read`.
+pub async fn overview_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<OverviewResponse>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "guests:read").await?;
+    Ok(Json(service::overview(&pool, actor_id).await?))
+}
+
+/// `GET /guest-relations/follow-ups` — paginated open follow-up queue;
+/// serializes as `(total, items)`.
+pub async fn follow_ups_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(query): Query<FollowUpQueueQuery>,
+) -> Result<Json<(i64, Vec<FollowUpQueueItem>)>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "guests:read").await?;
+    Ok(Json(
+        service::list_follow_ups(
+            &pool,
+            actor_id,
+            query.due.as_deref().unwrap_or("all"),
+            query.page.unwrap_or(1),
+            query.page_size.unwrap_or(20),
+        )
+        .await?,
     ))
 }

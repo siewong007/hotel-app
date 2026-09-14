@@ -886,9 +886,6 @@ impl GuestRelationsRepository {
     /// (`follow_up_at <= now()`); private notes are always excluded here —
     /// the author / `guests:manage` exception only applies to the full queue
     /// ([`Self::list_follow_up_queue`]), which receives the viewer id.
-    // Dead code on the bin target until Task 3 wires the routes; exercised
-    // through the lib target (and live-DB tests) meanwhile.
-    #[allow(dead_code)]
     pub async fn overview(
         pool: &DbPool,
         hotel_today: NaiveDate,
@@ -1134,8 +1131,6 @@ impl GuestRelationsRepository {
     /// (`include_private`). Ordered `follow_up_at ASC` — most overdue first.
     /// Returns `(total, items)`; the service wraps them in the paged
     /// envelope.
-    // Dead code on the bin target until Task 3 wires the routes.
-    #[allow(dead_code)]
     pub async fn list_follow_up_queue(
         pool: &DbPool,
         due: &str,
