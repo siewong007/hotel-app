@@ -20,6 +20,7 @@ import {
 } from '@mui/icons-material';
 import type { GuestProfile } from '../../../../types';
 import { formatStatusLabel } from '../../../../utils/formatters';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import {
   formatGuestProfileDate,
@@ -68,6 +69,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
   canViewReviews,
 }) => {
   const { format: formatCurrency } = useCurrency();
+  const { t, tOr } = useTranslation('guests');
   const { guest, summary, reservations, duplicate_candidates: duplicates } = profile;
 
   // First page is enough for panels — they surface "what needs attention",
@@ -120,10 +122,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           gap: 1.5,
         }}
       >
-        <ProfileMetric label="Completed stays" value={summary.completed_stays} />
-        <ProfileMetric label="Total nights" value={summary.total_nights} />
-        <ProfileMetric label="Lifetime room revenue" value={formatCurrency(Number(summary.total_room_revenue || 0))} />
-        <ProfileMetric label="Outstanding balance" value={formatCurrency(Number(summary.outstanding_balance || 0))} />
+        <ProfileMetric label={t('overview.metrics.completedStays')} value={summary.completed_stays} />
+        <ProfileMetric label={t('overview.metrics.totalNights')} value={summary.total_nights} />
+        <ProfileMetric label={t('overview.metrics.lifetimeRevenue')} value={formatCurrency(Number(summary.total_room_revenue || 0))} />
+        <ProfileMetric label={t('overview.metrics.outstanding')} value={formatCurrency(Number(summary.outstanding_balance || 0))} />
       </Box>
 
       <Box
@@ -138,18 +140,18 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           title={
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <StayIcon sx={{ fontSize: 16 }} />
-              <span>Stay status</span>
+              <span>{t('overview.stayStatus.title')}</span>
             </Stack>
           }
         >
           {activeReservation || summary.active_booking_id ? (
             <Box sx={{ mb: 1.5 }}>
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                Active stay
+                {t('overview.stayStatus.activeStay')}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 {summary.active_booking_number || `#${summary.active_booking_id}`}
-                {activeReservation && ` · Room ${activeReservation.room_number}`}
+                {activeReservation && ` · ${t('stays.roomNumber', { number: activeReservation.room_number })}`}
               </Typography>
               {activeReservation && (
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
@@ -160,22 +162,22 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             </Box>
           ) : (
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-              No active stay.
+              {t('overview.stayStatus.noActive')}
             </Typography>
           )}
           <Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-              Next stay
+              {t('overview.stayStatus.nextStay')}
             </Typography>
             {summary.next_stay_at ? (
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 {formatGuestProfileDate(summary.next_stay_at)}
                 {upcomingReservation && ` · ${upcomingReservation.booking_number || `#${upcomingReservation.id}`}`}
-                {upcomingReservation?.room_number ? ` · Room ${upcomingReservation.room_number}` : ''}
+                {upcomingReservation?.room_number ? ` · ${t('stays.roomNumber', { number: upcomingReservation.room_number })}` : ''}
               </Typography>
             ) : (
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                Nothing on the books.
+                {t('overview.stayStatus.nothingBooked')}
               </Typography>
             )}
           </Box>
@@ -186,7 +188,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           title={
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <AlertIcon sx={{ fontSize: 16 }} />
-              <span>Alerts</span>
+              <span>{t('overview.alerts.title')}</span>
             </Stack>
           }
         >
@@ -200,7 +202,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                   icon={<BlacklistedIcon fontSize="inherit" />}
                   sx={{ py: 0 }}
                 >
-                  Blacklisted{guest.blacklist_reason ? `: ${guest.blacklist_reason}` : ''}
+                  {guest.blacklist_reason
+                    ? t('overview.alerts.blacklistedReason', { reason: guest.blacklist_reason })
+                    : t('overview.alerts.blacklisted')}
                 </Alert>
               )}
               {alertNotes.map((note) => (
@@ -211,14 +215,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             </Stack>
           ) : (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No active alerts for this guest.
+              {t('overview.alerts.empty')}
             </Typography>
           )}
         </SectionCard>
       </Box>
 
       {/* Profile details */}
-      <SectionCard title="Profile details">
+      <SectionCard title={t('overview.details.title')}>
         <Box
           sx={{
             display: 'grid',
@@ -226,28 +230,28 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
             gap: 2,
           }}
         >
-          <ProfileDetailRow label="Phone" value={guest.phone} />
-          <ProfileDetailRow label="Email" value={guest.email} />
-          <ProfileDetailRow label="Alternate phone" value={guest.alt_phone} />
-          <ProfileDetailRow label="Nationality" value={guest.nationality} />
-          <ProfileDetailRow label="Company" value={guest.company_name} />
-          <ProfileDetailRow label="Job title" value={guest.job_title} />
+          <ProfileDetailRow label={t('overview.details.phone')} value={guest.phone} />
+          <ProfileDetailRow label={t('overview.details.email')} value={guest.email} />
+          <ProfileDetailRow label={t('overview.details.altPhone')} value={guest.alt_phone} />
+          <ProfileDetailRow label={t('overview.details.nationality')} value={guest.nationality} />
+          <ProfileDetailRow label={t('overview.details.company')} value={guest.company_name} />
+          <ProfileDetailRow label={t('overview.details.jobTitle')} value={guest.job_title} />
           <ProfileDetailRow
-            label="Address"
+            label={t('overview.details.address')}
             value={[guest.address_line1, guest.city, guest.state_province, guest.postal_code, guest.country]
               .filter(Boolean)
               .join(', ')}
           />
-          <ProfileDetailRow label="Language" value={guest.language_preference} />
-          <ProfileDetailRow label="Preferred channel" value={guest.communication_preference} />
+          <ProfileDetailRow label={t('overview.details.language')} value={guest.language_preference} />
+          <ProfileDetailRow label={t('overview.details.preferredChannel')} value={guest.communication_preference} />
           <ProfileDetailRow
-            label="Marketing opt-in"
-            value={guest.marketing_opt_in == null ? undefined : guest.marketing_opt_in ? 'Yes' : 'No'}
+            label={t('overview.details.marketingOptIn')}
+            value={guest.marketing_opt_in == null ? undefined : guest.marketing_opt_in ? t('overview.details.yes') : t('overview.details.no')}
           />
-          <ProfileDetailRow label="Total bookings" value={summary.total_bookings} />
-          <ProfileDetailRow label="Tourism type" value={guest.tourism_type ? formatStatusLabel(guest.tourism_type) : undefined} />
+          <ProfileDetailRow label={t('overview.details.totalBookings')} value={summary.total_bookings} />
+          <ProfileDetailRow label={t('overview.details.tourismType')} value={guest.tourism_type ? tOr(`tourismType.${guest.tourism_type}`, formatStatusLabel(guest.tourism_type)) : undefined} />
           <ProfileDetailRow
-            label="Tags"
+            label={t('overview.details.tags')}
             value={guest.tags?.length ? guest.tags.join(', ') : undefined}
           />
         </Box>
@@ -261,18 +265,18 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         }}
       >
         {/* Preferences summary */}
-        <SectionCard title="Preferences">
+        <SectionCard title={t('overview.preferences.title')}>
           {preferencesQuery.isPending ? (
             <Skeleton variant="rounded" height={48} />
           ) : (preferencesQuery.data ?? []).length === 0 ? (
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No preferences recorded yet.
+              {t('overview.preferences.empty')}
             </Typography>
           ) : (
             <Stack spacing={0.75}>
               {(preferencesQuery.data ?? []).slice(0, 6).map((pref) => (
                 <Stack key={pref.id} direction="row" spacing={1} sx={{ alignItems: 'baseline', minWidth: 0 }}>
-                  <Chip label={formatStatusLabel(pref.category)} size="small" variant="outlined" />
+                  <Chip label={tOr(`preferenceCategories.${pref.category}`, formatStatusLabel(pref.category))} size="small" variant="outlined" />
                   <Typography variant="body2" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                     <Box component="span" sx={{ fontWeight: 700 }}>{pref.preference_key}</Box>
                     {' — '}
@@ -282,7 +286,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               ))}
               {(preferencesQuery.data ?? []).length > 6 && (
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  +{(preferencesQuery.data ?? []).length - 6} more — see the Preferences tab
+                  {t('overview.preferences.more', { count: (preferencesQuery.data ?? []).length - 6 })}
                 </Typography>
               )}
             </Stack>
@@ -290,27 +294,27 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
         </SectionCard>
 
         {/* Open items */}
-        <SectionCard title="Open items">
+        <SectionCard title={t('overview.openItems.title')}>
           <Stack spacing={1.25}>
             {canViewSupport && (
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <SupportIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2">
-                  {supportQuery.isPending ? '…' : openSupportCount} open support conversation{openSupportCount === 1 ? '' : 's'}
+                  {supportQuery.isPending ? '…' : t('overview.openItems.support', { count: openSupportCount })}
                 </Typography>
               </Stack>
             )}
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <FollowUpIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
               <Typography variant="body2">
-                {alertsQuery.isPending ? '…' : pendingFollowUps.length} pending follow-up{pendingFollowUps.length === 1 ? '' : 's'}
+                {alertsQuery.isPending ? '…' : t('overview.openItems.followUps', { count: pendingFollowUps.length })}
               </Typography>
             </Stack>
             {canViewReviews && (
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                 <ReviewIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
                 <Typography variant="body2">
-                  {reviewsQuery.isPending ? '…' : unansweredReviews} unanswered review{unansweredReviews === 1 ? '' : 's'}
+                  {reviewsQuery.isPending ? '…' : t('overview.openItems.reviews', { count: unansweredReviews })}
                 </Typography>
               </Stack>
             )}
@@ -324,12 +328,12 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           title={
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <DuplicateIcon sx={{ fontSize: 16 }} />
-              <span>Possible duplicates ({duplicates.length})</span>
+              <span>{t('overview.duplicates.title', { count: duplicates.length })}</span>
             </Stack>
           }
         >
           <Alert severity="warning" sx={{ mb: 1.5 }}>
-            {duplicates.length} other profile{duplicates.length === 1 ? '' : 's'} may belong to the same person.
+            {t('overview.duplicates.warning', { count: duplicates.length })}
           </Alert>
           <Stack spacing={1}>
             {duplicates.slice(0, 3).map((candidate) => (
@@ -347,7 +351,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
                   size="small"
                   variant="outlined"
                   color={candidate.blocking_reasons.length > 0 ? 'error' : 'warning'}
-                  label={`score ${candidate.score}`}
+                  label={t('overview.duplicates.score', { score: candidate.score })}
                 />
               </Stack>
             ))}
@@ -364,7 +368,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
           title={
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <RestrictedIcon sx={{ fontSize: 16 }} />
-              <span>Sensitive identity</span>
+              <span>{t('overview.sensitive.title')}</span>
             </Stack>
           }
         >
@@ -375,11 +379,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({
               gap: 2,
             }}
           >
-            <ProfileDetailRow label="Date of birth" value={sensitive.date_of_birth ? formatGuestProfileDate(sensitive.date_of_birth) : null} />
-            <ProfileDetailRow label="ID type" value={sensitive.id_type ? formatStatusLabel(sensitive.id_type) : null} />
-            <ProfileDetailRow label="ID number" value={sensitive.id_number} />
-            <ProfileDetailRow label="ID expiry" value={sensitive.id_expiry ? formatGuestProfileDate(sensitive.id_expiry) : null} />
-            <ProfileDetailRow label="ID country" value={sensitive.id_country} />
+            <ProfileDetailRow label={t('overview.sensitive.dob')} value={sensitive.date_of_birth ? formatGuestProfileDate(sensitive.date_of_birth) : null} />
+            <ProfileDetailRow label={t('overview.sensitive.idType')} value={sensitive.id_type ? tOr(`idTypes.${sensitive.id_type}`, formatStatusLabel(sensitive.id_type)) : null} />
+            <ProfileDetailRow label={t('overview.sensitive.idNumber')} value={sensitive.id_number} />
+            <ProfileDetailRow label={t('overview.sensitive.idExpiry')} value={sensitive.id_expiry ? formatGuestProfileDate(sensitive.id_expiry) : null} />
+            <ProfileDetailRow label={t('overview.sensitive.idCountry')} value={sensitive.id_country} />
           </Box>
         </SectionCard>
       )}
