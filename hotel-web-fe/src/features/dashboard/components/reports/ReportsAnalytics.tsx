@@ -183,12 +183,11 @@ const MiniList: React.FC<{ rows: { name: string; sub: string; side: string; side
 );
 
 // ---------- main ----------
-const accent = 'var(--emerald)';
-
 const ReportsAnalyticsInner: React.FC = () => {
   const { hasPermission, hasRole } = useAuth();
   const { fmtMoney, fmtMoneyK, fmtInt, fmtPct } = useReportsFormat();
-  const { palette } = useChartTheme();
+  const { palette, status } = useChartTheme();
+  const accent = palette[0];
   const isPhone = useIsPhone();
   const [query, setQuery] = useState<ReportsQuery>({ rangeDays: 30, compare: 'prev' });
   const [drawer, setDrawer] = useState<DrawerState>(null);
@@ -460,9 +459,10 @@ const ReportsAnalyticsInner: React.FC = () => {
                     data={model.ageing.map((a) => ({ bucket: a.bucket, value: a.value, key: a.key, count: a.count }))}
                     keys={['value']}
                     indexBy="bucket"
-                    colors={({ indexValue }) =>
-                      AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''] ?? palette[0]
-                    }
+                    colors={({ indexValue }) => {
+                      const tone = AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''];
+                      return tone ? status[tone] : palette[0];
+                    }}
                     axisLeft={{ tickSize: 0, tickPadding: 6 }}
                     axisBottom={null}
                     enableGridX={false}

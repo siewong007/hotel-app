@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, IconName } from './Icon';
 import { AGEING_TONE, Money, Pill } from './charts';
-import { HotelBarChart } from '../../../../components/charts';
+import { HotelBarChart, useChartTheme } from '../../../../components/charts';
 import { useReportsFormat } from './formatContext';
 import { useIsPhone } from '../../../../hooks/useIsPhone';
 import { BottomSheet } from '../../../../components/common/BottomSheet';
@@ -74,6 +74,7 @@ export type DrawerState =
 
 export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; model: ReportsModel }> = ({ open, onClose, model }) => {
   const { fmtMoney, symbol } = useReportsFormat();
+  const { palette, status } = useChartTheme();
   const [tab, setTab] = useState<'guests' | 'company'>('guests');
   const total = model.ageing.reduce((a, b) => a + b.value, 0);
   const rows = tab === 'guests' ? model.guestBalances : model.companyBalances;
@@ -99,9 +100,10 @@ export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; m
           data={model.ageing.map((a) => ({ bucket: a.bucket, value: a.value, key: a.key, count: a.count }))}
           keys={['value']}
           indexBy="bucket"
-          colors={({ indexValue }) =>
-            AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''] ?? 'var(--hotel-chart-1)'
-          }
+          colors={({ indexValue }) => {
+            const tone = AGEING_TONE[model.ageing.find((a) => a.bucket === indexValue)?.key ?? ''];
+            return tone ? status[tone] : palette[0];
+          }}
           axisLeft={{ tickSize: 0, tickPadding: 6 }}
           axisBottom={null}
           enableGridX={false}
@@ -147,6 +149,7 @@ export const OutstandingDrawer: React.FC<{ open: boolean; onClose: () => void; m
 
 export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; model: ReportsModel }> = ({ open, onClose, model }) => {
   const { fmtPct } = useReportsFormat();
+  const { primary, status } = useChartTheme();
   const occupied = model.live.inHouse;
   return (
     <Drawer open={open} onClose={onClose} icon="bed" title="Occupancy detail"
@@ -176,7 +179,7 @@ export const OccupancyDrawer: React.FC<{ open: boolean; onClose: () => void; mod
           indexBy="type"
           valueScale={{ type: 'linear', min: 0, max: 100 }}
           colors={({ data: d }) =>
-            Number(d.occ) >= 80 ? 'var(--hotel-primary)' : Number(d.occ) >= 60 ? 'var(--hotel-info)' : 'var(--hotel-warning)'
+            Number(d.occ) >= 80 ? primary : Number(d.occ) >= 60 ? status.info : status.warning
           }
           axisLeft={{ tickSize: 0, tickPadding: 6 }}
           axisBottom={{ tickSize: 0, tickPadding: 6, format: (v) => `${v}%` }}

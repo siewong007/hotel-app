@@ -19,6 +19,11 @@ export interface ChartTheme {
   nivo: NivoTheme;
   /** Ordered categorical palette (`chart.series` tokens, gold first). */
   palette: string[];
+  /** `primary.main` token — single-series accent. */
+  primary: string;
+  /** Status-tone foreground hexes — safe for Nivo `colors` (unlike `var()`,
+   *  which react-spring can only resolve on `:root`). */
+  status: { success: string; info: string; warning: string; orange: string; danger: string };
   positive: string;
   negative: string;
   /** `false` when the user prefers reduced motion — pass to `animate`. */
@@ -64,6 +69,14 @@ export function useChartTheme(): ChartTheme {
     return {
       nivo,
       palette: [...tokens.chart.series],
+      primary: tokens.primary.main,
+      status: {
+        success: tokens.status.success.fg,
+        info: tokens.status.info.fg,
+        warning: tokens.status.warning.fg,
+        orange: tokens.status.orange.fg,
+        danger: tokens.status.danger.fg,
+      },
       positive: tokens.chart.positive,
       negative: tokens.chart.negative,
       animate: !reduceMotion,
