@@ -795,3 +795,199 @@ async fn staged_upload_guardrails() {
     let missing = data_transfer_jobs::preview_import(&pool, uuid::Uuid::new_v4()).await;
     assert!(matches!(missing, Err(ApiError::NotFound(_))));
 }
+
+/// The preview's batched `pk = ANY($1)` lookup must pick its bind type from
+/// the column's declared type, not the file's value shapes: an all-numeric
+/// id set on a `varchar` key column used to bind `bigint[]` and fail the
+/// preview with a type error. No transferable table currently has a
+/// varchar primary key, so this drives the same repository call through a
+/// synthetic descriptor pointing at `amenities.name`.
+#[tokio::test]
+async fn text_key_columns_bind_text_even_for_numeric_keys() {
+    use hotel_app_be::repositories::data_transfer::{
+        DataTransferRepository, PkLookup, QualifiedTable, TransferTable,
+    };
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    sqlx::query("DELETE FROM amenities WHERE id = 920999051")
+        .execute(&pool)
+        .await
+        .expect("fixture pre-clean must run");
+
+    let table = QualifiedTable {
+        schema: "public".to_string(),
+        name: "amenities".to_string(),
+    };
+    // The declared types drive the binding: int8 -> Int, varchar -> Text.
+    let id_udt = DataTransferRepository::column_udt_name(&pool, &table, "id")
+        .await
+        .expect("the udt lookup must run");
+    assert_eq!(id_udt.as_deref(), Some("int8"));
+    let name_udt = DataTransferRepository::column_udt_name(&pool, &table, "name")
+        .await
+        .expect("the udt lookup must run");
+    assert_eq!(name_udt.as_deref(), Some("varchar"));
+
+    // A varchar column holding a numeric-looking value — the shape that used
+    // to make the file-side sniff choose bigint[] and error the preview.
+    sqlx::query(
+        "INSERT INTO amenities (id, name, category) OVERRIDING SYSTEM VALUE VALUES (920999051, '920999007', 'transfer-test')",
+    )
+    .execute(&pool)
+    .await
+    .expect("fixture insert must run");
+
+    let descriptor = TransferTable {
+        table,
+        is_partitioned: false,
+        columns: HashSet::new(),
+        ordered_columns: Vec::new(),
+        generated_columns: HashSet::new(),
+        primary_key_columns: vec!["name".to_string()],
+        dependencies: HashSet::new(),
+    };
+    let found = DataTransferRepository::existing_pk_values(
+        &pool,
+        &descriptor,
+        &PkLookup::Text(vec!["920999007".to_string(), "absent".to_string()]),
+    )
+    .await
+    .expect("a text[] bind against a varchar column must not error");
+    assert!(found.contains("920999007"));
+    assert!(!found.contains("absent"));
+
+    sqlx::query("DELETE FROM amenities WHERE id = 920999051")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+}
+
+/// A reference into a TRANSFERABLE parent whose key is in neither the file
+/// nor the destination inserts cleanly and then fails the deferred
+/// foreign-key check at commit — the preview must report it instead of
+/// showing an all-new diff, and the job must still fail and roll back.
+#[tokio::test]
+async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() {
+    use hotel_app_be::models::{
+        BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
+    };
+    use hotel_app_be::services::data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    sqlx::query("DELETE FROM guest_notes WHERE id = 920999041")
+        .execute(&pool)
+        .await
+        .expect("fixture pre-clean must run");
+    let guest_absent: bool =
+        sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM guests WHERE id = 920999998)")
+            .fetch_one(&pool)
+            .await
+            .expect("guest probe must run");
+    assert!(guest_absent, "the fixture guest id must not exist");
+
+    // guest_notes.guest_id -> guests.id: both transferable, but the file
+    // carries only the child and the database has no such guest.
+    let rows = serde_json::json!([
+        {"id": 920_999_041_i64, "guest_id": 920_999_998_i64, "content": "dangling ref"}
+    ]);
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v3_document(
+        "public.guest_notes",
+        rows,
+    )))
+    .await
+    .expect("staging");
+
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+        .await
+        .expect("preview must answer");
+    let notes = preview
+        .entities
+        .iter()
+        .find(|entity| entity.name == "public.guest_notes")
+        .expect("the fixture entity must appear in the preview");
+    // The row is neither skipped nor pre-existing — it would insert and the
+    // job would die at commit, which is what the problem entry must say.
+    assert_eq!(notes.new, Some(1));
+    assert_eq!(notes.skipped, Some(0));
+    let problem = preview
+        .relationship_problems
+        .iter()
+        .find(|problem| problem.entity == "public.guest_notes")
+        .expect("the dangling transferable-parent reference must be reported");
+    assert_eq!(problem.rows, 1);
+    assert!(
+        problem.reason.contains("fail") && problem.reason.contains("public.guests"),
+        "the reason must name the unresolvable parent: {:?}",
+        problem.reason
+    );
+    assert!(
+        preview
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("fail at commit")),
+        "a summary warning must accompany the problem entry: {:?}",
+        preview.warnings
+    );
+
+    // Positive control: a file whose child references a guest that EXISTS in
+    // the database reports no such problem.
+    let real_guest: i64 = sqlx::query_scalar("SELECT id FROM guests ORDER BY id LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .expect("the dev database has guests");
+    let ok_rows = serde_json::json!([
+        {"id": 920_999_042_i64, "guest_id": real_guest, "content": "resolvable ref"}
+    ]);
+    let ok_upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v3_document(
+        "public.guest_notes",
+        ok_rows,
+    )))
+    .await
+    .expect("staging");
+    let ok_preview = data_transfer_jobs::preview_import(&pool, ok_upload.upload_id)
+        .await
+        .expect("preview must answer");
+    assert!(
+        !ok_preview
+            .relationship_problems
+            .iter()
+            .any(|problem| problem.entity == "public.guest_notes"),
+        "a resolvable reference must not be reported: {:?}",
+        ok_preview.relationship_problems
+    );
+    data_transfer_jobs::delete_staged_upload(ok_upload.upload_id)
+        .await
+        .expect("the positive-control upload deletes cleanly");
+
+    // And the job itself still fails and rolls back — the preview warns, the
+    // commit-time check remains the backstop.
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("execute must accept the confirmed request");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Failed,
+        "a reference absent from file and database must fail at commit"
+    );
+    let rolled_back: bool =
+        sqlx::query_scalar("SELECT NOT EXISTS(SELECT 1 FROM guest_notes WHERE id = 920999041)")
+            .fetch_one(&pool)
+            .await
+            .expect("rollback probe must run");
+    assert!(rolled_back, "the failed job must leave no partial rows");
+}

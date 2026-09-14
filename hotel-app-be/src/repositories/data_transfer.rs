@@ -1246,6 +1246,26 @@ impl DataTransferRepository {
             .collect())
     }
 
+    /// The `information_schema.columns.udt_name` of one column — the import
+    /// preview picks its batched `PkLookup` binding type from this declared
+    /// type, never from the file's value shapes (a `varchar` key column
+    /// holding all-numeric ids must still bind `text[]`).
+    pub async fn column_udt_name(
+        pool: &DbPool,
+        table: &QualifiedTable,
+        column: &str,
+    ) -> Result<Option<String>, ApiError> {
+        sqlx::query_scalar::<_, String>(
+            "SELECT udt_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3",
+        )
+        .bind(&table.schema)
+        .bind(&table.name)
+        .bind(column)
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)
+    }
+
     /// The existing values of `column` on `table`, rendered as text so the
     /// service can compare them against JSON row values of any type.
     /// Identifiers come from catalog introspection, never request data.
@@ -1263,6 +1283,33 @@ impl DataTransferRepository {
         .await
         .map_err(ApiError::from)?;
         Ok(values.into_iter().flatten().collect())
+    }
+
+    /// Which of `values` currently exist in `table.column`, compared as
+    /// `::text` so JSON-normalized keys match any column type. Unlike
+    /// [`Self::existing_key_values`] this probes only the given candidates —
+    /// the preview's transferable-parent check uses it in chunks. The parent
+    /// is queried without `ONLY` so references to partitioned parents see
+    /// rows living in partitions, exactly like the foreign key itself does.
+    pub async fn existing_values_any(
+        pool: &DbPool,
+        table: &QualifiedTable,
+        column: &str,
+        values: &[String],
+    ) -> Result<HashSet<String>, ApiError> {
+        if values.is_empty() {
+            return Ok(HashSet::new());
+        }
+        let quoted_column = quote_identifier(column);
+        let found: Vec<String> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "SELECT {quoted_column}::text FROM {} WHERE {quoted_column}::text = ANY($1)",
+            table.quoted()
+        )))
+        .bind(values)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(found.into_iter().collect())
     }
 
     /// Batched primary-key existence check for the import-preview diff.

@@ -149,14 +149,24 @@ fn stage_internal(context: &str, error: impl std::fmt::Display) -> StageUploadEr
 /// staging set the sweep and the endpoints look at.
 pub async fn stage_backup_upload(body: Body) -> Result<UploadResponse, StageUploadError> {
     let dir = staged_upload_dir();
-    tokio::fs::create_dir_all(&dir)
+    stage_backup_upload_to(body, &dir, MAX_UPLOAD_BYTES).await
+}
+
+/// The staging loop with its target directory and byte cap parameterized —
+/// tests exercise the cap through this without buffering a real 256 MB body.
+pub async fn stage_backup_upload_to(
+    body: Body,
+    dir: &Path,
+    max_bytes: u64,
+) -> Result<UploadResponse, StageUploadError> {
+    tokio::fs::create_dir_all(dir)
         .await
         .map_err(|error| stage_internal("create staging dir", error))?;
-    sweep_staged_uploads(&dir);
+    sweep_staged_uploads(dir);
 
     let upload_id = Uuid::new_v4();
-    let part_path = staged_part_path(&dir, upload_id);
-    let json_path = staged_json_path(&dir, upload_id);
+    let part_path = staged_part_path(dir, upload_id);
+    let json_path = staged_json_path(dir, upload_id);
 
     let mut file = tokio::fs::File::create(&part_path)
         .await
@@ -171,6 +181,13 @@ pub async fn stage_backup_upload(body: Body) -> Result<UploadResponse, StageUplo
     let outcome: Result<u64, StageUploadError> = async {
         while let Some(chunk) = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await {
             let bytes = chunk.map_err(|error| stage_internal("read body", error))?;
+            // Every received byte counts toward the cap BEFORE the whitespace
+            // early-continue — an unbounded whitespace prefix must not bypass
+            // the mid-stream limit.
+            total += bytes.len() as u64;
+            if total > max_bytes {
+                return Err(StageUploadError::PayloadTooLarge);
+            }
             if !object_started {
                 match bytes.iter().find(|byte| !byte.is_ascii_whitespace()) {
                     None => continue,
@@ -181,10 +198,6 @@ pub async fn stage_backup_upload(body: Body) -> Result<UploadResponse, StageUplo
                         ));
                     }
                 }
-            }
-            total += bytes.len() as u64;
-            if total > MAX_UPLOAD_BYTES {
-                return Err(StageUploadError::PayloadTooLarge);
             }
             if sniff.len() < SNIFF_PREFIX_BYTES {
                 let take = (SNIFF_PREFIX_BYTES - sniff.len()).min(bytes.len());
@@ -232,15 +245,19 @@ pub async fn stage_backup_upload(body: Body) -> Result<UploadResponse, StageUplo
 
 /// Discard a staged upload. A file a running job still needs answers 409 —
 /// deleting it mid-import would orphan the job's input on filesystems where
-/// an unlink does not keep an open file readable.
+/// an unlink does not keep an open file readable. The registry check and the
+/// unlink share one lock scope so `start_import_job`'s registration cannot
+/// slip between them.
 pub async fn delete_staged_upload(upload_id: Uuid) -> Result<(), ApiError> {
-    if job_running_for_upload(upload_id) {
+    let path = staged_upload_path(upload_id);
+    let mut jobs = lock_registry();
+    prune_finished_jobs(&mut jobs);
+    if upload_has_running_job(&jobs, upload_id) {
         return Err(ApiError::Conflict(
             "a running import job is still reading this upload".to_string(),
         ));
     }
-    let path = staged_upload_path(upload_id);
-    match tokio::fs::remove_file(&path).await {
+    match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(ApiError::NotFound(
             "staged upload not found or already consumed".to_string(),
@@ -441,6 +458,19 @@ struct MissingRefScan {
     fallback_user_id: i64,
 }
 
+/// Raw scalar text for a JSON value — verbatim strings, unlike
+/// [`ref_value_key`] which normalizes for cross-type comparison. The
+/// single-column PK diff stores raw keys because the *schema* picks the
+/// binding type: a `varchar` key column must compare `"007"` as `"007"`.
+fn ref_value_raw(value: &Value) -> Option<String> {
+    match value {
+        Value::Number(number) => Some(number.to_string()),
+        Value::String(text) => Some(text.clone()),
+        Value::Bool(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
 /// Canonical text form for comparing a JSON key value against `::text` output
 /// — integers and uuids normalize, anything else scalar compares verbatim.
 fn ref_value_key(value: &Value) -> Option<String> {
@@ -463,11 +493,16 @@ fn ref_value_key(value: &Value) -> Option<String> {
 }
 
 impl MissingRefScan {
+    /// Build the scan context for `children`. Also returns the foreign-key
+    /// edges whose parents ARE transferable — the preview resolves those
+    /// against the file's own rows and the destination so a key present in
+    /// neither surfaces as a warning instead of only failing at commit; the
+    /// job ignores them (they would have to fail that check anyway).
     async fn build(
         pool: &DbPool,
         children: &[QualifiedTable],
         fallback_user_id: i64,
-    ) -> Result<Self, ApiError> {
+    ) -> Result<(Self, Vec<ForeignKeyRef>), ApiError> {
         let foreign_keys = DataTransferRepository::foreign_key_refs(pool, children).await?;
         let bare_names: Vec<&str> = children
             .iter()
@@ -478,19 +513,21 @@ impl MissingRefScan {
 
         let mut refs: HashMap<String, Vec<DanglingRef>> = HashMap::new();
         let mut parents: HashMap<String, (QualifiedTable, String)> = HashMap::new();
-        for ForeignKeyRef {
-            child,
-            column,
-            parent,
-            parent_column,
-        } in foreign_keys
-        {
+        let mut transferable_edges: Vec<ForeignKeyRef> = Vec::new();
+        for fk in foreign_keys {
             // References between transferable tables are import ordering's
             // problem, not this scan's — those rows come with the file or
             // fail the deferred constraint check.
-            if is_transferable_key(&parent.key()) {
+            if is_transferable_key(&fk.parent.key()) {
+                transferable_edges.push(fk);
                 continue;
             }
+            let ForeignKeyRef {
+                child,
+                column,
+                parent,
+                parent_column,
+            } = fk;
             let parent_key = parent.key();
             parents
                 .entry(parent_key.clone())
@@ -516,11 +553,14 @@ impl MissingRefScan {
             );
         }
 
-        Ok(Self {
-            refs,
-            existing,
-            fallback_user_id,
-        })
+        Ok((
+            Self {
+                refs,
+                existing,
+                fallback_user_id,
+            },
+            transferable_edges,
+        ))
     }
 
     fn column_decision(&self, reference: &DanglingRef, value: &Value) -> RefDecision {
@@ -599,6 +639,66 @@ impl MissingRefScan {
 
 fn relationship_problem_reason(column: &str, parent_key: &str) -> String {
     format!("{column} references {parent_key} rows not present in this database")
+}
+
+/// Reason text for a reference into a *transferable* parent whose key is in
+/// neither the file nor the destination — the row inserts fine and the whole
+/// job dies at the deferred-constraint check, so the preview must say so.
+fn dangling_reference_reason(column: &str, parent_key: &str) -> String {
+    format!(
+        "{column} references {parent_key} keys that are in neither the file nor this database — the affected rows will fail at commit"
+    )
+}
+
+/// Aggregated row count for one (entity, reason) reference problem — the
+/// reason text already carries the column and parent.
+type ProblemCounts = HashMap<(String, String), u64>;
+
+/// Which [`PkLookup`] variant a single-column primary key binds as — decided
+/// by the column's declared `udt_name`, never inferred from the file's value
+/// shapes (a `varchar` key column holding all-numeric ids must still bind
+/// `text[]`, or the `pk = ANY($1)` probe errors on the type mismatch).
+enum PkBinding {
+    Int,
+    Uuid,
+    Text,
+}
+
+impl PkBinding {
+    fn for_udt(udt_name: Option<&str>) -> Self {
+        match udt_name {
+            Some("int2") | Some("int4") | Some("int8") => Self::Int,
+            Some("uuid") => Self::Uuid,
+            _ => Self::Text,
+        }
+    }
+
+    /// Canonical text form matching what `existing_pk_values` returns for
+    /// this binding — `None` drops keys that can never match (for example a
+    /// non-numeric value against an `int8` key column counts as new).
+    fn canonical(&self, raw: &str) -> Option<String> {
+        match self {
+            Self::Int => raw.parse::<i64>().ok().map(|value| value.to_string()),
+            Self::Uuid => Uuid::parse_str(raw).ok().map(|value| value.to_string()),
+            Self::Text => Some(raw.to_string()),
+        }
+    }
+
+    fn lookup(&self, keys: &[String]) -> PkLookup {
+        match self {
+            Self::Int => PkLookup::Int(
+                keys.iter()
+                    .filter_map(|key| key.parse::<i64>().ok())
+                    .collect(),
+            ),
+            Self::Uuid => PkLookup::Uuid(
+                keys.iter()
+                    .filter_map(|key| Uuid::parse_str(key).ok())
+                    .collect(),
+            ),
+            Self::Text => PkLookup::Text(keys.to_vec()),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -721,17 +821,28 @@ async fn preview_structured(
 /// Mutable accumulators the per-entity diff writes into — bundled so the
 /// function signature stays readable.
 struct PreviewAccum<'a> {
-    /// `(entity, column, parent)` -> rows that would be skipped.
-    relationship_problems: &'a mut HashMap<(String, String, String), u64>,
+    /// `(entity, reason)` -> affected rows; the reason text carries the
+    /// column and parent.
+    relationship_problems: &'a mut ProblemCounts,
     /// References that would be rewritten (admin-remap or NULL).
     rewritten_refs: &'a mut u64,
     validation_errors: &'a mut Vec<String>,
+    /// Entity key -> file columns whose values feed the parent-key pool.
+    parent_columns: &'a HashMap<String, HashSet<String>>,
+    /// Entity key -> its foreign keys whose parents are transferable.
+    child_edges: &'a HashMap<String, Vec<ForeignKeyRef>>,
+    /// `(parent entity, parent column)` -> key values the file itself
+    /// provides across all of that entity's rows.
+    file_parent_keys: &'a mut HashMap<(String, String), HashSet<String>>,
+    /// `(child, column, parent, parent column)` -> referenced value -> rows.
+    outgoing_refs: &'a mut HashMap<(String, String, String, String), HashMap<String, u64>>,
 }
 
 /// `new`/`existing`/`skipped` for one entity: collect each row's normalized
 /// primary-key value, batch-match against the destination, and count rows
 /// whose key is absent (or missing — a keyless row always inserts as new).
-/// The missing-reference assessment rides the same single pass.
+/// The missing-reference assessment and the parent-key/reference harvest
+/// ride the same single pass.
 async fn diff_entity_rows(
     pool: &DbPool,
     descriptor: &TransferTable,
@@ -766,11 +877,47 @@ async fn diff_entity_rows(
             skipped += 1;
             *accum
                 .relationship_problems
-                .entry((key.to_string(), column, parent))
+                .entry((
+                    key.to_string(),
+                    relationship_problem_reason(&column, &parent),
+                ))
                 .or_default() += 1;
         }
+        // Harvest the key values this entity provides as a transferable
+        // parent, and the references it makes into transferable parents —
+        // resolved against the destination after every entity is scanned.
+        if let Some(columns) = accum.parent_columns.get(key) {
+            for column in columns {
+                if let Some(value) = object.get(column).and_then(ref_value_key) {
+                    accum
+                        .file_parent_keys
+                        .entry((key.to_string(), column.clone()))
+                        .or_default()
+                        .insert(value);
+                }
+            }
+        }
+        if let Some(edges) = accum.child_edges.get(key) {
+            for edge in edges {
+                if let Some(value) = object.get(&edge.column).and_then(ref_value_key) {
+                    *accum
+                        .outgoing_refs
+                        .entry((
+                            key.to_string(),
+                            edge.column.clone(),
+                            edge.parent.key(),
+                            edge.parent_column.clone(),
+                        ))
+                        .or_default()
+                        .entry(value)
+                        .or_default() += 1;
+                }
+            }
+        }
         match pk_columns.as_slice() {
-            [column] => single_keys.push(object.get(column).and_then(ref_value_key)),
+            // Raw scalar text — the schema picks the binding type below, so
+            // "007" on a varchar key column must not collapse to "7" here.
+            [column] => single_keys.push(object.get(column).and_then(ref_value_raw)),
             _ if !pk_columns.is_empty() => composite_keys.push(
                 pk_columns
                     .iter()
@@ -801,40 +948,32 @@ async fn diff_entity_rows(
     }
 
     let mut existing = 0_u64;
-    if pk_columns.len() == 1 {
-        // Lift the batch to the narrowest key type so the ANY() array binds to
-        // the pk column's own type.
-        let typed_keys: Vec<&String> = single_keys.iter().flatten().collect();
-        let all_int = typed_keys.iter().all(|key| key.parse::<i64>().is_ok());
-        let all_uuid = typed_keys.iter().all(|key| Uuid::parse_str(key).is_ok());
-        let mut found: HashSet<String> = HashSet::new();
-        for chunk in typed_keys.chunks(PK_LOOKUP_BATCH) {
-            let lookup = if all_int {
-                PkLookup::Int(
-                    chunk
-                        .iter()
-                        .filter_map(|key| key.parse::<i64>().ok())
-                        .collect(),
-                )
-            } else if all_uuid {
-                PkLookup::Uuid(
-                    chunk
-                        .iter()
-                        .filter_map(|key| Uuid::parse_str(key).ok())
-                        .collect(),
-                )
-            } else {
-                PkLookup::Text(chunk.iter().map(|key| (*key).clone()).collect())
-            };
-            found.extend(
-                DataTransferRepository::existing_pk_values(pool, descriptor, &lookup).await?,
-            );
-        }
-        existing = single_keys
+    if let [column] = pk_columns.as_slice() {
+        // The binding type comes from the column's declared type — a varchar
+        // primary key holding all-numeric ids must still bind `text[]`, or
+        // the ANY() probe errors on the type mismatch.
+        let binding = PkBinding::for_udt(
+            DataTransferRepository::column_udt_name(pool, &descriptor.table, column)
+                .await?
+                .as_deref(),
+        );
+        let keys: Vec<String> = single_keys
             .iter()
             .flatten()
-            .filter(|key| found.contains(*key))
-            .count() as u64;
+            .filter_map(|key| binding.canonical(key))
+            .collect();
+        let mut found: HashSet<String> = HashSet::new();
+        for chunk in keys.chunks(PK_LOOKUP_BATCH) {
+            found.extend(
+                DataTransferRepository::existing_pk_values(
+                    pool,
+                    descriptor,
+                    &binding.lookup(chunk),
+                )
+                .await?,
+            );
+        }
+        existing = keys.iter().filter(|key| found.contains(*key)).count() as u64;
     } else {
         for keys in &composite_keys {
             if let Some(keys) = keys
@@ -913,11 +1052,29 @@ async fn preview_table_map(
         .iter()
         .filter_map(|(key, _)| QualifiedTable::parse(key).ok())
         .collect();
-    let scan = MissingRefScan::build(pool, &children, 0).await?;
+    let (scan, transferable_edges) = MissingRefScan::build(pool, &children, 0).await?;
+
+    // References between transferable tables resolve against the file's own
+    // rows first and the destination second — a referenced key present in
+    // neither survives every insert and detonates at the job's deferred
+    // foreign-key check, so the preview must report it while the file can
+    // still be fixed.
+    let mut child_edges: HashMap<String, Vec<ForeignKeyRef>> = HashMap::new();
+    let mut parent_columns: HashMap<String, HashSet<String>> = HashMap::new();
+    for edge in transferable_edges {
+        parent_columns
+            .entry(edge.parent.key())
+            .or_default()
+            .insert(edge.parent_column.clone());
+        child_edges.entry(edge.child.key()).or_default().push(edge);
+    }
 
     let mut entities = Vec::new();
-    let mut relationship_problems: HashMap<(String, String, String), u64> = HashMap::new();
+    let mut relationship_problems: ProblemCounts = HashMap::new();
     let mut rewritten_refs = 0_u64;
+    let mut file_parent_keys: HashMap<(String, String), HashSet<String>> = HashMap::new();
+    let mut outgoing_refs: HashMap<(String, String, String, String), HashMap<String, u64>> =
+        HashMap::new();
     for (key, rows) in transferable {
         let descriptor = descriptor_by_name
             .get(&key)
@@ -933,9 +1090,72 @@ async fn preview_table_map(
             relationship_problems: &mut relationship_problems,
             rewritten_refs: &mut rewritten_refs,
             validation_errors: &mut validation_errors,
+            parent_columns: &parent_columns,
+            child_edges: &child_edges,
+            file_parent_keys: &mut file_parent_keys,
+            outgoing_refs: &mut outgoing_refs,
         };
         diff_entity_rows(pool, descriptor, &key, rows, &scan, &mut entity, &mut accum).await?;
         entities.push(entity);
+    }
+
+    // Every entity's keys are harvested now — resolve the transferable-parent
+    // references collected above against file-then-database, and report the
+    // rows that would fail at commit.
+    let mut unresolved_ref_rows = 0_u64;
+    for (child_key, edges) in &child_edges {
+        for edge in edges {
+            let Some(counts) = outgoing_refs.get(&(
+                child_key.clone(),
+                edge.column.clone(),
+                edge.parent.key(),
+                edge.parent_column.clone(),
+            )) else {
+                continue;
+            };
+            let provided = file_parent_keys.get(&(edge.parent.key(), edge.parent_column.clone()));
+            let candidates: Vec<String> = counts
+                .keys()
+                .filter(|value| !provided.is_some_and(|keys| keys.contains(*value)))
+                .cloned()
+                .collect();
+            if candidates.is_empty() {
+                continue;
+            }
+            // Composite foreign keys are checked column-wise — that can
+            // under-report (two columns satisfied by different parent rows),
+            // but never invents a problem; the commit-time check stays the
+            // backstop either way.
+            let mut dangling_rows = 0_u64;
+            for chunk in candidates.chunks(PK_LOOKUP_BATCH) {
+                let found = DataTransferRepository::existing_values_any(
+                    pool,
+                    &edge.parent,
+                    &edge.parent_column,
+                    chunk,
+                )
+                .await?;
+                for value in chunk {
+                    if !found.contains(value) {
+                        dangling_rows += counts[value];
+                    }
+                }
+            }
+            if dangling_rows > 0 {
+                unresolved_ref_rows += dangling_rows;
+                *relationship_problems
+                    .entry((
+                        child_key.clone(),
+                        dangling_reference_reason(&edge.column, &edge.parent.key()),
+                    ))
+                    .or_default() += dangling_rows;
+            }
+        }
+    }
+    if unresolved_ref_rows > 0 {
+        warnings.push(format!(
+            "{unresolved_ref_rows} row(s) reference keys that are in neither the file nor this database — the import will fail at commit"
+        ));
     }
 
     if let Some(environment) = &header.source_environment
@@ -966,16 +1186,19 @@ async fn preview_table_map(
         ));
     }
 
-    let relationship_problems = relationship_problems
+    let mut relationship_problems: Vec<ImportRelationshipProblem> = relationship_problems
         .into_iter()
-        .map(
-            |((entity, column, parent), rows)| ImportRelationshipProblem {
-                entity,
-                rows,
-                reason: relationship_problem_reason(&column, &parent),
-            },
-        )
+        .map(|((entity, reason), rows)| ImportRelationshipProblem {
+            entity,
+            rows,
+            reason,
+        })
         .collect();
+    relationship_problems.sort_by(|left, right| {
+        left.entity
+            .cmp(&right.entity)
+            .then(left.reason.cmp(&right.reason))
+    });
 
     Ok(ImportPreview {
         upload_id,
@@ -1071,16 +1294,35 @@ fn prune_finished_jobs(jobs: &mut HashMap<Uuid, ImportJobEntry>) {
     jobs.retain(|_, job| job.finished_at.is_none_or(|finished| finished > cutoff));
 }
 
-fn job_running_for_upload(upload_id: Uuid) -> bool {
-    let mut jobs = lock_registry();
-    prune_finished_jobs(&mut jobs);
+fn upload_has_running_job(jobs: &HashMap<Uuid, ImportJobEntry>, upload_id: Uuid) -> bool {
     jobs.values()
         .any(|job| job.upload_id == upload_id && job.status == ImportJobState::Running)
 }
 
-fn register_job(job_id: Uuid, upload_id: Uuid) {
+/// Why an upload could not be claimed for a new job.
+enum RegisterJobError {
+    /// A running job already claims this upload.
+    Busy,
+    /// No staged file exists for this upload id.
+    Missing,
+}
+
+/// Atomically verify the staged file exists and no running job claims the
+/// upload, then register the new job — all inside ONE lock acquisition.
+/// Two concurrent `execute` calls on the same upload can no longer each
+/// observe "not running" before the other's insert, and a `DELETE` can no
+/// longer unlink the file between the existence check and the registration
+/// because `delete_staged_upload` holds this same lock while it unlinks.
+fn try_register_job(upload_id: Uuid) -> Result<Uuid, RegisterJobError> {
     let mut jobs = lock_registry();
     prune_finished_jobs(&mut jobs);
+    if upload_has_running_job(&jobs, upload_id) {
+        return Err(RegisterJobError::Busy);
+    }
+    if !staged_upload_path(upload_id).exists() {
+        return Err(RegisterJobError::Missing);
+    }
+    let job_id = Uuid::new_v4();
     jobs.insert(
         job_id,
         ImportJobEntry {
@@ -1096,6 +1338,7 @@ fn register_job(job_id: Uuid, upload_id: Uuid) {
             finished_at: None,
         },
     );
+    Ok(job_id)
 }
 
 fn set_job_progress(job_id: Uuid, entity: Option<String>, rows_applied: u64, total_rows: u64) {
@@ -1158,12 +1401,6 @@ pub async fn start_import_job(
             "confirm must be true to run an import — the operation is destructive".to_string(),
         ));
     }
-    let path = staged_upload_path(request.upload_id);
-    if !path.exists() {
-        return Err(ApiError::NotFound(
-            "staged upload not found — the file may have expired or been consumed".to_string(),
-        ));
-    }
     for table in &request.tables {
         QualifiedTable::parse(table)?;
         if !is_transferable_key(table) {
@@ -1172,14 +1409,21 @@ pub async fn start_import_job(
             )));
         }
     }
-    if job_running_for_upload(request.upload_id) {
-        return Err(ApiError::Conflict(
-            "an import job is already running for this upload".to_string(),
-        ));
-    }
 
-    let job_id = Uuid::new_v4();
-    register_job(job_id, request.upload_id);
+    let path = staged_upload_path(request.upload_id);
+    let job_id = match try_register_job(request.upload_id) {
+        Ok(job_id) => job_id,
+        Err(RegisterJobError::Busy) => {
+            return Err(ApiError::Conflict(
+                "an import job is already running for this upload".to_string(),
+            ));
+        }
+        Err(RegisterJobError::Missing) => {
+            return Err(ApiError::NotFound(
+                "staged upload not found — the file may have expired or been consumed".to_string(),
+            ));
+        }
+    };
 
     let job_pool = pool.clone();
     let job_path = path.clone();
@@ -1499,7 +1743,10 @@ async fn import_structured_backup(
         })
         .collect();
 
-    let scan = MissingRefScan::build(
+    // Transferable-parent edges are the preview's concern — here a truly
+    // dangling one fails the deferred-constraint check below, which is the
+    // correct outcome for the job.
+    let (scan, _transferable_edges) = MissingRefScan::build(
         pool,
         &ordered_tables
             .iter()
@@ -1547,7 +1794,7 @@ async fn import_structured_backup(
         relationship_problems: Vec::new(),
         unsupported_entities,
     };
-    let mut problems: HashMap<(String, String, String), u64> = HashMap::new();
+    let mut problems: ProblemCounts = HashMap::new();
     let mut rows_applied = 0_u64;
 
     for table in &ordered_tables {
@@ -1571,7 +1818,9 @@ async fn import_structured_backup(
             let mut object = object.map_err(|error| row_error(&name, index, &error))?;
             if let Some((column, parent)) = scan.apply(&name, &mut object) {
                 outcome.skipped += 1;
-                *problems.entry((name.clone(), column, parent)).or_default() += 1;
+                *problems
+                    .entry((name.clone(), relationship_problem_reason(&column, &parent)))
+                    .or_default() += 1;
             } else {
                 match DataTransferRepository::insert_transfer_row(
                     &mut tx,
@@ -1618,14 +1867,17 @@ async fn import_structured_backup(
 
     report.relationship_problems = problems
         .into_iter()
-        .map(
-            |((entity, column, parent), rows)| ImportRelationshipProblem {
-                entity,
-                rows,
-                reason: relationship_problem_reason(&column, &parent),
-            },
-        )
+        .map(|((entity, reason), rows)| ImportRelationshipProblem {
+            entity,
+            rows,
+            reason,
+        })
         .collect();
+    report.relationship_problems.sort_by(|left, right| {
+        left.entity
+            .cmp(&right.entity)
+            .then(left.reason.cmp(&right.reason))
+    });
 
     Ok(ImportJobResult {
         inserted: report.entities.iter().map(|entity| entity.inserted).sum(),
@@ -1780,6 +2032,48 @@ mod tests {
         let parsed = parse_staged_file(&path).expect("v3 document parses");
         assert!(matches!(parsed, ParsedBackup::V3(_)));
         fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn pk_binding_comes_from_the_column_type() {
+        // The binding is chosen by the declared udt_name, never by the file's
+        // value shapes — an all-numeric id set on a varchar key column still
+        // binds text[] (a bigint[] bind fails the ANY() probe).
+        assert!(matches!(PkBinding::for_udt(Some("int2")), PkBinding::Int));
+        assert!(matches!(PkBinding::for_udt(Some("int4")), PkBinding::Int));
+        assert!(matches!(PkBinding::for_udt(Some("int8")), PkBinding::Int));
+        assert!(matches!(PkBinding::for_udt(Some("uuid")), PkBinding::Uuid));
+        assert!(matches!(
+            PkBinding::for_udt(Some("varchar")),
+            PkBinding::Text
+        ));
+        assert!(matches!(PkBinding::for_udt(Some("text")), PkBinding::Text));
+        assert!(matches!(PkBinding::for_udt(None), PkBinding::Text));
+        // Canonical form: ints normalize ("007" -> 7), text compares verbatim.
+        assert_eq!(PkBinding::Int.canonical("007").as_deref(), Some("7"));
+        assert_eq!(PkBinding::Text.canonical("007").as_deref(), Some("007"));
+        assert_eq!(PkBinding::Int.canonical("abc"), None);
+    }
+
+    #[tokio::test]
+    async fn whitespace_prefix_still_counts_against_the_upload_cap() {
+        let dir = std::env::temp_dir().join(format!("dt-cap-test-{}", Uuid::new_v4()));
+        // 4 KiB of pure whitespace against a 1 KiB cap: all-whitespace chunks
+        // used to `continue` before their bytes were counted, so an unbounded
+        // whitespace prefix bypassed the mid-stream limit entirely.
+        let rejected = stage_backup_upload_to(Body::from(vec![b' '; 4096]), &dir, 1024).await;
+        assert!(matches!(rejected, Err(StageUploadError::PayloadTooLarge)));
+
+        // Whitespace inside the cap is measured, not rejected — a small
+        // whitespace-prefixed document still stages and sniffs.
+        let mut document = vec![b' '; 512];
+        document.extend_from_slice(br#"{"bookings":[]}"#);
+        let staged = stage_backup_upload_to(Body::from(document), &dir, 1024)
+            .await
+            .expect("a small whitespace-prefixed JSON document still stages");
+        assert_eq!(staged.detected_format, "v1");
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
