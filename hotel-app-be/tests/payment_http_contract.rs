@@ -433,6 +433,8 @@ fn assert_key_contract(responses: [(StatusCode, String); 4], expected_valid_stat
         let parsed: serde_json::Value =
             serde_json::from_str(body).expect("error body must be JSON");
         assert_eq!(parsed["error"], IDEMPOTENCY_ERROR, "body: {body}");
+        // ApiError::BadRequest carries the stable machine-readable code.
+        assert_eq!(parsed["code"], "bad_request", "body: {body}");
     };
     assert_eq!(status, StatusCode::BAD_REQUEST, "missing key body: {body}");
     assert_error_body(&body);
