@@ -16,20 +16,44 @@
  *
  *   - Per file, `const { t } = useTranslation('<ns>')` destructures give the
  *     namespace each local name is bound to (`useTranslation()` → `common`,
- *     `{ t: tNav }` aliases are honoured, first binding wins on conflict).
- *   - `t`/`translate*` imported from an `i18n` module use their explicit
- *     trailing namespace argument when literal, else `common`.
- *   - A `t` that is neither destructured nor imported (a function parameter,
- *     e.g. `turnstileErrorMessage(error, t)`) cannot be attributed to one
- *     namespace statically — its keys are accepted when they exist in ANY
- *     namespace. That still catches typos, which is the gate's job.
+ *     `{ t: tNav }` aliases are honoured). If one local name is bound to TWO
+ *     different namespaces in a file, it is marked ambiguous and falls back to
+ *     the any-namespace check rather than guessing.
+ *   - `t`/`tOr`/`translate*`/`statusLabel` imported from an `i18n` module use
+ *     their explicit trailing namespace argument when literal, else `common`.
+ *     Import aliases are resolved to the exported name first, so
+ *     `import { statusLabel as sl }` still takes the statusLabel path.
+ *   - A bound `t` stashed in a ref is followed too: `useRef(t)` or
+ *     `ref.current = t` mark `ref` as holding a bound translator, and
+ *     `ref.current('key')` is checked like `t('key')` (the real pattern is
+ *     `useGoogleOneTap`'s `translateRef`). Unrelated `xRef.current('/path')`
+ *     calls are untouched — only refs whose RHS was a bound name qualify.
+ *   - A `t` that is neither destructured, imported, nor ref-held (a function
+ *     parameter, e.g. `turnstileErrorMessage(error, t)`) cannot be attributed
+ *     to one namespace statically — its keys are accepted when they exist in
+ *     ANY namespace. That still catches typos, which is the gate's job.
  *   - `ns:key` inside the literal always overrides the bound namespace.
- *   - Template literals containing `${` and any non-literal argument are
- *     skipped — dynamic keys (statusLabel values, `errors:api.${code}`) are
- *     checked by their callers' fallbacks, not here.
  *   - Plural calls like `t('count.nights', { count })` resolve
  *     `count.nights_other`/`_one`/`_zero`; a base path that only exists as
  *     plural variants counts as present.
+ *
+ * Known blind spots — deliberately unchecked, none produce false failures:
+ *
+ *   - Dynamic keys: template literals containing `${` (`nav.${link.section}`,
+ *     `errors:api.${code}`), non-literal arguments (`t(CONSTANT)`,
+ *     `t(KEYS[route.id])`, `t(prefix + 'x')`), and `statusLabel` calls whose
+ *     status value is not a literal (the helper humanizes unmapped values).
+ *   - A clean single ternary `t(cond ? 'a' : 'b')` IS checked — both literal
+ *     branches are validated. Nested ternaries or non-literal branches skip
+ *     the whole call.
+ *   - Member calls other than the ref pattern: `i18n.t('k')`, `tr.t('k')` on a
+ *     non-destructured `useTranslation` handle, `obj.tOr('k')`.
+ *   - Calls inside regex literals can confuse the crude comment stripper
+ *     (`/a\/\/b/` reads as a comment start): worst case the rest of that line
+ *     is dropped, losing a check — never a false failure.
+ *   - Keys that live in constants (`const KEYS = { x: 'mobile.guests' }`) are
+ *     validated only when a literal reaches a call site — the map itself is
+ *     not scanned.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -279,6 +303,64 @@ const literalOf = (text: string | undefined): string | undefined => {
   return undefined;
 };
 
+/**
+ * `cond ? 'a' : 'b'` → `['a', 'b']` when the argument is exactly one clean
+ * ternary at top level (one `?`, one `:`, neither nested nor part of `?.`/`??`).
+ * Anything else — nested ternaries, `cond?.x`, mixed branches — returns
+ * `undefined` and the call is skipped.
+ */
+const ternaryBranches = (arg: string): [string, string] | undefined => {
+  let depth = 0;
+  let qPos = -1;
+  let cPos = -1;
+  let qCount = 0;
+  let cCount = 0;
+  let quote: "'" | '"' | '`' | undefined;
+  for (let i = 0; i < arg.length; i++) {
+    const c = arg[i];
+    if (quote) {
+      if (c === '\\') i += 1;
+      else if (c === quote) quote = undefined;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      quote = c;
+    } else if (c === '(' || c === '[' || c === '{') {
+      depth += 1;
+    } else if (c === ')' || c === ']' || c === '}') {
+      depth -= 1;
+    } else if (depth === 0 && c === '?' && arg[i + 1] !== '.' && arg[i + 1] !== '?' && arg[i - 1] !== '?') {
+      qPos = i;
+      qCount += 1;
+    } else if (depth === 0 && c === ':') {
+      cPos = i;
+      cCount += 1;
+    }
+  }
+  if (qCount !== 1 || cCount !== 1 || cPos < qPos) return undefined;
+  return [arg.slice(qPos + 1, cPos), arg.slice(cPos + 1)];
+};
+
+/**
+ * Every literal key an argument can carry: a single literal, or both branches
+ * of a clean `cond ? 'a' : 'b'` ternary. `[]` means nothing statically
+ * checkable — the call is skipped.
+ */
+const literalKeysOf = (text: string | undefined): string[] => {
+  const single = literalOf(text);
+  if (single !== undefined) return [single];
+  if (text === undefined) return [];
+  const branches = ternaryBranches(text.trim());
+  if (!branches) return [];
+  const keys: string[] = [];
+  for (const branch of branches) {
+    const lit = literalOf(branch);
+    if (lit === undefined) return [];
+    keys.push(lit);
+  }
+  return keys;
+};
+
 interface Binding {
   /** Bound namespace; `null` when the argument was not a literal. */
   namespace: string | null;
@@ -300,11 +382,56 @@ const findBindings = (src: string): Map<string, Binding> => {
       if (!m) continue;
       if (m[1] !== 't' && m[1] !== 'tOr') continue;
       const local = m[2] ?? m[1];
-      if (!bindings.has(local)) bindings.set(local, { namespace });
+      const prev = bindings.get(local);
+      if (!prev) {
+        bindings.set(local, { namespace });
+      } else if (prev.namespace !== namespace) {
+        // Same local name rebound to a different namespace elsewhere in the
+        // file — ambiguous; fall back to the any-namespace check.
+        bindings.set(local, { namespace: null });
+      }
     }
     match = re.exec(src);
   }
   return bindings;
+};
+
+/**
+ * Refs holding a bound translator: `const xRef = useRef(t)` or
+ * `xRef.current = t` where the RHS is a name already bound by
+ * `useTranslation`. Such a ref makes `xRef.current('key')` a bound-t call —
+ * the useGoogleOneTap `translateRef` pattern. Rebinding a ref to differently-
+ * bound translators marks it ambiguous, same as a rebound local.
+ */
+const findRefBindings = (
+  src: string,
+  bindings: Map<string, Binding>
+): Map<string, Binding> => {
+  const refs = new Map<string, Binding>();
+  const track = (refName: string | undefined, rhs: string | undefined): void => {
+    if (!refName || !rhs) return;
+    const bound = bindings.get(rhs);
+    if (!bound) return;
+    const prev = refs.get(refName);
+    if (!prev) {
+      refs.set(refName, bound);
+    } else if (prev.namespace !== bound.namespace) {
+      refs.set(refName, { namespace: null });
+    }
+  };
+  const reInit = /\b(?:const|let|var)\s+(\w+)\s*=\s*useRef\s*(?:<[^>]*>)?\s*\(\s*(\w+)\s*[,)]/g;
+  const reAssign = /\b(\w+)\.current\s*=\s*(\w+)\b/g;
+  let match = reInit.exec(src);
+  while (match !== null) {
+    track(match[1], match[2]);
+    match = reInit.exec(src);
+  }
+  match = reAssign.exec(src);
+  while (match !== null) {
+    track(match[1], match[2]);
+    match = reAssign.exec(src);
+  }
+  return refs;
 };
 
 /**
@@ -336,10 +463,21 @@ interface ExtractedCall {
   index: number;
 }
 
-/** Every `name(...)` call for the candidate names, with parsed arguments. */
-const findCalls = (src: string, names: Set<string>): ExtractedCall[] => {
-  if (names.size === 0) return [];
-  const re = new RegExp(`(?<![\\w$.])(${[...names].join('|')})\\s*\\(`, 'g');
+/**
+ * Every `name(...)` call for the candidate names, with parsed arguments.
+ * `fragments` are extra regex alternatives (e.g. `translateRef\.current`) for
+ * multi-part callees; the lookbehind still guards the fragment's first word.
+ */
+const findCalls = (
+  src: string,
+  names: Set<string>,
+  fragments: string[]
+): ExtractedCall[] => {
+  if (names.size === 0 && fragments.length === 0) return [];
+  const re = new RegExp(
+    `(?<![\\w$.])(${[...names, ...fragments].join('|')})\\s*\\(`,
+    'g'
+  );
   const calls: ExtractedCall[] = [];
   let match = re.exec(src);
   while (match !== null) {
@@ -381,6 +519,7 @@ describe('translation key usage', () => {
     for (const [globKey, raw] of Object.entries(SOURCES)) {
       const src = stripComments(raw);
       const bindings = findBindings(src);
+      const refBindings = findRefBindings(src, bindings);
       const imports = findI18nImports(src, globKey);
 
       const names = new Set<string>([
@@ -389,33 +528,41 @@ describe('translation key usage', () => {
         ...bindings.keys(),
         ...imports.keys(),
       ]);
+      // `<ref>.current(` callees for refs holding a bound translator — matched
+      // as a unit so bare `current` and unrelated `xRef.current(` stay ignored.
+      const refFragments = [...refBindings.keys()].map((n) => `${n}\\.current`);
 
-      for (const call of findCalls(src, names)) {
+      for (const call of findCalls(src, names, refFragments)) {
+        // The exported name when imported under an alias (`t as tt`,
+        // `statusLabel as sl`), the local name otherwise. Bound destructure
+        // aliases (`t: tNav`) and `<ref>.current` callees are absent from the
+        // index maps — their key is argument 0.
+        const exported = imports.get(call.name) ?? call.name;
+        const refMatch = /^(\w+)\.current$/.exec(call.name);
+        const bound =
+          bindings.get(call.name) ??
+          (refMatch ? refBindings.get(refMatch[1]) : undefined);
+        const imported = imports.get(call.name);
+
         let namespace: string | null;
-        let key: string | undefined;
+        let keys: string[];
 
-        if (call.name === 'statusLabel') {
+        if (exported === 'statusLabel') {
           // statusLabel(t, 'domain', 'value') → status:domain.value; a
           // non-literal value is a dynamic status the helper humanizes.
           const domain = literalOf(call.args[1]);
           const value = literalOf(call.args[2]);
           if (domain === undefined || value === undefined) continue;
-          key = `${domain}.${value}`;
+          keys = [`${domain}.${value}`];
           namespace = 'status';
         } else {
-          // The exported name when imported under an alias (`t as tt`), the
-          // local name otherwise. Bound destructure aliases (`t: tNav`) map to
-          // `t`/`tOr` — absent from the index maps, their key is argument 0.
-          const exported = imports.get(call.name) ?? call.name;
-          key = literalOf(call.args[KEY_ARG_INDEX[exported] ?? 0]);
+          keys = literalKeysOf(call.args[KEY_ARG_INDEX[exported] ?? 0]);
           // Engine-style `translate('key', options)` — first arg is the key.
-          if (key === undefined && exported === 'translate') {
-            key = literalOf(call.args[0]);
+          if (keys.length === 0 && exported === 'translate') {
+            keys = literalKeysOf(call.args[0]);
           }
-          if (key === undefined || key.includes('${')) continue;
+          if (keys.length === 0) continue;
 
-          const bound = bindings.get(call.name);
-          const imported = imports.get(call.name);
           if (bound) {
             namespace = bound.namespace;
           } else if (imported) {
@@ -432,24 +579,27 @@ describe('translation key usage', () => {
           }
         }
 
-        if (key.includes('${')) continue;
-        const colon = key.indexOf(':');
-        if (colon !== -1) {
-          namespace = key.slice(0, colon);
-          key = key.slice(colon + 1);
-        }
+        for (let key of keys) {
+          if (key.includes('${')) continue;
+          let resolved = namespace;
+          const colon = key.indexOf(':');
+          if (colon !== -1) {
+            resolved = key.slice(0, colon);
+            key = key.slice(colon + 1);
+          }
 
-        validated += 1;
-        const found =
-          namespace === null
-            ? NAMESPACES.some((ns) => existsIn(ns, key))
-            : existsIn(namespace, key);
-        if (!found) {
-          missing.push({
-            file: RELATIVE_PATH(globKey),
-            line: lineOf(src, call.index),
-            key: namespace === null ? key : `${namespace}:${key}`,
-          });
+          validated += 1;
+          const found =
+            resolved === null
+              ? NAMESPACES.some((ns) => existsIn(ns, key))
+              : existsIn(resolved, key);
+          if (!found) {
+            missing.push({
+              file: RELATIVE_PATH(globKey),
+              line: lineOf(src, call.index),
+              key: resolved === null ? key : `${resolved}:${key}`,
+            });
+          }
         }
       }
     }
