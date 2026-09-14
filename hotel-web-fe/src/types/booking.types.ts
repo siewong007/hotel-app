@@ -150,6 +150,8 @@ export interface BookingCreateRequest {
   booking_number?: string; // Optional - auto-generated for walk-in, manual for online
   deposit_paid?: boolean;
   deposit_amount?: number;
+  /** Tender actually collected for the deposit (not the bill's method). */
+  deposit_payment_method?: string;
   room_rate_override?: number;
   daily_rates?: Record<string, number>;
   cleaning_preference?: boolean | null;
@@ -179,6 +181,8 @@ export interface BookingUpdateRequest {
   cancellation_reason?: string;
   deposit_paid?: boolean;
   deposit_amount?: number;
+  /** Tender actually collected for the deposit (not the bill's method). */
+  deposit_payment_method?: string;
   company_id?: number;
   company_name?: string;
   clear_company?: boolean;

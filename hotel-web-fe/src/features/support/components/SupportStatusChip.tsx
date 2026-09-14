@@ -1,12 +1,13 @@
 import { Chip, type ChipProps } from '@mui/material';
+import StatusChip, { type StatusTone } from '../../../components/common/StatusChip';
 import { formatStatusLabel } from '../../../utils/formatters';
 import type { SupportConversationStatus, SupportPriority } from '../types';
 
-const STATUS_COLORS: Record<SupportConversationStatus, ChipProps['color']> = {
+const STATUS_COLORS: Record<SupportConversationStatus, StatusTone> = {
   waiting_for_staff: 'warning',
   waiting_for_guest: 'info',
   resolved: 'success',
-  closed: 'default',
+  closed: 'neutral',
 };
 
 const PRIORITY_COLORS: Record<SupportPriority, ChipProps['color']> = {
@@ -36,10 +37,9 @@ export function formatSupportDate(value?: string | null): string {
 
 export function SupportStatusChip({ status }: { status: SupportConversationStatus }) {
   return (
-    <Chip
-      size="small"
-      label={humanizeSupportValue(status)}
-      color={STATUS_COLORS[status]}
+    <StatusChip
+      status={status}
+      tone={STATUS_COLORS[status]}
       variant={status === 'closed' ? 'outlined' : 'filled'}
     />
   );

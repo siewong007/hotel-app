@@ -17,6 +17,11 @@ use tower::ServiceExt;
 
 const TEST_JWT_SECRET: &str = "hotel-app-be-payment-http-contract-secret-32chars";
 const ACTOR_ID: i64 = 997_001;
+// A second actor holding `payments:create` but NOT `payments:refund`, via a
+// dedicated fixture role, to prove the forfeit route's gate is not satisfied
+// by ordinary payment-entry permission.
+const CREATE_ONLY_ACTOR_ID: i64 = 997_020;
+const CREATE_ONLY_ROLE_ID: i64 = 997_021;
 const ABSENT_BOOKING_ID: i64 = 9_970_001;
 const ABSENT_LEDGER_ID: i64 = 9_970_002;
 const LEGACY_BOOKING_ID: i64 = 997_013;
@@ -123,11 +128,28 @@ impl HttpFixture {
     }
 
     async fn post(&self, uri: &str, payload: Value) -> (StatusCode, String) {
-        let request = Request::builder()
+        self.post_authorized(uri, Some(self.authorization.as_str()), payload)
+            .await
+    }
+
+    async fn post_unauthenticated(&self, uri: &str, payload: Value) -> (StatusCode, String) {
+        self.post_authorized(uri, None, payload).await
+    }
+
+    async fn post_authorized(
+        &self,
+        uri: &str,
+        authorization: Option<&str>,
+        payload: Value,
+    ) -> (StatusCode, String) {
+        let mut builder = Request::builder()
             .method("POST")
             .uri(uri)
-            .header(header::AUTHORIZATION, &self.authorization)
-            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_TYPE, "application/json");
+        if let Some(authorization) = authorization {
+            builder = builder.header(header::AUTHORIZATION, authorization);
+        }
+        let request = builder
             .body(Body::from(payload.to_string()))
             .expect("HTTP request must build");
         let response = self
@@ -144,6 +166,109 @@ impl HttpFixture {
             status,
             String::from_utf8(body.to_vec()).expect("response body must be UTF-8"),
         )
+    }
+
+    /// Seeds a staff actor whose only payment permission is `payments:create`
+    /// (through a dedicated fixture role) plus an active session, and returns
+    /// its `Bearer` authorization header value.
+    async fn seed_create_only_actor(&self) -> String {
+        Self::cleanup_create_only_actor(&self.pool).await;
+        sqlx::query(
+            "INSERT INTO users \
+             (id, username, email, full_name, user_type, is_active, is_verified, is_locked) \
+             OVERRIDING SYSTEM VALUE \
+             VALUES ($1, 'payment_http_create_only', 'payment-http-create-only@hotel.local', \
+                     'Payment HTTP Create-Only Actor', 'staff', true, true, false)",
+        )
+        .bind(CREATE_ONLY_ACTOR_ID)
+        .execute(&self.pool)
+        .await
+        .expect("create-only actor fixture must be inserted");
+
+        sqlx::query(
+            "INSERT INTO roles (id, name, display_name, description, is_system_role, priority) \
+             OVERRIDING SYSTEM VALUE \
+             VALUES ($1, 'payment_http_create_only', 'Payment HTTP Create Only', \
+                     'payment_http_contract.rs fixture role', false, 1)",
+        )
+        .bind(CREATE_ONLY_ROLE_ID)
+        .execute(&self.pool)
+        .await
+        .expect("create-only role fixture must be inserted");
+        sqlx::query(
+            "INSERT INTO role_permissions (role_id, permission_id) \
+             SELECT $1, id FROM permissions WHERE name = 'payments:create'",
+        )
+        .bind(CREATE_ONLY_ROLE_ID)
+        .execute(&self.pool)
+        .await
+        .expect("create-only role permission fixture must be inserted");
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) \
+             VALUES ($1, $2) ON CONFLICT (user_id, role_id) DO NOTHING",
+        )
+        .bind(CREATE_ONLY_ACTOR_ID)
+        .bind(CREATE_ONLY_ROLE_ID)
+        .execute(&self.pool)
+        .await
+        .expect("create-only actor role fixture must be inserted");
+        core::rbac_cache::invalidate_all();
+
+        let refresh_token = AuthService::generate_refresh_token();
+        let session_id = AuthService::store_refresh_token(
+            &self.pool,
+            CREATE_ONLY_ACTOR_ID,
+            &refresh_token,
+            1,
+            Some("127.0.0.1"),
+            Some("payment-http-contract-test"),
+            None,
+        )
+        .await
+        .expect("create-only session fixture must be inserted");
+        let token = AuthService::generate_session_jwt(
+            CREATE_ONLY_ACTOR_ID,
+            "payment_http_create_only".to_string(),
+            vec!["payment_http_create_only".to_string()],
+            session_id,
+        )
+        .expect("create-only access token must encode");
+        format!("Bearer {token}")
+    }
+
+    async fn cleanup_create_only_actor(pool: &PgPool) {
+        sqlx::query("DELETE FROM audit_logs WHERE user_id = $1")
+            .bind(CREATE_ONLY_ACTOR_ID)
+            .execute(pool)
+            .await
+            .expect("create-only audit cleanup must succeed");
+        sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
+            .bind(CREATE_ONLY_ACTOR_ID)
+            .execute(pool)
+            .await
+            .expect("create-only session cleanup must succeed");
+        sqlx::query("DELETE FROM user_roles WHERE user_id = $1 OR role_id = $2")
+            .bind(CREATE_ONLY_ACTOR_ID)
+            .bind(CREATE_ONLY_ROLE_ID)
+            .execute(pool)
+            .await
+            .expect("create-only role assignment cleanup must succeed");
+        sqlx::query("DELETE FROM role_permissions WHERE role_id = $1")
+            .bind(CREATE_ONLY_ROLE_ID)
+            .execute(pool)
+            .await
+            .expect("create-only role permission cleanup must succeed");
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(CREATE_ONLY_ACTOR_ID)
+            .execute(pool)
+            .await
+            .expect("create-only actor cleanup must succeed");
+        sqlx::query("DELETE FROM roles WHERE id = $1")
+            .bind(CREATE_ONLY_ROLE_ID)
+            .execute(pool)
+            .await
+            .expect("create-only role cleanup must succeed");
+        core::rbac_cache::invalidate_all();
     }
 
     async fn seed_legacy_booking(&self) {
@@ -247,6 +372,7 @@ impl HttpFixture {
     }
 
     async fn cleanup(self) {
+        Self::cleanup_create_only_actor(&self.pool).await;
         Self::cleanup_legacy_booking(&self.pool).await;
         sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
             .bind(ACTOR_ID)
@@ -402,6 +528,61 @@ async fn company_ledger_payment_route_maps_invalid_idempotency_keys_to_bad_reque
     .await;
     fixture.cleanup().await;
     assert_key_contract(responses, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn forfeit_deposit_route_is_gated_on_payments_refund() {
+    let Some(fixture) = HttpFixture::new().await else {
+        return;
+    };
+    let uri = format!("/api/payments/forfeit-deposit/{ABSENT_BOOKING_ID}");
+    let payload = json!({ "amount": 1.0, "reason": "Lost keycard" });
+
+    // No bearer token at all: the session middleware turns the request away
+    // before the RBAC gate runs.
+    let (unauthenticated_status, unauthenticated_body) =
+        fixture.post_unauthenticated(&uri, payload.clone()).await;
+
+    // Authenticated, but holding payments:create without payments:refund:
+    // the route's permission gate must refuse it.
+    let create_only_authorization = fixture.seed_create_only_actor().await;
+    let (forbidden_status, forbidden_body) = fixture
+        .post_authorized(&uri, Some(&create_only_authorization), payload.clone())
+        .await;
+
+    // The receptionist fixture holds payments:refund, so the gate passes and
+    // the request reaches business logic — which 404s the absent booking.
+    let (allowed_status, allowed_body) = fixture.post(&uri, payload).await;
+
+    // A missing reason is a domain validation error, reachable only past the
+    // gate: a white reason string proves the payments:refund holder gets a
+    // BadRequest, not an auth failure.
+    let (no_reason_status, no_reason_body) = fixture
+        .post(&uri, json!({ "amount": 1.0, "reason": "   " }))
+        .await;
+
+    fixture.cleanup().await;
+
+    assert_eq!(
+        unauthenticated_status,
+        StatusCode::UNAUTHORIZED,
+        "unauthenticated body: {unauthenticated_body}"
+    );
+    assert_eq!(
+        forbidden_status,
+        StatusCode::FORBIDDEN,
+        "payments:create-only body: {forbidden_body}"
+    );
+    assert_eq!(
+        allowed_status,
+        StatusCode::NOT_FOUND,
+        "payments:refund holder body: {allowed_body}"
+    );
+    assert_eq!(
+        no_reason_status,
+        StatusCode::BAD_REQUEST,
+        "blank-reason body: {no_reason_body}"
+    );
 }
 
 #[tokio::test]

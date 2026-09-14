@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { BookingsService, GuestsService } from '../../../api';
-import type { BookingWithDetails, CheckInRequest } from '../../../types';
+import type { BookingUpdateRequest, BookingWithDetails, CheckInRequest } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
@@ -114,28 +114,27 @@ export function useReservedCheckInWorkflow({
     try {
       setProcessing(true);
 
-      const updateData: Record<string, unknown> = {};
+      // Single atomic request: deposit fields + payment + the status flip all go
+      // through the check-in endpoint, which commits them in one transaction.
+      // (Don't push payment_status — recording the payments row is what flips the
+      // derived status; an override would be overwritten by the backend anyway.)
+      const bookingUpdate: BookingUpdateRequest = {};
       if (paymentChoice === 'pay_now') {
-        updateData.payment_status = 'paid';
-        updateData.amount_paid = toMoneyNumber(amountPaid);
-        updateData.payment_method = paymentMethod;
-      } else {
-        updateData.payment_status = 'unpaid';
+        bookingUpdate.payment_method = paymentMethod;
       }
-
       if (depositChoice === 'receive') {
-        updateData.deposit_paid = true;
-        updateData.deposit_amount = toMoneyNumber(depositAmount);
-        updateData.payment_note = `Deposit received (${depositMethod})`;
+        bookingUpdate.deposit_paid = true;
+        bookingUpdate.deposit_amount = toMoneyNumber(depositAmount);
+        bookingUpdate.payment_note = `Deposit received (${depositMethod})`;
+        bookingUpdate.deposit_payment_method = depositMethod;
       } else {
-        updateData.deposit_paid = false;
-        updateData.deposit_amount = 0;
-        updateData.payment_note = `Deposit waived: ${waiveReason}`;
+        bookingUpdate.deposit_paid = false;
+        bookingUpdate.deposit_amount = 0;
+        bookingUpdate.payment_note = `Deposit waived: ${waiveReason}`;
       }
-
-      await BookingsService.updateBooking(booking.id, updateData);
 
       const checkinPayload: CheckInRequest = {
+        booking_update: bookingUpdate,
         guest_update: {
           ic_number: icNumber.trim(),
           ...(phone.trim() ? { phone: phone.trim() } : {}),

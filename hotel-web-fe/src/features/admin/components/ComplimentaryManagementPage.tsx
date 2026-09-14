@@ -18,6 +18,7 @@ import {
 import { BookingsService, GuestsService, RoomsService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { TabPanel } from '../../../components';
+import PageHeader from '../../../components/common/PageHeader';
 import SummaryCards from './complimentary/SummaryCards';
 import ComplimentaryBookingsTable from './complimentary/ComplimentaryBookingsTable';
 import GuestCreditsPanel from './complimentary/GuestCreditsPanel';
@@ -119,15 +120,20 @@ export default function ComplimentaryManagementPage() {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-          <GiftIcon sx={{ mr: 1, fontSize: 32 }} />
-          Complimentary Management
-        </Typography>
-        <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadData}>
-          Refresh
-        </Button>
-      </Box>
+      <PageHeader
+        title={
+          <>
+            <GiftIcon sx={{ mr: 1, fontSize: 28, verticalAlign: 'text-bottom' }} />
+            Complimentary Management
+          </>
+        }
+        sx={{ mb: 3 }}
+        actions={
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadData}>
+            Refresh
+          </Button>
+        }
+      />
       {/* Error Alert */}
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>

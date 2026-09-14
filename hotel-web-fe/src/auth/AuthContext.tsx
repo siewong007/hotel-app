@@ -195,9 +195,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // With the fresh access token in memory, confirm the session and load
         // the current access snapshot before flipping isAuthenticated. The
         // `user` object is restored from the (non-sensitive) storage cache set
-        // at login; the profile call doubles as a token-validity probe.
-        const profile = await UsersService.getUserProfile();
-        const access = await AuthService.getAccessSnapshot();
+        // at login; the profile call doubles as a token-validity probe. Both
+        // calls only need the token, so they run in parallel — on a cold
+        // refresh this is the difference between two round trips and three
+        // while RootLayout holds the boot splash.
+        const [profile, access] = await Promise.all([
+          UsersService.getUserProfile(),
+          AuthService.getAccessSnapshot(),
+        ]);
         const cachedUser = storage.getItem<User>('user');
         const user = normalizeAuthUser({ ...cachedUser, ...profile }, access.roles);
 

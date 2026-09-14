@@ -103,6 +103,9 @@
     "/api/admin/payments/history": {
       "GET": {}
     },
+    "/api/admin/payments/paypal-conflicts": {
+      "GET": {}
+    },
     "/api/admin/payments/pending": {
       "GET": {}
     },
@@ -776,6 +779,9 @@
     },
     "/api/payments/calculate/{booking_id}": {
       "GET": {}
+    },
+    "/api/payments/forfeit-deposit/{booking_id}": {
+      "POST": {}
     },
     "/api/payments/record-payment": {
       "POST": {}

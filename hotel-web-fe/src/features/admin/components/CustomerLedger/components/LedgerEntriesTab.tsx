@@ -170,6 +170,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
         >
           {([
             { key: 'all', label: 'All' },
+            { key: 'draft', label: 'Draft' },
             { key: 'uninvoiced', label: 'Uninvoiced' },
             { key: 'outstanding', label: 'Outstanding' },
             { key: 'invoiced', label: 'Invoiced' },

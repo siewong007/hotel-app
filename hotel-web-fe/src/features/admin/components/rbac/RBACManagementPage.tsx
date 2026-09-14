@@ -442,7 +442,7 @@ const RBACManagementPage: React.FC = () => {
         </Box>
         <Tooltip title="Refresh">
           <span>
-            <IconButton onClick={reload} disabled={loading} sx={{ border: `1px solid ${T.border}`, borderRadius: '9px' }}>
+            <IconButton onClick={reload} disabled={loading} aria-label="Refresh roles" sx={{ border: `1px solid ${T.border}`, borderRadius: '9px' }}>
               {loading ? <CircularProgress size={20} /> : <RefreshIcon />}
             </IconButton>
           </span>

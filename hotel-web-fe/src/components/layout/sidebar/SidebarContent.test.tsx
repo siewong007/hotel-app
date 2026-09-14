@@ -40,11 +40,6 @@ vi.mock('../../../router', () => ({
   ),
 }));
 
-// The palette context is mounted by RootLayout; SidebarContent only opens it.
-vi.mock('../CommandPalette', () => ({
-  useCommandPalette: () => ({ open: vi.fn() }),
-}));
-
 import { SidebarContent } from './SidebarContent';
 
 const navPolicy = (routeId: string, path: string): RouteAccessPolicy => ({

@@ -69,6 +69,18 @@ export class InvoicesService {
     }
   }
 
+  static async forfeitDeposit(bookingId: string | number, amount: number, reason: string): Promise<any> {
+    try {
+      // Ensure amount is a valid number
+      const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
+      return await api.post(`payments/forfeit-deposit/${bookingId}`, {
+        json: { amount: numericAmount, reason }
+      }).json<any>();
+    } catch (error) {
+      throw toApiError(error, 'Failed to forfeit deposit');
+    }
+  }
+
   static async revertDepositRefund(bookingId: string | number): Promise<any> {
     try {
       return await api.post(`payments/revert-deposit-refund/${bookingId}`).json<any>();

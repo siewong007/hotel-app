@@ -46,6 +46,10 @@ pub fn routes() -> Router<DbPool> {
             post(refund_deposit),
         )
         .route(
+            "/payments/forfeit-deposit/{booking_id}",
+            post(forfeit_deposit),
+        )
+        .route(
             "/payments/revert-deposit-refund/{booking_id}",
             post(revert_deposit_refund),
         )
@@ -58,6 +62,10 @@ pub fn routes() -> Router<DbPool> {
         .route(
             "/admin/payments/history",
             get(list_payment_approval_history),
+        )
+        .route(
+            "/admin/payments/paypal-conflicts",
+            get(list_paypal_conflicts),
         )
         .route(
             "/admin/payments/{payment_id}/receipt",
@@ -140,6 +148,20 @@ async fn refund_deposit(
         .await
 }
 
+// Forfeiting a held deposit (lost keycard, damage) is checkout-side money
+// handling, same as refunding it, so it shares the payments:refund gate —
+// not the heavier payments:manage used to reverse a refund.
+async fn forfeit_deposit(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
+    handlers::payments::forfeit_deposit_handler(State(pool), Extension(user_id), path, Json(body))
+        .await
+}
+
 async fn revert_deposit_refund(
     State(pool): State<DbPool>,
     headers: HeaderMap,
@@ -211,6 +233,14 @@ async fn list_payment_approval_history(
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::list_payment_approval_history_handler(State(pool), query).await
+}
+
+async fn list_paypal_conflicts(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    handlers::payments::list_paypal_conflict_events_handler(State(pool)).await
 }
 
 async fn download_payment_receipt(

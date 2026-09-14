@@ -609,6 +609,7 @@ export default function EnhancedCheckInModal({
         paymentFields.deposit_paid = true;
         paymentFields.deposit_amount = toMoneyNumber(depositAmount);
         paymentFields.payment_note = `Deposit received (${depositMethod})`;
+        paymentFields.deposit_payment_method = depositMethod;
       } else {
         paymentFields.deposit_paid = false;
         paymentFields.deposit_amount = 0;

@@ -824,14 +824,15 @@ BEGIN
     v_booking_id := COALESCE(NEW.booking_id, OLD.booking_id);
 
     -- Money that settles the booking's charges: completed payments excluding
-    -- refunds and held deposits (a keycard deposit is collateral, not a room
-    -- payment). Mirrors PaymentRepository::recompute_booking_payment_status.
+    -- refunds and deposits. A held deposit is collateral, not a room payment;
+    -- a forfeited deposit is money the hotel kept, not a bill settlement.
+    -- Mirrors PaymentRepository::recompute_booking_payment_status.
     SELECT COALESCE(SUM(amount), 0)
       INTO v_settled
       FROM payments
      WHERE booking_id = v_booking_id
        AND status = 'completed'
-       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit');
+       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited');
 
     SELECT CASE
         WHEN b.status = 'voided' THEN 'void'
@@ -3891,7 +3892,7 @@ CREATE TABLE public.payments (
     processed_by bigint,
     idempotency_key character varying(160),
     idempotency_fingerprint character varying(64),
-    CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying])::text[]))),
+    CONSTRAINT payments_payment_type_check CHECK (((payment_type)::text = ANY ((ARRAY['booking'::character varying, 'deposit'::character varying, 'service'::character varying, 'damage'::character varying, 'refund'::character varying, 'deposit_forfeited'::character varying])::text[]))),
     CONSTRAINT payments_status_check CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying, 'failed'::character varying, 'refunded'::character varying, 'void'::character varying])::text[])))
 );
 

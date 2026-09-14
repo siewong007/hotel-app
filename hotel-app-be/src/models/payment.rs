@@ -216,6 +216,7 @@ pub struct PaymentWorkflowSummary {
     pub balance_due: Decimal,
     pub deposit_collected: Decimal,
     pub deposit_refunded: Decimal,
+    pub deposit_forfeited: Decimal,
     pub has_failed_payment: bool,
     pub next_action: String,
     pub warnings: Vec<String>,
@@ -294,6 +295,10 @@ pub struct PaymentWorkflowSummaryRow {
     pub total_refunded: Decimal,
     pub deposit_collected: Decimal,
     pub deposit_refunded: Decimal,
+    /// Completed `deposit_forfeited` rows — deposit money the hotel kept
+    /// instead of refunding. It still counts toward `deposit_collected` but
+    /// is no longer refundable, so callers subtract it from the held balance.
+    pub deposit_forfeited: Decimal,
     pub has_failed_payment: bool,
 }
 

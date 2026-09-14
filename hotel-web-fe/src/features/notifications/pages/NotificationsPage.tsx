@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Button, MenuItem, Pagination, Select, Typography } from '@mui/material';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 
+import PageHeader from '../../../components/common/PageHeader';
 import { useAuth } from '../../../auth/AuthContext';
 import { useDeliveryFeed } from '../hooks/useDeliveryFeed';
 import { DeliveryTabs, TIER_TAB_LABELS } from '../components/DeliveryTabs';
@@ -29,9 +30,9 @@ const NotificationsPage: React.FC = () => {
   if (!canReadFeed) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ mb: 2 }}>Notifications</Typography>
+        <PageHeader title="Guest Deliveries" />
         <Typography color="text.secondary">
-          You do not have permission to view the notification center.
+          You do not have permission to view the delivery feed.
         </Typography>
       </Box>
     );
@@ -39,9 +40,10 @@ const NotificationsPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5">Notifications</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <PageHeader
+        title="Guest Deliveries"
+        subtitle="Outbound messages sent to guests — staff alerts live under the topbar bell"
+        actions={(
           <Select
             size="small"
             value={status}
@@ -55,8 +57,8 @@ const NotificationsPage: React.FC = () => {
               <MenuItem key={s} value={s}>{s}</MenuItem>
             ))}
           </Select>
-        </Box>
-      </Box>
+        )}
+      />
 
       <Box
         sx={{

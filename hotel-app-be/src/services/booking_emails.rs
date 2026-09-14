@@ -362,15 +362,16 @@ pub async fn queue_payment_confirmation_email(
         return Ok(());
     };
 
-    // Running position across every non-refund, non-deposit completed
-    // payment, so the guest sees the balance that remains on their billable
-    // charges rather than only this one instalment. Held deposits are
-    // collateral, not charge payments.
+    // Running position across every non-refund, non-deposit, non-forfeited
+    // completed payment, so the guest sees the balance that remains on their
+    // billable charges rather than only this one instalment. Held deposits are
+    // collateral and forfeited deposits are income — neither is a charge
+    // payment.
     let paid = sqlx::query_scalar::<_, rust_decimal::Decimal>(
         r#"
         SELECT COALESCE(SUM(amount) FILTER (
             WHERE status = 'completed'
-              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit')
+              AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')
         ), 0)
         FROM payments
         WHERE booking_id = $1

@@ -4,7 +4,6 @@ import AddIcon from '@mui/icons-material/Add';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import HotelIcon from '@mui/icons-material/Hotel';
-import SearchIcon from '@mui/icons-material/Search';
 import { Link, useLocation, useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { useTranslation } from '../../../i18n';
@@ -15,8 +14,6 @@ import {
   preloadRoute,
 } from '../../../navigation/routeRegistry';
 import { navSections } from '../../../navigation/navGroups';
-import { useCommandPalette } from '../CommandPalette';
-import { UserMenu } from '../UserMenu';
 import { SidebarSection } from './SidebarSection';
 
 interface SidebarContentProps {
@@ -26,10 +23,11 @@ interface SidebarContentProps {
 }
 
 /**
- * The permanent desktop sidebar body: brand, command-palette trigger, New
- * booking CTA, the grouped registry nav, the account card, and the rail
- * collapse toggle. `visibleItems` uses the same `canAccessNavigationRoute`
- * memo as CommandPalette so both surfaces agree on access.
+ * The permanent desktop sidebar body: brand, New booking CTA, the grouped
+ * registry nav, and the rail collapse toggle. `visibleItems` uses the same
+ * `canAccessNavigationRoute` memo as CommandPalette so both surfaces agree
+ * on access. Search and the account menu live only in the topbar — the
+ * sidebar used to duplicate both.
  */
 export const SidebarContent: React.FC<SidebarContentProps> = ({
   collapsed,
@@ -39,7 +37,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
   const navigate = useNavigate();
   const { hasPermission, hasRole, getRoutePolicy } = useAuth();
   const { t: tNav } = useTranslation('nav');
-  const { open: openPalette } = useCommandPalette();
 
   // The brand name lives in localStorage; `hotelSettingsChange` fires on the
   // boot refresh and whenever Settings is saved (same subscription as
@@ -81,8 +78,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
     // (a `to` string containing '?' would not — see router/compat.tsx).
     navigate('/bookings?create=1');
   };
-
-  const searchLabel = tNav('aria.search');
 
   return (
     <Box
@@ -141,78 +136,9 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         </Box>
       </Box>
 
-      {/* ── Command-palette trigger ───────────────────────────────── */}
-      <Box sx={{ px: collapsed ? 1 : 2, pt: 1.5 }}>
-        {collapsed ? (
-          <Tooltip title={searchLabel} placement="right">
-            <IconButton
-              aria-label={searchLabel}
-              onClick={openPalette}
-              sx={{ display: 'flex', mx: 'auto' }}
-            >
-              <SearchIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <Box
-            component="button"
-            type="button"
-            aria-label={searchLabel}
-            onClick={openPalette}
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.25,
-              width: '100%',
-              height: 40,
-              px: 1.75,
-              borderRadius: 2.5,
-              border: '1px solid',
-              borderColor: 'divider',
-              bgcolor: 'action.hover',
-              color: 'text.secondary',
-              fontFamily: 'inherit',
-              cursor: 'text',
-              '&:hover': { borderColor: 'text.disabled' },
-            }}
-          >
-            <SearchIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-            <Typography
-              sx={{
-                fontSize: '0.84rem',
-                flex: 1,
-                textAlign: 'left',
-                color: 'text.secondary',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {searchLabel}
-            </Typography>
-            {/* The ⌘K hint only fits once the rail has room — ≥lg. */}
-            <Box
-              sx={{
-                display: { xs: 'none', lg: 'block' },
-                fontFamily: 'monospace',
-                fontSize: '0.66rem',
-                px: 0.875,
-                py: '2px',
-                borderRadius: 0.75,
-                bgcolor: 'background.paper',
-                color: 'text.secondary',
-                fontWeight: 600,
-              }}
-            >
-              ⌘K
-            </Box>
-          </Box>
-        )}
-      </Box>
-
       {/* ── New booking CTA ───────────────────────────────────────── */}
       {bookingsRoute && (
-        <Box sx={{ px: collapsed ? 1 : 2, pt: 1 }}>
+        <Box sx={{ px: collapsed ? 1 : 2, pt: 1.5 }}>
           {collapsed ? (
             <Tooltip title="New booking" placement="right">
               <IconButton
@@ -275,24 +201,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
 
       <Divider />
 
-      {/* ── Account card + rail toggle ────────────────────────────── */}
-      <Box
-        sx={
-          collapsed
-            ? {
-                p: 1,
-                // In the 72px rail the card trigger shrinks to just the
-                // avatar: drop the border/padding and hide the name block and
-                // chevron inside UserMenu's trigger.
-                '& > button': { px: 0, justifyContent: 'center', border: 'none' },
-                '& > button > .MuiBox-root': { display: 'none' },
-                '& > button > .MuiSvgIcon-root': { display: 'none' },
-              }
-            : { p: 1.5 }
-        }
-      >
-        <UserMenu variant="card" />
-      </Box>
+      {/* ── Rail toggle ───────────────────────────────────────────── */}
       {/* The rail toggle is a desktop affordance — the temporary drawer is
           always expanded, so it stays hidden below md. */}
       <Box

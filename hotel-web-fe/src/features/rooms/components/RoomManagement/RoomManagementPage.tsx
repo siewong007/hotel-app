@@ -33,7 +33,7 @@ import {
 } from '@mui/icons-material';
 import { BookingsService, RoomsService } from '../../../../api';
 
-import { Room, Guest, Booking, BookingWithDetails, RoomHistory } from '../../../../types';
+import { Room, Guest, Booking, BookingWithDetails, RoomHistory, RoomStatusUpdateInput } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import {
   useBookingNotes,
@@ -51,7 +51,7 @@ import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceM
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
-import RoomStatusDialog from './RoomStatusDialog';
+import RoomStatusUpdateDialog from '../../../housekeeping/components/RoomStatusUpdateDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 import { RoomAction, MenuLayout, RoomMenuAnchor } from './types';
 import { getUnifiedStatusShortLabel } from '../../config';
@@ -361,21 +361,16 @@ const RoomManagementPage: React.FC = () => {
     setRoomStatusDialogOpen(true);
   };
 
-  const handleSaveRoomStatus = async (status: string, notes: string) => {
-    if (!selectedRoom) return;
-
+  const handleSaveRoomStatus = async (roomId: string | number, input: RoomStatusUpdateInput) => {
     // Send the requested status as-is. The backend decides whether to flip an
     // "available" request to "reserved" — but only for a reservation arriving
     // today after the configured check-in time. Pre-empting that here (forcing
     // "reserved" for any upcoming booking, with no booking_id) made the backend
     // reject the request, so rooms with a future booking could never be set
     // available.
-    const updated = await RoomsService.updateRoomStatus(selectedRoom.id, {
-      status: status as 'maintenance' | 'reserved' | 'reserved_dirty' | 'available' | 'occupied' | 'dirty',
-      notes,
-    });
+    const updated = await RoomsService.updateRoomStatus(roomId, input);
 
-    showSnackbar(`Room status updated to ${updated?.status ?? status}`, 'success');
+    showSnackbar(`Room status updated to ${updated?.status ?? input.status}`, 'success');
     loadData();
   };
 
@@ -970,7 +965,7 @@ const RoomManagementPage: React.FC = () => {
         onSave={saveRoomNotes}
         saving={savingNotes}
       />
-      <RoomStatusDialog
+      <RoomStatusUpdateDialog
         open={roomStatusDialogOpen}
         room={selectedRoom}
         onClose={() => setRoomStatusDialogOpen(false)}

@@ -469,8 +469,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     animationType: 'fade',
     visibility: 'auth',
     icon: NotificationsIcon,
-    breadcrumbLabel: 'Notifications',
-    navLabel: 'Notifications',
+    breadcrumbLabel: 'Deliveries',
+    navLabel: 'Deliveries',
     navGroup: 'utility',
     // Page-level RBAC is enforced by the feed endpoint (communications:read);
     // staff without it see a friendly empty state instead of nav silence.

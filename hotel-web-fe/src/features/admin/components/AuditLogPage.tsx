@@ -38,6 +38,7 @@ import {
 } from '../../../types/audit.types';
 import { getActionLabel, getResourceLabel } from '../../../types/audit.types';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import EmptyState from '../../../components/common/EmptyState';
 import {
   useAuditCategoryCounts,
   useAuditLogs,
@@ -605,11 +606,11 @@ const AuditLogPage: React.FC = () => {
             <CircularProgress />
           </Box>
         ) : grouped.length === 0 ? (
-          <Box sx={{ p: '60px 20px', textAlign: 'center', color: T.ink3 }}>
-            <InboxIcon sx={{ fontSize: 32, color: T.ink4, mb: 1 }} />
-            <Box sx={{ fontSize: 15, fontWeight: 700, color: T.ink2, mb: 0.5 }}>No events match your filters</Box>
-            <Box>Try a different stream, widen the date range, or clear the search.</Box>
-          </Box>
+          <EmptyState
+            icon={<InboxIcon />}
+            title="No events match your filters"
+            description="Try a different stream, widen the date range, or clear the search."
+          />
         ) : (
           grouped.map(([day, rows]) => (
             <React.Fragment key={day}>

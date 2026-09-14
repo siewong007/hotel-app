@@ -31,6 +31,7 @@ import { formatCurrency } from '../../../utils/currency';
 import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import PageHeader from '../../../components/common/PageHeader';
 import {
   useApprovePayment,
   usePendingPayments,
@@ -80,10 +81,11 @@ const PaymentApprovalsPage: React.FC = () => {
   const receiptMutation = useRequestPaymentReceipt();
 
   // Same permission this page's own data already requires (payments:read,
-  // routes/payments.rs); audit:read additionally gates the audit-logs
-  // endpoint this banner reads from, so staff without it just see no banner
-  // instead of an error.
-  const canViewConflicts = hasPermission('payments:read') && hasPermission('audit:read');
+  // routes/payments.rs). The banner reads the narrow paypal-conflicts
+  // endpoint rather than audit-logs, so approvers without audit:read still
+  // see conflicts — previously the banner was invisible to exactly the staff
+  // it exists for.
+  const canViewConflicts = hasPermission('payments:read');
   const conflictQuery = usePaypalConflictEvents(canViewConflicts);
   const conflictEvents = conflictQuery.data?.events ?? [];
   const conflictTotal = conflictQuery.data?.total ?? 0;
@@ -217,19 +219,11 @@ const PaymentApprovalsPage: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Typography variant="h4" sx={{ mb: 1 }}>
-        Payment Approvals
-      </Typography>
-      <Typography
-        variant="body2"
-        sx={{
-          color: "text.secondary",
-          mb: 3
-        }}>
-        Review guest-submitted bank-transfer and PayPal payment claims. Approving a bank-transfer
-        claim marks the payment complete and confirms the booking. A PayPal payment is completed
-        only after PayPal capture; unstarted attempts expire after 10 minutes.
-      </Typography>
+      <PageHeader
+        title="Payment Approvals"
+        subtitle="Review guest-submitted bank-transfer and PayPal payment claims. Approving a bank-transfer claim marks the payment complete and confirms the booking. A PayPal payment is completed only after PayPal capture; unstarted attempts expire after 10 minutes."
+        sx={{ mb: 3 }}
+      />
       {canViewConflicts && conflictEvents.length > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <AlertTitle>

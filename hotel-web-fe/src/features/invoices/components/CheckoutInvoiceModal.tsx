@@ -42,6 +42,7 @@ import { LedgerService } from '../../../api/ledger.service';
 import { queryKeys } from '../../../api/queryKeys';
 import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
+import { isDepositLikePayment, settledPaymentsTotal } from '../utils/payments';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import { formatHotelDateTime, formatLocalDate, parseLocalDate, addLocalDays, toHotelDateString } from '../../../utils/date';
@@ -164,6 +165,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [depositWaiveReason, setDepositWaiveReason] = useState('');
   const [waivingDeposit, setWaivingDeposit] = useState(false);
 
+  // Deposit forfeit state — forfeiting keeps the money as income instead of
+  // returning it, and resolves the deposit for the checkout gate.
+  const [depositForfeited, setDepositForfeited] = useState(false);
+  const [forfeitReason, setForfeitReason] = useState('');
+  const [forfeitAmount, setForfeitAmount] = useState<number>(0);
+  const [forfeitingDeposit, setForfeitingDeposit] = useState(false);
+
   // Editable daily rates UI state
   const [editingRates, setEditingRates] = useState(false);
   const [savingRates, setSavingRates] = useState(false);
@@ -189,6 +197,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPaymentNotes('');
       setDepositWaived(false);
       setDepositWaiveReason('');
+      setDepositForfeited(false);
+      setForfeitReason('');
     }
   }, [open, booking]);
 
@@ -199,20 +209,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (!open || !booking) return;
     const balance = isLedgerView && ledger
       ? toMoneyNumber(ledger.balance_due)
-      : subtractMoney(
-          charges.grandTotal,
-          payments
-            .filter((payment) => payment.payment_status === 'completed')
-            .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0),
-        );
+      : subtractMoney(charges.grandTotal, settledPaymentsTotal(payments));
     if (isPositiveMoney(balance)) {
       setPaymentAmount(balance);
     }
   }, [open, booking, charges.grandTotal, payments, isLedgerView, ledger]);
 
-  const paymentRowsTotal = payments
-    .filter((payment) => payment.payment_status === 'completed')
-    .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0);
+  // Only bill-settling payments reduce the balance. Deposit-type rows
+  // (`deposit`, `deposit_forfeited`) are held/kept collateral, never bill
+  // payment — counting them is what produced the false "Overpayment" incident.
+  const paymentRowsTotal = settledPaymentsTotal(payments);
   // For a company city-ledger invoice the ledger is the source of truth for the
   // invoiced amount and outstanding balance (per CLAUDE.md the backend is the
   // sole authority for company ledger rows). The booking-derived charges are
@@ -225,8 +231,50 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const hasBalanceDue = isPositiveMoney(balanceDue);
   const isCompanyBilling = Boolean(booking?.company_id || booking?.company_name?.trim());
   const requiresFullPaymentBeforeCheckout = !isCompanyBilling && hasBalanceDue;
-  const completedPayments = payments.filter((payment) => payment.payment_status === 'completed');
+  const completedPayments = payments.filter(
+    (payment) => payment.payment_status === 'completed' && !isDepositLikePayment(payment),
+  );
+  const depositPayments = payments.filter(
+    (payment) => payment.payment_status === 'completed' && isDepositLikePayment(payment),
+  );
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
+
+  // Deposit money still owed back to the guest: collected deposit rows minus
+  // what has already been refunded or forfeited — the same refundable ceiling
+  // the backend enforces (services/payments.rs::forfeit_deposit).
+  const recordedDeposit = sumMoney(depositPayments
+    .filter((p) => (p.payment_type || '').toLowerCase() === 'deposit')
+    .map((p) => p.total_amount));
+  const refundedDepositTotal = sumMoney(payments
+    .filter((p) => (p.payment_type || '').toLowerCase() === 'refund' && p.payment_status === 'refunded')
+    .map((p) => p.total_amount));
+  const forfeitedDepositTotal = sumMoney(depositPayments
+    .filter((p) => (p.payment_type || '').toLowerCase() === 'deposit_forfeited')
+    .map((p) => p.total_amount));
+  const refundableDeposit = subtractMoney(
+    subtractMoney(recordedDeposit, refundedDepositTotal),
+    forfeitedDepositTotal,
+  );
+
+  // The forfeit amount defaults to the still-refundable deposit balance;
+  // staff can lower it for a partial forfeit. Re-defaults on every open —
+  // `refundableDeposit` alone wouldn't refire when a reopen sees unchanged
+  // rows, leaving a typed-but-unsubmitted amount behind.
+  useEffect(() => {
+    if (open) setForfeitAmount(refundableDeposit);
+  }, [open, refundableDeposit]);
+
+  // `depositForfeited` reflects the ledger, not just the local click — the
+  // same way `depositRefunded` is re-derived from rows on every
+  // `reloadPayments`. An out-of-band void of a forfeit row (the un-forfeit
+  // escape hatch, `payments:manage`) re-opens the held deposit, so the flag
+  // recomputes from the rows whenever they change (and on every open): true
+  // iff forfeit rows exist and leave nothing refundable.
+  useEffect(() => {
+    setDepositForfeited(
+      isPositiveMoney(forfeitedDepositTotal) && !isPositiveMoney(refundableDeposit),
+    );
+  }, [open, booking, forfeitedDepositTotal, refundableDeposit]);
 
   const handleRecordPayment = async () => {
     if (!booking || !isPositiveMoney(paymentAmount)) return;
@@ -314,7 +362,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   };
 
   const handleUpdatePayment = async () => {
-    if (!editingPayment || !isPositiveMoney(editAmount)) return;
+    if (!editingPayment) return;
+    // Deposit-like rows admit only a method correction — their amount and
+    // date are immutable once posted, so the positive-amount gate applies
+    // just to the full edit form.
+    const depositLike = isDepositLikePayment(editingPayment);
+    if (!depositLike && !isPositiveMoney(editAmount)) return;
     try {
       setUpdatingPayment(true);
       if (isLedgerView && ledger) {
@@ -327,6 +380,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         });
         await reloadPayments();
         onLedgerPaymentsChanged?.();
+      } else if (depositLike) {
+        // Method-only correction: PATCH /payments rejects amount/date edits
+        // on posted deposit rows, so the request sends just the tender.
+        const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
+          payment_method: editMethod,
+        });
+        setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
+        invalidateInvoiceState();
       } else {
         const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
           amount: editAmount,
@@ -371,6 +432,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       if (deletedPayment?.payment_status === 'refunded') {
         setDepositRefunded(false);
       }
+      // Voiding a forfeit row is the un-forfeit escape hatch: it re-opens the
+      // deposit as refundable, so the checkout gate must re-arm.
+      if ((deletedPayment?.payment_type || '').toLowerCase() === 'deposit_forfeited') {
+        setDepositForfeited(false);
+      }
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : 'Failed to delete payment');
     } finally {
@@ -387,14 +453,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       // the collected amount through the booking update first — the server
       // mints the missing deposit payment under the booking lock — then the
       // refund draws on it. Skipped when recorded rows already cover it.
-      const recordedDeposit = sumMoney(payments
-        .filter((p) => (p.payment_type || '').toLowerCase() === 'deposit' && p.payment_status === 'completed')
-        .map((p) => toMoneyNumber(p.total_amount)));
-      const refundedDeposit = sumMoney(payments
-        .filter((p) => (p.payment_type || '').toLowerCase() === 'refund' && p.payment_status === 'refunded')
-        .map((p) => toMoneyNumber(p.total_amount)));
       const reconciledDeposit = isLessMoney(
-        subtractMoney(recordedDeposit, refundedDeposit),
+        subtractMoney(recordedDeposit, refundedDepositTotal),
         charges.depositRefund,
       );
       if (reconciledDeposit) {
@@ -437,6 +497,34 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setError(err instanceof Error && err.message ? err.message : 'Failed to waive deposit');
     } finally {
       setWaivingDeposit(false);
+    }
+  };
+
+  const handleForfeitDeposit = async () => {
+    const reason = forfeitReason.trim();
+    const amount = toMoneyNumber(forfeitAmount);
+    if (!booking || !reason || !isPositiveMoney(amount)) return;
+    // Client-side cap: the button's disabled state isn't a real guard for
+    // keyboard/programmatic paths — refuse over-ceiling forfeits locally
+    // instead of relying on the backend 400.
+    if (isGreaterMoney(amount, refundableDeposit)) {
+      setError(`Forfeit amount cannot exceed the refundable deposit of ${formatCurrency(refundableDeposit)}`);
+      return;
+    }
+    try {
+      setForfeitingDeposit(true);
+      await InvoicesService.forfeitDeposit(booking.id, amount, reason);
+      // Only a full forfeit resolves the deposit — a partial forfeit leaves
+      // the remainder held, which must keep the checkout gate locked until it
+      // is refunded or forfeited too.
+      setDepositForfeited(!isPositiveMoney(subtractMoney(refundableDeposit, amount)));
+      setForfeitReason('');
+      await reloadPayments();
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to forfeit deposit');
+    } finally {
+      setForfeitingDeposit(false);
     }
   };
 
@@ -1165,12 +1253,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   }}>
                     <Grid size={5}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
-                        Deposit Refund
+                        {depositForfeited ? 'Deposit' : 'Deposit Refund'}
                       </Typography>
                       <Typography variant="caption" sx={{
                         color: "text.secondary"
                       }}>
-                        {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded or waived before checkout'}
+                        {depositRefunded
+                          ? 'Refunded separately to guest'
+                          : depositForfeited
+                            ? 'Forfeited to the hotel'
+                            : 'Must be refunded, forfeited, or waived before checkout'}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }} size={7}>
@@ -1193,6 +1285,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               Revert
                             </Button>
                           )}
+                        </>
+                      ) : depositForfeited ? (
+                        <>
+                          <Chip label="Forfeited" size="small" color="warning" />
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
+                            {formatCurrency(charges.depositRefund)}
+                          </Typography>
                         </>
                       ) : (
                         <>
@@ -1225,8 +1324,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                   </Grid>
                 </Box>
-                {/* Waive Deposit Option */}
-                {!depositRefunded && (
+                {/* Waive Deposit Option — only for a deposit that was recorded
+                    on the booking but never actually collected (flag-only); a
+                    real collected deposit must be refunded or forfeited. */}
+                {!depositRefunded && !depositForfeited && (
                   <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
                     <Grid container spacing={1} sx={{
                       alignItems: "center"
@@ -1239,14 +1340,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             mb: 1,
                             display: 'block'
                           }}>
-                          Or waive the deposit (e.g., lost keycard, special arrangement):
+                          Deposit recorded but never collected — waive it:
                         </Typography>
                       </Grid>
                       <Grid size={8}>
                         <TextField
                           size="small"
                           fullWidth
-                          placeholder="Reason for waiving deposit (e.g., lost keycard)"
+                          placeholder="Reason for waiving deposit (e.g., recorded in error)"
                           value={depositWaiveReason}
                           onChange={(e) => setDepositWaiveReason(e.target.value)}
                           sx={{ fontSize: '0.8rem' }}
@@ -1264,6 +1365,79 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           sx={{ fontSize: '0.75rem', py: 0.5 }}
                         >
                           Waive Deposit
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+                {/* Forfeit Deposit Option — keeps the collected money as
+                    income (lost keycard, damage). Requires a recorded deposit
+                    row; flag-only deposits resolve via Waive instead. */}
+                {!readOnly && !depositRefunded && !depositForfeited && isPositiveMoney(recordedDeposit) && (
+                  <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
+                    <Grid container spacing={1} sx={{
+                      alignItems: "center"
+                    }}>
+                      <Grid size={12}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "text.secondary",
+                            mb: 1,
+                            display: 'block'
+                          }}>
+                          Or forfeit the deposit — keep it (e.g., lost keycard, damage):
+                        </Typography>
+                      </Grid>
+                      <Grid size={5}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          placeholder="Reason for forfeiting deposit"
+                          value={forfeitReason}
+                          onChange={(e) => setForfeitReason(e.target.value)}
+                          sx={{ fontSize: '0.8rem' }}
+                        />
+                      </Grid>
+                      <Grid size={3}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          type="number"
+                          label="Forfeit amount"
+                          value={forfeitAmount || ''}
+                          onChange={(e) => setForfeitAmount(toMoneyNumber(e.target.value))}
+                          error={isGreaterMoney(forfeitAmount, refundableDeposit)}
+                          helperText={
+                            isGreaterMoney(forfeitAmount, refundableDeposit)
+                              ? `Cannot exceed refundable deposit of ${formatCurrency(refundableDeposit)}`
+                              : `Refundable deposit: ${formatCurrency(refundableDeposit)}`
+                          }
+                          slotProps={{
+                            input: {
+                              startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                            },
+                            htmlInput: { min: 0, max: refundableDeposit, step: 0.01 }
+                          }}
+                        />
+                      </Grid>
+                      <Grid size={4}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          fullWidth
+                          onClick={handleForfeitDeposit}
+                          disabled={
+                            !forfeitReason.trim()
+                            || !isPositiveMoney(forfeitAmount)
+                            || isGreaterMoney(forfeitAmount, refundableDeposit)
+                            || forfeitingDeposit
+                          }
+                          startIcon={forfeitingDeposit ? <CircularProgress size={14} /> : undefined}
+                          sx={{ fontSize: '0.75rem', py: 0.5 }}
+                        >
+                          Forfeit Deposit
                         </Button>
                       </Grid>
                     </Grid>
@@ -1486,6 +1660,117 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       )}
                     </Box>
                   ))}
+                </Box>
+              )}
+
+              {/* Deposit-type rows are held collateral / forfeited income, not
+                  bill settlement — grouped separately with a method-only Edit
+                  (a wrong tender is the only honest correction now that
+                  in-house deposit voids are guarded) and still no Delete:
+                  they resolve via refund or forfeit, never by voiding the
+                  row here. */}
+              {depositPayments.length > 0 && (
+                <Box sx={{ p: 0 }}>
+                  <Box sx={{ px: 1.5, py: 0.75, bgcolor: '#eceff1', borderBottom: '1px solid #eee' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Deposits — collateral, not bill payments
+                    </Typography>
+                  </Box>
+                  {depositPayments.map((p, idx) => {
+                    const forfeited = (p.payment_type || '').toLowerCase() === 'deposit_forfeited';
+                    return (
+                      <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#fafafa' }}>
+                        {editingPayment?.id === p.id ? (
+                          // Method-only edit form — amount/date/reference are
+                          // immutable on a posted deposit row (the backend
+                          // rejects them), so the row swaps to just the tender
+                          // Select plus Save/Cancel.
+                          (<Box>
+                            <Grid container spacing={1} sx={{ mb: 1 }}>
+                              <Grid size={4}>
+                                <FormControl fullWidth size="small">
+                                  <InputLabel>Method</InputLabel>
+                                  <Select
+                                    value={editMethod}
+                                    label="Method"
+                                    onChange={(e) => setEditMethod(e.target.value)}
+                                  >
+                                    {hotelSettings.payment_methods.map((method) => (
+                                      <MenuItem key={method} value={method}>{method}</MenuItem>
+                                    ))}
+                                  </Select>
+                                </FormControl>
+                              </Grid>
+                            </Grid>
+                            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                              <Button
+                                size="small"
+                                onClick={handleCancelEdit}
+                                disabled={updatingPayment}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={handleUpdatePayment}
+                                disabled={updatingPayment}
+                              >
+                                {updatingPayment ? 'Saving...' : 'Save'}
+                              </Button>
+                            </Box>
+                          </Box>)
+                        ) : (
+                          <Grid container sx={{
+                            alignItems: "center"
+                          }}>
+                            <Grid size={4}>
+                              <Typography variant="body2">
+                                {formatStatusLabel(p.payment_method, '')}
+                              </Typography>
+                              <Typography variant="caption" sx={{
+                                color: "text.secondary"
+                              }}>
+                                {formatPaymentDateTime(p)}
+                              </Typography>
+                            </Grid>
+                            <Grid size={5}>
+                              <Chip
+                                label={forfeited ? 'Deposit forfeited' : 'Deposit held'}
+                                size="small"
+                                color={forfeited ? 'warning' : 'info'}
+                                sx={{ height: 20, fontSize: '0.7rem' }}
+                              />
+                              {(p.transaction_reference || p.notes) && (
+                                <Typography variant="caption" sx={{
+                                  color: "text.secondary",
+                                  display: 'block'
+                                }}>
+                                  {p.transaction_reference || p.notes}
+                                </Typography>
+                              )}
+                            </Grid>
+                            <Grid sx={{ textAlign: 'right' }} size={2}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, color: '#e65100' }}>
+                                {formatCurrency(toMoneyNumber(p.total_amount))}
+                              </Typography>
+                            </Grid>
+                            <Grid sx={{ textAlign: 'right' }} size={1}>
+                              <Button
+                                size="small"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleStartEdit(p)}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
+                                aria-label="Edit deposit payment method"
+                              >
+                                <EditIcon fontSize="small" />
+                              </Button>
+                            </Grid>
+                          </Grid>
+                        )}
+                      </Box>
+                    );
+                  })}
                 </Box>
               )}
 
@@ -1735,7 +2020,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             </Box>
             {/* Notes */}
-            {isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !readOnly && (
+            {isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited && !readOnly && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 <Typography variant="body2" sx={{
                   fontWeight: 600
@@ -1743,7 +2028,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   Deposit refund required
                 </Typography>
                 <Typography variant="caption">
-                  Please refund or waive the room card deposit of {formatCurrency(charges.depositRefund)} above before printing or proceeding to checkout.
+                  Please refund, forfeit, or waive the room card deposit of {formatCurrency(charges.depositRefund)} above before printing or proceeding to checkout.
                 </Typography>
               </Alert>
             )}
@@ -1751,6 +2036,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Alert severity="success" sx={{ mb: 2 }}>
                 <Typography variant="body2">
                   Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded.
+                </Typography>
+              </Alert>
+            )}
+            {depositForfeited && !depositRefunded && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Room card deposit of {formatCurrency(charges.depositRefund)} has been forfeited to the hotel.
                 </Typography>
               </Alert>
             )}
@@ -2024,6 +2316,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
                     </Grid>
                   </>
+                ) : depositForfeited ? (
+                  <>
+                    <Grid size={8}>
+                      <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                        Deposit
+                      </Typography>
+                    </Grid>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
+                      <Chip label="Forfeited" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
+                    </Grid>
+                  </>
                 ) : isPositiveMoney(charges.depositRefund) && (
                   <>
                     <Grid size={8}>
@@ -2065,6 +2368,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   Room card deposit has been waived. Reason: {depositWaiveReason}
                 </Typography>
               </Alert>
+            ) : depositForfeited ? (
+              <Alert severity="warning">
+                <Typography variant="body2">
+                  Room card deposit of {formatCurrency(charges.depositRefund)} has been forfeited to the hotel.
+                </Typography>
+              </Alert>
             ) : isPositiveMoney(charges.depositRefund) && (
               <Alert severity="success">
                 <Typography variant="body2">
@@ -2098,7 +2407,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
+              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited) || requiresFullPaymentBeforeCheckout}
             >
               Print Preview
             </Button>
@@ -2106,7 +2415,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="contained"
               onClick={handleProceedToConfirm}
               startIcon={<CheckIcon />}
-              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
+              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited) || requiresFullPaymentBeforeCheckout}
             >
               Proceed to Checkout
             </Button>
@@ -2144,6 +2453,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         depositRefunded={depositRefunded}
         depositWaived={depositWaived}
         depositWaiveReason={depositWaiveReason}
+        depositForfeited={depositForfeited}
         balanceDue={balanceDue}
         isHourlyBooking={isHourlyBooking}
         calculateNights={calculateNights}

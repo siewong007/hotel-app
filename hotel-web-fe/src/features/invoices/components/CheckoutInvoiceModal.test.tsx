@@ -17,10 +17,12 @@ import type { CheckoutPaymentRecord } from '../types';
 const mocks = vi.hoisted(() => ({
   recordPayment: vi.fn(),
   createLedgerPayment: vi.fn(),
+  updatePayment: vi.fn(),
   setPayments: vi.fn(),
   reloadPayments: vi.fn(),
   updateBooking: vi.fn(),
   refundDeposit: vi.fn(),
+  forfeitDeposit: vi.fn(),
   setDepositRefunded: vi.fn(),
   payments: [] as CheckoutPaymentRecord[],
 }));
@@ -36,9 +38,10 @@ vi.mock('../../../api', () => ({
 vi.mock('../../../api/invoices.service', () => ({
   InvoicesService: {
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
-    updatePayment: vi.fn(),
+    updatePayment: (...args: unknown[]) => mocks.updatePayment(...args),
     deletePayment: vi.fn(),
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
+    forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
     revertDepositRefund: vi.fn(),
   },
 }));
@@ -378,5 +381,194 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
     expect(
       (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
     ).toBe(true);
+  });
+});
+
+// The incident this guards against: a held deposit was summed into the
+// folio's "paid" total, so a fully-paid bill plus a deposit read as
+// "Overpayment" — and the deposit row carried a working delete button, which
+// is how the refund obligation was voided. Deposit-type rows are now excluded
+// from the balance math and render in their own group with no edit/delete
+// affordances; a forfeit resolves the deposit through a real payment row.
+describe('CheckoutInvoiceModal deposit display + forfeit', () => {
+  const depositRow = { id: 1, payment_status: 'completed', payment_type: 'deposit', total_amount: 50, payment_method: 'cash' };
+  const billPayment = { id: 2, payment_status: 'completed', payment_type: 'booking', total_amount: 100, payment_method: 'cash' };
+
+  beforeEach(() => {
+    mocks.forfeitDeposit.mockReset().mockResolvedValue({ id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 50 });
+    mocks.updatePayment.mockReset().mockResolvedValue({ ...depositRow, payment_method: 'bank_transfer' });
+    mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
+    mocks.setPayments.mockReset();
+    mocks.payments = [depositRow, billPayment];
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('shows Fully Paid — not Overpayment — when the bill is settled and a deposit is held', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Fully Paid')).toBeDefined());
+    expect(within(dialog).queryByText('Overpayment')).toBeNull();
+    // The held deposit renders labeled, outside the bill-payments rows…
+    expect(within(dialog).getByText('Deposit held')).toBeDefined();
+    // …and carries no delete control — the only delete button in the folio
+    // belongs to the real bill payment.
+    expect(within(dialog).getAllByTestId('DeleteIcon')).toHaveLength(1);
+    // An unresolved deposit still holds the checkout gate.
+    expect(
+      (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it('keeps the real outstanding balance collectible when only part of the bill is paid', async () => {
+    mocks.payments = [depositRow, { ...billPayment, total_amount: 40 }];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Balance Due')).toBeDefined());
+    expect(within(dialog).getByText('RM60.00')).toBeDefined();
+    expect(within(dialog).getAllByRole('button', { name: 'Record Payment' }).length).toBeGreaterThan(0);
+  });
+
+  it('forfeits the deposit through the service and releases the checkout gate on a full forfeit', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    const proceed = within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement;
+    expect(proceed.disabled).toBe(true);
+
+    fireEvent.change(
+      within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
+      { target: { value: 'Lost keycard' } },
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Forfeit Deposit' }));
+
+    await waitFor(() => expect(mocks.forfeitDeposit).toHaveBeenCalledWith('42', 50, 'Lost keycard'));
+    await waitFor(() =>
+      expect(
+        (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+    expect(mocks.reloadPayments).toHaveBeenCalled();
+  });
+
+  it('keeps the checkout gate locked after a partial forfeit', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.change(within(dialog).getByLabelText('Forfeit amount'), { target: { value: '20' } });
+    fireEvent.change(
+      within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
+      { target: { value: 'Damaged keycard' } },
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Forfeit Deposit' }));
+
+    await waitFor(() => expect(mocks.forfeitDeposit).toHaveBeenCalledWith('42', 20, 'Damaged keycard'));
+    // RM30 of the deposit is still held, so checkout stays blocked.
+    expect(
+      (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it('releases the checkout gate when forfeit rows on the ledger already cover the held deposit', async () => {
+    // The deposit is resolved by the ledger itself — no click this session.
+    // The flag is derived from the rows so an out-of-band un-forfeit (void of
+    // the deposit_forfeited row) would re-arm the gate on the next reload.
+    mocks.payments = [
+      depositRow,
+      { id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 50, payment_method: 'cash' },
+      billPayment,
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText('Deposit forfeited')).toBeDefined();
+    await waitFor(() =>
+      expect(
+        (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+      ).toBe(false),
+    );
+    expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the checkout gate locked when a partial forfeit row leaves money held', async () => {
+    mocks.payments = [
+      depositRow,
+      { id: 3, payment_status: 'completed', payment_type: 'deposit_forfeited', total_amount: 20, payment_method: 'cash' },
+      billPayment,
+    ];
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Deposit forfeited')).toBeDefined());
+    // RM30 of the deposit is still refundable, so checkout stays blocked.
+    expect(
+      (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    // …and the forfeit field now defaults to the remaining refundable amount.
+    expect((within(dialog).getByLabelText('Forfeit amount') as HTMLInputElement).value).toBe('30');
+  });
+
+  it('flags an over-ceiling forfeit amount and keeps the action disabled', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.change(within(dialog).getByLabelText('Forfeit amount'), { target: { value: '60' } });
+    fireEvent.change(
+      within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
+      { target: { value: 'Lost keycard' } },
+    );
+
+    await waitFor(() =>
+      expect(within(dialog).getByText(/Cannot exceed refundable deposit of RM50\.00/)).toBeDefined(),
+    );
+    expect(
+      (within(dialog).getByRole('button', { name: 'Forfeit Deposit' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(mocks.forfeitDeposit).not.toHaveBeenCalled();
+  });
+
+  // A wrong tender on a posted deposit row can't be voided (in-house deposit
+  // voids are guarded), so the row exposes a method-only correction: Edit
+  // opens a form with just the tender Select, and the PATCH sends only
+  // payment_method — amount/date/reference would 400 on a completed row.
+  it('lets staff correct a deposit row method — method-only form', async () => {
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByText('Deposit held')).toBeDefined());
+    // Scope to the deposits section — the section header sits in its own Box
+    // directly above the rows, so two levels up is the section container.
+    const depositsHeader = within(dialog).getByText(/Deposits — collateral/i);
+    const depositSection = depositsHeader.parentElement!.parentElement!;
+    // The deposit row gets Edit but never Delete — the folio's only delete
+    // button still belongs to the bill payment.
+    expect(within(depositSection).queryByTestId('DeleteIcon')).toBeNull();
+    expect(within(dialog).getAllByTestId('DeleteIcon')).toHaveLength(1);
+
+    fireEvent.click(
+      within(depositSection).getByRole('button', { name: 'Edit deposit payment method' }),
+    );
+
+    // Method-only form: the tender Select renders; amount, date, reference
+    // and notes fields do not — the backend keeps them immutable.
+    await within(depositSection).findByRole('combobox');
+    expect(within(depositSection).queryByLabelText('Amount')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Payment Date')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Reference')).toBeNull();
+    expect(within(depositSection).queryByLabelText('Notes')).toBeNull();
+
+    fireEvent.mouseDown(within(depositSection).getByRole('combobox'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Bank Transfer' }));
+    fireEvent.click(within(depositSection).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mocks.updatePayment).toHaveBeenCalledTimes(1));
+    expect(mocks.updatePayment).toHaveBeenCalledWith(1, { payment_method: 'Bank Transfer' });
+    // No amount/payment_date/transaction_reference keys — sending them on a
+    // posted deposit row would be rejected server-side.
+    expect(Object.keys(mocks.updatePayment.mock.calls[0][1])).toEqual(['payment_method']);
   });
 });

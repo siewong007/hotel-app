@@ -130,13 +130,16 @@ describe('getLedgerUiStatus (balance-first ledger status derivation)', () => {
     expect(getLedgerUiStatus(ledger)).toBe('voided');
   });
 
-  it('is paid whenever the balance is not positive, even with a non-"paid" status column (balance-first)', () => {
-    const ledger = buildLedger({ status: 'pending', balance_due: 0, paid_amount: 500 });
-    expect(getLedgerUiStatus(ledger)).toBe('paid');
+  it('is draft for a zero-balance entry that was never invoiced or collected (stored status never reached "paid")', () => {
+    // Mirrors the backend ui_status='draft' bucket: balance <= 0 AND status
+    // <> 'paid'. A $0 row with stored 'pending' was never billed, so "Paid"
+    // would misreport it — nothing was ever collected.
+    const ledger = buildLedger({ status: 'pending', balance_due: 0, paid_amount: 0 });
+    expect(getLedgerUiStatus(ledger)).toBe('draft');
   });
 
-  it('treats a zero-balance entry as paid even with a negative (overpaid) balance_due', () => {
-    const ledger = buildLedger({ balance_due: -10, paid_amount: 510 });
+  it('treats a zero-balance entry as paid once the stored status reached "paid" (settled or overpaid)', () => {
+    const ledger = buildLedger({ status: 'paid', balance_due: -10, paid_amount: 510 });
     expect(getLedgerUiStatus(ledger)).toBe('paid');
   });
 
@@ -182,13 +185,7 @@ describe('getLedgerUiStatus (balance-first ledger status derivation)', () => {
     expect(getLedgerUiStatus(ledger)).toBe('ready_to_invoice');
   });
 
-  it('documents that the "draft" branch is dead code: a positive balance always resolves to ready_to_invoice first', () => {
-    // Finding: getLedgerUiStatus's final `return 'draft'` is unreachable.
-    // Every path that reaches it has already proven balance > 0 (the
-    // `!isPositiveMoney(balance)` check earlier returns 'paid' otherwise),
-    // so the `isPositiveMoney(balance)` check right above 'draft' is always
-    // true and 'ready_to_invoice' always wins first. Not a money bug (no
-    // ledger is ever mis-colored), but 'draft' can never actually render.
+  it('keeps positive-balance un-invoiced entries at ready_to_invoice (draft only covers zero-balance rows)', () => {
     const ledger = buildLedger({
       balance_due: 500,
       paid_amount: 0,
@@ -196,6 +193,14 @@ describe('getLedgerUiStatus (balance-first ledger status derivation)', () => {
       due_date: undefined,
     });
     expect(getLedgerUiStatus(ledger)).toBe('ready_to_invoice');
+  });
+
+  it('is voided-aware for reversal rows: a settled credit reversal reads paid, not draft', () => {
+    // Reversal rows are hardcoded status='paid' with a non-positive balance —
+    // the stored-status check keeps them out of the draft bucket, same as the
+    // backend filter.
+    const ledger = buildLedger({ status: 'paid', balance_due: -500, paid_amount: 0, is_reversal: true });
+    expect(getLedgerUiStatus(ledger)).toBe('paid');
   });
 });
 

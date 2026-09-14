@@ -85,6 +85,8 @@ export interface DesignTokens {
     danger: StatusToneTokens;
     info: StatusToneTokens;
     neutral: StatusToneTokens;
+    orange: StatusToneTokens;
+    violet: StatusToneTokens;
   };
   chart: {
     /** Ordered categorical series — gold first, max 5, no rainbow. */
@@ -156,6 +158,8 @@ export const darkTokens: DesignTokens = {
     danger: { fg: '#E16D66', bg: 'rgba(225, 109, 102, 0.13)', border: 'rgba(225, 109, 102, 0.32)' },
     info: { fg: '#7FA8DC', bg: 'rgba(127, 168, 220, 0.13)', border: 'rgba(127, 168, 220, 0.32)' },
     neutral: { fg: '#9AA2B0', bg: 'rgba(154, 162, 176, 0.12)', border: 'rgba(154, 162, 176, 0.26)' },
+    orange: { fg: '#E08A48', bg: 'rgba(224, 138, 72, 0.13)', border: 'rgba(224, 138, 72, 0.32)' },
+    violet: { fg: '#9E8FC0', bg: 'rgba(158, 143, 192, 0.13)', border: 'rgba(158, 143, 192, 0.32)' },
   },
   chart: {
     series: ['#C9A96A', '#7FA8DC', '#5FBF8F', '#9E8FC0', '#8A93A3'],
@@ -220,6 +224,8 @@ export const lightTokens: DesignTokens = {
     danger: { fg: '#B23A30', bg: 'rgba(178, 58, 48, 0.09)', border: 'rgba(178, 58, 48, 0.30)' },
     info: { fg: '#2F639E', bg: 'rgba(47, 99, 158, 0.10)', border: 'rgba(47, 99, 158, 0.30)' },
     neutral: { fg: '#5D6470', bg: 'rgba(93, 100, 112, 0.09)', border: 'rgba(93, 100, 112, 0.24)' },
+    orange: { fg: '#A85B1D', bg: 'rgba(168, 91, 29, 0.10)', border: 'rgba(168, 91, 29, 0.30)' },
+    violet: { fg: '#7A6AA8', bg: 'rgba(122, 106, 168, 0.10)', border: 'rgba(122, 106, 168, 0.30)' },
   },
   chart: {
     series: ['#8A6A33', '#4A6FA0', '#1E7A4E', '#7A6AA8', '#6B7280'],
@@ -254,7 +260,9 @@ export type StatusTone =
   | 'danger'
   | 'info'
   | 'neutral'
-  | 'primary';
+  | 'primary'
+  | 'orange'
+  | 'violet';
 
 const TONE_VAR: Record<StatusTone, string> = {
   success: 'success',
@@ -263,6 +271,8 @@ const TONE_VAR: Record<StatusTone, string> = {
   info: 'info',
   neutral: 'neutral',
   primary: 'primary',
+  orange: 'orange',
+  violet: 'violet',
 };
 
 /** `var(--hotel-*)` references for a status tone — for `sx` and SVG fills so

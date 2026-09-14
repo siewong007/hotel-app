@@ -815,6 +815,12 @@ pub(crate) async fn completed_booking_payment_total(
     Ok(row_mappers::get_decimal(&row, "total_paid"))
 }
 
+/// Gate the `checked_out`/`completed` transition on money housekeeping: the
+/// billable balance must be settled (unless company billing will carry it to
+/// the city ledger) AND any held deposit must be resolved — refunded,
+/// forfeited, or waived. Both checks read pre-update state at the call site,
+/// so resolution has to be a prior call: a payment or a waive folded into the
+/// checkout request itself does not satisfy either guard.
 async fn ensure_checkout_balance_resolved(
     pool: &DbPool,
     booking_id: i64,
@@ -836,11 +842,13 @@ async fn ensure_checkout_balance_resolved(
     // `total_paid` excludes deposits (collateral, not charge payment), unlike
     // `completed_booking_payment_total` which counts every completed payment
     // and exists for the "has any money been collected" release checks.
-    let total_paid =
+    let summary =
         crate::repositories::payment::PaymentRepository::workflow_summary_row(pool, booking_id)
-            .await?
-            .map(|summary| summary.total_paid)
-            .unwrap_or(Decimal::ZERO);
+            .await?;
+    let total_paid = summary
+        .as_ref()
+        .map(|summary| summary.total_paid)
+        .unwrap_or(Decimal::ZERO);
     let balance_due = checkout_balance_due(billable_total, total_paid);
     let final_company_id = input.company_id.or(existing_booking.company_id);
 
@@ -850,6 +858,40 @@ async fn ensure_checkout_balance_resolved(
         return Err(ApiError::BadRequest(format!(
             "Collect full payment before checkout. Balance due: {}",
             balance_due.round_dp(2)
+        )));
+    }
+
+    // A held deposit must also be resolved before checkout. Flag-only legacy
+    // deposits carry the assertion on the booking mirror with no payment rows
+    // behind it — the held amount is whichever is larger: the ledger's
+    // recorded deposits or the mirror's assertion. The mirror can only ADD a
+    // block here, never mint refundable money — refund, forfeit and waive all
+    // still resolve through the ledger. Unlike the balance check above, this
+    // one is NOT exempted by company billing: a corporate booking can still
+    // hold a keycard deposit.
+    let deposit_held = summary
+        .as_ref()
+        .map(|summary| summary.deposit_collected)
+        .unwrap_or(Decimal::ZERO)
+        .max(if existing_booking.deposit_paid.unwrap_or(false) {
+            existing_booking.deposit_amount.unwrap_or(Decimal::ZERO)
+        } else {
+            Decimal::ZERO
+        });
+    let unresolved_deposit = (deposit_held
+        - summary
+            .as_ref()
+            .map(|summary| summary.deposit_refunded)
+            .unwrap_or(Decimal::ZERO)
+        - summary
+            .as_ref()
+            .map(|summary| summary.deposit_forfeited)
+            .unwrap_or(Decimal::ZERO))
+    .max(Decimal::ZERO);
+    if unresolved_deposit > Decimal::ZERO {
+        return Err(ApiError::BadRequest(format!(
+            "Refund, forfeit, or waive the collected deposit of {} before checkout",
+            unresolved_deposit.round_dp(2)
         )));
     }
 
@@ -1206,9 +1248,16 @@ pub async fn create_booking_handler(
     {
         let deposit_payment = CheckInPaymentRecord {
             amount: amount_paid,
+            // The deposit row records the tender actually collected for it
+            // (`deposit_payment_method`), falling back to the booking-level
+            // `payment_method` — the bill's tender — when absent or blank.
             payment_method: input
-                .payment_method
-                .clone()
+                .deposit_payment_method
+                .as_deref()
+                .map(str::trim)
+                .filter(|m| !m.is_empty())
+                .map(str::to_string)
+                .or_else(|| input.payment_method.clone())
                 .unwrap_or_else(|| "Cash".to_string()),
             payment_type: Some("deposit".to_string()),
             notes: Some("Deposit paid at booking".to_string()),
@@ -2396,6 +2445,69 @@ pub async fn void_booking_payments_tx(
     Ok(())
 }
 
+/// Void every open receivable the booking posted to the city ledger.
+///
+/// `auto_post_company_ledger` (and any manual ledger entry linked to the
+/// booking) creates a receivable that only exists because the booking does;
+/// once the booking is voided the debt basis is gone, so the row is voided
+/// with it inside the same transaction. Mirrors the manual `void_ledger`
+/// guard: rows with collected money (`paid_amount > 0`) are left untouched —
+/// voiding them would erase evidence of real payments, so they stay open for
+/// refund/reconciliation and are counted in the return value.
+///
+/// Returns `(voided, skipped_paid)` row counts.
+pub async fn void_booking_ledgers_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    user_id: Option<i64>,
+    reason: &str,
+) -> Result<(u64, u64), ApiError> {
+    let voided = sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET void_at = CURRENT_TIMESTAMP,
+            void_by = $2,
+            void_reason = $3,
+            status = 'void',
+            updated_at = CURRENT_TIMESTAMP,
+            updated_by = $2
+        WHERE booking_id = $1
+          AND void_at IS NULL
+          AND COALESCE(is_reversal, false) = false
+          AND COALESCE(paid_amount, 0) <= 0
+        "#,
+    )
+    .bind(booking_id)
+    .bind(user_id)
+    .bind(reason)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .rows_affected();
+
+    let skipped_paid: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM customer_ledgers \
+         WHERE booking_id = $1 AND void_at IS NULL \
+         AND COALESCE(is_reversal, false) = false \
+         AND COALESCE(paid_amount, 0) > 0",
+    )
+    .bind(booking_id)
+    .fetch_one(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let skipped_paid = u64::try_from(skipped_paid).unwrap_or(0);
+
+    if skipped_paid > 0 {
+        log::warn!(
+            "void_booking: {} customer_ledgers row(s) for booking {} hold collected payments; left open for reconciliation",
+            skipped_paid,
+            booking_id
+        );
+    }
+
+    Ok((voided, skipped_paid))
+}
+
 /// Void only unfinished payment attempts. Guest self-service cancellation must
 /// retain completed payment records for reconciliation and any later refund.
 pub async fn void_uncompleted_booking_payments_tx(
@@ -2724,7 +2836,18 @@ pub async fn reconcile_booking_deposit_tx(
             if inserted {
                 // The assertion attests money physically collected at the
                 // desk; record it as a real deposit payment so the refund
-                // ceiling can draw on it.
+                // ceiling can draw on it. The tender on the row is the
+                // caller-supplied `deposit_payment_method` (what the desk
+                // actually collected), falling back to the booking-level
+                // `payment_method` — the bill's tender — only when the
+                // deposit tender is absent or blank.
+                let deposit_method = booking_update
+                    .deposit_payment_method
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|m| !m.is_empty())
+                    .or(booking_update.payment_method.as_deref())
+                    .unwrap_or("Cash");
                 sqlx::query(
                     "INSERT INTO payments \
                         (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by) \
@@ -2732,7 +2855,7 @@ pub async fn reconcile_booking_deposit_tx(
                 )
                 .bind(booking_id)
                 .bind(decimal_to_db(delta))
-                .bind(booking_update.payment_method.as_deref().unwrap_or("Cash"))
+                .bind(deposit_method)
                 .bind(
                     booking_update
                         .payment_note
@@ -3000,7 +3123,7 @@ pub async fn record_checkin_payment_tx(
 /// Online bookings are prepaid (OTA/web), so on arrival we record the amount
 /// still owed as a `booking` payment so the folio reflects the collected money
 /// and `payment_status` recomputes to `paid`. The remainder is computed in SQL
-/// (billable total minus completed non-refund, non-deposit payments) and the row is inserted
+/// (billable total minus completed non-refund, non-deposit, non-forfeited payments) and the row is inserted
 /// only when that remainder is positive, so the call is safe to run
 /// unconditionally — it no-ops when the booking is already fully paid and never
 /// double-charges an existing payment. Returns `true` when a payment row was
@@ -3018,7 +3141,7 @@ pub async fn record_online_checkin_payment_tx(
         .unwrap_or_else(|| "online_banking".to_string());
     let notes = "Auto-recorded at check-in for online reservation";
 
-    // The settled SUM (completed, non-refund, non-deposit) and the `> 0` guard
+    // The settled SUM (completed, non-refund, non-deposit, non-forfeited) and the `> 0` guard
     // mirror `recompute_booking_payment_status_tx`, keeping the posted amount
     // and the resulting status in agreement — the remainder covers the full
     // billable total (room + tourism tax + extra bed), not just the room.
@@ -3029,7 +3152,7 @@ pub async fn record_online_checkin_payment_tx(
                  - COALESCE((SELECT SUM(p.amount) FROM payments p
                    WHERE p.booking_id = b.id
                      AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0),
+                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0),
                $2, 'booking', 'completed', $3, $4
         FROM bookings b
         WHERE b.id = $5
@@ -3037,7 +3160,7 @@ pub async fn record_online_checkin_payment_tx(
                 - COALESCE((SELECT SUM(p.amount) FROM payments p
                    WHERE p.booking_id = b.id
                      AND p.status = 'completed'
-                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit')), 0) > 0
+                     AND COALESCE(p.payment_type, 'booking') NOT IN ('refund', 'deposit', 'deposit_forfeited')), 0) > 0
     "#;
 
     let result = sqlx::query(insert_query)

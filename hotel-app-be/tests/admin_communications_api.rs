@@ -171,8 +171,9 @@ mod postgres_tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query("DELETE FROM email_deliveries WHERE guest_id = $1")
-            .bind(GUEST_ID)
+        // The feed under test is global, so exact-count assertions only hold
+        // when no other suite's fixture rows are still parked here.
+        sqlx::query("DELETE FROM email_deliveries")
             .execute(pool)
             .await
             .unwrap();
