@@ -127,6 +127,7 @@ export function useReservedCheckInWorkflow({
         updateData.deposit_paid = true;
         updateData.deposit_amount = toMoneyNumber(depositAmount);
         updateData.payment_note = `Deposit received (${depositMethod})`;
+        updateData.deposit_payment_method = depositMethod;
       } else {
         updateData.deposit_paid = false;
         updateData.deposit_amount = 0;
