@@ -174,13 +174,21 @@ export const RatePlanTable = ({
             </TableCell>
             {canManage && (
               <TableCell align="right">
-                <Tooltip title="Edit plan">
-                  <IconButton size="small" onClick={() => onEdit(plan)}>
+                <Tooltip title={t('plans.editPlan')}>
+                  <IconButton
+                    size="small"
+                    aria-label={t('plans.editAria', { name: plan.name })}
+                    onClick={() => onEdit(plan)}
+                  >
                     <EditOutlinedIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title="Delete plan">
-                  <IconButton size="small" onClick={() => onDelete(plan)}>
+                <Tooltip title={t('plans.deletePlan')}>
+                  <IconButton
+                    size="small"
+                    aria-label={t('plans.deleteAria', { name: plan.name })}
+                    onClick={() => onDelete(plan)}
+                  >
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
