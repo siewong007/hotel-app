@@ -15,6 +15,8 @@ import type {
   CreateStaffSupportConversationRequest,
   GuestSupportConversationCategory,
 } from '../../../types';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { formatStatusLabel } from '../../../utils/formatters';
 import { SUPPORT_PRIORITY_OPTIONS, type SupportPriority } from '../../support/types';
 import { useSupportAgents } from '../../support/hooks/useSupportQueries';
@@ -52,6 +54,7 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
   onClose,
   onCreated,
 }) => {
+  const { t, tOr } = useTranslation('support');
   const createConversation = useCreateSupportConversation();
   const agentsQuery = useSupportAgents(open && canAssign);
 
@@ -74,7 +77,7 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
 
   const handleSubmit = async () => {
     if (!message.trim()) {
-      setFormError('A first message is required');
+      setFormError(t('openDialog.firstMessageRequired'));
       return;
     }
     const payload: CreateStaffSupportConversationRequest = {
@@ -89,17 +92,17 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
       setFormError(null);
       const result = await createConversation.mutateAsync(payload);
       onCreated?.(
-        `Support conversation ${result.conversation.conversation_number} opened for ${guestName}`,
+        t('openDialog.created', { number: result.conversation.conversation_number, name: guestName }),
       );
       onClose();
     } catch (err) {
-      setFormError(errorMessage(err, 'Failed to open support conversation'));
+      setFormError(errorMessage(err, t('openDialog.failed')));
     }
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Open support conversation — {guestName}</DialogTitle>
+      <DialogTitle>{t('openDialog.title', { name: guestName })}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
           {formError && (
@@ -109,7 +112,7 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
           )}
           <TextField
             select
-            label="Category"
+            label={t('openDialog.category')}
             value={category}
             onChange={(event) => setCategory(event.target.value as GuestSupportConversationCategory)}
             size="small"
@@ -117,20 +120,20 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
           >
             {SUPPORT_CATEGORIES.map((value) => (
               <MenuItem key={value} value={value}>
-                {formatStatusLabel(value)}
+                {tOr(`categories.${value}`, formatStatusLabel(value))}
               </MenuItem>
             ))}
           </TextField>
           <TextField
-            label="Subject"
+            label={t('openDialog.subject')}
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
             size="small"
             fullWidth
-            placeholder="Short summary shown in the support queue"
+            placeholder={t('openDialog.subjectPlaceholder')}
           />
           <TextField
-            label="First message"
+            label={t('openDialog.firstMessage')}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             size="small"
@@ -138,11 +141,11 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
             required
             multiline
             minRows={3}
-            placeholder="What does the guest need?"
+            placeholder={t('openDialog.firstMessagePlaceholder')}
           />
           <TextField
             select
-            label="Priority"
+            label={t('openDialog.priority')}
             value={priority}
             onChange={(event) => setPriority(event.target.value as SupportPriority)}
             size="small"
@@ -150,22 +153,22 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
           >
             {SUPPORT_PRIORITY_OPTIONS.map((value) => (
               <MenuItem key={value} value={value}>
-                {formatStatusLabel(value)}
+                {statusLabel(t, 'priority', value)}
               </MenuItem>
             ))}
           </TextField>
           {canAssign && (
             <TextField
               select
-              label="Assignee (optional)"
+              label={t('openDialog.assignee')}
               value={assigneeId}
               onChange={(event) => setAssigneeId(event.target.value)}
               size="small"
               fullWidth
               disabled={agentsQuery.isPending}
-              helperText={agentsQuery.isError ? 'Could not load support staff' : undefined}
+              helperText={agentsQuery.isError ? t('openDialog.agentsError') : undefined}
             >
-              <MenuItem value="">Unassigned</MenuItem>
+              <MenuItem value="">{t('openDialog.unassigned')}</MenuItem>
               {(agentsQuery.data ?? []).map((agent) => (
                 <MenuItem key={agent.id} value={String(agent.id)}>
                   {agent.name}
@@ -176,13 +179,13 @@ const OpenSupportDialog: React.FC<OpenSupportDialogProps> = ({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           variant="contained"
           onClick={() => void handleSubmit()}
           disabled={createConversation.isPending || !message.trim()}
         >
-          {createConversation.isPending ? 'Opening…' : 'Open conversation'}
+          {createConversation.isPending ? t('openDialog.opening') : t('openDialog.open')}
         </Button>
       </DialogActions>
     </Dialog>

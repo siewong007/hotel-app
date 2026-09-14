@@ -1,3 +1,30 @@
 {
-  "title": "Support"
+  "title": "Support",
+  "categories": {
+    "service_request": "Service request",
+    "complaint": "Complaint",
+    "booking": "Booking",
+    "stay": "Stay",
+    "billing": "Billing",
+    "loyalty": "Loyalty",
+    "technical": "Technical",
+    "other": "Other"
+  },
+  "openDialog": {
+    "title": "Open support conversation — {{name}}",
+    "firstMessageRequired": "A first message is required",
+    "category": "Category",
+    "subject": "Subject",
+    "subjectPlaceholder": "Short summary shown in the support queue",
+    "firstMessage": "First message",
+    "firstMessagePlaceholder": "What does the guest need?",
+    "priority": "Priority",
+    "assignee": "Assignee (optional)",
+    "agentsError": "Could not load support staff",
+    "unassigned": "Unassigned",
+    "opening": "Opening…",
+    "open": "Open conversation",
+    "created": "Support conversation {{number}} opened for {{name}}",
+    "failed": "Failed to open support conversation"
+  }
 }

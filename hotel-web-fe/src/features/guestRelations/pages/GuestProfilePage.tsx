@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { ArrowBackOutlined as BackIcon } from '@mui/icons-material';
 import type { Guest } from '../../../types';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { errorMessage } from '../../../utils';
 import { getQueryErrorMessage } from '../../../api/queryConfig';
 import { TabPanel, getTabA11yProps } from '../../../components';
@@ -74,6 +75,7 @@ const emptyGuestForm = (): GuestFormData => ({
  * summary, reservations, duplicates, sensitive identity).
  */
 const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
+  const { t } = useTranslation('guests');
   const { hasPermission } = useAuth();
 
   // `hasPermission` already resolves `<resource>:manage` to every action, so
@@ -98,17 +100,17 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
 
   const tabDefs = React.useMemo(() => {
     const defs: Array<{ key: ProfileTabKey; label: string }> = [
-      { key: 'overview', label: 'Overview' },
-      { key: 'stays', label: 'Stays' },
-      { key: 'preferences', label: 'Preferences' },
-      { key: 'interactions', label: 'Interactions' },
-      { key: 'loyalty', label: 'Loyalty & Vouchers' },
+      { key: 'overview', label: t('profile.tabs.overview') },
+      { key: 'stays', label: t('profile.tabs.stays') },
+      { key: 'preferences', label: t('profile.tabs.preferences') },
+      { key: 'interactions', label: t('profile.tabs.interactions') },
+      { key: 'loyalty', label: t('profile.tabs.loyalty') },
     ];
     // Permission-missing tabs are hidden entirely, not disabled.
-    if (canReadSupport) defs.push({ key: 'support', label: 'Support & Feedback' });
-    if (canReadCommunications) defs.push({ key: 'communication', label: 'Communication' });
+    if (canReadSupport) defs.push({ key: 'support', label: t('profile.tabs.support') });
+    if (canReadCommunications) defs.push({ key: 'communication', label: t('profile.tabs.communication') });
     return defs;
-  }, [canReadSupport, canReadCommunications]);
+  }, [t, canReadSupport, canReadCommunications]);
 
   const [activeTab, setActiveTab] = useState(0);
   const clampedTab = Math.min(activeTab, tabDefs.length - 1);
@@ -171,7 +173,7 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
   const handleUpdateGuest = async () => {
     if (!guest) return;
     if (!formData.first_name || !formData.last_name) {
-      setDialogError('First name and last name are required');
+      setDialogError(t('page.namesRequired'));
       return;
     }
     if (formData.email && formData.email.trim()) {
@@ -185,10 +187,10 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
       setFormLoading(true);
       setDialogError(null);
       await updateGuestMutation.mutateAsync({ guestId: guest.id, data: formData });
-      emitApiNotification({ message: 'Guest updated successfully', severity: 'success' });
+      emitApiNotification({ message: t('page.updated'), severity: 'success' });
       setEditDialogOpen(false);
     } catch (err) {
-      setDialogError(errorMessage(err, 'Failed to update guest'));
+      setDialogError(errorMessage(err, t('page.updateFailed')));
     } finally {
       setFormLoading(false);
     }
@@ -201,7 +203,7 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
   if (!hasAccess) {
     return (
       <Alert severity="warning" sx={{ m: 2 }}>
-        You do not have permission to access this page. Contact your administrator for access.
+        {t('permissionDenied')}
       </Alert>
     );
   }
@@ -209,7 +211,7 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
   if (!isValidGuestId) {
     return (
       <Alert severity="warning" sx={{ m: 2 }}>
-        Invalid guest ID.
+        {t('profile.invalidId')}
       </Alert>
     );
   }
@@ -231,7 +233,7 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
         }}
       >
         <BackIcon sx={{ fontSize: 15 }} />
-        Back to guests
+        {t('profile.backToGuests')}
       </MuiLink>
 
       {pageError && (
@@ -249,11 +251,11 @@ const GuestProfilePage: React.FC<GuestProfilePageProps> = ({ guestId }) => {
           severity="error"
           action={
             <Button color="inherit" size="small" onClick={() => void profileQuery.refetch()}>
-              Retry
+              {t('common:state.retry')}
             </Button>
           }
         >
-          {getQueryErrorMessage(profileQuery.error, 'Failed to load guest profile') ?? 'Failed to load guest profile'}
+          {getQueryErrorMessage(profileQuery.error, t('profile.loadFailed')) ?? t('profile.loadFailed')}
         </Alert>
       ) : (
         <>

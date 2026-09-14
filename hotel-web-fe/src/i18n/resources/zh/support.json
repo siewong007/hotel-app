@@ -1,3 +1,30 @@
 {
-  "title": "客服"
+  "title": "客服",
+  "categories": {
+    "service_request": "服务请求",
+    "complaint": "投诉",
+    "booking": "预订",
+    "stay": "住宿",
+    "billing": "账单",
+    "loyalty": "忠诚度",
+    "technical": "技术支持",
+    "other": "其他"
+  },
+  "openDialog": {
+    "title": "发起客服会话——{{name}}",
+    "firstMessageRequired": "首条消息为必填项",
+    "category": "类别",
+    "subject": "主题",
+    "subjectPlaceholder": "在客服队列中显示的简短摘要",
+    "firstMessage": "首条消息",
+    "firstMessagePlaceholder": "客人需要什么帮助？",
+    "priority": "优先级",
+    "assignee": "处理人（可选）",
+    "agentsError": "无法加载客服人员",
+    "unassigned": "未分配",
+    "opening": "正在发起…",
+    "open": "发起会话",
+    "created": "已为 {{name}} 发起客服会话 {{number}}",
+    "failed": "发起客服会话失败"
+  }
 }

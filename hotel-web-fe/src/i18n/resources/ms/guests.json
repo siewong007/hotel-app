@@ -174,5 +174,95 @@
     "roomNumber": "Bilik {{number}}",
     "nights_one": "{{count}} malam",
     "nights_other": "{{count}} malam"
+  },
+  "profile": {
+    "backToGuests": "Kembali ke tetamu",
+    "invalidId": "ID tetamu tidak sah.",
+    "loadFailed": "Gagal memuatkan profil tetamu",
+    "guestNumber": "Tetamu #{{id}}",
+    "bookedAs": "menempah sebagai {{name}}",
+    "member": "Ahli",
+    "returning": "Tetamu berulang",
+    "blacklisted": "Senarai hitam",
+    "blacklistReason": "Sebab: {{reason}}",
+    "noReason": "Tiada sebab direkodkan",
+    "duplicateTooltip_one": "{{count}} profil mungkin pendua — lihat Gambaran Keseluruhan",
+    "duplicateTooltip_other": "{{count}} profil mungkin pendua — lihat Gambaran Keseluruhan",
+    "duplicateChip": "Semakan pendua",
+    "noEmail": "Tiada e-mel",
+    "noPhone": "Tiada telefon",
+    "noAltPhone": "Tiada telefon lain",
+    "lastStay": "Penginapan terakhir: {{date}}",
+    "nextStay": "Penginapan seterusnya: {{date}}",
+    "edit": "Edit",
+    "newBooking": "Tempahan baharu",
+    "addNote": "Tambah nota",
+    "openSupport": "Buka sokongan",
+    "tabs": {
+      "overview": "Gambaran Keseluruhan",
+      "stays": "Penginapan",
+      "preferences": "Keutamaan",
+      "interactions": "Interaksi",
+      "loyalty": "Kesetiaan & Baucar",
+      "support": "Sokongan & Maklum Balas",
+      "communication": "Komunikasi"
+    }
+  },
+  "history": {
+    "title": "Sejarah Tempahan: {{name}}",
+    "empty": "Tiada tempahan ditemui untuk tetamu ini.",
+    "groups": {
+      "checkedOut": "Tempahan telah daftar keluar",
+      "void": "Tempahan batal",
+      "other": "Tempahan lain"
+    },
+    "groupEmpty": {
+      "checkedOut": "Tiada tempahan daftar keluar ditemui untuk tetamu ini.",
+      "void": "Tiada tempahan batal ditemui untuk tetamu ini.",
+      "other": "Tiada tempahan lain ditemui untuk tetamu ini."
+    },
+    "cols": {
+      "bookingNumber": "No. Tempahan",
+      "room": "Bilik",
+      "checkIn": "Daftar Masuk",
+      "checkOut": "Daftar Keluar",
+      "nights": "Malam",
+      "status": "Status",
+      "amount": "Amaun"
+    }
+  },
+  "credits": {
+    "title": "Kredit Hadiah Percuma: {{name}}",
+    "byRoomType": "Kredit mengikut Jenis Bilik:",
+    "code": "Kod: {{code}}",
+    "totalAvailable": "Jumlah Tersedia:",
+    "noneAvailable": "Tetamu ini tiada kredit percuma tersedia.",
+    "unavailable": "Tiada maklumat kredit tersedia."
+  },
+  "portal": {
+    "title": "Pindahkan Akaun Portal Tetamu",
+    "warning": "Ini memindahkan log masuk portal dan akses portal tetamu kepada {{name}}.",
+    "emptyUsername": "Masukkan nama pengguna portal tetamu untuk dipindahkan.",
+    "username": "Nama pengguna portal tetamu",
+    "helper": "Hanya akaun portal tetamu aktif boleh dipindahkan.",
+    "transfer": "Pindahkan akaun",
+    "transferred": "Akaun portal tetamu “{{username}}” berjaya dipindahkan",
+    "failed": "Gagal memindahkan akaun portal tetamu"
+  },
+  "consent": {
+    "title": "Edit persetujuan e-mel — {{name}}",
+    "description": "Togol ini meliputi e-mel pemasaran dan surat berita pilihan sahaja. Mel transaksi — pengesahan tempahan, resit, butiran daftar masuk — sentiasa dihantar apabila tetamu mempunyai alamat e-mel.",
+    "optedIn": "Melanggan",
+    "optedOut": "Tidak melanggan",
+    "footnote": "Direkodkan sebagai persetujuan yang diambil oleh kakitangan. Sahkan kehendak tetamu sebelum menyimpan.",
+    "save": "Simpan persetujuan",
+    "updated": "Keutamaan e-mel dikemas kini untuk {{name}}",
+    "failed": "Gagal mengemas kini persetujuan",
+    "toggleAria": "Togol e-mel {{topic}}",
+    "topics": {
+      "announcement": "Pengumuman hotel",
+      "promotion": "Promosi dan tawaran",
+      "birthday_voucher": "Baucar hari lahir"
+    }
   }
 }

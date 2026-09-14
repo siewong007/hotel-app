@@ -191,6 +191,16 @@
     "completed": "Selesai",
     "failed": "Gagal"
   },
+  "booking_history": {
+    "checked_out": "Daftar keluar",
+    "completed": "Selesai",
+    "voided": "Dibatalkan",
+    "comp_void": "Batal percuma",
+    "checked_in": "Daftar masuk",
+    "auto_checked_in": "Daftar masuk",
+    "confirmed": "Ditempah",
+    "pending": "Tertangguh"
+  },
   "booking_source": {
     "direct": "Langsung",
     "walk_in": "Walk-in",

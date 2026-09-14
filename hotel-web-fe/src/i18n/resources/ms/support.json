@@ -1,3 +1,30 @@
 {
-  "title": "Sokongan"
+  "title": "Sokongan",
+  "categories": {
+    "service_request": "Permintaan perkhidmatan",
+    "complaint": "Aduan",
+    "booking": "Tempahan",
+    "stay": "Penginapan",
+    "billing": "Bil",
+    "loyalty": "Kesetiaan",
+    "technical": "Teknikal",
+    "other": "Lain-lain"
+  },
+  "openDialog": {
+    "title": "Buka perbualan sokongan — {{name}}",
+    "firstMessageRequired": "Mesej pertama diperlukan",
+    "category": "Kategori",
+    "subject": "Subjek",
+    "subjectPlaceholder": "Ringkasan ringkas yang dipaparkan dalam baris gilir sokongan",
+    "firstMessage": "Mesej pertama",
+    "firstMessagePlaceholder": "Apa yang diperlukan tetamu?",
+    "priority": "Keutamaan",
+    "assignee": "Penerima tugasan (pilihan)",
+    "agentsError": "Tidak dapat memuatkan kakitangan sokongan",
+    "unassigned": "Belum ditugaskan",
+    "opening": "Membuka…",
+    "open": "Buka perbualan",
+    "created": "Perbualan sokongan {{number}} dibuka untuk {{name}}",
+    "failed": "Gagal membuka perbualan sokongan"
+  }
 }

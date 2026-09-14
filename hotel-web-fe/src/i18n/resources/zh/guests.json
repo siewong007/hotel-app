@@ -174,5 +174,95 @@
     "roomNumber": "{{number}} 号房",
     "nights_one": "{{count}} 晚",
     "nights_other": "{{count}} 晚"
+  },
+  "profile": {
+    "backToGuests": "返回客人列表",
+    "invalidId": "客人 ID 无效。",
+    "loadFailed": "客人资料加载失败",
+    "guestNumber": "客人 #{{id}}",
+    "bookedAs": "预订名为 {{name}}",
+    "member": "会员",
+    "returning": "回头客",
+    "blacklisted": "黑名单",
+    "blacklistReason": "原因：{{reason}}",
+    "noReason": "未记录原因",
+    "duplicateTooltip_one": "{{count}} 个疑似重复资料——见概览",
+    "duplicateTooltip_other": "{{count}} 个疑似重复资料——见概览",
+    "duplicateChip": "重复资料待查",
+    "noEmail": "无邮箱",
+    "noPhone": "无电话",
+    "noAltPhone": "无备用电话",
+    "lastStay": "最近入住：{{date}}",
+    "nextStay": "下次入住：{{date}}",
+    "edit": "编辑",
+    "newBooking": "新建预订",
+    "addNote": "添加备注",
+    "openSupport": "发起客服",
+    "tabs": {
+      "overview": "概览",
+      "stays": "入住记录",
+      "preferences": "偏好",
+      "interactions": "互动记录",
+      "loyalty": "忠诚度与优惠券",
+      "support": "客服与反馈",
+      "communication": "沟通"
+    }
+  },
+  "history": {
+    "title": "预订历史：{{name}}",
+    "empty": "该客人暂无预订记录。",
+    "groups": {
+      "checkedOut": "已退房预订",
+      "void": "已作废预订",
+      "other": "其他预订"
+    },
+    "groupEmpty": {
+      "checkedOut": "该客人暂无已退房预订。",
+      "void": "该客人暂无已作废预订。",
+      "other": "该客人暂无其他预订。"
+    },
+    "cols": {
+      "bookingNumber": "预订编号",
+      "room": "客房",
+      "checkIn": "入住",
+      "checkOut": "退房",
+      "nights": "晚数",
+      "status": "状态",
+      "amount": "金额"
+    }
+  },
+  "credits": {
+    "title": "免费房晚额度：{{name}}",
+    "byRoomType": "按房型的额度：",
+    "code": "代码：{{code}}",
+    "totalAvailable": "可用总数：",
+    "noneAvailable": "该客人暂无免费额度。",
+    "unavailable": "暂无额度信息。"
+  },
+  "portal": {
+    "title": "转移宾客门户账户",
+    "warning": "此操作会将门户登录及其门户访问权限重新分配给 {{name}}。",
+    "emptyUsername": "请输入要转移的宾客门户用户名。",
+    "username": "宾客门户用户名",
+    "helper": "只有有效的宾客门户账户才能转移。",
+    "transfer": "转移账户",
+    "transferred": "宾客门户账户“{{username}}”转移成功",
+    "failed": "转移宾客门户账户失败"
+  },
+  "consent": {
+    "title": "编辑邮件同意——{{name}}",
+    "description": "这些开关仅控制可选的营销和资讯邮件。事务性邮件——预订确认、收据、入住信息——只要客人留有邮箱地址就会发送。",
+    "optedIn": "已订阅",
+    "optedOut": "未订阅",
+    "footnote": "将记录为员工代录的同意。保存前请确认客人的意愿。",
+    "save": "保存同意设置",
+    "updated": "已更新 {{name}} 的邮件偏好",
+    "failed": "更新同意设置失败",
+    "toggleAria": "切换{{topic}}邮件",
+    "topics": {
+      "announcement": "酒店公告",
+      "promotion": "促销与优惠",
+      "birthday_voucher": "生日礼券"
+    }
   }
 }

@@ -191,6 +191,16 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "booking_history": {
+    "checked_out": "Checked out",
+    "completed": "Completed",
+    "voided": "Voided",
+    "comp_void": "Comp void",
+    "checked_in": "Checked in",
+    "auto_checked_in": "Checked in",
+    "confirmed": "Reserved",
+    "pending": "Pending"
+  },
   "booking_source": {
     "direct": "Direct",
     "walk_in": "Walk-in",

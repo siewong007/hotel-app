@@ -174,5 +174,95 @@
     "roomNumber": "Room {{number}}",
     "nights_one": "{{count}} night",
     "nights_other": "{{count}} nights"
+  },
+  "profile": {
+    "backToGuests": "Back to guests",
+    "invalidId": "Invalid guest ID.",
+    "loadFailed": "Failed to load guest profile",
+    "guestNumber": "Guest #{{id}}",
+    "bookedAs": "booked as {{name}}",
+    "member": "Member",
+    "returning": "Returning guest",
+    "blacklisted": "Blacklisted",
+    "blacklistReason": "Reason: {{reason}}",
+    "noReason": "No reason recorded",
+    "duplicateTooltip_one": "{{count}} possible duplicate profile — see Overview",
+    "duplicateTooltip_other": "{{count}} possible duplicate profiles — see Overview",
+    "duplicateChip": "Duplicate review",
+    "noEmail": "No email",
+    "noPhone": "No phone",
+    "noAltPhone": "No alt. phone",
+    "lastStay": "Last stay: {{date}}",
+    "nextStay": "Next stay: {{date}}",
+    "edit": "Edit",
+    "newBooking": "New booking",
+    "addNote": "Add note",
+    "openSupport": "Open support",
+    "tabs": {
+      "overview": "Overview",
+      "stays": "Stays",
+      "preferences": "Preferences",
+      "interactions": "Interactions",
+      "loyalty": "Loyalty & Vouchers",
+      "support": "Support & Feedback",
+      "communication": "Communication"
+    }
+  },
+  "history": {
+    "title": "Booking History: {{name}}",
+    "empty": "No bookings found for this guest.",
+    "groups": {
+      "checkedOut": "Checked out bookings",
+      "void": "Void bookings",
+      "other": "Other bookings"
+    },
+    "groupEmpty": {
+      "checkedOut": "No checked out bookings found for this guest.",
+      "void": "No void bookings found for this guest.",
+      "other": "No other bookings found for this guest."
+    },
+    "cols": {
+      "bookingNumber": "Booking #",
+      "room": "Room",
+      "checkIn": "Check In",
+      "checkOut": "Check Out",
+      "nights": "Nights",
+      "status": "Status",
+      "amount": "Amount"
+    }
+  },
+  "credits": {
+    "title": "Free Gift Credits: {{name}}",
+    "byRoomType": "Credits by Room Type:",
+    "code": "Code: {{code}}",
+    "totalAvailable": "Total Available:",
+    "noneAvailable": "This guest has no complimentary credits available.",
+    "unavailable": "No credits information available."
+  },
+  "portal": {
+    "title": "Transfer Guest Portal Account",
+    "warning": "This reassigns the portal login and its guest-portal access to {{name}}.",
+    "emptyUsername": "Enter the guest portal username to transfer.",
+    "username": "Guest portal username",
+    "helper": "Only an active guest portal account can be transferred.",
+    "transfer": "Transfer account",
+    "transferred": "Guest portal account “{{username}}” transferred successfully",
+    "failed": "Failed to transfer guest portal account"
+  },
+  "consent": {
+    "title": "Edit email consent — {{name}}",
+    "description": "These toggles cover optional marketing and newsletter email only. Transactional mail — booking confirmations, receipts, check-in details — is always sent when the guest has an email address.",
+    "optedIn": "Opted in",
+    "optedOut": "Opted out",
+    "footnote": "Recorded as staff-captured consent. Confirm the guest's wishes before saving.",
+    "save": "Save consent",
+    "updated": "Email preferences updated for {{name}}",
+    "failed": "Failed to update consent",
+    "toggleAria": "Toggle {{topic}} emails",
+    "topics": {
+      "announcement": "Hotel announcements",
+      "promotion": "Promotions and offers",
+      "birthday_voucher": "Birthday voucher"
+    }
   }
 }
