@@ -35,7 +35,7 @@ export function renderRouteContent(route: AppRouteDefinition) {
   if (route.accessControlled) {
     return (
       <ProtectedRoute
-        routeId={route.id}
+        routeId={route.policyId ?? route.id}
         requiresPolicy
       >
         {content}
@@ -43,7 +43,7 @@ export function renderRouteContent(route: AppRouteDefinition) {
     );
   }
 
-  return <ProtectedRoute routeId={route.id}>{content}</ProtectedRoute>;
+  return <ProtectedRoute routeId={route.policyId ?? route.id}>{content}</ProtectedRoute>;
 }
 
 /** Render a route entry by its `id` from `routeRegistry`. */

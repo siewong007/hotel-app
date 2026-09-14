@@ -50,6 +50,10 @@
       "label": "eKYC Admin",
       "breadcrumb": "eKYC Admin"
     },
+    "guest-directory": {
+      "label": "Guests",
+      "breadcrumb": "Guest Directory"
+    },
     "guest-relations": {
       "label": "Guest Relations",
       "breadcrumb": "Guest Relations"

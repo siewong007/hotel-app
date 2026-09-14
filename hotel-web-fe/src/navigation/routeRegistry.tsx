@@ -7,6 +7,7 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import EventNoteIcon from '@mui/icons-material/EventNote';
+import GroupsIcon from '@mui/icons-material/Groups';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
@@ -59,6 +60,12 @@ export interface AppRouteDefinition {
   navLabel?: string;
   navGroup?: NavGroup;
   accessControlled?: boolean;
+  /**
+   * Route-access policy id when it differs from `id` — for nav entries that
+   * share a parent's seeded policy (e.g. the guest directory lives under the
+   * `guest-relations` policy, like its file route's ProtectedRoute does).
+   */
+  policyId?: string;
 }
 
 const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
@@ -83,6 +90,7 @@ const RoomReservationTimeline = lazyRoute(() => import('../features/rooms/compon
 const RoomConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomConfigurationPage'));
 const RoomManagementPage = lazyRoute(() => import('../features/rooms/components/RoomManagement'));
 const GuestRelationsOverviewPage = lazyRoute(() => import('../features/guestRelations/pages/GuestRelationsOverviewPage'));
+const GuestRelationsPage = lazyRoute(() => import('../features/guestRelations/pages/GuestRelationsPage'));
 const GuestCheckInLanding = lazyRoute(() => import('../features/bookings/components/GuestCheckInLanding'));
 const GuestCheckInVerify = lazyRoute(() => import('../features/bookings/components/GuestCheckInVerify'));
 const GuestCheckInForm = lazyRoute(() => import('../features/bookings/components/GuestCheckInForm'));
@@ -204,6 +212,22 @@ const routeDefinitions: AppRouteDefinition[] = [
     navLabel: 'Guest Relations',
     navGroup: 'guests',
     accessControlled: true,
+  },
+  {
+    id: 'guest-directory',
+    path: '/guest-relations/guests',
+    component: GuestRelationsPage,
+    animationType: 'slide',
+    visibility: 'auth',
+    icon: GroupsIcon,
+    breadcrumbLabel: 'Guest Directory',
+    navLabel: 'Guests',
+    navGroup: 'guests',
+    accessControlled: true,
+    // No `guest-directory` row exists in route_access_policies — the list page
+    // is gated by the parent's `guest-relations` policy (guests:read/manage),
+    // matching the ProtectedRoute its file route mounts with.
+    policyId: 'guest-relations',
   },
   {
     id: 'support',
@@ -528,7 +552,7 @@ export function preloadRoute(pathname: string) {
 }
 
 export function canAccessNavigationRoute(route: AppRouteDefinition, access: AccessChecker) {
-  const policy = access.getRoutePolicy(route.id);
+  const policy = access.getRoutePolicy(route.policyId ?? route.id);
   // New system pages can be deployed before an existing session has refreshed
   // its database-backed route policies. Keep the page available to the same
   // permission that protects its API during that short transition.

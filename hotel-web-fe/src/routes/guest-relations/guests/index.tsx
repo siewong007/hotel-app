@@ -1,31 +1,9 @@
-import { Suspense, lazy } from 'react';
-import { CircularProgress } from '@mui/material';
 import { createFileRoute } from '@tanstack/react-router';
-import { ProtectedRoute } from '../../../features/auth/components/ProtectedRoute';
-import { AnimatedRoute, ComponentErrorBoundary } from '../../../components';
+import { RouteById } from '../../../router/renderRouteFromRegistry';
 
-// The registry's `guest-relations` entry now renders the overview dashboard
-// at /guest-relations, so the guest list mounts directly here — under the
-// same `guest-relations` route-access policy and slide animation RouteById
-// applied before, and the same direct-mount precedent as $guestId.tsx.
-const GuestRelationsPage = lazy(
-  () => import('../../../features/guestRelations/pages/GuestRelationsPage')
-);
-
-function GuestListRoute() {
-  return (
-    <ProtectedRoute routeId="guest-relations" requiresPolicy>
-      <AnimatedRoute animationType="slide">
-        <ComponentErrorBoundary>
-          <Suspense fallback={<CircularProgress sx={{ m: 8 }} />}>
-            <GuestRelationsPage />
-          </Suspense>
-        </ComponentErrorBoundary>
-      </AnimatedRoute>
-    </ProtectedRoute>
-  );
-}
-
+// The guest list is the registry's `guest-directory` nav entry. Page access is
+// gated by the shared `guest-relations` route-access policy via the entry's
+// `policyId` — the same policy this route used when it mounted directly.
 export const Route = createFileRoute('/guest-relations/guests/')({
-  component: GuestListRoute,
+  component: () => <RouteById id="guest-directory" />,
 });

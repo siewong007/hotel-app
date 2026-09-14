@@ -50,6 +50,10 @@
       "label": "Pentadbir eKYC",
       "breadcrumb": "Pentadbir eKYC"
     },
+    "guest-directory": {
+      "label": "Tetamu",
+      "breadcrumb": "Direktori Tetamu"
+    },
     "guest-relations": {
       "label": "Hubungan Tetamu",
       "breadcrumb": "Hubungan Tetamu"

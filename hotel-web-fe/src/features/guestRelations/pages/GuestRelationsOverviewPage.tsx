@@ -1,8 +1,9 @@
 import React from 'react';
-import { Alert, Box, CircularProgress, Grid } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Grid } from '@mui/material';
 import {
   FlightLandOutlined as ArrivalsIcon,
   FlightTakeoffOutlined as DeparturesIcon,
+  GroupsOutlined as DirectoryIcon,
   HotelOutlined as InHouseIcon,
   PendingActionsOutlined as FollowUpsIcon,
   RateReviewOutlined as ReviewsIcon,
@@ -178,6 +179,16 @@ const GuestRelationsOverviewPage: React.FC = () => {
         kicker={dateLabel}
         title="Guest Relations"
         subtitle="Today's flow, open requests and follow-ups across the whole guest book."
+        actions={(
+          <Button
+            startIcon={<DirectoryIcon />}
+            onClick={() => navigate('/guest-relations/guests')}
+            variant="contained"
+            sx={{ textTransform: 'none' }}
+          >
+            Guest directory
+          </Button>
+        )}
       />
 
       {overviewQuery.isPending || !overview ? (
