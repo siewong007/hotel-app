@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildKyHttpError } from './testSupport/httpError';
 
 // Mock the configured ky instance so no real HTTP happens.
 const get = vi.fn();
 const post = vi.fn();
+const del = vi.fn();
 vi.mock('./client', async () => {
   const actual = await vi.importActual<typeof import('./client')>('./client');
   return {
@@ -11,54 +12,74 @@ vi.mock('./client', async () => {
     api: {
       get: (...args: any[]) => get(...args),
       post: (...args: any[]) => post(...args),
+      delete: (...args: any[]) => del(...args),
     },
   };
 });
 
 import { DataTransferService } from './dataTransfer.service';
 import { APIError } from './client';
-import type { BookingDataExport, ExportPreview, ImportResult } from '../types';
+import type { ExportPreview, ImportJobStatus, ImportPreview } from '../types';
+
+const SKIP_HEADER = 'x-skip-api-notification';
 
 function mockJsonResponse(payload: unknown) {
   return { json: () => Promise.resolve(payload) };
 }
 
-/** Every method under test here chains `.json()` onto the api call, so a
+/** Every JSON method under test chains `.json()` onto the api call, so a
  * rejection must come from that `.json()` call — not from the outer mock
  * return value directly (which is never awaited on its own). */
 function mockJsonRejection(error: unknown) {
   return { json: () => Promise.reject(error) };
 }
 
-/** A ky HTTPError as a real failed request throws it: body parsed onto
- *  `data`, response stream already consumed. See testSupport/httpError.ts. */
 function buildHttpError(status: number, body: unknown, url = 'http://localhost/api/data-transfer/export') {
   return buildKyHttpError(status, body, url);
 }
 
-const fakeExport: BookingDataExport = {
-  version: '2.0',
-  exported_at: '2026-07-27T00:00:00Z',
-  tables: {
-    'public.users': [{ id: 1, password_hash: 'stored-hash' }],
-  },
-} as unknown as BookingDataExport;
+const fakePreview: ExportPreview = {
+  generated_at: '2026-09-14T00:00:00Z',
+  counts: { 'public.guests': 10 },
+  total_records: 10,
+  tables: [{ name: 'public.guests', count: 10, dependencies: [] }],
+  entities: [{ name: 'public.guests', primaryKey: ['id'], columns: ['id', 'full_name'] }],
+  exclusions: [{ name: 'public.users', reason: 'credentials_and_auth_state' }],
+};
+
+const fakeImportPreview: ImportPreview = {
+  uploadId: 'u1',
+  format: 'v3',
+  version: 3,
+  exportedAt: '2026-09-14T00:00:00Z',
+  sourceEnvironment: 'production',
+  applicationVersion: '1.2.3',
+  entities: [{ name: 'public.guests', rows: 10, new: 8, existing: 2, skipped: 0 }],
+  unsupportedEntities: [],
+  validationErrors: [],
+  relationshipProblems: [],
+  warnings: [],
+  totalRows: 10,
+};
 
 describe('DataTransferService', () => {
   beforeEach(() => {
     get.mockReset();
     post.mockReset();
+    del.mockReset();
   });
 
   describe('previewExport', () => {
-    it('calls GET data-transfer/export/preview with no timeout', async () => {
-      const preview: ExportPreview = { generated_at: '2026-07-26T00:00:00Z', counts: { guests: 10 }, total_records: 10 };
-      get.mockReturnValue(mockJsonResponse(preview));
+    it('calls GET data-transfer/export/preview with no timeout and notification skip', async () => {
+      get.mockReturnValue(mockJsonResponse(fakePreview));
 
       const result = await DataTransferService.previewExport();
 
-      expect(get).toHaveBeenCalledWith('data-transfer/export/preview', { timeout: false });
-      expect(result).toEqual(preview);
+      expect(get).toHaveBeenCalledWith('data-transfer/export/preview', {
+        timeout: false,
+        headers: { [SKIP_HEADER]: 'true' },
+      });
+      expect(result).toEqual(fakePreview);
     });
 
     it('wraps an HTTPError into an APIError with the server message', async () => {
@@ -86,67 +107,182 @@ describe('DataTransferService', () => {
   });
 
   describe('exportData', () => {
-    it('calls GET data-transfer/export with no timeout', async () => {
-      get.mockReturnValue(mockJsonResponse(fakeExport));
+    let createObjectURL: ReturnType<typeof vi.fn>;
+    let revokeObjectURL: ReturnType<typeof vi.fn>;
+    let clickSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      createObjectURL = vi.fn(() => 'blob:mock-url');
+      revokeObjectURL = vi.fn();
+      window.URL.createObjectURL = createObjectURL as unknown as typeof window.URL.createObjectURL;
+      window.URL.revokeObjectURL = revokeObjectURL as unknown as typeof window.URL.revokeObjectURL;
+      clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      clickSpy.mockRestore();
+    });
+
+    function mockDownloadResponse(disposition: string | null, bytes = 42) {
+      const headers = new Headers();
+      if (disposition !== null) headers.set('content-disposition', disposition);
+      return {
+        headers,
+        blob: () => Promise.resolve(new Blob([new Uint8Array(bytes)], { type: 'application/json' })),
+      };
+    }
+
+    it('downloads the blob under the Content-Disposition filename', async () => {
+      get.mockReturnValue(
+        mockDownloadResponse('attachment; filename="saliminn-backup-20260914T120000Z.json"'),
+      );
 
       const result = await DataTransferService.exportData();
 
-      expect(get).toHaveBeenCalledWith('data-transfer/export', { timeout: false });
-      expect(result).toBe(fakeExport);
+      expect(get).toHaveBeenCalledWith('data-transfer/export', {
+        timeout: false,
+        headers: { [SKIP_HEADER]: 'true' },
+      });
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      const anchor = clickSpy.mock.instances[0] as HTMLAnchorElement;
+      expect(anchor.download).toBe('saliminn-backup-20260914T120000Z.json');
+      expect(anchor.href).toBe('blob:mock-url');
+      expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+      expect(result).toEqual({ filename: 'saliminn-backup-20260914T120000Z.json', bytes: 42 });
+    });
+
+    it('falls back to a generated filename when Content-Disposition is absent', async () => {
+      get.mockReturnValue(mockDownloadResponse(null));
+
+      const result = await DataTransferService.exportData();
+
+      expect(result.filename).toMatch(/^saliminn-backup-\d{4}-\d{2}-\d{2}\.json$/);
     });
 
     it('wraps an HTTPError into an APIError', async () => {
-      get.mockReturnValue(mockJsonRejection(buildHttpError(500, { error: 'Export failed' })));
+      get.mockImplementation(() => Promise.reject(buildHttpError(500, { error: 'Export failed' })));
 
       await expect(DataTransferService.exportData()).rejects.toMatchObject({
         name: 'APIError',
         message: 'Export failed',
         statusCode: 500,
       });
+      expect(createObjectURL).not.toHaveBeenCalled();
     });
   });
 
-  describe('importData', () => {
-    it('posts schema-qualified v2 tables unchanged with no timeout', async () => {
-      const result: ImportResult = { success: true, mode: 'import', records_imported: { guests: 10 } };
-      post.mockReturnValue(mockJsonResponse(result));
+  describe('uploadBackup', () => {
+    it('posts the raw file with the documented headers and no timeout', async () => {
+      const upload = { uploadId: 'u1', bytes: 5, detectedFormat: 'v3' };
+      post.mockReturnValue(mockJsonResponse(upload));
+      const file = new File(['{}'], 'backup file.json', { type: 'application/json' });
 
-      const outcome = await DataTransferService.importData('import', fakeExport, ['public.users']);
+      const result = await DataTransferService.uploadBackup(file);
 
-      expect(post).toHaveBeenCalledWith('data-transfer/import', {
-        json: { mode: 'import', data: fakeExport, tables: ['public.users'] },
+      expect(post).toHaveBeenCalledWith('data-transfer/import/uploads', {
+        body: file,
+        headers: {
+          [SKIP_HEADER]: 'true',
+          'content-type': 'application/octet-stream',
+          // Header values must be Latin-1 — the name travels percent-encoded.
+          'x-file-name': encodeURIComponent('backup file.json'),
+        },
         timeout: false,
       });
-      expect(outcome).toEqual(result);
+      expect(result).toEqual(upload);
     });
 
-    it('forwards "overwrite" mode as given', async () => {
-      post.mockReturnValue(mockJsonResponse({ success: true, mode: 'overwrite', records_imported: {} }));
+    it('surfaces the server 413 message', async () => {
+      post.mockReturnValue(
+        mockJsonRejection(buildHttpError(413, { error: 'the uploaded backup exceeds the 256 MB limit' })),
+      );
 
-      await DataTransferService.importData('overwrite', fakeExport, []);
+      await expect(DataTransferService.uploadBackup(new File(['{}'], 'big.json'))).rejects.toMatchObject({
+        name: 'APIError',
+        message: 'the uploaded backup exceeds the 256 MB limit',
+        statusCode: 413,
+      });
+    });
+  });
 
-      expect(post).toHaveBeenCalledWith('data-transfer/import', {
-        json: { mode: 'overwrite', data: fakeExport, tables: [] },
+  describe('previewImport', () => {
+    it('posts the uploadId and returns the preview', async () => {
+      post.mockReturnValue(mockJsonResponse(fakeImportPreview));
+
+      const result = await DataTransferService.previewImport('u1');
+
+      expect(post).toHaveBeenCalledWith('data-transfer/import/preview', {
+        json: { uploadId: 'u1' },
+        headers: { [SKIP_HEADER]: 'true' },
         timeout: false,
       });
+      expect(result).toEqual(fakeImportPreview);
+    });
+  });
+
+  describe('executeImport', () => {
+    it('posts mode + confirm:true and returns the job id', async () => {
+      post.mockReturnValue(mockJsonResponse({ jobId: 'job-1' }));
+
+      const result = await DataTransferService.executeImport({
+        uploadId: 'u1',
+        mode: 'merge',
+        onConflict: 'update',
+      });
+
+      expect(post).toHaveBeenCalledWith('data-transfer/import/execute', {
+        json: { uploadId: 'u1', mode: 'merge', onConflict: 'update', confirm: true },
+        headers: { [SKIP_HEADER]: 'true' },
+      });
+      expect(result).toEqual({ jobId: 'job-1' });
     });
 
-    it('wraps an HTTPError into an APIError', async () => {
-      post.mockReturnValue(mockJsonRejection(buildHttpError(422, { error: 'Import validation failed' })));
+    it('omits onConflict for restore when the caller leaves it undefined', async () => {
+      post.mockReturnValue(mockJsonResponse({ jobId: 'job-2' }));
 
-      await expect(DataTransferService.importData('import', fakeExport, ['guests'])).rejects.toMatchObject({
-        name: 'APIError',
-        message: 'Import validation failed',
-        statusCode: 422,
+      await DataTransferService.executeImport({ uploadId: 'u1', mode: 'restore' });
+
+      expect(post).toHaveBeenCalledWith('data-transfer/import/execute', {
+        json: { uploadId: 'u1', mode: 'restore', confirm: true },
+        headers: { [SKIP_HEADER]: 'true' },
+      });
+    });
+  });
+
+  describe('getImportJob', () => {
+    it('gets the job status endpoint', async () => {
+      const status: ImportJobStatus = {
+        status: 'running',
+        progress: { entity: 'public.guests', rowsApplied: 5, totalRows: 10 },
+      };
+      get.mockReturnValue(mockJsonResponse(status));
+
+      const result = await DataTransferService.getImportJob('job-1');
+
+      expect(get).toHaveBeenCalledWith('data-transfer/import/jobs/job-1', {
+        headers: { [SKIP_HEADER]: 'true' },
+      });
+      expect(result).toEqual(status);
+    });
+  });
+
+  describe('deleteUpload', () => {
+    it('deletes the staged upload', async () => {
+      del.mockResolvedValue({});
+
+      await DataTransferService.deleteUpload('u1');
+
+      expect(del).toHaveBeenCalledWith('data-transfer/import/uploads/u1', {
+        headers: { [SKIP_HEADER]: 'true' },
       });
     });
 
-    it('falls back to a generic message when the error is not an HTTPError', async () => {
-      post.mockReturnValue(mockJsonRejection(new Error('timeout')));
+    it('wraps failures into APIError', async () => {
+      del.mockRejectedValue(new Error('offline'));
 
-      await expect(DataTransferService.importData('import', fakeExport, ['guests'])).rejects.toMatchObject({
+      await expect(DataTransferService.deleteUpload('u1')).rejects.toMatchObject({
         name: 'APIError',
-        message: 'Failed to import data',
+        message: 'Failed to discard the staged upload',
       });
     });
   });

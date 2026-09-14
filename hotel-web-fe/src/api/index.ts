@@ -28,7 +28,27 @@ export { PaymentApprovalsService } from './paymentApprovals.service';
 export { UsersService } from './users.service';
 export { GuestRelationsService } from './guestRelations.service';
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
-export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
+export type {
+  BackupDetectedFormat,
+  BackupEntityDescriptor,
+  BackupExclusion,
+  BackupImportMode,
+  ConflictPolicy,
+  ExportPreview,
+  ImportEntityOutcome,
+  ImportExecuteRequest,
+  ImportExecuteResponse,
+  ImportJobReport,
+  ImportJobResult,
+  ImportJobState,
+  ImportJobStatus,
+  ImportPreview,
+  ImportPreviewEntity,
+  ImportRelationshipProblem,
+  JobProgress,
+  TransferTablePreview,
+  UploadResponse,
+} from '../types';
 export type {
   NightAuditPreview,
   NightAuditRun,
