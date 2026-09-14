@@ -91,7 +91,9 @@ describe('BookingsSection cancellation', () => {
     fireEvent.change(screen.getByLabelText('Custom cancellation reason'), { target: { value: 'Plans changed' } });
     fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
 
-    await waitFor(() => expect(screen.getByText('Cancellation window has closed')).toBeTruthy());
+    // A non-HTTP failure has no guest-safe server message, so the section
+    // shows the translated fallback rather than transport noise.
+    await waitFor(() => expect(screen.getByText('Unable to submit this cancellation request.')).toBeTruthy());
     expect((screen.getByLabelText('Custom cancellation reason') as HTMLTextAreaElement).value).toBe('Plans changed');
     expect(mocks.cancelBooking).toHaveBeenCalledWith(7, 'Plans changed', 'guest-token');
 

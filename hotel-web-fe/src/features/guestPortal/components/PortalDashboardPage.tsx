@@ -8,24 +8,26 @@ import { ProfileSection } from './dashboard/ProfileSection';
 import { SecuritySection } from './dashboard/SecuritySection';
 import { DevicesSection } from './dashboard/DevicesSection';
 import { parsePortalSection, type PortalSection } from './dashboard/dashboardUtils';
+import { useTranslation } from '../../../i18n';
 
 // Navigation lives in GuestPortalShell (top bar on web, bottom bar on phones).
 // The heading is what tells the guest which section they landed on.
-const SECTION_TITLES: Record<PortalSection, string> = {
-  overview: 'My stay',
-  stays: 'My stays',
-  'points-history': 'Points history',
-  offers: 'Offers',
-  vouchers: 'Vouchers',
-  credits: 'Complimentary nights',
-  identity: 'Identity verification',
-  profile: 'My profile',
-  security: 'Sign-in & security',
-  preferences: 'Preferences',
-  support: 'My stay',
+const SECTION_TITLE_KEYS: Record<PortalSection, string> = {
+  overview: 'dashboard.sections.overview',
+  stays: 'dashboard.sections.stays',
+  'points-history': 'dashboard.sections.points-history',
+  offers: 'dashboard.sections.offers',
+  vouchers: 'dashboard.sections.vouchers',
+  credits: 'dashboard.sections.credits',
+  identity: 'dashboard.sections.identity',
+  profile: 'dashboard.sections.profile',
+  security: 'dashboard.sections.security',
+  preferences: 'dashboard.sections.preferences',
+  support: 'dashboard.sections.support',
 };
 
 export const PortalDashboardPage: React.FC = () => {
+  const { t } = useTranslation('guestPortal');
   const navigate = useNavigate();
   const {
     token,
@@ -53,13 +55,14 @@ export const PortalDashboardPage: React.FC = () => {
         {sessionError ? (
           <Alert
             severity="error"
+            role="alert"
             action={(
               <Button
                 color="inherit"
                 size="small"
                 onClick={canRetry ? retry : restartSignIn}
               >
-                {canRetry ? 'Retry' : 'Sign in again'}
+                {canRetry ? t('book.retry') : t('book.signInAgain')}
               </Button>
             )}
           >
@@ -70,8 +73,8 @@ export const PortalDashboardPage: React.FC = () => {
             <CircularProgress size={24} />
             <Typography>
               {sessionStatus === 'checking-account'
-                ? 'Checking your account session…'
-                : 'Opening your guest portal…'}
+                ? t('book.checkingAccount')
+                : t('book.openingPortal')}
             </Typography>
           </Box>
         )}
@@ -87,6 +90,7 @@ const AuthenticatedDashboard: React.FC<{
   navigate: ReturnType<typeof useNavigate>;
   signOut: () => void;
 }> = ({ token, navigate, signOut }) => {
+  const { t } = useTranslation('guestPortal');
   const location = useLocation();
   const activeSection = parsePortalSection(location.search);
   // Support is a floating panel owned by GuestPortalShell (one launcher on every
@@ -106,10 +110,10 @@ const AuthenticatedDashboard: React.FC<{
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'center' }, gap: 2 }}>
           {/* No hotel name here: GuestPortalShell's sticky header already shows
               it as the logo wordmark directly above this card. */}
-          <Box><Typography variant="h4" component="h1" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>{SECTION_TITLES[displaySection]}</Typography></Box>
+          <Box><Typography variant="h4" component="h1" sx={{ color: 'var(--hotel-text)', fontWeight: 700 }}>{t(SECTION_TITLE_KEYS[displaySection])}</Typography></Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button variant="outlined" onClick={signOut} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-              Sign Out
+              {t('shell.signOut')}
             </Button>
           </Stack>
           </Box>

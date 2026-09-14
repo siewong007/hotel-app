@@ -70,6 +70,14 @@ import {
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const FOREST = "var(--hotel-text)";
 const GOLD = "var(--hotel-primary)";
+// TablePagination's getItemAriaLabel hands us its English type names; map them
+// to keys rather than branching on translated copy.
+const PAGINATION_ARIA_KEYS = {
+  first: "pageFirst",
+  previous: "pagePrevious",
+  next: "pageNext",
+  last: "pageLast",
+} as const;
 const REFUND_REASONS = [
   "Change of plans",
   "Booking made by mistake",
@@ -78,7 +86,19 @@ const REFUND_REASONS = [
   "Other",
 ] as const;
 
-export function LoadingState({ label = "Loading your details…" }: { label?: string }) {
+// The English constants above are the values sent to the API; these keys only
+// drive what the guest reads.
+const REFUND_REASON_KEYS: Record<(typeof REFUND_REASONS)[number], string> = {
+  "Change of plans": "dashboard.bookings.cancelDialog.reasons.changeOfPlans",
+  "Booking made by mistake": "dashboard.bookings.cancelDialog.reasons.mistake",
+  "Travel disruption": "dashboard.bookings.cancelDialog.reasons.disruption",
+  "Found another accommodation":
+    "dashboard.bookings.cancelDialog.reasons.otherAccommodation",
+  Other: "dashboard.bookings.cancelDialog.reasons.other",
+};
+
+export function LoadingState({ label }: { label?: string }) {
+  const { t } = useTranslation("guestPortal");
   return (
     <Box
       role="status"
@@ -94,7 +114,7 @@ export function LoadingState({ label = "Loading your details…" }: { label?: st
       <CircularProgress size={22} />
       <Typography sx={{
         color: "text.secondary"
-      }}>{label}</Typography>
+      }}>{label ?? t("dashboard.loading")}</Typography>
     </Box>
   );
 }
@@ -106,13 +126,15 @@ export function ErrorState({
   message: string;
   retry?: () => void;
 }) {
+  const { t } = useTranslation("guestPortal");
   return (
     <Alert
       severity="error"
+      role="alert"
       action={
         retry ? (
           <Button color="inherit" size="small" onClick={retry}>
-            Try again
+            {t("common:actions.retry")}
           </Button>
         ) : undefined
       }
@@ -178,13 +200,14 @@ function CancellationUnavailable({
   booking: GuestPortalBookingSummary;
   suffix: string;
 }) {
+  const { t } = useTranslation("guestPortal");
   const reasonId = `cancellation-unavailable-${booking.id}-${suffix}`;
   const reason =
     booking.cancellation_unavailable_reason ??
-    "This booking cannot be cancelled online.";
+    t("dashboard.bookings.cancellationUnavailableFallback");
   const label = booking.cancellation_pending
-    ? "Cancellation under review"
-    : "Cancellation unavailable";
+    ? t("dashboard.bookings.cancellationPending")
+    : t("dashboard.bookings.cancellationUnavailable");
   return (
     <Box role="status" aria-describedby={reasonId}>
       <Typography
@@ -219,6 +242,7 @@ function RefundBookingDialog({
   onClose: () => void;
   onConfirm: (reason: string) => Promise<void>;
 }) {
+  const { t } = useTranslation("guestPortal");
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const prefersReducedMotion = useMediaQuery(
@@ -237,7 +261,9 @@ function RefundBookingDialog({
   if (!booking) return null;
 
   const isRefund = booking.completed_payment_id != null;
-  const actionLabel = isRefund ? "Submit request" : "Cancel booking";
+  const actionLabel = isRefund
+    ? t("dashboard.bookings.cancelDialog.submitRequest")
+    : t("dashboard.bookings.cancelBooking");
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -263,7 +289,13 @@ function RefundBookingDialog({
     >
       <Box component="form" onSubmit={(event) => void handleSubmit(event)}>
         <DialogTitle sx={{ color: FOREST, fontWeight: 700 }}>
-          {isRefund ? "Request cancellation" : "Cancel booking"} for {booking.booking_number}?
+          {isRefund
+            ? t("dashboard.bookings.cancelDialog.requestTitle", {
+                number: booking.booking_number,
+              })
+            : t("dashboard.bookings.cancelDialog.cancelTitle", {
+                number: booking.booking_number,
+              })}
         </DialogTitle>
         <DialogContent>
           <Typography id="refund-booking-details" sx={{
@@ -274,16 +306,12 @@ function RefundBookingDialog({
             {formatPortalCurrency(booking.total_amount)}
           </Typography>
           {isRefund ? (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              This booking is paid, so cancellation is reviewed by our team —
-              your booking stays active in the meantime. Requests made at least
-              3 days before arrival are refunded in full; later requests may be
-              charged the first night&apos;s stay.
+            <Alert severity="info" role="alert" sx={{ mt: 2 }}>
+              {t("dashboard.bookings.cancelDialog.paidNotice")}
             </Alert>
           ) : (
-            <Alert severity="warning" sx={{ mt: 2 }}>
-              Your booking will be cancelled immediately and this cannot be
-              undone online.
+            <Alert severity="warning" role="alert" sx={{ mt: 2 }}>
+              {t("dashboard.bookings.cancelDialog.unpaidNotice")}
             </Alert>
           )}
           {error ? (
@@ -292,7 +320,9 @@ function RefundBookingDialog({
             </Alert>
           ) : null}
           <FormControl component="fieldset" fullWidth sx={{ mt: 2 }}>
-            <FormLabel component="legend">Reason for cancellation</FormLabel>
+            <FormLabel component="legend">
+              {t("dashboard.bookings.cancelDialog.reasonLabel")}
+            </FormLabel>
             <RadioGroup
               value={selectedReason}
               onChange={(event) => setSelectedReason(event.target.value)}
@@ -302,7 +332,7 @@ function RefundBookingDialog({
                   key={reason}
                   value={reason}
                   control={<Radio />}
-                  label={reason}
+                  label={t(REFUND_REASON_KEYS[reason])}
                   disabled={isSubmitting}
                 />
               ))}
@@ -313,10 +343,13 @@ function RefundBookingDialog({
               fullWidth
               multiline
               minRows={3}
-              label="Custom cancellation reason"
+              label={t("dashboard.bookings.cancelDialog.customReasonLabel")}
               value={customReason}
               onChange={(event) => setCustomReason(event.target.value)}
-              helperText={`${1000 - customReason.length} characters remaining`}
+              helperText={t(
+                "dashboard.bookings.cancelDialog.charactersRemaining",
+                { count: 1000 - customReason.length },
+              )}
               disabled={isSubmitting}
               sx={{ mt: 1 }}
               slotProps={{
@@ -332,7 +365,7 @@ function RefundBookingDialog({
             disabled={isSubmitting}
             sx={{ minHeight: 44 }}
           >
-            Keep booking
+            {t("dashboard.bookings.cancelDialog.keepBooking")}
           </Button>
           <Button
             type="submit"
@@ -350,7 +383,9 @@ function RefundBookingDialog({
               ) : undefined
             }
           >
-            {isSubmitting ? "Submitting…" : actionLabel}
+            {isSubmitting
+              ? t("dashboard.bookings.cancelDialog.submitting")
+              : actionLabel}
           </Button>
         </DialogActions>
       </Box>
@@ -367,6 +402,7 @@ export function OverviewSection({
   token: string;
   onSectionChange: (section: PortalSection) => void;
 }) {
+  const { t } = useTranslation("guestPortal");
   const [me, setMe] = useState<GuestPortalMeResponse | null>(null);
   const [bookings, setBookings] = useState<GuestPortalBookingSummary[]>([]);
   const [membership, setMembership] =
@@ -399,7 +435,7 @@ export function OverviewSection({
   useEffect(() => {
     void load();
   }, [load]);
-  if (loading) return <LoadingState label="Preparing your stay overview…" />;
+  if (loading) return <LoadingState label={t("dashboard.overview.loading")} />;
 
   const today = new Date();
   const todayKey = [
@@ -418,14 +454,14 @@ export function OverviewSection({
       {partialError ? (
         <Alert
           severity="warning"
+          role="alert"
           action={
             <Button color="inherit" size="small" onClick={() => void load()}>
-              Try again
+              {t("common:actions.retry")}
             </Button>
           }
         >
-          Some account details are temporarily unavailable. The information we
-          could load is shown below.
+          {t("dashboard.overview.partialError")}
         </Alert>
       ) : null}
       <Box>
@@ -433,21 +469,23 @@ export function OverviewSection({
           variant="overline"
           sx={{ color: "var(--hotel-primary-text)", fontWeight: 700, letterSpacing: "0.12em" }}
         >
-          Guest account
+          {t("dashboard.overview.eyebrow")}
         </Typography>
         <Typography
           variant="h3"
           component="h2"
           sx={{ color: FOREST, fontWeight: 700, mt: 0.5 }}
         >
-          Welcome back, {firstName(me?.guest.nick_name)}.
+          {t("dashboard.overview.welcome", {
+            name: firstName(me?.guest.nick_name),
+          })}
         </Typography>
         <Typography
           sx={{
             color: "text.secondary",
             mt: 1
           }}>
-          Everything for your stay, in one calm place.
+          {t("dashboard.overview.subtitle")}
         </Typography>
       </Box>
       <Grid container spacing={2}>
@@ -479,12 +517,14 @@ export function OverviewSection({
                     variant="overline"
                     sx={{ color: GOLD, fontWeight: 700 }}
                   >
-                    Your next stay
+                    {t("dashboard.overview.nextStay")}
                   </Typography>
                   <Typography variant="h5" sx={{ fontWeight: 700, mt: 1 }}>
                     {nextStay
-                      ? `Booking ${nextStay.booking_number}`
-                      : "No stay planned yet"}
+                      ? t("dashboard.overview.nextStayBooking", {
+                          number: nextStay.booking_number,
+                        })
+                      : t("dashboard.overview.noStay")}
                   </Typography>
                   {nextStay ? (
                     <>
@@ -504,7 +544,7 @@ export function OverviewSection({
                     </>
                   ) : (
                     <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
-                      Find a room when you are ready.
+                      {t("dashboard.overview.noStayHint")}
                     </Typography>
                   )}
                 </Box>
@@ -521,7 +561,7 @@ export function OverviewSection({
                     "&:hover": { bgcolor: "transparent", color: GOLD },
                   }}
                 >
-                  View my stays
+                  {t("dashboard.overview.viewStays")}
                 </Button>
               ) : null}
             </CardContent>
@@ -546,7 +586,7 @@ export function OverviewSection({
                     variant="overline"
                     sx={{ color: "var(--hotel-primary-text)", fontWeight: 700 }}
                   >
-                    Points balance
+                    {t("dashboard.overview.pointsBalance")}
                   </Typography>
                   <Typography
                     variant="h4"
@@ -558,8 +598,10 @@ export function OverviewSection({
                     color: "text.secondary"
                   }}>
                     {member
-                      ? `${member.tier_name} · points available`
-                      : "Not enrolled yet"}
+                      ? t("dashboard.overview.pointsAvailable", {
+                          tier: member.tier_name,
+                        })
+                      : t("dashboard.overview.notEnrolled")}
                   </Typography>
                 </Box>
                 <DiamondOutlinedIcon sx={{ color: GOLD, fontSize: 34 }} />
@@ -574,7 +616,7 @@ export function OverviewSection({
                   "&:hover": { bgcolor: "transparent", color: "var(--hotel-primary-text)" },
                 }}
               >
-                View points history
+                {t("dashboard.overview.viewPoints")}
               </Button>
             </CardContent>
           </Card>
@@ -593,12 +635,12 @@ export function OverviewSection({
           }}>
           <Box>
             <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
-              Plan another visit
+              {t("dashboard.overview.planVisit")}
             </Typography>
             <Typography variant="body2" sx={{
               color: "text.secondary"
             }}>
-              Browse current offers before your next stay.
+              {t("dashboard.overview.planVisitHint")}
             </Typography>
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
@@ -606,7 +648,7 @@ export function OverviewSection({
               variant="outlined"
               onClick={() => onSectionChange("offers")}
             >
-              View offers
+              {t("dashboard.overview.viewOffers")}
             </Button>
           </Stack>
         </Stack>
@@ -626,6 +668,7 @@ function BookingDetailsDialog({
   onClose: () => void;
   onPaymentUpdated: () => void;
 }) {
+  const { t } = useTranslation("guestPortal");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [receiptUploadError, setReceiptUploadError] = useState<string | null>(null);
@@ -648,7 +691,9 @@ function BookingDetailsDialog({
       setReceiptFile(null);
       onPaymentUpdated();
     } catch (error) {
-      setReceiptUploadError(error instanceof Error ? error.message : 'Unable to upload your receipt.');
+      setReceiptUploadError(
+        guestErrorMessage(error, t("dashboard.bookings.details.uploadFailed")),
+      );
     } finally {
       setReceiptUploading(false);
     }
@@ -660,12 +705,12 @@ function BookingDetailsDialog({
 
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm" aria-labelledby="booking-details-title">
-      <DialogTitle id="booking-details-title">Booking {booking.booking_number}</DialogTitle>
+      <DialogTitle id="booking-details-title">{t("dashboard.bookings.details.title", { number: booking.booking_number })}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={1.25}>
-          <Typography><strong>Stay:</strong> {formatPortalDate(booking.check_in_date)} — {formatPortalDate(booking.check_out_date)}</Typography>
-          <Typography><strong>Booking status:</strong> {humanizePortalStatus(booking.status)}</Typography>
-          <Typography><strong>Total:</strong> {formatPortalCurrency(booking.total_amount)}</Typography>
+          <Typography><strong>{t("dashboard.bookings.details.stay")}:</strong> {formatPortalDate(booking.check_in_date)} — {formatPortalDate(booking.check_out_date)}</Typography>
+          <Typography><strong>{t("dashboard.bookings.details.bookingStatus")}:</strong> {humanizePortalStatus(booking.status)}</Typography>
+          <Typography><strong>{t("dashboard.bookings.details.total")}:</strong> {formatPortalCurrency(booking.total_amount)}</Typography>
         </Stack>
         {hasReceipt ? (
           <Paper component="section" aria-labelledby="payment-receipt-heading" variant="outlined" sx={{ mt: 2.5, p: 2, bgcolor: "success.50" }}>
@@ -677,68 +722,68 @@ function BookingDetailsDialog({
                 alignItems: "flex-start"
               }}>
               <Box>
-                <Typography id="payment-receipt-heading" variant="h6">Booking receipt</Typography>
+                <Typography id="payment-receipt-heading" variant="h6">{t("dashboard.bookings.details.receiptTitle")}</Typography>
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>Your booking is confirmed.</Typography>
+                }}>{t("dashboard.bookings.details.confirmedBody")}</Typography>
               </Box>
-              <Chip label="Paid" color="success" size="small" />
+              <Chip label={t("dashboard.bookings.details.paid")} color="success" size="small" />
             </Stack>
             <Divider sx={{ my: 1.5 }} />
             <Stack spacing={0.75}>
-              <Typography variant="body2"><strong>Receipt ID:</strong> {booking.completed_payment_id != null ? `PAY-${booking.completed_payment_id}` : booking.booking_number}</Typography>
-              {booking.completed_payment_method ? <Typography variant="body2"><strong>Payment method:</strong> {booking.completed_payment_method}</Typography> : null}
-              <Typography variant="body2"><strong>Amount:</strong> {formatPortalCurrency(booking.completed_payment_amount ?? booking.total_amount)}</Typography>
+              <Typography variant="body2"><strong>{t("dashboard.bookings.details.receiptId")}:</strong> {booking.completed_payment_id != null ? `PAY-${booking.completed_payment_id}` : booking.booking_number}</Typography>
+              {booking.completed_payment_method ? <Typography variant="body2"><strong>{t("dashboard.bookings.details.paymentMethod")}:</strong> {booking.completed_payment_method}</Typography> : null}
+              <Typography variant="body2"><strong>{t("dashboard.bookings.details.amount")}:</strong> {formatPortalCurrency(booking.completed_payment_amount ?? booking.total_amount)}</Typography>
             </Stack>
-            <Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>Print receipt</Button>
+            <Button variant="outlined" fullWidth sx={{ mt: 2 }} onClick={() => window.print()}>{t("dashboard.bookings.details.printReceipt")}</Button>
           </Paper>
         ) : null}
         {awaitingConfirmation ? (
-          <Alert severity="info" sx={{ mt: 2 }}>
-            Your offline banking payment is awaiting confirmation by our team.
+          <Alert severity="info" role="alert" sx={{ mt: 2 }}>
+            {t("dashboard.bookings.details.offlinePending")}
           </Alert>
         ) : null}
         {requiresPaymentReceipt(booking) ? (
           <Alert
             severity="error"
             variant="filled"
+            role="alert"
             sx={{ mt: 2, boxShadow: "var(--hotel-shadow-sm)" }}
           >
             <Typography variant="subtitle2" sx={{
               fontWeight: 800
             }}>
-              Action required: upload your receipt
+              {t("dashboard.bookings.details.receiptRequiredTitle")}
             </Typography>
             <Typography variant="body2">
-              Our team has requested your bank-transfer receipt. Please submit it within 24 hours
-              to avoid automatic rejection of this payment.
+              {t("dashboard.bookings.details.receiptRequiredBody")}
               {booking.receipt_request_message ? ` ${booking.receipt_request_message}` : ''}
             </Typography>
           </Alert>
         ) : null}
         {booking.receipt_uploaded || receiptUploaded ? (
-          <Alert severity="success" sx={{ mt: 2 }}>
-            <Typography variant="subtitle2">Receipt uploaded</Typography>
+          <Alert severity="success" role="alert" sx={{ mt: 2 }}>
+            <Typography variant="subtitle2">{t("dashboard.bookings.details.receiptUploadedTitle")}</Typography>
             <Typography variant="body2">
-              Your receipt has been submitted and is pending confirmation from our team.
+              {t("dashboard.bookings.details.receiptUploadedBody")}
             </Typography>
           </Alert>
         ) : booking.receipt_request_payment_id ? (
           <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Upload payment receipt</Typography>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>{t("dashboard.bookings.details.uploadTitle")}</Typography>
             <Typography
               variant="body2"
               sx={{
                 color: "text.secondary",
                 mb: 1
               }}>
-              Accepted files: JPG, PNG, WebP, or PDF — maximum 10 MB.
+              {t("dashboard.bookings.details.uploadHint")}
             </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{
               alignItems: { sm: 'center' }
             }}>
                 <Button component="label" variant="outlined" disabled={receiptUploading}>
-                  {receiptFile ? receiptFile.name : 'Choose receipt file'}
+                  {receiptFile ? receiptFile.name : t("dashboard.bookings.details.uploadChoose")}
                   <input
                     hidden
                     type="file"
@@ -754,16 +799,15 @@ function BookingDetailsDialog({
                   disabled={!receiptFile || receiptUploading}
                   onClick={() => void handleReceiptUpload()}
                 >
-                  {receiptUploading ? 'Uploading…' : 'Upload receipt'}
+                  {receiptUploading ? t("dashboard.bookings.details.uploading") : t("dashboard.bookings.details.uploadButton")}
                 </Button>
             </Stack>
-            {receiptUploadError ? <Alert severity="error" sx={{ mt: 1 }}>{receiptUploadError}</Alert> : null}
+            {receiptUploadError ? <Alert severity="error" role="alert" sx={{ mt: 1 }}>{receiptUploadError}</Alert> : null}
           </Box>
         ) : null}
         {awaitingPayment && booking.payment_rejection_reason ? (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            Your previous payment could not be confirmed: {booking.payment_rejection_reason}.
-            Please try again below.
+          <Alert severity="warning" role="alert" sx={{ mt: 2 }}>
+            {t("dashboard.bookings.details.paymentRejected", { reason: booking.payment_rejection_reason })}
           </Alert>
         ) : null}
         {awaitingPayment ? (
@@ -780,13 +824,14 @@ function BookingDetailsDialog({
         ) : null}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t("common:actions.close")}</Button>
       </DialogActions>
     </Dialog>
   );
 }
 
 export function BookingsSection({ token }: { token: string }) {
+  const { t } = useTranslation("guestPortal");
   const [items, setItems] = useState<GuestPortalBookingSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -821,11 +866,11 @@ export function BookingsSection({ token }: { token: string }) {
       setItems(response.items);
       setTotal(response.total);
     } catch {
-      setError("Unable to load your bookings right now.");
+      setError(t("dashboard.bookings.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [appliedSearch, page, pageSize, token]);
+  }, [appliedSearch, page, pageSize, t, token]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -841,16 +886,18 @@ export function BookingsSection({ token }: { token: string }) {
       );
       setCancellationSuccess(
         response.cancellation_requested
-          ? `Cancellation request for booking ${bookingToCancel.booking_number} was submitted. We'll email you once our team has reviewed it.`
-          : `Booking ${bookingToCancel.booking_number} was cancelled.`,
+          ? t("dashboard.bookings.cancelRequested", {
+              number: bookingToCancel.booking_number,
+            })
+          : t("dashboard.bookings.cancelled", {
+              number: bookingToCancel.booking_number,
+            }),
       );
       setBookingToCancel(null);
       void load();
     } catch (caught) {
       setCancellationError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to submit this cancellation request.",
+        guestErrorMessage(caught, t("dashboard.bookings.cancelFailed")),
       );
       if (caught instanceof HTTPError && caught.response.status === 409) {
         void load();
@@ -865,16 +912,16 @@ export function BookingsSection({ token }: { token: string }) {
   return (
     <>
       <SectionHeading
-        eyebrow="Stay management"
-        title="My stays"
-        description="Your reservations, dates, and stay status."
+        eyebrow={t("dashboard.bookings.eyebrow")}
+        title={t("dashboard.bookings.title")}
+        description={t("dashboard.bookings.description")}
       />
       <Box role="status" aria-live="polite" aria-atomic="true">
-        {cancellationSuccess ? <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCancellationSuccess(null)}>{cancellationSuccess}</Alert> : null}
+        {cancellationSuccess ? <Alert severity="success" role="alert" sx={{ mb: 2 }} onClose={() => setCancellationSuccess(null)}>{cancellationSuccess}</Alert> : null}
       </Box>
       <TextField
-        label="Search stays"
-        placeholder="Booking number, status, or date"
+        label={t("dashboard.bookings.searchLabel")}
+        placeholder={t("dashboard.bookings.searchPlaceholder")}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         size="small"
@@ -889,8 +936,8 @@ export function BookingsSection({ token }: { token: string }) {
         <EmptyState
           message={
             appliedSearch
-              ? `No stays match “${appliedSearch}”.`
-              : "You have no bookings on file yet."
+              ? t("dashboard.bookings.emptySearch", { search: appliedSearch })
+              : t("dashboard.bookings.empty")
           }
         />
       ) : (
@@ -899,6 +946,7 @@ export function BookingsSection({ token }: { token: string }) {
             <Alert
               severity="error"
               variant="filled"
+              role="alert"
               action={(
                 <Button
                   color="inherit"
@@ -906,7 +954,7 @@ export function BookingsSection({ token }: { token: string }) {
                   onClick={() => setBookingToView(firstReceiptRequest)}
                   sx={{ fontWeight: 800 }}
                 >
-                  Upload receipt
+                  {t("dashboard.bookings.uploadReceipt")}
                 </Button>
               )}
               sx={{
@@ -919,15 +967,15 @@ export function BookingsSection({ token }: { token: string }) {
               <Typography variant="subtitle1" sx={{
                 fontWeight: 800
               }}>
-                Action required: upload your payment receipt
+                {t("dashboard.bookings.receiptRequiredTitle")}
               </Typography>
               <Typography variant="body2">
-                Upload proof of payment for booking {firstReceiptRequest.booking_number} within 24 hours to avoid automatic rejection.
+                {t("dashboard.bookings.receiptRequiredBody", { number: firstReceiptRequest.booking_number })}
               </Typography>
             </Alert>
           ) : null}
           <TableContainer sx={{ display: { xs: "none", md: "block" } }}>
-            <Table aria-label="Your bookings">
+            <Table aria-label={t("dashboard.bookings.tableLabel")}>
               <caption
                 style={{
                   position: "absolute",
@@ -941,27 +989,27 @@ export function BookingsSection({ token }: { token: string }) {
                   border: 0,
                 }}
               >
-                Your hotel booking history
+                {t("dashboard.bookings.tableCaption")}
               </caption>
               <TableHead>
                 <TableRow>
                   <TableCell component="th" scope="col">
-                    Booking
+                    {t("dashboard.bookings.colBooking")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Check-in
+                    {t("booking.checkIn")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Check-out
+                    {t("booking.checkOut")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Status
+                    {t("booking.status")}
                   </TableCell>
                   <TableCell component="th" scope="col" align="right">
-                    Total
+                    {t("booking.total")}
                   </TableCell>
                   <TableCell component="th" scope="col" align="right">
-                    Action
+                    {t("dashboard.bookings.colAction")}
                   </TableCell>
                 </TableRow>
               </TableHead>
@@ -995,7 +1043,7 @@ export function BookingsSection({ token }: { token: string }) {
                             label={humanizePortalStatus(booking.status)}
                             size="small"
                           />
-                          {receiptUploadRequired ? <Chip label="Receipt required" color="error" size="small" /> : null}
+                          {receiptUploadRequired ? <Chip label={t("dashboard.bookings.receiptRequiredChip")} color="error" size="small" /> : null}
                         </Stack>
                       </TableCell>
                       <TableCell align="right">
@@ -1007,15 +1055,15 @@ export function BookingsSection({ token }: { token: string }) {
                         }}>
                           {receiptUploadRequired ? (
                             <Button variant="contained" color="error" size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44, fontWeight: 800 }}>
-                              Upload receipt
+                              {t("dashboard.bookings.uploadReceipt")}
                             </Button>
                           ) : null}
                           <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
-                            View details
+                            {t("dashboard.bookings.viewDetails")}
                           </Button>
                         {booking.status === "confirmed" ? (
                           <Button size="small" onClick={() => setBookingToView(booking)} sx={{ minHeight: 44 }}>
-                            View receipt
+                            {t("dashboard.bookings.viewReceipt")}
                           </Button>
                         ) : null}
                         {booking.can_cancel ? (
@@ -1028,7 +1076,7 @@ export function BookingsSection({ token }: { token: string }) {
                             }}
                             sx={{ minHeight: 44 }}
                           >
-                            {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
+                            {booking.completed_payment_id != null ? t("dashboard.bookings.requestCancellation") : t("dashboard.bookings.cancelBooking")}
                           </Button>
                         ) : (
                           <CancellationUnavailable
@@ -1068,7 +1116,7 @@ export function BookingsSection({ token }: { token: string }) {
                           label={humanizePortalStatus(booking.status)}
                           size="small"
                         />
-                        {receiptUploadRequired ? <Chip label="Receipt required" color="error" size="small" /> : null}
+                        {receiptUploadRequired ? <Chip label={t("dashboard.bookings.receiptRequiredChip")} color="error" size="small" /> : null}
                       </Stack>
                     </Stack>
                     <Typography
@@ -1089,15 +1137,15 @@ export function BookingsSection({ token }: { token: string }) {
                     </Typography>
                     {receiptUploadRequired ? (
                       <Button variant="contained" color="error" onClick={() => setBookingToView(booking)} sx={{ mt: 1.5, minHeight: 44, fontWeight: 800 }}>
-                        Upload receipt
+                        {t("dashboard.bookings.uploadReceipt")}
                       </Button>
                     ) : null}
                     <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, minHeight: 44 }}>
-                      View details
+                      {t("dashboard.bookings.viewDetails")}
                     </Button>
                     {booking.status === "confirmed" ? (
                       <Button size="small" onClick={() => setBookingToView(booking)} sx={{ mt: 1, ml: 1, minHeight: 44 }}>
-                        View receipt
+                        {t("dashboard.bookings.viewReceipt")}
                       </Button>
                     ) : null}
                     {booking.can_cancel ? (
@@ -1110,7 +1158,7 @@ export function BookingsSection({ token }: { token: string }) {
                         }}
                         sx={{ mt: 1, minHeight: 44 }}
                       >
-                        {booking.completed_payment_id != null ? "Request cancellation" : "Cancel booking"}
+                        {booking.completed_payment_id != null ? t("dashboard.bookings.requestCancellation") : t("dashboard.bookings.cancelBooking")}
                       </Button>
                     ) : (
                       <Box sx={{ mt: 1.5 }}>
@@ -1136,6 +1184,15 @@ export function BookingsSection({ token }: { token: string }) {
               setPageSize(Number(event.target.value));
               setPage(0);
             }}
+            labelRowsPerPage={t("dashboard.pagination.rowsPerPage")}
+            labelDisplayedRows={({ from, to, count }) =>
+              count === -1
+                ? t("dashboard.pagination.displayedRowsMore", { from, to })
+                : t("dashboard.pagination.displayedRows", { from, to, count })
+            }
+            getItemAriaLabel={(type) =>
+              t(`dashboard.pagination.${PAGINATION_ARIA_KEYS[type]}`)
+            }
           />
           <RefundBookingDialog
             booking={bookingToCancel}
@@ -1190,11 +1247,11 @@ export function PaymentsSection({ token }: { token: string }) {
       setItems(response.items);
       setTotal(response.total);
     } catch {
-      setError("Unable to load your payments right now.");
+      setError(t("dashboard.payments.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, token]);
+  }, [page, pageSize, t, token]);
   const loadPendingBookings = useCallback(async () => {
     setPendingLoading(true);
     setPendingError(null);
@@ -1210,7 +1267,7 @@ export function PaymentsSection({ token }: { token: string }) {
       // whole section down.
       setPendingBookings([]);
       setPendingError(
-        guestErrorMessage(caught, t("guestPortal:payments.pendingLoadFailed")),
+        guestErrorMessage(caught, t("payments.pendingLoadFailed")),
       );
     } finally {
       setPendingLoading(false);
@@ -1227,6 +1284,7 @@ export function PaymentsSection({ token }: { token: string }) {
   const pendingAlert = pendingError ? (
     <Alert
       severity="warning"
+      role="alert"
       sx={{ mb: 2 }}
       action={
         <Button
@@ -1244,9 +1302,9 @@ export function PaymentsSection({ token }: { token: string }) {
   return (
     <>
       <SectionHeading
-        eyebrow="Account activity"
-        title="Payments & invoices"
-        description="A record of payments and invoices from your stays."
+        eyebrow={t("dashboard.payments.eyebrow")}
+        title={t("dashboard.payments.title")}
+        description={t("dashboard.payments.description")}
       />
       {loading || pendingLoading ? (
         <LoadingState />
@@ -1256,14 +1314,14 @@ export function PaymentsSection({ token }: { token: string }) {
         <>
           {pendingAlert}
           {pendingError ? null : (
-            <EmptyState message="No transactions found." />
+            <EmptyState message={t("dashboard.payments.empty")} />
           )}
         </>
       ) : (
         <>
           {pendingAlert}
           <TableContainer sx={{ display: { xs: "none", lg: "block" } }}>
-            <Table aria-label="Your transactions">
+            <Table aria-label={t("dashboard.payments.tableLabel")}>
               <caption
                 style={{
                   position: "absolute",
@@ -1277,30 +1335,30 @@ export function PaymentsSection({ token }: { token: string }) {
                   border: 0,
                 }}
               >
-                Payments and invoices for your stays
+                {t("dashboard.payments.tableCaption")}
               </caption>
               <TableHead>
                 <TableRow>
                   <TableCell component="th" scope="col">
-                    Date
+                    {t("dashboard.payments.colDate")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Type
+                    {t("dashboard.payments.colType")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Reference
+                    {t("dashboard.payments.colReference")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Booking
+                    {t("dashboard.payments.colBooking")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Method
+                    {t("dashboard.payments.colMethod")}
                   </TableCell>
                   <TableCell component="th" scope="col">
-                    Status
+                    {t("booking.status")}
                   </TableCell>
                   <TableCell component="th" scope="col" align="right">
-                    Amount
+                    {t("dashboard.payments.colAmount")}
                   </TableCell>
                 </TableRow>
               </TableHead>
@@ -1311,12 +1369,12 @@ export function PaymentsSection({ token }: { token: string }) {
                     <TableCell>
                       <Chip
                         icon={<CreditCardOutlinedIcon />}
-                        label="Payment"
+                        label={t("dashboard.payments.kindPayment")}
                         color="success"
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>Amount due</TableCell>
+                    <TableCell>{t("dashboard.payments.amountDue")}</TableCell>
                     <TableCell>{booking.booking_number}</TableCell>
                     <TableCell sx={{ minWidth: 300, py: 2 }}>
                       <GuestPaymentPanel
@@ -1331,7 +1389,7 @@ export function PaymentsSection({ token }: { token: string }) {
                         }}
                       />
                     </TableCell>
-                    <TableCell>Awaiting payment</TableCell>
+                    <TableCell>{t("dashboard.payments.awaitingPayment")}</TableCell>
                     <TableCell align="right">
                       {formatPortalCurrency(booking.total_amount)}
                     </TableCell>
@@ -1351,7 +1409,7 @@ export function PaymentsSection({ token }: { token: string }) {
                       <TableCell>
                         <Chip
                           icon={<TransactionIcon />}
-                          label={tx.kind === "payment" ? "Payment" : "Invoice"}
+                          label={tx.kind === "payment" ? t("dashboard.payments.kindPayment") : t("dashboard.payments.kindInvoice")}
                           color={tx.kind === "payment" ? "success" : "default"}
                           size="small"
                         />
@@ -1380,18 +1438,18 @@ export function PaymentsSection({ token }: { token: string }) {
                   <Stack direction="row" spacing={1} sx={{
                     justifyContent: "space-between"
                   }}>
-                    <Chip icon={<CreditCardOutlinedIcon />} label="Payment" size="small" />
+                    <Chip icon={<CreditCardOutlinedIcon />} label={t("dashboard.payments.kindPayment")} size="small" />
                     <Typography sx={{
                       fontWeight: 700
                     }}>
                       {formatPortalCurrency(booking.total_amount)}
                     </Typography>
                   </Stack>
-                  <Typography sx={{ mt: 1 }}>Booking {booking.booking_number}</Typography>
+                  <Typography sx={{ mt: 1 }}>{t("dashboard.payments.bookingLabel", { number: booking.booking_number })}</Typography>
                   <Typography variant="body2" sx={{
                     color: "text.secondary"
                   }}>
-                    Awaiting payment
+                    {t("dashboard.payments.awaitingPayment")}
                   </Typography>
                   <Box sx={{ mt: 2 }}>
                     <GuestPaymentPanel
@@ -1429,7 +1487,7 @@ export function PaymentsSection({ token }: { token: string }) {
                     >
                       <Chip
                         icon={<TransactionIcon />}
-                        label={tx.kind === "payment" ? "Payment" : "Invoice"}
+                        label={tx.kind === "payment" ? t("dashboard.payments.kindPayment") : t("dashboard.payments.kindInvoice")}
                         size="small"
                       />
                       <Typography sx={{
@@ -1439,7 +1497,7 @@ export function PaymentsSection({ token }: { token: string }) {
                       </Typography>
                     </Stack>
                     <Typography sx={{ mt: 1 }}>
-                      {tx.invoice_number ?? tx.reference ?? "Transaction"}
+                      {tx.invoice_number ?? tx.reference ?? t("dashboard.payments.transactionFallback")}
                     </Typography>
                     <Typography variant="body2" sx={{
                       color: "text.secondary"
@@ -1451,7 +1509,7 @@ export function PaymentsSection({ token }: { token: string }) {
                       <Typography variant="body2" sx={{
                         color: "text.secondary"
                       }}>
-                        Booking {tx.booking_number}
+                        {t("dashboard.payments.bookingLabel", { number: tx.booking_number })}
                       </Typography>
                     ) : null}
                   </CardContent>
@@ -1470,6 +1528,15 @@ export function PaymentsSection({ token }: { token: string }) {
               setPageSize(Number(event.target.value));
               setPage(0);
             }}
+            labelRowsPerPage={t("dashboard.pagination.rowsPerPage")}
+            labelDisplayedRows={({ from, to, count }) =>
+              count === -1
+                ? t("dashboard.pagination.displayedRowsMore", { from, to })
+                : t("dashboard.pagination.displayedRows", { from, to, count })
+            }
+            getItemAriaLabel={(type) =>
+              t(`dashboard.pagination.${PAGINATION_ARIA_KEYS[type]}`)
+            }
           />
         </>
       )}
@@ -1486,6 +1553,7 @@ export function PaymentsSection({ token }: { token: string }) {
  * chosen against real availability and rates.
  */
 export function CreditsSection({ token }: { token: string }) {
+  const { t } = useTranslation("guestPortal");
   const [credits, setCredits] = useState<GuestPortalCreditsResponse | null>(
     null,
   );
@@ -1497,16 +1565,16 @@ export function CreditsSection({ token }: { token: string }) {
     try {
       setCredits(await GuestPortalDashboardService.credits(token));
     } catch {
-      setError("Unable to load your complimentary nights right now.");
+      setError(t("dashboard.credits.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [t, token]);
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (loading) return <LoadingState label="Loading your complimentary nights…" />;
+  if (loading) return <LoadingState label={t("dashboard.credits.loading")} />;
   if (error) return <ErrorState message={error} retry={() => void load()} />;
 
   const rows = credits?.credits_by_room_type ?? [];
@@ -1515,12 +1583,12 @@ export function CreditsSection({ token }: { token: string }) {
   return (
     <>
       <SectionHeading
-        eyebrow="Complimentary"
-        title="Free nights"
-        description="Nights the hotel has gifted you. Each one is tied to a room type and can be applied when you book that room."
+        eyebrow={t("dashboard.credits.eyebrow")}
+        title={t("dashboard.credits.title")}
+        description={t("dashboard.credits.description")}
       />
       {rows.length === 0 ? (
-        <EmptyState message="You have no complimentary nights right now. The hotel will let you know when you earn some." />
+        <EmptyState message={t("dashboard.credits.empty")} />
       ) : (
         <>
           <Card sx={{ mb: 3, bgcolor: "var(--hotel-surface-raised)", color: "var(--hotel-text)" }}>
@@ -1529,14 +1597,13 @@ export function CreditsSection({ token }: { token: string }) {
                 variant="overline"
                 sx={{ color: GOLD, fontWeight: 700 }}
               >
-                Nights available
+                {t("dashboard.credits.nightsAvailable")}
               </Typography>
               <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
                 {total.toLocaleString()}
               </Typography>
               <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
-                Across {rows.length} room{" "}
-                {rows.length === 1 ? "type" : "types"}
+                {t("dashboard.credits.acrossRoomTypes", { count: rows.length })}
               </Typography>
             </CardContent>
           </Card>
@@ -1552,14 +1619,17 @@ export function CreditsSection({ token }: { token: string }) {
                     endIcon={<EastOutlinedIcon />}
                     href="/guest-portal?view=booking"
                   >
-                    Book
+                    {t("actions.book")}
                   </Button>
                 }
                 sx={{ px: 0 }}
               >
                 <ListItemText
                   primary={credit.room_type_name}
-                  secondary={`${credit.room_type_code} · ${credit.nights_available} free night${credit.nights_available === 1 ? "" : "s"}`}
+                  secondary={t("dashboard.credits.roomTypeEntry", {
+                    code: credit.room_type_code,
+                    count: credit.nights_available,
+                  })}
                   slotProps={{
                     primary: { sx: { fontWeight: 700, color: FOREST } }
                   }}
@@ -1567,9 +1637,8 @@ export function CreditsSection({ token }: { token: string }) {
               </ListItem>
             ))}
           </List>
-          <Alert severity="info" sx={{ mt: 3 }}>
-            Choose your dates and room in the booking flow, then pick which
-            nights to cover with your free nights before you pay.
+          <Alert severity="info" role="alert" sx={{ mt: 3 }}>
+            {t("dashboard.credits.howTo")}
           </Alert>
         </>
       )}
@@ -1578,6 +1647,7 @@ export function CreditsSection({ token }: { token: string }) {
 }
 
 export function PointsHistorySection({ token }: { token: string }) {
+  const { t } = useTranslation("guestPortal");
   const [membership, setMembership] =
     useState<GuestPortalMembershipResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1588,11 +1658,11 @@ export function PointsHistorySection({ token }: { token: string }) {
     try {
       setMembership(await GuestPortalDashboardService.membership(token));
     } catch {
-      setError("Unable to load your points history right now.");
+      setError(t("dashboard.points.loadError"));
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [t, token]);
   useGuestLoyaltySocket(token, () => void load());
   useEffect(() => {
     void load();
@@ -1603,9 +1673,9 @@ export function PointsHistorySection({ token }: { token: string }) {
   return (
     <>
       <SectionHeading
-        eyebrow="Loyalty"
-        title="Points history"
-        description="Track your loyalty points and current balance. Claimable rewards are available in Offers."
+        eyebrow={t("dashboard.points.eyebrow")}
+        title={t("dashboard.points.title")}
+        description={t("dashboard.points.description")}
       />
       {member ? (
         <Card sx={{ mb: 3, bgcolor: "var(--hotel-surface-raised)", color: "var(--hotel-text)" }}>
@@ -1616,13 +1686,13 @@ export function PointsHistorySection({ token }: { token: string }) {
                   variant="overline"
                   sx={{ color: GOLD, fontWeight: 700 }}
                 >
-                  {member.tier_name} member
+                  {t("dashboard.points.tierMember", { tier: member.tier_name })}
                 </Typography>
                 <Typography variant="h5" sx={{ mt: 1, fontWeight: 700 }}>
                   {member.member_number}
                 </Typography>
                 <Typography sx={{ color: "var(--hotel-text-secondary)", mt: 1 }}>
-                  Level {member.tier_level} · {member.status}
+                  {t("dashboard.points.levelStatus", { level: member.tier_level, status: member.status })}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 5 }}>
@@ -1630,27 +1700,27 @@ export function PointsHistorySection({ token }: { token: string }) {
                   variant="overline"
                   sx={{ color: GOLD, fontWeight: 700 }}
                 >
-                  Points available
+                  {t("dashboard.points.pointsAvailable")}
                 </Typography>
                 <Typography variant="h3" sx={{ mt: 0.5, fontWeight: 700 }}>
                   {member.points_balance.toLocaleString()}
                 </Typography>
                 <Typography sx={{ color: "var(--hotel-text-secondary)" }}>
-                  {member.lifetime_points.toLocaleString()} lifetime points
+                  {t("dashboard.points.lifetimePoints", { count: member.lifetime_points })}
                 </Typography>
               </Grid>
             </Grid>
           </CardContent>
         </Card>
       ) : (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          You are not enrolled in the loyalty program yet.
+        <Alert severity="info" role="alert" sx={{ mb: 3 }}>
+          {t("dashboard.points.notEnrolled")}
         </Alert>
       )}
       {membership?.recent_activity.length ? (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" sx={{ color: FOREST, fontWeight: 700 }}>
-            Recent activity
+            {t("dashboard.points.recentActivity")}
           </Typography>
           <List>
             {membership.recent_activity.map((activity, index) => {
@@ -1659,11 +1729,14 @@ export function PointsHistorySection({ token }: { token: string }) {
                 <Box key={`${activity.date}-${index}`}>
                   <ListItem disableGutters>
                     <ListItemText
-                      primary={`${humanizePortalStatus(activity.transaction_type)} · ${activity.points > 0 ? "+" : ""}${activity.points} points`}
+                      primary={t("dashboard.points.activityLine", {
+                        type: humanizePortalStatus(activity.transaction_type),
+                        points: `${activity.points > 0 ? "+" : ""}${activity.points}`,
+                      })}
                       secondary={
                         <Stack component="span" spacing={0.25}>
                           <Box component="span">
-                            {formatPortalDate(activity.date)} · Balance {activity.balance_after.toLocaleString()}
+                            {formatPortalDate(activity.date)} · {t("dashboard.points.balanceAfter", { balance: activity.balance_after })}
                           </Box>
                           {context ? <Box component="span">{context}</Box> : null}
                         </Stack>
@@ -1679,7 +1752,7 @@ export function PointsHistorySection({ token }: { token: string }) {
           </List>
         </Box>
       ) : (
-        <EmptyState message="You have no points activity yet." />
+        <EmptyState message={t("dashboard.points.empty")} />
       )}
     </>
   );
@@ -1692,13 +1765,14 @@ export function EmbeddedSection({
   section: PortalSection;
   token: string;
 }) {
+  const { t } = useTranslation("guestPortal");
   if (section === "offers")
     return (
       <>
         <SectionHeading
-          eyebrow="Plan ahead"
-          title="Current offers"
-          description="Eligible hotel deals, ready to claim when available."
+          eyebrow={t("dashboard.offers.eyebrow")}
+          title={t("dashboard.offers.title")}
+          description={t("dashboard.offers.description")}
         />
         <PromotionCatalog token={token} />
       </>
@@ -1707,9 +1781,9 @@ export function EmbeddedSection({
     return (
       <>
         <SectionHeading
-          eyebrow="Your wallet"
-          title="My vouchers"
-          description="Keep your claimed offers in one easy-to-find place."
+          eyebrow={t("dashboard.vouchers.eyebrow")}
+          title={t("dashboard.vouchers.title")}
+          description={t("dashboard.vouchers.description")}
         />
         <VoucherWallet token={token} />
       </>
@@ -1718,9 +1792,9 @@ export function EmbeddedSection({
     return (
       <>
         <SectionHeading
-          eyebrow="Help desk"
-          title="Support"
-          description="Start or continue a conversation with our team."
+          eyebrow={t("dashboard.support.eyebrow")}
+          title={t("dashboard.support.title")}
+          description={t("dashboard.support.description")}
         />
         <PortalSupportTab token={token} />
       </>
@@ -1728,9 +1802,9 @@ export function EmbeddedSection({
   return (
     <>
       <SectionHeading
-        eyebrow="Account controls"
-        title="Preferences"
-        description="Choose how you would like to hear from us."
+        eyebrow={t("dashboard.preferences.eyebrow")}
+        title={t("dashboard.preferences.title")}
+        description={t("dashboard.preferences.description")}
       />
       <PortalNotificationPreferences token={token} />
     </>

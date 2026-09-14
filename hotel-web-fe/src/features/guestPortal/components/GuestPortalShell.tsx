@@ -118,7 +118,7 @@ function currentGuestSection(search: string): GuestSection {
 
 /** Guest-only navigation that preserves the existing portal route contract. */
 export function GuestPortalShell({ children, showAccountNav = true }: GuestPortalShellProps) {
-  const { tOr } = useTranslation('guestPortal');
+  const { t } = useTranslation('guestPortal');
   const location = useLocation();
   const navigate = useNavigate();
   const hotelName = getHotelSettings().hotel_name;
@@ -184,7 +184,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             '@media (prefers-reduced-motion: reduce)': { transition: 'none' },
           }}
         >
-          Skip to content
+          {t('shell.skipToContent')}
         </Box>
         <AppBar
           component="header"
@@ -201,7 +201,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
               <Box
                 component={Link}
                 to={DASHBOARD_LINK}
-                aria-label={`${hotelName} guest portal home`}
+                aria-label={t('shell.homeAria', { hotel: hotelName })}
                 sx={{ display: 'inline-flex', alignItems: 'center', minWidth: 0, flexShrink: 0, textDecoration: 'none' }}
               >
                 <Box component="img" src="/salim-inn/salim-inn-logo.svg" alt={hotelName} sx={{ display: 'block', width: { xs: 122, sm: 146 }, height: 'auto' }} />
@@ -209,7 +209,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
 
               <Stack
                 component="nav"
-                aria-label="Guest portal"
+                aria-label={t('shell.navAria')}
                 direction="row"
                 spacing={0.5}
                 sx={{
@@ -238,11 +238,11 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
                     }}
                   >
-                    {tOr(`nav.${link.section}`, link.label)}
+                    {t(`nav.${link.section}`)}
                   </Button>
                 ))}
                 <Button component="a" href={HOTEL_INDEX_LINK} color="inherit" sx={{ flexShrink: 0, minHeight: 44, px: 1.5, color: 'var(--hotel-text-secondary)', fontSize: '0.8125rem', '&:hover': { bgcolor: 'var(--hotel-hover)', color: 'var(--hotel-text)', transform: 'translateY(-1px)' } }}>
-                  {tOr('actions.exploreHotel', 'Explore hotel')}
+                  {t('actions.exploreHotel')}
                 </Button>
               </Stack>
 
@@ -265,7 +265,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                       '&:focus-visible': { outline: `3px solid ${GOLD}`, outlineOffset: 3 },
                     }}
                   >
-                    {tOr('actions.signIn', 'Sign in')}
+                    {t('actions.signIn')}
                   </Button>
                 )}
               </Box>
@@ -294,7 +294,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                   '&:focus-visible': { outline: '3px solid var(--hotel-focus-ring)', outlineOffset: 3 },
                 }}
               >
-                {tOr('actions.bookStay', 'Book a stay')}
+                {t('actions.bookStay')}
               </Button>
             </Toolbar>
           </Container>
@@ -304,22 +304,22 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           {children}
         </Box>
 
-        <Box component="nav" aria-label="Guest portal mobile navigation" sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' }, position: 'fixed', inset: 'auto 0 0', zIndex: theme => theme.zIndex.appBar, px: 1, pb: 'max(8px, env(safe-area-inset-bottom))', pt: 1, bgcolor: 'color-mix(in srgb, var(--hotel-bg) 92%, transparent)', backdropFilter: 'blur(14px)', borderTop: '1px solid var(--hotel-border)' }}>
+        <Box component="nav" aria-label={t('shell.mobileNavAria')} sx={{ display: { xs: showAccountNav ? 'block' : 'none', md: 'none' }, position: 'fixed', inset: 'auto 0 0', zIndex: theme => theme.zIndex.appBar, px: 1, pb: 'max(8px, env(safe-area-inset-bottom))', pt: 1, bgcolor: 'color-mix(in srgb, var(--hotel-bg) 92%, transparent)', backdropFilter: 'blur(14px)', borderTop: '1px solid var(--hotel-border)' }}>
           <BottomNavigation showLabels value={mobileValue} sx={{ height: 64, borderRadius: 2, bgcolor: 'var(--hotel-surface-overlay)', boxShadow: 'var(--hotel-shadow-md)', overflow: 'hidden', '& .MuiBottomNavigationAction-root': { minWidth: 0, maxWidth: 'none', color: 'var(--hotel-text-muted)', transition: 'color 200ms ease, transform 200ms ease', '@media (prefers-reduced-motion: reduce)': { transition: 'none' } }, '& .MuiBottomNavigationAction-root.Mui-selected': { color: 'var(--hotel-primary)' }, '& .MuiBottomNavigationAction-label': { fontSize: '0.625rem', fontWeight: 700, mt: 0.25 }, '& .MuiBottomNavigationAction-label.Mui-selected': { fontSize: '0.625rem' } }}>
             {primarySections.map(link => (
-              <BottomNavigationAction key={link.label} component={Link} to={link.to} value={link.to} label={tOr(`nav.${link.section}`, link.label)} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
+              <BottomNavigationAction key={link.label} component={Link} to={link.to} value={link.to} label={t(`nav.${link.section}`)} icon={link.icon} aria-current={activeSection === link.section ? 'page' : undefined} />
             ))}
             <BottomNavigationAction
               component={Link}
               to={BOOKING_LINK}
               value={BOOKING_LINK}
-              label={tOr('actions.book', 'Book')}
+              label={t('actions.book')}
               icon={<CalendarMonthOutlinedIcon />}
               aria-current={activeSection === 'booking' ? 'page' : undefined}
             />
             <BottomNavigationAction
               value={MORE_VALUE}
-              label={tOr('actions.more', 'More')}
+              label={t('actions.more')}
               icon={<MoreHorizOutlinedIcon />}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
@@ -338,7 +338,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
           <Box sx={{ px: 2, pt: 2, pb: 1 }}>
             <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'var(--hotel-border-strong)', mx: 'auto', mb: 1.5 }} />
             <Typography variant="overline" sx={{ color: 'var(--hotel-primary-text)', fontWeight: 700, letterSpacing: '.12em' }}>
-              {tOr('actions.more', 'More')}
+              {t('actions.more')}
             </Typography>
           </Box>
           <List sx={{ pb: 1 }}>
@@ -352,7 +352,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
                 sx={{ minHeight: 52 }}
               >
                 <ListItemIcon sx={{ minWidth: 40, color: 'var(--hotel-primary)' }}>{link.icon}</ListItemIcon>
-              <ListItemText primary={tOr(`nav.${link.section}`, link.label)} slotProps={{
+              <ListItemText primary={t(`nav.${link.section}`)} slotProps={{
                   primary: { sx: { fontWeight: 600 } }
                 }} />
               </ListItemButton>
@@ -360,7 +360,7 @@ export function GuestPortalShell({ children, showAccountNav = true }: GuestPorta
             <Divider component="li" sx={{ my: 1 }} />
             <ListItemButton component="a" href={HOTEL_INDEX_LINK} sx={{ minHeight: 52 }}>
               <ListItemIcon sx={{ minWidth: 40, color: 'var(--hotel-primary)' }}><OpenInNewOutlinedIcon /></ListItemIcon>
-              <ListItemText primary={tOr('actions.exploreHotel', 'Explore hotel')} slotProps={{
+              <ListItemText primary={t('actions.exploreHotel')} slotProps={{
                 primary: { sx: { fontWeight: 600 } }
               }} />
             </ListItemButton>
