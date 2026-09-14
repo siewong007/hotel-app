@@ -1,3 +1,5 @@
+import { getActiveLocale, translateOr, type LocaleCode } from '../i18n';
+
 export type ApiNotificationSeverity = 'success' | 'info' | 'warning' | 'error';
 export type ApiNotificationPriority = 'info' | 'warning' | 'critical';
 
@@ -64,14 +66,52 @@ function normalizeSeverity(value: unknown): ApiNotificationSeverity | undefined 
   }
 }
 
-export function getApiNotificationMessage(payload: unknown, statusCode: number): string {
-  const explicitMessage = getExplicitApiNotificationMessage(payload);
-  if (explicitMessage) return explicitMessage;
+/**
+ * The generic line for a failed body that carries no usable text at all —
+ * unrouted 404s, extractor rejections, anything that bypassed the coded
+ * ApiError path. The English fallbacks are the strings this mapper returned
+ * verbatim before the errors namespace existed, so a dropped bundle key can
+ * never regress the message.
+ */
+function getStatusGenericMessage(statusCode: number, locale: LocaleCode): string {
+  if (statusCode >= 500) {
+    return translateOr(
+      locale,
+      'errors:status.serverError',
+      'A server error occurred. Please try again later.'
+    );
+  }
+  if (statusCode === 404) {
+    return translateOr(
+      locale,
+      'errors:status.notFound',
+      'The requested item could not be found.'
+    );
+  }
+  if (statusCode === 429) {
+    return translateOr(
+      locale,
+      'errors:status.rateLimited',
+      'Too many requests. Please try again shortly.'
+    );
+  }
+  return translateOr(locale, 'errors:status.requestFailed', 'Request failed.');
+}
 
-  if (statusCode >= 500) return 'A server error occurred. Please try again later.';
-  if (statusCode === 404) return 'The requested item could not be found.';
-  if (statusCode === 429) return 'Too many requests. Please try again shortly.';
-  return 'Request failed.';
+export function getApiNotificationMessage(payload: unknown, statusCode: number): string {
+  const locale = getActiveLocale();
+  const fallback =
+    getExplicitApiNotificationMessage(payload) ?? getStatusGenericMessage(statusCode, locale);
+
+  // Coded ApiError bodies ({"error": msg, "code": "<snake>"}) resolve to the
+  // bundle entry written for guests first; the server's `error` text stays as
+  // the fallback for a code the bundle does not know yet, and uncoded bodies
+  // keep the old explicit-text-then-generic order entirely.
+  const code = isRecord(payload) && typeof payload.code === 'string' ? payload.code.trim() : '';
+  if (code) {
+    return translateOr(locale, `errors:api.${code}`, fallback);
+  }
+  return fallback;
 }
 
 export function getExplicitApiNotificationMessage(payload: unknown): string | undefined {
