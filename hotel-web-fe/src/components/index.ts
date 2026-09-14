@@ -27,6 +27,8 @@ export { BottomSheet } from './common/BottomSheet';
 export type { BottomSheetProps } from './common/BottomSheet';
 export { FilterSheet } from './common/FilterSheet';
 export type { FilterSheetProps } from './common/FilterSheet';
+export { SearchAndFilters } from './common/SearchAndFilters';
+export type { SearchAndFiltersProps } from './common/SearchAndFilters';
 export { ActionsMenu } from './common/ActionsMenu';
 export type { ActionsMenuProps, ActionMenuItem } from './common/ActionsMenu';
 export { default as PageHeader } from './common/PageHeader';
