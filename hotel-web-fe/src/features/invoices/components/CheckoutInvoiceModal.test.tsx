@@ -151,6 +151,12 @@ async function paymentDialog() {
   return dialog;
 }
 
+// Waive/forfeit/cancel live behind the "Other options" expander in the
+// deposit card; the collapsed content unmounts, so expand before querying it.
+function expandOtherOptions(dialog: HTMLElement) {
+  fireEvent.click(within(dialog).getByRole('button', { name: /other options/i }));
+}
+
 describe('CheckoutInvoiceModal payment idempotency', () => {
   it('reports no critical axe violations', async () => {
     renderModal();
@@ -348,6 +354,7 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
     const proceed = within(dialog).getByRole('button', { name: 'Proceed to Checkout' });
     expect((proceed as HTMLButtonElement).disabled).toBe(true);
 
+    expandOtherOptions(dialog);
     fireEvent.change(
       within(dialog).getByPlaceholderText(/Reason for waiving deposit/i),
       { target: { value: 'Lost keycard' } },
@@ -377,6 +384,7 @@ describe('CheckoutInvoiceModal legacy deposit handling', () => {
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 
+    expandOtherOptions(dialog);
     fireEvent.change(
       within(dialog).getByPlaceholderText(/Reason for waiving deposit/i),
       { target: { value: 'Lost keycard' } },
@@ -449,6 +457,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     const proceed = within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement;
     expect(proceed.disabled).toBe(true);
 
+    expandOtherOptions(dialog);
     fireEvent.change(
       within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
       { target: { value: 'Lost keycard' } },
@@ -468,6 +477,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 
+    expandOtherOptions(dialog);
     fireEvent.change(within(dialog).getByLabelText('Forfeit amount'), { target: { value: '20' } });
     fireEvent.change(
       within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
@@ -518,6 +528,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
       (within(dialog).getByRole('button', { name: 'Proceed to Checkout' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     // …and the forfeit field now defaults to the remaining refundable amount.
+    expandOtherOptions(dialog);
     expect((within(dialog).getByLabelText('Forfeit amount') as HTMLInputElement).value).toBe('30');
   });
 
@@ -525,6 +536,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
 
+    expandOtherOptions(dialog);
     fireEvent.change(within(dialog).getByLabelText('Forfeit amount'), { target: { value: '60' } });
     fireEvent.change(
       within(dialog).getByPlaceholderText(/Reason for forfeiting deposit/i),
@@ -590,6 +602,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
 
     // Exact names: the trigger is 'Cancel deposit (recorded but not
     // collected)', the ConfirmProvider confirm button is 'Cancel deposit'.
+    expandOtherOptions(dialog);
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'Cancel deposit (recorded but not collected)' }),
     );
@@ -604,6 +617,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     mocks.hasPermission.mockReturnValue(false);
     renderModal(false, { deposit_paid: true, deposit_amount: 50 });
     const dialog = await screen.findByRole('dialog');
+    expandOtherOptions(dialog);
     expect(
       within(dialog).queryByRole('button', { name: 'Cancel deposit (recorded but not collected)' }),
     ).toBeNull();

@@ -202,8 +202,7 @@ const DepositSection: React.FC<DepositSectionProps> = (props) => {
         ) : depositForfeited ? (
           <StatusStrip
             tone="orange"
-            title="Deposit forfeited"
-            caption="Forfeited to the hotel"
+            title="Deposit forfeited to the hotel"
             amount={formatCurrency(depositRefund)}
             chip={<StatusChip status="forfeited" label="Forfeited" tone="warning" />}
           />
