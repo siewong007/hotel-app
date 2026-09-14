@@ -171,3 +171,92 @@ pub struct GuestDeliveryRow {
     pub status: String,
     pub created_at: DateTime<Utc>,
 }
+
+// ------------------------------------------------------------------
+// Phase 2 — cross-guest operational layer (overview + follow-up queue)
+// ------------------------------------------------------------------
+
+/// `count` over the full matching set plus up to 5 preview `items` — every
+/// overview section carries this shape so the dashboard renders in one
+/// aggregate payload.
+#[derive(Debug, Serialize)]
+pub struct OverviewSection<T> {
+    pub count: i64,
+    pub items: Vec<T>,
+}
+
+/// Booking preview row shared by the `arrivals` / `in_house` / `departures`
+/// / `vip_arrivals` sections.
+#[derive(Debug, Serialize)]
+pub struct OverviewBookingItem {
+    pub booking_id: i64,
+    pub guest_id: i64,
+    pub guest_name: String,
+    pub status: String,
+    pub room_label: Option<String>,
+    pub is_vip: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OverviewSupportItem {
+    pub conversation_id: i64,
+    pub conversation_number: String,
+    pub guest_id: Option<i64>,
+    pub guest_name: Option<String>,
+    pub status: String,
+    pub priority: Option<String>,
+    pub subject: String,
+}
+
+/// Open-conversation counts plus preview rows. `open` is every
+/// `status <> 'closed'` conversation — the staff-inbox definition of open —
+/// with the `waiting_for_staff` backlog split out for the dashboard.
+#[derive(Debug, Serialize)]
+pub struct OverviewSupportSection {
+    pub open: i64,
+    pub waiting_for_staff: i64,
+    pub items: Vec<OverviewSupportItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OverviewReviewItem {
+    pub review_id: i64,
+    pub guest_id: i64,
+    pub guest_name: String,
+    pub rating: Option<f64>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// One open follow-up (`guest_notes.follow_up_at` set, not yet completed) in
+/// the cross-guest queue; also the preview row for the overview's
+/// `follow_ups` section. `snippet` is the first 160 chars of `content`.
+#[derive(Debug, Serialize)]
+pub struct FollowUpQueueItem {
+    pub note_id: i64,
+    pub guest_id: i64,
+    pub guest_name: String,
+    pub subject: Option<String>,
+    pub interaction_type: String,
+    pub follow_up_at: DateTime<Utc>,
+    pub assigned_to: Option<i64>,
+    pub assigned_to_name: Option<String>,
+    pub created_by_name: Option<String>,
+    pub snippet: Option<String>,
+}
+
+/// `support` / `reviews` are present only when the caller holds
+/// `support:read` / `reviews:read`; omitted (not `null`) otherwise so
+/// consumers can distinguish "no access" from "no data" — the same
+/// omit-not-null convention as `GuestSensitiveProfile` on `GuestProfile`.
+#[derive(Debug, Serialize)]
+pub struct OverviewResponse {
+    pub arrivals: OverviewSection<OverviewBookingItem>,
+    pub in_house: OverviewSection<OverviewBookingItem>,
+    pub departures: OverviewSection<OverviewBookingItem>,
+    pub vip_arrivals: OverviewSection<OverviewBookingItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub support: Option<OverviewSupportSection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reviews: Option<OverviewSection<OverviewReviewItem>>,
+    pub follow_ups: OverviewSection<FollowUpQueueItem>,
+}
