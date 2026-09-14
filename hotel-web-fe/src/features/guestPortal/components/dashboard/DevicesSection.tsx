@@ -105,7 +105,7 @@ export function DevicesSection() {
   // The section renders its own ErrorState + retry, so a failed load should
   // not ALSO raise the client's global toast.
   const sessionsQuery = useSessionsQuery({ suppressApiNotification: true });
-  const revokeSession = useRevokeSessionMutation();
+  const revokeSession = useRevokeSessionMutation({ suppressApiNotification: true });
 
   const sessions: UserSessionInfo[] = sessionsQuery.data ?? [];
 

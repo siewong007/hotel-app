@@ -377,7 +377,16 @@ describe('AuthService', () => {
 
       await AuthService.deletePasskey('pk1');
 
-      expect(del).toHaveBeenCalledWith('profile/passkeys/pk1');
+      expect(del).toHaveBeenCalledWith('profile/passkeys/pk1', undefined);
+    });
+
+    it('sends the skip-notification header only when asked', async () => {
+      del.mockReturnValue(Promise.resolve(undefined));
+
+      await AuthService.deletePasskey('pk1', { suppressApiNotification: true });
+      expect(del).toHaveBeenCalledWith('profile/passkeys/pk1', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 
@@ -414,7 +423,16 @@ describe('AuthService', () => {
 
       await AuthService.revokeSession('s1');
 
-      expect(del).toHaveBeenCalledWith('profile/sessions/s1');
+      expect(del).toHaveBeenCalledWith('profile/sessions/s1', undefined);
+    });
+
+    it('sends the skip-notification header only when asked', async () => {
+      del.mockReturnValue(Promise.resolve(undefined));
+
+      await AuthService.revokeSession('s1', { suppressApiNotification: true });
+      expect(del).toHaveBeenCalledWith('profile/sessions/s1', {
+        headers: SKIP_NOTIFICATION_HEADERS,
+      });
     });
   });
 

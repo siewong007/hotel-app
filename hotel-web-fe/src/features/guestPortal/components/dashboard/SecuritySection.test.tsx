@@ -299,7 +299,9 @@ describe('SecuritySection', () => {
     expect(await screen.findByText('AAAA-1111')).toBeTruthy();
     expect(screen.getByText('BBBB-2222')).toBeTruthy();
     await waitFor(() =>
-      expect(mocks.enableTwoFactor).toHaveBeenCalledWith('123456', 'challenge-1'),
+      expect(mocks.enableTwoFactor).toHaveBeenCalledWith('123456', 'challenge-1', {
+        suppressApiNotification: true,
+      }),
     );
   });
 
@@ -335,7 +337,11 @@ describe('SecuritySection', () => {
     fireEvent.change(screen.getByLabelText('6-digit code'), { target: { value: '654321' } });
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
-    await waitFor(() => expect(mocks.regenerateBackupCodes).toHaveBeenCalledWith('654321'));
+    await waitFor(() =>
+      expect(mocks.regenerateBackupCodes).toHaveBeenCalledWith('654321', {
+        suppressApiNotification: true,
+      }),
+    );
     expect(await screen.findByText('CCCC-3333')).toBeTruthy();
   });
 

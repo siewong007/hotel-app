@@ -148,42 +148,50 @@ export class AuthService {
     return await api.get('profile/passkeys', apiRequestOptions(options)).json<PasskeyInfo[]>();
   }
 
-  static async updatePasskey(passkeyId: string, data: PasskeyUpdateInput): Promise<void> {
-    await api.patch(`profile/passkeys/${passkeyId}`, { json: data });
+  static async updatePasskey(
+    passkeyId: string,
+    data: PasskeyUpdateInput,
+    options?: ApiRequestOptions
+  ): Promise<void> {
+    await api.patch(`profile/passkeys/${passkeyId}`, { json: data, ...apiRequestOptions(options) });
   }
 
-  static async deletePasskey(passkeyId: string): Promise<void> {
-    await api.delete(`profile/passkeys/${passkeyId}`);
+  static async deletePasskey(passkeyId: string, options?: ApiRequestOptions): Promise<void> {
+    await api.delete(`profile/passkeys/${passkeyId}`, apiRequestOptions(options));
   }
 
   static async listSessions(options?: ApiRequestOptions): Promise<UserSessionInfo[]> {
     return await api.get('profile/sessions', apiRequestOptions(options)).json<UserSessionInfo[]>();
   }
 
-  static async revokeSession(sessionId: string): Promise<void> {
-    await api.delete(`profile/sessions/${sessionId}`);
+  static async revokeSession(sessionId: string, options?: ApiRequestOptions): Promise<void> {
+    await api.delete(`profile/sessions/${sessionId}`, apiRequestOptions(options));
   }
 
   // 2FA Management
-  static async setupTwoFactor(): Promise<{
+  static async setupTwoFactor(options?: ApiRequestOptions): Promise<{
     secret: string;
     qr_code_url: string;
     challenge_code: string;
   }> {
-    return await api.post('profile/2fa/setup', { json: {} }).json();
+    return await api.post('profile/2fa/setup', { json: {}, ...apiRequestOptions(options) }).json();
   }
 
   static async enableTwoFactor(
     code: string,
-    challengeCode: string
+    challengeCode: string,
+    options?: ApiRequestOptions
   ): Promise<{ message: string; backup_codes: string[] }> {
     return await api
-      .post('profile/2fa/enable', { json: { code, challenge_code: challengeCode } })
+      .post('profile/2fa/enable', {
+        json: { code, challenge_code: challengeCode },
+        ...apiRequestOptions(options),
+      })
       .json();
   }
 
-  static async disableTwoFactor(code: string): Promise<void> {
-    await api.post('profile/2fa/disable', { json: { code } });
+  static async disableTwoFactor(code: string, options?: ApiRequestOptions): Promise<void> {
+    await api.post('profile/2fa/disable', { json: { code }, ...apiRequestOptions(options) });
   }
 
   static async getTwoFactorStatus(options?: ApiRequestOptions): Promise<{
@@ -196,7 +204,12 @@ export class AuthService {
     return await api.get('auth/2fa/status', apiRequestOptions(options)).json();
   }
 
-  static async regenerateBackupCodes(code: string): Promise<{ backup_codes: string[] }> {
-    return await api.post('auth/2fa/regenerate-backup-codes', { json: { code } }).json();
+  static async regenerateBackupCodes(
+    code: string,
+    options?: ApiRequestOptions
+  ): Promise<{ backup_codes: string[] }> {
+    return await api
+      .post('auth/2fa/regenerate-backup-codes', { json: { code }, ...apiRequestOptions(options) })
+      .json();
   }
 }

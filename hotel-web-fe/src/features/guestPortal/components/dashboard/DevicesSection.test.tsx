@@ -108,7 +108,11 @@ describe('DevicesSection', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
 
-    await waitFor(() => expect(mocks.revokeSession).toHaveBeenCalledWith('other-session'));
+    await waitFor(() =>
+      expect(mocks.revokeSession).toHaveBeenCalledWith('other-session', {
+        suppressApiNotification: true,
+      }),
+    );
   });
 
   it('does not revoke anything when the guest cancels the confirmation', async () => {

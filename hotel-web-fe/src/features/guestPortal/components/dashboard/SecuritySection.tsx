@@ -207,8 +207,8 @@ function PasskeysCard({ twoFactorEnabled }: { twoFactorEnabled: boolean }) {
   // ALSO raise the client's global toast.
   const passkeysQuery = usePasskeysQuery({ suppressApiNotification: true });
   const addPasskey = useRegisterPasskeyMutation(registerPasskey);
-  const deletePasskey = useDeletePasskeyMutation();
-  const renamePasskey = useRenamePasskeyMutation();
+  const deletePasskey = useDeletePasskeyMutation({ suppressApiNotification: true });
+  const renamePasskey = useRenamePasskeyMutation({ suppressApiNotification: true });
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
@@ -510,9 +510,9 @@ function AuthenticatorCard({
   onCodesIssued: (codes: string[]) => void;
 }) {
   const { t } = useTranslation('guestPortal');
-  const setupTwoFactor = useSetupTwoFactor();
-  const enableTwoFactor = useEnableTwoFactor();
-  const disableTwoFactor = useDisableTwoFactor();
+  const setupTwoFactor = useSetupTwoFactor({ suppressApiNotification: true });
+  const enableTwoFactor = useEnableTwoFactor({ suppressApiNotification: true });
+  const disableTwoFactor = useDisableTwoFactor({ suppressApiNotification: true });
 
   const [setupData, setSetupData] = useState<{
     secret: string;
@@ -729,7 +729,7 @@ function RecoveryCodesCard({
   onCodesIssued: (codes: string[]) => void;
 }) {
   const { t } = useTranslation('guestPortal');
-  const regenerate = useRegenerateBackupCodes();
+  const regenerate = useRegenerateBackupCodes({ suppressApiNotification: true });
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState('');
 

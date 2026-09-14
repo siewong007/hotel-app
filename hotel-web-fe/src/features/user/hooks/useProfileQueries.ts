@@ -53,13 +53,13 @@ function usePasskeyMutation<TArgs>(mutationFn: (args: TArgs) => Promise<unknown>
   });
 }
 
-export function useDeletePasskeyMutation() {
-  return usePasskeyMutation((id: string) => AuthService.deletePasskey(id));
+export function useDeletePasskeyMutation(options?: ApiRequestOptions) {
+  return usePasskeyMutation((id: string) => AuthService.deletePasskey(id, options));
 }
 
-export function useRenamePasskeyMutation() {
+export function useRenamePasskeyMutation(options?: ApiRequestOptions) {
   return usePasskeyMutation(({ id, deviceName }: { id: string; deviceName: string }) =>
-    AuthService.updatePasskey(id, { device_name: deviceName })
+    AuthService.updatePasskey(id, { device_name: deviceName }, options)
   );
 }
 
@@ -85,10 +85,10 @@ export function useRegisterPasskeyMutation(
   );
 }
 
-export function useRevokeSessionMutation() {
+export function useRevokeSessionMutation(options?: ApiRequestOptions) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (sessionId: string) => AuthService.revokeSession(sessionId),
+    mutationFn: (sessionId: string) => AuthService.revokeSession(sessionId, options),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.profile.sessions() });
     },

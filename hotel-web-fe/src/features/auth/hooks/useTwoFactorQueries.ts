@@ -12,37 +12,37 @@ export function useTwoFactorStatus(options?: ApiRequestOptions) {
   });
 }
 
-export function useSetupTwoFactor() {
+export function useSetupTwoFactor(options?: ApiRequestOptions) {
   return useMutation({
-    mutationFn: () => AuthService.setupTwoFactor(),
+    mutationFn: () => AuthService.setupTwoFactor(options),
   });
 }
 
-export function useEnableTwoFactor() {
+export function useEnableTwoFactor(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ code, challengeCode }: { code: string; challengeCode: string }) =>
-      AuthService.enableTwoFactor(code, challengeCode),
+      AuthService.enableTwoFactor(code, challengeCode, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
   });
 }
 
-export function useDisableTwoFactor() {
+export function useDisableTwoFactor(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => AuthService.disableTwoFactor(code),
+    mutationFn: (code: string) => AuthService.disableTwoFactor(code, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
   });
 }
 
-export function useRegenerateBackupCodes() {
+export function useRegenerateBackupCodes(options?: ApiRequestOptions) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => AuthService.regenerateBackupCodes(code),
+    mutationFn: (code: string) => AuthService.regenerateBackupCodes(code, options),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.twoFactor.all });
     },
