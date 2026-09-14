@@ -15,21 +15,27 @@ import SettingsSuggestOutlinedIcon from '@mui/icons-material/SettingsSuggestOutl
 
 import { formatLocalDate } from '../../../utils/date';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { BottomSheet } from '../../../components/common/BottomSheet';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
+import { StickyActionBar } from '../../../components/common/StickyActionBar';
 import { GRID_DAYS } from '../constants';
 import type { CellKey, GridCellView } from '../types';
 import { dateRange, summarizeEdits } from '../utils';
 import { useOnlineInventory } from '../hooks/useOnlineInventory';
 import { useGridSelection } from '../hooks/useGridSelection';
-import { BulkEditPanel } from '../components/BulkEditPanel';
+import { BulkEditFields, BulkEditPanel } from '../components/BulkEditPanel';
 import { CellEditorPopover } from '../components/CellEditorPopover';
+import { CellEditorSheet } from '../components/CellEditorSheet';
 import { GridToolbar } from '../components/GridToolbar';
 import { InventoryGrid } from '../components/InventoryGrid';
 import { InventorySummary } from '../components/InventorySummary';
+import { PhoneInventoryView } from '../components/PhoneInventoryView';
 import { ReviewChangesDialog } from '../components/ReviewChangesDialog';
 
 const OnlineInventoryPage = () => {
   const today = formatLocalDate();
+  const isPhone = useIsPhone();
   const confirm = useConfirm();
   const { format } = useCurrency();
   const formatPrice = (value: string) => format(Number(value));
@@ -60,6 +66,9 @@ const OnlineInventoryPage = () => {
   const [editorKey, setEditorKey] = useState<CellKey | null>(null);
   const [editorAnchor, setEditorAnchor] = useState<HTMLElement | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  // Phone-only: tap-to-select mode and its bulk-edit sheet.
+  const [selectMode, setSelectMode] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const selectedViews = useMemo<GridCellView[]>(
     () =>
@@ -121,6 +130,20 @@ const OnlineInventoryPage = () => {
     setEditorAnchor(null);
   };
 
+  // Phone select mode: taps toggle membership instead of opening the editor.
+  const toggleSelect = (key: CellKey) => {
+    const next = new Set(sel.selected);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    sel.setSelected(next);
+  };
+
+  const toggleSelectMode = () => {
+    sel.clear();
+    setSelectMode((current) => !current);
+  };
+
+  const openCellSheet = (key: CellKey) => setEditorKey(key);
+
   const confirmSave = async () => {
     if (await inv.saveChanges()) setReviewOpen(false);
   };
@@ -142,7 +165,14 @@ const OnlineInventoryPage = () => {
           <Typography variant="h4" component="h1" sx={{ fontWeight: 850, letterSpacing: -0.7 }}>
             Online availability
           </Typography>
-          <Typography sx={{ color: 'text.secondary', mt: 0.75, maxWidth: 720 }}>
+          <Typography
+            sx={{
+              color: 'text.secondary',
+              mt: 0.75,
+              maxWidth: 720,
+              display: { xs: 'none', sm: 'block' },
+            }}
+          >
             Control {GRID_DAYS} days of online inventory at once — click cells to select, open the
             editor to stage changes, then review and apply everything in one safe save.
           </Typography>
@@ -159,6 +189,8 @@ const OnlineInventoryPage = () => {
             sel.clear();
           }}
           selectedCount={sel.selected.size}
+          selectMode={selectMode}
+          onToggleSelectMode={toggleSelectMode}
         />
 
         {inv.error && <Alert severity="error">{inv.error}</Alert>}
@@ -189,39 +221,67 @@ const OnlineInventoryPage = () => {
               cells={summaryCells}
               label={selectedViews.length > 0 ? 'Selected cells' : 'Visible window'}
             />
-            <InventoryGrid
-              roomTypes={inv.roomTypes}
-              dates={visibleDates}
-              cells={inv.cells}
-              selected={sel.selected}
-              focused={sel.focused}
-              today={today}
-              onSelectCell={sel.selectCell}
-              onMoveFocus={sel.moveFocus}
-              onSelectRange={sel.selectRange}
-              onSelectRow={sel.selectRow}
-              onSelectColumn={sel.selectColumn}
-              onSelectAll={() => sel.setSelected(inv.cells.keys())}
-              onOpenEditor={openEditor}
-              onClearSelection={sel.clear}
-              formatPrice={formatPrice}
-            />
-            <BulkEditPanel
-              targets={selectedViews}
-              onApply={inv.stageMany}
-              onClear={sel.clear}
-            />
+            {isPhone ? (
+              <PhoneInventoryView
+                roomTypes={inv.roomTypes}
+                dates={visibleDates}
+                cells={inv.cells}
+                today={today}
+                selected={sel.selected}
+                selectMode={selectMode}
+                onToggleSelect={toggleSelect}
+                onOpenCell={openCellSheet}
+                formatPrice={formatPrice}
+              />
+            ) : (
+              <>
+                <InventoryGrid
+                  roomTypes={inv.roomTypes}
+                  dates={visibleDates}
+                  cells={inv.cells}
+                  selected={sel.selected}
+                  focused={sel.focused}
+                  today={today}
+                  onSelectCell={sel.selectCell}
+                  onMoveFocus={sel.moveFocus}
+                  onSelectRange={sel.selectRange}
+                  onSelectRow={sel.selectRow}
+                  onSelectColumn={sel.selectColumn}
+                  onSelectAll={() => sel.setSelected(inv.cells.keys())}
+                  onOpenEditor={openEditor}
+                  onClearSelection={sel.clear}
+                  formatPrice={formatPrice}
+                />
+                {sel.selected.size > 0 && (
+                  <BulkEditPanel
+                    targets={selectedViews}
+                    onApply={inv.stageMany}
+                    onClear={sel.clear}
+                  />
+                )}
+              </>
+            )}
           </>
         )}
       </Stack>
 
-      <CellEditorPopover
-        view={editorKey !== null ? inv.cells.get(editorKey) ?? null : null}
-        anchorEl={editorAnchor}
-        onClose={closeEditor}
-        onApply={inv.stageCell}
-        formatPrice={formatPrice}
-      />
+      {!isPhone && (
+        <CellEditorPopover
+          view={editorKey !== null ? inv.cells.get(editorKey) ?? null : null}
+          anchorEl={editorAnchor}
+          onClose={closeEditor}
+          onApply={inv.stageCell}
+          formatPrice={formatPrice}
+        />
+      )}
+
+      {isPhone && (
+        <CellEditorSheet
+          view={editorKey !== null ? inv.cells.get(editorKey) ?? null : null}
+          onClose={closeEditor}
+          onApply={inv.stageCell}
+        />
+      )}
 
       <ReviewChangesDialog
         open={reviewOpen}
@@ -268,6 +328,39 @@ const OnlineInventoryPage = () => {
           </Stack>
         </Paper>
       )}
+
+      {isPhone && selectMode && (
+        <StickyActionBar
+          summary={`${sel.selected.size} selected`}
+          secondary={
+            <Button onClick={toggleSelectMode} sx={{ minHeight: 44 }}>
+              Done
+            </Button>
+          }
+          primary={
+            <Button
+              variant="contained"
+              disabled={sel.selected.size === 0}
+              onClick={() => setBulkOpen(true)}
+              sx={{ minHeight: 44 }}
+            >
+              Edit selected
+            </Button>
+          }
+        />
+      )}
+
+      <BottomSheet
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        title="Edit selected cells"
+      >
+        {selectedViews.length > 0 && (
+          <Stack spacing={1.5}>
+            <BulkEditFields targets={selectedViews} onApply={inv.stageMany} />
+          </Stack>
+        )}
+      </BottomSheet>
 
       <Snackbar
         open={Boolean(inv.successMessage)}
