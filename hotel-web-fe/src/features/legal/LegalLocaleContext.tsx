@@ -32,7 +32,12 @@ export const LegalLocaleProvider: React.FC<{ children: React.ReactNode }> = ({ c
 };
 
 function useSharedLegalLocale(): LegalLocaleValue {
-  const locale = useSyncExternalStore(subscribeToLocale, getActiveLocale, getActiveLocale);
+  const interfaceLocale = useSyncExternalStore(subscribeToLocale, getActiveLocale, getActiveLocale);
+  // The legal corpus ships only the two PDPA languages. A guest whose
+  // interface language has no legal text (e.g. zh, pending its own
+  // translation task) reads the English notice — and English is what the
+  // consent record must name.
+  const locale: LegalLocale = interfaceLocale === 'ms' ? 'ms' : 'en';
   const setLocale = useCallback((next: LegalLocale) => {
     setActiveLocale(next);
   }, []);

@@ -7,7 +7,7 @@
  * every JSON file on disk appears here, so adding a namespace and forgetting
  * to register it fails a test instead of silently shipping English.
  *
- * Total payload is a few kilobytes, so both locales are in the main bundle and
+ * Total payload is a few kilobytes, so all locales are in the main bundle and
  * switching languages needs no network round trip. If a feature ever needs a
  * large namespace, code-split that one namespace behind a dynamic import and
  * have the provider await it — the lookup path already tolerates a namespace
@@ -26,6 +26,12 @@ import msErrors from './ms/errors.json';
 import msGuestPortal from './ms/guestPortal.json';
 import msHelp from './ms/help.json';
 import msNav from './ms/nav.json';
+import zhAuth from './zh/auth.json';
+import zhCommon from './zh/common.json';
+import zhErrors from './zh/errors.json';
+import zhGuestPortal from './zh/guestPortal.json';
+import zhHelp from './zh/help.json';
+import zhNav from './zh/nav.json';
 
 import type { LocaleCode } from '../locales';
 import type { LocaleResources, TranslationBundle } from '../translator';
@@ -51,11 +57,21 @@ const msResources = {
   nav: msNav as TranslationBundle,
 };
 
+const zhResources = {
+  auth: zhAuth as TranslationBundle,
+  common: zhCommon as TranslationBundle,
+  errors: zhErrors as TranslationBundle,
+  guestPortal: zhGuestPortal as TranslationBundle,
+  help: zhHelp as TranslationBundle,
+  nav: zhNav as TranslationBundle,
+};
+
 export const DEFAULT_NAMESPACE: Namespace = 'common';
 
 export const resources: Record<LocaleCode, LocaleResources> = {
   en: enResources,
   ms: msResources,
+  zh: zhResources,
 };
 
 export const NAMESPACES = Object.keys(enResources) as Namespace[];

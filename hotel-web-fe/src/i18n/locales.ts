@@ -16,7 +16,7 @@
  * dates and number grouping.
  */
 
-export type LocaleCode = 'en' | 'ms';
+export type LocaleCode = 'en' | 'ms' | 'zh';
 
 export interface LocaleDefinition {
   /** Wire/storage value. Must match the backend's `SUPPORTED_LOCALES`. */
@@ -50,6 +50,13 @@ export const LOCALES: Record<LocaleCode, LocaleDefinition> = {
     intlTag: 'ms-MY',
     nativeName: 'Bahasa Melayu',
     englishName: 'Malay',
+    dir: 'ltr',
+  },
+  zh: {
+    code: 'zh',
+    intlTag: 'zh-CN',
+    nativeName: '简体中文',
+    englishName: 'Chinese (Simplified)',
     dir: 'ltr',
   },
 };

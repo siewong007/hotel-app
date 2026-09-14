@@ -1,0 +1,157 @@
+{
+  "groups": {
+    "overview": "概览",
+    "front_office": "前厅",
+    "guests": "客人",
+    "revenue": "收益与营销",
+    "finance": "财务",
+    "insights": "经营分析",
+    "administration": "系统管理",
+    "utility": "工具",
+    "main": "主导航",
+    "admin": "系统管理",
+    "config": "配置",
+    "other": "其他"
+  },
+  "routes": {
+    "audit-log": {
+      "label": "审计日志",
+      "breadcrumb": "审计日志"
+    },
+    "bookings": {
+      "label": "预订管理",
+      "breadcrumb": "预订管理"
+    },
+    "campaigns": {
+      "label": "营销活动",
+      "breadcrumb": "营销活动"
+    },
+    "communications": {
+      "label": "通信管理",
+      "breadcrumb": "通信管理"
+    },
+    "company-ledger": {
+      "label": "台账",
+      "breadcrumb": "公司台账"
+    },
+    "complimentary": {
+      "label": "免费房晚",
+      "breadcrumb": "免费房晚"
+    },
+    "dashboard": {
+      "label": "概览",
+      "breadcrumb": "概览"
+    },
+    "data-transfer": {
+      "label": "数据迁移",
+      "breadcrumb": "数据迁移"
+    },
+    "ekyc-admin": {
+      "label": "eKYC 管理",
+      "breadcrumb": "eKYC 管理"
+    },
+    "guest-relations": {
+      "label": "宾客关系",
+      "breadcrumb": "宾客关系"
+    },
+    "help": {
+      "label": "帮助",
+      "breadcrumb": "帮助与支持"
+    },
+    "housekeeping": {
+      "label": "客房服务",
+      "breadcrumb": "客房服务"
+    },
+    "loyalty": {
+      "label": "会员忠诚度",
+      "breadcrumb": "会员忠诚度"
+    },
+    "night-audit": {
+      "label": "夜审",
+      "breadcrumb": "夜审"
+    },
+    "notifications": {
+      "label": "通知",
+      "breadcrumb": "通知"
+    },
+    "online-inventory": {
+      "label": "线上库存",
+      "breadcrumb": "线上库存控制"
+    },
+    "payment-approvals": {
+      "label": "支付审批",
+      "breadcrumb": "支付审批"
+    },
+    "profile": {
+      "label": "个人资料",
+      "breadcrumb": "个人资料"
+    },
+    "rates": {
+      "label": "房价",
+      "breadcrumb": "房价"
+    },
+    "rbac": {
+      "label": "访问控制",
+      "breadcrumb": "访问控制"
+    },
+    "reports": {
+      "label": "报表",
+      "breadcrumb": "报表"
+    },
+    "room-config": {
+      "label": "客房配置",
+      "breadcrumb": "客房配置"
+    },
+    "room-management": {
+      "label": "客房",
+      "breadcrumb": "客房管理"
+    },
+    "segments": {
+      "label": "客群细分",
+      "breadcrumb": "客人细分"
+    },
+    "settings": {
+      "label": "酒店设置",
+      "breadcrumb": "酒店设置"
+    },
+    "support": {
+      "label": "客服",
+      "breadcrumb": "客人支持"
+    },
+    "timeline": {
+      "label": "时间轴",
+      "breadcrumb": "预订时间轴"
+    }
+  },
+  "userMenu": {
+    "profile": "个人资料",
+    "settings": "设置",
+    "logout": "退出登录",
+    "signedInAs": "当前登录：{{name}}"
+  },
+  "aria": {
+    "mainNavigation": "主导航",
+    "search": "搜索页面和操作",
+    "searchResults": "搜索结果",
+    "collapseSidebar": "收起侧边栏",
+    "expandSidebar": "展开侧边栏",
+    "breadcrumbs": "面包屑导航",
+    "userMenu": "账户菜单"
+  },
+  "mobile": {
+    "primary": "主导航",
+    "more": "更多",
+    "menu": "菜单",
+    "guests": "客人",
+    "quickActions": "快捷操作",
+    "newBooking": "新建预订",
+    "search": "搜索",
+    "todaysArrivals": "今日抵店",
+    "todaysDepartures": "今日离店",
+    "roomStatus": "房态",
+    "newTask": "新建任务",
+    "reportIssue": "上报问题",
+    "newGuest": "新增客人",
+    "collectPayment": "收取款项"
+  }
+}
