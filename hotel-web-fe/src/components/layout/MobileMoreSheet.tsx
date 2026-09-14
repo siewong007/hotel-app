@@ -58,12 +58,15 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({ open, onClose,
     navigate(path);
   };
 
-  const renderItem = (id: string, path: string, label: string, Icon?: React.ElementType) => {
-    const active = pathname === path;
+  const renderItem = (route: (typeof navigationRouteDefinitions)[number], label: string) => {
+    // Shared matcher, not exact equality: `/admin-portal` must still highlight
+    // the Overview row the way the bottom bar does.
+    const active = isNavItemActive(pathname, route);
+    const Icon = route.icon;
     return (
       <ListItemButton
-        key={id}
-        onClick={() => go(path)}
+        key={route.id}
+        onClick={() => go(route.path)}
         selected={active}
         aria-current={active ? 'page' : undefined}
         sx={{ borderRadius: 2 }}
@@ -96,12 +99,12 @@ export const MobileMoreSheet: React.FC<MobileMoreSheetProps> = ({ open, onClose,
                 {groupLabel(section.group)}
               </Typography>
             ) : null}
-            {section.items.map((item) => renderItem(item.id, item.path, navLabel(item), item.icon))}
+            {section.items.map((item) => renderItem(item, navLabel(item)))}
           </Box>
         ))}
         {profileRoute ? (
           <Box component="li" sx={{ listStyle: 'none' }}>
-            {renderItem(profileRoute.id, profileRoute.path, navLabel(profileRoute), profileRoute.icon)}
+            {renderItem(profileRoute, navLabel(profileRoute))}
           </Box>
         ) : null}
       </List>

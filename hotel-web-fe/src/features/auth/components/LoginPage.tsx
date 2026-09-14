@@ -550,9 +550,18 @@ const LoginPage: React.FC = () => {
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                margin="dense"
+                margin="normal"
                 required
                 autoFocus
+                slotProps={{
+                  // Usernames are lowercase identifiers — stop phone keyboards
+                  // from capitalising or "correcting" them.
+                  htmlInput: {
+                    autoCapitalize: 'none',
+                    autoCorrect: 'off',
+                    spellCheck: false,
+                  },
+                }}
               />
 
               <TextField
@@ -563,7 +572,7 @@ const LoginPage: React.FC = () => {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                margin="dense"
+                margin="normal"
                 required
                 slotProps={{
                   input: {

@@ -11,8 +11,6 @@ interface SidebarNavItemProps {
   pathname: string;
   /** Icon-rail mode: labels hide and each row gains a right-side tooltip. */
   collapsed: boolean;
-  /** Lets the mobile drawer close itself after a destination is picked. */
-  onNavigate?: () => void;
 }
 
 /**
@@ -24,7 +22,6 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = ({
   item,
   pathname,
   collapsed,
-  onNavigate,
 }) => {
   const { navLabel } = useRouteLabels();
   const active = isNavItemActive(pathname, item);
@@ -38,7 +35,6 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = ({
       selected={active}
       aria-current={active ? 'page' : undefined}
       aria-label={collapsed ? label : undefined}
-      onClick={onNavigate}
       onMouseEnter={() => preloadRoute(item.path)}
       onFocus={() => preloadRoute(item.path)}
       sx={{

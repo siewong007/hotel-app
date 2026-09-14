@@ -36,6 +36,17 @@ const humanizePath = (path: string): string => {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : path;
 };
 
+/** The last crumb on its own — the mobile header's page title. */
+const pageLabel = (
+  route: AppRouteDefinition | undefined,
+  pathname: string,
+  breadcrumbLabel: (route: AppRouteDefinition) => string
+): string => {
+  if (!route) return humanizePath(pathname);
+  const label = breadcrumbLabel(route);
+  return label.startsWith('/') ? humanizePath(label) : label;
+};
+
 /**
  * Location trail for the staff shell: `Group › Page` for registry routes,
  * `Overview › Page` for auth pages without a nav group (profile, my-rewards),
@@ -50,11 +61,7 @@ export const Breadcrumbs: React.FC = () => {
   const dashboardRoute = navigationRouteDefinitions.find((r) => r.id === 'dashboard');
   const overviewLabel = dashboardRoute ? breadcrumbLabel(dashboardRoute) : 'Overview';
 
-  const currentLabel = (): string => {
-    if (!route) return humanizePath(pathname);
-    const label = breadcrumbLabel(route);
-    return label.startsWith('/') ? humanizePath(label) : label;
-  };
+  const currentLabel = pageLabel(route, pathname, breadcrumbLabel);
 
   // Only the dashboard renders without a parent crumb — every other page
   // trails back to either its nav group label (plain text; groups are not
@@ -90,8 +97,27 @@ export const Breadcrumbs: React.FC = () => {
         aria-current="page"
         sx={{ color: 'text.primary', fontSize: 'inherit', fontWeight: 600 }}
       >
-        {isDashboard ? overviewLabel : currentLabel()}
+        {isDashboard ? overviewLabel : currentLabel}
       </Typography>
     </MuiBreadcrumbs>
+  );
+};
+
+/**
+ * The current page's label for the narrow header, where the full trail does
+ * not fit. Same resolution as the last breadcrumb.
+ */
+export const CurrentPageTitle: React.FC = () => {
+  const { pathname } = useLocation();
+  const { breadcrumbLabel } = useRouteLabels();
+  return (
+    <Typography
+      component="h1"
+      aria-current="page"
+      noWrap
+      sx={{ fontSize: '0.95rem', fontWeight: 700, minWidth: 0 }}
+    >
+      {pageLabel(resolveRoute(pathname), pathname, breadcrumbLabel)}
+    </Typography>
   );
 };

@@ -1,29 +1,37 @@
 import React from 'react';
-import { Box, IconButton, Typography } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
+import { Box, IconButton, Tooltip, Typography } from '@mui/material';
+import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
+import { useNavigate } from '../../router';
+import { useAuth } from '../../auth/AuthContext';
 import { useTranslation } from '../../i18n';
 import { LanguageSwitcher } from '../common/LanguageSwitcher';
-import { Breadcrumbs } from './Breadcrumbs';
+import { Breadcrumbs, CurrentPageTitle } from './Breadcrumbs';
 import { useCommandPalette } from './CommandPalette';
 import { NotificationCenter } from './NotificationCenter';
 import { UserMenu } from './UserMenu';
 
-interface AppTopbarProps {
-  /** Opens the mobile navigation drawer; the hamburger renders only when `isNarrow`. */
-  onMenuClick: () => void;
-  /** Below the sidebar breakpoint — no drawer means the nav needs a hamburger. */
-  isNarrow: boolean;
-}
-
 /**
- * The staff shell's 56px header: breadcrumbs on the left; command-palette
- * trigger, notification bell, language and account menu on the right.
- * RootLayout wires `onMenuClick`/`isNarrow` to the sidebar drawer.
+ * The staff shell's 56px header: breadcrumbs on the left (current page title
+ * below `sm`, where the trail does not fit); command-palette trigger,
+ * notification bell, language, account menu and a one-tap sign-out on the
+ * right. Below `md` navigation lives in the bottom bar — there is no drawer,
+ * so the header carries no menu button.
  */
-export const AppTopbar: React.FC<AppTopbarProps> = ({ onMenuClick, isNarrow }) => {
+export const AppTopbar: React.FC = () => {
   const { open: openPalette } = useCommandPalette();
-  const { t: tNav } = useTranslation('nav');
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const { t: tNav, tOr } = useTranslation('nav');
+
+  // Same path as the account menu's Sign Out: end the session, then leave the
+  // staff document for the login page. `logout` settles any in-flight attempt
+  // itself, so a double tap cannot wedge the session.
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+  const logoutLabel = tOr('userMenu.logout', 'Log out');
 
   return (
     <Box
@@ -33,7 +41,7 @@ export const AppTopbar: React.FC<AppTopbarProps> = ({ onMenuClick, isNarrow }) =
         px: { xs: 1.5, sm: 2.5 },
         display: 'flex',
         alignItems: 'center',
-        gap: 1.5,
+        gap: { xs: 0.5, sm: 1.5 },
         bgcolor: 'background.paper',
         borderBottom: '1px solid',
         borderColor: 'divider',
@@ -42,31 +50,16 @@ export const AppTopbar: React.FC<AppTopbarProps> = ({ onMenuClick, isNarrow }) =
         zIndex: theme.zIndex.appBar,
       })}
     >
-      {isNarrow && (
-        <IconButton
-          color="inherit"
-          aria-label={tNav('aria.openMenu')}
-          onClick={onMenuClick}
-          sx={{ mr: -1, flexShrink: 0 }}
-        >
-          <MenuIcon />
-        </IconButton>
-      )}
-
-      <Box sx={{ display: { xs: 'none', sm: 'block' }, minWidth: 0 }}>
+      <Box sx={{ display: { xs: 'flex', sm: 'none' }, minWidth: 0, flex: 1 }}>
+        <CurrentPageTitle />
+      </Box>
+      <Box sx={{ display: { xs: 'none', sm: 'block' }, minWidth: 0, flex: 1 }}>
         <Breadcrumbs />
       </Box>
-      <Box sx={{ flex: 1 }} />
 
-      {/* Command-palette trigger: a compact icon button on xs so the bell,
-          language and user menu stay on-screen; a field-style trigger ≥sm. */}
-      <IconButton
-        aria-label={tNav('aria.search')}
-        onClick={openPalette}
-        sx={{ display: { xs: 'inline-flex', sm: 'none' }, flexShrink: 0 }}
-      >
-        <SearchIcon fontSize="small" />
-      </IconButton>
+      {/* Command-palette trigger: field-style ≥sm. On phones the FAB's
+          quick-actions sheet already carries Search, so an xs icon here would
+          be a duplicate control the header cannot afford at 320px. */}
       <Box
         component="button"
         type="button"
@@ -123,6 +116,17 @@ export const AppTopbar: React.FC<AppTopbarProps> = ({ onMenuClick, isNarrow }) =
       <NotificationCenter />
       <LanguageSwitcher color="inherit" size="small" />
       <UserMenu variant="avatar" />
+      {/* One-tap sign-out beside the account pill — the menu's Sign Out stays
+          as the discoverable path, this is the direct one. */}
+      <Tooltip title={logoutLabel}>
+        <IconButton
+          aria-label={logoutLabel}
+          onClick={handleLogout}
+          sx={{ flexShrink: 0, color: 'text.secondary' }}
+        >
+          <LogoutIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
     </Box>
   );
 };

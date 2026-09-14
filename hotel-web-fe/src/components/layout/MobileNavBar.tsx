@@ -22,8 +22,8 @@ const MORE_VALUE = '__more';
  * an Ops slot that prefers Rooms and falls back to Housekeeping — plus More,
  * which opens a bottom sheet with every remaining accessible module. Item
  * visibility reuses `canAccessNavigationRoute`, so the bar never shows a
- * module the sidebar would hide. The hamburger drawer remains as the
- * full-menu escape hatch.
+ * module the sidebar would hide. This bar is the only navigation below `md` —
+ * there is no drawer.
  */
 export const MobileNavBar: React.FC = () => {
   const { hasPermission, hasRole, getRoutePolicy } = useAuth();
