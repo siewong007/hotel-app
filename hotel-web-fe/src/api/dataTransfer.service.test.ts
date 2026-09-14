@@ -184,8 +184,6 @@ describe('DataTransferService', () => {
         headers: {
           [SKIP_HEADER]: 'true',
           'content-type': 'application/octet-stream',
-          // Header values must be Latin-1 — the name travels percent-encoded.
-          'x-file-name': encodeURIComponent('backup file.json'),
         },
         timeout: false,
       });

@@ -85,9 +85,8 @@ export class DataTransferService {
   }
 
   /**
-   * Stage a backup file for import. The body is the raw file (the server
-   * streams it straight to disk; `x-file-name` carries the original name,
-   * percent-encoded because header values must be Latin-1).
+   * Stage a backup file for import. The body is the raw file — the server
+   * streams it straight to disk and names the staged file itself.
    */
   static async uploadBackup(file: File): Promise<UploadResponse> {
     try {
@@ -97,7 +96,6 @@ export class DataTransferService {
           headers: {
             ...SKIP_NOTIFICATION,
             'content-type': 'application/octet-stream',
-            'x-file-name': encodeURIComponent(file.name),
           },
           timeout: false,
         })

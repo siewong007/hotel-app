@@ -51,7 +51,9 @@ export function useImportJob(jobId: string | null, refetchIntervalMs = 1500) {
     queryFn: () => DataTransferService.getImportJob(jobId as string),
     enabled: jobId !== null,
     refetchInterval: (query) =>
-      query.state.data?.status === 'running' ? refetchIntervalMs : false,
+      query.state.data == null || query.state.data.status === 'running'
+        ? refetchIntervalMs
+        : false,
   });
 }
 
