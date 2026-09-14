@@ -162,6 +162,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
+            type="tel"
             label="Contact Phone"
             value={createFormData.contact_phone || ''}
             onChange={(e) => setCreateFormData({ ...createFormData, contact_phone: e.target.value })}

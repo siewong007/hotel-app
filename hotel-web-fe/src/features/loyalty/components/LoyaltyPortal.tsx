@@ -58,6 +58,8 @@ import {
   useUpdateLoyaltyRules,
 } from '../hooks/useLoyaltyAdmin';
 import { useLoyaltySocket } from '../hooks/useLoyaltySocket';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
 const fmt = (n: number | null | undefined): string =>
   typeof n === 'number' ? n.toLocaleString() : '—';
@@ -168,6 +170,7 @@ const OverviewTab: React.FC = () => {
 // ---------------------------------------------------------------------------
 
 const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => void }> = ({ memberId, onClose }) => {
+  const isPhone = useIsPhone();
   const detailQuery = useLoyaltyMemberDetail(memberId);
   const giftPoints = useGiftPoints();
   const [points, setPoints] = useState('');
@@ -273,6 +276,36 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
               <Typography variant="subtitle2" gutterBottom>
                 Recent activity
               </Typography>
+              {isPhone ? (
+                <Box>
+                  {detail.recent_activity.length === 0 ? (
+                    <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                      No activity yet
+                    </Typography>
+                  ) : (
+                    detail.recent_activity.map((t) => (
+                      <Box
+                        key={t.id}
+                        sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+                      >
+                        <MobileCardRow
+                          title={t.transaction_type}
+                          subtitle={fmtDateTime(t.created_at)}
+                          meta={`${t.description ?? '—'} · balance ${fmt(t.balance_after)}`}
+                          status={
+                            <Typography
+                              variant="body2"
+                              sx={{ fontWeight: 700, color: t.points_delta < 0 ? 'error.main' : 'success.main' }}
+                            >
+                              {t.points_delta > 0 ? `+${fmt(t.points_delta)}` : fmt(t.points_delta)}
+                            </Typography>
+                          }
+                        />
+                      </Box>
+                    ))
+                  )}
+                </Box>
+              ) : (
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -307,6 +340,7 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
                   </TableBody>
                 </Table>
               </TableContainer>
+              )}
             </Box>
           </Stack>
         )}
@@ -319,6 +353,7 @@ const MemberDetailDialog: React.FC<{ memberId: number | null; onClose: () => voi
 };
 
 const MembersTab: React.FC = () => {
+  const isPhone = useIsPhone();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'' | LoyaltyMemberStatus>('');
   const [selected, setSelected] = useState<number | null>(null);
@@ -353,6 +388,36 @@ const MembersTab: React.FC = () => {
         <Loading />
       ) : membersQuery.error ? (
         <Alert severity="error">{errMessage(membersQuery.error, 'Failed to load members')}</Alert>
+      ) : isPhone ? (
+        <Paper variant="outlined">
+          {members.length === 0 ? (
+            <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 4 }}>
+              No members found
+            </Typography>
+          ) : (
+            members.map((m) => (
+              <Box
+                key={m.id}
+                sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+              >
+                <MobileCardRow
+                  title={m.guest_name}
+                  subtitle={`#${m.member_number} · ${m.tier_name}${m.guest_email || m.guest_phone ? ` · ${m.guest_email ?? m.guest_phone}` : ''}`}
+                  meta={`${fmt(m.available_points)} pts available · ${fmt(m.lifetime_points)} lifetime · enrolled ${fmtDate(m.enrolled_at)}`}
+                  status={
+                    <Chip
+                      size="small"
+                      label={m.status}
+                      color={m.status === 'active' ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                  }
+                  onClick={() => setSelected(m.id)}
+                />
+              </Box>
+            ))
+          )}
+        </Paper>
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -588,6 +653,7 @@ const RewardDialog: React.FC<{
 };
 
 const RewardsTab: React.FC = () => {
+  const isPhone = useIsPhone();
   const [includeInactive, setIncludeInactive] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminLoyaltyReward | null>(null);
@@ -624,6 +690,36 @@ const RewardsTab: React.FC = () => {
         <Loading />
       ) : rewardsQuery.error ? (
         <Alert severity="error">{errMessage(rewardsQuery.error, 'Failed to load rewards')}</Alert>
+      ) : isPhone ? (
+        <Paper variant="outlined">
+          {rewards.length === 0 ? (
+            <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 4 }}>
+              No rewards configured
+            </Typography>
+          ) : (
+            rewards.map((r) => (
+              <Box
+                key={r.id}
+                sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+              >
+                <MobileCardRow
+                  title={r.name}
+                  subtitle={`${r.category} · ${fmt(r.points_cost)} pts`}
+                  meta={`${r.minimum_tier_name ?? 'Any tier'} · ${r.requires_approval ? 'Approval required' : 'No approval'} · ${r.inventory_count != null ? fmt(r.inventory_count) : '∞'} in stock`}
+                  status={
+                    <Chip
+                      size="small"
+                      label={r.is_active ? 'active' : 'inactive'}
+                      color={r.is_active ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                  }
+                  onClick={() => openEdit(r)}
+                />
+              </Box>
+            ))
+          )}
+        </Paper>
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
@@ -679,6 +775,7 @@ const RewardsTab: React.FC = () => {
 // ---------------------------------------------------------------------------
 
 const RedemptionsTab: React.FC = () => {
+  const isPhone = useIsPhone();
   const [status, setStatus] = useState<'' | LoyaltyRedemptionStatus>('pending');
   const params = useMemo(() => ({ status: status || undefined }), [status]);
   const redemptionsQuery = useLoyaltyRedemptions(params);
@@ -732,6 +829,59 @@ const RedemptionsTab: React.FC = () => {
         <Loading />
       ) : redemptionsQuery.error ? (
         <Alert severity="error">{errMessage(redemptionsQuery.error, 'Failed to load redemptions')}</Alert>
+      ) : isPhone ? (
+        <Paper variant="outlined">
+          {redemptions.length === 0 ? (
+            <Typography variant="body2" align="center" sx={{ color: 'text.secondary', py: 4 }}>
+              No redemptions
+            </Typography>
+          ) : (
+            redemptions.map((r) => (
+              <Box
+                key={r.id}
+                sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+              >
+                <MobileCardRow
+                  title={r.guest_name}
+                  subtitle={`${r.reward_name} · ${fmt(r.points_spent)} pts`}
+                  meta={`${r.member_number} · ${fmtDateTime(r.requested_at)}`}
+                  status={
+                    <Tooltip title={r.rejection_reason ?? ''} disableHoverListener={!r.rejection_reason}>
+                      <Chip size="small" label={r.status} color={REDEMPTION_STATUS_COLOR[r.status]} variant="outlined" />
+                    </Tooltip>
+                  }
+                  footer={
+                    r.status === 'pending' ? (
+                      <>
+                        <Button
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          disabled={approve.isPending}
+                          onClick={() => handleApprove(r.id)}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          onClick={() => {
+                            setRejectTarget(r);
+                            setRejectReason('');
+                            setActionError('');
+                          }}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    ) : undefined
+                  }
+                />
+              </Box>
+            ))
+          )}
+        </Paper>
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">

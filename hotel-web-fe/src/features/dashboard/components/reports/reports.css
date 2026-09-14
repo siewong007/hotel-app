@@ -352,3 +352,24 @@
 
 .salim-reports-drawer .dw-body::-webkit-scrollbar { width: 8px; }
 .salim-reports-drawer .dw-body::-webkit-scrollbar-thumb { background: var(--hotel-scrollbar-thumb); border-radius: 100px; }
+
+/* ---------- PHONE ---------- */
+@media (max-width: 640px) {
+  .salim-reports .ph { gap: 12px; }
+  .salim-reports .ph-left h1 { font-size: 21px; }
+  .salim-reports .filters { padding: 10px; gap: 6px; }
+  .salim-reports .cmp { width: 100%; justify-content: space-between; margin-top: 4px; }
+  .salim-reports .seg { flex: 1; }
+  .salim-reports .seg button { flex: 1; }
+  .salim-reports .livetile { padding: 12px 14px; }
+  .salim-reports .lt-n { font-size: 22px; }
+  .salim-reports .barrow,
+  .salim-reports-drawer .barrow { grid-template-columns: 96px 1fr auto; gap: 8px; }
+  .salim-reports .donut-wrap { flex-direction: column; align-items: center; }
+}
+@media (pointer: coarse) {
+  .salim-reports .fpill, .salim-reports .btn, .salim-reports .role-pill { min-height: 44px; }
+  .salim-reports .seg button { padding: 9px 11px; }
+  .salim-reports-drawer .dw-h .x { width: 44px; height: 44px; }
+}
+.salim-reports-drawer .dw-foot { padding-bottom: calc(13px + env(safe-area-inset-bottom, 0px)); }

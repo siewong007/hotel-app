@@ -9,7 +9,7 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Extension, Router,
-    extract::{Path, Query, State},
+    extract::{DefaultBodyLimit, Path, Query, State},
     http::{HeaderMap, Method, Request},
     middleware,
     middleware::Next,
@@ -33,6 +33,15 @@ pub fn routes() -> Router<DbPool> {
         .route("/room-types/{id}", get(get_room_type))
         .route("/room-types/{id}", patch(update_room_type))
         .route("/room-types/{id}", delete(delete_room_type))
+        // Per-route body cap: axum's Multipart extractor honors the 2MB
+        // DefaultBodyLimit, which would reject phone photos before the
+        // handler's own size check runs (same trap as routes/guest_portal.rs).
+        .route(
+            "/room-types/{id}/images",
+            post(upload_room_type_image).layer(DefaultBodyLimit::max(
+                crate::services::rooms::MAX_ROOM_IMAGE_BYTES,
+            )),
+        )
         .route("/rooms/{room_type}/reviews", get(get_room_reviews))
         // Status and events
         .route("/rooms/{id}/status", put(update_room_status))
@@ -158,6 +167,15 @@ async fn update_room_type(
     Json(input): Json<models::RoomTypeUpdateInput>,
 ) -> Result<Json<models::RoomType>, ApiError> {
     handlers::rooms::update_room_type_handler(State(pool), path, headers, Json(input)).await
+}
+
+async fn upload_room_type_image(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    multipart: axum::extract::Multipart,
+) -> Result<Json<models::RoomType>, ApiError> {
+    handlers::rooms::upload_room_type_image_handler(State(pool), headers, path, multipart).await
 }
 
 async fn delete_room_type(

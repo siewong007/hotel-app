@@ -1,5 +1,6 @@
 import {
   Box,
+  Button,
   Chip,
   FormControl,
   InputAdornment,
@@ -12,9 +13,11 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import EmptyState from '../../../components/common/EmptyState';
 import StatusChip from '../../../components/common/StatusChip';
+import { FilterSheet } from '../../../components/common/FilterSheet';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 import { formatStatusLabel } from '../../../utils/formatters';
 import type { HousekeepingBoardRoom } from '../../../types/housekeeping.types';
 import {
@@ -135,92 +138,127 @@ export default function BoardView({
     (filters.attentionOnly ? 1 : 0);
 
   const set = (patch: Partial<BoardFilters>) => onFiltersChange({ ...filters, ...patch });
+  const isPhone = useIsPhone();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const secondaryFilters = (
+    <>
+      <FormControl size="small" fullWidth={isPhone} sx={{ minWidth: isPhone ? 0 : 110 }}>
+        <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
+        <Select
+          labelId="housekeeping-floor-filter"
+          label="Floor"
+          value={filters.floor}
+          onChange={(event) => set({ floor: event.target.value })}
+        >
+          <MenuItem value="all">All floors</MenuItem>
+          {floors.map((floor) => (
+            <MenuItem key={floor} value={String(floor)}>
+              Floor {floor}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <FormControl size="small" fullWidth={isPhone} sx={{ minWidth: isPhone ? 0 : 140 }}>
+        <InputLabel id="housekeeping-status-filter">Room status</InputLabel>
+        <Select
+          labelId="housekeeping-status-filter"
+          label="Room status"
+          value={filters.status}
+          onChange={(event) => set({ status: event.target.value })}
+        >
+          <MenuItem value="all">All statuses</MenuItem>
+          {statuses.map((status) => (
+            <MenuItem key={status} value={status}>
+              {formatStatusLabel(status)}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <FormControl size="small" fullWidth={isPhone} sx={{ minWidth: isPhone ? 0 : 130 }}>
+        <InputLabel id="housekeeping-priority-filter">Priority</InputLabel>
+        <Select
+          labelId="housekeeping-priority-filter"
+          label="Priority"
+          value={filters.priority}
+          onChange={(event) => set({ priority: event.target.value })}
+        >
+          <MenuItem value="all">All priorities</MenuItem>
+          {PRIORITIES.map((priority) => (
+            <MenuItem key={priority} value={priority}>
+              {formatStatusLabel(priority)}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+      <Chip
+        label="Needs attention"
+        color={filters.attentionOnly ? 'primary' : 'default'}
+        variant={filters.attentionOnly ? 'filled' : 'outlined'}
+        onClick={() => set({ attentionOnly: !filters.attentionOnly })}
+        aria-pressed={filters.attentionOnly}
+        sx={{ fontWeight: 600 }}
+      />
+      {activeFilterCount > 0 ? (
+        <Chip
+          label={`Clear (${activeFilterCount})`}
+          variant="outlined"
+          onDelete={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
+          onClick={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
+        />
+      ) : null}
+    </>
+  );
+
+  const searchField = (
+    <TextField
+      size="small"
+      placeholder="Search room, type or assignee…"
+      value={filters.search}
+      onChange={(event) => set({ search: event.target.value })}
+      slotProps={{
+        htmlInput: { 'aria-label': 'Search rooms' },
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon fontSize="small" />
+            </InputAdornment>
+          ),
+        },
+      }}
+      sx={{ minWidth: { xs: '100%', sm: 220 } }}
+    />
+  );
 
   return (
     <Stack spacing={2}>
-      <Stack direction="row" spacing={1.25} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
-        <TextField
-          size="small"
-          placeholder="Search room, type or assignee…"
-          value={filters.search}
-          onChange={(event) => set({ search: event.target.value })}
-          slotProps={{
-            htmlInput: { 'aria-label': 'Search rooms' },
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-          sx={{ minWidth: { xs: '100%', sm: 220 } }}
-        />
-        <FormControl size="small" sx={{ minWidth: 110 }}>
-          <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
-          <Select
-            labelId="housekeeping-floor-filter"
-            label="Floor"
-            value={filters.floor}
-            onChange={(event) => set({ floor: event.target.value })}
+      {isPhone ? (
+        <>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>{searchField}</Box>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => setFiltersOpen(true)}
+              sx={{ whiteSpace: 'nowrap', minHeight: 40 }}
+            >
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </Button>
+          </Stack>
+          <FilterSheet
+            open={filtersOpen}
+            onClose={() => setFiltersOpen(false)}
+            onReset={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
           >
-            <MenuItem value="all">All floors</MenuItem>
-            {floors.map((floor) => (
-              <MenuItem key={floor} value={String(floor)}>
-                Floor {floor}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl size="small" sx={{ minWidth: 140 }}>
-          <InputLabel id="housekeeping-status-filter">Room status</InputLabel>
-          <Select
-            labelId="housekeeping-status-filter"
-            label="Room status"
-            value={filters.status}
-            onChange={(event) => set({ status: event.target.value })}
-          >
-            <MenuItem value="all">All statuses</MenuItem>
-            {statuses.map((status) => (
-              <MenuItem key={status} value={status}>
-                {formatStatusLabel(status)}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <FormControl size="small" sx={{ minWidth: 130 }}>
-          <InputLabel id="housekeeping-priority-filter">Priority</InputLabel>
-          <Select
-            labelId="housekeeping-priority-filter"
-            label="Priority"
-            value={filters.priority}
-            onChange={(event) => set({ priority: event.target.value })}
-          >
-            <MenuItem value="all">All priorities</MenuItem>
-            {PRIORITIES.map((priority) => (
-              <MenuItem key={priority} value={priority}>
-                {formatStatusLabel(priority)}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Chip
-          label="Needs attention"
-          color={filters.attentionOnly ? 'primary' : 'default'}
-          variant={filters.attentionOnly ? 'filled' : 'outlined'}
-          onClick={() => set({ attentionOnly: !filters.attentionOnly })}
-          aria-pressed={filters.attentionOnly}
-          sx={{ fontWeight: 600 }}
-        />
-        {activeFilterCount > 0 ? (
-          <Chip
-            label={`Clear (${activeFilterCount})`}
-            variant="outlined"
-            onDelete={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
-            onClick={() => onFiltersChange(EMPTY_BOARD_FILTERS)}
-          />
-        ) : null}
-      </Stack>
+            {secondaryFilters}
+          </FilterSheet>
+        </>
+      ) : (
+        <Stack direction="row" spacing={1.25} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+          {searchField}
+          {secondaryFilters}
+        </Stack>
+      )}
 
       {isLoading ? (
         <BoardSkeleton />

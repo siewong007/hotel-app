@@ -360,6 +360,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
+                  type="tel"
                   label="Phone"
                   name="phone"
                   value={formData.phone}

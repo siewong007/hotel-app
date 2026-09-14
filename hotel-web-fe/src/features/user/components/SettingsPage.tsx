@@ -619,6 +619,7 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
+                type="tel"
                 label="Contact Phone"
                 value={hotelPhone}
                 onChange={(e) => setHotelPhone(e.target.value)}

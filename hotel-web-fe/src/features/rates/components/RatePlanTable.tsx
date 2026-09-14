@@ -18,6 +18,8 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { DOW_FLAGS } from '../constants';
 import type { RatePlan } from '../types';
 import { formatHotelDate } from '../../../utils/date';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
 export interface RatePlanTableProps {
   plans: RatePlan[];
@@ -38,7 +40,73 @@ export const RatePlanTable = ({
   onEdit,
   onToggleActive,
   onDelete,
-}: RatePlanTableProps) => (
+}: RatePlanTableProps) => {
+  const isPhone = useIsPhone();
+
+  if (isPhone) {
+    return (
+      <Box>
+        {plans.map((plan) => {
+          const days = dowChips(plan);
+          return (
+            <Box
+              key={plan.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={plan.name}
+                subtitle={`${plan.code} · ${plan.plan_type} · ${plan.adjustment_value ? `${plan.adjustment_type} ${plan.adjustment_value}` : plan.adjustment_type}`}
+                meta={`${plan.valid_from ? formatHotelDate(plan.valid_from) : '—'} → ${plan.valid_to ? formatHotelDate(plan.valid_to) : '—'} · ${days.length === 7 ? 'All days' : days.join(' ')} · ${plan.min_nights}${plan.max_nights ? `/${plan.max_nights}` : ''} nights`}
+                status={
+                  <Chip
+                    size="small"
+                    label={plan.is_active ? 'Active' : 'Inactive'}
+                    color={plan.is_active ? 'success' : 'default'}
+                    variant="outlined"
+                  />
+                }
+                footer={
+                  <>
+                    <Switch
+                      size="small"
+                      checked={plan.is_active}
+                      disabled={!canManage}
+                      onChange={(event) => onToggleActive(plan, event.target.checked)}
+                      slotProps={{ input: { 'aria-label': `Toggle ${plan.name}` } }}
+                    />
+                    {canManage ? (
+                      <>
+                        <Tooltip title="Edit plan">
+                          <IconButton
+                            size="small"
+                            aria-label={`Edit ${plan.name}`}
+                            onClick={() => onEdit(plan)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete plan">
+                          <IconButton
+                            size="small"
+                            aria-label={`Delete ${plan.name}`}
+                            onClick={() => onDelete(plan)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    ) : null}
+                  </>
+                }
+              />
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  }
+
+  return (
   <TableContainer>
     <Table size="small">
       <TableHead>
@@ -121,4 +189,5 @@ export const RatePlanTable = ({
       </TableBody>
     </Table>
   </TableContainer>
-);
+  );
+};

@@ -300,6 +300,9 @@
     "/api/booking/reservations": {
       "POST": {}
     },
+    "/api/booking/room-types": {
+      "GET": {}
+    },
     "/api/bookings": {
       "GET": {},
       "POST": {}
@@ -892,6 +895,9 @@
       "DELETE": {},
       "GET": {},
       "PATCH": {}
+    },
+    "/api/room-types/{id}/images": {
+      "POST": {}
     },
     "/api/rooms": {
       "GET": {},

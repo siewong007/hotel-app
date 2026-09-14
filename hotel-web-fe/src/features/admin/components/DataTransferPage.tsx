@@ -93,6 +93,8 @@ import { BookingDataExport, ImportResult } from '../../../api';
 import type { ImportMode } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { useExportDataMutation, useExportPreviewMutation, useImportDataMutation } from '../hooks/useDataTransferQueries';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { formatLocalDate } from '../../../utils/date';
 import { storage } from '../../../utils/storage';
 import {
@@ -220,6 +222,7 @@ function assignCategoryRows<K extends CategoryId>(
 }
 
 const DataTransferPage: React.FC = () => {
+  const isPhone = useIsPhone();
   const theme = useTheme();
   const { hasPermission, user } = useAuth();
 
@@ -1072,6 +1075,29 @@ const DataTransferPage: React.FC = () => {
         <Box sx={{ p: 6, textAlign: 'center', color: 'text.secondary' }}>
           <HistoryIcon sx={{ fontSize: 40, opacity: 0.4, mb: 1 }} />
           <Typography variant="body2">No transfers recorded yet.</Typography>
+        </Box>
+      ) : isPhone ? (
+        <Box>
+          {history.map((h) => (
+            <Box
+              key={h.id}
+              sx={{ borderBottom: `1px solid ${theme.palette.divider}`, '&:last-child': { borderBottom: 0 } }}
+            >
+              <MobileCardRow
+                title={h.type === 'import' ? `Import${h.mode === 'overwrite' ? ' (overwrite)' : ''}` : 'Export'}
+                subtitle={h.categories}
+                meta={`${formatNum(h.records)} records · ${h.by} · ${formatWhen(h.at)}${h.error ? ` · ${h.error}` : ''}`}
+                status={
+                  <Chip
+                    label={h.status === 'success' ? 'Success' : h.status === 'partial' ? 'Partial' : 'Failed'}
+                    size="small"
+                    color={h.status === 'success' ? 'success' : h.status === 'partial' ? 'warning' : 'error'}
+                    sx={{ height: 20, fontSize: 11, fontWeight: 700 }}
+                  />
+                }
+              />
+            </Box>
+          ))}
         </Box>
       ) : (
         <TableContainer>

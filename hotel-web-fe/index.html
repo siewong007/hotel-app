@@ -2,11 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link id="app-favicon" rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
+    <link id="app-favicon" rel="icon" type="image/png" href="/favicon.png" />
+    <!-- viewport-fit=cover lets the layout use the full screen on notched
+         phones; safe-area insets are published as --sat/--sab/--sal/--sar in
+         index.css and consumed by the mobile nav, FAB, and sheets. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0E13" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Hotel Management System - Web Frontend" />
-    <link rel="apple-touch-icon" href="/logo192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <title>Hotel ERP System</title>
     <script src="/guest-branding.js"></script>

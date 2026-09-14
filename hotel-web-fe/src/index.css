@@ -1,6 +1,21 @@
 
+/* iOS safe-area insets as custom properties — consume with var(--sab) etc.
+   Only non-zero on notched devices and only when index.html sets
+   viewport-fit=cover. */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
 body {
   margin: 0;
+  /* Last-resort fuse: the page itself must never scroll horizontally on a
+     phone. `clip` (unlike `hidden`) does not create a scroll container, so
+     position:sticky descendants keep working; inner scroll regions are
+     unaffected. */
+  overflow-x: clip;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;

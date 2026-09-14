@@ -333,7 +333,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
             <TextField label="Nationality" fullWidth value={form.nationality} onChange={(e) => set('nationality', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Phone" fullWidth value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+            <TextField label="Phone" type="tel" fullWidth value={form.phone} onChange={(e) => set('phone', e.target.value)} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField label="Email" type="email" fullWidth value={form.email} onChange={(e) => set('email', e.target.value)} />

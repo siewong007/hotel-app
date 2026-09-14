@@ -15,6 +15,10 @@ pub fn routes() -> Router<DbPool> {
         // credits or loyalty, all of which belong to an account. Each is rate
         // limited by origin IP inside the handler, the only identity available.
         .route("/booking/offers", get(handlers::public_search_handler))
+        .route(
+            "/booking/room-types",
+            get(handlers::public_room_types_handler),
+        )
         .route("/booking/quote", post(handlers::public_quote_handler))
         .route(
             "/booking/reservations",

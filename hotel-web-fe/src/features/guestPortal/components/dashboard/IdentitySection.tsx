@@ -331,7 +331,7 @@ export function IdentitySection({ token }: { token: string }) {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth required label="Phone"
+                fullWidth required type="tel" label="Phone"
                 value={fields.phone} onChange={setField('phone')}
                 error={Boolean(errorFor('phone'))} helperText={errorFor('phone')}
               />

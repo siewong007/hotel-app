@@ -6,6 +6,8 @@ import { isPublicGuestPath } from '../guest/guestDocumentPaths';
 import { CrossAppRedirect } from '../guest/CrossAppRedirect';
 import { AppSidebar } from '../components/layout/sidebar/AppSidebar';
 import { AppTopbar } from '../components/layout/AppTopbar';
+import { MobileNavBar } from '../components/layout/MobileNavBar';
+import { MobileQuickActions } from '../components/layout/MobileQuickActions';
 import { CommandPaletteProvider } from '../components/layout/CommandPalette';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
@@ -165,7 +167,16 @@ export const RootLayout: React.FC = () => {
           <Container
             component="main"
             maxWidth="xl"
-            sx={{ mt: boardSkinActive ? 3 : 4, mb: 4, px: { xs: 2, sm: 3 }, flex: 1, contain: 'layout style', isolation: 'isolate' }}
+            sx={{
+              mt: boardSkinActive ? 3 : 4,
+              mb: 4,
+              px: { xs: 2, sm: 3 },
+              // Keep the page end clear of the fixed bottom nav (<md).
+              pb: { xs: 'calc(84px + var(--sab))', md: 0 },
+              flex: 1,
+              contain: 'layout style',
+              isolation: 'isolate',
+            }}
           >
             <PageErrorBoundary>
               <Suspense fallback={<LoadingFallback />}>
@@ -174,6 +185,9 @@ export const RootLayout: React.FC = () => {
             </PageErrorBoundary>
           </Container>
         </Box>
+
+        <MobileNavBar />
+        <MobileQuickActions />
 
         <Suspense fallback={<MinimalLoadingFallback />}>
           <FirstLoginPasskeyPrompt

@@ -139,5 +139,20 @@
     "expandSidebar": "Expand sidebar",
     "breadcrumbs": "Breadcrumbs",
     "userMenu": "Account menu"
+  },
+  "mobile": {
+    "primary": "Primary navigation",
+    "more": "More",
+    "menu": "Menu",
+    "quickActions": "Quick actions",
+    "newBooking": "New booking",
+    "search": "Search",
+    "todaysArrivals": "Today's arrivals",
+    "todaysDepartures": "Today's departures",
+    "roomStatus": "Room status",
+    "newTask": "New task",
+    "reportIssue": "Report issue",
+    "newGuest": "New guest",
+    "collectPayment": "Collect payment"
   }
 }

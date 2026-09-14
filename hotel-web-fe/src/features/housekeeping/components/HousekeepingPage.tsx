@@ -13,7 +13,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from '../../../router';
 import PageHeader from '../../../components/common/PageHeader';
 import StatStrip from '../../../components/common/StatStrip';
 import { getTabA11yProps, TabPanel } from '../../../components/common/TabPanel';
@@ -73,6 +74,24 @@ export default function HousekeepingPage() {
   const [detailRoom, setDetailRoom] = useState<HousekeepingBoardRoom | null>(null);
   const [statusRoom, setStatusRoom] = useState<HousekeepingBoardRoom | null>(null);
   const [ticketRoom, setTicketRoom] = useState<HousekeepingBoardRoom | null | undefined>(undefined);
+
+  // Deep links: ?tab=tasks|maintenance picks the tab (mobile quick actions);
+  // ?create=task|ticket opens the matching dialog directly.
+  const [pageSearchParams, setPageSearchParams] = useSearchParams();
+  const routedTab = pageSearchParams.get('tab') || '';
+  const routedCreate = pageSearchParams.get('create') || '';
+  useEffect(() => {
+    if (routedTab === 'tasks') setTab(1);
+    else if (routedTab === 'maintenance' && canViewMaintenance) setTab(2);
+  }, [routedTab, canViewMaintenance]);
+  useEffect(() => {
+    if (!routedCreate) return;
+    if (routedCreate === 'task' && canCreate) setNewTaskRoom(null);
+    else if (routedCreate === 'ticket' && canWriteMaintenance) setTicketRoom(null);
+    const next = new URLSearchParams(pageSearchParams);
+    next.delete('create');
+    setPageSearchParams(next, { replace: true });
+  }, [routedCreate, canCreate, canWriteMaintenance, pageSearchParams, setPageSearchParams]);
 
   const boardQuery = useHousekeepingBoard();
   const createTask = useCreateHousekeepingTask();

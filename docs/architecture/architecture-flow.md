@@ -31,8 +31,9 @@ port through Tauri IPC. The sidecar receives an explicit `ALLOWED_ORIGINS` list.
 
 ## PostgreSQL V1 lifecycle
 
-A new empty database is initialized exactly once, then converged by an ordered
-patch catalog:
+A new empty database is initialized exactly once; an ordered patch catalog
+carries any later schema changes (the catalog is currently empty — the
+original 1.2–1.23 lineage was folded into the baseline):
 
 ```text
 database/postgres/migrations/0001_v1_baseline.sql

@@ -23,6 +23,10 @@ export { default as DateText, DateRangeText } from './common/DateText';
 export type { DateTextProps, DateRangeTextProps } from './common/DateText';
 export { default as EmptyState } from './common/EmptyState';
 export type { EmptyStateProps } from './common/EmptyState';
+export { BottomSheet } from './common/BottomSheet';
+export type { BottomSheetProps } from './common/BottomSheet';
+export { FilterSheet } from './common/FilterSheet';
+export type { FilterSheetProps } from './common/FilterSheet';
 export { default as PageHeader } from './common/PageHeader';
 export type { PageHeaderProps } from './common/PageHeader';
 export { default as StatStrip } from './common/StatStrip';
@@ -31,3 +35,5 @@ export type { StatStripProps, StatStripItem } from './common/StatStrip';
 // Data table primitives
 export { DataTable } from './data-table/DataTable';
 export type { DataTableProps, ColumnDef } from './data-table/DataTable';
+export { MobileCardRow } from './data-table/MobileCardRow';
+export type { MobileCardRowProps } from './data-table/MobileCardRow';

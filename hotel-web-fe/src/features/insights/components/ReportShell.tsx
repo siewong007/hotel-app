@@ -19,6 +19,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import type { KpiFormat, ReportEnvelope, ReportKpi } from '../types';
 import { formatCurrency } from '../../../utils/currency';
 import { printReportEnvelope } from '../utils/reportEnvelopePrint';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 
 const formatValue = (value: unknown, format: KpiFormat): string => {
   if (value == null) return '—';
@@ -64,6 +65,8 @@ export interface ReportShellProps {
  * states are consistent.
  */
 export function ReportShell({ envelope, loading, error, toolbar }: ReportShellProps) {
+  const isPhone = useIsPhone();
+
   return (
     <Box>
       {toolbar}
@@ -109,6 +112,48 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                 {section.title}
               </Typography>
               <Card variant="outlined">
+                {isPhone ? (
+                  <Box sx={{ px: 2 }}>
+                    {section.rows.length === 0 && (
+                      <Typography
+                        variant="body2"
+                        sx={{ color: 'text.secondary', py: 3, textAlign: 'center' }}
+                      >
+                        No rows for this period
+                      </Typography>
+                    )}
+                    {section.rows.map((row, i) => (
+                      <Box
+                        key={i}
+                        sx={{
+                          py: 1.25,
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          '&:last-child': { borderBottom: 0 },
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {section.columns[0]
+                            ? formatValue(row[section.columns[0].key], section.columns[0].format)
+                            : ''}
+                        </Typography>
+                        {section.columns.slice(1).map((col) => (
+                          <Box
+                            key={col.key}
+                            sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mt: 0.25 }}
+                          >
+                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                              {col.label}
+                            </Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600, textAlign: 'right' }}>
+                              {formatValue(row[col.key], col.format)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
                 <Table size="small">
                   {section.columns.length > 0 && (
                     <TableHead>
@@ -142,6 +187,7 @@ export function ReportShell({ envelope, loading, error, toolbar }: ReportShellPr
                     ))}
                   </TableBody>
                 </Table>
+                )}
               </Card>
             </Box>
           ))}

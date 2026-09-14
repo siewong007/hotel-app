@@ -139,5 +139,20 @@
     "expandSidebar": "Kembangkan bar sisi",
     "breadcrumbs": "Breadcrumbs",
     "userMenu": "Menu akaun"
+  },
+  "mobile": {
+    "primary": "Navigasi utama",
+    "more": "Lagi",
+    "menu": "Menu",
+    "quickActions": "Tindakan pantas",
+    "newBooking": "Tempahan baharu",
+    "search": "Cari",
+    "todaysArrivals": "Ketibaan hari ini",
+    "todaysDepartures": "Berlepas hari ini",
+    "roomStatus": "Status bilik",
+    "newTask": "Tugas baharu",
+    "reportIssue": "Lapor isu",
+    "newGuest": "Tetamu baharu",
+    "collectPayment": "Kutip bayaran"
   }
 }

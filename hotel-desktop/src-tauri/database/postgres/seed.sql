@@ -88,6 +88,7 @@ VALUES
     ('guests:delete'),
     ('guests:manage'),
     ('guests:read'),
+    ('guests:reveal'),
     ('guests:update'),
     ('housekeeping:create'),
     ('housekeeping:manage'),
@@ -105,6 +106,8 @@ VALUES
     ('maintenance:write'),
     ('navigation_housekeeping:read'),
     ('navigation_promotions:read'),
+    ('navigation_revenue:read'),
+    ('navigation_segments:read'),
     ('night_audit:execute'),
     ('night_audit:read'),
     ('payments:approve'),
@@ -119,6 +122,7 @@ VALUES
     ('permissions:manage'),
     ('permissions:read'),
     ('permissions:update'),
+    ('promotions:approve'),
     ('promotions:manage'),
     ('promotions:read'),
     ('communications:read'),
@@ -128,6 +132,7 @@ VALUES
     ('navigation_communications:read'),
     ('reports:execute'),
     ('reports:read'),
+    ('revenue:read'),
     ('reviews:create'),
     ('reviews:delete'),
     ('reviews:manage'),
@@ -144,6 +149,8 @@ VALUES
     ('rooms:read'),
     ('rooms:update'),
     ('rooms:write'),
+    ('segments:manage'),
+    ('segments:read'),
     ('services:create'),
     ('services:delete'),
     ('services:manage'),
@@ -234,6 +241,7 @@ INSERT INTO expected_route_access_policies (route_id)
 VALUES
     ('audit-log'),
     ('bookings'),
+    ('campaigns'),
     ('communications'),
     ('company-ledger'),
     ('complimentary'),
@@ -242,20 +250,27 @@ VALUES
     ('ekyc'),
     ('ekyc-admin'),
     ('guest-config'),
+    ('guest-relations'),
+    ('guest-relations-detail'),
     ('help'),
     ('housekeeping'),
+    ('insights'),
+    ('jobs'),
     ('loyalty'),
     ('night-audit'),
     ('online-inventory'),
     ('payment-approvals'),
     ('profile'),
-    ('promotions'),
+    ('rates'),
     ('rbac'),
     ('reports'),
+    ('revenue'),
     ('room-config'),
     ('room-management'),
     ('settings'),
+    ('segments'),
     ('support'),
+    ('system-health'),
     ('teams'),
     ('timeline');
 
@@ -456,6 +471,7 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('navigation_support:read', 'navigation:support', 'read', 'Show Support navigation', true),
 ('promotions:read', 'promotions', 'read', 'View promotions and promotion performance', true),
 ('promotions:manage', 'promotions', 'manage', 'Create and manage promotions', true),
+('promotions:approve', 'promotions', 'approve', 'Approve and publish campaigns', true),
 ('vouchers:read', 'vouchers', 'read', 'View issued vouchers and redemptions', true),
 ('vouchers:manage', 'vouchers', 'manage', 'Issue, revoke, and manage vouchers', true),
 ('navigation_promotions:read', 'navigation:promotions', 'read', 'Show Promotions navigation', true),
@@ -464,6 +480,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('communications:send', 'communications', 'execute', 'Schedule, test-send, and send email campaigns', true),
 ('communications:manage', 'communications', 'manage', 'Full communications management including automation and suppressions', true),
 ('navigation_communications:read', 'navigation:communications', 'read', 'Show Communications navigation', true),
+('segments:read', 'segments', 'read', 'View guest segments and segment previews', true),
+('segments:manage', 'segments', 'manage', 'Create and manage guest segments', true),
+('navigation_segments:read', 'navigation:segments', 'read', 'Show Segments navigation', true),
+('revenue:read', 'revenue', 'read', 'View revenue performance, pricing, and occupancy analytics', true),
+('navigation_revenue:read', 'navigation:revenue', 'read', 'Show Revenue navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -525,7 +546,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('ekyc:manage_reason_codes', 'ekyc', 'manage_reason_codes', 'Manage eKYC reason codes', true),
 ('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', true),
 ('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', true),
-('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true)
+('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true),
+-- Mirrored by patch 0019 for databases installed before it existed. Kept last:
+-- patched databases append it after every prior seeded permission, so it must
+-- take the next identity value here too.
+('guests:reveal', 'guests', 'reveal', 'Reveal sensitive guest identification fields', true)
 ON CONFLICT (name) DO UPDATE SET
     description = EXCLUDED.description,
     resource = EXCLUDED.resource,
@@ -555,7 +580,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 -- Manager permissions
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager' AND p.name IN (
-    'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage',
+    'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage', 'guests:reveal',
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
     'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
     'support:read', 'support:write', 'support:assign', 'support:escalate', 'support:manage',
@@ -565,6 +590,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read',
+    'revenue:read', 'navigation_revenue:read',
     'teams:read', 'teams:assign', 'loyalty:read', 'loyalty:manage'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
@@ -737,10 +763,10 @@ INSERT INTO route_access_policies (
     is_system_policy
 )
 VALUES (
-    'promotions',
-    '/promotions',
-    'Promotions',
-    'admin',
+    'campaigns',
+    '/campaigns',
+    'Campaigns',
+    'revenue',
     '["promotions:read"]'::jsonb,
     '[]'::jsonb,
     '[]'::jsonb,
@@ -861,7 +887,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('report_caption_font_size', '13', 'number', 'reports', 'Caption and secondary label font size in pixels for generated reports', false),
 ('report_chip_font_size', '12', 'number', 'reports', 'Status chip font size in pixels for generated reports', false),
 ('support_enabled', 'true', 'boolean', 'support', 'Enable guest portal support conversations', false),
-('support_categories', '["booking","stay","billing","loyalty","technical","other"]', 'json', 'support', 'Guest-selectable support conversation categories', false),
+('support_categories', '["booking","stay","billing","loyalty","technical","other","service_request","complaint"]', 'json', 'support', 'Guest-selectable support conversation categories', false),
 ('support_first_response_low_minutes', '240', 'number', 'support', 'First-response SLA for low priority support conversations in minutes', false),
 ('support_first_response_normal_minutes', '60', 'number', 'support', 'First-response SLA for normal priority support conversations in minutes', false),
 ('support_first_response_high_minutes', '15', 'number', 'support', 'First-response SLA for high priority support conversations in minutes', false),
@@ -1077,6 +1103,14 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
         'Days a member of a role listed in require_two_factor_roles may sign in before two-factor enrolment is enforced. 0 enforces immediately.', false)
 ON CONFLICT (key) DO NOTHING;
 
+-- Record the seeded value as the default for every setting that does not
+-- already carry one. This runs inside the same transaction as the INSERTs, so
+-- on a fresh install `value` IS the seeded default. On desktop re-runs the
+-- IS NULL guard keeps a previously recorded default even when the hotel has
+-- since edited the live value. Changing a key's default later is deliberate
+-- work: update this seed and write a patch, exactly like changing the value.
+UPDATE system_settings SET default_value = value WHERE default_value IS NULL;
+
 -- This policy is part of the required route-policy set, so it must be present
 -- before the integrity checks below.
 INSERT INTO route_access_policies (
@@ -1115,6 +1149,10 @@ VALUES
     ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('insights', '/insights', 'Insights', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('revenue', '/revenue', 'Revenue', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('rates', '/rates', 'Rates', 'revenue', '["revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_revenue:read","revenue:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('segments', '/segments', 'Segments', 'revenue', '["segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["navigation_segments:read","segments:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["rooms:update","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('settings', '/settings', 'Settings', 'config', '["settings:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
@@ -1125,12 +1163,16 @@ VALUES
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
     ('loyalty', '/loyalty', 'Loyalty', 'admin', '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('system-health', '/system-health', 'System Health', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
+    ('jobs', '/jobs', 'Jobs', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true, true),
     ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('help', '/help', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
     ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false, true),
-    ('teams', '/teams', 'Teams', 'config', '["teams:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["teams:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true)
+    ('teams', '/teams', 'Teams', 'config', '["teams:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["teams:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('guest-relations', '/guest-relations/guests', 'Guest Relations', 'operations', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true, true),
+    ('guest-relations-detail', '/guest-relations/guests/$guestId', NULL, NULL, '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, false, true)
 ON CONFLICT (route_id) DO UPDATE SET
     path = EXCLUDED.path,
     nav_label = EXCLUDED.nav_label,
@@ -1485,120 +1527,17 @@ END $$;
 -- RATE PLANS
 -- ============================================================================
 
-DO $$
-BEGIN
-    IF (SELECT seed_property FROM v1_seed_state) THEN
-        INSERT INTO rate_plans (name, code, description, plan_type, adjustment_type, adjustment_value, valid_from, valid_to, is_active, priority)
-        VALUES
-            ('Complimentary Rate', 'COMP', 'Complimentary rate for special guests, VIPs, and promotional purposes', 'promotional', 'override', 0.00, '2023-01-01', '2026-12-31', true, 100),
-            ('Standard Rack Rate', 'RACK', 'Standard published rate for walk-in guests', 'standard', 'override', NULL, '2023-01-01', '2026-12-31', true, 50),
-            ('Corporate Rate', 'CORP', 'Discounted rate for corporate clients and business travelers', 'corporate', 'percentage', -20.00, '2023-01-01', '2026-12-31', true, 60),
-            ('Weekend Rate', 'WKND', 'Special rate for weekend stays (Friday-Sunday)', 'seasonal', 'percentage', 15.00, '2023-01-01', '2026-12-31', true, 55),
-            ('Early Bird Rate', 'EARLY', 'Discounted rate for bookings made 30+ days in advance', 'promotional', 'percentage', -30.00, '2023-01-01', '2026-12-31', true, 70),
-            ('Group Rate', 'GROUP', 'Special rate for group bookings (5+ rooms)', 'group', 'percentage', -25.00, '2023-01-01', '2026-12-31', true, 65)
-        ON CONFLICT (code) DO NOTHING;
-
-        UPDATE rate_plans SET
-            applies_monday = false, applies_tuesday = false, applies_wednesday = false, applies_thursday = false,
-            applies_friday = true, applies_saturday = true, applies_sunday = true
-        WHERE code = 'WKND';
-
-        UPDATE rate_plans SET min_advance_booking = 30 WHERE code = 'EARLY';
-        UPDATE rate_plans SET min_nights = 1 WHERE code = 'GROUP';
-    END IF;
-END $$;
-
--- ============================================================================
--- ROOM RATES - Prices for each rate plan and room type combination
--- ============================================================================
-
-DO $$
-DECLARE
-    comp_id BIGINT; rack_id BIGINT; corp_id BIGINT; wknd_id BIGINT; early_id BIGINT; group_id BIGINT;
-    std_id BIGINT; dlx_id BIGINT; ste_id BIGINT; fam_id BIGINT;
-BEGIN
-    IF NOT (SELECT seed_property FROM v1_seed_state) THEN
-        RETURN;
-    END IF;
-
-    -- Get rate plan IDs
-    SELECT id INTO comp_id FROM rate_plans WHERE code = 'COMP' LIMIT 1;
-    SELECT id INTO rack_id FROM rate_plans WHERE code = 'RACK' LIMIT 1;
-    SELECT id INTO corp_id FROM rate_plans WHERE code = 'CORP' LIMIT 1;
-    SELECT id INTO wknd_id FROM rate_plans WHERE code = 'WKND' LIMIT 1;
-    SELECT id INTO early_id FROM rate_plans WHERE code = 'EARLY' LIMIT 1;
-    SELECT id INTO group_id FROM rate_plans WHERE code = 'GROUP' LIMIT 1;
-
-    -- Get room type IDs
-    SELECT id INTO std_id FROM room_types WHERE code = 'STD' LIMIT 1;
-    SELECT id INTO dlx_id FROM room_types WHERE code = 'DLX' LIMIT 1;
-    SELECT id INTO ste_id FROM room_types WHERE code = 'STE' LIMIT 1;
-    SELECT id INTO fam_id FROM room_types WHERE code = 'FAM' LIMIT 1;
-
-    -- Each rate insert filters out room types that don't exist on this database
-    -- (NULL *_id). Without the WHERE filter a missing code (e.g. a restored
-    -- backup whose room_types use different codes) would insert a NULL
-    -- room_type_id and abort the whole bootstrap transaction.
-
-    -- COMPLIMENTARY RATE ($0 for all room types)
-    IF comp_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT comp_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 0.00), (dlx_id, 0.00), (ste_id, 0.00), (fam_id, 0.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- RACK RATE (Base prices: STD $150, DLX $250, STE $450, FAM $350)
-    IF rack_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT rack_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 150.00), (dlx_id, 250.00), (ste_id, 450.00), (fam_id, 350.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- CORPORATE RATE (20% off base)
-    IF corp_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT corp_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 120.00), (dlx_id, 200.00), (ste_id, 360.00), (fam_id, 280.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- WEEKEND RATE (15% premium)
-    IF wknd_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT wknd_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 172.50), (dlx_id, 287.50), (ste_id, 517.50), (fam_id, 402.50)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- EARLY BIRD RATE (30% off base)
-    IF early_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT early_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 105.00), (dlx_id, 175.00), (ste_id, 315.00), (fam_id, 245.00)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-
-    -- GROUP RATE (25% off base)
-    IF group_id IS NOT NULL THEN
-        INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
-        SELECT group_id, rt.id, rt.price, '2023-01-01', '2026-12-31'
-        FROM (VALUES (std_id, 112.50), (dlx_id, 187.50), (ste_id, 337.50), (fam_id, 262.50)) AS rt(id, price)
-        WHERE rt.id IS NOT NULL
-        ON CONFLICT (rate_plan_id, room_type_id, effective_from) DO NOTHING;
-    END IF;
-END $$;
+-- Rate plans and room rates are deliberately not seeded. Public online pricing
+-- resolves room_types base/weekday/weekend rates directly (plus explicit
+-- online-inventory custom prices); seeded promo plans were anchored to base
+-- prices that never matched the catalogue and silently raised guest quotes.
+-- Complimentary nights are member free-night credit redemptions, not a
+-- sellable rate. Rate plans remain available for staff to create deliberately.
 
 DO $$
 BEGIN
     IF (SELECT seed_property FROM v1_seed_state) THEN
-        RAISE NOTICE 'Rooms & rates loaded: 4 room types, 16 rooms, 6 rate plans with room rates';
+        RAISE NOTICE 'Rooms loaded: 4 room types, 16 rooms (no seeded rate plans)';
     ELSE
         RAISE NOTICE 'Existing property catalogue preserved; sample rooms and rates were not loaded';
     END IF;
@@ -1644,13 +1583,14 @@ WHERE NOT EXISTS (
     SELECT 1 FROM loyalty_rewards WHERE name = 'July Deluxe Room 20% Voucher'
 );
 
--- Fresh-property validation.
+-- Fresh-property validation. Rate plans are deliberately not part of the
+-- invariant: none are seeded (see the RATE PLANS block above), so asserting a
+-- seeded count would fail every fresh bootstrap.
 DO $$
 BEGIN
     IF (SELECT seed_property FROM v1_seed_state)
        AND ((SELECT COUNT(*) FROM room_types) < 4
-            OR (SELECT COUNT(*) FROM rooms) < 16
-            OR (SELECT COUNT(*) FROM rate_plans) < 6) THEN
+            OR (SELECT COUNT(*) FROM rooms) < 16) THEN
         RAISE EXCEPTION 'fresh V1 property bootstrap did not create its required records';
     END IF;
 END;

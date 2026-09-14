@@ -19,6 +19,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import type { RoomRateWithDetails, RoomTypeRef } from '../types';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { formatHotelDate } from '../../../utils/date';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
 export interface RoomRatesEditorProps {
   rates: RoomRateWithDetails[];
@@ -77,11 +79,114 @@ export const RoomRatesEditor = ({
     setDraft(emptyDraft());
   };
 
+  const isPhone = useIsPhone();
+
+  const draftForm = (
+    <>
+      <TextField
+        select
+        size="small"
+        value={draft.room_type_id}
+        onChange={(event) =>
+          setDraft({ ...draft, room_type_id: event.target.value })
+        }
+        fullWidth
+        aria-label="Band room type"
+      >
+        {roomTypes.map((type) => (
+          <MenuItem key={type.id} value={String(type.id)}>
+            {type.name}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        size="small"
+        type="number"
+        value={draft.price}
+        onChange={(event) =>
+          setDraft({ ...draft, price: event.target.value })
+        }
+        slotProps={{ htmlInput: { 'aria-label': 'Band price', inputMode: 'decimal' } }}
+        sx={isPhone ? undefined : { width: 110 }}
+        fullWidth={isPhone}
+      />
+      <ModernDatePicker
+        label=""
+        size="small"
+        value={draft.effective_from}
+        onChange={(value) =>
+          setDraft({ ...draft, effective_from: value })
+        }
+      />
+      <ModernDatePicker
+        label=""
+        size="small"
+        value={draft.effective_to}
+        onChange={(value) => setDraft({ ...draft, effective_to: value })}
+        helperText="Blank = open-ended"
+      />
+      <Button
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={add}
+        disabled={!canAdd}
+        sx={isPhone ? { alignSelf: 'flex-start' } : undefined}
+      >
+        Add
+      </Button>
+    </>
+  );
+
   return (
     <Box>
       <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1 }}>
         Rate bands
       </Typography>
+      {isPhone ? (
+        <Box>
+          {rates.map((rate) => (
+            <Box
+              key={rate.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
+            >
+              <MobileCardRow
+                title={`${rate.room_type_name} (${rate.room_type_code})`}
+                subtitle={`${formatHotelDate(rate.effective_from)} → ${rate.effective_to ? formatHotelDate(rate.effective_to) : 'Open'}`}
+                status={
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {rate.price}
+                  </Typography>
+                }
+                footer={
+                  <Tooltip title="Delete band">
+                    <IconButton
+                      size="small"
+                      aria-label={`Delete band for ${rate.room_type_name}`}
+                      onClick={() => onDelete(rate.id)}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                }
+              />
+            </Box>
+          ))}
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1.25,
+              mt: 1.5,
+              p: 1.5,
+              border: '1px dashed',
+              borderColor: 'divider',
+              borderRadius: 1,
+            }}
+          >
+            {draftForm}
+          </Box>
+        </Box>
+      ) : (
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -178,6 +283,7 @@ export const RoomRatesEditor = ({
           </TableRow>
         </TableBody>
       </Table>
+      )}
       {rates.length === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           No bands yet — dates fall back to the room type base rate.

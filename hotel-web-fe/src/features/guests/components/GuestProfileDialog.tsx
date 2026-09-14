@@ -27,6 +27,8 @@ import {
   WarningAmber as WarningAmberIcon,
 } from '@mui/icons-material';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { formatStatusLabel } from '../../../utils/formatters';
 import type { GuestDuplicateCandidate, GuestProfileBooking } from '../../../types';
 import { useGuestProfile } from '../hooks/useGuestQueries';
@@ -117,7 +119,38 @@ const ReservationsTab = ({
 }: {
   reservations: GuestProfileBooking[];
   formatCurrency: (value: number) => string;
-}) => (
+}) => {
+  const isPhone = useIsPhone();
+
+  if (isPhone) {
+    return (
+      <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+        {reservations.length === 0 ? (
+          <Box sx={{ py: 4, textAlign: 'center' }}>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              No reservations found
+            </Typography>
+          </Box>
+        ) : (
+          reservations.map((booking) => (
+            <Box
+              key={booking.id}
+              sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+            >
+              <MobileCardRow
+                title={booking.booking_number || `#${booking.id}`}
+                subtitle={`${formatDate(booking.check_in_date)} - ${formatDate(booking.check_out_date)} · ${booking.nights} night${booking.nights === 1 ? '' : 's'}`}
+                meta={`Room ${booking.room_number} · ${booking.room_type || 'N/A'} · ${booking.source ? formatStatus(booking.source) : 'Direct'} · ${formatCurrency(Number(booking.balance_due || 0))} due`}
+                status={<Chip label={formatStatus(booking.status)} size="small" variant="outlined" />}
+              />
+            </Box>
+          ))
+        )}
+      </Box>
+    );
+  }
+
+  return (
   <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
     <Table size="small">
       <TableHead>
@@ -189,7 +222,8 @@ const ReservationsTab = ({
       </TableBody>
     </Table>
   </TableContainer>
-);
+  );
+};
 
 const DuplicatesTab = ({ candidates }: { candidates: GuestDuplicateCandidate[] }) => (
   <Stack spacing={1.5}>

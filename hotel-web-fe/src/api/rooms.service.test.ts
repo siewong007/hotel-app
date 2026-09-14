@@ -547,6 +547,38 @@ describe('RoomsService.updateRoomType', () => {
     expect(patch).toHaveBeenCalledWith('room-types/3', { json: input });
     expect(result).toEqual(payload);
   });
+
+  it('sends the images array when provided', async () => {
+    const input: RoomTypeUpdateInput = { images: ['/uploads/room-types/b.jpg'] };
+    const payload = { id: 3, images: input.images };
+    patch.mockReturnValue(mockJsonResponse(payload));
+
+    const result = await RoomsService.updateRoomType(3, input);
+
+    expect(patch).toHaveBeenCalledWith('room-types/3', { json: input });
+    expect(result).toEqual(payload);
+  });
+});
+
+describe('RoomsService.uploadRoomTypeImage', () => {
+  beforeEach(resetMocks);
+
+  it('POSTs the file as multipart FormData to room-types/<id>/images', async () => {
+    const payload = { id: 7, images: ['/uploads/room-types/x.jpg'] };
+    post.mockReturnValue(mockJsonResponse(payload));
+    const file = new File(['bytes'], 'room.jpg', { type: 'image/jpeg' });
+
+    const result = await RoomsService.uploadRoomTypeImage(7, file);
+
+    expect(post).toHaveBeenCalledTimes(1);
+    const [url, options] = post.mock.calls[0];
+    expect(url).toBe('room-types/7/images');
+    expect(options.body).toBeInstanceOf(FormData);
+    expect(options.body.get('file')).toBe(file);
+    // ky must not send a JSON body; the browser fills the multipart boundary.
+    expect(options.json).toBeUndefined();
+    expect(result).toEqual(payload);
+  });
 });
 
 describe('RoomsService.deleteRoomType', () => {

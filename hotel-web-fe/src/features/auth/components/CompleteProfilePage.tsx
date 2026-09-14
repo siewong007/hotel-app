@@ -179,6 +179,7 @@ const CompleteProfilePage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
+                  type="tel"
                   label="Phone Number"
                   name="phone"
                   value={phone}

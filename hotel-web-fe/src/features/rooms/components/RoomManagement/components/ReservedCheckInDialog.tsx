@@ -211,6 +211,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                 <TextField
                   fullWidth
                   size="small"
+                  type="tel"
                   label="Phone Number"
                   value={phone}
                   onChange={(e) => onPhoneChange(e.target.value)}

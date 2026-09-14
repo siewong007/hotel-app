@@ -217,6 +217,17 @@ export class RoomsService {
     }
   }
 
+  /** Staff photo upload: stores the file and appends its URL to the type's images. */
+  static async uploadRoomTypeImage(id: number, file: File): Promise<RoomType> {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      return await api.post(`room-types/${id}/images`, { body: formData }).json<RoomType>();
+    } catch (error) {
+      throw toApiError(error, 'Failed to upload room type photo');
+    }
+  }
+
   static async deleteRoomType(id: number): Promise<{ success: boolean; message: string }> {
     try {
       return await api.delete(`room-types/${id}`).json<{ success: boolean; message: string }>();

@@ -55,6 +55,8 @@ import { useAuth } from '../../../auth/AuthContext';
 import { LoyaltyReward, RewardUpdateInput } from '../../../types';
 import { LoadingSpinner } from '../../../components';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 import { errorMessage } from '../../../utils';
 import {
   canRedeem as rewardIsRedeemable,
@@ -100,6 +102,7 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
 };
 
 const LoyaltyDashboard: React.FC = () => {
+  const isPhone = useIsPhone();
   const { hasPermission } = useAuth();
   const { symbol: currencySymbol } = useCurrency();
   const isAdmin = hasPermission('loyalty:manage');
@@ -634,6 +637,32 @@ const LoyaltyDashboard: React.FC = () => {
           </Button>
         </Box>
         <Card>
+          {isPhone ? (
+            <Box>
+              {allRewards.map((reward) => (
+                <Box
+                  key={reward.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+                >
+                  <MobileCardRow
+                    title={reward.name}
+                    subtitle={`${formatCategoryLabel(reward.category)} · ${formatNumber(reward.points_cost)} pts`}
+                    meta={`${getTierConfig(reward.minimum_tier_level).name}+ tier · ${reward.stock_quantity !== null && reward.stock_quantity !== undefined ? reward.stock_quantity : '∞'} in stock${reward.monetary_value ? ` · ${currencySymbol}${reward.monetary_value}` : ''}`}
+                    footer={
+                      <>
+                        <IconButton size="small" onClick={() => handleEditClick(reward)} color="primary" aria-label={`Edit reward ${reward.name}`}>
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteClick(reward)} color="error" aria-label={`Delete reward ${reward.name}`}>
+                          <DeleteIcon />
+                        </IconButton>
+                      </>
+                    }
+                  />
+                </Box>
+              ))}
+            </Box>
+          ) : (
           <TableContainer>
             <Table>
               <TableHead>
@@ -699,6 +728,7 @@ const LoyaltyDashboard: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+          )}
         </Card>
         {/* Edit/Create Dialog */}
         <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>

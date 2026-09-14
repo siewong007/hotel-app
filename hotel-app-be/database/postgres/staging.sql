@@ -203,7 +203,12 @@ VALUES
     -- Guest-portal login (user_type 'guest'); linked to guest 800210 below.
     (800013, 'guest_portal',   'guest.portal@staging.hotel-app.test',   '$2b$12$pR0XOo.29MgsqNnNI4GP7OG6nY8u76Wg6Ee84Pqc6g1qzZeVxoUPK', 'Portal Guest',    NULL,             'guest', true,  true, false, 0, CURRENT_TIMESTAMP - interval '8 hours',    CURRENT_TIMESTAMP - interval '45 days'),
     -- Unverified staff account (registered, never confirmed email).
-    (800014, 'newhire_unverified','newhire.unverified@staging.hotel-app.test','$2b$12$pR0XOo.29MgsqNnNI4GP7OG6nY8u76Wg6Ee84Pqc6g1qzZeVxoUPK','New Hire', NULL,'staff', true,  false, false, 0, NULL, CURRENT_TIMESTAMP - interval '1 day');
+    (800014, 'newhire_unverified','newhire.unverified@staging.hotel-app.test','$2b$12$pR0XOo.29MgsqNnNI4GP7OG6nY8u76Wg6Ee84Pqc6g1qzZeVxoUPK','New Hire', NULL,'staff', true,  false, false, 0, NULL, CURRENT_TIMESTAMP - interval '1 day'),
+    -- Voucher-scope audit pair: 800015 holds promotions:read + vouchers:read
+    -- only (see user_permissions below); 800016 has no voucher permissions at
+    -- all. Together they exercise read-only vs forbidden voucher views.
+    (800015, 'voucher_audit',  'voucher.audit@staging.hotel-app.test',   '$2b$12$pR0XOo.29MgsqNnNI4GP7OG6nY8u76Wg6Ee84Pqc6g1qzZeVxoUPK', 'Voucher Auditor','+60-12-555-0113', 'staff', true,  true, false, 0, CURRENT_TIMESTAMP - interval '2 days',     CURRENT_TIMESTAMP - interval '30 days'),
+    (800016, 'voucher_noperm', 'voucher.noperm@staging.hotel-app.test',  '$2b$12$pR0XOo.29MgsqNnNI4GP7OG6nY8u76Wg6Ee84Pqc6g1qzZeVxoUPK', 'No Voucher Perms','+60-12-555-0114','staff', true,  true, false, 0, CURRENT_TIMESTAMP - interval '2 days',     CURRENT_TIMESTAMP - interval '30 days');
 
 INSERT INTO public.user_roles (user_id, role_id)
 SELECT u.id, r.id
@@ -221,7 +226,9 @@ FROM (VALUES
     (800011, 'staff'),
     (800012, 'receptionist'),
     (800013, 'guest'),
-    (800014, 'staff')
+    (800014, 'staff'),
+    (800015, 'staff'),
+    (800016, 'staff')
 ) AS m(user_id, role_name)
 JOIN public.users u ON u.id = m.user_id
 JOIN public.roles r ON r.name = m.role_name;
@@ -233,7 +240,11 @@ SELECT 800006, p.id, 1000 FROM public.permissions p
 WHERE p.name IN ('payments:read','payments:create','payments:refund','invoices:read','invoices:create','ledgers:read','ledgers:create','reports:read','revenue:read')
 UNION ALL
 SELECT 800007, p.id, 1000 FROM public.permissions p
-WHERE p.name IN ('promotions:manage','promotions:read','communications:manage','communications:read','segments:read','segments:manage','guests:read','analytics:read','revenue:read');
+WHERE p.name IN ('promotions:manage','promotions:read','communications:manage','communications:read','segments:read','segments:manage','guests:read','analytics:read','revenue:read')
+UNION ALL
+-- voucher_audit: read-only voucher/promotion scope, nothing else.
+SELECT 800015, p.id, 1000 FROM public.permissions p
+WHERE p.name IN ('promotions:read','vouchers:read');
 
 -- Staff the seeded starter teams (codes come from seed.sql bootstrap).
 INSERT INTO public.team_members (team_id, user_id, is_lead, added_by)
@@ -1195,7 +1206,19 @@ OVERRIDING SYSTEM VALUE VALUES
     (807006, 'stg-cancelled-test', 'Cancelled Test Promo', 'Cancelled before launch.', NULL, 'cancelled', 'voucher', 'percentage', 25.00, NULL, 'USD',
         NULL, NULL, NULL, NULL, 1, NULL, 0.00, 10, 0, 1, false, true, 'CXL25', 'other', 800007, 800007),
     (807007, 'stg-draft-cny', 'CNY Early Bird (draft)', 'Draft — not yet published.', NULL, 'draft', 'deal', 'percentage', 18.00, 150.00, 'USD',
-        NULL, NULL, (SELECT today+120 FROM staging_ref), (SELECT today+140 FROM staging_ref), 2, NULL, 300.00, 100, 0, 1, true, true, 'CNY18', 'occupancy', 800007, 800007);
+        NULL, NULL, (SELECT today+120 FROM staging_ref), (SELECT today+140 FROM staging_ref), 2, NULL, 300.00, 100, 0, 1, true, true, 'CNY18', 'occupancy', 800007, 800007),
+    -- Edge states: published but claim window closed; published but claim
+    -- limit reached; published voucher promo that is private (unclaimable by
+    -- the public gallery but vouchers on it remain valid).
+    (807008, 'stg-window-closed', 'Window Closed Voucher', 'Published but the claim window has closed.', 'Claim period ended.', 'published', 'voucher', 'percentage', 5.00, NULL, 'USD',
+        (SELECT today-40 FROM staging_ref)::timestamptz, (SELECT today-10 FROM staging_ref)::timestamptz,
+        (SELECT today-30 FROM staging_ref), (SELECT today+30 FROM staging_ref), 1, NULL, 0.00, 100, 40, 1, true, true, 'WINC05', 'acquisition', 800007, 800007),
+    (807009, 'stg-limit-reached', 'Limit Reached Voucher', 'Published but the claim limit is exhausted.', 'All claims taken.', 'published', 'voucher', 'fixed_amount', 10.00, NULL, 'USD',
+        (SELECT today-20 FROM staging_ref)::timestamptz, (SELECT today+20 FROM staging_ref)::timestamptz,
+        (SELECT today FROM staging_ref), (SELECT today+60 FROM staging_ref), 1, NULL, 0.00, 3, 3, 1, true, true, 'LIMT10', 'acquisition', 800007, 800007),
+    (807010, 'stg-private-voucher', 'Private Voucher 20%', 'Published voucher promo hidden from the public gallery.', 'Invitation only.', 'published', 'voucher', 'percentage', 20.00, NULL, 'USD',
+        (SELECT today-15 FROM staging_ref)::timestamptz, (SELECT today+45 FROM staging_ref)::timestamptz,
+        (SELECT today FROM staging_ref), (SELECT today+90 FROM staging_ref), 1, NULL, 0.00, 50, 8, 1, false, true, 'PRIV20', 'retention', 800007, 800007);
 
 INSERT INTO public.promotion_room_types (promotion_id, room_type_id) VALUES
     (807001, 800202), (807001, 800201),
@@ -1236,7 +1259,20 @@ OVERRIDING SYSTEM VALUE VALUES
         NULL, NULL, NULL, NULL, NULL, (SELECT today-30 FROM staging_ref)::timestamptz),
     -- Welcome voucher (seeded promotion) redeemed on a completed stay.
     (805006, (SELECT id FROM public.promotions WHERE slug = 'welcome-deluxe-10'), 801002, 'STG-WLC-0001', 'redeemed', 'guest_claim', (SELECT today-5 FROM staging_ref)::timestamptz,
-        (SELECT today-11 FROM staging_ref)::timestamptz, NULL, NULL, NULL, NULL, (SELECT today-20 FROM staging_ref)::timestamptz);
+        (SELECT today-11 FROM staging_ref)::timestamptz, NULL, NULL, NULL, NULL, (SELECT today-20 FROM staging_ref)::timestamptz),
+    -- Claimed while the window was open; the promo's claim window has since
+    -- closed (807008) — voucher itself remains valid.
+    (805007, 807008, 801001, 'STG-VCH-0007', 'available', 'guest_claim', (SELECT today+20 FROM staging_ref)::timestamptz,
+        NULL, NULL, NULL, NULL, NULL, (SELECT today-25 FROM staging_ref)::timestamptz),
+    -- Voucher on the private published promotion (807010).
+    (805008, 807010, 801004, 'STG-VCH-0008', 'available', 'admin_issue', (SELECT today+30 FROM staging_ref)::timestamptz,
+        NULL, NULL, NULL, NULL, 800007, (SELECT today-4 FROM staging_ref)::timestamptz),
+    -- Claimed before the limit was hit on 807009.
+    (805009, 807009, 801006, 'STG-VCH-0009', 'available', 'guest_claim', (SELECT today+15 FROM staging_ref)::timestamptz,
+        NULL, NULL, NULL, NULL, NULL, (SELECT today-6 FROM staging_ref)::timestamptz),
+    -- Status 'available' but expires_at already passed => derived "expired".
+    (805010, 807002, 801005, 'STG-VCH-0010', 'available', 'admin_issue', (SELECT today-1 FROM staging_ref)::timestamptz,
+        NULL, NULL, NULL, NULL, 800007, (SELECT today-15 FROM staging_ref)::timestamptz);
 
 INSERT INTO public.voucher_redemptions (
     id, voucher_id, promotion_id, booking_id, guest_id, status,
@@ -1537,7 +1573,10 @@ INSERT INTO public.guest_portal_sessions (id, guest_id, token_hash, expires_at, 
 OVERRIDING SYSTEM VALUE VALUES
     (808701, 801020, 'sha256:STAGINGDONOTUSE0000000000000000000000000000000000000010', (SELECT today+7 FROM staging_ref)::timestamptz, (SELECT today-1 FROM staging_ref)::timestamptz + interval '9 hours'),
     (808702, 801014, 'sha256:STAGINGDONOTUSE0000000000000000000000000000000000000011', (SELECT today+7 FROM staging_ref)::timestamptz, NULL),
-    (808703, 801001, 'sha256:STAGINGDONOTUSE0000000000000000000000000000000000000012', (SELECT today-3 FROM staging_ref)::timestamptz, (SELECT today-4 FROM staging_ref)::timestamptz);
+    (808703, 801001, 'sha256:STAGINGDONOTUSE0000000000000000000000000000000000000012', (SELECT today-3 FROM staging_ref)::timestamptz, (SELECT today-4 FROM staging_ref)::timestamptz),
+    -- Known-token session for direct portal API checks: Bearer
+    -- `stg-portal-token-a` (the hash below is its real sha256 digest).
+    (808704, 801002, encode(sha256('stg-portal-token-a'::bytea), 'hex'), (SELECT today+1 FROM staging_ref)::timestamptz, NULL);
 
 -- Staff notifications (+ read markers).
 INSERT INTO public.staff_notifications (id, audience_permission, kind, subject, title, body, created_at)

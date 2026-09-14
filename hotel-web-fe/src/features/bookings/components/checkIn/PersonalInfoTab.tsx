@@ -77,6 +77,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
+            type="tel"
             label="Phone 1"
             value={guestData.phone || ''}
             disabled
@@ -88,6 +89,7 @@ export function PersonalInfoTab({
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
+            type="tel"
             label="Phone 2"
             value={guestData.alt_phone || ''}
             disabled

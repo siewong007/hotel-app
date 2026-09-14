@@ -19,8 +19,11 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useJobFailures, useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
+import { useIsPhone } from '../../../hooks/useIsPhone';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
 const JobsPage: React.FC = () => {
+  const isPhone = useIsPhone();
   const health = useSystemHealth();
   const failures = useJobFailures(health.data?.job_runs_enabled ?? true);
 
@@ -85,6 +88,21 @@ const JobsPage: React.FC = () => {
           </Typography>
           {failures.data && failures.data.length === 0 ? (
             <Alert severity="success">No failed iterations on record.</Alert>
+          ) : isPhone ? (
+            <Card variant="outlined">
+              {(failures.data ?? []).map((run) => (
+                <Box
+                  key={run.id}
+                  sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}
+                >
+                  <MobileCardRow
+                    title={run.job_name}
+                    subtitle={new Date(run.created_at).toLocaleString()}
+                    meta={run.error ? `${run.error} · ${run.duration_ms !== null ? `${run.duration_ms}ms` : '—'}` : (run.duration_ms !== null ? `${run.duration_ms}ms` : '—')}
+                  />
+                </Box>
+              ))}
+            </Card>
           ) : (
             <Card variant="outlined">
               <Table size="small">

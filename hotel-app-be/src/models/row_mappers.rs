@@ -495,6 +495,11 @@ pub fn row_to_room_type(row: &DbRow) -> RoomType {
         extra_bed_charge: get_decimal(row, "extra_bed_charge"),
         is_active: get_bool(row, "is_active"),
         sort_order: row.try_get("sort_order").unwrap_or(0),
+        images: row
+            .try_get::<serde_json::Value, _>("images")
+            .ok()
+            .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+            .unwrap_or_default(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
     }

@@ -319,6 +319,15 @@ any more; `hotel-app-be/database/postgres/patches/manifest.tsv` is the catalog,
 and [`hotel-app-be/database/README.md`](../../hotel-app-be/database/README.md)
 is the canonical reference for how it works.
 
+**The catalog is currently empty.** The original 22-patch lineage (revisions
+1.2–1.23) was folded into the V1 baseline, so `manifest.tsv` carries no rows
+and a fresh install needs no convergence step. `make db-patch` still runs —
+it validates the catalog and exits clean. Databases that recorded pre-reset
+revisions do **not** converge through this catalog anymore; rebuild them from
+the baseline (export → `make db-baseline` → re-import) as with any legacy
+layout. Future additive schema changes resume the same mechanism: baseline
+for fresh installs plus a new manifest row for installed databases.
+
 What it guarantees:
 
 - **Safe to rerun.** Each patch records its revision; an already-applied patch
@@ -335,11 +344,6 @@ What it guarantees:
   vocabulary only. It does not rewrite historical financial, currency or booking
   rows. When a patch must replace a schema object, it drops and recreates that
   object inside the same transaction as its revision row.
-
-The catalog currently converges four changes that previously shipped as
-copy-paste SQL in this guide: `1.2 google-subject` (2026-07-28),
-`1.3 payment-idempotency` (2026-08-06), `1.4 booking-status-vocabulary`, and
-`1.5 booking-status-enforcement`.
 
 #### Take a verified backup first
 
@@ -366,7 +370,8 @@ psql "$DATABASE_URL" -X -At -v ON_ERROR_STOP=1 -c \
   "SELECT generation || '.' || version || ' ' || name FROM public.hotel_schema_revisions WHERE generation = 1 ORDER BY version;"
 ```
 
-Expect `1.1` (the baseline) through the highest version in the manifest.
+Expect `1.1` (the baseline) through the highest version in the manifest —
+just `1.1` while the catalog is empty.
 
 #### In production deployment
 
@@ -374,7 +379,8 @@ Expect `1.1` (the baseline) through the highest version in the manifest.
 alone is brought up and confirmed to carry the final TCP V1 baseline, then a
 verified backup is taken, then patches run, and only then are the application
 containers activated. A patch failure therefore aborts the release **before**
-any new application code serves traffic against an unconverged schema.
+any new application code serves traffic against an unconverged schema. While
+the catalog is empty that step is a verified no-op.
 
 ### Read-only schema drift reporting
 

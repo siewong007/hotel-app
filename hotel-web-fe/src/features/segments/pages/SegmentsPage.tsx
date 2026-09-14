@@ -28,6 +28,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import EmptyState from '../../../components/common/EmptyState';
 import PageHeader from '../../../components/common/PageHeader';
+import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useAuth } from '../../../auth/AuthContext';
 import { formatHotelDate } from '../../../utils/date';
@@ -52,6 +54,7 @@ const describeRules = (s: SegmentSummary): string =>
 
 const SegmentsPage = () => {
   const { hasPermission } = useAuth();
+  const isPhone = useIsPhone();
   const confirm = useConfirm();
   const queryClient = useQueryClient();
   const canManage = hasPermission('segments:manage');
@@ -150,6 +153,65 @@ const SegmentsPage = () => {
             title="No segments"
             description="Create a segment to target email campaigns at a dynamic guest audience."
           />
+        ) : isPhone ? (
+          <Box>
+            {(segments.data?.items ?? []).map((s) => (
+              <MobileCardRow
+                key={s.id}
+                title={s.name}
+                subtitle={s.description || describeRules(s)}
+                meta={`${s.member_count} members · Updated ${formatHotelDate(s.updated_at)}`}
+                status={
+                  <Chip
+                    size="small"
+                    label={s.is_active ? 'Active' : 'Inactive'}
+                    color={s.is_active ? 'success' : 'default'}
+                  />
+                }
+                footer={
+                  <>
+                    <Button size="small" onClick={() => setPreviewFor(s)}>
+                      Preview
+                    </Button>
+                    {canManage && (
+                      <>
+                        <Button size="small" onClick={() => setEditor({ open: true, segment: s })}>
+                          Edit
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={() => toggleActive.mutate(s)}
+                          disabled={toggleActive.isPending}
+                        >
+                          {s.is_active ? 'Deactivate' : 'Activate'}
+                        </Button>
+                        <Button
+                          size="small"
+                          color="error"
+                          disabled={remove.isPending}
+                          onClick={async () => {
+                            if (
+                              !(await confirm({
+                                title: 'Delete segment',
+                                message: `Delete “${s.name}”? Campaigns using it keep their audience — deactivate instead if unsure.`,
+                                confirmText: 'Delete',
+                                severity: 'warning',
+                              }))
+                            ) {
+                              return;
+                            }
+                            remove.mutate(s.id);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </>
+                }
+              />
+            ))}
+          </Box>
         ) : (
           <Table size="small">
             <TableHead>

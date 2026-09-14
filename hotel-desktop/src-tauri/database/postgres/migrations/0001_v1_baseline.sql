@@ -320,6 +320,35 @@ COMMENT ON FUNCTION public.ensure_audit_logs_partition(p_month date) IS 'Idempot
 
 
 --
+-- Name: prevent_audit_log_mutation(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prevent_audit_log_mutation() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'pg_catalog', 'public'
+    AS $$
+BEGIN
+    -- Escape hatch for fixture cleanup only: integration tests set this GUC
+    -- per pooled connection so they can purge rows they wrote. Nothing in the
+    -- application sets it. A principal that can run SET could equally drop the
+    -- trigger, so the GUC widens nothing -- the trigger exists to stop
+    -- accidental and application-level mutation, not the database owner.
+    IF current_setting('app.allow_audit_mutation', true) IS DISTINCT FROM 'on' THEN
+        RAISE EXCEPTION 'audit_logs is append-only: UPDATE and DELETE are forbidden';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: FUNCTION prevent_audit_log_mutation(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.prevent_audit_log_mutation() IS 'Row-trigger body that makes audit_logs append-only even for the table owner. REVOKE cannot help here because the application connects as the owner, and owners bypass privilege checks; a BEFORE trigger is the only enforcement that applies.';
+
+
+--
 -- Name: gen_uuidv7(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -788,49 +817,38 @@ CREATE FUNCTION public.sync_booking_payment_status() RETURNS trigger
     AS $$
 DECLARE
     v_booking_id INTEGER;
-    v_total_paid NUMERIC;
-    v_total_amount NUMERIC;
-    v_has_refunded BOOLEAN;
+    v_settled NUMERIC;
     v_new_status TEXT;
 BEGIN
     -- Determine the affected booking_id (NEW for INSERT/UPDATE, OLD for DELETE)
     v_booking_id := COALESCE(NEW.booking_id, OLD.booking_id);
 
-    -- Sum all completed payments for this booking
+    -- Money that settles the booking's charges: completed payments excluding
+    -- refunds and held deposits (a keycard deposit is collateral, not a room
+    -- payment). Mirrors PaymentRepository::recompute_booking_payment_status.
     SELECT COALESCE(SUM(amount), 0)
-      INTO v_total_paid
+      INTO v_settled
       FROM payments
      WHERE booking_id = v_booking_id
-       AND status = 'completed';
+       AND status = 'completed'
+       AND COALESCE(payment_type, 'booking') NOT IN ('refund', 'deposit');
 
-    -- Get the booking's total_amount
-    SELECT total_amount
-      INTO v_total_amount
-      FROM bookings
-     WHERE id = v_booking_id;
+    SELECT CASE
+        WHEN b.status = 'voided' THEN 'void'
+        WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
+        WHEN (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                + COALESCE(b.extra_bed_charge, 0)) <= 0 THEN 'paid'
+        WHEN v_settled >= (b.total_amount + COALESCE(b.tourism_tax_amount, 0)
+                + COALESCE(b.extra_bed_charge, 0)) THEN 'paid'
+        WHEN v_settled > 0 THEN 'partial'
+        ELSE 'unpaid'
+    END INTO v_new_status
+    FROM bookings b
+    WHERE b.id = v_booking_id;
 
-    -- Check if any payment has been refunded and there are no completed payments
-    SELECT EXISTS (
-        SELECT 1
-          FROM payments
-         WHERE booking_id = v_booking_id
-           AND status = 'refunded'
-    ) INTO v_has_refunded;
-
-    -- Determine the new payment status
-    IF v_total_paid = 0 AND v_has_refunded THEN
-        v_new_status := 'refunded';
-    ELSIF v_total_paid >= v_total_amount THEN
-        v_new_status := 'paid';
-    ELSIF v_total_paid > 0 AND v_total_paid < v_total_amount THEN
-        v_new_status := 'partial';
-    ELSE
-        v_new_status := 'unpaid';
-    END IF;
-
-    -- Update the booking's payment status
     UPDATE bookings
-       SET payment_status = v_new_status
+       SET payment_status = v_new_status,
+           updated_at = CURRENT_TIMESTAMP
      WHERE id = v_booking_id;
 
     RETURN COALESCE(NEW, OLD);
@@ -1662,6 +1680,40 @@ ALTER TABLE public.guests ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: guest_segments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.guest_segments (
+    id bigint NOT NULL,
+    name character varying(120) NOT NULL,
+    slug character varying(160) NOT NULL,
+    description text,
+    rules jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by bigint,
+    updated_by bigint,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT guest_segments_name_not_blank CHECK ((length(btrim(name::text)) > 0)),
+    CONSTRAINT guest_segments_rules_shape CHECK ((jsonb_typeof(rules) = 'object'::text))
+);
+
+
+--
+-- Name: guest_segments_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.guest_segments ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.guest_segments_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: room_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2458,6 +2510,7 @@ CREATE TABLE public.email_campaigns (
     body_text text,
     template_id bigint,
     promotion_id bigint,
+    segment_id bigint,
     scheduled_at timestamp with time zone,
     started_at timestamp with time zone,
     completed_at timestamp with time zone,
@@ -2698,7 +2751,14 @@ CREATE TABLE public.guest_notes (
     is_private boolean DEFAULT false,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     created_by bigint,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    subject character varying(255),
+    interaction_type character varying(50) DEFAULT 'note'::character varying NOT NULL,
+    booking_id bigint,
+    follow_up_at timestamp with time zone,
+    follow_up_completed_at timestamp with time zone,
+    assigned_to bigint,
+    CONSTRAINT guest_notes_interaction_type_check CHECK (interaction_type IN ('note','call','email','in_person','follow_up'))
 );
 
 
@@ -4024,6 +4084,28 @@ ALTER TABLE public.points_transactions ALTER COLUMN id ADD GENERATED ALWAYS AS I
 
 
 --
+-- Name: promotion_channels; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.promotion_channels (
+    promotion_id bigint NOT NULL,
+    booking_channel_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
+-- Name: promotion_loyalty_tiers; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.promotion_loyalty_tiers (
+    promotion_id bigint NOT NULL,
+    loyalty_tier_id bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: promotion_room_types; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4062,6 +4144,8 @@ CREATE TABLE public.promotions (
     per_guest_limit integer DEFAULT 1 NOT NULL,
     is_public boolean DEFAULT true NOT NULL,
     is_cancellable boolean DEFAULT true NOT NULL,
+    internal_code character varying(64),
+    objective character varying(24),
     version integer DEFAULT 1 NOT NULL,
     created_by bigint,
     updated_by bigint,
@@ -4077,10 +4161,11 @@ CREATE TABLE public.promotions (
     CONSTRAINT promotions_min_subtotal_valid CHECK ((min_subtotal >= (0)::numeric)),
     CONSTRAINT promotions_name_not_blank CHECK ((length(TRIM(BOTH FROM name)) > 0)),
     CONSTRAINT promotions_nights_valid CHECK (((min_nights >= 1) AND ((max_nights IS NULL) OR (max_nights >= min_nights)))),
+    CONSTRAINT promotions_objective_check CHECK (((objective IS NULL) OR ((objective)::text = ANY ((ARRAY['occupancy'::character varying, 'acquisition'::character varying, 'retention'::character varying, 'upsell'::character varying, 'loyalty'::character varying, 'other'::character varying])::text[])))),
     CONSTRAINT promotions_per_guest_limit_valid CHECK ((per_guest_limit >= 1)),
     CONSTRAINT promotions_promotion_kind_check CHECK (((promotion_kind)::text = ANY ((ARRAY['deal'::character varying, 'voucher'::character varying])::text[]))),
     CONSTRAINT promotions_slug_not_blank CHECK ((length(TRIM(BOTH FROM slug)) > 0)),
-    CONSTRAINT promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'paused'::character varying, 'archived'::character varying])::text[]))),
+    CONSTRAINT promotions_status_check CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'published'::character varying, 'paused'::character varying, 'cancelled'::character varying, 'archived'::character varying])::text[]))),
     CONSTRAINT promotions_stay_window_valid CHECK (((stay_starts_on IS NULL) OR (stay_ends_on IS NULL) OR (stay_ends_on >= stay_starts_on))),
     CONSTRAINT promotions_version_valid CHECK ((version >= 1))
 );
@@ -4752,7 +4837,7 @@ CREATE TABLE public.support_conversations (
     last_activity_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT support_conversations_category_check CHECK (((category)::text = ANY ((ARRAY['booking'::character varying, 'stay'::character varying, 'billing'::character varying, 'loyalty'::character varying, 'technical'::character varying, 'other'::character varying])::text[]))),
+    CONSTRAINT support_conversations_category_check CHECK (category IN ('booking','stay','billing','loyalty','technical','other','service_request','complaint')),
     CONSTRAINT support_conversations_escalation_level_check CHECK (((escalation_level >= 0) AND (escalation_level <= 3))),
     CONSTRAINT support_conversations_priority_check CHECK (((priority)::text = ANY ((ARRAY['low'::character varying, 'normal'::character varying, 'high'::character varying, 'urgent'::character varying])::text[]))),
     CONSTRAINT support_conversations_reopen_count_check CHECK ((reopen_count >= 0)),
@@ -4863,6 +4948,7 @@ CREATE TABLE public.system_settings (
     is_public boolean DEFAULT false,
     is_encrypted boolean DEFAULT false,
     validation_pattern character varying(255),
+    default_value text,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_by bigint,
@@ -5635,6 +5721,22 @@ ALTER TABLE ONLY public.guests
 
 
 --
+-- Name: guest_segments guest_segments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: guest_segments guest_segments_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_slug_key UNIQUE (slug);
+
+
+--
 -- Name: housekeeping_tasks housekeeping_tasks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5944,6 +6046,22 @@ ALTER TABLE ONLY public.permissions
 
 ALTER TABLE ONLY public.points_transactions
     ADD CONSTRAINT points_transactions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: promotion_channels promotion_channels_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_channels
+    ADD CONSTRAINT promotion_channels_pkey PRIMARY KEY (promotion_id, booking_channel_id);
+
+
+--
+-- Name: promotion_loyalty_tiers promotion_loyalty_tiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_loyalty_tiers
+    ADD CONSTRAINT promotion_loyalty_tiers_pkey PRIMARY KEY (promotion_id, loyalty_tier_id);
 
 
 --
@@ -6995,6 +7113,13 @@ CREATE INDEX idx_email_campaigns_status ON public.email_campaigns USING btree (s
 
 
 --
+-- Name: idx_email_campaigns_segment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_email_campaigns_segment ON public.email_campaigns USING btree (segment_id) WHERE (segment_id IS NOT NULL);
+
+
+--
 -- Name: idx_email_deliveries_campaign; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7041,6 +7166,20 @@ CREATE INDEX idx_guest_documents_guest_id ON public.guest_documents USING btree 
 --
 
 CREATE INDEX idx_guest_notes_alert ON public.guest_notes USING btree (guest_id, is_alert) WHERE (is_alert = true);
+
+
+--
+-- Name: idx_guest_notes_follow_up_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_follow_up_open ON public.guest_notes USING btree (follow_up_at) WHERE ((follow_up_at IS NOT NULL) AND (follow_up_completed_at IS NULL));
+
+
+--
+-- Name: idx_guest_notes_guest_created; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_notes_guest_created ON public.guest_notes USING btree (guest_id, created_at DESC);
 
 
 --
@@ -7132,6 +7271,13 @@ CREATE INDEX idx_guests_email_trgm ON public.guests USING gin (email public.gin_
 --
 
 CREATE INDEX idx_guests_guest_type ON public.guests USING btree (guest_type);
+
+
+--
+-- Name: idx_guest_segments_active; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_guest_segments_active ON public.guest_segments USING btree (is_active) WHERE (is_active = true);
 
 
 --
@@ -7520,6 +7666,20 @@ CREATE INDEX idx_posted_nights_date ON public.night_audit_posted_nights USING bt
 
 
 --
+-- Name: idx_promotion_channels_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_channels_channel ON public.promotion_channels USING btree (booking_channel_id, promotion_id);
+
+
+--
+-- Name: idx_promotion_loyalty_tiers_tier; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_promotion_loyalty_tiers_tier ON public.promotion_loyalty_tiers USING btree (loyalty_tier_id, promotion_id);
+
+
+--
 -- Name: idx_promotion_room_types_room_type; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7531,6 +7691,13 @@ CREATE INDEX idx_promotion_room_types_room_type ON public.promotion_room_types U
 --
 
 CREATE INDEX idx_promotions_public_window ON public.promotions USING btree (status, is_public, claim_starts_at, claim_ends_at);
+
+
+--
+-- Name: promotions_internal_code_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX promotions_internal_code_key ON public.promotions USING btree (internal_code) WHERE (internal_code IS NOT NULL);
 
 
 --
@@ -8003,6 +8170,13 @@ CREATE UNIQUE INDEX uq_customer_ledgers_booking_room_charge ON public.customer_l
 
 
 --
+-- Name: uq_guest_preferences_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX uq_guest_preferences_key ON public.guest_preferences USING btree (guest_id, category, preference_key);
+
+
+--
 -- Name: uq_support_messages_client_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8112,6 +8286,13 @@ ALTER INDEX public.idx_audit_logs_resource ATTACH PARTITION public.audit_logs_de
 --
 
 ALTER INDEX public.idx_audit_logs_user_id ATTACH PARTITION public.audit_logs_default_user_id_idx;
+
+
+--
+-- Name: audit_logs trg_audit_logs_append_only; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_audit_logs_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.audit_logs FOR EACH STATEMENT EXECUTE FUNCTION public.prevent_audit_log_mutation();
 
 
 --
@@ -8819,6 +9000,14 @@ ALTER TABLE ONLY public.email_campaigns
 
 
 --
+-- Name: email_campaigns email_campaigns_segment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.email_campaigns
+    ADD CONSTRAINT email_campaigns_segment_id_fkey FOREIGN KEY (segment_id) REFERENCES public.guest_segments(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: email_campaigns email_campaigns_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8992,6 +9181,22 @@ ALTER TABLE ONLY public.guests
 
 ALTER TABLE ONLY public.guests
     ADD CONSTRAINT guests_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id);
+
+
+--
+-- Name: guest_segments guest_segments_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: guest_segments guest_segments_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.guest_segments
+    ADD CONSTRAINT guest_segments_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -9392,6 +9597,38 @@ ALTER TABLE ONLY public.points_transactions
 
 ALTER TABLE ONLY public.points_transactions
     ADD CONSTRAINT points_transactions_membership_id_fkey FOREIGN KEY (membership_id) REFERENCES public.loyalty_memberships(id) ON DELETE CASCADE;
+
+
+--
+-- Name: promotion_channels promotion_channels_booking_channel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_channels
+    ADD CONSTRAINT promotion_channels_booking_channel_id_fkey FOREIGN KEY (booking_channel_id) REFERENCES public.booking_channels(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: promotion_channels promotion_channels_promotion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_channels
+    ADD CONSTRAINT promotion_channels_promotion_id_fkey FOREIGN KEY (promotion_id) REFERENCES public.promotions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: promotion_loyalty_tiers promotion_loyalty_tiers_loyalty_tier_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_loyalty_tiers
+    ADD CONSTRAINT promotion_loyalty_tiers_loyalty_tier_id_fkey FOREIGN KEY (loyalty_tier_id) REFERENCES public.loyalty_tiers(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: promotion_loyalty_tiers promotion_loyalty_tiers_promotion_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.promotion_loyalty_tiers
+    ADD CONSTRAINT promotion_loyalty_tiers_promotion_id_fkey FOREIGN KEY (promotion_id) REFERENCES public.promotions(id) ON DELETE CASCADE;
 
 
 --
@@ -10057,6 +10294,50 @@ CREATE TABLE public.hotel_schema_revisions (
     applied_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     app_build text,
     PRIMARY KEY (generation, version)
+);
+
+-- One row per background-loop iteration, written by the schedulers spawned in
+-- main.rs. `status` is 'ok' or 'error'; `detail` carries per-tick counters
+-- (e.g. rows processed) and `error` the last failure message. This is a
+-- heartbeat log, not a job queue: loops write it best-effort so a monitoring
+-- surface can answer "is the loop alive, and did it last succeed?".
+CREATE TABLE public.job_runs (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    job_name character varying(100) NOT NULL,
+    status character varying(20) NOT NULL,
+    detail jsonb,
+    error text,
+    duration_ms integer,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_job_runs_job_created ON public.job_runs USING btree (job_name, created_at DESC);
+CREATE INDEX idx_job_runs_created ON public.job_runs USING btree (created_at DESC);
+
+-- Staff-facing alerts (distinct from the guest email pipeline in
+-- email_deliveries): one shared row per event, addressed to a permission name
+-- rather than enumerated users, with per-user read state tracked separately.
+-- Producers today: background-job failures via core::job_runs.
+CREATE TABLE public.staff_notifications (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    audience_permission character varying(100) NOT NULL,
+    kind character varying(50) NOT NULL,
+    subject character varying(200),
+    title character varying(300) NOT NULL,
+    body text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_staff_notifications_audience ON public.staff_notifications
+    USING btree (audience_permission, created_at DESC);
+CREATE INDEX idx_staff_notifications_kind_subject ON public.staff_notifications
+    USING btree (kind, subject, created_at DESC);
+
+CREATE TABLE public.staff_notification_reads (
+    notification_id bigint NOT NULL REFERENCES public.staff_notifications(id) ON DELETE CASCADE,
+    user_id bigint NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    read_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (notification_id, user_id)
 );
 
 COMMIT;

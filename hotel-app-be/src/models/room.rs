@@ -192,6 +192,9 @@ pub struct RoomType {
     pub extra_bed_charge: Decimal,
     pub is_active: bool,
     pub sort_order: i32,
+    /// Public image URLs (e.g. `/uploads/room-types/<file>`); first is the cover.
+    #[serde(default)]
+    pub images: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -231,6 +234,8 @@ pub struct RoomTypeUpdateInput {
     pub extra_bed_charge: Option<f64>,
     pub is_active: Option<bool>,
     pub sort_order: Option<i32>,
+    /// Replaces the whole images list when present; omit to leave it untouched.
+    pub images: Option<Vec<String>>,
 }
 
 /// Room current occupancy (derived from active bookings - no manual input)
@@ -395,6 +400,12 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomType {
             extra_bed_charge: { row.try_get("extra_bed_charge")? },
             is_active: row.try_get("is_active")?,
             sort_order: row.try_get("sort_order")?,
+            // Lenient: queries that don't select `images` still map fine.
+            images: row
+                .try_get::<serde_json::Value, _>("images")
+                .ok()
+                .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
+                .unwrap_or_default(),
             created_at: row.try_get("created_at")?,
             updated_at: row.try_get("updated_at")?,
         })
