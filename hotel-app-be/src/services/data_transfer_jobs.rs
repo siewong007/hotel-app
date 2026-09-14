@@ -2055,6 +2055,36 @@ mod tests {
         assert_eq!(PkBinding::Int.canonical("abc"), None);
     }
 
+    #[test]
+    fn upload_cap_is_256_mib() {
+        // The documented backup ceiling — `DefaultBodyLimit::max(...)` on the
+        // route and every "how large can a backup be" answer agree on this
+        // number. Pinned as a bare literal so changing the constant forces
+        // this test to be edited deliberately.
+        assert_eq!(MAX_UPLOAD_BYTES, 268_435_456);
+    }
+
+    #[tokio::test]
+    async fn oversize_mid_stream_is_rejected_and_leaves_no_files() {
+        let dir = std::env::temp_dir().join(format!("dt-cap-mid-{}", Uuid::new_v4()));
+        // A body that only crosses the cap in its second chunk — the running
+        // byte count must trip mid-stream, not just on a Content-Length or a
+        // single oversized first chunk.
+        let stream = async_stream::stream! {
+            yield Ok::<_, std::io::Error>(vec![b' '; 768]);
+            yield Ok::<_, std::io::Error>(vec![b' '; 768]);
+        };
+        let rejected = stage_backup_upload_to(Body::from_stream(stream), &dir, 1024).await;
+        assert!(matches!(rejected, Err(StageUploadError::PayloadTooLarge)));
+        // The aborted `.part` file is removed — nothing partial stays behind
+        // for the sweep to find.
+        let leftovers = fs::read_dir(&dir)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
+        assert!(!leftovers, "an aborted upload must not leave staging files");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     #[tokio::test]
     async fn whitespace_prefix_still_counts_against_the_upload_cap() {
         let dir = std::env::temp_dir().join(format!("dt-cap-test-{}", Uuid::new_v4()));
