@@ -14,17 +14,20 @@ import { Logout as LogoutIcon } from '@mui/icons-material';
 import type { UserSessionInfo } from '../../../../types';
 import { DeviceIcon, detectDeviceType } from './deviceIcons';
 import { sessionActivityLine } from './sessionLocation';
+import { useTranslation } from '../../../../i18n';
 
 interface DevicesTabProps {
   sessions: UserSessionInfo[];
   onRevoke: (session: UserSessionInfo) => void;
 }
 
-const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
+const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => {
+  const { t } = useTranslation('auth');
+  return (
   <Card>
     <CardContent>
       <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-        Signed-in devices
+        {t('devices.title')}
       </Typography>
       <Typography
         variant="body2"
@@ -32,13 +35,12 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
           color: "text.secondary",
           mb: 2
         }}>
-        Log out devices you no longer use. Their access ends immediately. Locations come from
-        each device's time zone, so they are approximate.
+        {t('devices.subtitle')}
       </Typography>
       {sessions.length === 0 ? (
         <Typography sx={{
           color: "text.secondary"
-        }}>No active sessions found.</Typography>
+        }}>{t('devices.empty')}</Typography>
       ) : (
         <List>
           {sessions.map((session, index) => (
@@ -55,7 +57,7 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
                       {detectDeviceType(session.user_agent || '').label}
                     </Typography>
                     {session.is_current && (
-                      <Chip label="Current device" size="small" color="success" />
+                      <Chip label={t('devices.current')} size="small" color="success" />
                     )}
                   </Box>
                 }
@@ -67,7 +69,7 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
                 <IconButton
                   color="error"
                   onClick={() => onRevoke(session)}
-                  title="Log out device"
+                  title={t('devices.revoke')}
                 >
                   <LogoutIcon />
                 </IconButton>
@@ -78,6 +80,7 @@ const DevicesTab: React.FC<DevicesTabProps> = ({ sessions, onRevoke }) => (
       )}
     </CardContent>
   </Card>
-);
+  );
+};
 
 export default DevicesTab;

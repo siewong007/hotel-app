@@ -1,3 +1,4 @@
+import { t } from '../../../i18n';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 
 // Login accepts either an authenticator TOTP code or a 2FA recovery code in the
@@ -35,9 +36,7 @@ export function isCompleteTwoFactorCode(code: string, method: TwoFactorMethod): 
 export function notifyRecoveryCodeUsed(remaining: number): void {
   setTimeout(() => {
     emitApiNotification({
-      message:
-        `Signed in with a recovery code. ${remaining} recovery code${remaining === 1 ? '' : 's'} ` +
-        'remaining — regenerate them in Profile → Security.',
+      message: t('twoFactor.recoveryUsed', { count: remaining }, 'auth'),
       severity: 'warning',
     });
   }, 0);

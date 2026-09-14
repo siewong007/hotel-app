@@ -9,7 +9,8 @@
     "deleted": "Dipadam.",
     "updated": "Dikemas kini.",
     "failed": "Tindakan gagal. Sila cuba lagi.",
-    "copied": "Disalin ke papan klip."
+    "copied": "Disalin ke papan klip.",
+    "copyFailed": "Gagal menyalin ke papan keratan."
   },
   "center": {
     "alerts": "Makluman",

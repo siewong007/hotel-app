@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box } from '@mui/material';
+import { t } from '../../../../i18n';
 import {
   Computer as ComputerIcon,
   Fingerprint as FingerprintIcon,
@@ -23,6 +24,8 @@ export interface DeviceConfig {
 /**
  * Best-effort device classification from a free-text device name or user agent.
  * Used to decorate passkeys and signed-in sessions; never security-relevant.
+ * Labels go through the bare `t` — callers invoke this during render, so the
+ * resolved language follows the active locale without a hook here.
  */
 export const detectDeviceType = (deviceName: string): DeviceConfig => {
   const name = deviceName.toLowerCase();
@@ -33,7 +36,7 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
       type: 'laptop',
       icon: <LaptopIcon />,
       color: 'var(--hotel-info)',
-      label: 'Laptop',
+      label: t('devices.type.laptop', undefined, 'auth'),
       gradient: 'color-mix(in srgb, var(--hotel-info) 20%, transparent)',
     };
   }
@@ -43,7 +46,7 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
       type: 'desktop',
       icon: <ComputerIcon />,
       color: 'var(--hotel-success)',
-      label: 'Desktop',
+      label: t('devices.type.desktop', undefined, 'auth'),
       gradient: 'color-mix(in srgb, var(--hotel-success) 20%, transparent)',
     };
   }
@@ -53,7 +56,7 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
       type: 'tablet',
       icon: <TabletIcon />,
       color: 'var(--hotel-warning)',
-      label: 'Tablet',
+      label: t('devices.type.tablet', undefined, 'auth'),
       gradient: 'color-mix(in srgb, var(--hotel-warning) 20%, transparent)',
     };
   }
@@ -64,7 +67,7 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
       type: 'mobile',
       icon: isIphone ? <PhoneIphoneIcon /> : <SmartphoneIcon />,
       color: 'var(--hotel-chart-4)',
-      label: isIphone ? 'iPhone' : 'Mobile',
+      label: isIphone ? 'iPhone' : t('devices.type.mobile', undefined, 'auth'),
       gradient: 'color-mix(in srgb, var(--hotel-chart-4) 20%, transparent)',
     };
   }
@@ -74,7 +77,7 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
       type: 'security-key',
       icon: <SecurityIcon />,
       color: 'var(--hotel-danger)',
-      label: 'Security Key',
+      label: t('devices.type.securityKey', undefined, 'auth'),
       gradient: 'color-mix(in srgb, var(--hotel-danger) 20%, transparent)',
     };
   }
@@ -83,7 +86,7 @@ export const detectDeviceType = (deviceName: string): DeviceConfig => {
     type: 'unknown',
     icon: <FingerprintIcon />,
     color: 'var(--hotel-neutral)',
-    label: 'Device',
+    label: t('devices.type.unknown', undefined, 'auth'),
     gradient: 'color-mix(in srgb, var(--hotel-info) 20%, transparent)',
   };
 };

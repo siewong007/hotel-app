@@ -22,6 +22,7 @@ import {
   type ReportTypographyPresetKey,
   getReportTypographyPreset,
 } from "../../../insights/utils/reportTypography";
+import { useTranslation } from "../../../../i18n";
 
 interface ReportSettingsCardProps {
   isAdmin: boolean;
@@ -63,6 +64,7 @@ export function ReportSettingsCard({
   reportChipFontSize,
   onReportChipFontSizeChange,
 }: ReportSettingsCardProps) {
+  const { t } = useTranslation('admin');
   const selectedReportPreset = REPORT_TYPOGRAPHY_PRESETS.find(
     (preset) =>
       preset.sizes.report_font_size === reportFontSize &&
@@ -74,8 +76,9 @@ export function ReportSettingsCard({
       preset.sizes.report_chip_font_size === reportChipFontSize,
   );
   const reportPresetValue = selectedReportPreset?.key ?? "custom";
-  const reportPresetHelperText =
-    selectedReportPreset?.description ?? "Custom report font sizes are active";
+  const reportPresetHelperText = selectedReportPreset
+    ? t(`settings.fontPresets.${selectedReportPreset.key}.description`)
+    : t('settings.fontPresetCustomHint');
 
   const applyReportTypographyPreset = (value: string) => {
     if (value === "custom") return;
@@ -97,7 +100,7 @@ export function ReportSettingsCard({
       <CardContent>
         <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
           <AssessmentIcon sx={{ mr: 1, color: "primary.main" }} />
-          <Typography variant="h6">Report Settings</Typography>
+          <Typography variant="h6">{t('settings.reportsTitle')}</Typography>
         </Box>
         <Divider sx={{ mb: 3 }} />
 
@@ -106,7 +109,7 @@ export function ReportSettingsCard({
             <TextField
               select
               fullWidth
-              label="Report Font Preset"
+              label={t('settings.fontPreset')}
               value={reportPresetValue}
               onChange={(e) => applyReportTypographyPreset(e.target.value)}
               helperText={reportPresetHelperText}
@@ -115,10 +118,10 @@ export function ReportSettingsCard({
                 select: { native: true }
               }}
             >
-              <option value="custom">Custom</option>
+              <option value="custom">{t('settings.fontPresetCustom')}</option>
               {REPORT_TYPOGRAPHY_PRESETS.map((preset) => (
                 <option key={preset.key} value={preset.key}>
-                  {preset.label}
+                  {t(`settings.fontPresets.${preset.key}.label`)}
                 </option>
               ))}
             </TextField>
@@ -127,10 +130,10 @@ export function ReportSettingsCard({
             <TextField
               select
               fullWidth
-              label="Report Font Family"
+              label={t('settings.fontFamily')}
               value={reportFontFamily}
               onChange={(e) => onReportFontFamilyChange(e.target.value)}
-              helperText="Font used by generated report previews and print output"
+              helperText={t('settings.fontFamilyHint')}
               disabled={!isAdmin}
               slotProps={{
                 select: { native: true }
@@ -145,10 +148,10 @@ export function ReportSettingsCard({
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <SizeField
-              label="Report Body Font Size"
+              label={t('settings.fontSizeBody')}
               value={reportFontSize}
               onChange={onReportFontSizeChange}
-              helperText="Main report text size"
+              helperText={t('settings.fontSizeBodyHint')}
               min={REPORT_FONT_SIZE_MIN}
               max={REPORT_FONT_SIZE_MAX}
               disabled={!isAdmin}
@@ -156,10 +159,10 @@ export function ReportSettingsCard({
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <SizeField
-              label="Heading / KPI Font Size"
+              label={t('settings.fontSizeHeading')}
               value={reportHeadingFontSize}
               onChange={onReportHeadingFontSizeChange}
-              helperText="Large report titles and metric values"
+              helperText={t('settings.fontSizeHeadingHint')}
               min={REPORT_DISPLAY_FONT_SIZE_MIN}
               max={REPORT_DISPLAY_FONT_SIZE_MAX}
               fallbackMin={REPORT_DISPLAY_FONT_SIZE_MIN}
@@ -168,10 +171,10 @@ export function ReportSettingsCard({
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <SizeField
-              label="Section Heading Font Size"
+              label={t('settings.fontSizeSectionHeading')}
               value={reportSectionHeadingFontSize}
               onChange={onReportSectionHeadingFontSizeChange}
-              helperText="Report section labels and subheads"
+              helperText={t('settings.fontSizeSectionHeadingHint')}
               min={REPORT_FONT_SIZE_MIN}
               max={REPORT_DISPLAY_FONT_SIZE_MAX}
               disabled={!isAdmin}
@@ -179,10 +182,10 @@ export function ReportSettingsCard({
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <SizeField
-              label="Table Font Size"
+              label={t('settings.fontSizeTable')}
               value={reportTableFontSize}
               onChange={onReportTableFontSizeChange}
-              helperText="Rows, totals, and table headers"
+              helperText={t('settings.fontSizeTableHint')}
               min={REPORT_FONT_SIZE_MIN}
               max={REPORT_FONT_SIZE_MAX}
               disabled={!isAdmin}
@@ -190,10 +193,10 @@ export function ReportSettingsCard({
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <SizeField
-              label="Caption Font Size"
+              label={t('settings.fontSizeCaption')}
               value={reportCaptionFontSize}
               onChange={onReportCaptionFontSizeChange}
-              helperText="Secondary labels and captions"
+              helperText={t('settings.fontSizeCaptionHint')}
               min={REPORT_FONT_SIZE_MIN}
               max={REPORT_FONT_SIZE_MAX}
               disabled={!isAdmin}
@@ -201,10 +204,10 @@ export function ReportSettingsCard({
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <SizeField
-              label="Status Chip Font Size"
+              label={t('settings.fontSizeChip')}
               value={reportChipFontSize}
               onChange={onReportChipFontSizeChange}
-              helperText="Payment and posting status chips"
+              helperText={t('settings.fontSizeChipHint')}
               min={REPORT_FONT_SIZE_MIN}
               max={REPORT_FONT_SIZE_MAX}
               disabled={!isAdmin}

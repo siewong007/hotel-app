@@ -5,6 +5,7 @@ import {
   isGoogleSignInAvailable,
   whenGoogleIdentityReady,
 } from '../google/googleIdentity';
+import { useLocale, type LocaleCode } from '../../../i18n';
 
 // The GSI global's type, the script loader, the availability rule and the
 // sign-out counterpart are shared with the One Tap prompt — see
@@ -29,6 +30,9 @@ export interface GoogleSignInButtonProps {
  * is a web-only, guest-facing feature — and a no-op when the backend hasn't
  * configured a client id (treat as "feature unavailable", not an error).
  */
+/** GSI wants a BCP-47 tag; our zh bundle is Simplified Chinese → zh-CN. */
+const gsiLocale = (locale: LocaleCode): string => (locale === 'zh' ? 'zh-CN' : locale);
+
 export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   onCredential,
   type = 'standard',
@@ -36,6 +40,7 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onCredentialRef = useRef(onCredential);
   onCredentialRef.current = onCredential;
+  const locale = useLocale();
 
   const clientId = googleClientId();
   const disabled = !isGoogleSignInAvailable();
@@ -70,9 +75,11 @@ export const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
         // guest and creates a new one, so a sign-in/sign-up split would be a
         // distinction the flow no longer makes.
         text: 'continue_with',
+        // GSI renders its own label; hand it the app locale so it does.
+        locale: gsiLocale(locale),
       });
     });
-  }, [clientId, disabled, type]);
+  }, [clientId, disabled, type, locale]);
 
   if (disabled) {
     return null;

@@ -15,5 +15,7 @@
   "mustBeInteger": "{{field}} mestilah nombor bulat.",
   "dateInPast": "{{field}} tidak boleh berada pada masa lalu.",
   "passwordTooShort": "Kata laluan mestilah sekurang-kurangnya {{min}} aksara.",
-  "passwordMismatch": "Kata laluan tidak sepadan."
+  "passwordMismatch": "Kata laluan tidak sepadan.",
+  "minDigits": "{{field}} mestilah sekurang-kurangnya {{min}} digit.",
+  "maxDigits": "{{field}} tidak boleh melebihi {{max}} digit."
 }

@@ -60,85 +60,64 @@ import {
   useSaveHotelSettingsMutation,
 } from "../hooks/useSettingsQueries";
 import { useConfirm } from "../../../components/common/ConfirmProvider";
-// Common timezones for hotels
+import { useTranslation } from "../../../i18n";
+// Common timezones for hotels — display names live in admin:settings.tz.*
 const TIMEZONES = [
-  {
-    value: "Asia/Kuala_Lumpur",
-    label: "Malaysia (Kuala Lumpur) - GMT+8",
-    region: "Asia",
-  },
-  { value: "Asia/Singapore", label: "Singapore - GMT+8", region: "Asia" },
-  {
-    value: "Asia/Bangkok",
-    label: "Thailand (Bangkok) - GMT+7",
-    region: "Asia",
-  },
-  {
-    value: "Asia/Jakarta",
-    label: "Indonesia (Jakarta) - GMT+7",
-    region: "Asia",
-  },
-  {
-    value: "Asia/Manila",
-    label: "Philippines (Manila) - GMT+8",
-    region: "Asia",
-  },
-  { value: "Asia/Hong_Kong", label: "Hong Kong - GMT+8", region: "Asia" },
-  { value: "Asia/Tokyo", label: "Japan (Tokyo) - GMT+9", region: "Asia" },
-  { value: "Asia/Shanghai", label: "China (Shanghai) - GMT+8", region: "Asia" },
-  { value: "Asia/Dubai", label: "UAE (Dubai) - GMT+4", region: "Asia" },
-  {
-    value: "Australia/Sydney",
-    label: "Australia (Sydney) - GMT+10/+11",
-    region: "Pacific",
-  },
-  {
-    value: "Europe/London",
-    label: "United Kingdom (London) - GMT+0/+1",
-    region: "Europe",
-  },
-  {
-    value: "Europe/Paris",
-    label: "France (Paris) - GMT+1/+2",
-    region: "Europe",
-  },
-  {
-    value: "America/New_York",
-    label: "USA (New York) - GMT-5/-4",
-    region: "Americas",
-  },
-  {
-    value: "America/Los_Angeles",
-    label: "USA (Los Angeles) - GMT-8/-7",
-    region: "Americas",
-  },
-  {
-    value: "America/Chicago",
-    label: "USA (Chicago) - GMT-6/-5",
-    region: "Americas",
-  },
-];
+  { value: "Asia/Kuala_Lumpur", region: "Asia" },
+  { value: "Asia/Singapore", region: "Asia" },
+  { value: "Asia/Bangkok", region: "Asia" },
+  { value: "Asia/Jakarta", region: "Asia" },
+  { value: "Asia/Manila", region: "Asia" },
+  { value: "Asia/Hong_Kong", region: "Asia" },
+  { value: "Asia/Tokyo", region: "Asia" },
+  { value: "Asia/Shanghai", region: "Asia" },
+  { value: "Asia/Dubai", region: "Asia" },
+  { value: "Australia/Sydney", region: "Pacific" },
+  { value: "Europe/London", region: "Europe" },
+  { value: "Europe/Paris", region: "Europe" },
+  { value: "America/New_York", region: "Americas" },
+  { value: "America/Los_Angeles", region: "Americas" },
+  { value: "America/Chicago", region: "Americas" },
+] as const;
+
+const TIMEZONE_LABEL_KEYS: Record<string, string> = {
+  "Asia/Kuala_Lumpur": "settings.tz.asiaKualaLumpur",
+  "Asia/Singapore": "settings.tz.asiaSingapore",
+  "Asia/Bangkok": "settings.tz.asiaBangkok",
+  "Asia/Jakarta": "settings.tz.asiaJakarta",
+  "Asia/Manila": "settings.tz.asiaManila",
+  "Asia/Hong_Kong": "settings.tz.asiaHongKong",
+  "Asia/Tokyo": "settings.tz.asiaTokyo",
+  "Asia/Shanghai": "settings.tz.asiaShanghai",
+  "Asia/Dubai": "settings.tz.asiaDubai",
+  "Australia/Sydney": "settings.tz.australiaSydney",
+  "Europe/London": "settings.tz.europeLondon",
+  "Europe/Paris": "settings.tz.europeParis",
+  "America/New_York": "settings.tz.americaNewYork",
+  "America/Los_Angeles": "settings.tz.americaLosAngeles",
+  "America/Chicago": "settings.tz.americaChicago",
+};
 
 type SupportPriority = "low" | "normal" | "high" | "urgent";
 
-const SUPPORT_PRIORITY_LABELS: Record<SupportPriority, string> = {
-  low: "Low",
-  normal: "Normal",
-  high: "High",
-  urgent: "Urgent",
+const SUPPORT_PRIORITY_LABEL_KEYS: Record<SupportPriority, string> = {
+  low: "settings.supportPriority.low",
+  normal: "settings.supportPriority.normal",
+  high: "settings.supportPriority.high",
+  urgent: "settings.supportPriority.urgent",
 };
 
 const SUPPORT_PRIORITIES = Object.keys(
-  SUPPORT_PRIORITY_LABELS,
+  SUPPORT_PRIORITY_LABEL_KEYS,
 ) as SupportPriority[];
 
-const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
-  booking: "Booking or check-in",
-  stay: "Stay or room",
-  billing: "Billing or payment",
-  loyalty: "Membership or rewards",
-  technical: "Portal or technical issue",
-  other: "Something else",
+const SUPPORT_CATEGORY_LABEL_KEYS: Record<string, string> = {
+  booking: "settings.supportCategory.booking",
+  stay: "settings.supportCategory.stay",
+  billing: "settings.supportCategory.billing",
+  loyalty: "settings.supportCategory.loyalty",
+  technical: "settings.supportCategory.technical",
+  other: "settings.supportCategory.other",
 };
 
 /** Settings keys owned by each workspace tab, for "Reset to defaults". */
@@ -195,6 +174,7 @@ const SECTION_KEYS = {
 } as const;
 
 const SettingsPage: React.FC = () => {
+  const { t } = useTranslation('admin');
   const { hasPermission } = useAuth();
   const { themeMode, onThemeModeChange } = useThemeMode();
   const isAdmin =
@@ -481,12 +461,12 @@ const SettingsPage: React.FC = () => {
         new CustomEvent("hotelSettingsChange", { detail: savedSettings }),
       );
 
-      setSuccess("Settings saved successfully");
+      setSuccess(t('settings.saved'));
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(errorMessage(err, "Failed to save settings"));
+      setError(errorMessage(err, t('settings.saveFailed')));
     }
   };
 
@@ -495,8 +475,7 @@ const SettingsPage: React.FC = () => {
     setError("");
     setSuccess("");
     const accepted = await confirm({
-      message:
-        "Reset this section to its factory defaults? The change is audited and each key can be edited again afterwards.",
+      message: t('settings.resetConfirm'),
       severity: "warning",
     });
     if (!accepted) return;
@@ -508,10 +487,10 @@ const SettingsPage: React.FC = () => {
         baselineArmed.current = false;
         applySettingsToForm(result.data);
       }
-      setSuccess("Section reset to defaults");
+      setSuccess(t('settings.resetDone'));
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(errorMessage(err, "Failed to reset settings"));
+      setError(errorMessage(err, t('settings.resetFailed')));
     }
   };
 
@@ -525,7 +504,7 @@ const SettingsPage: React.FC = () => {
           onClick={() => resetSection(keys)}
           disabled={resetSettingsMutation.isPending || saving}
         >
-          Reset to defaults
+          {t('settings.resetToDefaults')}
         </Button>
       </Box>
     ) : null;
@@ -547,7 +526,7 @@ const SettingsPage: React.FC = () => {
   return (
     <Box>
       <Typography variant="h4" component="h1" gutterBottom>
-        Hotel Settings
+        {t('settings.title')}
       </Typography>
       <Typography
         variant="body2"
@@ -555,7 +534,7 @@ const SettingsPage: React.FC = () => {
           color: "text.secondary",
           mb: 3
         }}>
-        Configure your hotel's operational settings
+        {t('settings.subtitle')}
       </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
@@ -574,13 +553,13 @@ const SettingsPage: React.FC = () => {
         scrollButtons="auto"
         sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
       >
-        <Tab value="hotel" label="Hotel" />
-        <Tab value="finance" label="Charges & Tax" />
-        <Tab value="reports" label="Reports" />
-        <Tab value="guest" label="Guest Policies" />
-        <Tab value="security" label="Security" />
-        <Tab value="appearance" label="Appearance" />
-        <Tab value="system" label="Code Lists" />
+        <Tab value="hotel" label={t('settings.tabs.hotel')} />
+        <Tab value="finance" label={t('settings.tabs.finance')} />
+        <Tab value="reports" label={t('settings.tabs.reports')} />
+        <Tab value="guest" label={t('settings.tabs.guest')} />
+        <Tab value="security" label={t('settings.tabs.security')} />
+        <Tab value="appearance" label={t('settings.tabs.appearance')} />
+        <Tab value="system" label={t('settings.tabs.system')} />
       </Tabs>
       {activeTab === "hotel" && (
         <>
@@ -590,7 +569,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <BusinessIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Hotel Information</Typography>
+            <Typography variant="h6">{t('settings.hotelInfo')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -598,21 +577,21 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Hotel Name"
+                label={t('settings.hotelName')}
                 value={hotelName}
                 onChange={(e) => setHotelName(e.target.value)}
-                helperText="The official name of your hotel"
+                helperText={t('settings.hotelNameHint')}
                 disabled={!isAdmin}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Contact Email"
+                label={t('settings.contactEmail')}
                 type="email"
                 value={hotelEmail}
                 onChange={(e) => setHotelEmail(e.target.value)}
-                helperText="Main contact email address"
+                helperText={t('settings.contactEmailHint')}
                 disabled={!isAdmin}
               />
             </Grid>
@@ -620,30 +599,30 @@ const SettingsPage: React.FC = () => {
               <TextField
                 fullWidth
                 type="tel"
-                label="Contact Phone"
+                label={t('settings.contactPhone')}
                 value={hotelPhone}
                 onChange={(e) => setHotelPhone(e.target.value)}
-                helperText="Main contact phone number"
+                helperText={t('settings.contactPhoneHint')}
                 disabled={!isAdmin}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Address"
+                label={t('settings.address')}
                 value={hotelAddress}
                 onChange={(e) => setHotelAddress(e.target.value)}
-                helperText="Full hotel address"
+                helperText={t('settings.addressHint')}
                 disabled={!isAdmin}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Business Registration Number"
+                label={t('settings.businessNumber')}
                 value={hotelBusinessNumber}
                 onChange={(e) => setHotelBusinessNumber(e.target.value)}
-                helperText="SSM number printed in the guest booking terms"
+                helperText={t('settings.businessNumberHint')}
                 disabled={!isAdmin}
               />
             </Grid>
@@ -651,7 +630,7 @@ const SettingsPage: React.FC = () => {
 
           {!isAdmin && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              Only administrators can modify hotel information
+              {t('settings.adminOnlyHotel')}
             </Alert>
           )}
         </CardContent>
@@ -661,7 +640,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <ScheduleIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Check-in & Check-out Times</Typography>
+            <Typography variant="h6">{t('settings.timesTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -669,11 +648,11 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Check-in Time"
+                label={t('settings.checkInTime')}
                 type="time"
                 value={checkInTime}
                 onChange={(e) => setCheckInTime(e.target.value)}
-                helperText="Standard time when guests can check in"
+                helperText={t('settings.checkInTimeHint')}
                 slotProps={{
                   inputLabel: { shrink: true }
                 }}
@@ -682,11 +661,11 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Check-out Time"
+                label={t('settings.checkOutTime')}
                 type="time"
                 value={checkOutTime}
                 onChange={(e) => setCheckOutTime(e.target.value)}
-                helperText="Standard time when guests must check out"
+                helperText={t('settings.checkOutTimeHint')}
                 slotProps={{
                   inputLabel: { shrink: true }
                 }}
@@ -695,11 +674,11 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="Night Shift / Night Audit Time"
+                label={t('settings.nightShiftTime')}
                 type="time"
                 value={nightShiftTime}
                 onChange={(e) => setNightShiftTime(e.target.value)}
-                helperText="Time when daily data is posted for reporting (e.g., 11:00 PM)"
+                helperText={t('settings.nightShiftHint')}
                 slotProps={{
                   inputLabel: { shrink: true }
                 }}
@@ -714,7 +693,7 @@ const SettingsPage: React.FC = () => {
                     onChange={(e) => setNightAuditAutoEnabled(e.target.checked)}
                   />
                 }
-                label="Run night audit automatically"
+                label={t('settings.nightAuditAuto')}
               />
               <Typography
                 variant="caption"
@@ -722,16 +701,13 @@ const SettingsPage: React.FC = () => {
                   color: "text.secondary",
                   display: "block"
                 }}>
-                When on, the system posts the night audit at the time above (and
-                catches up any missed days). When off, run it manually from the
-                Night Audit page.
+                {t('settings.nightAuditAutoHint')}
               </Typography>
             </Grid>
           </Grid>
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            Night shift time determines when daily booking and room data is
-            finalized for reports.
+            {t('settings.nightShiftNote')}
           </Alert>
         </CardContent>
       </Card>
@@ -740,7 +716,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <MoneyIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Operational Settings</Typography>
+            <Typography variant="h6">{t('settings.operationalTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -749,20 +725,20 @@ const SettingsPage: React.FC = () => {
               <TextField
                 select
                 fullWidth
-                label="Default Currency"
+                label={t('settings.defaultCurrency')}
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                helperText="All prices and charges will be displayed in this currency"
+                helperText={t('settings.defaultCurrencyHint')}
                 disabled={!isAdmin}
                 slotProps={{
                   select: { native: true }
                 }}
               >
-                <optgroup label="Recommended">
+                <optgroup label={t('settings.currencyRecommended')}>
                   <option value="MYR">RM - Malaysian Ringgit (MYR)</option>
                   <option value="USD">$ - US Dollar (USD)</option>
                 </optgroup>
-                <optgroup label="Other Currencies">
+                <optgroup label={t('settings.currencyOther')}>
                   {Object.entries(SUPPORTED_CURRENCIES)
                     .filter(([code]) => code !== "MYR" && code !== "USD")
                     .map(([code, info]) => (
@@ -777,38 +753,38 @@ const SettingsPage: React.FC = () => {
               <TextField
                 select
                 fullWidth
-                label="Timezone"
+                label={t('settings.timezone')}
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                helperText="Select your hotel's timezone for accurate time tracking"
+                helperText={t('settings.timezoneHint')}
                 disabled={!isAdmin}
                 slotProps={{
                   select: { native: true }
                 }}
               >
-                <optgroup label="Asia & Pacific">
+                <optgroup label={t('settings.tzGroup.asiaPacific')}>
                   {TIMEZONES.filter(
                     (tz) => tz.region === "Asia" || tz.region === "Pacific",
                   ).map((tz) => (
                     <option key={tz.value} value={tz.value}>
-                      {tz.label}
+                      {t(TIMEZONE_LABEL_KEYS[tz.value])}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Europe">
+                <optgroup label={t('settings.tzGroup.europe')}>
                   {TIMEZONES.filter((tz) => tz.region === "Europe").map(
                     (tz) => (
                       <option key={tz.value} value={tz.value}>
-                        {tz.label}
+                        {t(TIMEZONE_LABEL_KEYS[tz.value])}
                       </option>
                     ),
                   )}
                 </optgroup>
-                <optgroup label="Americas">
+                <optgroup label={t('settings.tzGroup.americas')}>
                   {TIMEZONES.filter((tz) => tz.region === "Americas").map(
                     (tz) => (
                       <option key={tz.value} value={tz.value}>
-                        {tz.label}
+                        {t(TIMEZONE_LABEL_KEYS[tz.value])}
                       </option>
                     ),
                   )}
@@ -819,19 +795,18 @@ const SettingsPage: React.FC = () => {
 
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-              Currency & Timezone Settings
+              {t('settings.currencyTimezoneNoteTitle')}
             </Typography>
             <Typography variant="caption">
-              • Changing the currency will update all price displays throughout
-              the system (bookings, invoices, reports)
-              <br />• Malaysia uses Asia/Kuala_Lumpur timezone (GMT+8) and
-              Malaysian Ringgit (MYR)
+              {t('settings.currencyNote1')}
+              <br />
+              {t('settings.currencyNote2')}
             </Typography>
           </Alert>
 
           {!isAdmin && (
             <Alert severity="warning" sx={{ mt: 2 }}>
-              Only administrators can modify operational settings
+              {t('settings.adminOnlyOps')}
             </Alert>
           )}
         </CardContent>
@@ -846,7 +821,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <MoneyIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Charges & Deposits</Typography>
+            <Typography variant="h6">{t('settings.chargesTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -854,13 +829,13 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
-                label="Service Tax Rate"
+                label={t('settings.serviceTaxRate')}
                 type="number"
                 value={serviceTaxRate}
                 onChange={(e) =>
                   setServiceTaxRate(parseFloat(e.target.value) || 0)
                 }
-                helperText="Tax percentage applied to all bookings"
+                helperText={t('settings.serviceTaxHint')}
                 slotProps={{
                   input: {
                     endAdornment: <Typography sx={{ ml: 0.5 }}>%</Typography>,
@@ -876,13 +851,13 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
-                label="Tourism Tax Rate"
+                label={t('settings.tourismTaxRate')}
                 type="number"
                 value={tourismTaxRate}
                 onChange={(e) =>
                   setTourismTaxRate(parseFloat(e.target.value) || 0)
                 }
-                helperText="Per night charge for tourist guests"
+                helperText={t('settings.tourismTaxHint')}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -899,13 +874,13 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
-                label="Default Deposit Amount"
+                label={t('settings.depositAmount')}
                 type="number"
                 value={depositAmount}
                 onChange={(e) =>
                   setDepositAmount(parseFloat(e.target.value) || 0)
                 }
-                helperText="Default deposit amount collected at check-in"
+                helperText={t('settings.depositHint')}
                 slotProps={{
                   input: {
                     startAdornment: (
@@ -922,7 +897,7 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
-                label="Unpaid Hold Release"
+                label={t('settings.unpaidHoldRelease')}
                 type="number"
                 value={unpaidHoldReleaseHours}
                 onChange={(e) => {
@@ -933,12 +908,12 @@ const SettingsPage: React.FC = () => {
                 }}
                 helperText={
                   unpaidHoldReleaseHours > 0
-                    ? 'Unpaid online bookings are voided and their rooms released after this long. Front-desk bookings are never released automatically.'
-                    : 'Off. Set a number of hours to release unpaid online bookings automatically. Front-desk bookings are never affected.'
+                    ? t('settings.unpaidHoldOn')
+                    : t('settings.unpaidHoldOff')
                 }
                 slotProps={{
                   input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>hours</Typography>,
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>{t('common:units.hours')}</Typography>,
                   },
 
                   htmlInput: {
@@ -950,16 +925,16 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
-                label="Payment Terms"
+                label={t('settings.paymentTerms')}
                 type="number"
                 value={defaultPaymentTermsDays}
                 onChange={(e) =>
                   setDefaultPaymentTermsDays(parseInt(e.target.value, 10) || 1)
                 }
-                helperText="Default invoice due-date offset"
+                helperText={t('settings.paymentTermsHint')}
                 slotProps={{
                   input: {
-                    endAdornment: <Typography sx={{ ml: 0.5 }}>days</Typography>,
+                    endAdornment: <Typography sx={{ ml: 0.5 }}>{t('common:units.days')}</Typography>,
                   },
 
                   htmlInput: {
@@ -971,8 +946,7 @@ const SettingsPage: React.FC = () => {
           </Grid>
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            These amounts will be used as defaults in the quick booking form.
-            Tourism tax is charged per night for guests marked as tourists.
+            {t('settings.chargesNote')}
           </Alert>
         </CardContent>
       </Card>
@@ -1006,7 +980,7 @@ const SettingsPage: React.FC = () => {
           {sectionResetButton(SECTION_KEYS.guest)}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Typography variant="h6">Guest Booking Cancellation</Typography>
+          <Typography variant="h6">{t('settings.guestCancelTitle')}</Typography>
           <Divider sx={{ my: 2 }} />
           <FormControlLabel
             control={
@@ -1018,13 +992,12 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             }
-            label="Allow guests to cancel eligible future bookings in the portal"
+            label={t('settings.guestCancelToggle')}
           />
           <Typography variant="body2" sx={{
             color: "text.secondary"
           }}>
-            Non-cancellable voucher terms and bookings that have reached
-            check-in still block cancellation.
+            {t('settings.guestCancelHint')}
           </Typography>
         </CardContent>
       </Card>
@@ -1033,7 +1006,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <SupportIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Guest Support Workflow</Typography>
+            <Typography variant="h6">{t('settings.supportTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 2 }} />
 
@@ -1045,7 +1018,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             }
-            label="Allow guests to start support conversations in the portal"
+            label={t('settings.supportToggle')}
           />
           <Typography
             variant="body2"
@@ -1053,14 +1026,13 @@ const SettingsPage: React.FC = () => {
               color: "text.secondary",
               mb: 3
             }}>
-            Existing conversations remain visible to staff when new guest
-            requests are paused.
+            {t('settings.supportHint')}
           </Typography>
 
           <Typography variant="subtitle1" gutterBottom sx={{
             fontWeight: "medium"
           }}>
-            Guest support topics
+            {t('settings.supportTopics')}
           </Typography>
           <Stack
             direction="row"
@@ -1071,13 +1043,13 @@ const SettingsPage: React.FC = () => {
               columnGap: 1,
               rowGap: 0
             }}>
-            {Object.entries(SUPPORT_CATEGORY_LABELS).map(
-              ([category, label]) => {
+            {Object.entries(SUPPORT_CATEGORY_LABEL_KEYS).map(
+              ([category, labelKey]) => {
                 const isEnabled = supportCategories.includes(category);
                 return (
                   <FormControlLabel
                     key={category}
-                    label={label}
+                    label={t(labelKey)}
                     control={
                       <Switch
                         size="small"
@@ -1106,14 +1078,14 @@ const SettingsPage: React.FC = () => {
               <Typography variant="subtitle1" gutterBottom sx={{
                 fontWeight: "medium"
               }}>
-                First response target
+                {t('settings.firstResponseTarget')}
               </Typography>
               <Grid container spacing={2}>
                 {SUPPORT_PRIORITIES.map((priority) => (
                   <Grid key={priority} size={{ xs: 6, sm: 3 }}>
                     <TextField
                       fullWidth
-                      label={`${SUPPORT_PRIORITY_LABELS[priority]} (minutes)`}
+                      label={`${t(SUPPORT_PRIORITY_LABEL_KEYS[priority])} (${t('common:units.minutes')})`}
                       type="number"
                       value={supportFirstResponseMinutes[priority]}
                       onChange={(event) =>
@@ -1138,14 +1110,14 @@ const SettingsPage: React.FC = () => {
               <Typography variant="subtitle1" gutterBottom sx={{
                 fontWeight: "medium"
               }}>
-                Resolution target
+                {t('settings.resolutionTarget')}
               </Typography>
               <Grid container spacing={2}>
                 {SUPPORT_PRIORITIES.map((priority) => (
                   <Grid key={priority} size={{ xs: 6, sm: 3 }}>
                     <TextField
                       fullWidth
-                      label={`${SUPPORT_PRIORITY_LABELS[priority]} (minutes)`}
+                      label={`${t(SUPPORT_PRIORITY_LABEL_KEYS[priority])} (${t('common:units.minutes')})`}
                       type="number"
                       value={supportResolutionMinutes[priority]}
                       onChange={(event) =>
@@ -1169,7 +1141,7 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
-                label="Guest reopen window"
+                label={t('settings.reopenWindow')}
                 type="number"
                 value={supportReopenWindowDays}
                 onChange={(event) =>
@@ -1177,7 +1149,7 @@ const SettingsPage: React.FC = () => {
                     Math.max(1, Number.parseInt(event.target.value, 10) || 1),
                   )
                 }
-                helperText="Days after resolution during which a guest can reopen a conversation"
+                helperText={t('settings.reopenWindowHint')}
                 disabled={!isAdmin}
                 slotProps={{
                   htmlInput: { min: 1, step: 1 }
@@ -1197,7 +1169,7 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <SecurityIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Security & Identity</Typography>
+            <Typography variant="h6">{t('settings.securityTitle')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
@@ -1205,13 +1177,13 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
-                label="Max Login Attempts"
+                label={t('settings.maxLoginAttempts')}
                 type="number"
                 value={maxLoginAttempts}
                 onChange={(e) =>
                   setMaxLoginAttempts(parseInt(e.target.value, 10) || 1)
                 }
-                helperText="Failed attempts before account lockout"
+                helperText={t('settings.maxLoginAttemptsHint')}
                 disabled={!isAdmin}
                 slotProps={{
                   htmlInput: {
@@ -1225,22 +1197,22 @@ const SettingsPage: React.FC = () => {
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
-                label="Authenticator Issuer"
+                label={t('settings.totpIssuer')}
                 value={totpIssuerName}
                 onChange={(e) => setTotpIssuerName(e.target.value)}
                 placeholder={hotelName}
-                helperText="Name shown in TOTP authenticator apps. Leave empty to use the hotel name."
+                helperText={t('settings.totpIssuerHint')}
                 disabled={!isAdmin}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
-                label="Passkey Display Name"
+                label={t('settings.passkeyDisplayName')}
                 value={passkeyRelyingPartyName}
                 onChange={(e) => setPasskeyRelyingPartyName(e.target.value)}
                 placeholder={hotelName}
-                helperText="Name shown during passkey registration. Leave empty to use the hotel name."
+                helperText={t('settings.passkeyDisplayNameHint')}
                 disabled={!isAdmin}
               />
             </Grid>
@@ -1257,20 +1229,19 @@ const SettingsPage: React.FC = () => {
         <CardContent>
           <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
             <PaletteIcon sx={{ mr: 1, color: "primary.main" }} />
-            <Typography variant="h6">Appearance</Typography>
+            <Typography variant="h6">{t('settings.tabs.appearance')}</Typography>
           </Box>
           <Divider sx={{ mb: 3 }} />
 
           <Typography variant="subtitle1" gutterBottom sx={{
             fontWeight: "medium"
           }}>
-            Theme Mode
+            {t('settings.themeMode')}
           </Typography>
           <Typography variant="body2" gutterBottom sx={{
             color: "text.secondary"
           }}>
-            Choose how the interface looks on this device. This preference is
-            saved locally and applies immediately.
+            {t('settings.themeModeHint')}
           </Typography>
 
           <ToggleButtonGroup
@@ -1282,20 +1253,20 @@ const SettingsPage: React.FC = () => {
             }}
             sx={{ mt: 2 }}
           >
-            <ToggleButton value="light" aria-label="Light mode">
-              <Tooltip title="Light mode">
+            <ToggleButton value="light" aria-label={t('settings.theme.lightMode')}>
+              <Tooltip title={t('settings.theme.lightMode')}>
                 <LightModeIcon fontSize="small" />
               </Tooltip>
               <Box component="span" sx={{ ml: 1 }}>
-                Light
+                {t('settings.theme.light')}
               </Box>
             </ToggleButton>
-            <ToggleButton value="dark" aria-label="Dark mode">
-              <Tooltip title="Dark mode">
+            <ToggleButton value="dark" aria-label={t('settings.theme.darkMode')}>
+              <Tooltip title={t('settings.theme.darkMode')}>
                 <DarkModeIcon fontSize="small" />
               </Tooltip>
               <Box component="span" sx={{ ml: 1 }}>
-                Dark
+                {t('settings.theme.dark')}
               </Box>
             </ToggleButton>
           </ToggleButtonGroup>
@@ -1350,11 +1321,11 @@ const SettingsPage: React.FC = () => {
             color: isDirty ? 'warning.main' : 'text.secondary',
           }}
         >
-          {isDirty ? 'You have unsaved changes' : 'All changes saved'}
+          {isDirty ? t('settings.unsaved') : t('settings.allSaved')}
         </Typography>
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2 }}>
           <Button variant="outlined" onClick={loadSettings} disabled={saving || (isAdmin && !isDirty)}>
-            Discard changes
+            {t('settings.discard')}
           </Button>
           <Button
             variant="contained"
@@ -1362,7 +1333,7 @@ const SettingsPage: React.FC = () => {
             disabled={saving || (isAdmin && !isDirty)}
             startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
           >
-            {saving ? "Saving..." : "Save Settings"}
+            {saving ? t('settings.saving') : t('settings.saveSettings')}
           </Button>
         </Box>
       </Paper>

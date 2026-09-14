@@ -57,7 +57,8 @@
     "more": "Lagi",
     "viewAll": "Lihat semua",
     "goHome": "Kembali ke laman utama",
-    "goBack": "Kembali"
+    "goBack": "Kembali",
+    "discardChanges": "Buang perubahan"
   },
   "state": {
     "loading": "Memuatkan…",
@@ -93,7 +94,10 @@
     "from": "Dari",
     "to": "Hingga",
     "perNight": "setiap malam",
-    "perPerson": "setiap orang"
+    "perPerson": "setiap orang",
+    "fullName": "Nama penuh",
+    "address": "Alamat",
+    "phoneNumber": "Nombor Telefon"
   },
   "pagination": {
     "page": "Halaman",
@@ -153,5 +157,10 @@
   },
   "app": {
     "title": "Sistem ERP Hotel"
+  },
+  "units": {
+    "hours": "jam",
+    "days": "hari",
+    "minutes": "minit"
   }
 }

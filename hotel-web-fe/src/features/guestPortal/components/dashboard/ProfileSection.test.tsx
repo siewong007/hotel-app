@@ -113,7 +113,7 @@ describe('ProfileSection', () => {
     fireEvent.change(screen.getByLabelText(/^Phone number/), { target: { value: '123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    expect(await screen.findByText('Phone number must be at least 10 digits')).toBeTruthy();
+    expect(await screen.findByText('Phone Number must be at least 10 digits.')).toBeTruthy();
     expect(mocks.updateProfile).not.toHaveBeenCalled();
   });
 

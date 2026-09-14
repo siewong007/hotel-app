@@ -57,7 +57,8 @@
     "more": "More",
     "viewAll": "View all",
     "goHome": "Go home",
-    "goBack": "Go back"
+    "goBack": "Go back",
+    "discardChanges": "Discard changes"
   },
   "state": {
     "loading": "Loading…",
@@ -93,7 +94,10 @@
     "from": "From",
     "to": "To",
     "perNight": "per night",
-    "perPerson": "per person"
+    "perPerson": "per person",
+    "fullName": "Full Name",
+    "address": "Address",
+    "phoneNumber": "Phone Number"
   },
   "pagination": {
     "page": "Page",
@@ -157,5 +161,10 @@
   },
   "app": {
     "title": "Hotel ERP System"
+  },
+  "units": {
+    "hours": "hours",
+    "days": "days",
+    "minutes": "minutes"
   }
 }

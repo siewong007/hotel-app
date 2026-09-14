@@ -17,5 +17,7 @@
   "mustBeInteger": "{{field}} must be a whole number.",
   "dateInPast": "{{field}} cannot be in the past.",
   "passwordTooShort": "Password must be at least {{min}} characters.",
-  "passwordMismatch": "Passwords do not match."
+  "passwordMismatch": "Passwords do not match.",
+  "minDigits": "{{field}} must be at least {{min}} digits.",
+  "maxDigits": "{{field}} cannot exceed {{max}} digits."
 }

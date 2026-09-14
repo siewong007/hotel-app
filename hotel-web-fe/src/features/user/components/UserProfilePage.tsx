@@ -29,19 +29,13 @@ import SecurityTab from './profile/SecurityTab';
 import PasskeysTab, { MAX_PASSKEYS } from './profile/PasskeysTab';
 import DevicesTab from './profile/DevicesTab';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
-
-const TABS = [
-  { label: 'Profile', icon: <PersonIcon /> },
-  { label: 'Security', icon: <LockIcon /> },
-  { label: 'Passkeys', icon: <FingerprintIcon /> },
-  { label: '2FA', icon: <SecurityIcon /> },
-  { label: 'Devices', icon: <LaptopIcon /> },
-];
+import { useTranslation } from '../../../i18n';
 
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
 const UserProfilePage: React.FC = () => {
+  const { t } = useTranslation('auth');
   const [searchParams, setSearchParams] = useSearchParams();
   const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState(0);
@@ -58,6 +52,15 @@ const UserProfilePage: React.FC = () => {
   const renamePasskey = useRenamePasskeyMutation();
   const addPasskey = useRegisterPasskeyMutation(registerPasskey);
   const revokeSession = useRevokeSessionMutation();
+
+  // Labels resolve at render so the tab bar follows the active language.
+  const TABS = [
+    { id: 'profile', label: t('profile.tabs.profile'), icon: <PersonIcon /> },
+    { id: 'security', label: t('profile.tabs.security'), icon: <LockIcon /> },
+    { id: 'passkeys', label: t('profile.tabs.passkeys'), icon: <FingerprintIcon /> },
+    { id: 'twoFactor', label: t('profile.tabs.twoFactor'), icon: <SecurityIcon /> },
+    { id: 'devices', label: t('profile.tabs.devices'), icon: <LaptopIcon /> },
+  ];
 
   const notify = useCallback((message: string, severity: ApiNotificationSeverity) => {
     emitApiNotification({ message, severity });
@@ -88,12 +91,12 @@ const UserProfilePage: React.FC = () => {
       setEditing(false);
       notify(
         isAddingGuestEmail
-          ? 'Email added. Verification is now pending.'
-          : 'Profile updated successfully',
+          ? t('profile.emailAddedVerify')
+          : t('profile.updated'),
         'success'
       );
     } catch (error) {
-      notify(errorMessage(error, 'Failed to update profile'), 'error');
+      notify(errorMessage(error, t('profile.updateFailed')), 'error');
     }
   };
 
@@ -103,9 +106,9 @@ const UserProfilePage: React.FC = () => {
   }) => {
     try {
       await updatePassword.mutateAsync(data);
-      notify('Password updated successfully', 'success');
+      notify(t('security.passwordUpdated'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'Failed to update password'), 'error');
+      notify(errorMessage(error, t('security.passwordUpdateFailed')), 'error');
       throw error;
     }
   };
@@ -113,57 +116,57 @@ const UserProfilePage: React.FC = () => {
   const handleAddPasskey = async () => {
     const passkeys = passkeysQuery.data ?? [];
     if (passkeys.length >= MAX_PASSKEYS) {
-      notify(`Maximum of ${MAX_PASSKEYS} passkeys allowed`, 'warning');
+      notify(t('passkeys.limitReached', { max: MAX_PASSKEYS }), 'warning');
       return;
     }
     if (!profile) return;
 
     try {
       await addPasskey.mutateAsync({ username: profile.username });
-      notify('Passkey registered successfully', 'success');
+      notify(t('passkeys.registered'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'Failed to register passkey'), 'error');
+      notify(errorMessage(error, t('passkeys.registerFailed')), 'error');
     }
   };
 
   const handleDeletePasskey = async (id: string) => {
     const accepted = await confirm({
-      title: 'Delete passkey',
-      message: 'This passkey will stop working on the device it was created on. You can register a new one at any time.',
-      confirmText: 'Delete passkey',
+      title: t('passkeys.delete'),
+      message: t('passkeys.deleteMessage'),
+      confirmText: t('passkeys.delete'),
       severity: 'error',
     });
     if (!accepted) return;
     try {
       await deletePasskey.mutateAsync(id);
-      notify('Passkey deleted successfully', 'success');
+      notify(t('passkeys.deleted'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'Failed to delete passkey'), 'error');
+      notify(errorMessage(error, t('passkeys.deleteFailed')), 'error');
     }
   };
 
   const handleRenamePasskey = async (id: string, deviceName: string) => {
     try {
       await renamePasskey.mutateAsync({ id, deviceName });
-      notify('Passkey name updated successfully', 'success');
+      notify(t('passkeys.nameUpdated'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'Failed to update passkey name'), 'error');
+      notify(errorMessage(error, t('passkeys.nameUpdateFailed')), 'error');
     }
   };
 
   const handleRevokeSession = async (session: UserSessionInfo) => {
     const accepted = await confirm({
-      title: 'Log out this device',
-      message: 'The device will be signed out immediately and will need to sign in again.',
-      confirmText: 'Log out device',
+      title: t('devices.revokeTitle'),
+      message: t('devices.revokeMessage'),
+      confirmText: t('devices.revoke'),
       severity: 'warning',
     });
     if (!accepted) return;
     try {
       await revokeSession.mutateAsync(session.id);
-      notify('Device logged out successfully', 'success');
+      notify(t('devices.revoked'), 'success');
     } catch (error) {
-      notify(errorMessage(error, 'Failed to log out device'), 'error');
+      notify(errorMessage(error, t('devices.revokeFailed')), 'error');
     }
   };
 
@@ -183,19 +186,19 @@ const UserProfilePage: React.FC = () => {
   }
 
   if (!profile) {
-    return <Alert severity="error">Failed to load user profile. Please try again.</Alert>;
+    return <Alert severity="error">{t('profile.loadFailed')}</Alert>;
   }
 
   return (
     <Box>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 3, color: 'primary.main' }}>
-        User Profile
+        {t('profile.title')}
       </Typography>
 
       <Card sx={{ mb: 3 }}>
         <Tabs value={activeTab} onChange={(_e, v) => setActiveTab(v)}>
           {TABS.map(tab => (
-            <Tab key={tab.label} label={tab.label} icon={tab.icon} iconPosition="start" />
+            <Tab key={tab.id} label={tab.label} icon={tab.icon} iconPosition="start" />
           ))}
         </Tabs>
       </Card>

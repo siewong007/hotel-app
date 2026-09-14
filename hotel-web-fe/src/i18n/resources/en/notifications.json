@@ -9,7 +9,8 @@
     "deleted": "Deleted.",
     "updated": "Updated.",
     "failed": "The action failed. Please try again.",
-    "copied": "Copied to clipboard."
+    "copied": "Copied to clipboard.",
+    "copyFailed": "Failed to copy to clipboard."
   },
   "center": {
     "alerts": "Alerts",

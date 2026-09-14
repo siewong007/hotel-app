@@ -155,6 +155,19 @@ bundle that committed the term.
 | error page: access denied / page not found / resource locked | 无权访问 / 页面未找到 / 资源已锁定 | Akses ditolak / Halaman tidak ditemui / Sumber dikunci | `errors.page` — StatusPage 403/404/423 |
 | error boundary scope titles | 访客页面出错 / 认证错误 / 页面错误 / 组件错误 | Ralat Halaman Tetamu / Pengesahan / Halaman / Komponen | `errors.boundary` — guest/auth/page/component |
 | staff (role fallback label) | 员工 | Kakitangan | `nav.userMenu.defaultRole` — renders only when no role/username |
+| device / signed-in devices | 设备 / 已登录的设备 | peranti / peranti yang telah log masuk | `auth.devices`, `auth.profile.tabs` — session list |
+| device type: laptop / desktop / tablet / mobile / security key | 笔记本电脑 / 台式电脑 / 平板电脑 / 手机 / 安全密钥 | komputer riba / desktop / tablet / telefon / kunci keselamatan | `auth.devices.type` — iPhone stays a proper noun |
+| deactivate / reactivate account | 停用账户 / 重新激活账户 | nyahaktifkan / aktifkan semula akaun | `auth.deactivation` — state renders 已停用 / dinyahaktifkan |
+| change / update password | 修改密码 / 更新密码 | tukar / kemas kini kata laluan | `auth.security` |
+| theme mode: light / dark | 浅色 / 深色 | cerah / gelap | `admin:settings.theme` — "mode" suffix 模式 / mod |
+| code lists (settings tab) | 代码列表 | senarai kod | `admin:settings.tabs.system` |
+| rate code / market code | 房价代码 / 市场代码 | kod kadar / kod pasaran | `admin:settings` |
+| online booking channels | 线上预订渠道 | saluran tempahan dalam talian | `admin:settings` — channel 渠道 |
+| guest reopen window | 客人重开窗口期 | tetingkap pembukaan semula tetamu | `admin:settings` — support workflow |
+| unpaid hold release | 未支付保留时长 | pelepasan hold belum dibayar | `admin:settings` — ms keeps "hold" |
+| support priority: low / normal / high / urgent | 低 / 普通 / 高 / 紧急 | rendah / normal / tinggi / segera | `admin:settings.supportPriority` |
+| report font preset: very small…very large | 很小/小/中/大/很大 | sangat kecil…sangat besar | `admin:settings.fontPresets` — check bundle for exact rows |
+| turnstile verification states | 验证不可用/失败/超时 | pengesahan tidak tersedia/gagal/tamat | `auth.turnstile` — "verification" 验证 |
 
 ## 7. Accepted register variants
 
