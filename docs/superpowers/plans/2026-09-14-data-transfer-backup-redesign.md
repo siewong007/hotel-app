@@ -1,7 +1,7 @@
 # Data Transfer → versioned JSON backup/restore + Cloudflare origin fix
 
 **Date:** 2026-09-14
-**Status:** executing (subagent-driven)
+**Status:** implementation complete — whole-branch review applied, pre-merge
 **Branch:** `data-transfer/backup-redesign` (worktree `.worktrees/data-transfer-backup`)
 
 **Task status (2026-09-14):**
@@ -13,8 +13,9 @@
 | Task 2 — v3 export writer + preview | Done, reviewed (`b35c68c93`) |
 | Task 3 — staged import pipeline | Done, reviewed (`7241cb468`, fixes `023739b5b`) |
 | Task 4 — backend integration tests | Done, reviewed (`ec3b3030e`, `690b3cd70`) |
-| Task 5 — frontend redesign | In progress |
-| Task 6 — docs + OpenAPI + compose memory | In progress (this commit) |
+| Task 5 — frontend redesign | Done, reviewed (`b85274ce5`, fix `bc78f1e1a`) |
+| Task 6 — docs + OpenAPI + compose memory | Done (`625be3ca0`) |
+| Whole-branch review fixes | Done (final commit — credential-column import filter, dead v2 engine removal, docs scope) |
 
 Ledger: `.superpowers/sdd/2026-09-14-data-transfer-backup-redesign/progress.md`.
 Where this plan's spec text and the shipped code diverge, the code — and

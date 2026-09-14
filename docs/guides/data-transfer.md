@@ -190,8 +190,19 @@ Two **columns** inside a transferable table are also excluded —
 | `public.bookings` | `pre_checkin_token_expires_at` | Companion expiry for the same token |
 
 Not transferable but also not "missing": uploaded file *blobs* under
-`private_uploads/` (eKYC documents, payment receipts) are out of scope — the
-backup carries their metadata rows only.
+`private_uploads/` (eKYC documents, payment receipts, guest documents) are out
+of scope — the backup carries their metadata rows only. Two consequences worth
+knowing before you restore:
+
+- `public.guest_documents` rows describe identity documents and stay
+  transferable — they are business records — but `document_number`/`file_url`
+  point at files that do not travel with the backup. Restore into an
+  environment whose `private_uploads/` tree was preserved and the links keep
+  working; restore onto a fresh host and they dangle until the files are
+  copied across (the rows themselves import fine).
+- The same applies to `customer_ledger_payments.receipt_file_url` and
+  `payment_receipt_requests.receipt_path`: receipt *metadata* restores, the
+  receipt *files* must move with the `private_uploads` mount.
 
 ## API endpoints
 

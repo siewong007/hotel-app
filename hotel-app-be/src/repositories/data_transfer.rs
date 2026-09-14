@@ -307,6 +307,17 @@ pub(crate) const KNOWN_TABLES: &[&str] = &[
     "user_guests",
 ];
 
+/// Columns inside transferable tables that carry live credential material and
+/// must never travel in either direction: the export cursor omits them from
+/// the projection, and every import path drops the keys here so a crafted file
+/// cannot write them either. `bookings.pre_checkin_token` is the guest
+/// portal's bearer token — a leaked or hostile file carrying it would hand out
+/// working pre-check-in links (the token alone authenticates the lookup).
+pub(crate) const NEVER_TRANSFERRED_COLUMNS: &[(&str, &str)] = &[
+    ("bookings", "pre_checkin_token"),
+    ("bookings", "pre_checkin_token_expires_at"),
+];
+
 fn ensure_known_table(table: &str) -> Result<(), ApiError> {
     if KNOWN_TABLES.contains(&table) {
         Ok(())
@@ -634,7 +645,10 @@ impl DataTransferRepository {
         let values: serde_json::Map<String, Value> = row
             .iter()
             .filter(|(column, _)| {
-                table.columns.contains(*column) && !table.generated_columns.contains(*column)
+                table.columns.contains(*column)
+                    && !table.generated_columns.contains(*column)
+                    && !NEVER_TRANSFERRED_COLUMNS
+                        .contains(&(table.table.name.as_str(), column.as_str()))
             })
             .map(|(column, value)| (column.clone(), value.clone()))
             .collect();
@@ -1417,6 +1431,7 @@ fn prepare_import_row(
     for (key, value) in row {
         if policy.skip_columns.contains(key)
             || policy.valid_columns.is_some_and(|cols| !cols.contains(key))
+            || NEVER_TRANSFERRED_COLUMNS.contains(&(table, key.as_str()))
         {
             continue;
         }

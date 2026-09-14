@@ -12,11 +12,10 @@ use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{
     BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupSource,
-    BookingDataExport, ConflictPolicy, ExportPreview, FullDataExport, ImportRequest,
-    TransferPayload, TransferTablePreview,
+    BookingDataExport, ConflictPolicy, ExportPreview, TransferTablePreview,
 };
 use crate::repositories::data_transfer::{
-    DataTransferRepository, ImportRowPolicy, QualifiedTable, TransferTable, transfer_order,
+    DataTransferRepository, ImportRowPolicy, QualifiedTable, TransferTable,
 };
 
 /// Every transferable table in foreign-key-safe **insert** order (parents
@@ -182,11 +181,11 @@ const KNOWN_EXCLUSION_REASONS: &[&str] = &[
 /// serializes it, so it cannot ride a backup either: a leaked file would hand
 /// out working pre-check-in links (the token alone authenticates the portal
 /// lookup). The export cursor projects [`export_columns`], so the values —
-/// not just the names — stay out of the file.
-const EXCLUDED_EXPORT_COLUMNS: &[(&str, &str)] = &[
-    ("bookings", "pre_checkin_token"),
-    ("bookings", "pre_checkin_token_expires_at"),
-];
+/// not just the names — stay out of the file. The same registry is enforced
+/// on import in the repository (`NEVER_TRANSFERRED_COLUMNS`) so a crafted
+/// file cannot write them either.
+const EXCLUDED_EXPORT_COLUMNS: &[(&str, &str)] =
+    crate::repositories::data_transfer::NEVER_TRANSFERRED_COLUMNS;
 
 /// The columns of `table` the export emits — `ordered_columns` (schema
 /// `ordinal_position` order, matching the emitted row key order) minus
@@ -631,24 +630,6 @@ pub async fn export_booking_data(pool: &DbPool) -> Result<String, ApiError> {
     String::from_utf8(bytes.to_vec()).map_err(|error| ApiError::Internal(error.to_string()))
 }
 
-/// The legacy `ImportRequest` entry point — no longer wired to a route (the
-/// upload → preview → execute pipeline replaced `POST /data-transfer/import`),
-/// still exercised by `tests/data_transfer_import.rs`.
-#[allow(dead_code)]
-pub async fn import_booking_data(
-    pool: &DbPool,
-    import_user_id: i64,
-    request: ImportRequest,
-) -> Result<Value, ApiError> {
-    let ImportRequest { mode, data, tables } = request;
-    match data {
-        TransferPayload::V1(data) => {
-            import_legacy_booking_data(pool, import_user_id, mode, *data, tables).await
-        }
-        TransferPayload::V2(data) => import_full_data(pool, mode, data, tables).await,
-    }
-}
-
 /// The `(table, rows)` pairs a `BookingDataExport` carries, in foreign-key-safe
 /// insert order. The legacy import loop and the v1 preview both derive from
 /// this so the two can never disagree about which struct field maps to which
@@ -890,168 +871,6 @@ pub(crate) async fn import_legacy_booking_data(
     });
 
     Ok(response)
-}
-
-async fn import_full_data(
-    pool: &DbPool,
-    mode: ImportMode,
-    data: FullDataExport,
-    requested_tables: Vec<String>,
-) -> Result<Value, ApiError> {
-    if data.version != "2.0" {
-        return Err(ApiError::BadRequest(format!(
-            "Unsupported schema-driven transfer version '{}'",
-            data.version
-        )));
-    }
-    let descriptors = DataTransferRepository::transfer_tables(pool).await?;
-    let descriptor_by_name: HashMap<String, TransferTable> = descriptors
-        .into_iter()
-        .map(|descriptor| (descriptor.table.key(), descriptor))
-        .collect();
-
-    for table in data.tables.keys() {
-        QualifiedTable::parse(table)?;
-        if !is_transferable_key(table) {
-            return Err(ApiError::BadRequest(format!(
-                "Transfer table '{table}' is not permitted: only the business-data table set can be imported"
-            )));
-        }
-        if !descriptor_by_name.contains_key(table) {
-            return Err(ApiError::BadRequest(format!(
-                "Transfer table '{table}' does not exist in the destination schema"
-            )));
-        }
-    }
-
-    let mut selected: HashSet<String> = if requested_tables.is_empty() {
-        data.tables.keys().cloned().collect()
-    } else {
-        requested_tables.into_iter().collect()
-    };
-    for table in &selected {
-        QualifiedTable::parse(table)?;
-        if !is_transferable_key(table) {
-            return Err(ApiError::BadRequest(format!(
-                "Transfer table '{table}' is not permitted: only the business-data table set can be imported"
-            )));
-        }
-        if !data.tables.contains_key(table) {
-            return Err(ApiError::BadRequest(format!(
-                "Selected transfer table '{table}' is missing from the import file"
-            )));
-        }
-        if !descriptor_by_name.contains_key(table) {
-            return Err(ApiError::BadRequest(format!(
-                "Unknown transfer table '{table}' was requested"
-            )));
-        }
-    }
-
-    let dependencies: HashMap<String, HashSet<String>> = descriptor_by_name
-        .iter()
-        .map(|(name, descriptor)| (name.clone(), descriptor.dependencies.clone()))
-        .collect();
-    if mode == ImportMode::Overwrite {
-        expand_full_overwrite_tables(&mut selected, &dependencies);
-    }
-    let selected_names: Vec<String> = selected.into_iter().collect();
-    let order = transfer_order(&selected_names, &dependencies)?;
-    let ordered_tables: Vec<TransferTable> = order
-        .iter()
-        .map(|name| {
-            descriptor_by_name
-                .get(name)
-                .cloned()
-                .expect("selected tables were validated against catalog")
-        })
-        .collect();
-
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
-    // The clear and the insert both walk a foreign-key cycle (`users` <->
-    // `guests`), which no ordering can satisfy while the constraints are
-    // checked per statement -- deleting `users` first strands
-    // `guests.created_by`, and inserting it first strands `users.guest_id`.
-    // Deferring to COMMIT is what makes either direction possible. This must
-    // happen before the clear, not just before the inserts.
-    let relaxed = DataTransferRepository::relax_foreign_keys(&mut tx, &ordered_tables).await?;
-    DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, false).await?;
-
-    // Every ALTER TABLE above has to happen before anything queues a deferred
-    // trigger event, because PostgreSQL refuses to alter a table that has any
-    // pending. Deferring only after the schema is settled keeps the clear and
-    // the inserts inside the window where ordering does not matter.
-    sqlx::query("SET CONSTRAINTS ALL DEFERRED")
-        .execute(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
-
-    if mode == ImportMode::Overwrite {
-        let clear_tables: Vec<_> = ordered_tables.iter().rev().cloned().collect();
-        DataTransferRepository::clear_transfer_tables(&mut tx, &clear_tables).await?;
-    }
-
-    let mut counts = serde_json::Map::new();
-    for table in &ordered_tables {
-        let name = table.table.key();
-        let rows = data.tables.get(&name).map(Vec::as_slice).unwrap_or(&[]);
-        let mut inserted = 0_u64;
-        for (row_index, row) in rows.iter().enumerate() {
-            let object = row.as_object().ok_or_else(|| {
-                ApiError::BadRequest(format!(
-                    "Import failed for table {name} row {} because the row is not a JSON object",
-                    row_index + 1
-                ))
-            })?;
-            match DataTransferRepository::insert_transfer_row(
-                &mut tx,
-                table,
-                object,
-                // The legacy entry point predates conflict policies — keep its
-                // historical duplicate handling.
-                ConflictPolicy::Skip,
-            )
-            .await?
-            {
-                crate::repositories::data_transfer::InsertRowOutcome::Inserted
-                | crate::repositories::data_transfer::InsertRowOutcome::Updated => inserted += 1,
-                crate::repositories::data_transfer::InsertRowOutcome::Skipped => {}
-            }
-        }
-        counts.insert(name, Value::Number(inserted.into()));
-    }
-
-    // Deferring moved the foreign-key checks to COMMIT. Force them now, while
-    // the transaction is still ours to roll back, so a violation fails the
-    // import instead of surfacing as a failed commit after the handler has
-    // already decided the import succeeded.
-    //
-    // This must also come before the ALTER TABLE statements below: PostgreSQL
-    // refuses to alter a table that still has pending trigger events, so
-    // re-enabling triggers while the deferred checks were outstanding failed
-    // the whole import with "cannot ALTER TABLE ... because it has pending
-    // trigger events".
-    sqlx::query("SET CONSTRAINTS ALL IMMEDIATE")
-        .execute(&mut *tx)
-        .await
-        .map_err(|error| {
-            ApiError::BadRequest(format!(
-                "Import failed referential-integrity checks: {error}. Tables outside the transferable set may still reference the data being overwritten."
-            ))
-        })?;
-
-    DataTransferRepository::set_transfer_triggers(&mut tx, &ordered_tables, true).await?;
-    DataTransferRepository::restore_foreign_keys(&mut tx, &relaxed).await?;
-    DataTransferRepository::reset_transfer_sequences(&mut tx, &ordered_tables).await?;
-
-    tx.commit().await.map_err(ApiError::from)?;
-
-    Ok(serde_json::json!({
-        "success": true,
-        "mode": if mode == ImportMode::Overwrite { "overwrite" } else { "import" },
-        "records_imported": counts,
-    }))
 }
 
 pub(crate) fn expand_full_overwrite_tables(

@@ -1208,6 +1208,101 @@ async fn excluded_entities_in_a_file_are_never_imported() {
         .expect("fixture cleanup must run");
 }
 
+/// Column-level exclusion is enforced on the way IN as well as on the way out:
+/// export never emits `bookings.pre_checkin_token`, and the import strips the
+/// key even when a crafted file carries it — a hostile backup must not be able
+/// to set a live guest-portal bearer token.
+#[tokio::test]
+async fn credential_columns_cannot_be_written_by_an_import() {
+    use hotel_app_be::models::{
+        BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
+    };
+    use hotel_app_be::services::data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    let _fixture = FIXTURE_LOCK.lock().await;
+    sqlx::query("DELETE FROM bookings WHERE id = 920947001")
+        .execute(&pool)
+        .await
+        .expect("fixture pre-clean must run");
+    let guest_id: i64 = sqlx::query_scalar("SELECT id FROM guests ORDER BY id LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .expect("a guest fixture must exist");
+    let room_id: i64 = sqlx::query_scalar("SELECT id FROM rooms ORDER BY id LIMIT 1")
+        .fetch_one(&pool)
+        .await
+        .expect("a room fixture must exist");
+
+    let file = v3_document(&[V3Entity {
+        name: "public.bookings",
+        primary_key: &["id"],
+        rows: vec![json!({
+            "id": 920_947_001_i64,
+            "booking_number": "BK-CRED-FILTER",
+            "guest_id": guest_id,
+            "room_id": room_id,
+            "check_in_date": "2031-02-01",
+            "check_out_date": "2031-02-03",
+            "room_rate": 100.00,
+            "subtotal": 200.00,
+            "total_amount": 200.00,
+            "status": "confirmed",
+            "pre_checkin_token": "forged-bearer-token",
+            "pre_checkin_token_expires_at": "2031-01-01T00:00:00Z"
+        })],
+    }]);
+    let upload = data_transfer_jobs::stage_backup_upload(Body::from(file))
+        .await
+        .expect("the crafted document must stage");
+
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        any_user_id(&pool).await,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("execute must return a job id");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "the booking row must import: {:?}",
+        status.error
+    );
+
+    let (imported, token, expires): (bool, Option<String>, Option<chrono::DateTime<chrono::Utc>>) =
+        sqlx::query_as(
+            "SELECT TRUE, pre_checkin_token, pre_checkin_token_expires_at \
+             FROM bookings WHERE id = 920947001",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("probe must run");
+    assert!(imported, "the booking row itself must have imported");
+    assert!(
+        token.is_none(),
+        "pre_checkin_token must be stripped from imported rows"
+    );
+    assert!(
+        expires.is_none(),
+        "pre_checkin_token_expires_at must be stripped from imported rows"
+    );
+
+    sqlx::query("DELETE FROM bookings WHERE id = 920947001")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+}
+
 /// Preview diff exactness: one file row whose key exists plus one whose key
 /// does not, on a single-column-PK table (`amenities`, batched `= ANY($1)`)
 /// and on a composite-PK table (`promotion_channels`, per-row

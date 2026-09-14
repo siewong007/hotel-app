@@ -1578,7 +1578,9 @@ async fn execute_staged_import(
         .map_err(ApiError::BadRequest)?;
 
     match parsed {
-        ParsedBackup::V1(data) => import_v1_backup(pool, *data, request, import_user_id).await,
+        ParsedBackup::V1(data) => {
+            import_v1_backup(pool, job_id, *data, request, import_user_id).await
+        }
         ParsedBackup::V2(file) => {
             if file.version != "2.0" {
                 return Err(ApiError::BadRequest(format!(
@@ -1627,6 +1629,7 @@ async fn execute_staged_import(
 /// shape afterwards.
 async fn import_v1_backup(
     pool: &DbPool,
+    job_id: Uuid,
     data: BookingDataExport,
     request: &ImportExecuteRequest,
     import_user_id: i64,
@@ -1644,6 +1647,16 @@ async fn import_v1_backup(
                 .to_string()
         })
         .collect();
+
+    // The legacy importer runs its whole loop internally, so the best the
+    // status endpoint can offer is an honest denominator up front.
+    let selected: HashSet<&str> = tables.iter().map(String::as_str).collect();
+    let total_rows: u64 = legacy_tables_and_data(&data)
+        .iter()
+        .filter(|(table, _)| selected.is_empty() || selected.contains(*table))
+        .map(|(_, rows)| rows.len() as u64)
+        .sum();
+    set_job_progress(job_id, None, 0, total_rows);
 
     let response = import_legacy_booking_data(pool, import_user_id, mode, data, tables).await?;
 

@@ -41,7 +41,7 @@ shipped), **Experimental**, **Deprecated**.
 | SMS channel | Not delivered | — | — | Open item; no implementation |
 | Support tickets | Delivered | ✓ `features/support` | ✓ `modules/support` | Incl. guest-portal support widget |
 | Notifications (in-app + email triggers) | Delivered | ✓ `features/notifications` | ✓ | Checkout receipt + pre-arrival reminder (patch 0008) |
-| Data transfer (backup/restore) | Delivered | ✓ `features/{admin,data-transfer}` | ✓ `routes/data_transfer.rs` | Versioned `hotel-backup` v3 JSON: streamed export + staged upload→preview→execute→poll import; super-admin imports, credentials/eKYC never exported — see `docs/guides/data-transfer.md` |
+| Data transfer (backup/restore) | Delivered | ✓ `features/admin/components/data-transfer` | ✓ `routes/data_transfer.rs` | Versioned `hotel-backup` v3 JSON: streamed export + staged upload→preview→execute→poll import; super-admin imports, credentials/eKYC never exported — see `docs/guides/data-transfer.md` |
 | System settings | Delivered | ✓ `features/user` (settings) | ✓ `modules/settings` | Timezone drives hotel business day |
 | Internationalization (EN + BM) | Delivered | ✓ `src/i18n` | ✓ `core/i18n.rs` | Intl-based, in-house (ADR 012) |
 | Search (global) | Delivered | ✓ | ✓ `routes/search.rs` | |

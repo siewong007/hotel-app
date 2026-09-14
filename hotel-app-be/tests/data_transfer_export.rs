@@ -297,7 +297,11 @@ async fn export_emits_the_v3_document() {
     let undeclared: Vec<String> = catalog
         .iter()
         .map(|table| table.table.key())
-        .filter(|key| !key.rsplit('.').next().is_some_and(|name| name.starts_with('_')))
+        .filter(|key| {
+            !key.rsplit('.')
+                .next()
+                .is_some_and(|name| name.starts_with('_'))
+        })
         .filter(|key| !declared.contains(key.as_str()))
         .collect();
     assert!(

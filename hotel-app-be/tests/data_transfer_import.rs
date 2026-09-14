@@ -190,74 +190,121 @@ async fn relaxed_foreign_keys_allow_cyclic_rows_and_are_restored_afterwards() {
 /// Credential, role and session tables must never enter through the import:
 /// the catalog validation used to accept any `public` table, so a
 /// `settings:manage` holder could have imported a forged `is_super_admin`
-/// user. The service must reject any file or selection naming a
-/// non-transferable table before a single row is written.
+/// user. A staged file carrying `public.users` rows is imported with the
+/// entity reported as unsupported and the rows never written; naming the
+/// table in the `tables` selection is rejected outright.
 #[tokio::test]
-async fn full_import_rejects_non_transferable_tables() {
-    use hotel_app_be::constants::ImportMode;
-    use hotel_app_be::models::{FullDataExport, ImportRequest, TransferPayload};
-    use hotel_app_be::services::data_transfer::import_booking_data;
-    use std::collections::BTreeMap;
+async fn staged_import_never_writes_credential_tables() {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest, ImportJobState};
+    use hotel_app_be::services::data_transfer_jobs;
 
     let Some(pool) = setup_pg_pool().await else {
         return;
     };
 
-    let export = FullDataExport {
-        version: "2.0".to_string(),
-        exported_at: "2026-09-12T00:00:00Z".to_string(),
-        tables: BTreeMap::from([
-            ("public.amenities".to_string(), vec![]),
-            (
-                "public.users".to_string(),
-                vec![serde_json::json!({
-                    "id": 999_999_991_i64,
-                    "username": "forged-admin",
-                    "email": "forged@example.invalid",
-                    "password_hash": "x",
-                    "is_super_admin": true
-                })],
-            ),
-        ]),
-    };
-
-    let rejected = import_booking_data(
-        &pool,
-        1,
-        ImportRequest {
-            mode: ImportMode::Import,
-            data: TransferPayload::V2(export),
-            tables: vec![],
+    let file = serde_json::to_vec(&serde_json::json!({
+        "format": "hotel-backup",
+        "version": 3,
+        "kind": "business-data",
+        "exportId": "11111111-2222-3333-4444-555555555555",
+        "exportedAt": "2026-09-14T12:00:00Z",
+        "applicationVersion": "0.2.0",
+        "source": {"environment": "development", "databaseProvider": "postgresql"},
+        "manifest": {"entities": [], "exclusions": []},
+        "tables": {
+            "public.amenities": [],
+            "public.users": [{
+                "id": 999_999_991_i64,
+                "username": "forged-admin-920931",
+                "email": "forged@example.invalid",
+                "password_hash": "x",
+                "is_super_admin": true
+            }]
         },
-    )
-    .await;
+        "integrity": {
+            "entities": 2,
+            "rows": 1,
+            "entityRows": {"public.amenities": 0, "public.users": 1},
+            "completedAt": "2026-09-14T12:00:01Z"
+        }
+    }))
+    .expect("v3 fixture serializes");
+
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(file))
+        .await
+        .expect("staging a well-formed v3 body must succeed");
+
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+        .await
+        .expect("preview must answer for a staged upload");
     assert!(
-        matches!(&rejected, Err(hotel_app_be::core::error::ApiError::BadRequest(message)) if message.contains("not permitted")),
-        "a file containing public.users must be rejected outright: {rejected:?}"
+        preview
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("public.users")),
+        "the preview must warn that public.users is excluded: {:?}",
+        preview.warnings
     );
 
-    // The same applies when the table is only named in the `tables` selection.
-    let export = FullDataExport {
-        version: "2.0".to_string(),
-        exported_at: "2026-09-12T00:00:00Z".to_string(),
-        tables: BTreeMap::from([
-            ("public.amenities".to_string(), vec![]),
-            ("public.users".to_string(), vec![]),
-        ]),
-    };
-    let rejected = import_booking_data(
+    // Selecting the table by name is rejected before a job spawns.
+    let rejected = data_transfer_jobs::start_import_job(
         &pool,
         1,
-        ImportRequest {
-            mode: ImportMode::Import,
-            data: TransferPayload::V2(export),
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: None,
             tables: vec!["public.users".to_string()],
+            confirm: true,
         },
     )
     .await;
     assert!(
-        matches!(&rejected, Err(hotel_app_be::core::error::ApiError::BadRequest(message)) if message.contains("not permitted")),
+        matches!(&rejected, Err(ApiError::BadRequest(message)) if message.contains("not permitted")),
         "a selection naming public.users must be rejected outright: {rejected:?}"
+    );
+
+    // Running the file as-is must leave the forged row unwritten.
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: None,
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("a confirmed execute must return a job id");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "import job failed: {:?}",
+        status.error
+    );
+    let result = status.result.expect("a succeeded job carries its result");
+    assert!(
+        result
+            .report
+            .unsupported_entities
+            .iter()
+            .any(|entity| entity == "public.users"),
+        "public.users must be reported as unsupported: {:?}",
+        result.report.unsupported_entities
+    );
+
+    let forged: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE username = 'forged-admin-920931'")
+            .fetch_one(&pool)
+            .await
+            .expect("user existence check must run");
+    assert_eq!(
+        forged, 0,
+        "a forged is_super_admin user must never be written"
     );
 }
 

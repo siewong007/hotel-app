@@ -7,8 +7,6 @@ use serde_json::Value;
 use serde_json::value::RawValue;
 use uuid::Uuid;
 
-use crate::constants::ImportMode;
-
 /// Represents all booking-related data for export/import.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BookingDataExport {
@@ -128,14 +126,6 @@ pub struct FullDataExport {
     pub tables: BTreeMap<String, Vec<Value>>,
 }
 
-/// Accept both historic flat exports and schema-driven full exports.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum TransferPayload {
-    V2(FullDataExport),
-    V1(Box<BookingDataExport>),
-}
-
 /// Count preview for all transferable tables before generating an export file.
 /// `entities`/`exclusions` mirror the v3 manifest embedded in every export, so
 /// the preview shows exactly what a backup would declare.
@@ -154,15 +144,6 @@ pub struct TransferTablePreview {
     pub name: String,
     pub count: i64,
     pub dependencies: Vec<String>,
-}
-
-/// Import request wrapper.
-#[derive(Debug, Deserialize)]
-pub struct ImportRequest {
-    pub mode: ImportMode,
-    pub data: TransferPayload,
-    #[serde(default)]
-    pub tables: Vec<String>,
 }
 
 // ----- `hotel-backup` v3 file format + upload/preview/execute/job API. -----
@@ -435,8 +416,8 @@ pub struct ImportJobStatus {
 #[cfg(test)]
 mod tests {
     use super::{
-        BackupFile, BackupImportMode, BookingDataExport, ConflictPolicy, ImportJobState,
-        TransferPayload, UploadResponse,
+        BackupFile, BackupImportMode, BookingDataExport, ConflictPolicy, FullDataExport,
+        ImportJobState, UploadResponse,
     };
     use serde_json::{Value, json};
     use uuid::Uuid;
@@ -514,12 +495,9 @@ mod tests {
             }
         });
 
-        let export: TransferPayload =
+        let export: FullDataExport =
             serde_json::from_value(payload).expect("v2 payload should deserialize");
 
-        let TransferPayload::V2(export) = export else {
-            panic!("v2 payload should use schema-driven transfer format");
-        };
         assert_eq!(
             export.tables["public.users"][0]["password_hash"],
             "stored-hash"
