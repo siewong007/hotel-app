@@ -59,6 +59,10 @@ vi.mock('../../../../hooks/useCurrency', () => ({
   useCurrency: () => ({ format: (n: number) => `RM${Number(n).toFixed(2)}`, symbol: 'RM', currency: 'MYR' }),
 }));
 
+vi.mock('../../../../auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: () => true }),
+}));
+
 vi.mock('../../hooks', () => ({
   useRoomData: () => mocks.roomData,
   useRoomManagementFilters: () => mocks.filters,
