@@ -16,6 +16,11 @@ import { MobileMoreSheet } from './MobileMoreSheet';
 export const MOBILE_NAV_HEIGHT = 60;
 const MORE_VALUE = '__more';
 
+/** Routes whose full nav label is too long for a bottom-bar slot. */
+const SHORT_LABEL_KEYS: Record<string, string> = {
+  'guest-relations': 'mobile.guests',
+};
+
 /**
  * Staff bottom navigation, rendered below `md` (hidden by CSS on larger
  * screens). Four role-filtered destinations — Overview, Bookings, Guests, and
@@ -84,7 +89,12 @@ export const MobileNavBar: React.FC = () => {
             bgcolor: 'transparent',
             '& .MuiBottomNavigationAction-root': { minWidth: 0, color: 'text.secondary' },
             '& .MuiBottomNavigationAction-root.Mui-selected': { color: 'primary.main' },
-            '& .MuiBottomNavigationAction-label': { fontSize: '0.68rem', fontWeight: 650, mt: 0.25 },
+            '& .MuiBottomNavigationAction-label': {
+              fontSize: '0.68rem',
+              fontWeight: 650,
+              mt: 0.25,
+              whiteSpace: 'nowrap',
+            },
           }}
         >
           {tabs.map((route) => {
@@ -94,7 +104,7 @@ export const MobileNavBar: React.FC = () => {
               <BottomNavigationAction
                 key={route.id}
                 value={route.path}
-                label={navLabel(route)}
+                label={SHORT_LABEL_KEYS[route.id] ? tNav(SHORT_LABEL_KEYS[route.id]) : navLabel(route)}
                 icon={Icon ? <Icon fontSize="small" /> : undefined}
                 aria-current={active ? 'page' : undefined}
               />
