@@ -12,6 +12,7 @@ import {
   WorkspacePremiumOutlined as VipIcon,
 } from '@mui/icons-material';
 import { GUEST_DESIGN } from '../../guests/constants';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { GUEST_RELATIONS_SEGMENTS, type GuestRelationsSegment, type GuestRelationsSegmentCounts } from '../segments';
 
 const SEGMENT_TONES: Partial<Record<GuestRelationsSegment, { icon?: React.ReactNode; tone?: string }>> = {
@@ -35,7 +36,9 @@ interface GuestSegmentChipsProps {
 }
 
 /** Pill-style filter row carried over from GuestConfigurationPage. */
-const GuestSegmentChips: React.FC<GuestSegmentChipsProps> = ({ segment, counts, onChange }) => (
+const GuestSegmentChips: React.FC<GuestSegmentChipsProps> = ({ segment, counts, onChange }) => {
+  const { t } = useTranslation('guests');
+  return (
   <Box
     sx={{
       display: 'flex',
@@ -45,7 +48,7 @@ const GuestSegmentChips: React.FC<GuestSegmentChipsProps> = ({ segment, counts, 
       borderBottom: `1px solid ${GUEST_DESIGN.rule}`,
     }}
   >
-    {GUEST_RELATIONS_SEGMENTS.map(({ key, label }) => {
+    {GUEST_RELATIONS_SEGMENTS.map(({ key, labelKey }) => {
       const active = segment === key;
       const tone = SEGMENT_TONES[key];
       return (
@@ -77,7 +80,7 @@ const GuestSegmentChips: React.FC<GuestSegmentChipsProps> = ({ segment, counts, 
               {tone.icon}
             </Box>
           )}
-          {label}
+          {t(labelKey)}
           <Box
             component="span"
             sx={{
@@ -99,6 +102,7 @@ const GuestSegmentChips: React.FC<GuestSegmentChipsProps> = ({ segment, counts, 
       );
     })}
   </Box>
-);
+  );
+};
 
 export default GuestSegmentChips;

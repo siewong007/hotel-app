@@ -191,6 +191,18 @@
     "completed": "Selesai",
     "failed": "Gagal"
   },
+  "booking_source": {
+    "direct": "Langsung",
+    "walk_in": "Walk-in",
+    "online": "Dalam talian",
+    "phone": "Telefon",
+    "email": "E-mel",
+    "agent": "Ejen",
+    "travel_agent": "Ejen pelancongan",
+    "corporate": "Korporat",
+    "ota": "OTA",
+    "guest_portal": "Portal tetamu"
+  },
   "priority": {
     "low": "Rendah",
     "normal": "Biasa",

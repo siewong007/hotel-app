@@ -191,6 +191,18 @@
     "completed": "已完成",
     "failed": "失败"
   },
+  "booking_source": {
+    "direct": "直接预订",
+    "walk_in": "上门客",
+    "online": "在线预订",
+    "phone": "电话预订",
+    "email": "邮件预订",
+    "agent": "代理",
+    "travel_agent": "旅行社",
+    "corporate": "公司协议",
+    "ota": "OTA",
+    "guest_portal": "宾客门户"
+  },
   "priority": {
     "low": "低",
     "normal": "普通",

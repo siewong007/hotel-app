@@ -24,6 +24,7 @@ import {
   VerifiedUserOutlined as EkycIcon,
 } from '@mui/icons-material';
 import type { Guest } from '../../../types';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { formatHotelDate } from '../../../utils/date';
 import { DataTable, type ColumnDef } from '../../../components';
 import { GUEST_DESIGN } from '../../guests/constants';
@@ -85,6 +86,7 @@ const GuestRowActions: React.FC<GuestRowActionsProps> = ({
   canCreateEkyc,
   canTransferPortalAccount,
 }) => {
+  const { t } = useTranslation('guests');
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
   const closeMenu = () => setAnchorEl(null);
   const isConverting = tourismConversionGuestId === guest.id;
@@ -96,20 +98,20 @@ const GuestRowActions: React.FC<GuestRowActionsProps> = ({
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
-      <Tooltip title="Edit guest">
-        <IconButton size="small" aria-label={`Edit ${guest.nick_name}`} onClick={() => onEdit(guest)}>
+      <Tooltip title={t('list.editTooltip')}>
+        <IconButton size="small" aria-label={t('list.editAria', { name: guest.nick_name })} onClick={() => onEdit(guest)}>
           <EditIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Tooltip>
-      <Tooltip title="New booking">
-        <IconButton size="small" aria-label={`New booking for ${guest.nick_name}`} onClick={() => onNewBooking(guest)}>
+      <Tooltip title={t('list.newBookingTooltip')}>
+        <IconButton size="small" aria-label={t('list.newBookingAria', { name: guest.nick_name })} onClick={() => onNewBooking(guest)}>
           <NewBookingIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Tooltip>
-      <Tooltip title="More actions">
+      <Tooltip title={t('list.moreTooltip')}>
         <IconButton
           size="small"
-          aria-label={`More actions for ${guest.nick_name}`}
+          aria-label={t('list.moreAria', { name: guest.nick_name })}
           aria-haspopup="menu"
           onClick={(event) => setAnchorEl(event.currentTarget)}
         >
@@ -119,34 +121,34 @@ const GuestRowActions: React.FC<GuestRowActionsProps> = ({
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
         <MenuItem onClick={run(onStayHistory)}>
           <ListItemIcon><StayHistoryIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Stay history</ListItemText>
+          <ListItemText>{t('list.stayHistory')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={run(onViewCredits)}>
           <ListItemIcon><CreditsIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Free-night credits</ListItemText>
+          <ListItemText>{t('list.credits')}</ListItemText>
         </MenuItem>
         <MenuItem onClick={run(onConvertTourism)} disabled={isConverting}>
           <ListItemIcon>
             {isConverting ? <CircularProgress size={16} /> : <ConvertIcon fontSize="small" />}
           </ListItemIcon>
-          <ListItemText>Set tourism from last check-in</ListItemText>
+          <ListItemText>{t('list.convertTourism')}</ListItemText>
         </MenuItem>
         {canTransferPortalAccount && (
           <MenuItem onClick={run(onTransferPortalAccount)}>
             <ListItemIcon><PortalAccountIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>Transfer portal account</ListItemText>
+            <ListItemText>{t('list.transferPortal')}</ListItemText>
           </MenuItem>
         )}
         {canCreateEkyc && (
           <MenuItem onClick={run(onCreateEkyc)}>
             <ListItemIcon><EkycIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>Create eKYC</ListItemText>
+            <ListItemText>{t('list.createEkyc')}</ListItemText>
           </MenuItem>
         )}
         <Divider />
         <MenuItem onClick={run(onDelete)} sx={{ color: GUEST_DESIGN.rose }}>
           <ListItemIcon sx={{ color: 'inherit' }}><DeleteIcon fontSize="small" /></ListItemIcon>
-          <ListItemText>Delete guest</ListItemText>
+          <ListItemText>{t('list.deleteGuest')}</ListItemText>
         </MenuItem>
       </Menu>
     </Box>
@@ -170,10 +172,11 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
   onCreateEkyc,
   onDelete,
 }) => {
+  const { t } = useTranslation('guests');
   const columns = React.useMemo<ColumnDef<Guest, any>[]>(() => [
     {
       id: 'guest',
-      header: 'Guest',
+      header: t('list.guest'),
       accessorFn: (guest: Guest) => guest.nick_name,
       enableSorting: false,
       cell: (info) => {
@@ -196,7 +199,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
     },
     {
       id: 'contact',
-      header: 'Contact',
+      header: t('list.contact'),
       accessorFn: (guest: Guest) => guest.email ?? guest.phone ?? '',
       enableSorting: false,
       cell: (info) => {
@@ -207,7 +210,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
               {guest.email || '—'}
             </Typography>
             <Typography sx={{ fontSize: 11.5, color: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
-              {guest.phone || 'No phone'}
+              {guest.phone || t('list.noPhone')}
               {guest.company_name ? ` · ${guest.company_name}` : ''}
             </Typography>
           </Box>
@@ -216,7 +219,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
     },
     {
       id: 'type',
-      header: 'Type',
+      header: t('list.type'),
       accessorFn: (guest: Guest) => guest.guest_type,
       enableSorting: false,
       cell: (info) => {
@@ -232,7 +235,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
     },
     {
       id: 'last_stay',
-      header: 'Last stay',
+      header: t('list.lastStay'),
       accessorFn: (guest: Guest) => guest.last_stay_date ?? '',
       enableSorting: false,
       cell: (info) => {
@@ -244,8 +247,8 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
             </Typography>
             <Typography sx={{ fontSize: 11.5, color: 'text.secondary' }}>
               {(guest.bookings_count ?? 0) === 0
-                ? 'No stays'
-                : `${guest.bookings_count} ${guest.bookings_count === 1 ? 'stay' : 'stays'}`}
+                ? t('list.noStays')
+                : t('list.stays', { count: guest.bookings_count ?? 0 })}
             </Typography>
           </Box>
         );
@@ -253,7 +256,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
     },
     {
       id: 'alerts',
-      header: 'Alerts',
+      header: t('list.alerts'),
       enableSorting: false,
       cell: (info) => {
         const guest = info.row.original;
@@ -267,12 +270,12 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
             {guest.is_blacklisted && (
-              <Tooltip title={guest.blacklist_reason ? `Blacklisted — ${guest.blacklist_reason}` : 'Blacklisted guest'}>
+              <Tooltip title={guest.blacklist_reason ? t('list.blacklistedReason', { reason: guest.blacklist_reason }) : t('list.blacklistedGuest')}>
                 <BlacklistedChip />
               </Tooltip>
             )}
             {guest.has_open_support && (
-              <Tooltip title="Open support conversation">
+              <Tooltip title={t('list.openSupportTooltip')}>
                 <OpenRequestChip />
               </Tooltip>
             )}
@@ -282,7 +285,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
     },
     {
       id: 'account',
-      header: 'Account',
+      header: t('list.account'),
       accessorFn: (guest: Guest) => guest.account_username ?? '',
       enableSorting: false,
       cell: (info) => {
@@ -296,7 +299,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
               {guest.account_username}
             </Typography>
             <Typography sx={{ fontSize: 11.5, color: guest.account_is_active ? GUEST_DESIGN.green700 : 'text.secondary' }}>
-              {guest.account_is_active ? 'Active' : 'Deactivated'}
+              {guest.account_is_active ? t('list.accountActive') : t('list.accountDeactivated')}
             </Typography>
           </Box>
         );
@@ -324,7 +327,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
         />
       ),
     },
-  ], [tourismConversionGuestId, canCreateEkyc, canTransferPortalAccount, onEdit, onNewBooking, onStayHistory, onViewCredits, onConvertTourism, onTransferPortalAccount, onCreateEkyc, onDelete]);
+  ], [t, tourismConversionGuestId, canCreateEkyc, canTransferPortalAccount, onEdit, onNewBooking, onStayHistory, onViewCredits, onConvertTourism, onTransferPortalAccount, onCreateEkyc, onDelete]);
 
   const renderMobileCard = (guest: Guest) => {
     const legalName = guestLegalName(guest);
@@ -368,11 +371,11 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
           {guest.has_open_support && <OpenRequestChip />}
         </Box>
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.75 }}>
-          {guest.email || guest.phone || 'No contact details'}
+          {guest.email || guest.phone || t('list.noContact')}
         </Typography>
         <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-          {(guest.bookings_count ?? 0) === 0 ? 'No stays' : `${guest.bookings_count} ${guest.bookings_count === 1 ? 'stay' : 'stays'}`}
-          {' · '}Last stay: {formatStayDate(guest.last_stay_date)}
+          {(guest.bookings_count ?? 0) === 0 ? t('list.noStays') : t('list.stays', { count: guest.bookings_count ?? 0 })}
+          {' · '}{t('list.lastStayPrefix', { date: formatStayDate(guest.last_stay_date) })}
         </Typography>
       </Box>
     );

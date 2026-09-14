@@ -191,6 +191,18 @@
     "completed": "Completed",
     "failed": "Failed"
   },
+  "booking_source": {
+    "direct": "Direct",
+    "walk_in": "Walk-in",
+    "online": "Online",
+    "phone": "Phone",
+    "email": "Email",
+    "agent": "Agent",
+    "travel_agent": "Travel agent",
+    "corporate": "Corporate",
+    "ota": "OTA",
+    "guest_portal": "Guest portal"
+  },
   "priority": {
     "low": "Low",
     "normal": "Normal",

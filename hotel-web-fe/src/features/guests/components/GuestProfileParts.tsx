@@ -11,7 +11,10 @@ import {
   Typography,
 } from '@mui/material';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { formatStatusLabel } from '../../../utils/formatters';
+import { t as i18nT } from '../../../i18n/translate';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { formatHotelDate } from '../../../utils/date';
 import type { GuestProfileBooking } from '../../../types';
 
 /**
@@ -21,26 +24,11 @@ import type { GuestProfileBooking } from '../../../types';
  */
 
 /** Profile dates arrive as `YYYY-MM-DD` (NaiveDate) or full ISO timestamps;
- *  render both in local time rather than via UTC-shifting Date parsing. */
-export const formatGuestProfileDate = (value?: string | null) => {
-  if (!value) return 'N/A';
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(
-        Number(value.slice(0, 4)),
-        Number(value.slice(5, 7)) - 1,
-        Number(value.slice(8, 10))
-      )
-    : new Date(value);
-
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
-
-const formatStatus = (value?: string | null) =>
-  formatStatusLabel(value, 'N/A');
+ *  formatHotelDate renders both in the hotel timezone and the active
+ *  interface language. Call-time translation (non-React `t`) is safe here —
+ *  callers re-render when the locale changes because they hold the hook. */
+export const formatGuestProfileDate = (value?: string | null) =>
+  formatHotelDate(value, i18nT('common.na', undefined, 'guests'));
 
 export const ProfileMetric = ({ label, value }: { label: string; value: React.ReactNode }) => (
   <Box
@@ -68,7 +56,8 @@ export const ProfileMetric = ({ label, value }: { label: string; value: React.Re
 );
 
 export const ProfileDetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => {
-  const displayValue = value === null || value === undefined || value === '' ? 'N/A' : value;
+  const { t } = useTranslation('guests');
+  const displayValue = value === null || value === undefined || value === '' ? t('common.na') : value;
 
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -101,6 +90,7 @@ export const GuestReservationsTable: React.FC<GuestReservationsTableProps> = ({
   renderBookingActions,
 }) => {
   const { format: formatCurrency } = useCurrency();
+  const { t } = useTranslation('guests');
   const columnCount = renderBookingActions ? 6 : 5;
 
   return (
@@ -108,12 +98,12 @@ export const GuestReservationsTable: React.FC<GuestReservationsTableProps> = ({
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Booking</TableCell>
-            <TableCell>Dates</TableCell>
-            <TableCell>Room</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell align="right">Balance</TableCell>
-            {renderBookingActions && <TableCell align="right">Actions</TableCell>}
+            <TableCell>{t('stays.booking')}</TableCell>
+            <TableCell>{t('stays.dates')}</TableCell>
+            <TableCell>{t('stays.room')}</TableCell>
+            <TableCell>{t('stays.status')}</TableCell>
+            <TableCell align="right">{t('stays.balance')}</TableCell>
+            {renderBookingActions && <TableCell align="right">{t('stays.actions')}</TableCell>}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -123,7 +113,7 @@ export const GuestReservationsTable: React.FC<GuestReservationsTableProps> = ({
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
                 }}>
-                  No reservations found
+                  {t('stays.empty')}
                 </Typography>
               </TableCell>
             </TableRow>
@@ -137,7 +127,7 @@ export const GuestReservationsTable: React.FC<GuestReservationsTableProps> = ({
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
                   }}>
-                    {booking.source ? formatStatus(booking.source) : 'Direct'}
+                    {booking.source ? statusLabel(t, 'booking_source', booking.source) : t('stays.direct')}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -147,19 +137,19 @@ export const GuestReservationsTable: React.FC<GuestReservationsTableProps> = ({
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
                   }}>
-                    {booking.nights} night{booking.nights === 1 ? '' : 's'}
+                    {t('stays.nights', { count: booking.nights })}
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2">Room {booking.room_number}</Typography>
+                  <Typography variant="body2">{t('stays.roomNumber', { number: booking.room_number })}</Typography>
                   <Typography variant="caption" sx={{
                     color: "text.secondary"
                   }}>
-                    {booking.room_type || 'N/A'}
+                    {booking.room_type || t('common.na')}
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Chip label={formatStatus(booking.status)} size="small" variant="outlined" />
+                  <Chip label={statusLabel(t, 'booking', booking.status)} size="small" variant="outlined" />
                 </TableCell>
                 <TableCell align="right">
                   <Typography
