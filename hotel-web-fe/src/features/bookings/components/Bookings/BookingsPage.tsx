@@ -16,6 +16,7 @@ import {
   BookingWithDetails,
 } from '../../../../types';
 import { useNavigate, useSearchParams } from '../../../../router';
+import { useAuth } from '../../../../auth/AuthContext';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE } from '../../hooks/useBookings';
@@ -37,10 +38,14 @@ import {
 import BookingSummarySection from './BookingSummarySection';
 import BookingFiltersBar from './BookingFiltersBar';
 import BookingListPanel from './BookingListPanel';
+import BookingDetailDrawer from './BookingDetailDrawer';
 
 const BookingsPage: React.FC = () => {
   const [pageSearchParams, setPageSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission('bookings:update') || hasPermission('bookings:manage');
+  const [drawerBookingId, setDrawerBookingId] = useState<string | null>(null);
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
   const ONLINE_CHANNELS = getHotelSettings()
     .booking_channels.map((channel) => channel.name?.trim())
@@ -166,10 +171,11 @@ const BookingsPage: React.FC = () => {
     await Promise.all([loadData(), summaryBookingsQuery.refetch()]);
   };
 
-  // Row clicks navigate to /bookings/$bookingId, so the shared hook stays on
-  // the list page only for list-chrome dialogs: the create flow's
-  // onBookingCreated routes a direct booking into the Check-In dialog.
+  // Row clicks open the detail drawer; the shared hook's callbacks drive the
+  // drawer's action buttons while its dialogs stay mounted at page level (and
+  // the create flow's onBookingCreated routes into the Check-In dialog).
   const {
+    callbacks: bookingActionCallbacks,
     dialogs: bookingActionDialogs,
     openCheckInDialog,
   } = useBookingActions({
@@ -405,7 +411,7 @@ const BookingsPage: React.FC = () => {
               loading={loading}
               totalBookings={totalBookings}
               bookingView={bookingView}
-              onOpenBooking={(booking) => navigate(`/bookings/${booking.id}`)}
+              onOpenBooking={(booking) => setDrawerBookingId(String(booking.id))}
               sortField={sortField}
               onToggleSort={() => handleSort(sortField === 'check_in_date' ? 'guest_name' : 'check_in_date')}
               pagination={bookingPagination}
@@ -462,8 +468,18 @@ const BookingsPage: React.FC = () => {
           openCheckInDialog(bookingWithDetails);
         }}
       />
-      {/* Booking-action dialogs stay mounted via the shared hook for the
-          create → check-in flow; row-level actions live on the detail page. */}
+      <BookingDetailDrawer
+        bookingId={drawerBookingId}
+        open={Boolean(drawerBookingId)}
+        onClose={() => setDrawerBookingId(null)}
+        isAdmin={isAdmin}
+        onOpenFullDetails={(booking) => navigate(`/bookings/${booking.id}`)}
+        onError={setError}
+        onCompleted={reloadBookingData}
+        {...bookingActionCallbacks}
+      />
+      {/* Booking-action dialogs stay mounted via the shared hook — MUI Dialogs
+          layer above the Drawer, so drawer actions reuse them as-is. */}
       {bookingActionDialogs}
     </Box>
   );
