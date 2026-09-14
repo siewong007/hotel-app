@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   Box,
-  Chip,
   CircularProgress,
   Divider,
   IconButton,
@@ -11,7 +10,6 @@ import {
   MenuItem,
   Tooltip,
   Typography,
-  alpha,
 } from '@mui/material';
 import {
   AddCircleOutlineOutlined as NewBookingIcon,
@@ -20,23 +18,25 @@ import {
   CardGiftcardOutlined as CreditsIcon,
   DeleteOutlined as DeleteIcon,
   EditOutlined as EditIcon,
-  GppBadOutlined as BlacklistedBadgeIcon,
   HistoryOutlined as StayHistoryIcon,
   ManageAccountsOutlined as PortalAccountIcon,
   MoreVert as MoreIcon,
-  Star as MemberIcon,
-  SupportAgentOutlined as OpenRequestsIcon,
   VerifiedUserOutlined as EkycIcon,
   VisibilityOutlined as ViewIcon,
-  WorkspacePremiumOutlined as VipIcon,
 } from '@mui/icons-material';
 import type { Guest } from '../../../types';
-import { formatStatusLabel } from '../../../utils/formatters';
 import { formatHotelDate } from '../../../utils/date';
 import { DataTable, type ColumnDef } from '../../../components';
 import { GUEST_DESIGN } from '../../guests/constants';
-import { guestHasMissingTourismType } from '../../guests/utils';
-import { avatarFor, guestLegalName, initialsOf } from '../utils';
+import { guestLegalName } from '../utils';
+import {
+  BlacklistedChip,
+  GuestAvatar,
+  MemberChip,
+  OpenRequestChip,
+  TourismChip,
+  VipChip,
+} from './GuestChips';
 
 export interface GuestListTableActions {
   onOpen: (guest: Guest) => void;
@@ -62,92 +62,6 @@ interface GuestListTableProps extends GuestListTableActions {
 // `last_stay_date` is a date-only (YYYY-MM-DD) value — formatHotelDate keeps
 // the literal calendar date instead of shifting a day west of UTC.
 const formatStayDate = (value?: string) => formatHotelDate(value, '—');
-
-const GuestAvatar: React.FC<{ guest: Guest; size?: number }> = ({ guest, size = 34 }) => {
-  const av = avatarFor(guest.id);
-  return (
-    <Box
-      sx={{
-        width: size,
-        height: size,
-        borderRadius: '50%',
-        bgcolor: av.bg,
-        color: av.fg,
-        display: 'grid',
-        placeItems: 'center',
-        fontWeight: 700,
-        fontSize: size * 0.31,
-        border: '1px solid rgba(0,0,0,0.05)',
-        flexShrink: 0,
-      }}
-    >
-      {initialsOf(guest.nick_name)}
-    </Box>
-  );
-};
-
-const MemberChip: React.FC = () => (
-  <Chip
-    size="small"
-    icon={<MemberIcon sx={{ fontSize: 12 }} />}
-    label="Member"
-    sx={{ bgcolor: GUEST_DESIGN.goldBg, color: GUEST_DESIGN.gold, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
-  />
-);
-
-const VipChip: React.FC<{ status: string }> = ({ status }) => (
-  <Chip
-    size="small"
-    icon={<VipIcon sx={{ fontSize: 12 }} />}
-    label={formatStatusLabel(status, 'VIP')}
-    sx={{ bgcolor: alpha('#5b3aa8', 0.12), color: '#5b3aa8', fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
-  />
-);
-
-const OpenRequestChip: React.FC = () => (
-  <Chip
-    size="small"
-    icon={<OpenRequestsIcon sx={{ fontSize: 13 }} />}
-    label="Open request"
-    sx={{
-      bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.blue} 10%, transparent)`,
-      color: GUEST_DESIGN.blue,
-      fontWeight: 700,
-      '& .MuiChip-icon': { color: 'inherit' },
-    }}
-  />
-);
-
-const TourismChip: React.FC<{ guest: Guest }> = ({ guest }) => {
-  if (guestHasMissingTourismType(guest)) {
-    return (
-      <Chip
-        size="small"
-        label="Missing tourism"
-        sx={{ bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`, color: GUEST_DESIGN.rose, fontWeight: 700 }}
-      />
-    );
-  }
-  if (guest.tourism_type === 'foreign') {
-    return (
-      <Chip
-        size="small"
-        label="Tourist"
-        sx={{ bgcolor: GUEST_DESIGN.blueBg, color: GUEST_DESIGN.blue, fontWeight: 700 }}
-      />
-    );
-  }
-  if (guest.tourism_type === 'local') {
-    return (
-      <Chip
-        size="small"
-        label="Local"
-        sx={{ bgcolor: GUEST_DESIGN.green50, color: GUEST_DESIGN.green700, fontWeight: 700 }}
-      />
-    );
-  }
-  return null;
-};
 
 interface GuestRowActionsProps extends GuestListTableActions {
   guest: Guest;
@@ -361,17 +275,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
             {guest.is_blacklisted && (
               <Tooltip title={guest.blacklist_reason ? `Blacklisted — ${guest.blacklist_reason}` : 'Blacklisted guest'}>
-                <Chip
-                  size="small"
-                  icon={<BlacklistedBadgeIcon sx={{ fontSize: 14 }} />}
-                  label="Blacklisted"
-                  sx={{
-                    bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`,
-                    color: GUEST_DESIGN.rose,
-                    fontWeight: 700,
-                    '& .MuiChip-icon': { color: 'inherit' },
-                  }}
-                />
+                <BlacklistedChip />
               </Tooltip>
             )}
             {guest.has_open_support && (
@@ -468,12 +372,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
           {guest.vip_status?.trim() && <VipChip status={guest.vip_status} />}
           <TourismChip guest={guest} />
           {guest.is_blacklisted && (
-            <Chip
-              size="small"
-              icon={<BlacklistIcon sx={{ fontSize: 13 }} />}
-              label="Blacklisted"
-              sx={{ bgcolor: `color-mix(in srgb, ${GUEST_DESIGN.rose} 10%, transparent)`, color: GUEST_DESIGN.rose, fontWeight: 700, '& .MuiChip-icon': { color: 'inherit' } }}
-            />
+            <BlacklistedChip icon={<BlacklistIcon sx={{ fontSize: 13 }} />} />
           )}
           {guest.has_open_support && <OpenRequestChip />}
         </Box>
