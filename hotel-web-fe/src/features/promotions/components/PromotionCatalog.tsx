@@ -1,6 +1,7 @@
 import { Alert, Box, CircularProgress, Grid, Stack, Typography } from '@mui/material';
 import { useState } from 'react';
 import { useNavigate } from '../../../router';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
 import {
@@ -34,6 +35,7 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
   );
   const claimMutation = useClaimPromotion(token);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const claimErrorRef = useAutoFocusError(claimMutation.error);
 
   const entries: GuestPromotion[] = isPortal
     ? portalQuery.data?.items ?? []
@@ -102,7 +104,7 @@ export function PromotionCatalog({ token }: PromotionCatalogProps) {
         </Alert>
       ) : null}
       {claimMutation.error ? (
-        <Alert severity="error" role="alert" onClose={() => claimMutation.reset()}>
+        <Alert severity="error" role="alert" ref={claimErrorRef} tabIndex={-1} onClose={() => claimMutation.reset()}>
           {guestErrorMessage(claimMutation.error, t('offers.claimFailed'))}
         </Alert>
       ) : null}

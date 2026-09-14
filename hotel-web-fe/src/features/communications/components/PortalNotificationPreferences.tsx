@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { PortalCommunicationsApi } from '../api';
 import { TOPIC_LABELS, type NotificationTopic } from '../types';
 import { portalSessionScope } from '../../promotions/utils';
+import { useAutoFocusError } from '../../../hooks/useAutoFocusError';
 import { guestErrorMessage } from '../../guestPortal/utils/feedback';
 import { useTranslation } from '../../../i18n';
 
@@ -31,6 +32,7 @@ export default function PortalNotificationPreferences({ token }: { token: string
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const errorRef = useAutoFocusError(error);
   const queryKey = ['portal', 'notification-preferences', portalSessionScope(token)] as const;
 
   const prefs = useQuery({
@@ -103,7 +105,7 @@ export default function PortalNotificationPreferences({ token }: { token: string
         <Box role="status" aria-live="polite" aria-atomic="true" sx={{ minHeight: savedMessage || error ? 40 : 0, mb: savedMessage || error ? 1.5 : 0 }}>
           {savedMessage ? <Alert severity="success" role="alert" sx={{ py: 0.25 }}>{savedMessage}</Alert> : null}
           {error ? (
-          <Alert severity="error" role="alert" onClose={() => setError(null)} sx={{ py: 0.25 }}>
+          <Alert severity="error" role="alert" ref={errorRef} tabIndex={-1} onClose={() => setError(null)} sx={{ py: 0.25 }}>
             {error}
           </Alert>) : null}
         </Box>

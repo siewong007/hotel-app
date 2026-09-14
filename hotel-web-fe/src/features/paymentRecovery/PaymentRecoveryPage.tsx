@@ -17,6 +17,7 @@ import {
   usePayPalScriptReducer,
 } from '@paypal/react-paypal-js';
 import { PaymentRecoveryApi } from './api';
+import { useAutoFocusError } from '../../hooks/useAutoFocusError';
 import { useTranslation } from '../../i18n';
 import { formatHotelDateTime } from '../../utils/date';
 
@@ -101,6 +102,12 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
     },
     [token],
   );
+
+  // Each of the three action failures is its own alert region, so each gets
+  // its own ref — the one that just appeared is the one that takes focus.
+  const uploadErrorRef = useAutoFocusError(upload.isError);
+  const failedErrorRef = useAutoFocusError(failed);
+  const paypalErrorRef = useAutoFocusError(paypalFailed);
 
   if (recovery.isLoading) {
     return (
@@ -205,7 +212,7 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
                     {t('recoverPayment.uploadHint')}
                   </Typography>
                   {upload.isError && (
-                    <Alert severity="error" sx={{ mb: 1.5 }}>
+                    <Alert severity="error" role="alert" ref={uploadErrorRef} tabIndex={-1} sx={{ mb: 1.5 }}>
                       {t('recoverPayment.uploadFailed')}
                     </Alert>
                   )}
@@ -238,7 +245,7 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
           ) : (
             <>
               {failed && (
-                <Alert severity="error" sx={{ mb: 2 }}>
+                <Alert severity="error" role="alert" ref={failedErrorRef} tabIndex={-1} sx={{ mb: 2 }}>
                   {t('recoverPayment.failed')}
                 </Alert>
               )}
@@ -251,7 +258,7 @@ export default function PaymentRecoveryPage({ token }: { token: string }) {
                     {t('recoverPayment.paypal')}
                   </Typography>
                   {paypalFailed && (
-                    <Alert severity="error" sx={{ mb: 1.5 }}>
+                    <Alert severity="error" role="alert" ref={paypalErrorRef} tabIndex={-1} sx={{ mb: 1.5 }}>
                       {t('recoverPayment.paypalFailed')}
                     </Alert>
                   )}

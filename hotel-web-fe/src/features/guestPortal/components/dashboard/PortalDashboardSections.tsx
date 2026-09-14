@@ -676,6 +676,14 @@ function BookingDetailsDialog({
   const [receiptUploadError, setReceiptUploadError] = useState<string | null>(null);
   const [receiptUploaded, setReceiptUploaded] = useState(false);
   const receiptUploadErrorRef = useAutoFocusError(receiptUploadError);
+  // The dialog component stays mounted between opens (it early-returns on a
+  // null booking), so receipt state from the previous view must not bleed
+  // into the next one.
+  useEffect(() => {
+    setReceiptFile(null);
+    setReceiptUploadError(null);
+    setReceiptUploaded(false);
+  }, [booking?.id]);
   if (!booking) return null;
   const awaitingPayment = ["pending", "pending_payment"].includes(booking.status);
   const awaitingConfirmation = booking.status === "pending_confirmation";

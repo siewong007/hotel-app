@@ -134,7 +134,7 @@ const PortalBookingPage: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [isQuoting, setIsQuoting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
   const [availabilityLost, setAvailabilityLost] = useState(false);
   // Default to complete: a portal backend that predates this field, or a
   // transient fetch failure, must never trap the guest in a completion loop.
@@ -143,8 +143,16 @@ const PortalBookingPage: React.FC = () => {
   const [profileComplete, setProfileComplete] = useState(true);
   const [guestDetails, setGuestDetails] = useState<AnonymousGuestDetails>(EMPTY_GUEST_DETAILS);
   // Search, quote, voucher, credits and create failures all land on the one
-  // form-level alert below.
-  const errorRef = useAutoFocusError(error);
+  // form-level alert below — but only failures the guest asked for take
+  // focus. Background re-prices (the tourism-type re-quote, socket-driven
+  // re-search and the post-failure fallback search) render in the same alert
+  // without yanking the reader out of the form.
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const setError = useCallback((message: string | null, submit = true) => {
+    setErrorState(message);
+    setSubmitError(submit ? message : null);
+  }, []);
+  const errorRef = useAutoFocusError(submitError);
 
   // A visitor with no account books anonymously instead of being bounced to a
   // sign-up form — that detour is what made booking unreachable from the public
@@ -170,7 +178,7 @@ const PortalBookingPage: React.FC = () => {
         setRequestId(newRequestId());
       })
       .catch((quoteError) => {
-        if (!cancelled) setError(guestErrorMessage(quoteError, t('book.errors.refreshPriceFailed')));
+        if (!cancelled) setError(guestErrorMessage(quoteError, t('book.errors.refreshPriceFailed')), false);
       })
       .finally(() => {
         if (!cancelled) setIsQuoting(false);
@@ -178,7 +186,7 @@ const PortalBookingPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [guestDetails.tourism_type, isAnonymous, search, selectedOffer, t]);
+  }, [guestDetails.tourism_type, isAnonymous, search, selectedOffer, setError, t]);
 
   // Vouchers are a secondary surface next to the quote: a load failure warns
   // inline at the picker rather than masking the search flow behind `error`.
@@ -209,22 +217,23 @@ const PortalBookingPage: React.FC = () => {
     return () => { cancelled = true; };
   }, [token]);
 
-  const runSearch = useCallback(async () => {
+  const runSearch = useCallback(async (opts?: { background?: boolean }) => {
     if (!canQuery) return;
+    const submit = !opts?.background;
     const validationError = validateGuestBookingSearch(search, t);
-    if (validationError) { setError(validationError); return; }
+    if (validationError) { setError(validationError, submit); return; }
     setIsSearching(true); setError(null); setOffers([]);
     try {
       const nextOffers = token
         ? await GuestBookingApi.search(search, token)
         : await PublicBookingApi.search(search);
       setOffers(nextOffers);
-      if (nextOffers.length === 0) setError(t('book.errors.noRooms'));
+      if (nextOffers.length === 0) setError(t('book.errors.noRooms'), submit);
     } catch (searchError) {
-      setError(guestErrorMessage(searchError, t('book.errors.searchFailed')));
+      setError(guestErrorMessage(searchError, t('book.errors.searchFailed')), submit);
       setOffers([]);
     } finally { setIsSearching(false); }
-  }, [canQuery, search, t, token]);
+  }, [canQuery, search, setError, t, token]);
 
   const selectOffer = useCallback(async (offer: GuestBookingOffer) => {
     if (!canQuery || isQuoting) return;
@@ -250,7 +259,7 @@ const PortalBookingPage: React.FC = () => {
     }
     catch (quoteError) { setSelectedOffer(null); setError(guestErrorMessage(quoteError, t('book.errors.quoteFailed'))); }
     finally { setIsQuoting(false); }
-  }, [canQuery, guestDetails.tourism_type, isQuoting, search, t, token]);
+  }, [canQuery, guestDetails.tourism_type, isQuoting, search, setError, t, token]);
 
   const applyVoucher = useCallback(async (nextVoucherId: number | '') => {
     if (isQuoting) return;
@@ -275,7 +284,7 @@ const PortalBookingPage: React.FC = () => {
       setVoucherId('');
       setError(guestErrorMessage(quoteError, t('book.errors.voucherFailed')));
     } finally { setIsQuoting(false); }
-  }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, isQuoting, search, selectedOffer, t, token]);
+  }, [complimentaryDates, eligibleVoucherIds, ineligibleVoucherKeys, isQuoting, search, selectedOffer, setError, t, token]);
 
   // Complimentary nights are re-priced server-side on every toggle: the credit
   // is worth exactly the rate of the night it is spent on, so the guest sees
@@ -292,7 +301,7 @@ const PortalBookingPage: React.FC = () => {
       setComplimentaryDates(previousDates);
       setError(guestErrorMessage(quoteError, t('book.errors.creditsFailed')));
     } finally { setIsQuoting(false); }
-  }, [complimentaryDates, isQuoting, search, selectedOffer, t, token, voucherId]);
+  }, [complimentaryDates, isQuoting, search, selectedOffer, setError, t, token, voucherId]);
 
   const submitAnonymousBooking = useCallback(async () => {
     if (!quote) return;
@@ -347,9 +356,9 @@ const PortalBookingPage: React.FC = () => {
             : {}),
         }));
       }
-      catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
+      catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch({ background: true }); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, search, specialRequests, t]);
+  }, [cleaningPreference, consent, guestDetails, legalLocale, quote, requestId, runSearch, search, setError, specialRequests, t]);
 
   const submitBooking = useCallback(async () => {
     if (!quote) return;
@@ -383,15 +392,15 @@ const PortalBookingPage: React.FC = () => {
       }
       setError(guestErrorMessage(createError, t('book.errors.createFailed')));
       try { setQuote(await GuestBookingApi.quote({ ...search, room_type_id: quote.room_type_id, voucher_id: quote.voucher_id ?? undefined, complimentary_dates: quote.complimentary_dates }, token)); }
-      catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch(); }
+      catch { setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); await runSearch({ background: true }); }
     } finally { setIsSubmitting(false); }
-  }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, search, specialRequests, submitAnonymousBooking, t, token]);
+  }, [cleaningPreference, consent, isAnonymous, legalLocale, navigate, profileComplete, quote, requestId, runSearch, search, setError, specialRequests, submitAnonymousBooking, t, token]);
 
   const handleAvailabilityChange = useCallback((event: AvailabilityEvent) => {
     if (!stayOverlapsAvailabilityEvent(event, search)) return;
     if (event.room_type_id !== null && event.remaining_rooms !== null) setOffers((current) => current.map((offer) => offer.room_type_id === event.room_type_id ? { ...offer, available_rooms: event.remaining_rooms ?? offer.available_rooms } : offer));
     if (shouldInterruptSelectedOffer(event, search, selectedOffer?.room_type_id ?? null) && !isSubmitting && !confirmation) {
-      setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); void runSearch();
+      setSelectedOffer(null); setQuote(null); setAvailabilityLost(true); void runSearch({ background: true });
     }
   }, [confirmation, isSubmitting, runSearch, search, selectedOffer?.room_type_id]);
   useAvailabilitySocket(token, handleAvailabilityChange);
