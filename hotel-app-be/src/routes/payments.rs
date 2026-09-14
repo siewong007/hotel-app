@@ -64,6 +64,10 @@ pub fn routes() -> Router<DbPool> {
             get(list_payment_approval_history),
         )
         .route(
+            "/admin/payments/paypal-conflicts",
+            get(list_paypal_conflicts),
+        )
+        .route(
             "/admin/payments/{payment_id}/receipt",
             get(download_payment_receipt),
         )
@@ -229,6 +233,14 @@ async fn list_payment_approval_history(
 ) -> Result<Json<models::PendingPaymentPage>, ApiError> {
     require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::list_payment_approval_history_handler(State(pool), query).await
+}
+
+async fn list_paypal_conflicts(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
+    handlers::payments::list_paypal_conflict_events_handler(State(pool)).await
 }
 
 async fn download_payment_receipt(

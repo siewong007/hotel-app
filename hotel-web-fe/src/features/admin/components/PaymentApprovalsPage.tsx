@@ -81,10 +81,11 @@ const PaymentApprovalsPage: React.FC = () => {
   const receiptMutation = useRequestPaymentReceipt();
 
   // Same permission this page's own data already requires (payments:read,
-  // routes/payments.rs); audit:read additionally gates the audit-logs
-  // endpoint this banner reads from, so staff without it just see no banner
-  // instead of an error.
-  const canViewConflicts = hasPermission('payments:read') && hasPermission('audit:read');
+  // routes/payments.rs). The banner reads the narrow paypal-conflicts
+  // endpoint rather than audit-logs, so approvers without audit:read still
+  // see conflicts — previously the banner was invisible to exactly the staff
+  // it exists for.
+  const canViewConflicts = hasPermission('payments:read');
   const conflictQuery = usePaypalConflictEvents(canViewConflicts);
   const conflictEvents = conflictQuery.data?.events ?? [];
   const conflictTotal = conflictQuery.data?.total ?? 0;

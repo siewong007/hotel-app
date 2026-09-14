@@ -1,6 +1,7 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
 import type { PaymentActionResponse, PendingPaymentPage } from '../types';
+import type { AuditLogEntry } from '../types/audit.types';
 
 export class PaymentApprovalsService {
   /**
@@ -56,6 +57,17 @@ export class PaymentApprovalsService {
           .put(`admin/payments/${paymentId}/reject`, { json: { reason } })
           .json<PaymentActionResponse>(),
       { maxAttempts: 2, initialDelay: 1000 }
+    );
+  }
+
+  /**
+   * Recent PayPal payment/webhook conflicts for the approvals banner. Narrow
+   * `payments:read`-gated endpoint — approvers do not hold `audit:read`.
+   */
+  static async paypalConflicts(): Promise<{ events: AuditLogEntry[]; total: number }> {
+    return await withRetry(
+      () => api.get('admin/payments/paypal-conflicts').json<{ events: AuditLogEntry[]; total: number }>(),
+      { maxAttempts: 3, initialDelay: 1000 }
     );
   }
 

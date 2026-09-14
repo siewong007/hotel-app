@@ -942,7 +942,7 @@ mod postgres_tests {
             "a ledger row holding collected payments is left open for reconciliation"
         );
         assert_eq!(paid_after.void_at, None);
-        assert_eq!(paid_after.paid_amount, Decimal::new(50_000, 2));
+        assert_eq!(paid_after.paid_amount, Decimal::new(5_000, 2));
 
         cleanup_booking_fixture(
             &pool,

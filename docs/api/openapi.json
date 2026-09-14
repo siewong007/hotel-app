@@ -103,6 +103,9 @@
     "/api/admin/payments/history": {
       "GET": {}
     },
+    "/api/admin/payments/paypal-conflicts": {
+      "GET": {}
+    },
     "/api/admin/payments/pending": {
       "GET": {}
     },

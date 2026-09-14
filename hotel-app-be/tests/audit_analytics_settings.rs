@@ -250,6 +250,98 @@ mod postgres_tests {
     }
 
     // -----------------------------------------------------------------
+    // Recent-events-by-actions: the narrow read behind
+    // GET /admin/payments/paypal-conflicts. The action set is caller-pinned,
+    // results are newest-first, `total` is the untruncated count while rows
+    // honor `limit`, and unrelated actions stay out.
+    // -----------------------------------------------------------------
+    #[tokio::test]
+    async fn recent_events_by_actions_filters_sorts_and_truncates() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let user_id = 992_001;
+        let resource_type = "aud992_recent_resource";
+
+        async fn cleanup(pool: &PgPool, user_id: i64, resource_type: &str) {
+            sqlx::query("DELETE FROM audit_logs WHERE resource_type = $1 AND user_id = $2")
+                .bind(resource_type)
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM users WHERE id = $1")
+                .bind(user_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        cleanup(&pool, user_id, resource_type).await;
+        upsert_actor(&pool, user_id, "aud992_recent_actor").await;
+
+        for (action, detail) in [
+            ("aud992_conflict_a", "first"),
+            ("aud992_unrelated", "noise"),
+            ("aud992_conflict_b", "second"),
+        ] {
+            AuditLog::log_event(
+                &pool,
+                AuditEvent {
+                    user_id: Some(user_id),
+                    action,
+                    resource_type,
+                    resource_id: Some(user_id),
+                    details: Some(serde_json::json!({"marker": detail})),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect("seeding an audit row must succeed");
+        }
+
+        let (events, total) = audit_service::get_recent_events_by_actions(
+            &pool,
+            &["aud992_conflict_a", "aud992_conflict_b"],
+            30,
+            50,
+        )
+        .await
+        .expect("recent-events query must succeed");
+
+        let ours: Vec<_> = events
+            .iter()
+            .filter(|e| e.resource_type == resource_type && e.user_id == Some(user_id))
+            .collect();
+        assert_eq!(ours.len(), 2, "only the two pinned actions match");
+        assert_eq!(
+            ours[0].action, "aud992_conflict_b",
+            "newest row (inserted last) must sort first"
+        );
+        assert_eq!(ours[1].action, "aud992_conflict_a");
+        assert!(
+            total >= 2,
+            "total is the untruncated match count, got {total}"
+        );
+
+        let (capped, capped_total) = audit_service::get_recent_events_by_actions(
+            &pool,
+            &["aud992_conflict_a", "aud992_conflict_b"],
+            30,
+            1,
+        )
+        .await
+        .expect("capped query must succeed");
+        assert_eq!(capped.len(), 1, "limit truncates the row set");
+        assert_eq!(
+            capped_total, total,
+            "limit must not shrink the reported total"
+        );
+
+        cleanup(&pool, user_id, resource_type).await;
+    }
+
+    // -----------------------------------------------------------------
     // 1. Audit logging: log_event persistence + action-only vs
     //    field-change classification + user/resource/date filtering.
     // -----------------------------------------------------------------

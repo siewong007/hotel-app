@@ -4,17 +4,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 
-import type { AuditLogEntry } from '../../../types/audit.types';
-
-// Mock the api barrel the hook calls into (AuditService for the
-// PayPal-conflict lookup, PaymentApprovalsService for the approval workflow
-// itself), following the shared hook-test mocking convention.
+// Mock the api barrel the hook calls into (PaymentApprovalsService covers
+// both the approval workflow and the narrow PayPal-conflict endpoint),
+// following the shared hook-test mocking convention.
 const listPending = vi.fn();
 const approve = vi.fn();
 const listHistory = vi.fn();
 const reject = vi.fn();
 const requestReceipt = vi.fn();
-const getAuditLogs = vi.fn();
+const paypalConflicts = vi.fn();
 
 vi.mock('../../../api', () => ({
   PaymentApprovalsService: {
@@ -23,14 +21,11 @@ vi.mock('../../../api', () => ({
     listHistory: (...args: any[]) => listHistory(...args),
     reject: (...args: any[]) => reject(...args),
     requestReceipt: (...args: any[]) => requestReceipt(...args),
-  },
-  AuditService: {
-    getAuditLogs: (...args: any[]) => getAuditLogs(...args),
+    paypalConflicts: (...args: any[]) => paypalConflicts(...args),
   },
 }));
 
 import { queryKeys } from '../../../api/queryKeys';
-import { addLocalDays, formatLocalDate } from '../../../utils/date';
 import {
   usePendingPayments,
   useApprovePayment,
@@ -52,23 +47,6 @@ function createWrapper() {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
   return { wrapper, invalidateQueries };
-}
-
-function buildAuditEntry(overrides: Partial<AuditLogEntry> = {}): AuditLogEntry {
-  return {
-    id: 1,
-    user_id: null,
-    username: null,
-    action: 'paypal_webhook_conflict',
-    resource_type: 'payments',
-    category: 'system',
-    resource_id: 10,
-    details: null,
-    ip_address: null,
-    user_agent: null,
-    created_at: '2026-07-01T00:00:00Z',
-    ...overrides,
-  };
 }
 
 describe('usePendingPayments', () => {
@@ -200,62 +178,31 @@ describe('useRequestPaymentReceipt', () => {
 
 describe('usePaypalConflictEvents', () => {
   beforeEach(() => {
-    getAuditLogs.mockReset();
+    paypalConflicts.mockReset();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('queries a 30-day lookback for both PayPal conflict actions', async () => {
-    getAuditLogs.mockResolvedValue({ data: [], total: 0 });
-    const { wrapper } = createWrapper();
-    // Computed the same way the hook does, at the same wall-clock moment,
-    // instead of faking the system clock (avoids fake-timer/waitFor interplay).
-    const expectedStartDate = formatLocalDate(addLocalDays(new Date(), -30));
-
-    renderHook(() => usePaypalConflictEvents(), { wrapper });
-
-    await waitFor(() => expect(getAuditLogs).toHaveBeenCalledTimes(2));
-
-    expect(getAuditLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'paypal_webhook_conflict', start_date: expectedStartDate }),
-    );
-    expect(getAuditLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'paypal_capture_conflict', start_date: expectedStartDate }),
-    );
-  });
-
-  it('merges both actions and sorts newest-first across them (business logic: staff must see the latest conflict at the top)', async () => {
-    const webhookEvents = [
-      buildAuditEntry({ id: 1, action: 'paypal_webhook_conflict', created_at: '2026-07-20T00:00:00Z' }),
-      buildAuditEntry({ id: 2, action: 'paypal_webhook_conflict', created_at: '2026-07-10T00:00:00Z' }),
-    ];
-    const captureEvents = [
-      buildAuditEntry({ id: 3, action: 'paypal_capture_conflict', created_at: '2026-07-25T00:00:00Z' }),
-    ];
-    getAuditLogs.mockImplementation((params: { action: string }) =>
-      Promise.resolve(
-        params.action === 'paypal_webhook_conflict'
-          ? { data: webhookEvents, total: 2 }
-          : { data: captureEvents, total: 1 },
-      ),
-    );
+  it('delegates to the narrow paypal-conflicts endpoint (lookback and action set are pinned server-side)', async () => {
+    const payload = {
+      events: [{ id: 3, action: 'paypal_capture_conflict', created_at: '2026-07-25T00:00:00Z' }],
+      total: 5,
+    };
+    paypalConflicts.mockResolvedValue(payload);
     const { wrapper } = createWrapper();
 
     const { result } = renderHook(() => usePaypalConflictEvents(), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    // Merged total sums both responses, not just one.
-    expect(result.current.data?.total).toBe(3);
-    // Sorted strictly newest-first across the merged set, not per-action.
-    expect(result.current.data?.events.map((e) => e.id)).toEqual([3, 1, 2]);
+    expect(paypalConflicts).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toEqual(payload);
   });
 
-  it('does not fire the audit-log queries when disabled', () => {
+  it('does not fire the endpoint when disabled', () => {
     const { wrapper } = createWrapper();
     renderHook(() => usePaypalConflictEvents(false), { wrapper });
-    expect(getAuditLogs).not.toHaveBeenCalled();
+    expect(paypalConflicts).not.toHaveBeenCalled();
   });
 });

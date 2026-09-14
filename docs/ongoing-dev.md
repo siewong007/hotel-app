@@ -106,14 +106,23 @@ tree and removed per convention.
   `ui_status='draft'` bucket exactly. A "Draft" filter pill was added to
   `LedgerEntriesTab` so the badge and filter agree. Reversal rows
   (status='paid' hardcoded) correctly stay "Paid".
-- Branch protection on master: no rule exists (verified via `gh api`
-  2026-07-26). Pick required checks, review count, and admin bypass — or
-  delegate with the policy stated.
+- ~~Branch protection on master~~ RESOLVED: direct-push workflow on master is
+  the chosen process; no ruleset wanted.
 - PayPal refunds/disputes: `PAYMENT.CAPTURE.REFUNDED` webhooks are
   signature-verified and audit-logged but never auto-applied. Auto-apply vs
-  manual reconciliation is a money-policy call.
-- PayPal conflict banner visibility: the Payment Approvals banner needs
-  `audit:read`, which the `manager` role (the payment approvers) lacks. Grant
-  managers `audit:read`, or add a narrower conflicts endpoint.
+  manual reconciliation is a money-policy call. Investigation note: a
+  REFUNDED event can only arrive when a refund is issued *outside* this
+  system (PayPal dashboard/API) — in-system refunds go through
+  `refund_deposit` and never call PayPal. Auto-apply would need capture-ID
+  matching via `supplementary_data.related_ids` (refund events don't carry
+  our `custom_id`) plus partial-refund handling; it would auto-write refund
+  rows for actions taken around the system, so flagging may stay preferable.
+- ~~PayPal conflict banner needed `audit:read`~~ RESOLVED: new narrow
+  endpoint `GET /api/admin/payments/paypal-conflicts` gated by
+  `payments:read` (handlers/payments.rs +
+  `AuditRepository::list_recent_logs_by_actions` with a caller-pinned action
+  set). Frontend now calls it once instead of fanning out over audit-logs,
+  and the banner shows to managers — previously invisible to exactly the
+  approvers it exists for.
 - Guest portal: forgot-password flow for self-registered guests, and the
   maximum advance-booking window.
