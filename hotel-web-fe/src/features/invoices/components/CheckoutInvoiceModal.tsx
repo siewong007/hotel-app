@@ -50,6 +50,8 @@ import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMone
 import { formatStatusLabel } from '../../../utils/formatters';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
+import CollapsibleSection, { type CollapsibleSectionProps } from '../../../components/common/CollapsibleSection';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -90,6 +92,19 @@ const formatPaymentDateForInput = (payment: CheckoutPaymentRecord): string =>
 const formatPaymentDateTime = (payment: CheckoutPaymentRecord): string =>
   formatHotelDateTime(getPaymentTimestamp(payment));
 
+/**
+ * Phone-only collapsible wrapper for the step-1 money sections. On a phone
+ * the section renders behind a CollapsibleSection header; on larger
+ * viewports the children render unchanged so this shared modal keeps its
+ * desktop invoice layout exactly. All wrapped inputs are controlled from
+ * modal-level state, so the collapse's unmountOnExit drops no user input.
+ */
+const PhoneCollapsibleSection: React.FC<CollapsibleSectionProps & { isPhone: boolean }> = ({
+  isPhone,
+  children,
+  ...sectionProps
+}) => (isPhone ? <CollapsibleSection {...sectionProps}>{children}</CollapsibleSection> : <>{children}</>);
+
 const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   open,
   onClose,
@@ -102,6 +117,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
+  const isPhone = useIsPhone();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'preview' | 'confirm'>('preview');
@@ -995,6 +1011,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
             </Grid>
             {/* Charges Table */}
+            <PhoneCollapsibleSection isPhone={isPhone} title="Charges">
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               <Box sx={{ bgcolor: '#1976d2', color: 'white', p: 1.5 }}>
                 <Grid container>
@@ -1072,12 +1089,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               <Grid container sx={{
                                 alignItems: "center"
                               }}>
-                                <Grid size={editingRates ? 5 : 8}>
+                                <Grid size={editingRates ? { xs: 12, sm: 5 } : 8}>
                                   <Typography variant="body2">
                                     Room Charge — {dateStr}
                                   </Typography>
                                 </Grid>
-                                <Grid sx={{ textAlign: 'right' }} size={editingRates ? 7 : 4}>
+                                <Grid sx={{ textAlign: 'right' }} size={editingRates ? { xs: 12, sm: 7 } : 4}>
                                   {editingRates ? (
                                     <TextField
                                       size="small"
@@ -1087,7 +1104,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                         const val = toMoneyNumber(e.target.value);
                                         setEditableDailyRates(prev => ({ ...prev, [dateKey]: val }));
                                       }}
-                                      sx={{ width: 160, '& .MuiInputBase-input': { textAlign: 'right', py: 0.5 } }}
+                                      sx={{ width: { xs: '100%', sm: 160 }, '& .MuiInputBase-input': { textAlign: 'right', py: 0.5 } }}
                                       slotProps={{
                                         input: {
                                           startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
@@ -1231,14 +1248,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               </Box>
             </Box>
+            </PhoneCollapsibleSection>
             {/* Deposit Refund Section */}
             {isPositiveMoney(charges.depositRefund) && !depositWaived ? (
+              <PhoneCollapsibleSection isPhone={isPhone} title="Deposit adjustments" collapseOnPhone>
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container sx={{
                     alignItems: "center"
                   }}>
-                    <Grid size={5}>
+                    <Grid size={{ xs: 12, sm: 5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
                         {depositForfeited ? 'Deposit' : 'Deposit Refund'}
                       </Typography>
@@ -1252,7 +1271,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             : 'Must be refunded, forfeited, or waived before checkout'}
                       </Typography>
                     </Grid>
-                    <Grid sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }} size={7}>
+                    <Grid sx={{ textAlign: 'right', display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: { xs: 'flex-start', sm: 'flex-end' }, gap: 1 }} size={{ xs: 12, sm: 7 }}>
                       {depositRefunded ? (
                         <>
                           <Chip label="Refunded" size="small" color="success" />
@@ -1330,7 +1349,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           Deposit recorded but never collected — waive it:
                         </Typography>
                       </Grid>
-                      <Grid size={8}>
+                      <Grid size={{ xs: 12, sm: 8 }}>
                         <TextField
                           size="small"
                           fullWidth
@@ -1340,7 +1359,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           sx={{ fontSize: '0.8rem' }}
                         />
                       </Grid>
-                      <Grid size={4}>
+                      <Grid size={{ xs: 12, sm: 4 }}>
                         <Button
                           size="small"
                           variant="outlined"
@@ -1376,7 +1395,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           Or forfeit the deposit — keep it (e.g., lost keycard, damage):
                         </Typography>
                       </Grid>
-                      <Grid size={5}>
+                      <Grid size={{ xs: 12, sm: 5 }}>
                         <TextField
                           size="small"
                           fullWidth
@@ -1386,7 +1405,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           sx={{ fontSize: '0.8rem' }}
                         />
                       </Grid>
-                      <Grid size={3}>
+                      <Grid size={{ xs: 12, sm: 3 }}>
                         <TextField
                           size="small"
                           fullWidth
@@ -1408,7 +1427,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           }}
                         />
                       </Grid>
-                      <Grid size={4}>
+                      <Grid size={{ xs: 12, sm: 4 }}>
                         <Button
                           size="small"
                           variant="outlined"
@@ -1431,6 +1450,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Box>
                 )}
               </Box>
+              </PhoneCollapsibleSection>
             ) : depositWaived ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
@@ -1484,8 +1504,25 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
             {/* Payments Section */}
+            <PhoneCollapsibleSection
+              isPhone={isPhone}
+              title="Payments"
+              actions={hasBalanceDue && !editingPayment ? (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setShowPaymentForm(!showPaymentForm)}
+                  startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
+                >
+                  {showPaymentForm ? 'Cancel' : 'Record Payment'}
+                </Button>
+              ) : undefined}
+            >
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
-              <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              {/* Green banner is the desktop section header; on phone the
+                  CollapsibleSection header (with the same Record Payment
+                  button in `actions`) replaces it. */}
+              <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: { xs: 'none', sm: 'flex' }, alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
@@ -1512,7 +1549,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         // Edit form inline
                         (<Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
-                            <Grid size={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
                                 label="Amount"
                                 type="number"
@@ -1527,7 +1564,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid size={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                               <FormControl fullWidth size="small">
                                 <InputLabel>Method</InputLabel>
                                 <Select
@@ -1541,7 +1578,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 </Select>
                               </FormControl>
                             </Grid>
-                            <Grid size={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
                                 label="Payment Date"
                                 type="date"
@@ -1554,7 +1591,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid size={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
                                 label="Reference"
                                 size="small"
@@ -1563,7 +1600,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 onChange={(e) => setEditReference(e.target.value)}
                               />
                             </Grid>
-                            <Grid size={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
                                 label="Notes"
                                 size="small"
@@ -1714,7 +1751,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       {editingPayment?.id === p.id ? (
                         <Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
-                            <Grid size={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
                                 label="Amount"
                                 type="number"
@@ -1729,7 +1766,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid size={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                               <FormControl fullWidth size="small">
                                 <InputLabel>Method</InputLabel>
                                 <Select
@@ -1743,7 +1780,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 </Select>
                               </FormControl>
                             </Grid>
-                            <Grid size={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                               <TextField
                                 label="Refund Date"
                                 type="date"
@@ -1756,7 +1793,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid size={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
                                 label="Reference"
                                 size="small"
@@ -1765,7 +1802,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 onChange={(e) => setEditReference(e.target.value)}
                               />
                             </Grid>
-                            <Grid size={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                               <TextField
                                 label="Notes"
                                 size="small"
@@ -1860,7 +1897,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Collapse in={showPaymentForm && hasBalanceDue && !editingPayment}>
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
                   <Grid container spacing={2}>
-                    <Grid size={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
                         label="Amount"
                         type="number"
@@ -1875,7 +1912,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         }}
                       />
                     </Grid>
-                    <Grid size={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Method</InputLabel>
                         <Select
@@ -1889,7 +1926,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid size={4}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
                       <TextField
                         label="Payment Date"
                         type="date"
@@ -1902,7 +1939,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         }}
                       />
                     </Grid>
-                    <Grid size={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField
                         label="Reference (Optional)"
                         size="small"
@@ -1911,7 +1948,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         onChange={(e) => setPaymentReference(e.target.value)}
                       />
                     </Grid>
-                    <Grid size={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField
                         label="Notes (Optional)"
                         size="small"
@@ -1951,6 +1988,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Grid>
               </Box>
             </Box>
+            </PhoneCollapsibleSection>
             {/* Notes */}
             {isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !depositForfeited && !readOnly && (
               <Alert severity="warning" sx={{ mb: 2 }}>
