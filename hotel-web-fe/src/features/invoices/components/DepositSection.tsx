@@ -73,48 +73,7 @@ export interface DepositResolutionSectionProps {
   onRestore: () => void;
 }
 
-/**
- * @deprecated Transitional shape kept only so `CheckoutInvoiceModal`
- * typechecks until Task 5 wires `useDepositResolution` — the section renders
- * nothing for these props. Delete this variant with the old call site.
- */
-export interface LegacyDepositSectionProps {
-  depositRefund: number;
-  refundableDeposit: number;
-  hasRecordedDeposit: boolean;
-  depositRefunded: boolean;
-  depositForfeited: boolean;
-  depositWaived: boolean;
-  depositWaiveReason: string;
-  forfeitReason: string;
-  forfeitAmount: number;
-  refundPaymentMethod: string;
-  refundingDeposit: boolean;
-  revertingRefund: boolean;
-  waivingDeposit: boolean;
-  forfeitingDeposit: boolean;
-  cancellingDeposit: boolean;
-  restoringDeposit: boolean;
-  readOnly: boolean;
-  canCancelDeposit: boolean;
-  voidedDepositCount: number;
-  noDepositLabel: string;
-  noDepositWaived: boolean;
-  currencySymbol: string;
-  formatCurrency: (value: number) => string;
-  onRefundMethodChange: (method: string) => void;
-  onWaiveReasonChange: (reason: string) => void;
-  onForfeitReasonChange: (reason: string) => void;
-  onForfeitAmountChange: (amount: number) => void;
-  onRefund: () => void;
-  onRevertRefund: () => void;
-  onWaive: () => void;
-  onForfeit: () => void;
-  onCancelDeposit: () => void;
-  onRestoreDeposit: () => void;
-}
-
-export type DepositSectionProps = DepositResolutionSectionProps | LegacyDepositSectionProps;
+export type DepositSectionProps = DepositResolutionSectionProps;
 
 type ResolutionChoice = 'refund' | 'forfeit' | 'cancel';
 
@@ -127,7 +86,8 @@ const FORFEIT_REASONS = [
   { value: 'OTHER', label: 'Other' },
 ] as const;
 
-const STATUS_CHIP: Record<DepositResolutionStatus, { label: string; tone: StatusTone }> = {
+/** Exported so the modal's confirm step can reuse the same chip wording. */
+export const DEPOSIT_STATUS_CHIP: Record<DepositResolutionStatus, { label: string; tone: StatusTone }> = {
   none: { label: 'No deposit', tone: 'neutral' },
   pending: { label: 'Pending resolution', tone: 'warning' },
   refunded: { label: 'Refunded', tone: 'success' },
@@ -472,7 +432,14 @@ const CancelPanel: React.FC<PanelProps & {
   );
 };
 
-const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
+/**
+ * Guided deposit-resolution card for the checkout invoice. Pending deposits
+ * pick one of three radio-style options (refund / forfeit / cancel
+ * uncollected) and only the selected form expands; resolved states render a
+ * single status strip. Presentational only — derivation and mutations arrive
+ * via props from `useDepositResolution`, wired by CheckoutInvoiceModal.
+ */
+const DepositSection: React.FC<DepositResolutionSectionProps> = ({
   resolution,
   busy,
   can,
@@ -488,11 +455,20 @@ const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
   const [selected, setSelected] = useState<ResolutionChoice | null>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  // The amount actually held: the refundable ledger remainder, or the booking
-  // mirror's assertion for a flag-only legacy deposit.
-  const held = isPositiveMoney(resolution.remaining) ? resolution.remaining : resolution.mirrorDue;
+  // The amount actually held: the refundable ledger remainder — or the
+  // mirror's post-mint ceiling when the booking asserts more than the rows
+  // show (flag-only legacy deposit, or rows that under-cover the mirror).
+  // Matches what `refund` in useDepositResolution will actually draw, so the
+  // CTA amount is honest.
+  const postMintCeiling = subtractMoney(
+    subtractMoney(resolution.mirrorDue, resolution.refunded),
+    resolution.forfeited,
+  );
+  const held = isGreaterMoney(postMintCeiling, resolution.remaining)
+    ? postMintCeiling
+    : resolution.remaining;
   const pending = resolution.status === 'pending';
-  const chip = STATUS_CHIP[resolution.status];
+  const chip = DEPOSIT_STATUS_CHIP[resolution.status];
   const methods = hotelSettings.payment_methods.length
     ? hotelSettings.payment_methods
     : DEFAULT_REFUND_METHODS;
@@ -547,8 +523,14 @@ const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
     },
   ];
 
+  // While any resolution action is in flight the choice is locked — the
+  // `key`-remount would otherwise drop a submitting form mid-flight.
+  const anyBusy =
+    busy.refunding || busy.forfeiting || busy.cancelling || busy.reverting || busy.restoring;
+
   // Radio-group keyboard behavior: arrows/Home/End move focus and select the
-  // newly focused option (skipped when that option is permission-disabled).
+  // newly focused option (skipped when that option is permission-disabled or
+  // a resolution action is busy).
   const handleOptionKeyDown = (event: React.KeyboardEvent, index: number) => {
     let next: number | null = null;
     if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
@@ -563,7 +545,7 @@ const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
     if (next === null) return;
     event.preventDefault();
     optionRefs.current[next]?.focus();
-    if (options[next].enabled) setSelected(options[next].key);
+    if (options[next].enabled && !anyBusy) setSelected(options[next].key);
   };
 
   const resolvedStrip = (() => {
@@ -717,9 +699,9 @@ const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
                 }}
                 role="radio"
                 aria-checked={selected === option.key}
-                aria-disabled={!option.enabled}
+                aria-disabled={!option.enabled || anyBusy}
                 tabIndex={selected ? (selected === option.key ? 0 : -1) : index === 0 ? 0 : -1}
-                onClick={() => option.enabled && setSelected(option.key)}
+                onClick={() => option.enabled && !anyBusy && setSelected(option.key)}
                 onKeyDown={(e) => handleOptionKeyDown(e, index)}
                 sx={(theme: Theme) => ({
                   display: 'flex',
@@ -737,10 +719,10 @@ const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
                     selected === option.key
                       ? alpha(theme.palette.primary.main, 0.06)
                       : 'transparent',
-                  opacity: option.enabled ? 1 : 0.55,
-                  cursor: option.enabled ? 'pointer' : 'not-allowed',
+                  opacity: option.enabled && !anyBusy ? 1 : 0.55,
+                  cursor: option.enabled && !anyBusy ? 'pointer' : 'not-allowed',
                   transition: theme.transitions.create(['border-color', 'background-color']),
-                  '&:hover': option.enabled
+                  '&:hover': option.enabled && !anyBusy
                     ? { bgcolor: alpha(theme.palette.primary.main, 0.04) }
                     : {},
                 })}
@@ -826,15 +808,5 @@ const GuidedDepositSection: React.FC<DepositResolutionSectionProps> = ({
     </Box>
   );
 };
-
-/**
- * Guided deposit-resolution card for the checkout invoice. Pending deposits
- * pick one of three radio-style options (refund / forfeit / cancel
- * uncollected) and only the selected form expands; resolved states render a
- * single status strip. Presentational only — derivation and mutations arrive
- * via props (Task 5 wires `useDepositResolution` in the modal).
- */
-const DepositSection: React.FC<DepositSectionProps> = (props) =>
-  'resolution' in props ? <GuidedDepositSection {...props} /> : null;
 
 export default DepositSection;

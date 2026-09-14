@@ -236,6 +236,19 @@ describe('DepositSection — guided deposit resolution', () => {
     expect(screen.queryByRole('button', { name: /Refund RM50\.00/ })).toBeNull();
   });
 
+  it('locks option switching while a resolution action is busy', () => {
+    renderSection({ busy: { refunding: true, forfeiting: false, cancelling: false, reverting: false, restoring: false } });
+
+    const group = screen.getByRole('radiogroup');
+    const options = within(group).getAllByRole('radio');
+    options.forEach((option) => expect(option.getAttribute('aria-disabled')).toBe('true'));
+
+    // Clicking an enabled-in-permission option while busy mounts no form.
+    fireEvent.click(within(group).getByRole('radio', { name: /Forfeit deposit/ }));
+    expect(within(group).getByRole('radio', { name: /Forfeit deposit/ }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'Review forfeiture' })).toBeNull();
+  });
+
   it('keeps refund enabled but disables forfeit when nothing was collected (flag-only legacy deposit)', () => {
     renderSection({ resolution: { collected: 0, remaining: 0, method: null, collectedAt: null, mirrorDue: 50 } });
 

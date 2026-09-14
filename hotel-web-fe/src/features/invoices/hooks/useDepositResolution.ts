@@ -5,6 +5,7 @@ import { InvoicesService } from '../../../api/invoices.service';
 import { errorMessage } from '../../../utils/errorMessage';
 import {
   isGreaterMoney,
+  isLessMoney,
   isPositiveMoney,
   subtractMoney,
   sumMoney,
@@ -250,19 +251,35 @@ export function useDepositResolution({
       // Fixed full-amount refund — always the whole remaining refundable
       // balance (a partial outcome is reached via partial forfeit → refund
       // remainder; the backend's one-active-refund rule makes partial
-      // refunds a trap). For a flag-only legacy deposit the held amount is
-      // the mirror — the assert below mints the matching row first.
-      const amount = isPositiveMoney(deposit.remaining) ? deposit.remaining : deposit.mirrorDue;
+      // refunds a trap).
+      //
+      // The booking mirror can assert MORE than the collected rows show:
+      // a flag-only legacy deposit, or rows that under-cover the asserted
+      // amount (e.g. a deposit row voided out of band while the mirror
+      // still claims it). The checkout gate reads max(collected, mirror),
+      // so when `collected − refunded` is under the mirror the booking
+      // update below first mints the shortfall as a deposit row — the
+      // pre-integrity-rework reconciliation the old modal ran inline —
+      // and the refundable amount becomes the post-mint ceiling
+      // `mirror − refunded − forfeited`, not the pre-mint remainder.
+      const mustMint =
+        isPositiveMoney(deposit.mirrorDue)
+        && isLessMoney(subtractMoney(deposit.collected, deposit.refunded), deposit.mirrorDue);
+      const postMintCeiling = subtractMoney(
+        subtractMoney(deposit.mirrorDue, deposit.refunded),
+        deposit.forfeited,
+      );
+      const amount = isGreaterMoney(postMintCeiling, deposit.remaining)
+        ? postMintCeiling
+        : deposit.remaining;
       if (!isPositiveMoney(amount)) return false;
       setRefunding(true);
       setError('');
       try {
-        if (booking.deposit_paid && completedDepositRows.length === 0) {
-          // Legacy bookings carry the deposit only in booking columns with
-          // no deposit payment row, so the refund ceiling sees nothing held.
+        if (mustMint) {
           // Asserting the collected amount through the booking update mints
           // the missing deposit payment under the booking lock — it must
-          // land before the refund call.
+          // land before the refund call so the ceiling sees the money held.
           await BookingsService.updateBooking(booking.id, {
             deposit_paid: true,
             deposit_amount: deposit.mirrorDue,
@@ -282,7 +299,7 @@ export function useDepositResolution({
         setRefunding(false);
       }
     },
-    [booking, deposit, completedDepositRows, reloadPayments, setError, invalidateInvoiceState],
+    [booking, deposit, reloadPayments, setError, invalidateInvoiceState],
   );
 
   const forfeit = useCallback(
@@ -320,7 +337,9 @@ export function useDepositResolution({
   const cancelUncollected = useCallback(
     async (reason: string): Promise<boolean> => {
       const trimmedReason = reason.trim();
-      if (!booking || !trimmedReason) return false;
+      // Status 'none' means nothing was ever recorded — no mirror to waive
+      // and no rows to void, so there is no uncollected deposit to cancel.
+      if (!booking || !trimmedReason || deposit.status === 'none') return false;
       setCancelling(true);
       setError('');
       try {
@@ -349,7 +368,7 @@ export function useDepositResolution({
         setCancelling(false);
       }
     },
-    [booking, completedDepositRows, reloadPayments, setError, invalidateInvoiceState],
+    [booking, deposit.status, completedDepositRows, reloadPayments, setError, invalidateInvoiceState],
   );
 
   const revertRefund = useCallback(async (): Promise<boolean> => {
