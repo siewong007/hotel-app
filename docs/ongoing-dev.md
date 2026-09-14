@@ -108,15 +108,11 @@ tree and removed per convention.
   (status='paid' hardcoded) correctly stay "Paid".
 - ~~Branch protection on master~~ RESOLVED: direct-push workflow on master is
   the chosen process; no ruleset wanted.
-- PayPal refunds/disputes: `PAYMENT.CAPTURE.REFUNDED` webhooks are
-  signature-verified and audit-logged but never auto-applied. Auto-apply vs
-  manual reconciliation is a money-policy call. Investigation note: a
-  REFUNDED event can only arrive when a refund is issued *outside* this
-  system (PayPal dashboard/API) — in-system refunds go through
-  `refund_deposit` and never call PayPal. Auto-apply would need capture-ID
-  matching via `supplementary_data.related_ids` (refund events don't carry
-  our `custom_id`) plus partial-refund handling; it would auto-write refund
-  rows for actions taken around the system, so flagging may stay preferable.
+- ~~PayPal refunds/disputes auto-apply~~ RESOLVED (flagging kept):
+  `PAYMENT.CAPTURE.REFUNDED` events only arrive when a refund is issued
+  outside the system (PayPal dashboard/API — in-system refunds go through
+  `refund_deposit` and never call PayPal). Decision: keep audit-flagging
+  rather than auto-writing money rows for out-of-band actions.
 - ~~PayPal conflict banner needed `audit:read`~~ RESOLVED: new narrow
   endpoint `GET /api/admin/payments/paypal-conflicts` gated by
   `payments:read` (handlers/payments.rs +
@@ -124,5 +120,5 @@ tree and removed per convention.
   set). Frontend now calls it once instead of fanning out over audit-logs,
   and the banner shows to managers — previously invisible to exactly the
   approvers it exists for.
-- Guest portal: forgot-password flow for self-registered guests, and the
-  maximum advance-booking window.
+- ~~Guest portal forgot-password + max booking window~~ RESOLVED: won't do —
+  neither is wanted.
