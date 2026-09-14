@@ -15,6 +15,7 @@ import {
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import { DOW_FLAGS } from '../constants';
 import type { RatePlan } from '../types';
 import { formatHotelDate } from '../../../utils/date';
@@ -29,9 +30,9 @@ export interface RatePlanTableProps {
   onDelete(plan: RatePlan): void;
 }
 
-const dowChips = (plan: RatePlan) =>
+const dowChips = (plan: RatePlan, t: (key: string) => string) =>
   DOW_FLAGS.filter(([flag]) => plan[flag as keyof RatePlan] === true).map(
-    ([, label]) => label,
+    ([, dayKey]) => t(`days.${dayKey}`),
   );
 
 export const RatePlanTable = ({
@@ -41,13 +42,14 @@ export const RatePlanTable = ({
   onToggleActive,
   onDelete,
 }: RatePlanTableProps) => {
+  const { t } = useTranslation('rates');
   const isPhone = useIsPhone();
 
   if (isPhone) {
     return (
       <Box>
         {plans.map((plan) => {
-          const days = dowChips(plan);
+          const days = dowChips(plan, t);
           return (
             <Box
               key={plan.id}
@@ -55,12 +57,12 @@ export const RatePlanTable = ({
             >
               <MobileCardRow
                 title={plan.name}
-                subtitle={`${plan.code} · ${plan.plan_type} · ${plan.adjustment_value ? `${plan.adjustment_type} ${plan.adjustment_value}` : plan.adjustment_type}`}
-                meta={`${plan.valid_from ? formatHotelDate(plan.valid_from) : '—'} → ${plan.valid_to ? formatHotelDate(plan.valid_to) : '—'} · ${days.length === 7 ? 'All days' : days.join(' ')} · ${plan.min_nights}${plan.max_nights ? `/${plan.max_nights}` : ''} nights`}
+                subtitle={`${plan.code} · ${t(`planTypes.${plan.plan_type}`)} · ${plan.adjustment_value ? `${t(`adjustmentTypes.${plan.adjustment_type}`)} ${plan.adjustment_value}` : t(`adjustmentTypes.${plan.adjustment_type}`)}`}
+                meta={`${plan.valid_from ? formatHotelDate(plan.valid_from) : '—'} → ${plan.valid_to ? formatHotelDate(plan.valid_to) : '—'} · ${days.length === 7 ? t('plans.allDays') : days.join(' ')} · ${plan.max_nights ? t('plans.nightsMinMax', { min: plan.min_nights, max: plan.max_nights }) : t('plans.nightsMin', { min: plan.min_nights })}`}
                 status={
                   <Chip
                     size="small"
-                    label={plan.is_active ? 'Active' : 'Inactive'}
+                    label={plan.is_active ? t('plans.active') : t('plans.inactive')}
                     color={plan.is_active ? 'success' : 'default'}
                     variant="outlined"
                   />
@@ -72,23 +74,23 @@ export const RatePlanTable = ({
                       checked={plan.is_active}
                       disabled={!canManage}
                       onChange={(event) => onToggleActive(plan, event.target.checked)}
-                      slotProps={{ input: { 'aria-label': `Toggle ${plan.name}` } }}
+                      slotProps={{ input: { 'aria-label': t('plans.toggleAria', { name: plan.name }) } }}
                     />
                     {canManage ? (
                       <>
-                        <Tooltip title="Edit plan">
+                        <Tooltip title={t('plans.editPlan')}>
                           <IconButton
                             size="small"
-                            aria-label={`Edit ${plan.name}`}
+                            aria-label={t('plans.editAria', { name: plan.name })}
                             onClick={() => onEdit(plan)}
                           >
                             <EditOutlinedIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Delete plan">
+                        <Tooltip title={t('plans.deletePlan')}>
                           <IconButton
                             size="small"
-                            aria-label={`Delete ${plan.name}`}
+                            aria-label={t('plans.deleteAria', { name: plan.name })}
                             onClick={() => onDelete(plan)}
                           >
                             <DeleteOutlineIcon fontSize="small" />
@@ -111,15 +113,15 @@ export const RatePlanTable = ({
     <Table size="small">
       <TableHead>
         <TableRow>
-          <TableCell>Plan</TableCell>
-          <TableCell>Type</TableCell>
-          <TableCell>Adjustment</TableCell>
-          <TableCell>Validity</TableCell>
-          <TableCell>Days</TableCell>
-          <TableCell align="right">Min/Max nights</TableCell>
-          <TableCell align="right">Priority</TableCell>
-          <TableCell align="center">Active</TableCell>
-          {canManage && <TableCell align="right">Actions</TableCell>}
+          <TableCell>{t('plans.colPlan')}</TableCell>
+          <TableCell>{t('plans.colType')}</TableCell>
+          <TableCell>{t('plans.colAdjustment')}</TableCell>
+          <TableCell>{t('plans.colValidity')}</TableCell>
+          <TableCell>{t('plans.colDays')}</TableCell>
+          <TableCell align="right">{t('plans.colMinMax')}</TableCell>
+          <TableCell align="right">{t('plans.colPriority')}</TableCell>
+          <TableCell align="center">{t('plans.colActive')}</TableCell>
+          {canManage && <TableCell align="right">{t('plans.colActions')}</TableCell>}
         </TableRow>
       </TableHead>
       <TableBody>
@@ -132,12 +134,12 @@ export const RatePlanTable = ({
               </Typography>
             </TableCell>
             <TableCell>
-              <Chip label={plan.plan_type} size="small" variant="outlined" />
+              <Chip label={t(`planTypes.${plan.plan_type}`)} size="small" variant="outlined" />
             </TableCell>
             <TableCell>
               {plan.adjustment_value
-                ? `${plan.adjustment_type} ${plan.adjustment_value}`
-                : plan.adjustment_type}
+                ? `${t(`adjustmentTypes.${plan.adjustment_type}`)} ${plan.adjustment_value}`
+                : t(`adjustmentTypes.${plan.adjustment_type}`)}
             </TableCell>
             <TableCell>
               <Typography variant="body2">
@@ -147,10 +149,10 @@ export const RatePlanTable = ({
             </TableCell>
             <TableCell>
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                {dowChips(plan).length === 7 ? (
-                  <Chip label="All days" size="small" />
+                {dowChips(plan, t).length === 7 ? (
+                  <Chip label={t('plans.allDays')} size="small" />
                 ) : (
-                  dowChips(plan).map((day) => (
+                  dowChips(plan, t).map((day) => (
                     <Chip key={day} label={day} size="small" />
                   ))
                 )}
@@ -167,7 +169,7 @@ export const RatePlanTable = ({
                 checked={plan.is_active}
                 disabled={!canManage}
                 onChange={(event) => onToggleActive(plan, event.target.checked)}
-                slotProps={{ input: { 'aria-label': `Toggle ${plan.name}` } }}
+                slotProps={{ input: { 'aria-label': t('plans.toggleAria', { name: plan.name }) } }}
               />
             </TableCell>
             {canManage && (

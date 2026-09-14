@@ -1,5 +1,6 @@
 import { Box, Divider, Popover, Typography } from '@mui/material';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { RateCalendarCell } from '../types';
 import { formatCurrency } from '../../../utils/currency';
 import { formatHotelDate } from '../../../utils/date';
@@ -30,7 +31,9 @@ export const RateCellPopover = ({
   anchor,
   currency,
   onClose,
-}: RateCellPopoverProps) => (
+}: RateCellPopoverProps) => {
+  const { t } = useTranslation('rates');
+  return (
   <Popover
     open={Boolean(anchor && cell)}
     anchorEl={anchor}
@@ -44,14 +47,14 @@ export const RateCellPopover = ({
         </Typography>
         <Typography variant="caption" color="text.secondary">
           {cell.rate_plan_code === 'BASE'
-            ? 'Base rate fallback'
-            : `Rate plan ${cell.rate_plan_code}`}
+            ? t('popover.baseFallback')
+            : t('popover.ratePlan', { code: cell.rate_plan_code })}
         </Typography>
         <Divider sx={{ my: 1.5 }} />
         <Box sx={{ display: 'grid', gap: 0.75 }}>
-          <Row label="Plan rate" value={formatCurrency(cell.plan_rate, currency)} />
+          <Row label={t('popover.planRate')} value={formatCurrency(cell.plan_rate, currency)} />
           <Row
-            label="Online override"
+            label={t('popover.onlineOverride')}
             value={
               cell.custom_price !== null
                 ? formatCurrency(cell.custom_price, currency)
@@ -59,25 +62,26 @@ export const RateCellPopover = ({
             }
           />
           <Row
-            label="Effective rate"
+            label={t('popover.effectiveRate')}
             value={formatCurrency(cell.effective_rate, currency)}
           />
           <Divider sx={{ my: 0.5 }} />
           <Row
-            label="Occupancy"
+            label={t('popover.occupancy')}
             value={`${cell.sold_rooms}/${cell.physical_rooms} (${cell.occupancy_pct}%)`}
           />
-          <Row label="Available" value={String(cell.available_rooms)} />
+          <Row label={t('popover.available')} value={String(cell.available_rooms)} />
           <Row
-            label="Walk-in reserved"
+            label={t('popover.walkInReserved')}
             value={String(cell.walk_in_reserved_rooms)}
           />
           <Row
-            label="Online booking"
-            value={cell.online_booking_enabled ? 'Open' : 'Stopped'}
+            label={t('popover.onlineBooking')}
+            value={cell.online_booking_enabled ? t('popover.open') : t('popover.stopped')}
           />
         </Box>
       </Box>
     )}
   </Popover>
-);
+  );
+};

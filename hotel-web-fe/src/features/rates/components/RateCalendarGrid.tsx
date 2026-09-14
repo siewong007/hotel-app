@@ -2,11 +2,10 @@ import { useMemo } from 'react';
 import { Box, Paper, Typography, alpha, useTheme } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
 
+import { dateFormatter } from '../../../i18n/format';
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { RateCalendarCell, RateCalendarRoomType } from '../types';
 import { formatCurrency } from '../../../utils/currency';
-
-const WEEKDAY_SHORT = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-const DAY_NUM = new Intl.DateTimeFormat(undefined, { day: 'numeric' });
 
 const asDate = (date: string) => new Date(`${date}T12:00:00`);
 
@@ -42,7 +41,10 @@ export const RateCalendarGrid = ({
   today,
   onInspectCell,
 }: RateCalendarGridProps) => {
+  const { t } = useTranslation('rates');
   const theme = useTheme();
+  const weekdayShort = dateFormatter({ weekday: 'short' });
+  const dayNum = dateFormatter({ day: 'numeric' });
   const grid = useMemo(
     () =>
       roomTypes.map((room) => ({
@@ -60,7 +62,7 @@ export const RateCalendarGrid = ({
       <Box
         component="table"
         role="grid"
-        aria-label="Rate calendar by room type and date"
+        aria-label={t('calendar.gridAria')}
         sx={{
           borderCollapse: 'separate',
           borderSpacing: 0,
@@ -91,7 +93,7 @@ export const RateCalendarGrid = ({
                 letterSpacing: 0.4,
               }}
             >
-              ROOM TYPE / DATE
+              {t('calendar.colHeader')}
             </Box>
             {dates.map((date) => (
               <Box
@@ -120,10 +122,10 @@ export const RateCalendarGrid = ({
                   component="div"
                   sx={{ color: 'text.secondary', fontWeight: 700 }}
                 >
-                  {date === today ? 'Today' : WEEKDAY_SHORT.format(asDate(date))}
+                  {date === today ? t('calendar.today') : weekdayShort.format(asDate(date))}
                 </Typography>
                 <Typography component="div" sx={{ fontWeight: 800, lineHeight: 1.1 }}>
-                  {DAY_NUM.format(asDate(date))}
+                  {dayNum.format(asDate(date))}
                 </Typography>
               </Box>
             ))}
@@ -187,7 +189,11 @@ export const RateCalendarGrid = ({
                     <Box
                       component="button"
                       type="button"
-                      aria-label={`${room.name} ${cell.stay_date} rate ${cell.effective_rate}`}
+                      aria-label={t('calendar.cellAria', {
+                        name: room.name,
+                        date: cell.stay_date,
+                        rate: cell.effective_rate,
+                      })}
                       onClick={(event) =>
                         onInspectCell(cell, event.currentTarget as HTMLElement)
                       }
@@ -224,8 +230,8 @@ export const RateCalendarGrid = ({
                         {cell.custom_price !== null && (
                           <Box
                             component="span"
-                            title="Online override"
-                            aria-label="Online price override active"
+                            title={t('calendar.onlineOverride')}
+                            aria-label={t('calendar.onlineOverrideAria')}
                             sx={{
                               width: 7,
                               height: 7,
@@ -241,7 +247,7 @@ export const RateCalendarGrid = ({
                             color="warning.main"
                             sx={{ fontWeight: 700 }}
                           >
-                            off
+                            {t('calendar.off')}
                           </Typography>
                         )}
                       </Box>
@@ -263,7 +269,7 @@ export const RateCalendarGrid = ({
                         />
                       </Box>
                       <Typography variant="caption" color="text.secondary">
-                        {cell.sold_rooms}/{cell.physical_rooms} sold
+                        {t('calendar.soldLine', { sold: cell.sold_rooms, physical: cell.physical_rooms })}
                       </Typography>
                     </Box>
                   </Box>
