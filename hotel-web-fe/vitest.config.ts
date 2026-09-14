@@ -6,6 +6,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // Page-level renders and axe scans sit near the 5s default under CI
+    // load; 15s keeps hangs detectable without per-file timeout whack-a-mole.
+    testTimeout: 15000,
     setupFiles: [],
     include: ['src/**/*.test.{ts,tsx}', 'src/**/*.spec.{ts,tsx}'],
     exclude: ['node_modules', 'dist'],
