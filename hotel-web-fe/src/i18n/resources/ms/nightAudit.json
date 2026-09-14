@@ -1,0 +1,151 @@
+{
+  "title": "Audit Malam",
+  "tabs": {
+    "aria": "Tab audit malam",
+    "run": "Jalankan Audit",
+    "history": "Sejarah Audit"
+  },
+  "actions": {
+    "refresh": "Muat semula audit malam",
+    "loadPreview": "Muat Pratonton",
+    "runAudit": "Jalankan Audit",
+    "runNightAudit": "Jalankan Audit Malam",
+    "running": "Sedang berjalan...",
+    "rerun": "Jalankan Semula Audit",
+    "rerunning": "Sedang dijalankan semula...",
+    "exportPdf": "Eksport PDF",
+    "exportCsv": "Eksport CSV",
+    "loadJournal": "Muat Catatan Jurnal",
+    "loadingJournal": "Memuatkan catatan jurnal..."
+  },
+  "fields": {
+    "auditDate": "Tarikh Audit",
+    "year": "Tahun",
+    "month": "Bulan",
+    "notesOptional": "Nota (Pilihan)",
+    "notesPlaceholder": "Tambah sebarang nota tentang larian audit ini..."
+  },
+  "status": {
+    "alreadyCompleted": "Audit Sudah Selesai",
+    "completedSeeHistory": "Audit malam selesai. Semak tab Sejarah untuk butiran.",
+    "notRunYet": "Belum dijalankan",
+    "posted": "Telah Diposkan"
+  },
+  "history": {
+    "found_one": "{{count}} audit ditemui",
+    "found_other": "{{count}} audit ditemui",
+    "perPage": "Audit setiap halaman",
+    "empty": "Tiada sejarah audit.",
+    "colDate": "Tarikh Audit",
+    "colRunAt": "Masa Larian",
+    "colRunBy": "Dijalankan Oleh",
+    "colStatus": "Status",
+    "colBookings": "Tempahan",
+    "colOccupancy": "Penghunian",
+    "expandAria": "Kembangkan butiran audit",
+    "collapseAria": "Runtuhkan butiran audit",
+    "runByLine": "{{runAt}} · {{runBy}}",
+    "metaLine": "{{count}} tempahan · {{pct}}% penghunian",
+    "system": "Sistem"
+  },
+  "rerun": {
+    "title": "Jalankan semula audit malam",
+    "message": "Ini menetapkan semula data audit sebelumnya untuk tarikh ini dan menjalankan audit sekali lagi.",
+    "confirm": "Jalankan semula audit",
+    "success": "Audit malam berjaya dijalankan semula"
+  },
+  "confirm": {
+    "title": "Sahkan Audit Malam",
+    "intro": "Anda akan menjalankan audit malam untuk {{date}}.",
+    "willDo": "Tindakan ini akan:",
+    "markPosted": "Tandakan {{count}} tempahan sebagai diposkan",
+    "lockBookings": "Kunci tempahan ini daripada suntingan lanjut",
+    "recordSnapshot": "Rekodkan snapshot status bilik untuk pelaporan",
+    "cannotUndo": "Tindakan ini tidak boleh dibatalkan."
+  },
+  "errors": {
+    "exportCsv": "Gagal mengeksport audit. Sila cuba lagi.",
+    "exportPdf": "Gagal mengeksport audit: {{message}}",
+    "run": "Gagal menjalankan audit malam"
+  },
+  "journal": {
+    "title": "Catatan Jurnal",
+    "entries_one": "{{count}} catatan",
+    "entries_other": "{{count}} catatan",
+    "entryFallback": "Catatan jurnal",
+    "expandAria": "Kembangkan bahagian",
+    "collapseAria": "Runtuhkan bahagian",
+    "debit": "Debit:",
+    "credit": "Kredit:",
+    "colBooking": "No. Tempahan",
+    "colRoom": "Bilik",
+    "colDescription": "Penerangan",
+    "colDebit": "Debit",
+    "colCredit": "Kredit",
+    "total": "Jumlah",
+    "grandTotal": "Jumlah Keseluruhan",
+    "totalDebit": "Jumlah Debit:",
+    "totalCredit": "Jumlah Kredit:",
+    "roomLine": "#{{booking}} · Bilik {{room}}",
+    "drCr": "Dr {{debit}} · Kr {{credit}}"
+  },
+  "ledger": {
+    "title": "Lejar Tetamu",
+    "colAccount": "Akaun",
+    "colDebits": "Debit",
+    "colCredits": "Kredit"
+  },
+  "roomSold": {
+    "title": "Butiran Bilik Dijual mengikut Tarikh",
+    "colRoom": "Bilik",
+    "colType": "Jenis",
+    "colGuest": "Nama Tetamu",
+    "totalRow": "Jumlah Bilik Dijual"
+  },
+  "roomStatus": {
+    "label": "Status Bilik",
+    "auditDate": "Status bilik (tarikh audit)",
+    "whenAudited": "Status bilik (semasa diaudit)",
+    "available": "{{count}} Tersedia",
+    "occupied": "{{count}} Diduduki",
+    "reserved": "{{count}} Ditempah",
+    "maintenance": "{{count}} Penyelenggaraan",
+    "dirty": "{{count}} Kotor"
+  },
+  "breakdown": {
+    "colBookings": "Tempahan",
+    "colAmount": "Jumlah",
+    "total": "Jumlah"
+  },
+  "preview": {
+    "title": "Pratonton Audit Malam",
+    "bookingsToPost": "Tempahan untuk Diposkan",
+    "estimatedRevenue": "Anggaran Hasil",
+    "roomsOccupied": "Bilik Diduduki",
+    "occupancy": "Penghunian",
+    "projected": "Unjuran Hasil",
+    "byPayment": "Mengikut Kaedah Bayaran",
+    "byChannel": "Mengikut Saluran",
+    "toBePosted": "Tempahan untuk Diposkan ({{count}})",
+    "noBookings": "Tiada tempahan untuk diposkan pada tarikh ini.",
+    "willPost": "Yang akan diposkan malam ini",
+    "colBooking": "No. Tempahan",
+    "colGuest": "Tetamu",
+    "colRoom": "Bilik",
+    "colCheckIn": "Daftar masuk",
+    "colCheckOut": "Daftar keluar",
+    "colAmount": "Jumlah",
+    "colStatus": "Status",
+    "colChannel": "Saluran"
+  },
+  "report": {
+    "title": "Laporan Audit Malam",
+    "completedLine": "Selesai pada {{time}} oleh {{name}}",
+    "revenue": "Hasil {{amount}}",
+    "bookingsPosted": "Tempahan Diposkan",
+    "checkins": "Daftar masuk",
+    "checkouts": "Daftar keluar",
+    "occupancy": "Penghunian",
+    "notes": "Nota"
+  }
+}

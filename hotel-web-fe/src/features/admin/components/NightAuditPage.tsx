@@ -43,6 +43,9 @@ import { channelAbbreviation, PendingPreviewView, CompletedReportView } from './
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatLocalDate } from '../../../utils/date';
+import { dateFormatter } from '../../../i18n/format';
+import { statusLabel } from '../../../i18n/statusLabel';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
@@ -55,7 +58,17 @@ import {
 
 
 const NightAuditPage: React.FC = () => {
+  const { t } = useTranslation('nightAudit');
   const isPhone = useIsPhone();
+  const runAtFormatter = dateFormatter({ dateStyle: 'medium', timeStyle: 'short' });
+  const historyDateFormatter = dateFormatter({
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  const monthFormatter = dateFormatter({ month: 'long' });
+  const confirmDateFormatter = dateFormatter({ dateStyle: 'long' });
   const confirm = useConfirm();
   // State
   const [tabValue, setTabValue] = useState(0);
@@ -249,7 +262,7 @@ const NightAuditPage: React.FC = () => {
       link.click();
     } catch (err) {
       console.error('Failed to export audit to CSV:', err);
-      setError('Failed to export audit. Please try again.');
+      setError(t('errors.exportCsv'));
     }
   };
 
@@ -499,7 +512,7 @@ const NightAuditPage: React.FC = () => {
       doc.save(`night_audit_${audit.audit_date}.pdf`);
     } catch (err) {
       console.error('Failed to export audit to PDF:', err);
-      setError(`Failed to export audit: ${errorMessage(err, 'Unknown error')}`);
+      setError(t('errors.exportPdf', { message: errorMessage(err, t('errors:status.requestFailed')) }));
     }
   };
 
@@ -524,7 +537,7 @@ const NightAuditPage: React.FC = () => {
         force,
       });
 
-      setSuccess(force ? 'Night audit rerun successfully' : response.message);
+      setSuccess(force ? t('rerun.success') : response.message);
       setAuditNotes('');
 
       // Refresh data
@@ -539,16 +552,16 @@ const NightAuditPage: React.FC = () => {
         console.error('Failed to auto-load audit details:', detailErr);
       }
     } catch (err) {
-      setError(errorMessage(err, 'Failed to run night audit'));
+      setError(errorMessage(err, t('errors.run')));
     }
   };
 
   // Rerun night audit (for already completed audits)
   const handleRerunAudit = async () => {
     const accepted = await confirm({
-      title: 'Rerun night audit',
-      message: 'This resets the previous audit data for this date and runs the audit again.',
-      confirmText: 'Rerun audit',
+      title: t('rerun.title'),
+      message: t('rerun.message'),
+      confirmText: t('rerun.confirm'),
       severity: 'warning',
     });
     if (!accepted) return;
@@ -558,13 +571,13 @@ const NightAuditPage: React.FC = () => {
   const getStatusChip = (status: string) => {
     switch (status) {
       case 'completed':
-        return <Chip label="Completed" color="success" size="small" icon={<CheckIcon />} />;
+        return <Chip label={statusLabel(t, 'night_audit', status)} color="success" size="small" icon={<CheckIcon />} />;
       case 'failed':
-        return <Chip label="Failed" color="error" size="small" icon={<WarningIcon />} />;
+        return <Chip label={statusLabel(t, 'night_audit', status)} color="error" size="small" icon={<WarningIcon />} />;
       case 'in_progress':
-        return <Chip label="In Progress" color="warning" size="small" />;
+        return <Chip label={statusLabel(t, 'night_audit', status)} color="warning" size="small" />;
       default:
-        return <Chip label={status} size="small" />;
+        return <Chip label={statusLabel(t, 'night_audit', status)} size="small" />;
     }
   };
 
@@ -572,10 +585,10 @@ const NightAuditPage: React.FC = () => {
     <Box sx={{ p: 3 }}>
       {/* Header */}
       <PageHeader
-        title="Night Audit"
+        title={t('title')}
         sx={{ mb: 3 }}
         actions={
-          <IconButton onClick={() => { fetchPreview(); fetchHistory(); }} aria-label="Refresh night audit">
+          <IconButton onClick={() => { fetchPreview(); fetchHistory(); }} aria-label={t('actions.refresh')}>
             <RefreshIcon />
           </IconButton>
         }
@@ -592,9 +605,9 @@ const NightAuditPage: React.FC = () => {
         </Alert>
       )}
       {/* Tabs */}
-      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }} aria-label="Night audit tabs">
-        <Tab label="Run Audit" {...getTabA11yProps(0, 'night-audit')} />
-        <Tab label="Audit History" {...getTabA11yProps(1, 'night-audit')} />
+      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }} aria-label={t('tabs.aria')}>
+        <Tab label={t('tabs.run')} {...getTabA11yProps(0, 'night-audit')} />
+        <Tab label={t('tabs.history')} {...getTabA11yProps(1, 'night-audit')} />
       </Tabs>
       {/* Tab 1: Run Audit */}
       <TabPanel value={tabValue} index={0} idPrefix="night-audit" contentSx={{ pt: 2 }}>
@@ -606,7 +619,7 @@ const NightAuditPage: React.FC = () => {
             }}>
               <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
-                  label="Audit Date"
+                  label={t('fields.auditDate')}
                   type="date"
                   value={auditDate}
                   onChange={(e) => setAuditDate(e.target.value)}
@@ -623,13 +636,13 @@ const NightAuditPage: React.FC = () => {
                   disabled={loading}
                   startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
                 >
-                  Load Preview
+                  {t('actions.loadPreview')}
                 </Button>
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>
                 {preview?.already_run && (
                   <Chip
-                    label="Audit Already Completed"
+                    label={t('status.alreadyCompleted')}
                     color="success"
                     icon={<CheckIcon />}
                   />
@@ -674,7 +687,7 @@ const NightAuditPage: React.FC = () => {
                   onRerun={handleRerunAudit}
                 />
               ) : (
-                <Alert severity="success">Night audit completed. Check History tab for details.</Alert>
+                <Alert severity="success">{t('status.completedSeeHistory')}</Alert>
               );
             })()
           ) : (
@@ -693,7 +706,7 @@ const NightAuditPage: React.FC = () => {
         <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
           <TextField
             select
-            label="Year"
+            label={t('fields.year')}
             value={historyYear}
             onChange={(e) => {
               setHistoryYear(Number(e.target.value));
@@ -717,7 +730,7 @@ const NightAuditPage: React.FC = () => {
 
           <TextField
             select
-            label="Month"
+            label={t('fields.month')}
             value={historyMonth}
             onChange={(e) => {
               setHistoryMonth(Number(e.target.value));
@@ -731,7 +744,7 @@ const NightAuditPage: React.FC = () => {
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i + 1} value={i + 1}>
-                {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
+                {monthFormatter.format(new Date(0, i))}
               </option>
             ))}
           </TextField>
@@ -742,7 +755,7 @@ const NightAuditPage: React.FC = () => {
               color: "text.secondary",
               ml: 'auto'
             }}>
-            {historyTotal} audit{historyTotal === 1 ? '' : 's'} found
+            {t('history.found', { count: historyTotal })}
           </Typography>
         </Box>
 
@@ -761,14 +774,15 @@ const NightAuditPage: React.FC = () => {
                   sx={{ borderBottom: '1px solid', borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}
                 >
                   <MobileCardRow
-                    title={new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
+                    title={historyDateFormatter.format(new Date(audit.audit_date + 'T00:00:00'))}
+                    subtitle={t('history.runByLine', {
+                      runAt: runAtFormatter.format(new Date(audit.run_at)),
+                      runBy: audit.run_by_username || t('history.system'),
                     })}
-                    subtitle={`${new Date(audit.run_at).toLocaleString()} · ${audit.run_by_username || 'System'}`}
-                    meta={`${audit.total_bookings_posted} bookings · ${Number(audit.occupancy_rate).toFixed(0)}% occupancy`}
+                    meta={t('history.metaLine', {
+                      count: audit.total_bookings_posted,
+                      pct: Number(audit.occupancy_rate).toFixed(0),
+                    })}
                     status={getStatusChip(audit.status)}
                     onClick={() => toggleRowExpansion(audit.id)}
                   />
@@ -814,7 +828,7 @@ const NightAuditPage: React.FC = () => {
                 setHistoryPageSize(parseInt(e.target.value, 10));
                 setHistoryPage(0);
               }}
-              labelRowsPerPage="Audits per page"
+              labelRowsPerPage={t('history.perPage')}
             />
           </Paper>
           ) : (
@@ -823,12 +837,12 @@ const NightAuditPage: React.FC = () => {
               <TableHead>
                 <TableRow sx={{ bgcolor: 'var(--hotel-surface-sunken)' }}>
                   <TableCell sx={{ width: 48 }} />
-                  <TableCell sx={{ fontWeight: 600 }}>Audit Date</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Run At</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Run By</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Bookings</TableCell>
-                  <TableCell sx={{ fontWeight: 600 }} align="right">Occupancy</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{t('history.colDate')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{t('history.colRunAt')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{t('history.colRunBy')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>{t('history.colStatus')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">{t('history.colBookings')}</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="right">{t('history.colOccupancy')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -842,18 +856,13 @@ const NightAuditPage: React.FC = () => {
                         sx={{ cursor: 'pointer', '& > .MuiTableCell-root': { borderBottom: isExpanded ? 'none' : undefined } }}
                       >
                         <TableCell>
-                          <IconButton size="small" aria-label={isExpanded ? 'Collapse audit details' : 'Expand audit details'}>
+                          <IconButton size="small" aria-label={isExpanded ? t('history.collapseAria') : t('history.expandAria')}>
                             {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                           </IconButton>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            {new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
+                            {historyDateFormatter.format(new Date(audit.audit_date + 'T00:00:00'))}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -866,7 +875,7 @@ const NightAuditPage: React.FC = () => {
                               gap: 0.5
                             }}>
                             <TimeIcon fontSize="small" />
-                            {new Date(audit.run_at).toLocaleString()}
+                            {runAtFormatter.format(new Date(audit.run_at))}
                           </Typography>
                         </TableCell>
                         <TableCell>
@@ -879,7 +888,7 @@ const NightAuditPage: React.FC = () => {
                               gap: 0.5
                             }}>
                             <PersonIcon fontSize="small" />
-                            {audit.run_by_username || 'System'}
+                            {audit.run_by_username || t('history.system')}
                           </Typography>
                         </TableCell>
                         <TableCell>{getStatusChip(audit.status)}</TableCell>
@@ -934,42 +943,44 @@ const NightAuditPage: React.FC = () => {
                 setHistoryPageSize(parseInt(e.target.value, 10));
                 setHistoryPage(0);
               }}
-              labelRowsPerPage="Audits per page"
+              labelRowsPerPage={t('history.perPage')}
             />
           </TableContainer>
           )
         ) : (
-          <Alert severity="info">No audit history available.</Alert>
+          <Alert severity="info">{t('history.empty')}</Alert>
         )}
       </TabPanel>
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialogOpen} onClose={() => setConfirmDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Confirm Night Audit</DialogTitle>
+        <DialogTitle>{t('confirm.title')}</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            You are about to run the night audit for <strong>{new Date(auditDate + 'T00:00:00').toLocaleDateString()}</strong>.
+            {t('confirm.intro', {
+              date: confirmDateFormatter.format(new Date(auditDate + 'T00:00:00')),
+            })}
           </Typography>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            This action will:
+            {t('confirm.willDo')}
             <ul>
-              <li>Mark {preview?.total_unposted || 0} bookings as posted</li>
-              <li>Lock these bookings from further editing</li>
-              <li>Record room status snapshot for reporting</li>
+              <li>{t('confirm.markPosted', { count: preview?.total_unposted || 0 })}</li>
+              <li>{t('confirm.lockBookings')}</li>
+              <li>{t('confirm.recordSnapshot')}</li>
             </ul>
-            This action cannot be undone.
+            {t('confirm.cannotUndo')}
           </Alert>
           <TextField
-            label="Notes (Optional)"
+            label={t('fields.notesOptional')}
             multiline
             rows={3}
             value={auditNotes}
             onChange={(e) => setAuditNotes(e.target.value)}
             fullWidth
-            placeholder="Add any notes about this audit run..."
+            placeholder={t('fields.notesPlaceholder')}
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setConfirmDialogOpen(false)}>{t('common:actions.cancel')}</Button>
           <Button
             variant="contained"
             color="primary"
@@ -977,7 +988,7 @@ const NightAuditPage: React.FC = () => {
             disabled={running}
             startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
           >
-            Run Audit
+            {t('actions.runAudit')}
           </Button>
         </DialogActions>
       </Dialog>

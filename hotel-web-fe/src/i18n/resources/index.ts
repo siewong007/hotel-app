@@ -28,6 +28,7 @@ import enHousekeeping from './en/housekeeping.json';
 import enNav from './en/nav.json';
 import enNotifications from './en/notifications.json';
 import enOnlineInventory from './en/onlineInventory.json';
+import enNightAudit from './en/nightAudit.json';
 import enRates from './en/rates.json';
 import enRevenue from './en/revenue.json';
 import enRooms from './en/rooms.json';
@@ -47,6 +48,7 @@ import msHousekeeping from './ms/housekeeping.json';
 import msNav from './ms/nav.json';
 import msNotifications from './ms/notifications.json';
 import msOnlineInventory from './ms/onlineInventory.json';
+import msNightAudit from './ms/nightAudit.json';
 import msRates from './ms/rates.json';
 import msRevenue from './ms/revenue.json';
 import msRooms from './ms/rooms.json';
@@ -66,6 +68,7 @@ import zhHousekeeping from './zh/housekeeping.json';
 import zhNav from './zh/nav.json';
 import zhNotifications from './zh/notifications.json';
 import zhOnlineInventory from './zh/onlineInventory.json';
+import zhNightAudit from './zh/nightAudit.json';
 import zhRates from './zh/rates.json';
 import zhRevenue from './zh/revenue.json';
 import zhRooms from './zh/rooms.json';
@@ -93,6 +96,7 @@ const enResources = {
   nav: enNav as TranslationBundle,
   notifications: enNotifications as TranslationBundle,
   onlineInventory: enOnlineInventory as TranslationBundle,
+  nightAudit: enNightAudit as TranslationBundle,
   rates: enRates as TranslationBundle,
   revenue: enRevenue as TranslationBundle,
   rooms: enRooms as TranslationBundle,
@@ -115,6 +119,7 @@ const msResources = {
   nav: msNav as TranslationBundle,
   notifications: msNotifications as TranslationBundle,
   onlineInventory: msOnlineInventory as TranslationBundle,
+  nightAudit: msNightAudit as TranslationBundle,
   rates: msRates as TranslationBundle,
   revenue: msRevenue as TranslationBundle,
   rooms: msRooms as TranslationBundle,
@@ -137,6 +142,7 @@ const zhResources = {
   nav: zhNav as TranslationBundle,
   notifications: zhNotifications as TranslationBundle,
   onlineInventory: zhOnlineInventory as TranslationBundle,
+  nightAudit: zhNightAudit as TranslationBundle,
   rates: zhRates as TranslationBundle,
   revenue: zhRevenue as TranslationBundle,
   rooms: zhRooms as TranslationBundle,
