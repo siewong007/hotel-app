@@ -15,7 +15,8 @@
     "actions": "Actions",
     "moreActions": "More actions",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "sections": "Sections"
   },
   "state": {
     "loading": "Loading…",

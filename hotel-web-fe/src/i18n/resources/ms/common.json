@@ -15,7 +15,8 @@
     "actions": "Tindakan",
     "moreActions": "Lagi tindakan",
     "expand": "Kembangkan",
-    "collapse": "Runtuhkan"
+    "collapse": "Runtuhkan",
+    "sections": "Bahagian"
   },
   "state": {
     "loading": "Memuatkan…",

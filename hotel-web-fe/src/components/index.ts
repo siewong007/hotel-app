@@ -35,6 +35,8 @@ export { default as StatStrip } from './common/StatStrip';
 export type { StatStripProps, StatStripItem } from './common/StatStrip';
 export { CollapsibleSection } from './common/CollapsibleSection';
 export type { CollapsibleSectionProps } from './common/CollapsibleSection';
+export { ResponsiveTabs } from './common/ResponsiveTabs';
+export type { ResponsiveTabsProps, ResponsiveTabItem } from './common/ResponsiveTabs';
 
 // Data table primitives
 export { DataTable } from './data-table/DataTable';
