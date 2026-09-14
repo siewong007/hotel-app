@@ -13,7 +13,9 @@
     "apply": "Guna",
     "reset": "Set semula",
     "actions": "Tindakan",
-    "moreActions": "Lagi tindakan"
+    "moreActions": "Lagi tindakan",
+    "expand": "Kembangkan",
+    "collapse": "Runtuhkan"
   },
   "state": {
     "loading": "Memuatkan…",

@@ -33,6 +33,8 @@ export { default as PageHeader } from './common/PageHeader';
 export type { PageHeaderProps } from './common/PageHeader';
 export { default as StatStrip } from './common/StatStrip';
 export type { StatStripProps, StatStripItem } from './common/StatStrip';
+export { CollapsibleSection } from './common/CollapsibleSection';
+export type { CollapsibleSectionProps } from './common/CollapsibleSection';
 
 // Data table primitives
 export { DataTable } from './data-table/DataTable';

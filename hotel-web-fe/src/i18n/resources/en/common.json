@@ -13,7 +13,9 @@
     "apply": "Apply",
     "reset": "Reset",
     "actions": "Actions",
-    "moreActions": "More actions"
+    "moreActions": "More actions",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "state": {
     "loading": "Loading…",
