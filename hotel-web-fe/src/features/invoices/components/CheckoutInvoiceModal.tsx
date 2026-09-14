@@ -257,10 +257,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   );
 
   // The forfeit amount defaults to the still-refundable deposit balance;
-  // staff can lower it for a partial forfeit.
+  // staff can lower it for a partial forfeit. Re-defaults on every open —
+  // `refundableDeposit` alone wouldn't refire when a reopen sees unchanged
+  // rows, leaving a typed-but-unsubmitted amount behind.
   useEffect(() => {
-    setForfeitAmount(refundableDeposit);
-  }, [refundableDeposit]);
+    if (open) setForfeitAmount(refundableDeposit);
+  }, [open, refundableDeposit]);
 
   // `depositForfeited` reflects the ledger, not just the local click — the
   // same way `depositRefunded` is re-derived from rows on every
