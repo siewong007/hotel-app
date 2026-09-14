@@ -12,8 +12,8 @@ use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{
     BackupEntityDescriptor, BackupExclusion, BackupIntegrity, BackupManifest, BackupSource,
-    BookingDataExport, ExportPreview, FullDataExport, ImportRequest, TransferPayload,
-    TransferTablePreview,
+    BookingDataExport, ConflictPolicy, ExportPreview, FullDataExport, ImportRequest,
+    TransferPayload, TransferTablePreview,
 };
 use crate::repositories::data_transfer::{
     DataTransferRepository, ImportRowPolicy, QualifiedTable, TransferTable, transfer_order,
@@ -210,7 +210,7 @@ const ALL_IMPORT_TABLES: &[&str] = TABLE_INSERT_ORDER;
 /// state, so exporting them would hand a `settings:manage` holder every
 /// password hash and TOTP seed, and importing them could plant a forged
 /// `is_super_admin` account.
-fn is_transferable_key(key: &str) -> bool {
+pub(crate) fn is_transferable_key(key: &str) -> bool {
     QualifiedTable::parse(key)
         .map(|table| table.schema == "public" && ALL_IMPORT_TABLES.contains(&table.name.as_str()))
         .unwrap_or(false)
@@ -247,7 +247,13 @@ const ROOM_REFERENCE_COLUMNS: &[(&str, &[&str])] = &[
     ("room_status_change_log", &["room_id"]),
 ];
 
-const AUDIT_USER_FK_COLUMNS: &[&str] = &[
+/// User-FK columns that record *who caused* a row rather than *what the row
+/// belongs to*. On import, a missing user in one of these remaps to the
+/// importing admin instead of nulling or dropping the row — the attribution
+/// survives the fact that the original account cannot. `pub(crate)` so the
+/// upload/preview/execute pipeline (`data_transfer_jobs`) applies the same
+/// list the V1 legacy path does.
+pub(crate) const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "created_by",
     "updated_by",
     "cancelled_by",
@@ -265,6 +271,19 @@ const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "linked_by",
     "verified_by",
     "response_by",
+    // The newer tables use the `*_user_id` audit spelling or their own verb —
+    // same "who caused it" semantics, same remap.
+    "actor_user_id",
+    "author_user_id",
+    "assigned_to_user_id",
+    "requested_by",
+    "added_by",
+    "granted_by",
+    "reviewed_by",
+    "issued_by",
+    "revoked_by",
+    "applied_by",
+    "reversed_by",
 ];
 
 /// Child -> parent relationships where deleting the parent either deletes the
@@ -388,7 +407,7 @@ async fn transferable_export_tables(pool: &DbPool) -> Result<Vec<TransferTable>,
 /// The lowercased `config::Environment` for `source.environment`, falling
 /// back to `"development"` when config was never initialized (unit tests and
 /// bare export calls must not panic on `config::get()`).
-fn backup_environment() -> String {
+pub(crate) fn backup_environment() -> String {
     crate::core::config::try_get()
         .map_or("development", |config| environment_name(config.environment))
         .to_string()
@@ -612,6 +631,10 @@ pub async fn export_booking_data(pool: &DbPool) -> Result<String, ApiError> {
     String::from_utf8(bytes.to_vec()).map_err(|error| ApiError::Internal(error.to_string()))
 }
 
+/// The legacy `ImportRequest` entry point — no longer wired to a route (the
+/// upload → preview → execute pipeline replaced `POST /data-transfer/import`),
+/// still exercised by `tests/data_transfer_import.rs`.
+#[allow(dead_code)]
 pub async fn import_booking_data(
     pool: &DbPool,
     import_user_id: i64,
@@ -626,32 +649,12 @@ pub async fn import_booking_data(
     }
 }
 
-async fn import_legacy_booking_data(
-    pool: &DbPool,
-    import_user_id: i64,
-    mode: ImportMode,
-    data: BookingDataExport,
-    tables: Vec<String>,
-) -> Result<Value, ApiError> {
-    let is_overwrite = mode == ImportMode::Overwrite;
-
-    let mut generated_columns = base_generated_columns();
-    let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await?;
-    let table_columns = DataTransferRepository::table_columns(pool, ALL_IMPORT_TABLES).await?;
-    let required_columns =
-        DataTransferRepository::required_columns(pool, ALL_IMPORT_TABLES).await?;
-    let user_fk_columns = DataTransferRepository::user_fk_columns(pool, ALL_IMPORT_TABLES).await?;
-    for (table, columns) in
-        DataTransferRepository::generated_columns(pool, ALL_IMPORT_TABLES).await?
-    {
-        generated_columns.entry(table).or_default().extend(columns);
-    }
-
-    let empty_skip = HashSet::new();
-    let empty_columns = HashSet::new();
-    // Foreign-key-safe insert order; the import loop and overwrite clear both
-    // derive from this so a table never lands before its parents.
-    let tables_and_data: Vec<(&str, &[Value])> = vec![
+/// The `(table, rows)` pairs a `BookingDataExport` carries, in foreign-key-safe
+/// insert order. The legacy import loop and the v1 preview both derive from
+/// this so the two can never disagree about which struct field maps to which
+/// table.
+pub(crate) fn legacy_tables_and_data(data: &BookingDataExport) -> Vec<(&'static str, &[Value])> {
+    vec![
         ("amenities", &data.amenities),
         ("booking_channels", &data.booking_channels),
         ("companies", &data.companies),
@@ -717,7 +720,38 @@ async fn import_legacy_booking_data(
         ("booking_services", &data.booking_services),
         ("system_settings", &data.system_settings),
         ("user_guests", &data.user_guests),
-    ];
+    ]
+}
+
+/// The V1 legacy import. Still the dispatch target for `BookingDataExport`
+/// files staged through the upload pipeline; the job runner calls it with the
+/// struct parsed inside the job task.
+pub(crate) async fn import_legacy_booking_data(
+    pool: &DbPool,
+    import_user_id: i64,
+    mode: ImportMode,
+    data: BookingDataExport,
+    tables: Vec<String>,
+) -> Result<Value, ApiError> {
+    let is_overwrite = mode == ImportMode::Overwrite;
+
+    let mut generated_columns = base_generated_columns();
+    let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await?;
+    let table_columns = DataTransferRepository::table_columns(pool, ALL_IMPORT_TABLES).await?;
+    let required_columns =
+        DataTransferRepository::required_columns(pool, ALL_IMPORT_TABLES).await?;
+    let user_fk_columns = DataTransferRepository::user_fk_columns(pool, ALL_IMPORT_TABLES).await?;
+    for (table, columns) in
+        DataTransferRepository::generated_columns(pool, ALL_IMPORT_TABLES).await?
+    {
+        generated_columns.entry(table).or_default().extend(columns);
+    }
+
+    let empty_skip = HashSet::new();
+    let empty_columns = HashSet::new();
+    // Foreign-key-safe insert order; the import loop and overwrite clear both
+    // derive from this so a table never lands before its parents.
+    let tables_and_data = legacy_tables_and_data(&data);
     let mut selected_tables = selected_import_tables(&tables, &tables_and_data)?;
     if is_overwrite {
         expand_overwrite_clear_tables(&mut selected_tables);
@@ -805,7 +839,10 @@ async fn import_legacy_booking_data(
                     audit_user_fk_columns: AUDIT_USER_FK_COLUMNS,
                     existing_user_ids: &existing_user_ids,
                     fallback_user_id: import_user_id,
+                    primary_key_columns: &[],
                 },
+                // V1 files keep their historical duplicate handling.
+                ConflictPolicy::Skip,
             )
             .await
             {
@@ -967,7 +1004,20 @@ async fn import_full_data(
                     row_index + 1
                 ))
             })?;
-            inserted += DataTransferRepository::insert_transfer_row(&mut tx, table, object).await?;
+            match DataTransferRepository::insert_transfer_row(
+                &mut tx,
+                table,
+                object,
+                // The legacy entry point predates conflict policies — keep its
+                // historical duplicate handling.
+                ConflictPolicy::Skip,
+            )
+            .await?
+            {
+                crate::repositories::data_transfer::InsertRowOutcome::Inserted
+                | crate::repositories::data_transfer::InsertRowOutcome::Updated => inserted += 1,
+                crate::repositories::data_transfer::InsertRowOutcome::Skipped => {}
+            }
         }
         counts.insert(name, Value::Number(inserted.into()));
     }
@@ -1004,7 +1054,7 @@ async fn import_full_data(
     }))
 }
 
-fn expand_full_overwrite_tables(
+pub(crate) fn expand_full_overwrite_tables(
     selected: &mut HashSet<String>,
     dependencies: &HashMap<String, HashSet<String>>,
 ) {
@@ -1245,7 +1295,7 @@ fn value_as_i64(value: &Value) -> Option<i64> {
     }
 }
 
-fn import_error_detail(error: &ApiError) -> String {
+pub(crate) fn import_error_detail(error: &ApiError) -> String {
     match error {
         ApiError::BadRequest(message)
         | ApiError::Conflict(message)

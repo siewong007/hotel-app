@@ -309,3 +309,489 @@ async fn deferred_foreign_keys_still_reject_a_dangling_reference() {
 
     tx.rollback().await.expect("rollback");
 }
+
+// ----- Staged upload → preview → execute → poll pipeline. ------------------
+// Unlike the transaction-scoped tests above, the import job commits through
+// its own transaction on the pool, so these tests clean their fixture rows up
+// explicitly at the end.
+
+fn v3_document(table: &str, rows: serde_json::Value) -> Vec<u8> {
+    let row_count = rows.as_array().map_or(0, Vec::len);
+    serde_json::to_vec(&serde_json::json!({
+        "format": "hotel-backup",
+        "version": 3,
+        "kind": "business-data",
+        "exportId": "11111111-2222-3333-4444-555555555555",
+        "exportedAt": "2026-09-14T12:00:00Z",
+        "applicationVersion": "0.2.0",
+        "source": {"environment": "development", "databaseProvider": "postgresql"},
+        "manifest": {
+            "entities": [{"name": table, "primaryKey": ["id"], "columns": ["id", "name", "category"]}],
+            "exclusions": []
+        },
+        "tables": {table: rows},
+        "integrity": {
+            "entities": 1,
+            "rows": row_count,
+            "entityRows": {table: row_count},
+            "completedAt": "2026-09-14T12:00:01Z"
+        }
+    }))
+    .expect("v3 fixture serializes")
+}
+
+/// A minimal `BookingDataExport` (v1) — every field without `serde(default)`
+/// must be present even when empty.
+fn v1_fixture() -> Vec<u8> {
+    serde_json::to_vec(&serde_json::json!({
+        "version": "1.0",
+        "exported_at": "2026-07-15T00:00:00Z",
+        "guests": [],
+        "guest_complimentary_credits": [],
+        "companies": [],
+        "bookings": [],
+        "payments": [],
+        "invoices": [],
+        "booking_guests": [],
+        "booking_modifications": [],
+        "booking_history": [],
+        "night_audit_runs": [],
+        "night_audit_details": [],
+        "customer_ledgers": [],
+        "customer_ledger_payments": [],
+        "room_changes": [],
+        "amenities": [
+            {"id": 920_999_022_i64, "name": "transfer-test-v1-a", "category": "v1"}
+        ]
+    }))
+    .expect("v1 fixture serializes")
+}
+
+/// Poll the registry until the job leaves `running` (or time out).
+async fn wait_for_job(job_id: uuid::Uuid) -> hotel_app_be::models::ImportJobStatus {
+    use hotel_app_be::models::ImportJobState;
+    use hotel_app_be::services::data_transfer_jobs::import_job_status;
+    use std::time::{Duration, Instant};
+
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let status = import_job_status(job_id).expect("registered job must be queryable");
+        if status.status != ImportJobState::Running {
+            return status;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "import job did not finish within 30s"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+/// Merge + skip: the file lands, progress/report are queryable, and the
+/// staged file is consumed.
+#[tokio::test]
+async fn staged_v3_upload_previews_executes_and_cleans_up() {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::{
+        BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
+    };
+    use hotel_app_be::services::data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    // The job commits through its own transaction, so fixtures from a failed
+    // earlier run can linger — clear them up front instead of asserting on a
+    // clean slate.
+    sqlx::query("DELETE FROM amenities WHERE id IN (920999001, 920999002)")
+        .execute(&pool)
+        .await
+        .expect("fixture pre-clean must run");
+
+    let rows = serde_json::json!([
+        {"id": 920_999_001_i64, "name": "transfer-test-amenity-a", "category": "test"},
+        {"id": 920_999_002_i64, "name": "transfer-test-amenity-b", "category": "test"}
+    ]);
+    let body = axum::body::Body::from(v3_document("public.amenities", rows));
+
+    let upload = data_transfer_jobs::stage_backup_upload(body)
+        .await
+        .expect("staging a well-formed v3 body must succeed");
+    assert_eq!(upload.detected_format, "v3");
+    assert!(upload.bytes > 0);
+
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+        .await
+        .expect("preview must answer for a staged upload");
+    assert_eq!(preview.format, "v3");
+    let amenities = preview
+        .entities
+        .iter()
+        .find(|entity| entity.name == "public.amenities")
+        .expect("the fixture entity must appear in the preview");
+    assert_eq!(amenities.rows, 2);
+    assert_eq!(
+        amenities.existing,
+        Some(0),
+        "fixture ids must not collide with the dev database"
+    );
+    assert_eq!(amenities.new, Some(2));
+    assert_eq!(preview.total_rows, 2);
+
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("a confirmed execute must return a job id");
+
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "import job failed: {:?}",
+        status.error
+    );
+    let result = status.result.expect("a succeeded job carries its result");
+    assert_eq!(result.inserted, 2);
+    let outcome = result
+        .report
+        .entities
+        .iter()
+        .find(|entity| entity.entity == "public.amenities")
+        .expect("the report must list the imported entity");
+    assert_eq!(outcome.inserted, 2);
+
+    // The job deletes its staged file — a second preview/preview-by-id must 404.
+    let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+    assert!(
+        matches!(gone, Err(ApiError::NotFound(_))),
+        "a consumed upload must not be previewable again: {gone:?}"
+    );
+
+    let cleaned = sqlx::query("DELETE FROM amenities WHERE id IN (920999001, 920999002)")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+    assert_eq!(cleaned.rows_affected(), 2);
+}
+
+/// Merge + update rewrites non-key columns on a primary-key hit; merge + fail
+/// aborts the job on the same file.
+#[tokio::test]
+async fn staged_v3_merge_update_and_fail_conflict_policies() {
+    use hotel_app_be::models::{
+        BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
+    };
+    use hotel_app_be::services::data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    sqlx::query("DELETE FROM amenities WHERE id IN (920999011, 920999012)")
+        .execute(&pool)
+        .await
+        .expect("fixture pre-clean must run");
+
+    let seed_rows = serde_json::json!([
+        {"id": 920_999_011_i64, "name": "transfer-test-update-a", "category": "before"},
+        {"id": 920_999_012_i64, "name": "transfer-test-update-b", "category": "before"}
+    ]);
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v3_document(
+        "public.amenities",
+        seed_rows,
+    )))
+    .await
+    .expect("staging");
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("seed execute");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(status.status, ImportJobState::Succeeded);
+
+    // Update: same primary keys, changed columns — both rows must be rewritten.
+    let changed_rows = serde_json::json!([
+        {"id": 920_999_011_i64, "name": "transfer-test-update-a", "category": "after"},
+        {"id": 920_999_012_i64, "name": "transfer-test-update-b", "category": "after"}
+    ]);
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v3_document(
+        "public.amenities",
+        changed_rows,
+    )))
+    .await
+    .expect("staging");
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Update),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("update execute");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "update job failed: {:?}",
+        status.error
+    );
+    assert_eq!(status.result.as_ref().map(|r| r.updated), Some(2));
+    let updated: Vec<String> = sqlx::query_scalar(
+        "SELECT category FROM amenities WHERE id IN (920999011, 920999012) ORDER BY id",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("reading fixture rows");
+    assert_eq!(updated, vec!["after".to_string(), "after".to_string()]);
+
+    // Fail: the same keys under `fail` must abort the job and roll the whole
+    // transaction back — no row may change.
+    let conflict_rows = serde_json::json!([
+        {"id": 920_999_011_i64, "name": "transfer-test-update-a", "category": "never"},
+        {"id": 920_999_012_i64, "name": "transfer-test-update-b", "category": "never"}
+    ]);
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v3_document(
+        "public.amenities",
+        conflict_rows,
+    )))
+    .await
+    .expect("staging");
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Fail),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("fail execute");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Failed,
+        "fail policy must abort on the duplicate primary key"
+    );
+    let unchanged: Vec<String> = sqlx::query_scalar(
+        "SELECT category FROM amenities WHERE id IN (920999011, 920999012) ORDER BY id",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("reading fixture rows");
+    assert_eq!(
+        unchanged,
+        vec!["after".to_string(), "after".to_string()],
+        "a failed job must leave the destination untouched"
+    );
+
+    sqlx::query("DELETE FROM amenities WHERE id IN (920999011, 920999012)")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+}
+
+/// Older formats still import through the pipeline: a v2 `tables` map runs
+/// the structured engine, a v1 `BookingDataExport` dispatches to the legacy
+/// importer.
+#[tokio::test]
+async fn staged_v2_and_v1_backups_still_import() {
+    use hotel_app_be::models::{
+        BackupImportMode, ConflictPolicy, ImportExecuteRequest, ImportJobState,
+    };
+    use hotel_app_be::services::data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+    sqlx::query("DELETE FROM amenities WHERE id IN (920999021, 920999022)")
+        .execute(&pool)
+        .await
+        .expect("fixture pre-clean must run");
+
+    // v2: schema-qualified `tables` map — the engine's `BackupRows::Json` arm.
+    let v2 = serde_json::to_vec(&serde_json::json!({
+        "version": "2.0",
+        "exported_at": "2026-07-27T00:00:00Z",
+        "tables": {
+            "public.amenities": [
+                {"id": 920_999_021_i64, "name": "transfer-test-v2-a", "category": "v2"}
+            ]
+        }
+    }))
+    .expect("v2 fixture serializes");
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v2))
+        .await
+        .expect("staging");
+    assert_eq!(upload.detected_format, "v2");
+
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+        .await
+        .expect("v2 preview must work through the same diff");
+    assert_eq!(preview.format, "v2");
+    let amenities = preview
+        .entities
+        .iter()
+        .find(|entity| entity.name == "public.amenities")
+        .expect("v2 entity must appear in the preview");
+    assert_eq!(amenities.new, Some(1));
+
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("v2 execute");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "v2 job failed: {:?}",
+        status.error
+    );
+    assert_eq!(status.result.as_ref().map(|r| r.inserted), Some(1));
+
+    // v1: the flat `BookingDataExport` shape dispatches to the legacy importer.
+    let v1 = v1_fixture();
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(v1))
+        .await
+        .expect("staging");
+    assert_eq!(upload.detected_format, "v1");
+
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id)
+        .await
+        .expect("v1 preview must answer with counts only");
+    assert_eq!(preview.format, "v1");
+    let amenities = preview
+        .entities
+        .iter()
+        .find(|entity| entity.name == "public.amenities")
+        .expect("v1 entity must appear in the preview");
+    assert_eq!(amenities.rows, 1);
+    assert_eq!(amenities.new, None, "v1 preview cannot diff — counts only");
+
+    let job = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: Some(ConflictPolicy::Skip),
+            tables: vec![],
+            confirm: true,
+        },
+    )
+    .await
+    .expect("v1 execute");
+    let status = wait_for_job(job.job_id).await;
+    assert_eq!(
+        status.status,
+        ImportJobState::Succeeded,
+        "v1 job failed: {:?}",
+        status.error
+    );
+    let v1_row: Option<i64> = sqlx::query_scalar("SELECT id FROM amenities WHERE id = 920999022")
+        .fetch_optional(&pool)
+        .await
+        .expect("reading fixture row");
+    assert_eq!(v1_row, Some(920_999_022));
+
+    sqlx::query("DELETE FROM amenities WHERE id IN (920999021, 920999022)")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+}
+
+/// Guardrails around the pipeline: a non-object body is refused at upload, an
+/// unconfirmed execute is refused, and a deleted upload cannot be previewed.
+#[tokio::test]
+async fn staged_upload_guardrails() {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::{BackupImportMode, ImportExecuteRequest};
+    use hotel_app_be::services::data_transfer_jobs;
+
+    let Some(pool) = setup_pg_pool().await else {
+        return;
+    };
+
+    // Non-JSON-object body → rejected before a byte is written to disk.
+    let rejected = data_transfer_jobs::stage_backup_upload(axum::body::Body::from("[1,2,3]")).await;
+    assert!(matches!(
+        rejected,
+        Err(data_transfer_jobs::StageUploadError::BadRequest(_))
+    ));
+
+    // A staged file whose object shape parses to nothing recognizable still
+    // stores, but preview surfaces the validation error.
+    let upload = data_transfer_jobs::stage_backup_upload(axum::body::Body::from(
+        br#"{"completely":"unrelated"}"#.to_vec(),
+    ))
+    .await
+    .expect("unknown-but-object content must still stage");
+    assert_eq!(upload.detected_format, "unknown");
+    let preview = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+    assert!(
+        matches!(preview, Err(ApiError::BadRequest(_))),
+        "an unparseable staged file must surface a validation error: {preview:?}"
+    );
+
+    // confirm=false refuses before a job exists.
+    let refused = data_transfer_jobs::start_import_job(
+        &pool,
+        1,
+        ImportExecuteRequest {
+            upload_id: upload.upload_id,
+            mode: BackupImportMode::Merge,
+            on_conflict: None,
+            tables: vec![],
+            confirm: false,
+        },
+    )
+    .await;
+    assert!(
+        matches!(refused, Err(ApiError::BadRequest(_))),
+        "execute without confirm=true must be refused: {refused:?}"
+    );
+
+    // DELETE discards the staged file; previewing it afterwards is a 404.
+    data_transfer_jobs::delete_staged_upload(upload.upload_id)
+        .await
+        .expect("deleting a staged upload");
+    let gone = data_transfer_jobs::preview_import(&pool, upload.upload_id).await;
+    assert!(matches!(gone, Err(ApiError::NotFound(_))));
+
+    // A never-staged id is a 404 too.
+    let missing = data_transfer_jobs::preview_import(&pool, uuid::Uuid::new_v4()).await;
+    assert!(matches!(missing, Err(ApiError::NotFound(_))));
+}

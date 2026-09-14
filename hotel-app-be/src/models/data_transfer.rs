@@ -167,9 +167,7 @@ pub struct ImportRequest {
 
 // ----- `hotel-backup` v3 file format + upload/preview/execute/job API. -----
 // The JSON format is camelCase; legacy structs above keep their snake_case
-// fields untouched. The export-writer types are live; the upload/import DTOs
-// below land with the import task, so they keep `#[allow(dead_code)]` (the
-// bin target re-declares these modules and would otherwise warn).
+// fields untouched.
 
 /// Where a backup file was produced. `environment` is the lowercased
 /// `config::Environment`; `database_provider` is always `"postgresql"`.
@@ -227,7 +225,6 @@ pub struct BackupIntegrity {
 /// large backup never materializes as a `Value`. `tables` keeps every row as
 /// raw JSON text, so the whole file parses at roughly 1x its byte size instead
 /// of ~3.5x for `Value` trees; the import job converts rows one at a time.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupFile {
@@ -237,6 +234,9 @@ pub struct BackupFile {
     pub version: u32,
     /// Payload class; only `"business-data"` exists today.
     pub kind: String,
+    /// Required so a document missing `exportId` fails to parse — its value
+    /// itself is never read by the import.
+    #[allow(dead_code)]
     pub export_id: Uuid,
     /// RFC 3339 timestamp, kept as text (matches `exported_at` on the legacy
     /// structs — the import never does date math on it).
@@ -250,7 +250,6 @@ pub struct BackupFile {
 
 /// Response to `POST /data-transfer/import/uploads` — the staged file's
 /// handle for preview/execute/delete.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
@@ -262,7 +261,6 @@ pub struct UploadResponse {
 }
 
 /// Request body for `POST /data-transfer/import/preview`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreviewRequest {
@@ -270,7 +268,6 @@ pub struct ImportPreviewRequest {
 }
 
 /// Per-entity diff between a staged backup and the destination database.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreviewEntity {
@@ -289,7 +286,6 @@ pub struct ImportPreviewEntity {
 /// Rows that reference records outside the transferable set (for example a
 /// `created_by` user that does not exist in this database) and so cannot be
 /// applied as-is. Shared by the preview and the finished job's report.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportRelationshipProblem {
@@ -300,7 +296,6 @@ pub struct ImportRelationshipProblem {
 
 /// What a staged backup would do if executed — the pre-flight report returned
 /// by `POST /data-transfer/import/preview`.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreview {
@@ -325,7 +320,6 @@ pub struct ImportPreview {
 }
 
 /// How a backup import treats the destination's existing data.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BackupImportMode {
@@ -336,7 +330,6 @@ pub enum BackupImportMode {
 }
 
 /// What a merge import does when a row's primary key already exists.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ConflictPolicy {
@@ -349,7 +342,6 @@ pub enum ConflictPolicy {
 }
 
 /// Request body for `POST /data-transfer/import/execute`.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportExecuteRequest {
@@ -367,8 +359,15 @@ pub struct ImportExecuteRequest {
     pub confirm: bool,
 }
 
+/// `202 Accepted` body for `POST /data-transfer/import/execute` — the handle
+/// the client polls on `GET /data-transfer/import/jobs/{jobId}`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportExecuteResponse {
+    pub job_id: Uuid,
+}
+
 /// Lifecycle states of a background import job.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ImportJobState {
@@ -378,7 +377,6 @@ pub enum ImportJobState {
 }
 
 /// Live progress of a running import job, updated per entity batch.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobProgress {
@@ -389,7 +387,6 @@ pub struct JobProgress {
 }
 
 /// Per-entity outcome inside [`ImportJobReport`].
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportEntityOutcome {
@@ -401,17 +398,19 @@ pub struct ImportEntityOutcome {
 
 /// The detailed half of a finished job's result: per-entity counts plus the
 /// rows skipped for references outside the transferable set.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportJobReport {
     pub entities: Vec<ImportEntityOutcome>,
     #[serde(default)]
     pub relationship_problems: Vec<ImportRelationshipProblem>,
+    /// File entities that were never applied — excluded tables, schema tables
+    /// outside the transferable set, and names this database does not have.
+    #[serde(default)]
+    pub unsupported_entities: Vec<String>,
 }
 
 /// Final counts of a finished import job.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportJobResult {
@@ -422,7 +421,6 @@ pub struct ImportJobResult {
 }
 
 /// `GET /data-transfer/import/jobs/{jobId}` response.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportJobStatus {

@@ -385,8 +385,20 @@
     "/api/data-transfer/export/preview": {
       "GET": {}
     },
-    "/api/data-transfer/import": {
+    "/api/data-transfer/import/execute": {
       "POST": {}
+    },
+    "/api/data-transfer/import/jobs/{job_id}": {
+      "GET": {}
+    },
+    "/api/data-transfer/import/preview": {
+      "POST": {}
+    },
+    "/api/data-transfer/import/uploads": {
+      "POST": {}
+    },
+    "/api/data-transfer/import/uploads/{upload_id}": {
+      "DELETE": {}
     },
     "/api/ekyc/admin/applications": {
       "GET": {},
