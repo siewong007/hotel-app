@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import type { EditSummaryGroup } from '../utils';
 
 interface ReviewChangesDialogProps {
@@ -36,9 +37,11 @@ export const ReviewChangesDialog = ({
   isSaving,
   onClose,
   onConfirm,
-}: ReviewChangesDialogProps) => (
+}: ReviewChangesDialogProps) => {
+  const { t } = useTranslation('onlineInventory');
+  return (
   <Dialog open={open} onClose={isSaving ? undefined : onClose} maxWidth="sm" fullWidth>
-    <DialogTitle sx={{ fontWeight: 800 }}>Review changes</DialogTitle>
+    <DialogTitle sx={{ fontWeight: 800 }}>{t('review.title')}</DialogTitle>
     <DialogContent dividers>
       <Stack spacing={2.5}>
         {groups.map((group) => (
@@ -67,14 +70,13 @@ export const ReviewChangesDialog = ({
           </Box>
         ))}
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          All {totalCount} {totalCount === 1 ? 'change' : 'changes'} are applied together — if any
-          cell fails, nothing is saved.
+          {t('review.atomicNote', { count: totalCount })}
         </Typography>
       </Stack>
     </DialogContent>
     <DialogActions sx={{ px: 3, py: 2 }}>
       <Button onClick={onClose} disabled={isSaving}>
-        Cancel
+        {t('common:actions.cancel')}
       </Button>
       <Button
         variant="contained"
@@ -83,12 +85,13 @@ export const ReviewChangesDialog = ({
         startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : undefined}
         aria-label={
           isSaving
-            ? 'Saving'
-            : `Apply ${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`
+            ? t('review.saving')
+            : t('review.apply', { count: totalCount })
         }
       >
-        {isSaving ? 'Saving…' : `Apply ${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`}
+        {isSaving ? t('review.saving') : t('review.apply', { count: totalCount })}
       </Button>
     </DialogActions>
   </Dialog>
-);
+  );
+};

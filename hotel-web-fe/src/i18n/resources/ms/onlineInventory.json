@@ -1,0 +1,130 @@
+{
+  "title": "Ketersediaan dalam talian",
+  "kicker": "Tetapan inventori",
+  "subtitle": "Kawal {{days}} hari inventori dalam talian serentak — klik sel untuk memilih, buka editor untuk menyusun perubahan, kemudian semak dan laksanakan semuanya dalam satu simpanan yang selamat.",
+  "loading": "Memuatkan ketersediaan bilik…",
+  "empty": {
+    "title": "Tiada jenis bilik untuk dikonfigurasi",
+    "body": "Tambah jenis bilik sebelum menetapkan ketersediaan dalam taliannya."
+  },
+  "confirm": {
+    "discardTitle": "Buang perubahan belum disimpan",
+    "discardConfirm": "Buang perubahan",
+    "discardMove": "Alihkan tetingkap dan buang perubahan inventori yang belum disimpan?",
+    "discardRefresh": "Segar semula ketersediaan dan buang perubahan inventori yang belum disimpan?"
+  },
+  "changedBar_one": "{{count}} sel diubah",
+  "changedBar_other": "{{count}} sel diubah",
+  "discard": "Buang",
+  "reviewApply": "Semak & laksanakan",
+  "toolbar": {
+    "aria": "Kawalan tetingkap inventori",
+    "backDays": "Undur {{days}} hari",
+    "prevDay": "Hari sebelumnya",
+    "startDate": "Tarikh mula",
+    "nextDay": "Hari berikutnya",
+    "forwardDays": "Maju {{days}} hari",
+    "today": "Hari ini",
+    "overridesOnly": "Override sahaja",
+    "selected": "{{count}} dipilih"
+  },
+  "grid": {
+    "aria": "Inventori dalam talian mengikut jenis bilik dan tarikh",
+    "selectAll": "Pilih semua sel",
+    "colHeader": "JENIS BILIK / TARIKH",
+    "selectColumn": "Pilih semua pada {{date}}",
+    "today": "Hari ini",
+    "selectRow": "Pilih baris {{name}}"
+  },
+  "cell": {
+    "closed": "Ditutup",
+    "noneLeft": "Habis",
+    "ariaOnline": "{{count}} dalam talian pada {{price}}",
+    "ariaClosed": "ditutup untuk tempahan dalam talian",
+    "ariaNoneLeft": ", tiada lagi",
+    "ariaModified": ", diubah",
+    "ariaResetPending": ", set semula belum selesai"
+  },
+  "bulk": {
+    "aria": "Edit pukal sel terpilih",
+    "cellsSelected_one": "{{count}} sel dipilih",
+    "cellsSelected_other": "{{count}} sel dipilih",
+    "daysAria": "Hadkan kepada hari dalam minggu",
+    "days": {
+      "mon": "Isn",
+      "tue": "Sel",
+      "wed": "Rab",
+      "thu": "Kha",
+      "fri": "Jum",
+      "sat": "Sab",
+      "sun": "Ahd"
+    },
+    "inScope": "{{active}} daripada {{total}} dalam skop",
+    "clearSelection": "Kosongkan pilihan",
+    "openOnline": "Buka dalam talian",
+    "closeOnline": "Tutup dalam talian",
+    "hold": "Tahan",
+    "setHold": "Tetapkan tahanan",
+    "price": "Harga",
+    "setPrice": "Tetapkan harga",
+    "percentLabel": "±%",
+    "adjustPercentAria": "Laras mengikut peratus",
+    "applyPercent": "Laksana %",
+    "amountLabel": "± jumlah",
+    "adjustAmountAria": "Laras mengikut jumlah",
+    "applyAmount": "Laksanakan jumlah",
+    "clearOverrides": "Kosongkan override",
+    "skipped_one": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif.",
+    "skipped_other": "{{count}} sel dilangkau — pelarasan akan menjadikan harga sifar atau negatif."
+  },
+  "editor": {
+    "bookable": "Boleh ditempah dalam talian",
+    "bookableOn": "Tetamu boleh menempah tarikh ini",
+    "bookableOff": "Disembunyikan daripada tempahan dalam talian",
+    "holdWalkins": "Tahan untuk walk-in",
+    "decrease": "Kurangkan tahanan walk-in",
+    "increase": "Tambahkan tahanan walk-in",
+    "holdAria": "Tahanan walk-in",
+    "ofFree": "daripada {{count}} bebas",
+    "overHeld": "Melebihi ketersediaan fizikal untuk tarikh ini.",
+    "customPrice": "Harga dalam talian tersuai",
+    "priceInvalid": "Masukkan harga lebih besar daripada sifar.",
+    "standardRate": "Kadar standard untuk tarikh ini: {{price}} — biarkan kosong untuk menggunakannya.",
+    "resetStandard": "Set semula kepada peraturan standard"
+  },
+  "summary": {
+    "physical": "Bebas secara fizikal",
+    "held": "Ditahan untuk walk-in",
+    "online": "Tersedia dalam talian",
+    "roomNights": "malam bilik",
+    "aria": "Ringkasan {{label}}",
+    "selectedCells": "Sel terpilih",
+    "visibleWindow": "Tetingkap kelihatan"
+  },
+  "review": {
+    "title": "Semak perubahan",
+    "atomicNote_one": "{{count}} perubahan dilaksanakan serentak — jika mana-mana sel gagal, tiada apa yang disimpan.",
+    "atomicNote_other": "Semua {{count}} perubahan dilaksanakan serentak — jika mana-mana sel gagal, tiada apa yang disimpan.",
+    "saving": "Menyimpan…",
+    "apply_one": "Laksanakan {{count}} perubahan",
+    "apply_other": "Laksanakan {{count}} perubahan"
+  },
+  "lines": {
+    "resetStandard": "Set semula kepada peraturan standard",
+    "updated": "Dikemas kini",
+    "reopenOnline": "Buka semula dalam talian",
+    "closeOnline": "Tutup dalam talian",
+    "holdLine": "Tahan {{count}} untuk walk-in (sebelum ini {{was}})",
+    "priceStandard": "Harga → kadar standard",
+    "priceLine": "Harga → {{price}} (standard {{standard}})",
+    "roomTypeFallback": "Jenis bilik {{id}}"
+  },
+  "errors": {
+    "load": "Tidak dapat memuatkan inventori dalam talian.",
+    "save": "Tidak dapat menyimpan perubahan inventori."
+  },
+  "success": {
+    "updated_one": "{{count}} sel dikemas kini.",
+    "updated_other": "{{count}} sel dikemas kini."
+  }
+}

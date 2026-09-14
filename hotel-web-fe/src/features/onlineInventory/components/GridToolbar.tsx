@@ -13,6 +13,7 @@ import KeyboardDoubleArrowLeftIcon from '@mui/icons-material/KeyboardDoubleArrow
 import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
+import { useTranslation } from '../../../i18n/useTranslation';
 import { GRID_DAYS } from '../constants';
 import { formatLocalDate } from '../../../utils/date';
 import { useIsPhone } from '../../../hooks/useIsPhone';
@@ -45,6 +46,7 @@ export const GridToolbar = ({
   selectMode,
   onToggleSelectMode,
 }: GridToolbarProps) => {
+  const { t } = useTranslation('onlineInventory');
   const today = formatLocalDate();
   const isPhone = useIsPhone();
 
@@ -142,20 +144,20 @@ export const GridToolbar = ({
       sx={{ alignItems: 'center', flexWrap: 'wrap' }}
       useFlexGap
       role="toolbar"
-      aria-label="Inventory window controls"
+      aria-label={t('toolbar.aria')}
     >
-      <Tooltip title={`Back ${GRID_DAYS} days`}>
+      <Tooltip title={t('toolbar.backDays', { days: GRID_DAYS })}>
         <IconButton
-          aria-label={`Back ${GRID_DAYS} days`}
+          aria-label={t('toolbar.backDays', { days: GRID_DAYS })}
           onClick={() => onStartChange(shiftDate(start, -GRID_DAYS))}
           sx={NAV_SX}
         >
           <KeyboardDoubleArrowLeftIcon />
         </IconButton>
       </Tooltip>
-      <Tooltip title="Previous day">
+      <Tooltip title={t('toolbar.prevDay')}>
         <IconButton
-          aria-label="Previous day"
+          aria-label={t('toolbar.prevDay')}
           onClick={() => onStartChange(shiftDate(start, -1))}
           sx={NAV_SX}
         >
@@ -166,7 +168,7 @@ export const GridToolbar = ({
       <TextField
         type="date"
         size="small"
-        label="Start date"
+        label={t('toolbar.startDate')}
         value={start}
         onChange={(event) => {
           if (event.target.value) onStartChange(event.target.value);
@@ -175,18 +177,18 @@ export const GridToolbar = ({
         sx={{ width: 168 }}
       />
 
-      <Tooltip title="Next day">
+      <Tooltip title={t('toolbar.nextDay')}>
         <IconButton
-          aria-label="Next day"
+          aria-label={t('toolbar.nextDay')}
           onClick={() => onStartChange(shiftDate(start, 1))}
           sx={NAV_SX}
         >
           <ChevronRightIcon />
         </IconButton>
       </Tooltip>
-      <Tooltip title={`Forward ${GRID_DAYS} days`}>
+      <Tooltip title={t('toolbar.forwardDays', { days: GRID_DAYS })}>
         <IconButton
-          aria-label={`Forward ${GRID_DAYS} days`}
+          aria-label={t('toolbar.forwardDays', { days: GRID_DAYS })}
           onClick={() => onStartChange(shiftDate(start, GRID_DAYS))}
           sx={NAV_SX}
         >
@@ -196,12 +198,12 @@ export const GridToolbar = ({
 
       {start !== today && (
         <Button size="small" onClick={() => onStartChange(today)} sx={{ minHeight: 44 }}>
-          Today
+          {t('toolbar.today')}
         </Button>
       )}
 
       <Chip
-        label="Overrides only"
+        label={t('toolbar.overridesOnly')}
         variant={overridesOnly ? 'filled' : 'outlined'}
         color={overridesOnly ? 'primary' : 'default'}
         onClick={onToggleOverrides}
@@ -216,12 +218,12 @@ export const GridToolbar = ({
         disabled={refreshing}
         sx={{ minHeight: 44 }}
       >
-        Refresh
+        {t('common:actions.refresh')}
       </Button>
 
       {selectedCount > 0 && (
         <Typography variant="body2" sx={{ color: 'text.secondary', ml: 'auto' }}>
-          {selectedCount} selected
+          {t('toolbar.selected', { count: selectedCount })}
         </Typography>
       )}
     </Stack>

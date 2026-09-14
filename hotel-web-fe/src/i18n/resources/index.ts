@@ -27,6 +27,7 @@ import enHelp from './en/help.json';
 import enHousekeeping from './en/housekeeping.json';
 import enNav from './en/nav.json';
 import enNotifications from './en/notifications.json';
+import enOnlineInventory from './en/onlineInventory.json';
 import enRevenue from './en/revenue.json';
 import enRooms from './en/rooms.json';
 import enStatus from './en/status.json';
@@ -44,6 +45,7 @@ import msHelp from './ms/help.json';
 import msHousekeeping from './ms/housekeeping.json';
 import msNav from './ms/nav.json';
 import msNotifications from './ms/notifications.json';
+import msOnlineInventory from './ms/onlineInventory.json';
 import msRevenue from './ms/revenue.json';
 import msRooms from './ms/rooms.json';
 import msStatus from './ms/status.json';
@@ -61,6 +63,7 @@ import zhHelp from './zh/help.json';
 import zhHousekeeping from './zh/housekeeping.json';
 import zhNav from './zh/nav.json';
 import zhNotifications from './zh/notifications.json';
+import zhOnlineInventory from './zh/onlineInventory.json';
 import zhRevenue from './zh/revenue.json';
 import zhRooms from './zh/rooms.json';
 import zhStatus from './zh/status.json';
@@ -86,6 +89,7 @@ const enResources = {
   housekeeping: enHousekeeping as TranslationBundle,
   nav: enNav as TranslationBundle,
   notifications: enNotifications as TranslationBundle,
+  onlineInventory: enOnlineInventory as TranslationBundle,
   revenue: enRevenue as TranslationBundle,
   rooms: enRooms as TranslationBundle,
   status: enStatus as TranslationBundle,
@@ -106,6 +110,7 @@ const msResources = {
   housekeeping: msHousekeeping as TranslationBundle,
   nav: msNav as TranslationBundle,
   notifications: msNotifications as TranslationBundle,
+  onlineInventory: msOnlineInventory as TranslationBundle,
   revenue: msRevenue as TranslationBundle,
   rooms: msRooms as TranslationBundle,
   status: msStatus as TranslationBundle,
@@ -126,6 +131,7 @@ const zhResources = {
   housekeeping: zhHousekeeping as TranslationBundle,
   nav: zhNav as TranslationBundle,
   notifications: zhNotifications as TranslationBundle,
+  onlineInventory: zhOnlineInventory as TranslationBundle,
   revenue: zhRevenue as TranslationBundle,
   rooms: zhRooms as TranslationBundle,
   status: zhStatus as TranslationBundle,
