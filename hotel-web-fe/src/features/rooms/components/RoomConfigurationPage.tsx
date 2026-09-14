@@ -45,6 +45,7 @@ import {
   AddCircleOutlined as PlusIcon,
   SmokingRooms as SmokingIcon,
   AddPhotoAlternate as AddPhotoIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { errorMessage } from '../../../utils';
@@ -64,6 +65,10 @@ import {
   useUpdateRoomType,
   useUploadRoomTypeImage,
 } from '../hooks/useRoomQueries';
+import { ActionsMenu } from '../../../components/common/ActionsMenu';
+import type { ActionMenuItem } from '../../../components/common/ActionsMenu';
+import { SearchAndFilters } from '../../../components/common/SearchAndFilters';
+import { useIsPhone } from '../../../hooks/useIsPhone';
 
 /* ---------- Design tokens (Room Configuration) — aliases onto --hotel-* ---------- */
 const C = {
@@ -166,6 +171,7 @@ const emptyRoomForm: RoomFormData = {
 const RoomConfigurationPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
+  const isPhone = useIsPhone();
   const hasAccess =
     hasPermission('rooms:read') ||
     hasPermission('rooms:manage');
@@ -663,6 +669,27 @@ const RoomConfigurationPage: React.FC = () => {
     const st = roomStatus(room);
     const price = toMoneyNumber(room.price_per_night);
     const isCustom = !!t && compareMoney(price, t.base_price) !== 0;
+    const roomActions: ActionMenuItem[] = [
+      {
+        id: 'toggle-availability',
+        label: 'Toggle availability',
+        icon: <ActiveIcon sx={{ fontSize: 16, color: statusColor[st] }} />,
+        onClick: () => handleToggleRoomStatus(room),
+      },
+      {
+        id: 'edit',
+        label: 'Edit room',
+        icon: <EditIcon sx={{ fontSize: 16 }} />,
+        onClick: () => openEditRoom(room),
+      },
+      {
+        id: 'delete',
+        label: 'Delete room',
+        icon: <DeleteIcon sx={{ fontSize: 16 }} />,
+        destructive: true,
+        onClick: () => setDeletingRoom(room),
+      },
+    ];
     return (
       <Box
         sx={{
@@ -681,7 +708,6 @@ const RoomConfigurationPage: React.FC = () => {
             boxShadow: 'var(--hotel-shadow-sm)',
             transform: 'translateY(-1px)',
           },
-          '&:hover .rc-actions': { display: 'flex' },
           '&::before': {
             content: '""',
             position: 'absolute',
@@ -694,37 +720,6 @@ const RoomConfigurationPage: React.FC = () => {
           },
         }}
       >
-        {canEdit && (
-          <Box className="rc-actions" sx={{ position: 'absolute', top: 6, right: 6, display: 'none', gap: 0.5 }}>
-            <Tooltip title="Toggle availability">
-              <IconButton
-                size="small"
-                onClick={() => handleToggleRoomStatus(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
-              >
-                <ActiveIcon sx={{ fontSize: 13, color: statusColor[st] }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Edit room">
-              <IconButton
-                size="small"
-                onClick={() => openEditRoom(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
-              >
-                <EditIcon sx={{ fontSize: 13, color: C.ink3 }} />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete room">
-              <IconButton
-                size="small"
-                onClick={() => setDeletingRoom(room)}
-                sx={{ width: 24, height: 24, border: `1px solid ${C.border}`, bgcolor: C.surface }}
-              >
-                <DeleteIcon sx={{ fontSize: 13, color: C.rose }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        )}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
           <Typography sx={{ fontSize: 17, fontWeight: 700, lineHeight: 1 }}>
             {room.room_number}
@@ -734,17 +729,35 @@ const RoomConfigurationPage: React.FC = () => {
               </Box>
             )}
           </Typography>
-          <Box
-            sx={{
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              bgcolor: statusColor[st],
-              border: '2px solid var(--hotel-surface)',
-              boxShadow: `0 0 0 1px color-mix(in srgb, ${statusColor[st]} 60%, transparent)`,
-            }}
-            title={st}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+            <Box
+              sx={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                bgcolor: statusColor[st],
+                border: '2px solid var(--hotel-surface)',
+                boxShadow: `0 0 0 1px color-mix(in srgb, ${statusColor[st]} 60%, transparent)`,
+              }}
+              title={st}
+            />
+            {canEdit && (
+              /* Persistent actions at every breakpoint — the old hover reveal
+                 was undiscoverable on touch (there is no hover at any width). */
+              <ActionsMenu
+                trigger={
+                  <IconButton
+                    size="small"
+                    aria-label={`Room ${room.room_number} actions`}
+                    sx={{ width: 26, height: 26, border: `1px solid ${C.border}`, bgcolor: C.surface }}
+                  >
+                    <MoreVertIcon sx={{ fontSize: 15, color: C.ink3 }} />
+                  </IconButton>
+                }
+                actions={roomActions}
+              />
+            )}
+          </Box>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 11, color: C.ink3, flexWrap: 'wrap' }}>
           <span>{t?.code || room.room_type || '—'}</span>
@@ -786,6 +799,86 @@ const RoomConfigurationPage: React.FC = () => {
       </Box>
     );
   };
+
+  /* ---------- Shared controlled filter controls ----------
+     Both layouts render these same elements: desktop lays them out in one
+     inline row; on phone the secondary controls mount inside the
+     SearchAndFilters FilterSheet. All values/handlers live in page state, so
+     the sheet's unmount-on-close is safe. */
+  const searchField = (
+    <TextField
+      size="small"
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      placeholder="Search room number, type or floor…"
+      sx={{
+        minWidth: { xs: 0, sm: 280 },
+        width: { xs: '100%', sm: 'auto' },
+        bgcolor: C.surface,
+        '& .MuiOutlinedInput-root': { borderRadius: '9px' },
+      }}
+      slotProps={{
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchIcon sx={{ fontSize: 18, color: C.ink3 }} />
+            </InputAdornment>
+          ),
+        }
+      }}
+    />
+  );
+
+  const statusChips = (
+    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+      <StatusChip active={statusFilter === 'all'} label="All" count={counts.total} onClick={() => setStatusFilter('all')} />
+      <StatusChip active={statusFilter === 'available'} label="Available" count={counts.avail} onClick={() => setStatusFilter('available')} />
+      <StatusChip active={statusFilter === 'unavailable'} label="Unavailable" count={counts.unav} onClick={() => setStatusFilter('unavailable')} />
+      <StatusChip active={statusFilter === 'maintenance'} label="Maintenance" count={counts.maint} onClick={() => setStatusFilter('maintenance')} />
+    </Box>
+  );
+
+  const groupByToggle = (
+    <ToggleButtonGroup
+      size="small"
+      exclusive
+      value={groupBy}
+      onChange={(_, v) => v && setGroupBy(v)}
+      sx={{
+        bgcolor: C.surface,
+        '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, fontSize: 12, px: 1.5, gap: 0.75 },
+        '& .Mui-selected': { bgcolor: `${C.ink} !important`, color: 'var(--hotel-bg) !important' },
+      }}
+    >
+      <ToggleButton value="type">
+        <LayersIcon sx={{ fontSize: 15 }} /> By type
+      </ToggleButton>
+      <ToggleButton value="floor">
+        <BuildingIcon sx={{ fontSize: 15 }} /> By floor
+      </ToggleButton>
+    </ToggleButtonGroup>
+  );
+
+  // Non-default selections surfaced on the phone filter-button badge (the
+  // search stays visible so it is not counted).
+  const activeFilterCount =
+    (statusFilter !== 'all' ? 1 : 0) +
+    (groupBy !== 'type' ? 1 : 0);
+
+  const handleResetFilters = () => {
+    setQuery('');
+    setStatusFilter('all');
+    setGroupBy('type');
+  };
+
+  const sheetSectionLabel = (text: string) => (
+    <Typography
+      variant="caption"
+      sx={{ display: 'block', fontWeight: 600, color: 'text.secondary', mb: 0.75 }}
+    >
+      {text}
+    </Typography>
+  );
 
   return (
     <Box sx={{ p: 3, maxWidth: 1480, mx: 'auto' }}>
@@ -851,50 +944,42 @@ const RoomConfigurationPage: React.FC = () => {
         <StatCard label="Maintenance" value={counts.maint} color={C.amber} />
         <StatCard label="Room Types" value={counts.types} color={C.blue} />
       </Box>
-      {/* Toolbar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
-        <TextField
-          size="small"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search room number, type or floor…"
-          sx={{ minWidth: 280, bgcolor: C.surface, '& .MuiOutlinedInput-root': { borderRadius: '9px' } }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 18, color: C.ink3 }} />
-                </InputAdornment>
-              ),
-            }
-          }}
-        />
-        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-          <StatusChip active={statusFilter === 'all'} label="All" count={counts.total} onClick={() => setStatusFilter('all')} />
-          <StatusChip active={statusFilter === 'available'} label="Available" count={counts.avail} onClick={() => setStatusFilter('available')} />
-          <StatusChip active={statusFilter === 'unavailable'} label="Unavailable" count={counts.unav} onClick={() => setStatusFilter('unavailable')} />
-          <StatusChip active={statusFilter === 'maintenance'} label="Maintenance" count={counts.maint} onClick={() => setStatusFilter('maintenance')} />
-        </Box>
-        <Box sx={{ flex: 1 }} />
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={groupBy}
-          onChange={(_, v) => v && setGroupBy(v)}
+      {/* Toolbar: phone → search + badged filter sheet via SearchAndFilters;
+          desktop → the same controls in the original inline row. */}
+      {isPhone ? (
+        <Box
           sx={{
             bgcolor: C.surface,
-            '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, fontSize: 12, px: 1.5, gap: 0.75 },
-            '& .Mui-selected': { bgcolor: `${C.ink} !important`, color: 'var(--hotel-bg) !important' },
+            border: `1px solid ${C.border}`,
+            borderRadius: '12px',
+            overflow: 'hidden',
+            mb: 2,
           }}
         >
-          <ToggleButton value="type">
-            <LayersIcon sx={{ fontSize: 15 }} /> By type
-          </ToggleButton>
-          <ToggleButton value="floor">
-            <BuildingIcon sx={{ fontSize: 15 }} /> By floor
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </Box>
+          <SearchAndFilters
+            search={searchField}
+            activeFilterCount={activeFilterCount}
+            onReset={handleResetFilters}
+            sheetTitle="Room filters"
+          >
+            <Box>
+              {sheetSectionLabel('Status')}
+              {statusChips}
+            </Box>
+            <Box>
+              {sheetSectionLabel('Group by')}
+              {groupByToggle}
+            </Box>
+          </SearchAndFilters>
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
+          {searchField}
+          {statusChips}
+          <Box sx={{ flex: 1 }} />
+          {groupByToggle}
+        </Box>
+      )}
       {/* Groups */}
       {groups.length === 0 && (
         <Box
@@ -924,6 +1009,41 @@ const RoomConfigurationPage: React.FC = () => {
             : g.kind === 'floor'
             ? `Floor ${g.floor}`
             : 'Unassigned type';
+        // Same four type-level actions as the desktop icon cluster —
+        // surfaced through ActionsMenu on phone where space is tight.
+        const typeActions: ActionMenuItem[] = t
+          ? [
+              {
+                id: 'toggle-active',
+                label: t.is_active ? 'Hide from booking' : 'Show in booking',
+                icon: t.is_active ? (
+                  <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} />
+                ) : (
+                  <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />
+                ),
+                onClick: () => handleToggleTypeActive(t),
+              },
+              {
+                id: 'duplicate',
+                label: 'Duplicate',
+                icon: <CopyIcon sx={{ fontSize: 16 }} />,
+                onClick: () => handleDuplicateType(t),
+              },
+              {
+                id: 'edit',
+                label: 'Edit',
+                icon: <EditIcon sx={{ fontSize: 16 }} />,
+                onClick: () => openEditType(t),
+              },
+              {
+                id: 'delete',
+                label: 'Delete',
+                icon: <DeleteIcon sx={{ fontSize: 16 }} />,
+                destructive: true,
+                onClick: () => setTypeDeleteTarget(t),
+              },
+            ]
+          : [];
 
         return (
           <Box
@@ -1040,50 +1160,66 @@ const RoomConfigurationPage: React.FC = () => {
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-                <Box sx={{ textAlign: 'right' }}>
-                  <Box sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>
-                    <Box component="span" sx={{ color: C.emerald }}>{avail}</Box>
-                    <Box component="span" sx={{ color: C.ink3, fontWeight: 500 }}>/{total}</Box>
-                  </Box>
-                  <Typography sx={{ fontSize: 10.5, color: C.ink3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase', mt: 0.5 }}>
-                    Available
-                  </Typography>
-                  <LinearProgress
-                    variant="determinate"
-                    value={ratio}
-                    sx={{
-                      width: 90,
-                      height: 6,
-                      borderRadius: 999,
-                      mt: 0.75,
-                      bgcolor: C.surface3,
-                      '& .MuiLinearProgress-bar': { bgcolor: C.emerald },
-                    }}
-                  />
-                </Box>
-                {isType && t && canEdit && (
-                  <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
-                    <Tooltip title={t.is_active ? 'Hide from booking' : 'Show in booking'}>
-                      <IconButton size="small" onClick={() => handleToggleTypeActive(t)}>
-                        {t.is_active ? <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} /> : <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />}
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Duplicate">
-                      <IconButton size="small" onClick={() => handleDuplicateType(t)}>
-                        <CopyIcon sx={{ fontSize: 15, color: C.ink3 }} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => openEditType(t)}>
-                        <EditIcon sx={{ fontSize: 15, color: C.ink3 }} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Delete">
-                      <IconButton size="small" onClick={() => setTypeDeleteTarget(t)}>
-                        <DeleteIcon sx={{ fontSize: 15, color: C.rose }} />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
+                {isPhone ? (
+                  /* Phone: collapse the right column to the availability count
+                     plus an ActionsMenu carrying the same four type actions. */
+                  <>
+                    <Box sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+                      <Box component="span" sx={{ color: C.emerald }}>{avail}</Box>
+                      <Box component="span" sx={{ color: C.ink3, fontWeight: 500 }}>/{total}</Box>
+                    </Box>
+                    {isType && t && canEdit && (
+                      <ActionsMenu triggerLabel={`Actions for ${t.name}`} actions={typeActions} />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Box sx={{ fontSize: 22, fontWeight: 700, lineHeight: 1 }}>
+                        <Box component="span" sx={{ color: C.emerald }}>{avail}</Box>
+                        <Box component="span" sx={{ color: C.ink3, fontWeight: 500 }}>/{total}</Box>
+                      </Box>
+                      <Typography sx={{ fontSize: 10.5, color: C.ink3, fontWeight: 600, letterSpacing: '0.4px', textTransform: 'uppercase', mt: 0.5 }}>
+                        Available
+                      </Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={ratio}
+                        sx={{
+                          width: 90,
+                          height: 6,
+                          borderRadius: 999,
+                          mt: 0.75,
+                          bgcolor: C.surface3,
+                          '& .MuiLinearProgress-bar': { bgcolor: C.emerald },
+                        }}
+                      />
+                    </Box>
+                    {isType && t && canEdit && (
+                      <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                        <Tooltip title={t.is_active ? 'Hide from booking' : 'Show in booking'}>
+                          <IconButton size="small" onClick={() => handleToggleTypeActive(t)}>
+                            {t.is_active ? <ActiveIcon sx={{ fontSize: 16, color: C.emerald }} /> : <InactiveIcon sx={{ fontSize: 16, color: C.amber }} />}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Duplicate">
+                          <IconButton size="small" onClick={() => handleDuplicateType(t)}>
+                            <CopyIcon sx={{ fontSize: 15, color: C.ink3 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Edit">
+                          <IconButton size="small" onClick={() => openEditType(t)}>
+                            <EditIcon sx={{ fontSize: 15, color: C.ink3 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton size="small" onClick={() => setTypeDeleteTarget(t)}>
+                            <DeleteIcon sx={{ fontSize: 15, color: C.rose }} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    )}
+                  </>
                 )}
               </Box>
             </Box>
@@ -1317,7 +1453,7 @@ const RoomConfigurationPage: React.FC = () => {
           )}
 
           <SectionHeader>Pricing</SectionHeader>
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1.25 }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 1.25 }}>
             <TextField
               size="small"
               label="Base"
