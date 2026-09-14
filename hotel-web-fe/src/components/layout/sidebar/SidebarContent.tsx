@@ -20,27 +20,20 @@ import { UserMenu } from '../UserMenu';
 import { SidebarSection } from './SidebarSection';
 
 interface SidebarContentProps {
-  /**
-   * Icon-rail mode (72px). `AppSidebar` only passes `true` on ≥md — the
-   * temporary mobile drawer always renders expanded.
-   */
+  /** Icon-rail mode (72px). */
   collapsed: boolean;
   onToggleCollapse: () => void;
-  /** Closes the mobile drawer after a destination is picked. */
-  onNavigate?: () => void;
 }
 
 /**
- * The full sidebar body shared by the permanent desktop drawer and the
- * temporary mobile drawer: brand, command-palette trigger, New booking CTA,
- * the grouped registry nav, the account card, and the rail collapse toggle.
- * `visibleItems` uses the same `canAccessNavigationRoute` memo as
- * CommandPalette so both surfaces agree on access.
+ * The permanent desktop sidebar body: brand, command-palette trigger, New
+ * booking CTA, the grouped registry nav, the account card, and the rail
+ * collapse toggle. `visibleItems` uses the same `canAccessNavigationRoute`
+ * memo as CommandPalette so both surfaces agree on access.
  */
 export const SidebarContent: React.FC<SidebarContentProps> = ({
   collapsed,
   onToggleCollapse,
-  onNavigate,
 }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -84,7 +77,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
   const bookingsRoute = visibleItems.find((item) => item.path === '/bookings');
 
   const handleNewBooking = () => {
-    onNavigate?.();
     // The compat navigate parses the query string into TanStack search params
     // (a `to` string containing '?' would not — see router/compat.tsx).
     navigate('/bookings?create=1');
@@ -116,7 +108,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
         <Box
           component={Link}
           to="/"
-          onClick={onNavigate}
           aria-label={hotelName || 'Hotel'}
           sx={{
             display: 'flex',
@@ -278,7 +269,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({
             section={section}
             pathname={pathname}
             collapsed={collapsed}
-            onNavigate={onNavigate}
           />
         ))}
       </List>

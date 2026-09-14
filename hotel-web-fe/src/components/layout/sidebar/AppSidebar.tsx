@@ -6,20 +6,14 @@ import { SidebarContent } from './SidebarContent';
 export const SIDEBAR_WIDTH_EXPANDED = 264;
 export const SIDEBAR_WIDTH_COLLAPSED = 72;
 
-interface AppSidebarProps {
-  /** Opens the temporary drawer below `md`. */
-  mobileOpen: boolean;
-  onMobileClose: () => void;
-}
-
 /**
  * The staff shell's left navigation host. ≥md renders a permanent drawer
- * whose 264↔72 rail width persists in `storage` under 'navCollapsed'; below
- * `md` it becomes a temporary drawer driven by the topbar hamburger. Both
- * host the same `SidebarContent` — the rail is a desktop-only mode, so the
- * mobile drawer is always expanded.
+ * whose 264↔72 rail width persists in `storage` under 'navCollapsed'. Below
+ * `md` it renders nothing: phone/tablet navigation is the bottom bar plus its
+ * More sheet (see `MobileNavBar`), which already exposes every module the
+ * drawer used to — a second full menu would duplicate it.
  */
-export const AppSidebar: React.FC<AppSidebarProps> = ({ mobileOpen, onMobileClose }) => {
+export const AppSidebar: React.FC = () => {
   const theme = useTheme();
   // `noSsr` resolves the query client-side on first render — without it the
   // mobile first paint flashes the permanent desktop drawer for a frame.
@@ -34,36 +28,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ mobileOpen, onMobileClos
     storage.setItem('navCollapsed', next);
   };
 
-  const content = (
-    <SidebarContent
-      collapsed={!isNarrow && collapsed}
-      onToggleCollapse={toggle}
-      onNavigate={onMobileClose}
-    />
-  );
-
-  if (isNarrow) {
-    return (
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={onMobileClose}
-        ModalProps={{ keepMounted: true }}
-        sx={{
-          '& .MuiDrawer-paper': {
-            width: SIDEBAR_WIDTH_EXPANDED,
-            maxWidth: '85vw',
-            boxSizing: 'border-box',
-            bgcolor: 'background.paper',
-            borderRight: '1px solid',
-            borderColor: 'divider',
-          },
-        }}
-      >
-        {content}
-      </Drawer>
-    );
-  }
+  if (isNarrow) return null;
 
   const width = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
   return (
@@ -84,7 +49,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ mobileOpen, onMobileClos
         },
       }}
     >
-      {content}
+      <SidebarContent collapsed={collapsed} onToggleCollapse={toggle} />
     </Drawer>
   );
 };

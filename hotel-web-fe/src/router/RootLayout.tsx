@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useState } from 'react';
-import { Box, Container, useMediaQuery, useTheme } from '@mui/material';
+import { Box, Container } from '@mui/material';
 import { Navigate, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '../auth/AuthContext';
 import { isPublicGuestPath } from '../guest/guestDocumentPaths';
@@ -41,10 +41,6 @@ export const RootLayout: React.FC = () => {
   const isTimelinePage = pathname.startsWith('/timeline');
   const boardSkinActive =
     isAuthenticated && !isTimelinePage && !isGuestPortal && !isOffersPage && !isGuestModelHome;
-  const [navDrawerOpen, setNavDrawerOpen] = useState(false);
-  const theme = useTheme();
-  const isNarrow = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
-
   // The tab title is the configured hotel name for both the guest and staff
   // experiences; only the favicon distinguishes them. `hotelSettingsChange`
   // fires on the boot refresh and whenever Settings is saved.
@@ -155,15 +151,9 @@ export const RootLayout: React.FC = () => {
       sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}
     >
       <CommandPaletteProvider>
-        <AppSidebar
-          mobileOpen={navDrawerOpen}
-          onMobileClose={() => setNavDrawerOpen(false)}
-        />
+        <AppSidebar />
         <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <AppTopbar
-            onMenuClick={() => setNavDrawerOpen(true)}
-            isNarrow={isNarrow}
-          />
+          <AppTopbar />
           <Container
             component="main"
             maxWidth="xl"

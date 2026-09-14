@@ -10,7 +10,6 @@ interface SidebarSectionProps {
   section: NavSection;
   pathname: string;
   collapsed: boolean;
-  onNavigate?: () => void;
 }
 
 /**
@@ -25,7 +24,6 @@ export const SidebarSection: React.FC<SidebarSectionProps> = ({
   section,
   pathname,
   collapsed,
-  onNavigate,
 }) => {
   const { groupLabel } = useRouteLabels();
   const [open, setOpen] = React.useState(true);
@@ -38,7 +36,6 @@ export const SidebarSection: React.FC<SidebarSectionProps> = ({
       item={item}
       pathname={pathname}
       collapsed={collapsed}
-      onNavigate={onNavigate}
     />
   ));
 
