@@ -50,6 +50,7 @@ import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMone
 import { formatStatusLabel } from '../../../utils/formatters';
 import { getIdempotencyAttempt, type IdempotencyAttempt } from '../../../utils/idempotency';
 import { useConfirm } from '../../../components/common/ConfirmProvider';
+import { useAuth } from '../../../auth/AuthContext';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -126,6 +127,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   // there, so the inline record/edit/delete controls are hidden here.
   const isLedgerView = Boolean(ledger);
 
+  const { hasPermission } = useAuth();
+  const canCancelDeposit = !readOnly && !isLedgerView && hasPermission('payments:delete');
+
   const invalidateInvoiceState = () => {
     if (!booking) return;
     void queryClient.invalidateQueries({ queryKey: queryKeys.invoices.preview(booking.id) });
@@ -171,6 +175,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [forfeitReason, setForfeitReason] = useState('');
   const [forfeitAmount, setForfeitAmount] = useState<number>(0);
   const [forfeitingDeposit, setForfeitingDeposit] = useState(false);
+
+  // Deposit cancel/restore state — cancelling voids the deposit payment rows
+  // (deposit recorded but not collected); restore reverts that cancellation.
+  const [cancellingDeposit, setCancellingDeposit] = useState(false);
+  const [restoringDeposit, setRestoringDeposit] = useState(false);
 
   // Editable daily rates UI state
   const [editingRates, setEditingRates] = useState(false);
@@ -238,6 +247,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     (payment) => payment.payment_status === 'completed' && isDepositLikePayment(payment),
   );
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
+  // Voided deposit rows are restorable — they arrive in the all-payments
+  // payload but are filtered out of every displayed group.
+  const voidedDepositRows = payments.filter(
+    (payment) =>
+      (payment.payment_type || '').toLowerCase() === 'deposit' &&
+      payment.payment_status === 'void',
+  );
 
   // Deposit money still owed back to the guest: collected deposit rows minus
   // what has already been refunded or forfeited — the same refundable ceiling
@@ -548,6 +564,49 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setError(err instanceof Error && err.message ? err.message : 'Failed to revert deposit refund');
     } finally {
       setRevertingRefund(false);
+    }
+  };
+
+  // Cancelling marks the deposit "not collected": the deposit payment rows
+  // are kept as void (money trail + audit stay intact) and the booking
+  // mirror drops — the cancellation is reversible via Restore.
+  const handleCancelDeposit = async () => {
+    const depositRows = depositPayments.filter(
+      (p) => (p.payment_type || '').toLowerCase() === 'deposit',
+    );
+    if (depositRows.length === 0) return;
+    const accepted = await confirm({
+      title: 'Cancel deposit',
+      message: 'Marks the deposit as not collected. The payment record is kept as void and the cancellation can be reverted.',
+      confirmText: 'Cancel deposit',
+      severity: 'warning',
+    });
+    if (!accepted) return;
+    try {
+      setCancellingDeposit(true);
+      for (const row of depositRows) {
+        await InvoicesService.deletePayment(row.id);
+      }
+      await reloadPayments();
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to cancel deposit');
+    } finally {
+      setCancellingDeposit(false);
+    }
+  };
+
+  const handleRestoreDeposit = async () => {
+    if (!booking) return;
+    try {
+      setRestoringDeposit(true);
+      await InvoicesService.revertDepositVoid(booking.id);
+      await reloadPayments();
+      invalidateInvoiceState();
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : 'Failed to restore deposit');
+    } finally {
+      setRestoringDeposit(false);
     }
   };
 
@@ -1440,6 +1499,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           Forfeit Deposit
                         </Button>
                       </Grid>
+                      {canCancelDeposit && (
+                        <Grid size={12}>
+                          <Button
+                            size="small"
+                            variant="text"
+                            color="error"
+                            onClick={handleCancelDeposit}
+                            disabled={cancellingDeposit}
+                            startIcon={cancellingDeposit ? <CircularProgress size={14} /> : undefined}
+                            sx={{ fontSize: '0.75rem' }}
+                          >
+                            Cancel deposit (recorded but not collected)
+                          </Button>
+                        </Grid>
+                      )}
                     </Grid>
                   </Box>
                 )}
@@ -1486,6 +1560,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                   </Grid>
                 </Box>
+                {canCancelDeposit && voidedDepositRows.length > 0 && (
+                  <Box sx={{ px: 1.5, pb: 1.5, display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={handleRestoreDeposit}
+                      disabled={restoringDeposit}
+                      startIcon={restoringDeposit ? <CircularProgress size={14} /> : undefined}
+                      sx={{ fontSize: '0.75rem' }}
+                    >
+                      Restore deposit{voidedDepositRows.length > 1 ? ` (${voidedDepositRows.length} cancelled)` : ''}
+                    </Button>
+                  </Box>
+                )}
               </Box>
             )}
             {/* Payment Required Alert */}

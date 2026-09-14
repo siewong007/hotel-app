@@ -18,6 +18,9 @@ const mocks = vi.hoisted(() => ({
   recordPayment: vi.fn(),
   createLedgerPayment: vi.fn(),
   updatePayment: vi.fn(),
+  deletePayment: vi.fn(),
+  revertDepositVoid: vi.fn(),
+  hasPermission: vi.fn(),
   setPayments: vi.fn(),
   reloadPayments: vi.fn(),
   updateBooking: vi.fn(),
@@ -39,11 +42,16 @@ vi.mock('../../../api/invoices.service', () => ({
   InvoicesService: {
     recordPayment: (...args: unknown[]) => mocks.recordPayment(...args),
     updatePayment: (...args: unknown[]) => mocks.updatePayment(...args),
-    deletePayment: vi.fn(),
+    deletePayment: (...args: unknown[]) => mocks.deletePayment(...args),
     refundDeposit: (...args: unknown[]) => mocks.refundDeposit(...args),
     forfeitDeposit: (...args: unknown[]) => mocks.forfeitDeposit(...args),
     revertDepositRefund: vi.fn(),
+    revertDepositVoid: (...args: unknown[]) => mocks.revertDepositVoid(...args),
   },
+}));
+
+vi.mock('../../../auth/AuthContext', () => ({
+  useAuth: () => ({ hasPermission: mocks.hasPermission }),
 }));
 
 vi.mock('../../../api/ledger.service', () => ({
@@ -399,6 +407,7 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     mocks.updatePayment.mockReset().mockResolvedValue({ ...depositRow, payment_method: 'bank_transfer' });
     mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
     mocks.setPayments.mockReset();
+    mocks.hasPermission.mockReset().mockReturnValue(true);
     mocks.payments = [depositRow, billPayment];
   });
 
@@ -570,5 +579,46 @@ describe('CheckoutInvoiceModal deposit display + forfeit', () => {
     // No amount/payment_date/transaction_reference keys — sending them on a
     // posted deposit row would be rejected server-side.
     expect(Object.keys(mocks.updatePayment.mock.calls[0][1])).toEqual(['payment_method']);
+  });
+
+  it('shows Cancel deposit under payments:delete and calls deletePayment for each held deposit row', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
+    mocks.deletePayment.mockReset().mockResolvedValue({});
+    mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+
+    // Exact names: the trigger is 'Cancel deposit (recorded but not
+    // collected)', the ConfirmProvider confirm button is 'Cancel deposit'.
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel deposit (recorded but not collected)' }),
+    );
+    const confirmButton = await screen.findByRole('button', { name: 'Cancel deposit' });
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => expect(mocks.deletePayment).toHaveBeenCalledWith(depositRow.id));
+    expect(mocks.reloadPayments).toHaveBeenCalled();
+  });
+
+  it('hides Cancel deposit without payments:delete', async () => {
+    mocks.hasPermission.mockReturnValue(false);
+    renderModal(false, { deposit_paid: true, deposit_amount: 50 });
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).queryByRole('button', { name: 'Cancel deposit (recorded but not collected)' }),
+    ).toBeNull();
+  });
+
+  it('shows Restore deposit when a voided deposit row exists and calls revertDepositVoid', async () => {
+    mocks.hasPermission.mockImplementation((p: string) => p === 'payments:delete');
+    mocks.revertDepositVoid.mockReset().mockResolvedValue({ deposit_restored: true });
+    mocks.reloadPayments.mockReset().mockResolvedValue(undefined);
+    mocks.payments = [{ ...depositRow, payment_status: 'void' }];
+    renderModal(false, { deposit_paid: false });
+    const dialog = await screen.findByRole('dialog');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Restore deposit$/ }));
+    await waitFor(() => expect(mocks.revertDepositVoid).toHaveBeenCalled());
+    expect(mocks.reloadPayments).toHaveBeenCalled();
   });
 });
