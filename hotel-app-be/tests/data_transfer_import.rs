@@ -981,11 +981,17 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
     );
 
     // Positive control: a file whose child references a guest that EXISTS in
-    // the database reports no such problem.
-    let real_guest: i64 = sqlx::query_scalar("SELECT id FROM guests ORDER BY id LIMIT 1")
-        .fetch_one(&pool)
-        .await
-        .expect("the dev database has guests");
+    // the database reports no such problem. Seed our own guest — a fresh
+    // baseline+seed database has none.
+    sqlx::query(
+        "INSERT INTO guests (id, nick_name) OVERRIDING SYSTEM VALUE \
+         VALUES (920999013, 'dt-parent-probe') \
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
+    )
+    .execute(&pool)
+    .await
+    .expect("guest fixture must insert");
+    let real_guest: i64 = 920_999_013;
     let ok_rows = serde_json::json!([
         {"id": 920_999_042_i64, "guest_id": real_guest, "content": "resolvable ref"}
     ]);
@@ -1037,4 +1043,8 @@ async fn preview_flags_transferable_parent_keys_absent_from_file_and_database() 
             .await
             .expect("rollback probe must run");
     assert!(rolled_back, "the failed job must leave no partial rows");
+    sqlx::query("DELETE FROM guests WHERE id = 920999013")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
 }
