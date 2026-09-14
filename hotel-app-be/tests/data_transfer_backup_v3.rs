@@ -794,10 +794,16 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
         .await
         .expect("missing-user probe must run");
     assert!(absent, "the fixture user id must not exist");
-    let real_guest: i64 = sqlx::query_scalar("SELECT id FROM guests ORDER BY id LIMIT 1")
-        .fetch_one(&pool)
-        .await
-        .expect("the dev database has guests");
+    // Seed our own guest — a fresh baseline+seed database has none.
+    sqlx::query(
+        "INSERT INTO guests (id, nick_name) OVERRIDING SYSTEM VALUE \
+         VALUES (920944013, 'dt-missing-refs') \
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
+    )
+    .execute(&pool)
+    .await
+    .expect("guest fixture must insert");
+    let real_guest: i64 = 920_944_013;
 
     let file = v3_document(&[
         V3Entity {
@@ -933,6 +939,10 @@ async fn missing_user_refs_remap_or_skip_and_are_reported() {
         .await
         .expect("fixture cleanup must run");
     sqlx::query("DELETE FROM teams WHERE id = 920944001")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+    sqlx::query("DELETE FROM guests WHERE id = 920944013")
         .execute(&pool)
         .await
         .expect("fixture cleanup must run");
@@ -1227,14 +1237,36 @@ async fn credential_columns_cannot_be_written_by_an_import() {
         .execute(&pool)
         .await
         .expect("fixture pre-clean must run");
-    let guest_id: i64 = sqlx::query_scalar("SELECT id FROM guests ORDER BY id LIMIT 1")
-        .fetch_one(&pool)
-        .await
-        .expect("a guest fixture must exist");
-    let room_id: i64 = sqlx::query_scalar("SELECT id FROM rooms ORDER BY id LIMIT 1")
-        .fetch_one(&pool)
-        .await
-        .expect("a room fixture must exist");
+    // Self-contained fixtures — a fresh baseline+seed database seeds room_types
+    // and rooms but no guests, and the test must not depend on seed contents.
+    sqlx::query(
+        "INSERT INTO room_types (id, code, name, base_price) OVERRIDING SYSTEM VALUE \
+         VALUES (920947021, 'DTCRED', 'DT Cred Fixture', 100.00) \
+         ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name, \
+         base_price = EXCLUDED.base_price",
+    )
+    .execute(&pool)
+    .await
+    .expect("room_type fixture must insert");
+    sqlx::query(
+        "INSERT INTO rooms (id, room_number, room_type_id, status) OVERRIDING SYSTEM VALUE \
+         VALUES (920947022, 'DT-CRED', 920947021, 'available') \
+         ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, \
+         room_type_id = EXCLUDED.room_type_id, status = EXCLUDED.status",
+    )
+    .execute(&pool)
+    .await
+    .expect("room fixture must insert");
+    sqlx::query(
+        "INSERT INTO guests (id, nick_name) OVERRIDING SYSTEM VALUE \
+         VALUES (920947011, 'dt-cred-guest') \
+         ON CONFLICT (id) DO UPDATE SET nick_name = EXCLUDED.nick_name",
+    )
+    .execute(&pool)
+    .await
+    .expect("guest fixture must insert");
+    let guest_id: i64 = 920_947_011;
+    let room_id: i64 = 920_947_022;
 
     let file = v3_document(&[V3Entity {
         name: "public.bookings",
@@ -1298,6 +1330,18 @@ async fn credential_columns_cannot_be_written_by_an_import() {
     );
 
     sqlx::query("DELETE FROM bookings WHERE id = 920947001")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+    sqlx::query("DELETE FROM guests WHERE id = 920947011")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+    sqlx::query("DELETE FROM rooms WHERE id = 920947022")
+        .execute(&pool)
+        .await
+        .expect("fixture cleanup must run");
+    sqlx::query("DELETE FROM room_types WHERE id = 920947021")
         .execute(&pool)
         .await
         .expect("fixture cleanup must run");
