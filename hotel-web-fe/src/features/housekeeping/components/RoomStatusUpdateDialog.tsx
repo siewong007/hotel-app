@@ -28,11 +28,18 @@ const TARGET_HINTS: Record<string, string> = {
   out_of_order: 'Take out of service — cannot be sold',
 };
 
+/** Minimal shape — `Room` and `HousekeepingBoardRoom` both satisfy it. */
+export interface RoomStatusUpdateRoom {
+  id: string | number;
+  room_number: string;
+  status?: string;
+}
+
 interface RoomStatusUpdateDialogProps {
   open: boolean;
-  room: HousekeepingBoardRoom | null;
+  room: RoomStatusUpdateRoom | null;
   onClose: () => void;
-  onSubmit: (roomId: number, input: RoomStatusUpdateInput) => Promise<void>;
+  onSubmit: (roomId: string | number, input: RoomStatusUpdateInput) => Promise<void>;
 }
 
 export default function RoomStatusUpdateDialog({
@@ -56,10 +63,12 @@ export default function RoomStatusUpdateDialog({
 
   if (!room) return null;
 
+  const currentStatus = room.status ?? '';
+
   // Only targets the DB transition table accepts from this room's status —
   // `occupied`/`reserved`/`reserved_dirty`/`cleaning` stay booking-/system-
   // driven and are never offered (see ROOM_STATUS_TRANSITIONS).
-  const targets = ROOM_STATUS_TRANSITIONS[room.status] ?? [];
+  const targets = ROOM_STATUS_TRANSITIONS[currentStatus] ?? [];
 
   const handleSubmit = async () => {
     if (!status) {
@@ -91,7 +100,7 @@ export default function RoomStatusUpdateDialog({
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               Current:
             </Typography>
-            <StatusChip status={room.status} tone={roomStatusMeta(room.status).tone} />
+            <StatusChip status={currentStatus} tone={roomStatusMeta(currentStatus).tone} />
           </Stack>
           <FormControl fullWidth required>
             <InputLabel id="room-status-target">New status</InputLabel>

@@ -33,12 +33,21 @@ tree and removed per convention.
 
 ## P2 — later
 
-- FE test deserts (2026-08-25 update): loyalty and user settings suites are
-  covered. Still open: dashboard 0/12, audit-log 0/3, customer-ledger 0/3,
-  data-transfer 0/3, night-audit 0/3, onlineInventory 0/6 (several are
-  placeholder barrels — real code lives under api/ and admin/); thin: rooms
-  2/54, admin 7/53; remaining SettingsPage cards (hotel info, times, charges,
-  support workflow, security, appearance) not yet split into sibling components.
+- FE test deserts (2026-09-14 update): loyalty and user settings suites are
+  covered, and every `*Page` now has at least smoke + axe coverage —
+  AuditLogPage, NightAuditPage, SystemHealthPage, JobsPage,
+  ReportLibraryPage, RevenueOverviewPage, SegmentsPage, DataTransferPage,
+  ComplimentaryManagementPage, CommunicationsPage, OffersPage,
+  PromotionManagementPage, RatesPage, UserProfilePage, EkycManagementPage,
+  EkycRegistrationPage, RoomManagementPage, RoomConfigurationPage,
+  RBACManagementPage, EnrollTwoFactorPage, EmailVerificationPage all gained
+  focused test files this session (the axe runs also surfaced and fixed ~57
+  unlabeled form controls/buttons). Still thin by depth rather than coverage:
+  the big workflow pages (RoomManagementPage, EkycManagementPage,
+  RBACManagementPage, DataTransferPage) only have render-level smoke — real
+  workflow assertions remain follow-ups. Remaining SettingsPage cards
+  (hotel info, times, charges, support workflow, security, appearance) not
+  yet split into sibling components.
 - Desktop packaging: Windows/Linux CI jobs; network-fetch pgsql provisioning
   (today Homebrew/source-local only); arm or hide the updater
   (`hotel-desktop/UPDATER.md`); consolidate hand-maintained origin/proxy lists;
@@ -50,21 +59,31 @@ tree and removed per convention.
 - Notifications v2 remaining: SMS channel (separate spec), DB-editable
   transactional templates, PDF receipts.
 - UI/UX consolidation follow-ups (audit: docs/superpowers/specs/2026-09-13-ui-ux-consolidation-audit.md;
-  this session shipped dead-code removal, task-based nav regroup, /reports→/insights,
-  ledger payment-dialog merge on branch ui-ux-consolidation/2026-09-13):
-  1. converge GuestProfileDialog + GuestDetailsDialog into the guest-relations workspace;
-  2. one room-status update dialog shared by rooms + housekeeping (after the
-     in-flight room-card work lands — rooms/config.ts was dirty);
-  3. unify the three staff check-in dialogs (bookings CheckInDialog, rooms
-     ReservedCheckInDialog, EnhancedCheckInModal inside UnifiedBookingModal);
-  4. when modules/admin staff notifications land, split "delivery feed" vs
-     "staff inbox" labeling (/notifications currently renders the outbound
-     delivery log);
-  5. shared-primitive adoption sweep (DataTable has 3 users vs ~30 raw MUI
-     tables; PageHeader ~7; EmptyState ~12; parallel status chips: StatusPill,
-     VoucherStatusChip, SupportStatusChip, EkycStatusCard, RoomStatusChip/Badge);
-  6. ReportsAnalytics bespoke CSS (--ink-* vars, .kpi/.cpanel classes) vs the
-     --hotel-* token system — reconcile or document the boundary.
+  earlier sessions shipped dead-code removal, task-based nav regroup,
+  /reports→/insights, ledger payment-dialog merge). Status after the
+  2026-09-14 pass:
+  1. DONE — GuestProfileDialog/GuestDetailsDialog already share
+     GuestProfileParts in the guest-relations workspace;
+  2. DONE — rooms + housekeeping now share `RoomStatusUpdateDialog`
+     (transition-table-driven); rooms' simpler hardcoded-options dialog
+     deleted, the dialog accepts any `{id, room_number, status}` room;
+  3. PARTIAL — bookings `CheckInDialog` now composes rooms'
+     `ReservedCheckInDialog` (one shared form), and the rooms workflow was
+     moved onto the same atomic single-request check-in payload (dropped the
+     separate updateBooking + payment_status push). `EnhancedCheckInModal`
+     inside UnifiedBookingModal stays separate: it is a richer workflow
+     (full guest editing, advisory, company creation) already using the
+     atomic payload;
+  4. DONE — /notifications retitled "Guest Deliveries" (nav "Deliveries")
+     with a subtitle pointing staff alerts to the topbar bell;
+  5. PARTIAL — PageHeader adopted across admin/system pages + Guest
+     Deliveries; EmptyState in AuditLogPage; SupportStatusChip now delegates
+     to StatusChip. Deliberately kept distinct: StatusPill (dot-pill idiom),
+     EkycStatusCard (full card), RoomStatusChip/Badge (icons, tooltips,
+     pulse — different semantics). DataTable adoption still wide open;
+  6. RESOLVED — ReportsAnalytics --ink-* vars are scoped aliases onto
+     --hotel-* tokens inside `.salim-reports`; the boundary is already
+     correct, no further action.
 
 ## Decisions needed (user)
 

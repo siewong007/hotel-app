@@ -31,6 +31,7 @@ import { formatCurrency } from '../../../utils/currency';
 import { useAuth } from '../../../auth/AuthContext';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
+import PageHeader from '../../../components/common/PageHeader';
 import {
   useApprovePayment,
   usePendingPayments,
@@ -217,19 +218,11 @@ const PaymentApprovalsPage: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Typography variant="h4" sx={{ mb: 1 }}>
-        Payment Approvals
-      </Typography>
-      <Typography
-        variant="body2"
-        sx={{
-          color: "text.secondary",
-          mb: 3
-        }}>
-        Review guest-submitted bank-transfer and PayPal payment claims. Approving a bank-transfer
-        claim marks the payment complete and confirms the booking. A PayPal payment is completed
-        only after PayPal capture; unstarted attempts expire after 10 minutes.
-      </Typography>
+      <PageHeader
+        title="Payment Approvals"
+        subtitle="Review guest-submitted bank-transfer and PayPal payment claims. Approving a bank-transfer claim marks the payment complete and confirms the booking. A PayPal payment is completed only after PayPal capture; unstarted attempts expire after 10 minutes."
+        sx={{ mb: 3 }}
+      />
       {canViewConflicts && conflictEvents.length > 0 && (
         <Alert severity="warning" sx={{ mb: 3 }}>
           <AlertTitle>

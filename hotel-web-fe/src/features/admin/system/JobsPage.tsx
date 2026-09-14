@@ -19,6 +19,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 
 import { useJobFailures, useSystemHealth } from './hooks';
 import { JobsTable } from './JobsTable';
+import PageHeader from '../../../components/common/PageHeader';
 import { useIsPhone } from '../../../hooks/useIsPhone';
 import { MobileCardRow } from '../../../components/data-table/MobileCardRow';
 
@@ -31,34 +32,31 @@ const JobsPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Jobs
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Every scheduler iteration writes a heartbeat row — a quiet job still proves it is alive.
-          </Typography>
-        </Box>
-        <Tooltip title="Refresh now">
-          <span>
-            <IconButton
-              onClick={() => {
-                health.refetch();
-                failures.refetch();
-              }}
-              disabled={health.isFetching || failures.isFetching}
-              aria-label="Refresh jobs"
-            >
-              {health.isFetching || failures.isFetching ? (
-                <CircularProgress size={18} />
-              ) : (
-                <RefreshIcon />
-              )}
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
+      <PageHeader
+        title="Jobs"
+        subtitle="Every scheduler iteration writes a heartbeat row — a quiet job still proves it is alive."
+        sx={{ mb: 2 }}
+        actions={
+          <Tooltip title="Refresh now">
+            <span>
+              <IconButton
+                onClick={() => {
+                  health.refetch();
+                  failures.refetch();
+                }}
+                disabled={health.isFetching || failures.isFetching}
+                aria-label="Refresh jobs"
+              >
+                {health.isFetching || failures.isFetching ? (
+                  <CircularProgress size={18} />
+                ) : (
+                  <RefreshIcon />
+                )}
+              </IconButton>
+            </span>
+          </Tooltip>
+        }
+      />
 
       {health.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>

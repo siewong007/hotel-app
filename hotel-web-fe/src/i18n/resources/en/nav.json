@@ -71,8 +71,8 @@
       "breadcrumb": "Night Audit"
     },
     "notifications": {
-      "label": "Notifications",
-      "breadcrumb": "Notifications"
+      "label": "Deliveries",
+      "breadcrumb": "Guest Deliveries"
     },
     "online-inventory": {
       "label": "Online Inventory",
