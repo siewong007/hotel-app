@@ -147,7 +147,7 @@ decisions (due dates, occupancy gating, report windows) — never
 
 ## Guest relations
 
-The staff CRM workspace (`modules/guest_relations/`, `/guest-relations/guests`)
+The staff CRM workspace (`modules/guest_relations/`, `/guest-relations`)
 is a join surface over the canonical `guests` identity — interactions,
 preferences, reviews, loyalty, vouchers, support, and communications read under
 one `/guests/{id}` tree without owning those domains. Boundary table, identity
