@@ -123,6 +123,42 @@ pub struct RevenueOverview {
     pub pipeline: RevenuePipeline,
 }
 
+/// One ageing bucket in the receivables summary. `key` is stable for the UI.
+#[derive(Debug, Serialize)]
+pub struct ReceivablesBucket {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub total: Decimal,
+    pub count: i64,
+}
+
+/// A debtor row inside the receivables drawer table.
+#[derive(Debug, Serialize)]
+pub struct DebtorRow {
+    /// Guest name or company name (falls back to `billing_name`).
+    pub name: String,
+    pub invoice_number: String,
+    pub balance: Decimal,
+    /// Bucket label matching `ReceivablesBucket::label`.
+    pub bucket: &'static str,
+    pub due_date: Option<NaiveDate>,
+    /// Stay context: the booking's room number when one is assigned.
+    pub room: Option<String>,
+}
+
+/// `GET /api/revenue/receivables` — invoice ageing + top debtors.
+#[derive(Debug, Serialize)]
+pub struct Receivables {
+    /// Hotel business date the ageing was computed against.
+    pub as_of: NaiveDate,
+    pub total: Decimal,
+    pub buckets: Vec<ReceivablesBucket>,
+    /// Top guest debtors (`bill_to_guest_id` set), by balance desc.
+    pub guests: Vec<DebtorRow>,
+    /// Top company debtors (`bill_to_corporate_id` set), by balance desc.
+    pub companies: Vec<DebtorRow>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct RateCalendarQuery {
     pub from: Option<String>,

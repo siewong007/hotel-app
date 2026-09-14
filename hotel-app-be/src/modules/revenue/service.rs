@@ -3,9 +3,9 @@ use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 use super::models::{
-    RateCalendar, RateCalendarQuery, RevenueChannelMix, RevenueDailyPoint, RevenueKpis,
-    RevenueOverview, RevenueOverviewQuery, RevenuePipeline, RevenueRangeInfo,
-    RoomTypePerformance,
+    DebtorRow, RateCalendar, RateCalendarQuery, Receivables, ReceivablesBucket,
+    RevenueChannelMix, RevenueDailyPoint, RevenueKpis, RevenueOverview,
+    RevenueOverviewQuery, RevenuePipeline, RevenueRangeInfo, RoomTypePerformance,
 };
 use super::repository::{RevenueRepository, StaySums};
 use super::validation::{RevenueRange, revenue_range};
@@ -21,6 +21,28 @@ const DEFAULT_RANGE_DAYS: i64 = 30;
 
 /// Default rate-calendar window: two weeks starting today.
 const DEFAULT_CALENDAR_DAYS: i64 = 14;
+
+/// Ageing buckets by days past `COALESCE(due_date, issue_date)`; `<= 0` is
+/// "Current" (issued but not yet due).
+const AGE_BUCKETS: [(&str, &str); 5] = [
+    ("current", "Current"),
+    ("1_30", "1–30 days"),
+    ("31_60", "31–60 days"),
+    ("61_90", "61–90 days"),
+    ("90_plus", "90+ days"),
+];
+
+const TOP_DEBTORS: usize = 5;
+
+fn age_bucket(days_past_due: i64) -> (&'static str, &'static str) {
+    match days_past_due {
+        i64::MIN..=0 => AGE_BUCKETS[0],
+        1..=30 => AGE_BUCKETS[1],
+        31..=60 => AGE_BUCKETS[2],
+        61..=90 => AGE_BUCKETS[3],
+        _ => AGE_BUCKETS[4],
+    }
+}
 
 pub struct RevenueService;
 
@@ -88,6 +110,56 @@ impl RevenueService {
             channels,
             room_types,
             pipeline,
+        })
+    }
+
+    /// Receivables ageing + top debtors, anchored to the hotel business day.
+    /// Invoices are fetched once and bucketed in Rust so the boundary rules
+    /// stay unit-testable.
+    pub async fn receivables(pool: &DbPool) -> Result<Receivables, ApiError> {
+        let today = hotel_today(pool).await.map_err(ApiError::from)?;
+        let open = RevenueRepository::open_invoices(pool).await?;
+
+        let mut buckets: Vec<ReceivablesBucket> = AGE_BUCKETS
+            .iter()
+            .map(|(key, label)| ReceivablesBucket {
+                key,
+                label,
+                total: Decimal::ZERO,
+                count: 0,
+            })
+            .collect();
+        let mut guests: Vec<DebtorRow> = Vec::new();
+        let mut companies: Vec<DebtorRow> = Vec::new();
+        let mut total = Decimal::ZERO;
+
+        for mut inv in open {
+            let days = (today - inv.anchor).num_days();
+            let (key, label) = age_bucket(days);
+            let bucket = buckets.iter_mut().find(|b| b.key == key).unwrap();
+            bucket.total += inv.debtor.balance;
+            bucket.count += 1;
+            total += inv.debtor.balance;
+            inv.debtor.bucket = label;
+            // `bill_to_corporate_id` marks company receivables; everything
+            // else (guest-linked or unclassified billing name) lands on the
+            // guest tab.
+            if inv.corporate_id.is_some() {
+                companies.push(inv.debtor);
+            } else {
+                guests.push(inv.debtor);
+            }
+        }
+
+        guests.truncate(TOP_DEBTORS);
+        companies.truncate(TOP_DEBTORS);
+
+        Ok(Receivables {
+            as_of: today,
+            total,
+            buckets,
+            guests,
+            companies,
         })
     }
 
@@ -370,6 +442,19 @@ mod tests {
         assert_eq!(daily[1].other_revenue, Decimal::from(75));
         assert_eq!(daily[1].room_nights_sold, 0);
         assert!(daily[0].date < daily[1].date);
+    }
+
+    #[test]
+    fn ageing_bucket_boundaries() {
+        assert_eq!(age_bucket(-5).0, "current");
+        assert_eq!(age_bucket(0).0, "current");
+        assert_eq!(age_bucket(1).0, "1_30");
+        assert_eq!(age_bucket(30).0, "1_30");
+        assert_eq!(age_bucket(31).0, "31_60");
+        assert_eq!(age_bucket(60).0, "31_60");
+        assert_eq!(age_bucket(61).0, "61_90");
+        assert_eq!(age_bucket(90).0, "61_90");
+        assert_eq!(age_bucket(91).0, "90_plus");
     }
 
     #[test]

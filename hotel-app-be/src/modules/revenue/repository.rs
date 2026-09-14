@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 
 use super::models::{
-    RateCalendarCell, RateCalendarRoomType, RevenueChannelMix, RevenueDailyPoint,
+    DebtorRow, RateCalendarCell, RateCalendarRoomType, RevenueChannelMix, RevenueDailyPoint,
     RoomTypePerformance,
 };
 use super::validation::RevenueRange;
@@ -35,6 +35,15 @@ pub struct PipelineSums {
     /// Completed payments minus same-range refunds.
     pub collected: Decimal,
     pub outstanding: Decimal,
+}
+
+/// One open invoice with debtor identity resolved; ageing is computed in the
+/// service so the bucketing rules stay unit-testable.
+pub struct OpenInvoice {
+    pub corporate_id: Option<uuid::Uuid>,
+    pub debtor: DebtorRow,
+    /// `COALESCE(due_date, issue_date)` — the date ageing anchors to.
+    pub anchor: NaiveDate,
 }
 
 pub struct RevenueRepository;
@@ -329,6 +338,57 @@ impl RevenueRepository {
                 - row.get::<Decimal, _>("refunded"),
             outstanding: row.get("outstanding"),
         })
+    }
+
+    /// Every open invoice (`issued`/`overdue` with a positive balance) with
+    /// the debtor name resolved — guest nick_name, company name, or the
+    /// invoice's own `billing_name` as fallback.
+    pub async fn open_invoices(pool: &DbPool) -> Result<Vec<OpenInvoice>, ApiError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT i.invoice_number, i.billing_name,
+                   i.bill_to_guest_id, i.bill_to_corporate_id,
+                   i.issue_date, i.due_date, i.balance_due,
+                   COALESCE(i.due_date, i.issue_date) AS anchor,
+                   g.nick_name AS guest_name,
+                   ca.name AS company_name,
+                   r.room_number
+            FROM invoices i
+            LEFT JOIN guests g ON g.id = i.bill_to_guest_id
+            LEFT JOIN corporate_accounts ca ON ca.id = i.bill_to_corporate_id
+            LEFT JOIN bookings b ON b.id = i.booking_id
+            LEFT JOIN rooms r ON r.id = b.room_id
+            WHERE i.balance_due > 0
+              AND i.status IN ('issued', 'overdue')
+            ORDER BY i.balance_due DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
+        Ok(rows
+            .iter()
+            .map(|row| {
+                let guest_name: Option<String> = row.get("guest_name");
+                let company_name: Option<String> = row.get("company_name");
+                let billing_name: String = row.get("billing_name");
+                OpenInvoice {
+                    corporate_id: row.get("bill_to_corporate_id"),
+                    anchor: row.get("anchor"),
+                    debtor: DebtorRow {
+                        name: company_name
+                            .or(guest_name)
+                            .unwrap_or(billing_name),
+                        invoice_number: row.get("invoice_number"),
+                        balance: row.get::<Decimal, _>("balance_due"),
+                        // Filled by the service once the age is known.
+                        bucket: "",
+                        due_date: row.get("due_date"),
+                        room: row.get("room_number"),
+                    },
+                }
+            })
+            .collect())
     }
 
     /// Channel attribution for bookings CREATED in the range. Bookings with no
