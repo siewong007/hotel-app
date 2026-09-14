@@ -361,8 +361,25 @@
   .salim-reports .cmp { width: 100%; justify-content: space-between; margin-top: 4px; }
   .salim-reports .seg { flex: 1; }
   .salim-reports .seg button { flex: 1; }
-  .salim-reports .livetile { padding: 12px 14px; }
+  /* Live tiles + KPI cards become horizontal snap-strips (StatStrip-style)
+     instead of stacking six deep ahead of the charts. */
+  .salim-reports .live-tiles {
+    display: flex; overflow-x: auto; scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .salim-reports .livetile {
+    flex: 0 0 46%; min-width: 148px; scroll-snap-align: start; border-bottom: 0;
+    padding: 12px 14px;
+  }
   .salim-reports .lt-n { font-size: 22px; }
+  .salim-reports .kpis {
+    display: flex; overflow-x: auto; scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch; padding-bottom: 4px;
+  }
+  /* direct children: .kpi buttons and .locked wrappers alike */
+  .salim-reports .kpis > * {
+    flex: 0 0 68%; min-width: 236px; max-width: 300px; scroll-snap-align: start;
+  }
   .salim-reports .barrow,
   .salim-reports-drawer .barrow { grid-template-columns: 96px 1fr auto; gap: 8px; }
   .salim-reports .donut-wrap { flex-direction: column; align-items: center; }
@@ -373,3 +390,22 @@
   .salim-reports-drawer .dw-h .x { width: 44px; height: 44px; }
 }
 .salim-reports-drawer .dw-foot { padding-bottom: calc(13px + env(safe-area-inset-bottom, 0px)); }
+
+/* ---------- PHONE BOTTOM SHEET + COLLAPSED PANELS ---------- */
+/* On phones the same drawer content renders inside the shared MUI
+   BottomSheet: keeping .salim-reports-drawer on the wrapper preserves every
+   .dw-* rule and the token aliases, while .salim-reports-sheet strips the
+   fixed side-panel geometry. */
+.salim-reports-drawer.salim-reports-sheet {
+  position: static; top: auto; right: auto; bottom: auto;
+  width: auto; transform: none; transition: none;
+  border-left: 0; box-shadow: none; background: transparent;
+}
+.salim-reports-drawer.salim-reports-sheet .dw-body { padding: 2px 0 14px; overflow-y: visible; flex: none; }
+.salim-reports-drawer.salim-reports-sheet .dw-foot { padding: 12px 0 4px; background: transparent; }
+.salim-reports-sheet-sub { display: block; font-size: 11.5px; font-weight: 500; color: var(--hotel-text-muted); margin-top: 1px; }
+
+/* Headless chart panel inside CollapsibleSection on phones: the header
+   extras (legends, drill-in arrows) move to the top of the body. */
+.salim-reports .cpanel-ptitle { display: inline-flex; align-items: center; gap: 7px; }
+.salim-reports .cpanel-tools { display: flex; justify-content: flex-end; margin-bottom: 10px; }

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Icon, IconName } from './Icon';
 import { BarRows, Money, Pill } from './charts';
 import { useReportsFormat } from './formatContext';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { BottomSheet } from '../../../../components/common/BottomSheet';
 import type { ReportsModel } from './reportsModel';
 
 interface DrawerShellProps {
@@ -15,8 +17,23 @@ interface DrawerShellProps {
   foot?: React.ReactNode;
 }
 
-const Drawer: React.FC<DrawerShellProps> = ({ open, onClose, icon, title, sub, children, foot }) =>
-  createPortal(
+const Drawer: React.FC<DrawerShellProps> = ({ open, onClose, icon, title, sub, children, foot }) => {
+  const isPhone = useIsPhone();
+  if (isPhone) {
+    // Phones get the shared BottomSheet. The .salim-reports-drawer class is
+    // kept on the content wrapper so every .dw-* rule and token alias still
+    // applies; .salim-reports-sheet strips the fixed side-panel geometry.
+    return (
+      <BottomSheet open={open} onClose={onClose}
+        title={<>{title}{sub && <span className="salim-reports-sheet-sub">{sub}</span>}</>}>
+        <div className="salim-reports-drawer salim-reports-sheet">
+          <div className="dw-body">{children}</div>
+          {foot && <div className="dw-foot">{foot}</div>}
+        </div>
+      </BottomSheet>
+    );
+  }
+  return createPortal(
     <>
       <div className={'salim-reports-scrim' + (open ? ' is-on' : '')} onClick={onClose} />
       <aside className={'salim-reports-drawer' + (open ? ' is-on' : '')} role="dialog" aria-hidden={!open}>
@@ -38,6 +55,7 @@ const Drawer: React.FC<DrawerShellProps> = ({ open, onClose, icon, title, sub, c
     </>,
     document.body,
   );
+};
 
 function ageTone(a: string) {
   if (a === 'Current') return 'green' as const;

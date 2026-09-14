@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Alert, Skeleton, Box } from '@mui/material';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import { CollapsibleSection } from '../../../../components/common/CollapsibleSection';
 import { useAuth } from '../../../../auth/AuthContext';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { Icon, IconName } from './Icon';
@@ -56,21 +58,53 @@ const Legend: React.FC<{ items: { label: string; color: string }[] }> = ({ items
 const Panel: React.FC<{
   title: string; icon?: IconName; sub?: string; right?: React.ReactNode;
   children: React.ReactNode; clickable?: boolean; onClick?: () => void;
-}> = ({ title, icon, sub, right, children, clickable, onClick }) => (
-  <section className="cpanel" data-clickable={!!clickable} onClick={clickable ? onClick : undefined}>
-    <div className="cpanel-h">
-      <div className="cpanel-t">
-        {icon && <span className="cpanel-ico"><Icon name={icon} size={15} /></span>}
-        <div className="cpanel-tt">
-          <div className="cpanel-title">{title}</div>
-          {sub && <div className="cpanel-sub">{sub}</div>}
+  /** On phones, render the panel headless inside a CollapsibleSection whose
+      header carries the title — progressive disclosure for the stacked
+      chart panels. Desktop markup is untouched. */
+  phoneCollapsible?: boolean;
+  /** With `phoneCollapsible`: start collapsed on phone viewports. */
+  collapseOnPhone?: boolean;
+}> = ({ title, icon, sub, right, children, clickable, onClick, phoneCollapsible, collapseOnPhone }) => {
+  const isPhone = useIsPhone();
+  if (isPhone && phoneCollapsible) {
+    return (
+      <CollapsibleSection
+        title={
+          <span className="cpanel-ptitle">
+            {icon && <Icon name={icon} size={14} />}
+            {title}
+          </span>
+        }
+        subtitle={sub}
+        collapseOnPhone={collapseOnPhone}
+      >
+        <section className="cpanel" data-clickable={!!clickable} onClick={clickable ? onClick : undefined}>
+          <div className="cpanel-b">
+            {/* header extras (legends, drill-in arrows) move into the body so
+                the collapse header stays a single tap target */}
+            {right && <div className="cpanel-tools">{right}</div>}
+            {children}
+          </div>
+        </section>
+      </CollapsibleSection>
+    );
+  }
+  return (
+    <section className="cpanel" data-clickable={!!clickable} onClick={clickable ? onClick : undefined}>
+      <div className="cpanel-h">
+        <div className="cpanel-t">
+          {icon && <span className="cpanel-ico"><Icon name={icon} size={15} /></span>}
+          <div className="cpanel-tt">
+            <div className="cpanel-title">{title}</div>
+            {sub && <div className="cpanel-sub">{sub}</div>}
+          </div>
         </div>
+        {right}
       </div>
-      {right}
-    </div>
-    <div className="cpanel-b">{children}</div>
-  </section>
-);
+      <div className="cpanel-b">{children}</div>
+    </section>
+  );
+};
 
 const LiveTile: React.FC<{ icon: IconName; n: React.ReactNode; label: string; tone: string; onClick?: () => void; suffix?: string }> = ({ icon, n, label, tone, onClick, suffix }) => (
   <button className={'livetile t-' + tone} onClick={onClick} data-clickable={!!onClick}>
@@ -129,6 +163,7 @@ const ReportsAnalyticsInner: React.FC = () => {
   const { hasPermission, hasRole } = useAuth();
   const { fmtMoney, fmtMoneyK, fmtPct } = useReportsFormat();
   const { model, loading, error } = useReportsModel();
+  const isPhone = useIsPhone();
   const [compare, setCompare] = useState<Compare>('prev');
   const [drawer, setDrawer] = useState<DrawerState>(null);
   const hotelName = getHotelSettings().hotel_name;
@@ -170,12 +205,17 @@ const ReportsAnalyticsInner: React.FC = () => {
 
       {/* FILTERS */}
       <div className="filters">
-        <FPill icon="calendar" label="Last 30 days" />
-        <FPill icon="building" label="Property" value="Main" />
-        <FPill icon="bed" label="Room type" value="All" />
-        <FPill icon="globe" label="Source" value="All" />
-        <FPill icon="filter" label="Status" value="All" />
-        <div className="filters-spacer" />
+        {/* decorative pills — no filter function; phones keep only Compare */}
+        {!isPhone && (
+          <>
+            <FPill icon="calendar" label="Last 30 days" />
+            <FPill icon="building" label="Property" value="Main" />
+            <FPill icon="bed" label="Room type" value="All" />
+            <FPill icon="globe" label="Source" value="All" />
+            <FPill icon="filter" label="Status" value="All" />
+            <div className="filters-spacer" />
+          </>
+        )}
         <div className="cmp">
           <span className="cmp-l">Compare</span>
           <Seg value={compare} onChange={setCompare} options={[
@@ -228,7 +268,7 @@ const ReportsAnalyticsInner: React.FC = () => {
           {/* CHARTS — revenue trend + source mix */}
           <div className="chart-row two">
             {canViewFinancials ? (
-              <Panel title="Daily revenue trend" icon="chart"
+              <Panel phoneCollapsible title="Daily revenue trend" icon="chart"
                 sub={`Room ${fmtMoneyK(model.roomRev)} · Other ${fmtMoneyK(model.otherRev)} · last 30 days`}
                 right={<Legend items={[{ label: 'Room revenue', color: 'var(--emerald)' }, { label: 'Other revenue', color: 'var(--blue)' }]} />}>
                 <LineAreaChart data={model.daily} height={250}
@@ -236,13 +276,13 @@ const ReportsAnalyticsInner: React.FC = () => {
                   yFmt={(v) => fmtMoneyK(v)} xEvery={5} />
               </Panel>
             ) : (
-              <Panel title="Daily revenue trend" icon="chart" sub="Revenue analytics">
+              <Panel phoneCollapsible title="Daily revenue trend" icon="chart" sub="Revenue analytics">
                 <Locked label="Finance only"><div style={{ height: 250 }} /></Locked>
               </Panel>
             )}
 
             {canViewFinancials ? (
-              <Panel title="Booking source mix" icon="globe" sub="By room revenue">
+              <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe" sub="By room revenue">
                 <div className="donut-wrap">
                   <Donut data={model.sources} centerTop={fmtMoneyK(sourceTotal)} centerSub="Total" />
                   <div className="donut-leg">
@@ -257,7 +297,7 @@ const ReportsAnalyticsInner: React.FC = () => {
                 </div>
               </Panel>
             ) : (
-              <Panel title="Booking source mix" icon="globe">
+              <Panel phoneCollapsible collapseOnPhone title="Booking source mix" icon="globe">
                 <Locked label="Finance only"><div style={{ height: 200 }} /></Locked>
               </Panel>
             )}
@@ -265,7 +305,7 @@ const ReportsAnalyticsInner: React.FC = () => {
 
           {/* CHARTS — occupancy trend + room type */}
           <div className="chart-row two">
-            <Panel title="Occupancy trend" icon="percent"
+            <Panel phoneCollapsible collapseOnPhone title="Occupancy trend" icon="percent"
               sub={`Avg ${fmtPct(k.occupancy.value)} · ${model.periodRooms} rooms · last 30 days`}
               right={<Legend items={[{ label: 'Daily occupancy', color: accent }]} />}>
               <LineAreaChart data={model.daily} height={230} pct
@@ -274,14 +314,14 @@ const ReportsAnalyticsInner: React.FC = () => {
             </Panel>
 
             {canViewFinancials ? (
-              <Panel title="Room type performance" icon="bed" sub="By revenue">
+              <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed" sub="By revenue">
                 <BarRows rows={model.roomTypes.map((r) => ({
                   label: r.type, value: r.rev, color: 'var(--emerald)',
                   display: fmtMoneyK(r.rev), sub: `${fmtPct(r.occ, 0)} occ · ${fmtMoney(r.adr)} ADR`,
                 }))} />
               </Panel>
             ) : (
-              <Panel title="Room type performance" icon="bed">
+              <Panel phoneCollapsible collapseOnPhone title="Room type performance" icon="bed">
                 <Locked label="Finance only"><div style={{ height: 200 }} /></Locked>
               </Panel>
             )}
@@ -290,14 +330,14 @@ const ReportsAnalyticsInner: React.FC = () => {
           {/* CHARTS — ageing + arrivals + departures */}
           <div className="chart-row thirds">
             {canViewFinancials ? (
-              <Panel title="Outstanding ageing" icon="wallet" clickable onClick={() => open({ type: 'outstanding' })}
+              <Panel phoneCollapsible collapseOnPhone title="Outstanding ageing" icon="wallet" clickable onClick={() => open({ type: 'outstanding' })}
                 sub="Click to drill down" right={<Icon name="arrow-up-right" size={14} style={{ color: 'var(--ink-4)' }} />}>
                 <BarRows rows={model.ageing.map((a) => ({
                   label: a.bucket, value: a.value, color: a.color, display: fmtMoneyK(a.value),
                 }))} />
               </Panel>
             ) : (
-              <Panel title="Outstanding ageing" icon="wallet">
+              <Panel phoneCollapsible collapseOnPhone title="Outstanding ageing" icon="wallet">
                 <Locked label="Finance only"><div style={{ height: 160 }} /></Locked>
               </Panel>
             )}
