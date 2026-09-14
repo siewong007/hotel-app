@@ -94,22 +94,34 @@ through the provider when rendered in the guest document. `LanguageSwitcher`,
   `createHotelTheme(guestTokensFor(mode), { displaySerif: true })`; export
   `guestPortalCssVars(mode)` (calls the now-exported `cssVarDeclarations`).
 
-### 2. Theming flow
+### 2. Theming flow — Light / Dark / System
 
-- `GuestApp.tsx`: `createGuestPortalTheme(themeMode)` replaces
+- New guest-only preference, stored under a **separate** key `guestThemeMode`
+  (`'light' | 'dark' | 'system'`, default `'system'`; falls back to the legacy
+  `themeMode` value once when present). Keeping it out of the shared
+  `themeMode` key means the staff app's `normalizeThemeMode` never sees
+  `'system'` — zero blast radius.
+- `GuestApp.tsx`: resolves `preference` → effective `ThemeMode` via
+  `window.matchMedia('(prefers-color-scheme: dark)')` (guarded for jsdom,
+  live `change` listener), keeps `ThemeModeContext` populated with the
+  *effective* mode, and provides a new
+  `GuestThemePreferenceContext { preference, onPreferenceChange }`.
+  `createGuestPortalTheme(effectiveMode)` replaces
   `createAppTheme(themeMode)` → its `CssBaseline` publishes guest `--hotel-*`
   vars on `:root` for the whole guest document, including portaled overlays
-  (dialogs, menus, drawers, One Tap). Staff app unaffected (separate document).
+  (dialogs, menus, drawers, One Tap). Staff app unaffected (separate
+  document, separate storage key).
 - `GuestPortalThemeProvider`: accepts/derives `mode` from `ThemeModeContext`
-  (via `useContext`, falling back to stored mode — `useThemeMode` throws when
-  no provider exists and tests render components bare). Provides the guest MUI
-  theme **and** wraps children in a `Box` carrying `guestPortalCssVars(mode)`
-  as scoped custom properties. This keeps the staff-app compat render of
-  `/guest-portal` (which shares `index.html` with the staff theme)
-  guest-branded for inline content.
-- The shell's theme-toggle item likewise reads `ThemeModeContext` via
-  `useContext` and is only rendered when the context is present (both real
-  apps provide it; bare test renders do not).
+  (via `useContext`, falling back to the resolved stored/staff mode —
+  `useThemeMode` throws when no provider exists and tests render components
+  bare). Provides the guest MUI theme **and** wraps children in a `Box`
+  carrying `guestPortalCssVars(mode)` as scoped custom properties. This keeps
+  the staff-app compat render of `/guest-portal` (which shares `index.html`
+  with the staff theme) guest-branded for inline content.
+- The **Preferences** section gains an "Appearance" card (System / Light /
+  Dark radio group) consuming `GuestThemePreferenceContext` via `useContext`;
+  the card is hidden when the context is absent (staff-doc compat renders,
+  bare tests). No theme control in the shell menus.
 - `GuestRootLayout`: wrap `page` in `GuestPortalThemeProvider` in every branch,
   so auth, guest-checkin, offers (already self-wrapped — becomes a no-op
   duplicate, kept for safety), legal, and unsubscribe all render under the
@@ -126,9 +138,7 @@ Desktop AppBar (always `GUEST_BRAND.bg` forest):
   **account menu** — `Avatar` with guest initials (from `useAuth().user`:
   `full_name` → `username` fallback) + name on lg+, opening a `Menu`:
   identity header (name + email), Profile, Identity, Security, Preferences,
-  divider, theme toggle item ("Dark"/"Light" with icon, calls
-  `onThemeModeChange`), Explore hotel (external ↗), divider, **Sign out**
-  (danger).
+  divider, Explore hotel (external ↗), divider, **Sign out** (danger).
 - Far right: gold **Book a stay** contained CTA (`GUEST_BRAND.accent` bg,
   `accentText` label).
 
@@ -137,7 +147,7 @@ token-driven colors; **More sheet** redesigned:
 - Identity header (avatar, name, email) + close affordance.
 - Group `Rewards`: Offers, Vouchers, Free nights.
 - Group `Account`: Profile, Identity, Security, Preferences.
-- Utility rows: theme toggle, Explore hotel (external).
+- Utility rows: Explore hotel (external).
 - **Sign out** row, danger-styled, at the bottom.
 
 Removes `FOREST`/`LINEN`/`GOLD` aliases; keeps skip-link, safe-area padding,
@@ -170,6 +180,9 @@ unchanged.
   `ProfileSection`, `SecuritySection`, `DevicesSection`, `IdentitySection`:
   replace FOREST/GOLD aliases with direct `var(--hotel-*)` refs; normalize
   headings/spacing to the SectionHeading pattern where already present.
+- `PortalNotificationPreferences` section: add the "Appearance" card
+  described in §2 (System / Light / Dark), rendered above the notification
+  channels and only when `GuestThemePreferenceContext` is present.
 - `GuestPortalNotificationBell`: urgent receipt CTA `color="secondary"` →
   `color="error"` contained; badge border uses `--hotel-surface`.
 - `PortalSupportWidget`: panel header stays gold-accented or moves to
@@ -198,8 +211,9 @@ unchanged.
 
 New keys in `guestPortal.json` (en + ms): `nav.rewards` ("Rewards"), account
 menu labels reusing existing `nav.*` section keys, `account.title`
-("Account"), `account.signOut` ("Sign out"), `account.theme` /
-`account.themeLight` / `account.themeDark`, `account.exploreHotel` reuse.
+("Account"), `account.signOut` ("Sign out"), `account.exploreHotel` reuse,
+plus `preferences.appearance` ("Appearance"), `preferences.themeSystem`
+("System — follow browser"), `preferences.themeLight`, `preferences.themeDark`.
 
 ## Testing
 
@@ -207,8 +221,9 @@ menu labels reusing existing `nav.*` section keys, `account.title`
   out, More sheet groups), `PortalDashboardPage.test.tsx` (no card header/sign
   out), `PortalDashboardSections.test.tsx` (booking action consolidation),
   `OffersPage.test.tsx`, `GuestPortalThemeProvider.test.tsx` (mode behavior).
-- New coverage: theme toggle item switches `themeMode` via context; sign out
-  calls both logouts; `?section=` mapping and deep-link support unchanged.
+- New coverage: Appearance card writes `guestThemeMode` and re-themes;
+  `'system'` resolves through a mocked `matchMedia`; sign out calls both
+  logouts; `?section=` mapping and deep-link support unchanged.
 - Gates: `bun run typecheck && bun run lint && bun run test && bun run build`
   in `hotel-web-fe/`.
 
