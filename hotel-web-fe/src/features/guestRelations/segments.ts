@@ -1,4 +1,4 @@
-import type { Guest } from '../../types';
+import type { Guest, GuestListSegment } from '../../types';
 import {
   getGuestSegmentQueryParams,
   guestHasMissingProfileInfo,
@@ -10,20 +10,27 @@ import {
 /**
  * Guest Relations list segments — the legacy guests segment set plus the CRM
  * filters the list endpoint now supports (`vip`, `blacklisted`,
- * `has_open_support`). Boolean filters are only ever sent as `true`; an absent
- * key means "no filter" (the backend treats `false` the same, but keeping it
- * out of the query string keeps URLs and query keys clean).
+ * `has_open_support`) and the booking-derived `segment` filter (`returning`,
+ * `in_house`, `upcoming`, `inactive`). Boolean filters are only ever sent as
+ * `true`; an absent key means "no filter" (the backend treats `false` the
+ * same, but keeping it out of the query string keeps URLs and query keys
+ * clean).
  */
 export type GuestRelationsSegment =
   | GuestSegment
   | 'vip'
   | 'blacklisted'
-  | 'openRequests';
+  | 'openRequests'
+  | 'returning'
+  | 'inHouse'
+  | 'upcoming'
+  | 'inactive';
 
 export interface GuestRelationsSegmentQueryParams extends GuestSegmentQueryParams {
   vip?: boolean;
   blacklisted?: boolean;
   has_open_support?: boolean;
+  segment?: GuestListSegment;
 }
 
 export const getGuestRelationsSegmentQueryParams = (
@@ -38,6 +45,14 @@ export const getGuestRelationsSegmentQueryParams = (
       // Backend "open" mirrors the staff inbox: every status but 'closed'
       // ('resolved' stays reopenable, so it still counts).
       return { has_open_support: true };
+    case 'returning':
+      return { segment: 'returning' };
+    case 'inHouse':
+      return { segment: 'in_house' };
+    case 'upcoming':
+      return { segment: 'upcoming' };
+    case 'inactive':
+      return { segment: 'inactive' };
     default:
       return getGuestSegmentQueryParams(segment);
   }
@@ -65,8 +80,14 @@ export const guestMatchesSegment = (guest: Guest, segment: GuestRelationsSegment
     case 'blacklisted':
       return guest.is_blacklisted === true;
     case 'openRequests':
-      // The list payload carries no per-row open-support flag — the filter is
-      // server-side only, so every returned row is a match by definition.
+      return guest.has_open_support === true;
+    case 'returning':
+    case 'inHouse':
+    case 'upcoming':
+    case 'inactive':
+      // Derived from booking history on the backend — the list payload
+      // carries no per-row segment field, so every returned row is a match
+      // by definition.
       return true;
     case 'all':
     default:
@@ -86,6 +107,10 @@ export const getGuestRelationsSegmentCounts = ({
   vip,
   blacklisted,
   openRequests,
+  returning,
+  inHouse,
+  upcoming,
+  inactive,
 }: {
   total: number;
   members: number;
@@ -95,6 +120,10 @@ export const getGuestRelationsSegmentCounts = ({
   vip: number;
   blacklisted: number;
   openRequests: number;
+  returning: number;
+  inHouse: number;
+  upcoming: number;
+  inactive: number;
 }): GuestRelationsSegmentCounts => ({
   all: total,
   member: members,
@@ -105,6 +134,10 @@ export const getGuestRelationsSegmentCounts = ({
   vip,
   blacklisted,
   openRequests,
+  returning,
+  inHouse,
+  upcoming,
+  inactive,
 });
 
 export const GUEST_RELATIONS_SEGMENTS: ReadonlyArray<{
@@ -120,4 +153,8 @@ export const GUEST_RELATIONS_SEGMENTS: ReadonlyArray<{
   { key: 'vip', label: 'VIP' },
   { key: 'blacklisted', label: 'Blacklisted' },
   { key: 'openRequests', label: 'Open requests' },
+  { key: 'returning', label: 'Returning' },
+  { key: 'inHouse', label: 'In house' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'inactive', label: 'Inactive' },
 ];

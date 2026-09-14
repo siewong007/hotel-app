@@ -20,6 +20,10 @@ export function useGuestStatTotals(enabled = true) {
   const vipQuery = useGuestsPage({ ...totalOnly, vip: true }, enabled);
   const blacklistedQuery = useGuestsPage({ ...totalOnly, blacklisted: true }, enabled);
   const openRequestsQuery = useGuestsPage({ ...totalOnly, has_open_support: true }, enabled);
+  const returningQuery = useGuestsPage({ ...totalOnly, segment: 'returning' }, enabled);
+  const inHouseQuery = useGuestsPage({ ...totalOnly, segment: 'in_house' }, enabled);
+  const upcomingQuery = useGuestsPage({ ...totalOnly, segment: 'upcoming' }, enabled);
+  const inactiveQuery = useGuestsPage({ ...totalOnly, segment: 'inactive' }, enabled);
 
   const queries = React.useMemo(
     () => [
@@ -31,6 +35,10 @@ export function useGuestStatTotals(enabled = true) {
       vipQuery,
       blacklistedQuery,
       openRequestsQuery,
+      returningQuery,
+      inHouseQuery,
+      upcomingQuery,
+      inactiveQuery,
     ],
     [
       totalQuery,
@@ -41,6 +49,10 @@ export function useGuestStatTotals(enabled = true) {
       vipQuery,
       blacklistedQuery,
       openRequestsQuery,
+      returningQuery,
+      inHouseQuery,
+      upcomingQuery,
+      inactiveQuery,
     ],
   );
 
@@ -53,6 +65,10 @@ export function useGuestStatTotals(enabled = true) {
     vip: vipQuery.data?.total ?? 0,
     blacklisted: blacklistedQuery.data?.total ?? 0,
     openRequests: openRequestsQuery.data?.total ?? 0,
+    returning: returningQuery.data?.total ?? 0,
+    inHouse: inHouseQuery.data?.total ?? 0,
+    upcoming: upcomingQuery.data?.total ?? 0,
+    inactive: inactiveQuery.data?.total ?? 0,
   });
 
   const error = queries.find((q) => q.error)?.error ?? null;

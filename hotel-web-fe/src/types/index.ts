@@ -29,6 +29,7 @@ export type {
   Guest,
   GuestCreateRequest,
   GuestDuplicateCandidate,
+  GuestListSegment,
   GuestProfile,
   GuestProfileBooking,
   GuestSensitiveProfile,
