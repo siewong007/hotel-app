@@ -1251,12 +1251,18 @@ impl PaymentRepository {
         Ok(row.map(|row| map_workflow_summary_row(&row)))
     }
 
+    /// `transaction_reference` (stored on `payments.transaction_id`) and
+    /// `note` are optional staff-supplied provenance: the reference records
+    /// e.g. a receipt-book number and the note is appended to the standard
+    /// `Keycard deposit refund` marker as ` — {note}`.
     pub async fn refund_deposit(
         pool: &DbPool,
         user_id: i64,
         booking_id: i64,
         payment_method: &str,
         deposit_amount: Decimal,
+        transaction_reference: Option<&str>,
+        note: Option<&str>,
     ) -> Result<PaymentEntryRow, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
@@ -1276,9 +1282,11 @@ impl PaymentRepository {
 
         // Only an active refund blocks another one: a reverted refund keeps
         // its row (status = 'void') so the disbursement stays on the books,
-        // but must not stop a legitimate re-refund of the deposit.
+        // but must not stop a legitimate re-refund of the deposit. The match
+        // is on payment_type + status — not the notes text — so a staff note
+        // appended to the marker can never defeat the guard.
         let existing_refund: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' AND status = 'refunded' LIMIT 1"
+            "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded' LIMIT 1"
         )
         .bind(booking_id)
         .fetch_optional(&mut *tx)
@@ -1324,17 +1332,22 @@ impl PaymentRepository {
             r#"
             INSERT INTO payments (
                 uuid, booking_id, amount, payment_method, payment_type,
-                status, notes, created_by
+                status, notes, transaction_id, created_by
             )
-            VALUES (gen_uuidv7(), $1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
+            VALUES (gen_uuidv7(), $1, $2, $3, 'refund', 'refunded', $4, $5, $6)
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                      status AS payment_status, NULL::text AS transaction_reference, notes,
+                      status AS payment_status, transaction_id AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at
             "#,
         )
         .bind(booking_id)
         .bind(decimal_to_db(deposit_amount))
         .bind(payment_method)
+        .bind(format!(
+            "Keycard deposit refund{}",
+            note.map(|n| format!(" — {n}")).unwrap_or_default()
+        ))
+        .bind(transaction_reference)
         .bind(user_id)
         .fetch_one(&mut *tx)
         .await
@@ -1356,12 +1369,16 @@ impl PaymentRepository {
     /// This is the ONLY writer of `deposit_forfeited` rows: the generic
     /// `record_payment` caller-type whitelist deliberately excludes the type,
     /// so a caller cannot mint kept-money rows without these checks.
+    ///
+    /// `notes` is optional staff free text appended to the row's notes after
+    /// the mandatory reason: `Deposit forfeited: {reason} — {notes}`.
     pub async fn forfeit_deposit(
         pool: &DbPool,
         user_id: i64,
         booking_id: i64,
         amount: Decimal,
         reason: &str,
+        notes: Option<&str>,
     ) -> Result<PaymentEntryRow, ApiError> {
         let reason = reason.trim();
         if reason.is_empty() {
@@ -1429,6 +1446,11 @@ impl PaymentRepository {
         .map_err(ApiError::from)?
         .unwrap_or_else(|| "cash".to_string());
 
+        let row_notes = match notes.map(str::trim).filter(|n| !n.is_empty()) {
+            Some(n) => format!("Deposit forfeited: {reason} — {n}"),
+            None => format!("Deposit forfeited: {reason}"),
+        };
+
         let row = sqlx::query_as::<_, PaymentEntryRow>(
             r#"
             INSERT INTO payments (
@@ -1444,7 +1466,7 @@ impl PaymentRepository {
         .bind(booking_id)
         .bind(decimal_to_db(amount))
         .bind(&deposit_method)
-        .bind(format!("Deposit forfeited: {reason}"))
+        .bind(row_notes)
         .bind(user_id)
         .fetch_one(&mut *tx)
         .await
@@ -1472,9 +1494,11 @@ impl PaymentRepository {
     pub async fn revert_deposit_refund(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-        // The note/description column differs between databases, but the
-        // marker text is identical to what `refund_deposit` writes.
-        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' AND status = 'refunded' ORDER BY id DESC LIMIT 1";
+        // Match on payment_type + status, not the notes text: `refund_deposit`
+        // is the sole writer of 'refund' rows and its marker note may now
+        // carry appended staff notes, so keying on the literal text would
+        // miss them.
+        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND status = 'refunded' ORDER BY id DESC LIMIT 1";
 
         let refund_id: Option<i64> = sqlx::query_scalar(select_sql)
             .bind(booking_id)

@@ -397,11 +397,7 @@ async fn update_booking(
     .map(|Json(booking)| booking)
 }
 
-async fn checkout(
-    pool: &PgPool,
-    actor_id: i64,
-    booking_id: i64,
-) -> Result<Booking, ApiError> {
+async fn checkout(pool: &PgPool, actor_id: i64, booking_id: i64) -> Result<Booking, ApiError> {
     update_booking(
         pool,
         actor_id,
@@ -461,7 +457,10 @@ async fn checkout_blocked_while_completed_deposit_is_unrefunded() {
     assert_deposit_block(&result, "100.00");
 
     let (status, _) = booking_status_and_mirror(&pool, f.booking_id).await;
-    assert_eq!(status, "checked_in", "a blocked checkout must not move the booking");
+    assert_eq!(
+        status, "checked_in",
+        "a blocked checkout must not move the booking"
+    );
 
     cleanup_fixture(&pool, &f).await;
 }
@@ -487,9 +486,17 @@ async fn checkout_succeeds_after_deposit_refunded() {
 
     assert_deposit_block(&checkout(&pool, f.actor_id, f.booking_id).await, "100.00");
 
-    PaymentRepository::refund_deposit(&pool, f.actor_id, f.booking_id, "cash", d("100.00"))
-        .await
-        .expect("refunding the held deposit should succeed");
+    PaymentRepository::refund_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        "cash",
+        d("100.00"),
+        None,
+        None,
+    )
+    .await
+    .expect("refunding the held deposit should succeed");
 
     let booking = checkout(&pool, f.actor_id, f.booking_id)
         .await
@@ -521,9 +528,16 @@ async fn checkout_succeeds_after_deposit_forfeited() {
 
     assert_deposit_block(&checkout(&pool, f.actor_id, f.booking_id).await, "100.00");
 
-    PaymentRepository::forfeit_deposit(&pool, f.actor_id, f.booking_id, d("100.00"), "Lost keycard")
-        .await
-        .expect("forfeiting the held deposit should succeed");
+    PaymentRepository::forfeit_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        d("100.00"),
+        "Lost keycard",
+        None,
+    )
+    .await
+    .expect("forfeiting the held deposit should succeed");
 
     let booking = checkout(&pool, f.actor_id, f.booking_id)
         .await
@@ -553,16 +567,31 @@ async fn partial_forfeit_leaves_the_remainder_blocking() {
     insert_completed_payment(&pool, f.booking_id, "booking", d("300.00"), f.actor_id).await;
     insert_completed_payment(&pool, f.booking_id, "deposit", d("100.00"), f.actor_id).await;
 
-    PaymentRepository::forfeit_deposit(&pool, f.actor_id, f.booking_id, d("30.00"), "Minibar damage")
-        .await
-        .expect("a partial forfeit within the ceiling should succeed");
+    PaymentRepository::forfeit_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        d("30.00"),
+        "Minibar damage",
+        None,
+    )
+    .await
+    .expect("a partial forfeit within the ceiling should succeed");
 
     // 100.00 held − 30.00 forfeited = 70.00 still owed back to the guest.
     assert_deposit_block(&checkout(&pool, f.actor_id, f.booking_id).await, "70.00");
 
-    PaymentRepository::refund_deposit(&pool, f.actor_id, f.booking_id, "cash", d("70.00"))
-        .await
-        .expect("refunding the remainder should succeed");
+    PaymentRepository::refund_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        "cash",
+        d("70.00"),
+        None,
+        None,
+    )
+    .await
+    .expect("refunding the remainder should succeed");
 
     let booking = checkout(&pool, f.actor_id, f.booking_id)
         .await
@@ -597,7 +626,10 @@ async fn checkout_blocked_by_flag_only_deposit_without_payment_rows() {
 
     let (status, mirror_held) = booking_status_and_mirror(&pool, f.booking_id).await;
     assert_eq!(status, "checked_in");
-    assert!(mirror_held, "the mirror assertion survives the blocked checkout");
+    assert!(
+        mirror_held,
+        "the mirror assertion survives the blocked checkout"
+    );
 
     cleanup_fixture(&pool, &f).await;
 }
@@ -639,7 +671,10 @@ async fn prior_waive_update_releases_flag_only_deposit() {
     .expect("waiving a flag-only deposit should succeed (no ledger rows)");
 
     let (_, mirror_held) = booking_status_and_mirror(&pool, f.booking_id).await;
-    assert!(!mirror_held, "the waive update must clear the deposit mirror");
+    assert!(
+        !mirror_held,
+        "the waive update must clear the deposit mirror"
+    );
 
     let booking = checkout(&pool, f.actor_id, f.booking_id)
         .await
@@ -852,4 +887,198 @@ async fn deposit_assertion_falls_back_when_method_absent_or_blank() {
 
     cleanup_fixture(&pool, &absent).await;
     cleanup_fixture(&pool, &blank).await;
+}
+
+/// `refund_deposit` stores the staff-supplied provenance reference on
+/// `payments.transaction_id` (surfaced as `transaction_reference` on the row)
+/// and appends the free-text note to the standard refund marker.
+#[tokio::test]
+async fn refund_deposit_stores_reference_and_note() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    let f = CheckoutFixture {
+        actor_id: 987_012,
+        booking_id: 987_112,
+        guest_id: 987_212,
+        room_id: 987_312,
+        room_type_id: 987_412,
+        company_name: None,
+    };
+    cleanup_fixture(&pool, &f).await;
+    seed_checked_in_booking(&pool, &f).await;
+    insert_completed_payment(&pool, f.booking_id, "deposit", d("100.00"), f.actor_id).await;
+
+    let row = PaymentRepository::refund_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        "cash",
+        d("100.00"),
+        Some("RF-9001"),
+        Some("handed to guest at desk"),
+    )
+    .await
+    .expect("refunding with a reference and note should succeed");
+
+    assert_eq!(
+        row.transaction_reference.as_deref(),
+        Some("RF-9001"),
+        "the returned row must expose the stored reference"
+    );
+    assert_eq!(
+        row.notes.as_deref(),
+        Some("Keycard deposit refund — handed to guest at desk")
+    );
+
+    let stored: (Option<String>, Option<String>) =
+        sqlx::query_as("SELECT transaction_id, notes FROM payments WHERE id = $1")
+            .bind(row.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(stored.0.as_deref(), Some("RF-9001"));
+    assert_eq!(
+        stored.1.as_deref(),
+        Some("Keycard deposit refund — handed to guest at desk")
+    );
+
+    cleanup_fixture(&pool, &f).await;
+}
+
+/// The dup-guard matches on `payment_type` + `status`, not the literal marker
+/// note: a refund carrying a custom note still blocks a second active refund.
+#[tokio::test]
+async fn refund_deposit_still_blocks_second_active_refund() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    let f = CheckoutFixture {
+        actor_id: 987_013,
+        booking_id: 987_113,
+        guest_id: 987_213,
+        room_id: 987_313,
+        room_type_id: 987_413,
+        company_name: None,
+    };
+    cleanup_fixture(&pool, &f).await;
+    seed_checked_in_booking(&pool, &f).await;
+    insert_completed_payment(&pool, f.booking_id, "deposit", d("100.00"), f.actor_id).await;
+
+    PaymentRepository::refund_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        "cash",
+        d("100.00"),
+        None,
+        Some("desk disbursement"),
+    )
+    .await
+    .expect("the first refund should succeed");
+
+    let second = PaymentRepository::refund_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        "cash",
+        d("100.00"),
+        Some("RF-2"),
+        Some("duplicate attempt"),
+    )
+    .await;
+    match second {
+        Err(ApiError::BadRequest(message)) => assert_eq!(
+            message, "Deposit already refunded",
+            "the dup-guard — not the drained ceiling — must reject the second refund"
+        ),
+        other => panic!("expected BadRequest(\"Deposit already refunded\"), got: {other:?}"),
+    }
+
+    cleanup_fixture(&pool, &f).await;
+}
+
+/// `revert_deposit_refund` finds the active refund by `payment_type` +
+/// `status`: a custom note on the row no longer defeats the matcher, and the
+/// row is voided (kept on the books), not deleted.
+#[tokio::test]
+async fn revert_deposit_refund_matches_type_and_status() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    let f = CheckoutFixture {
+        actor_id: 987_014,
+        booking_id: 987_114,
+        guest_id: 987_214,
+        room_id: 987_314,
+        room_type_id: 987_414,
+        company_name: None,
+    };
+    cleanup_fixture(&pool, &f).await;
+    seed_checked_in_booking(&pool, &f).await;
+    insert_completed_payment(&pool, f.booking_id, "deposit", d("100.00"), f.actor_id).await;
+
+    let row = PaymentRepository::refund_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        "cash",
+        d("100.00"),
+        None,
+        Some("recorded in error"),
+    )
+    .await
+    .expect("refunding with a custom note should succeed");
+
+    let voided_id = PaymentRepository::revert_deposit_refund(&pool, f.booking_id)
+        .await
+        .expect("revert must find the noted refund row");
+    assert_eq!(voided_id, row.id);
+
+    let status: String = sqlx::query_scalar("SELECT status FROM payments WHERE id = $1")
+        .bind(row.id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(status, "void", "the revert must void the refund row");
+
+    cleanup_fixture(&pool, &f).await;
+}
+
+/// `forfeit_deposit` appends staff notes to the reason:
+/// `Deposit forfeited: {reason} — {notes}`.
+#[tokio::test]
+async fn forfeit_deposit_appends_staff_notes() {
+    let Some((pool, _serial_guard)) = setup_pg_pool().await else {
+        return;
+    };
+    let f = CheckoutFixture {
+        actor_id: 987_015,
+        booking_id: 987_115,
+        guest_id: 987_215,
+        room_id: 987_315,
+        room_type_id: 987_415,
+        company_name: None,
+    };
+    cleanup_fixture(&pool, &f).await;
+    seed_checked_in_booking(&pool, &f).await;
+    insert_completed_payment(&pool, f.booking_id, "deposit", d("100.00"), f.actor_id).await;
+
+    let row = PaymentRepository::forfeit_deposit(
+        &pool,
+        f.actor_id,
+        f.booking_id,
+        d("40.00"),
+        "Room damage",
+        Some("broken lamp, photo on file"),
+    )
+    .await
+    .expect("forfeiting with staff notes should succeed");
+
+    assert_eq!(
+        row.notes.as_deref(),
+        Some("Deposit forfeited: Room damage — broken lamp, photo on file")
+    );
+
+    cleanup_fixture(&pool, &f).await;
 }

@@ -3550,6 +3550,7 @@ async fn forfeit_deposit_full_amount_zeroes_the_refundable_ceiling() {
         booking_id,
         d("50.00"),
         "Guest lost both keycards",
+        None,
     )
     .await
     .expect("forfeiting the held deposit should succeed");
@@ -3671,9 +3672,16 @@ async fn forfeit_deposit_partial_leaves_the_remainder_refundable() {
     .await
     .expect("seeding a real collected 50.00 deposit should succeed");
 
-    PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("20.00"), "Minibar damage")
-        .await
-        .expect("a partial forfeit within the held deposit should succeed");
+    PaymentRepository::forfeit_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        d("20.00"),
+        "Minibar damage",
+        None,
+    )
+    .await
+    .expect("a partial forfeit within the held deposit should succeed");
 
     // Held money is now 50 - 20 = 30: the mirror and the summary agree.
     let mirror: (Option<bool>, Option<Decimal>) =
@@ -3691,9 +3699,15 @@ async fn forfeit_deposit_partial_leaves_the_remainder_refundable() {
     assert_eq!(summary.deposit_forfeited, d("20.00"));
 
     // The ceiling shrank: a second forfeit above the remainder is refused…
-    let over_remainder =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("30.01"), "More damage")
-            .await;
+    let over_remainder = PaymentRepository::forfeit_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        d("30.01"),
+        "More damage",
+        None,
+    )
+    .await;
     assert!(
         matches!(over_remainder, Err(ApiError::BadRequest(_))),
         "a forfeit above collected - forfeited must be refused: {over_remainder:?}"
@@ -3710,9 +3724,15 @@ async fn forfeit_deposit_partial_leaves_the_remainder_refundable() {
     .expect("the 30.00 still held after the partial forfeit must be refundable");
 
     // After the refund, nothing is left to forfeit.
-    let nothing_left =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("0.01"), "Late charge")
-            .await;
+    let nothing_left = PaymentRepository::forfeit_deposit(
+        &pool,
+        actor_id,
+        booking_id,
+        d("0.01"),
+        "Late charge",
+        None,
+    )
+    .await;
 
     cleanup(
         &pool,
@@ -3775,7 +3795,8 @@ async fn forfeit_deposit_rejects_over_ceiling_amounts_and_bad_input() {
 
     // No deposit was ever collected for this booking.
     let no_deposit =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "Damage").await;
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "Damage", None)
+            .await;
     assert!(
         matches!(no_deposit, Err(ApiError::BadRequest(_))),
         "forfeiting a deposit that was never collected must be refused: {no_deposit:?}"
@@ -3799,15 +3820,19 @@ async fn forfeit_deposit_rejects_over_ceiling_amounts_and_bad_input() {
     .expect("seeding a real collected 50.00 deposit should succeed");
 
     let over_ceiling =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("50.01"), "Damage").await;
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("50.01"), "Damage", None)
+            .await;
     let zero =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("0.00"), "Damage").await;
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("0.00"), "Damage", None)
+            .await;
     let negative =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("-5.00"), "Damage").await;
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("-5.00"), "Damage", None)
+            .await;
     let empty_reason =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "").await;
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "", None).await;
     let whitespace_reason =
-        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "   ").await;
+        PaymentRepository::forfeit_deposit(&pool, actor_id, booking_id, d("10.00"), "   ", None)
+            .await;
 
     // None of the refused calls may have written a row or moved the mirror.
     let forfeit_rows: i64 = sqlx::query_scalar(
