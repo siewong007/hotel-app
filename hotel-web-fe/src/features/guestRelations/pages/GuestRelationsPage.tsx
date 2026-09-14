@@ -57,6 +57,7 @@ import GuestListTable from '../components/GuestListTable';
 import GuestBookingHistoryDialog from '../components/GuestBookingHistoryDialog';
 import GuestCreditsDialog from '../components/GuestCreditsDialog';
 import GuestPortalAccountDialog from '../components/GuestPortalAccountDialog';
+import GuestDetailDrawer from '../components/GuestDetailDrawer';
 import { useGuestStatTotals } from '../hooks/useGuestStatTotals';
 import {
   getGuestRelationsSegmentQueryParams,
@@ -149,6 +150,8 @@ const GuestRelationsPage: React.FC = () => {
   const [portalAccountGuest, setPortalAccountGuest] = useState<Guest | null>(null);
   const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
   const [ekycGuest, setEkycGuest] = useState<Guest | null>(null);
+  const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
+  const [drawerGuestSnapshot, setDrawerGuestSnapshot] = useState<Guest | null>(null);
 
   // The booking modal searches its guest list client-side, so it needs the
   // full roster — not the 50-row page shown in the table. Load it lazily, only
@@ -178,6 +181,20 @@ const GuestRelationsPage: React.FC = () => {
     () => guests.filter((guest) => guestMatchesSegment(guest, segment)),
     [guests, segment],
   );
+
+  // The open drawer's guest resolves live from the list when possible so
+  // mutations refetch into view; the snapshot keeps it populated when the row
+  // falls out of the current page/filter.
+  const drawerGuest =
+    visibleGuests.find((g) => g.id === selectedGuestId) ?? drawerGuestSnapshot;
+  const openGuestDrawer = (guest: Guest) => {
+    setDrawerGuestSnapshot(guest);
+    setSelectedGuestId(guest.id);
+  };
+  const closeGuestDrawer = () => {
+    setSelectedGuestId(null);
+    setDrawerGuestSnapshot(null);
+  };
 
   const handleExportGuests = () => {
     if (visibleGuests.length === 0) {
@@ -386,15 +403,21 @@ const GuestRelationsPage: React.FC = () => {
       confirmText: 'Delete guest',
       severity: 'error',
     });
-    if (!ok) return;
+    if (!ok) return false;
 
     try {
       await deleteGuestMutation.mutateAsync(guest.id);
       emitApiNotification({ message: 'Guest deleted successfully', severity: 'success' });
       await loadGuests();
+      return true;
     } catch (err) {
       setError(errorMessage(err, 'Failed to delete guest'));
+      return false;
     }
+  };
+
+  const handleDeleteFromDrawer = async (guest: Guest) => {
+    if (await handleDeleteGuest(guest)) closeGuestDrawer();
   };
 
   const guestPagination = React.useMemo(
@@ -448,7 +471,7 @@ const GuestRelationsPage: React.FC = () => {
   );
 
   const tableActions = {
-    onOpen: handleOpenGuest,
+    onOpen: openGuestDrawer,
     onEdit: handleEditClick,
     onNewBooking: handleCreateBookingForGuest,
     onStayHistory: setHistoryGuest,
@@ -689,6 +712,25 @@ const GuestRelationsPage: React.FC = () => {
         open={Boolean(portalAccountGuest)}
         onClose={() => setPortalAccountGuest(null)}
         onTransferred={loadGuests}
+      />
+      <GuestDetailDrawer
+        guest={drawerGuest}
+        open={Boolean(drawerGuest)}
+        onClose={closeGuestDrawer}
+        onOpenFullProfile={handleOpenGuest}
+        onSaved={loadGuests}
+        canCreateEkyc={canCreateEkyc}
+        canTransferPortalAccount={canTransferPortalAccount}
+        tourismConversionGuestId={tourismConversionGuestId}
+        onOpen={openGuestDrawer}
+        onEdit={handleEditClick}
+        onNewBooking={handleCreateBookingForGuest}
+        onStayHistory={setHistoryGuest}
+        onViewCredits={setCreditsGuest}
+        onConvertTourism={handleApplyTourismFromLastCheckIn}
+        onTransferPortalAccount={setPortalAccountGuest}
+        onCreateEkyc={setEkycGuest}
+        onDelete={handleDeleteFromDrawer}
       />
     </Box>
   );

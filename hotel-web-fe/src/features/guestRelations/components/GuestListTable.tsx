@@ -22,7 +22,6 @@ import {
   ManageAccountsOutlined as PortalAccountIcon,
   MoreVert as MoreIcon,
   VerifiedUserOutlined as EkycIcon,
-  VisibilityOutlined as ViewIcon,
 } from '@mui/icons-material';
 import type { Guest } from '../../../types';
 import { formatHotelDate } from '../../../utils/date';
@@ -63,7 +62,7 @@ interface GuestListTableProps extends GuestListTableActions {
 // the literal calendar date instead of shifting a day west of UTC.
 const formatStayDate = (value?: string) => formatHotelDate(value, '—');
 
-interface GuestRowActionsProps extends GuestListTableActions {
+interface GuestRowActionsProps extends Omit<GuestListTableActions, 'onOpen'> {
   guest: Guest;
   tourismConversionGuestId: number | null;
   canCreateEkyc: boolean;
@@ -74,7 +73,6 @@ interface GuestRowActionsProps extends GuestListTableActions {
  * secondary workflows ported from the monolith's detail panel. */
 const GuestRowActions: React.FC<GuestRowActionsProps> = ({
   guest,
-  onOpen,
   onEdit,
   onNewBooking,
   onStayHistory,
@@ -98,11 +96,6 @@ const GuestRowActions: React.FC<GuestRowActionsProps> = ({
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.25 }}>
-      <Tooltip title="View guest 360">
-        <IconButton size="small" aria-label={`View ${guest.nick_name}`} onClick={() => onOpen(guest)}>
-          <ViewIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      </Tooltip>
       <Tooltip title="Edit guest">
         <IconButton size="small" aria-label={`Edit ${guest.nick_name}`} onClick={() => onEdit(guest)}>
           <EditIcon sx={{ fontSize: 18 }} />
@@ -320,7 +313,6 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
           tourismConversionGuestId={tourismConversionGuestId}
           canCreateEkyc={canCreateEkyc}
           canTransferPortalAccount={canTransferPortalAccount}
-          onOpen={onOpen}
           onEdit={onEdit}
           onNewBooking={onNewBooking}
           onStayHistory={onStayHistory}
@@ -332,7 +324,7 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
         />
       ),
     },
-  ], [tourismConversionGuestId, canCreateEkyc, canTransferPortalAccount, onOpen, onEdit, onNewBooking, onStayHistory, onViewCredits, onConvertTourism, onTransferPortalAccount, onCreateEkyc, onDelete]);
+  ], [tourismConversionGuestId, canCreateEkyc, canTransferPortalAccount, onEdit, onNewBooking, onStayHistory, onViewCredits, onConvertTourism, onTransferPortalAccount, onCreateEkyc, onDelete]);
 
   const renderMobileCard = (guest: Guest) => {
     const legalName = guestLegalName(guest);
@@ -355,7 +347,6 @@ const GuestListTable: React.FC<GuestListTableProps> = ({
               tourismConversionGuestId={tourismConversionGuestId}
               canCreateEkyc={canCreateEkyc}
               canTransferPortalAccount={canTransferPortalAccount}
-              onOpen={onOpen}
               onEdit={onEdit}
               onNewBooking={onNewBooking}
               onStayHistory={onStayHistory}

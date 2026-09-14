@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   lastGuestsPageParams: null as Record<string, unknown> | null,
+  updateGuestMutation: { isPending: false, mutateAsync: vi.fn() },
   statTotals: {
     counts: {
       all: 0,
@@ -64,7 +65,7 @@ vi.mock('../../guests/hooks/useGuestQueries', () => ({
   },
   useGuests: () => ({ data: [], isPending: false }),
   useCreateGuest: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useUpdateGuest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateGuest: () => mocks.updateGuestMutation,
   useApplyGuestTourismFromLastCheckIn: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteGuest: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useGuestBookings: () => ({ data: [], isPending: false }),
@@ -135,6 +136,7 @@ describe('GuestRelationsPage', () => {
     mocks.lastGuestsPageParams = null;
     mocks.statTotals.error = null;
     mocks.statTotals.refetchAll.mockReset();
+    mocks.updateGuestMutation.mutateAsync.mockReset().mockResolvedValue({});
     setGuestsPageData([buildGuest()]);
   });
 
@@ -216,9 +218,14 @@ describe('GuestRelationsPage', () => {
     });
   });
 
-  it('navigates to the guest 360 page when a row is opened', () => {
+  it('opens the detail drawer on row click and navigates to guest 360 from inside it', () => {
     render(<GuestRelationsPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'View Aisha Rahman' }));
+
+    // Row body click — the per-row eye icon was removed; the row itself is the target.
+    fireEvent.click(screen.getByText('Aisha Rahman'));
+
+    expect(screen.queryByRole('button', { name: 'View Aisha Rahman' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Open guest 360' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/guest-relations/guests/7');
   });
 });
