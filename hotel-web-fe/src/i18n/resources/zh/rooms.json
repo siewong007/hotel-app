@@ -24,7 +24,9 @@
     "rate": "房价",
     "notes": "备注",
     "status": "状态",
-    "description": "描述"
+    "description": "描述",
+    "room": "房间",
+    "stay": "住宿"
   },
   "statusLabels": {
     "available": "空房/已清洁",
@@ -211,7 +213,8 @@
   "validation": {
     "selectDates": "请选择日期",
     "checkoutAfterCheckin": "退房日期必须晚于入住日期",
-    "dateReserved": "日期 {{date}} 已被预订"
+    "dateReserved": "日期 {{date}} 已被预订",
+    "selectRoomAndDates": "请选择房间和至少一个免费日期"
   },
   "errors": {
     "updateStatus": "更新客房状态失败",
@@ -275,6 +278,97 @@
     "checkedInSuccess": "客人入住成功！",
     "checkInSuccess": "客人 {{guest}} 已成功入住客房 {{room}}",
     "icRequired": "完成入住需填写身份证/护照号码。",
-    "depositRequired": "押金金额必须大于 0。如需跳过押金，请选择“免收”。"
+    "depositRequired": "押金金额必须大于 0。如需跳过押金，请选择“免收”。",
+    "checkedInGuest": "客人 {{guest}} 已成功入住房间 {{room}}"
+  },
+  "bookingNotes": {
+    "title": "编辑预订备注",
+    "notesPlaceholder": "输入预订备注、特殊要求或备注……",
+    "cleaningPreference": "每日清洁偏好",
+    "cleaningHint": "客人入住期间在客房卡片上显示为标签。",
+    "save": "保存备注"
+  },
+  "complimentary": {
+    "title": "将预订标记为免费",
+    "bookingDetails": "预订详情",
+    "checkInDate": "入住日期",
+    "checkOutDate": "退房日期",
+    "originalAmount": "原金额",
+    "newAmount": "新金额",
+    "newAmountValue": "{{symbol}}0.00（免费）",
+    "stayTitle": "免费住宿",
+    "reasonLabel": "免费住宿原因",
+    "reasonPlaceholder": "例如：VIP 客人、补偿、促销优惠",
+    "info": "将此预订标记为免费后，总金额将设为 {{symbol}}0.00。如果客人取消或未入住，免费房晚将转换为额度供将来使用。",
+    "confirm": "确认免费"
+  },
+  "upcoming": {
+    "title": "即将到来的预订 - 房间 {{room}}",
+    "empty": "此房间暂无即将到来的预订。",
+    "unknownGuest": "未知客人",
+    "currentlyOccupied": "当前在住",
+    "checkInNow": "立即入住",
+    "freeGift": "免费礼品",
+    "viewAll": "在预订页面查看全部"
+  },
+  "changeRoom": {
+    "title": "换房 - 当前：{{room}}",
+    "currentRoom": "当前房间",
+    "currentRate": "当前房价",
+    "ratePerNight": "{{symbol}}{{rate}} / 晚",
+    "selectNewRoom": "选择新房间",
+    "roomOption": "房间 {{number}} - {{type}}（{{symbol}}{{rate}}/晚）",
+    "customRateLabel": "自定义房价（每晚）",
+    "defaultRateHint": "默认房价：{{symbol}}{{rate}}/晚。留空则使用默认价格。",
+    "selectRoomHint": "请先选择房间，或输入自定义房价。",
+    "priceSummary": "价格摘要",
+    "newRate": "新房价",
+    "customTag": "（自定义）",
+    "differencePerNight": "每晚差价",
+    "diffCharge": "+{{symbol}}{{amount}}（额外费用）",
+    "diffCredit": "-{{symbol}}{{amount}}（抵扣）",
+    "diffNone": "{{symbol}}0.00（无变化）",
+    "changing": "正在换房……",
+    "confirm": "确认换房"
+  },
+  "history": {
+    "title": "房间历史 - {{room}}",
+    "currentStatus": "当前状态",
+    "unknown": "未知",
+    "closeAria": "关闭房间历史",
+    "empty": "未找到此房间的历史记录",
+    "availableFlag": "可用",
+    "bookingPeriod": "预订时段",
+    "viewGuestDetails": "查看客人详情",
+    "timeline": "历史时间线",
+    "by": "操作人：{{name}}",
+    "viewGuestChip": "点击查看客人详情"
+  },
+  "guestDetails": {
+    "title": "客人详情",
+    "tabInfo": "客人信息",
+    "tabCredits": "免费礼品额度",
+    "icNumber": "证件号码",
+    "company": "公司",
+    "memberSince": "注册时间",
+    "bookingCreated": "🎉 预订创建成功！",
+    "bookingCreatedDetail_one": "订单 #{{number}} - {{count}} 晚为免费",
+    "bookingCreatedDetail_other": "订单 #{{number}} - {{count}} 晚为免费",
+    "bookAnother": "预订另一间房",
+    "availableCredits": "可用免费礼品额度",
+    "creditNights_one": "{{count}} 晚",
+    "creditNights_other": "{{count}} 晚",
+    "noCredits": "暂无可用免费额度",
+    "bookWithCreditsTitle": "使用免费礼品额度预订房间",
+    "selectRoom": "选择房间",
+    "roomOption": "房间 {{number}} - {{type}}",
+    "selectCompDates": "选择免费日期（可用：{{count}}）",
+    "selectAllAvailable": "全选可用日期",
+    "reservedUnavailable": "已预订（不可用）",
+    "compNightsInfo_one": "{{count}} 晚将免费（免费礼品）",
+    "compNightsInfo_other": "{{count}} 晚将免费（免费礼品）",
+    "children": "儿童",
+    "creatingBooking": "正在创建预订……",
+    "bookWithCredits": "使用免费礼品额度预订"
   }
 }

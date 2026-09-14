@@ -24,7 +24,9 @@
     "rate": "Kadar",
     "notes": "Nota",
     "status": "Status",
-    "description": "Penerangan"
+    "description": "Penerangan",
+    "room": "Bilik",
+    "stay": "Penginapan"
   },
   "statusLabels": {
     "available": "Kosong/Bersih",
@@ -211,7 +213,8 @@
   "validation": {
     "selectDates": "Sila pilih tarikh",
     "checkoutAfterCheckin": "Daftar keluar mesti selepas daftar masuk",
-    "dateReserved": "Tarikh {{date}} telah ditempah"
+    "dateReserved": "Tarikh {{date}} telah ditempah",
+    "selectRoomAndDates": "Sila pilih bilik dan sekurang-kurangnya satu tarikh percuma"
   },
   "errors": {
     "updateStatus": "Gagal mengemas kini status bilik",
@@ -275,6 +278,97 @@
     "checkedInSuccess": "Tetamu berjaya daftar masuk!",
     "checkInSuccess": "Tetamu {{guest}} berjaya daftar masuk ke Bilik {{room}}",
     "icRequired": "Nombor IC / pasport diperlukan untuk melengkapkan daftar masuk.",
-    "depositRequired": "Jumlah deposit mesti melebihi 0. Untuk melangkau deposit, pilih \"Ketepikan\"."
+    "depositRequired": "Jumlah deposit mesti melebihi 0. Untuk melangkau deposit, pilih \"Ketepikan\".",
+    "checkedInGuest": "Tetamu {{guest}} berjaya mendaftar masuk ke Bilik {{room}}"
+  },
+  "bookingNotes": {
+    "title": "Edit Nota Tempahan",
+    "notesPlaceholder": "Masukkan nota tempahan, permintaan khas, atau catatan...",
+    "cleaningPreference": "Keutamaan pembersihan harian",
+    "cleaningHint": "Dipaparkan sebagai cip pada kad bilik semasa tetamu berdaftar masuk.",
+    "save": "Simpan Nota"
+  },
+  "complimentary": {
+    "title": "Tandakan Tempahan sebagai Percuma",
+    "bookingDetails": "Butiran Tempahan",
+    "checkInDate": "Tarikh Daftar Masuk",
+    "checkOutDate": "Tarikh Daftar Keluar",
+    "originalAmount": "Jumlah Asal",
+    "newAmount": "Jumlah Baharu",
+    "newAmountValue": "{{symbol}}0.00 (Percuma)",
+    "stayTitle": "Penginapan Percuma",
+    "reasonLabel": "Sebab Penginapan Percuma",
+    "reasonPlaceholder": "cth., tetamu VIP, pampasan, tawaran promosi",
+    "info": "Menandakan tempahan ini sebagai percuma akan menetapkan jumlah keseluruhan kepada {{symbol}}0.00. Jika tetamu membatalkan atau tidak hadir, malam percuma akan ditukar kepada kredit untuk kegunaan masa hadapan.",
+    "confirm": "Sahkan Percuma"
+  },
+  "upcoming": {
+    "title": "Tempahan Akan Datang - Bilik {{room}}",
+    "empty": "Tiada tempahan akan datang untuk bilik ini.",
+    "unknownGuest": "Tetamu Tidak Diketahui",
+    "currentlyOccupied": "Sedang Didiami",
+    "checkInNow": "Daftar Masuk Sekarang",
+    "freeGift": "Hadiah Percuma",
+    "viewAll": "Lihat Semua di Halaman Tempahan"
+  },
+  "changeRoom": {
+    "title": "Tukar Bilik - Semasa: {{room}}",
+    "currentRoom": "Bilik Semasa",
+    "currentRate": "Kadar Semasa",
+    "ratePerNight": "{{symbol}}{{rate}} / malam",
+    "selectNewRoom": "Pilih Bilik Baharu",
+    "roomOption": "Bilik {{number}} - {{type}} ({{symbol}}{{rate}}/malam)",
+    "customRateLabel": "Kadar Tersuai (setiap malam)",
+    "defaultRateHint": "Kadar bilik lalai: {{symbol}}{{rate}}/malam. Biarkan kosong untuk menggunakan kadar lalai.",
+    "selectRoomHint": "Pilih bilik dahulu, atau masukkan kadar tersuai.",
+    "priceSummary": "Ringkasan Harga",
+    "newRate": "Kadar Baharu",
+    "customTag": "(tersuai)",
+    "differencePerNight": "Perbezaan setiap Malam",
+    "diffCharge": "+{{symbol}}{{amount}} (Caj Tambahan)",
+    "diffCredit": "-{{symbol}}{{amount}} (Kredit)",
+    "diffNone": "{{symbol}}0.00 (Tiada Perubahan)",
+    "changing": "Menukar Bilik...",
+    "confirm": "Sahkan Pertukaran Bilik"
+  },
+  "history": {
+    "title": "Sejarah Bilik - {{room}}",
+    "currentStatus": "Status Semasa",
+    "unknown": "Tidak diketahui",
+    "closeAria": "Tutup sejarah bilik",
+    "empty": "Tiada rekod sejarah ditemui untuk bilik ini",
+    "availableFlag": "Tersedia",
+    "bookingPeriod": "Tempoh Tempahan",
+    "viewGuestDetails": "Lihat Butiran Tetamu",
+    "timeline": "Garis Masa Sejarah",
+    "by": "Oleh: {{name}}",
+    "viewGuestChip": "Klik untuk lihat butiran tetamu"
+  },
+  "guestDetails": {
+    "title": "Butiran Tetamu",
+    "tabInfo": "Maklumat Tetamu",
+    "tabCredits": "Kredit Hadiah Percuma",
+    "icNumber": "Nombor IC",
+    "company": "Syarikat",
+    "memberSince": "Ahli Sejak",
+    "bookingCreated": "🎉 Tempahan Berjaya Dicipta!",
+    "bookingCreatedDetail_one": "Tempahan #{{number}} - {{count}} malam adalah percuma",
+    "bookingCreatedDetail_other": "Tempahan #{{number}} - {{count}} malam adalah percuma",
+    "bookAnother": "Tempah Bilik Lain",
+    "availableCredits": "Kredit Hadiah Percuma Tersedia",
+    "creditNights_one": "{{count}} malam",
+    "creditNights_other": "{{count}} malam",
+    "noCredits": "Tiada kredit percuma tersedia",
+    "bookWithCreditsTitle": "Tempah Bilik dengan Kredit Hadiah Percuma",
+    "selectRoom": "Pilih Bilik",
+    "roomOption": "Bilik {{number}} - {{type}}",
+    "selectCompDates": "Pilih Tarikh Percuma (Tersedia: {{count}})",
+    "selectAllAvailable": "Pilih Semua yang Tersedia",
+    "reservedUnavailable": "Ditempah (tidak tersedia)",
+    "compNightsInfo_one": "{{count}} malam akan percuma (Hadiah Percuma)",
+    "compNightsInfo_other": "{{count}} malam akan percuma (Hadiah Percuma)",
+    "children": "Kanak-kanak",
+    "creatingBooking": "Mencipta Tempahan...",
+    "bookWithCredits": "Tempah dengan Kredit Hadiah Percuma"
   }
 }
