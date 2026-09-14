@@ -44,6 +44,10 @@ export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from '../constants/guest.const
 // Guest relations workspace types
 export type {
   CreateStaffSupportConversationRequest,
+  FollowUpDue,
+  FollowUpQueueItem,
+  FollowUpQueueParams,
+  FollowUpQueueResponse,
   GuestCommunicationsSummary,
   GuestDelivery,
   GuestInteraction,
@@ -58,6 +62,7 @@ export type {
   GuestPreferenceCategory,
   GuestPreferenceEntry,
   GuestPreferencesPutRequest,
+  GuestRelationsOverview,
   GuestReview,
   GuestReviewResponseInput,
   GuestSubscription,
@@ -65,6 +70,11 @@ export type {
   GuestSupportConversationDetail,
   GuestSupportConversationSummary,
   GuestVoucher,
+  OverviewBookingItem,
+  OverviewReviewItem,
+  OverviewSection,
+  OverviewSupportItem,
+  OverviewSupportSection,
 } from './guestRelations.types';
 
 // Booking runtime constants and types

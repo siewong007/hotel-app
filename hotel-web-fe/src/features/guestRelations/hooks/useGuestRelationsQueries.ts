@@ -14,6 +14,7 @@ import { CommunicationsApi } from '../../communications/api';
 import type { PreferenceUpdateInput } from '../../communications/types';
 import type {
   CreateStaffSupportConversationRequest,
+  FollowUpDue,
   GuestInteractionInput,
   GuestInteractionListParams,
   GuestInteractionUpdate,
@@ -250,6 +251,59 @@ export function useRecordGuestConsent() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.guests.communications(variables.guestId),
       });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------
+// Phase 2 — cross-guest operational layer (overview + follow-up queue)
+// ---------------------------------------------------------------------
+
+/**
+ * `GET /guest-relations/overview` — dashboard aggregate. The `support` /
+ * `reviews` sections are absent unless the caller holds those read
+ * permissions, so consumers must tolerate `overview.support == null`.
+ */
+export function useGuestRelationsOverview(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.guests.overview,
+    queryFn: () => GuestRelationsService.getOverview(),
+    enabled,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+/** Paginated open follow-up queue (`GET /guest-relations/follow-ups`). */
+export function useGuestFollowUps(due: FollowUpDue = 'all', page = 1, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.guests.followUps(due, page),
+    queryFn: () => GuestRelationsService.listFollowUps({ due, page }),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: queryStaleTime.short,
+  });
+}
+
+/**
+ * Complete a queue follow-up — wraps `useUpdateInteraction` with
+ * `{ follow_up_completed: true }` (PATCHes `guests/{id}/interactions/{nid}`
+ * and reuses its per-guest invalidations), then refreshes the queue and the
+ * overview's `follow_ups` section.
+ */
+export function useCompleteFollowUp() {
+  const queryClient = useQueryClient();
+  const updateInteraction = useUpdateInteraction();
+  return useMutation({
+    mutationFn: ({ guestId, noteId }: { guestId: number; noteId: number }) =>
+      updateInteraction.mutateAsync({
+        guestId,
+        interactionId: noteId,
+        data: { follow_up_completed: true },
+      }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.followUps() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.overview });
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.interactions(variables.guestId) });
     },
   });
 }

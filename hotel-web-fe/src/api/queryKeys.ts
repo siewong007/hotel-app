@@ -63,6 +63,14 @@ export const queryKeys = {
     vouchers: (id: string | number) => [...guests, 'vouchers', String(id)] as const,
     communications: (id: string | number) => [...guests, 'communications', String(id)] as const,
     support: (id: string | number) => [...guests, 'support', String(id)] as const,
+    // Guest relations phase 2 — cross-guest operational layer. `followUps()`
+    // with no args yields the `['guests','follow-ups']` prefix so a mutation
+    // can invalidate every due/page variant at once.
+    overview: [...guests, 'overview'] as const,
+    followUps: (due?: string, page?: number) =>
+      due === undefined
+        ? ([...guests, 'follow-ups'] as const)
+        : ([...guests, 'follow-ups', due, page ?? 1] as const),
   },
   rooms: {
     all: rooms,

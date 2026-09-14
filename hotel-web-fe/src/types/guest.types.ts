@@ -62,6 +62,12 @@ export interface Guest {
   bookings_count?: number;
   /** ISO date (YYYY-MM-DD) of the most recent checked-in/-out stay. */
   last_stay_date?: string;
+  /**
+   * `true` when the guest has any support conversation with
+   * `status <> 'closed'` — populated by the list endpoint's subquery, so it
+   * is absent on detail/profile payloads.
+   */
+  has_open_support?: boolean;
 }
 
 export interface GuestSummary {
