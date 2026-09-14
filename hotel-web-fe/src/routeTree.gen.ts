@@ -54,6 +54,7 @@ import { Route as SupportRouteImport } from './routes/support'
 import { Route as SystemHealthRouteImport } from './routes/system-health'
 import { Route as TimelineRouteImport } from './routes/timeline'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as BookingsBookingIdRouteImport } from './routes/bookings.$bookingId'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
@@ -296,6 +297,11 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
   path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookingsBookingIdRoute = BookingsBookingIdRouteImport.update({
+  id: '/$bookingId',
+  path: '/$bookingId',
+  getParentRoute: () => BookingsRoute,
+} as any)
 const GuestCheckinIndexRoute = GuestCheckinIndexRouteImport.update({
   id: '/guest-checkin/',
   path: '/guest-checkin/',
@@ -388,7 +394,7 @@ export interface FileRoutesByFullPath {
   '/423': typeof R423Route
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
-  '/bookings': typeof BookingsRoute
+  '/bookings': typeof BookingsRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
@@ -427,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/bookings/$bookingId': typeof BookingsBookingIdRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
@@ -451,7 +458,7 @@ export interface FileRoutesByTo {
   '/423': typeof R423Route
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
-  '/bookings': typeof BookingsRoute
+  '/bookings': typeof BookingsRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
@@ -490,6 +497,7 @@ export interface FileRoutesByTo {
   '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/bookings/$bookingId': typeof BookingsBookingIdRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
@@ -515,7 +523,7 @@ export interface FileRoutesById {
   '/423': typeof R423Route
   '/admin-portal': typeof AdminPortalRoute
   '/audit-log': typeof AuditLogRoute
-  '/bookings': typeof BookingsRoute
+  '/bookings': typeof BookingsRouteWithChildren
   '/campaigns': typeof CampaignsRoute
   '/communications': typeof CommunicationsRoute
   '/company-ledger': typeof CompanyLedgerRoute
@@ -554,6 +562,7 @@ export interface FileRoutesById {
   '/system-health': typeof SystemHealthRoute
   '/timeline': typeof TimelineRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/bookings/$bookingId': typeof BookingsBookingIdRoute
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
@@ -619,6 +628,7 @@ export interface FileRouteTypes {
     | '/system-health'
     | '/timeline'
     | '/verify-email'
+    | '/bookings/$bookingId'
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
@@ -682,6 +692,7 @@ export interface FileRouteTypes {
     | '/system-health'
     | '/timeline'
     | '/verify-email'
+    | '/bookings/$bookingId'
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
@@ -745,6 +756,7 @@ export interface FileRouteTypes {
     | '/system-health'
     | '/timeline'
     | '/verify-email'
+    | '/bookings/$bookingId'
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
@@ -770,7 +782,7 @@ export interface RootRouteChildren {
   R423Route: typeof R423Route
   AdminPortalRoute: typeof AdminPortalRoute
   AuditLogRoute: typeof AuditLogRoute
-  BookingsRoute: typeof BookingsRoute
+  BookingsRoute: typeof BookingsRouteWithChildren
   CampaignsRoute: typeof CampaignsRoute
   CommunicationsRoute: typeof CommunicationsRoute
   CompanyLedgerRoute: typeof CompanyLedgerRoute
@@ -1143,6 +1155,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bookings/$bookingId': {
+      id: '/bookings/$bookingId'
+      path: '/$bookingId'
+      fullPath: '/bookings/$bookingId'
+      preLoaderRoute: typeof BookingsBookingIdRouteImport
+      parentRoute: typeof BookingsRoute
+    }
     '/guest-checkin/': {
       id: '/guest-checkin/'
       path: '/guest-checkin'
@@ -1258,6 +1277,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BookingsRouteChildren {
+  BookingsBookingIdRoute: typeof BookingsBookingIdRoute
+}
+
+const BookingsRouteChildren: BookingsRouteChildren = {
+  BookingsBookingIdRoute: BookingsBookingIdRoute,
+}
+
+const BookingsRouteWithChildren = BookingsRoute._addFileChildren(
+  BookingsRouteChildren,
+)
+
 interface HelpRouteChildren {
   HelpSlugRoute: typeof HelpSlugRoute
 }
@@ -1275,7 +1306,7 @@ const rootRouteChildren: RootRouteChildren = {
   R423Route: R423Route,
   AdminPortalRoute: AdminPortalRoute,
   AuditLogRoute: AuditLogRoute,
-  BookingsRoute: BookingsRoute,
+  BookingsRoute: BookingsRouteWithChildren,
   CampaignsRoute: CampaignsRoute,
   CommunicationsRoute: CommunicationsRoute,
   CompanyLedgerRoute: CompanyLedgerRoute,

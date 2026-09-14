@@ -1,5 +1,10 @@
 export { useBookings, PAGE_SIZE } from './useBookings';
 export type { SortField, SortOrder, DateFilter, BookingStats } from './useBookings';
+export { useBookingActions } from './useBookingActions';
+export type {
+  BookingActionCallbacks,
+  UseBookingActionsOptions,
+} from './useBookingActions';
 export { useCheckInFormData } from './useCheckInFormData';
 export {
   useActiveCompanies,

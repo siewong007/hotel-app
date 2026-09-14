@@ -23,9 +23,13 @@ import {
   Edit as EditIcon,
   Close as CloseIcon,
   MeetingRoom as RoomIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import type { BookingWithDetails } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useIsPhone } from '../../../../hooks/useIsPhone';
+import ActionsMenu from '../../../../components/common/ActionsMenu';
+import type { ActionMenuItem } from '../../../../components/common/ActionsMenu';
 import { getBookingStatusText, getPaymentStatusText } from '../../../../utils/bookingUtils';
 import { formatStatusLabel } from '../../../../utils/formatters';
 import { isPositiveMoney, toMoneyNumber } from '../../../../utils/money';
@@ -76,6 +80,63 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
   onReactivate,
 }) => {
   const { format: formatCurrency } = useCurrency();
+  const isPhone = useIsPhone();
+
+  // Action availability gates — evaluated once so the desktop button row and
+  // the phone grouping stay in lockstep.
+  const showCheckIn = canCheckIn(booking);
+  const earlyCheckIn = isEarlyCheckIn(booking, getHotelSettings().check_in_time);
+  const showCheckOut = canCheckOut(booking);
+  // Standalone payment entry is only for pre-arrival bookings
+  // (confirmed/pending) that have no invoice yet. Once checked in, out, or
+  // completed, payments are recorded inside the invoice (checkout preview /
+  // receipt). Locked once fully settled.
+  const showPayment = !booking.is_complimentary
+    && isPositiveMoney(getBookingBalance(booking))
+    && !['checked_in', 'checked_out', 'completed'].includes(booking.status);
+  const showInvoice = ['checked_out', 'completed'].includes(booking.status);
+  const showRelease = canRelease(booking);
+  const showVoid = canVoid(booking);
+  const showReactivate = canReactivate(booking);
+
+  // Phone overflow menu: everything past the lifecycle CTA + Payment/Edit.
+  const menuActions: ActionMenuItem[] = [
+    {
+      id: 'workflow',
+      label: 'Workflow',
+      icon: <HistoryIcon fontSize="small" />,
+      onClick: () => onWorkflow(booking),
+    },
+    {
+      id: 'invoice',
+      label: 'Invoice',
+      icon: <ReceiptIcon fontSize="small" />,
+      onClick: () => onInvoice(booking),
+      hidden: !showInvoice,
+    },
+    {
+      id: 'release',
+      label: 'Release room',
+      icon: <VoidIcon fontSize="small" />,
+      onClick: () => onRelease(booking),
+      hidden: !showRelease,
+    },
+    {
+      id: 'reactivate',
+      label: 'Reactivate',
+      icon: <RestoreIcon fontSize="small" />,
+      onClick: () => onReactivate(booking),
+      hidden: !showReactivate,
+    },
+    {
+      id: 'void',
+      label: 'Void',
+      icon: <VoidIcon fontSize="small" />,
+      onClick: () => onVoid(booking),
+      destructive: true,
+      hidden: !showVoid,
+    },
+  ];
 
   return (
     <Card elevation={0} sx={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
@@ -195,6 +256,41 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
 
           <Box sx={{ p: 2.5 }}>
             <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
+            {isPhone ? (
+              // Phone: the first available lifecycle action gets the full-width
+              // contained CTA, Payment + Edit stay outlined, and the rest
+              // (Workflow, Invoice, Release, Void, Reactivate — same gates as
+              // desktop) collapse into an ActionsMenu bottom sheet.
+              <Stack spacing={1} sx={{ mt: 1 }}>
+                {showCheckIn ? (
+                  earlyCheckIn ? (
+                    <Tooltip title={`Early check-in — before the configured ${getHotelSettings().check_in_time || '15:00'} check-in time`} arrow>
+                      <Button fullWidth variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => onCheckIn(String(booking.id))}>Early check-in</Button>
+                    </Tooltip>
+                  ) : (
+                    <Button fullWidth variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => onCheckIn(String(booking.id))}>Check in</Button>
+                  )
+                ) : showCheckOut ? (
+                  <Button fullWidth variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => onCheckOut(booking)}>Check out</Button>
+                ) : null}
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  {showPayment && (
+                    <Button variant="outlined" color="success" startIcon={<PaymentIcon />} sx={{ flex: 1 }} onClick={() => onPayment(booking)}>Payment</Button>
+                  )}
+                  {isAdmin && (
+                    <Button variant="outlined" startIcon={<EditIcon />} sx={{ flex: 1 }} onClick={() => onEdit(booking)}>Edit</Button>
+                  )}
+                  <ActionsMenu
+                    trigger={
+                      <Button variant="outlined" startIcon={<MoreVertIcon />} sx={{ flex: showPayment || isAdmin ? undefined : 1 }}>
+                        More
+                      </Button>
+                    }
+                    actions={menuActions}
+                  />
+                </Stack>
+              </Stack>
+            ) : (
             <Stack
               direction="row"
               spacing={1}
@@ -239,6 +335,7 @@ const BookingDetailsPanel: React.FC<BookingDetailsPanelProps> = ({
                 <Button variant="outlined" color="success" startIcon={<RestoreIcon />} onClick={() => onReactivate(booking)}>Reactivate</Button>
               )}
             </Stack>
+            )}
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2.5 }}>
               <Box>
                 <Typography variant="caption" sx={{

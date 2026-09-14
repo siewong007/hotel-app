@@ -193,9 +193,14 @@ export class BookingsService {
     }
   }
 
-  static async getBookingById(bookingId: string): Promise<Booking> {
+  static async getBookingById(bookingId: string): Promise<BookingWithDetails> {
     try {
-      return await api.get(`bookings/${bookingId}`).json<Booking>();
+      // GET /bookings/{id} already returns the joined detail row
+      // (row_to_booking_with_details) — the previous `Booking` annotation was
+      // under-typed. enhanceBookingDetails adds the same computed fields the
+      // list endpoints get via getBookingsPage/getBookingsWithDetails.
+      const booking = await api.get(`bookings/${bookingId}`).json<BookingWithDetails>();
+      return enhanceBookingDetails(booking);
     } catch (error) {
       throw toApiError(error, 'Failed to fetch booking');
     }

@@ -13,27 +13,19 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import {
-  BookingTimelineEntry,
   BookingWithDetails,
-  PaymentWorkflowSummary,
 } from '../../../../types';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useSearchParams } from '../../../../router';
-import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
-import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
-import { LedgerService } from '../../../../api/ledger.service';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE } from '../../hooks/useBookings';
-import {
-  useBookingWorkflowFetcher,
-  useBookingsWithDetails,
-  useUpdateBooking,
-} from '../../hooks/useBookingQueries';
+import { useBookingsWithDetails } from '../../hooks/useBookingQueries';
+import { useBookingActions } from '../../hooks/useBookingActions';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 import { formatLocalDate } from '../../../../utils/date';
-import { isPositiveMoney, sumMoney } from '../../../../utils/money';
+import { sumMoney } from '../../../../utils/money';
 import {
   COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT,
   buildMonthOptions,
@@ -41,21 +33,12 @@ import {
   formatOperationalDate,
   getBookingBalance,
   getBookingViewSlices,
-  getErrorMessage,
-  isCompanyBooking,
   type BookingView,
 } from '../../utils/bookingPageUtils';
 import BookingSummarySection from './BookingSummarySection';
 import BookingFiltersBar from './BookingFiltersBar';
 import BookingListPanel from './BookingListPanel';
 import BookingDetailsPanel from './BookingDetailsPanel';
-import WorkflowDialog from './dialogs/WorkflowDialog';
-import ReleaseDialog from './dialogs/ReleaseDialog';
-import VoidDialog from './dialogs/VoidDialog';
-import ReactivateDialog from './dialogs/ReactivateDialog';
-import PaymentDialog, { type PaymentDialogContext } from './dialogs/PaymentDialog';
-import CheckInDialog from './dialogs/CheckInDialog';
-import EditBookingDialog from './dialogs/EditBookingDialog';
 
 const BookingsPage: React.FC = () => {
   const [pageSearchParams, setPageSearchParams] = useSearchParams();
@@ -65,17 +48,6 @@ const BookingsPage: React.FC = () => {
     .booking_channels.map((channel) => channel.name?.trim())
     .filter((name): name is string => Boolean(name));
   const isAdmin = hasPermission('bookings:update') || hasPermission('bookings:manage');
-  const updateBookingMutation = useUpdateBooking();
-
-  // Shared checkout + read-only receipt flow. Bookings keeps its react-query
-  // mutation (cache invalidation) and lets the backend mark the room dirty.
-  const checkoutFlow = useCheckoutFlow({
-    updateBooking: (bookingId, data) => updateBookingMutation.mutateAsync({ bookingId: String(bookingId), data }),
-    setRoomDirty: false,
-    onAfterCheckout: () => reloadBookingData(),
-    successMessage: () => 'Guest checked out successfully!',
-    notify: (message) => showSnackbar(message),
-  });
 
   const {
     bookings,
@@ -113,13 +85,6 @@ const BookingsPage: React.FC = () => {
     clearFilters,
   } = useBookings();
 
-  const [checkinBooking, setCheckinBooking] = useState<BookingWithDetails | null>(null);
-  const [showCheckinModal, setShowCheckinModal] = useState(false);
-  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
-  const [workflowBooking, setWorkflowBooking] = useState<BookingWithDetails | null>(null);
-  const [workflowSummary, setWorkflowSummary] = useState<PaymentWorkflowSummary | null>(null);
-  const [workflowTimeline, setWorkflowTimeline] = useState<BookingTimelineEntry[]>([]);
-  const [workflowLoading, setWorkflowLoading] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [bookingDetailsOpen, setBookingDetailsOpen] = useState(true);
   const [bookingView, setBookingView] = useState<BookingView>('all');
@@ -128,7 +93,6 @@ const BookingsPage: React.FC = () => {
   const createRequested = pageSearchParams.get('create') === '1';
   const routedView = pageSearchParams.get('view') || '';
   const summaryBookingsQuery = useBookingsWithDetails();
-  const fetchBookingWorkflow = useBookingWorkflowFetcher();
   const summaryBookings = summaryBookingsQuery.data ?? [];
   const summaryLoaded = summaryBookingsQuery.isSuccess;
 
@@ -195,23 +159,6 @@ const BookingsPage: React.FC = () => {
     }
   };
 
-  // Edit booking dialog (admin only)
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingBooking, setEditingBooking] = useState<BookingWithDetails | null>(null);
-
-  // Release / void / reactivate dialogs
-  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
-  const [releasingBooking, setReleasingBooking] = useState<BookingWithDetails | null>(null);
-  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
-  const [voidingBooking, setVoidingBooking] = useState<BookingWithDetails | null>(null);
-  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
-  const [reactivatingBooking, setReactivatingBooking] = useState<BookingWithDetails | null>(null);
-
-  // Payment status update dialog
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
-  const [paymentDialogContext, setPaymentDialogContext] = useState<PaymentDialogContext>('manual');
-
   const showSnackbar = (message: string) => {
     emitApiNotification({ message, severity: 'success' });
   };
@@ -220,100 +167,22 @@ const BookingsPage: React.FC = () => {
     await Promise.all([loadData(), summaryBookingsQuery.refetch()]);
   };
 
+  // All booking-action dialogs and their handlers live in the shared hook so
+  // the /bookings/$bookingId detail page drives the same workflows.
+  const {
+    callbacks: bookingActionCallbacks,
+    dialogs: bookingActionDialogs,
+    openCheckInDialog,
+  } = useBookingActions({
+    rooms,
+    bookings,
+    summaryBookings,
+    onError: setError,
+    onCompleted: reloadBookingData,
+  });
+
   // Server handles all filtering and sorting — bookings is already the correct page
   const filteredAndSortedBookings = bookings;
-
-  const handleEditBooking = (booking: BookingWithDetails) => {
-    setEditingBooking(booking);
-    setEditDialogOpen(true);
-  };
-
-  const handleReleaseBooking = (booking: BookingWithDetails) => {
-    setReleasingBooking(booking);
-    setReleaseDialogOpen(true);
-  };
-
-  const handleVoidBooking = (booking: BookingWithDetails) => {
-    setVoidingBooking(booking);
-    setVoidDialogOpen(true);
-  };
-
-  const handleReactivateBooking = (booking: BookingWithDetails) => {
-    setReactivatingBooking(booking);
-    setReactivateDialogOpen(true);
-  };
-
-  // Payment status handlers
-  const handleUpdatePaymentStatus = (booking: BookingWithDetails) => {
-    setPaymentBooking(booking);
-    setPaymentDialogContext('manual');
-    setPaymentDialogOpen(true);
-  };
-
-  // Check-in functions
-  const handleCheckIn = async (bookingId: string) => {
-    const booking = bookings.find(b => String(b.id) === String(bookingId)) ||
-      summaryBookings.find(b => String(b.id) === String(bookingId));
-    if (!booking) {
-      setError('Booking not found');
-      return;
-    }
-    setCheckinBooking(booking);
-    setShowCheckinModal(true);
-  };
-
-  // View invoice for checked-out bookings. For company city-ledger bookings the
-  // payments live on the customer ledger (not the booking `payments` table), so
-  // look up the backing room-charge ledger and pass it through — the invoice
-  // then renders the ledger's payment history, same as the ledger page.
-  const handleViewInvoice = async (booking: BookingWithDetails) => {
-    const isCompanyBilling = isCompanyBooking(booking);
-    if (!isCompanyBilling) {
-      checkoutFlow.openReceipt(booking);
-      return;
-    }
-    try {
-      const ledger = await LedgerService.getRoomChargeLedgerForBooking(
-        Number(booking.id),
-        booking.room_number,
-      );
-      checkoutFlow.openReceipt(booking, ledger);
-    } catch {
-      // Fall back to the booking-sourced receipt if the ledger lookup fails.
-      checkoutFlow.openReceipt(booking);
-    }
-  };
-
-  const handleViewWorkflow = async (booking: BookingWithDetails) => {
-    setWorkflowBooking(booking);
-    setWorkflowDialogOpen(true);
-    setWorkflowLoading(true);
-    setWorkflowSummary(null);
-    setWorkflowTimeline([]);
-
-    try {
-      const [summary, timeline] = await fetchBookingWorkflow(booking.id);
-      setWorkflowSummary(summary);
-      setWorkflowTimeline(timeline);
-    } catch (err: unknown) {
-      setError(getErrorMessage(err) || 'Failed to load booking workflow');
-    } finally {
-      setWorkflowLoading(false);
-    }
-  };
-
-  // Check-out functions
-  const handleCheckOut = (booking: BookingWithDetails) => {
-    const balanceDue = getBookingBalance(booking);
-    if (isPositiveMoney(balanceDue) && !isCompanyBooking(booking)) {
-      setPaymentBooking(booking);
-      setPaymentDialogContext('checkout_required');
-      setPaymentDialogOpen(true);
-      return;
-    }
-
-    checkoutFlow.openCheckout(booking);
-  };
 
   // Statistics — use server-side stats for global accuracy
   const todayCheckIns = statsData.today_check_ins;
@@ -576,28 +445,11 @@ const BookingsPage: React.FC = () => {
               setSelectedBookingId(null);
               setBookingDetailsOpen(false);
             }}
-            onCheckIn={handleCheckIn}
-            onCheckOut={handleCheckOut}
-            onPayment={handleUpdatePaymentStatus}
-            onWorkflow={handleViewWorkflow}
-            onEdit={handleEditBooking}
-            onInvoice={handleViewInvoice}
-            onRelease={handleReleaseBooking}
-            onVoid={handleVoidBooking}
-            onReactivate={handleReactivateBooking}
+            {...bookingActionCallbacks}
           />
         </Grid>
         )}
       </Grid>
-      {/* Booking Workflow Dialog */}
-      <WorkflowDialog
-        open={workflowDialogOpen}
-        booking={workflowBooking}
-        summary={workflowSummary}
-        timeline={workflowTimeline}
-        loading={workflowLoading}
-        onClose={() => setWorkflowDialogOpen(false)}
-      />
       {/* Create Booking Modal (Unified) */}
       <UnifiedBookingModal
         open={createDialogOpen}
@@ -643,67 +495,12 @@ const BookingsPage: React.FC = () => {
             created_at: booking.created_at,
             is_posted: false,
           };
-          setCheckinBooking(bookingWithDetails);
-          setShowCheckinModal(true);
+          openCheckInDialog(bookingWithDetails);
         }}
       />
-      {/* Edit Booking Dialog (Admin Only) */}
-      <EditBookingDialog
-        open={editDialogOpen}
-        booking={editingBooking}
-        rooms={rooms}
-        onClose={() => setEditDialogOpen(false)}
-        onError={setError}
-        onCompleted={reloadBookingData}
-      />
-      <ReleaseDialog
-        open={releaseDialogOpen}
-        booking={releasingBooking}
-        onClose={() => setReleaseDialogOpen(false)}
-        onError={setError}
-        onCompleted={reloadBookingData}
-      />
-      <VoidDialog
-        open={voidDialogOpen}
-        booking={voidingBooking}
-        onClose={() => setVoidDialogOpen(false)}
-        onError={setError}
-        onCompleted={reloadBookingData}
-      />
-      {/* Reactivate Booking Dialog */}
-      <ReactivateDialog
-        open={reactivateDialogOpen}
-        booking={reactivatingBooking}
-        onClose={() => setReactivateDialogOpen(false)}
-        onError={setError}
-        onCompleted={reloadBookingData}
-      />
-      <PaymentDialog
-        open={paymentDialogOpen}
-        booking={paymentBooking}
-        context={paymentDialogContext}
-        onClose={() => {
-          setPaymentDialogOpen(false);
-          setPaymentBooking(null);
-          setPaymentDialogContext('manual');
-        }}
-        onError={setError}
-        onCompleted={reloadBookingData}
-      />
-      {/* Checkout Invoice Modal */}
-      {/* Shared checkout + read-only receipt modals */}
-      <CheckoutInvoiceModals
-        flow={checkoutFlow}
-        onReceiptPaymentsChanged={() => { void reloadBookingData(); }}
-      />
-      {/* Check-In Dialog */}
-      <CheckInDialog
-        open={showCheckinModal}
-        booking={checkinBooking}
-        onClose={() => { setShowCheckinModal(false); setCheckinBooking(null); }}
-        onError={setError}
-        onCompleted={reloadBookingData}
-      />
+      {/* All booking-action dialogs (CheckIn, Payment, Workflow, Edit, Invoice,
+          Release, Void, Reactivate) mount via the shared hook. */}
+      {bookingActionDialogs}
     </Box>
   );
 };
