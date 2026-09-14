@@ -27,9 +27,9 @@
 //! Requires `DATABASE_URL` (PostgreSQL); tests skip gracefully without it,
 //! the same convention as tests/booking_service.rs / tests/ledger_service.rs.
 //!
-//! Fixture IDs live in the 986_xxx block (verified unused across tests/*.rs
-//! before writing this file): actors 986_0xx, bookings 986_1xx, guests
-//! 986_2xx, rooms 986_3xx, room_types 986_4xx.
+//! Fixture IDs live in the 987_xxx block (verified unused across tests/*.rs
+//! before writing this file): actors 987_0xx, bookings 987_1xx, guests
+//! 987_2xx, rooms 987_3xx, room_types 987_4xx.
 
 use axum::Json;
 use axum::extract::{Extension, Path, State};
@@ -138,8 +138,8 @@ async fn ensure_admin_actor(pool: &PgPool, actor_id: i64) {
              is_active = true, is_verified = true",
     )
     .bind(actor_id)
-    .bind(format!("dcg986_actor_{actor_id}"))
-    .bind(format!("dcg986-actor-{actor_id}@hotel.local"))
+    .bind(format!("dcg987_actor_{actor_id}"))
+    .bind(format!("dcg987-actor-{actor_id}@hotel.local"))
     .bind(format!("Deposit Guard Actor {actor_id}"))
     .execute(pool)
     .await
@@ -204,7 +204,7 @@ async fn seed_checked_in_booking(pool: &PgPool, f: &CheckoutFixture) {
     .bind(f.guest_id)
     .bind(format!("Deposit Guard Guest {}", f.guest_id))
     .bind(format!("Guest{}", f.guest_id))
-    .bind(format!("dcg986-guest-{}@hotel.local", f.guest_id))
+    .bind(format!("dcg987-guest-{}@hotel.local", f.guest_id))
     .execute(pool)
     .await
     .unwrap();
@@ -239,7 +239,7 @@ async fn seed_checked_in_booking(pool: &PgPool, f: &CheckoutFixture) {
     .bind(format!("BK-DCG-{}", f.booking_id))
     .bind(f.guest_id)
     .bind(format!("Deposit Guard Guest {}", f.guest_id))
-    .bind(format!("dcg986-guest-{}@hotel.local", f.guest_id))
+    .bind(format!("dcg987-guest-{}@hotel.local", f.guest_id))
     .bind(f.room_id)
     .bind(f.company_name)
     .bind(f.actor_id)
@@ -445,11 +445,11 @@ async fn checkout_blocked_while_completed_deposit_is_unrefunded() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_001,
-        booking_id: 986_101,
-        guest_id: 986_201,
-        room_id: 986_301,
-        room_type_id: 986_401,
+        actor_id: 987_001,
+        booking_id: 987_101,
+        guest_id: 987_201,
+        room_id: 987_301,
+        room_type_id: 987_401,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -473,11 +473,11 @@ async fn checkout_succeeds_after_deposit_refunded() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_002,
-        booking_id: 986_102,
-        guest_id: 986_202,
-        room_id: 986_302,
-        room_type_id: 986_402,
+        actor_id: 987_002,
+        booking_id: 987_102,
+        guest_id: 987_202,
+        room_id: 987_302,
+        room_type_id: 987_402,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -507,11 +507,11 @@ async fn checkout_succeeds_after_deposit_forfeited() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_003,
-        booking_id: 986_103,
-        guest_id: 986_203,
-        room_id: 986_303,
-        room_type_id: 986_403,
+        actor_id: 987_003,
+        booking_id: 987_103,
+        guest_id: 987_203,
+        room_id: 987_303,
+        room_type_id: 987_403,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -541,11 +541,11 @@ async fn partial_forfeit_leaves_the_remainder_blocking() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_004,
-        booking_id: 986_104,
-        guest_id: 986_204,
-        room_id: 986_304,
-        room_type_id: 986_404,
+        actor_id: 987_004,
+        booking_id: 987_104,
+        guest_id: 987_204,
+        room_id: 987_304,
+        room_type_id: 987_404,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -581,11 +581,11 @@ async fn checkout_blocked_by_flag_only_deposit_without_payment_rows() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_005,
-        booking_id: 986_105,
-        guest_id: 986_205,
-        room_id: 986_305,
-        room_type_id: 986_405,
+        actor_id: 987_005,
+        booking_id: 987_105,
+        guest_id: 987_205,
+        room_id: 987_305,
+        room_type_id: 987_405,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -611,11 +611,11 @@ async fn prior_waive_update_releases_flag_only_deposit() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_006,
-        booking_id: 986_106,
-        guest_id: 986_206,
-        room_id: 986_306,
-        room_type_id: 986_406,
+        actor_id: 987_006,
+        booking_id: 987_106,
+        guest_id: 987_206,
+        room_id: 987_306,
+        room_type_id: 987_406,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -658,11 +658,11 @@ async fn waive_folded_into_checkout_request_does_not_satisfy_guard() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_007,
-        booking_id: 986_107,
-        guest_id: 986_207,
-        room_id: 986_307,
-        room_type_id: 986_407,
+        actor_id: 987_007,
+        booking_id: 987_107,
+        guest_id: 987_207,
+        room_id: 987_307,
+        room_type_id: 987_407,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -704,12 +704,12 @@ async fn company_billing_does_not_exempt_the_deposit_guard() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_008,
-        booking_id: 986_108,
-        guest_id: 986_208,
-        room_id: 986_308,
-        room_type_id: 986_408,
-        company_name: Some("DCG986 Corp"),
+        actor_id: 987_008,
+        booking_id: 987_108,
+        guest_id: 987_208,
+        room_id: 987_308,
+        room_type_id: 987_408,
+        company_name: Some("DCG987 Corp"),
     };
     cleanup_fixture(&pool, &f).await;
     seed_checked_in_booking(&pool, &f).await;
@@ -734,11 +734,11 @@ async fn deposit_assertion_records_deposit_payment_method() {
         return;
     };
     let f = CheckoutFixture {
-        actor_id: 986_009,
-        booking_id: 986_109,
-        guest_id: 986_209,
-        room_id: 986_309,
-        room_type_id: 986_409,
+        actor_id: 987_009,
+        booking_id: 987_109,
+        guest_id: 987_209,
+        room_id: 987_309,
+        room_type_id: 987_409,
         company_name: None,
     };
     cleanup_fixture(&pool, &f).await;
@@ -783,19 +783,19 @@ async fn deposit_assertion_falls_back_when_method_absent_or_blank() {
     };
     // Two fresh bookings: one sends no deposit_payment_method, one sends "   ".
     let absent = CheckoutFixture {
-        actor_id: 986_010,
-        booking_id: 986_110,
-        guest_id: 986_210,
-        room_id: 986_310,
-        room_type_id: 986_410,
+        actor_id: 987_010,
+        booking_id: 987_110,
+        guest_id: 987_210,
+        room_id: 987_310,
+        room_type_id: 987_410,
         company_name: None,
     };
     let blank = CheckoutFixture {
-        actor_id: 986_011,
-        booking_id: 986_111,
-        guest_id: 986_211,
-        room_id: 986_311,
-        room_type_id: 986_411,
+        actor_id: 987_011,
+        booking_id: 987_111,
+        guest_id: 987_211,
+        room_id: 987_311,
+        room_type_id: 987_411,
         company_name: None,
     };
     for f in [&absent, &blank] {
