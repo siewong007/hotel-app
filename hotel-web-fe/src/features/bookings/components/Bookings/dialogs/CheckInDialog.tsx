@@ -8,6 +8,7 @@ import { getHotelSettings } from '../../../../../utils/hotelSettings';
 import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 import { emitApiNotification } from '../../../../../utils/apiNotifications';
 import { getErrorMessage } from '../../../utils/bookingPageUtils';
+import { useTranslation } from '../../../../../i18n';
 
 interface CheckInDialogProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface CheckInDialogProps {
 }
 
 const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, onError, onCompleted }) => {
+  const { t } = useTranslation('bookings');
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const checkInGuestMutation = useCheckInGuestMutation();
   const paymentMethods = getHotelSettings().payment_methods;
@@ -67,11 +69,11 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
   const handleConfirm = async () => {
     if (!booking) return;
     if (!icNumber.trim()) {
-      onError('IC / passport number is required to complete check-in.');
+      onError(t('checkIn.icRequiredError'));
       return;
     }
     if (depositChoice === 'receive' && !isPositiveMoney(depositAmount)) {
-      onError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
+      onError(t('checkIn.depositRequiredError'));
       return;
     }
     try {
@@ -111,10 +113,10 @@ const CheckInDialog: React.FC<CheckInDialogProps> = ({ open, booking, onClose, o
       }
       await checkInGuestMutation.mutateAsync({ bookingId: booking.id, data: checkinPayload });
       onClose();
-      emitApiNotification({ severity: 'success', message: 'Guest checked in successfully!' });
+      emitApiNotification({ severity: 'success', message: t('checkIn.success') });
       await onCompleted();
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to check in guest');
+      onError(getErrorMessage(err) || t('checkIn.failed'));
     } finally {
       setProcessing(false);
     }

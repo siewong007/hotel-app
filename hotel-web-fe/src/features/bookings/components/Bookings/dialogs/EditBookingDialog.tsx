@@ -24,6 +24,7 @@ import { queryStaleTime } from '../../../../../api/queryConfig';
 import { useAuth } from '../../../../../auth/AuthContext';
 import { useCurrency } from '../../../../../hooks/useCurrency';
 import { useActiveCompanies, useUpdateBooking } from '../../../hooks/useBookingQueries';
+import { statusLabel, useTranslation } from '../../../../../i18n';
 import { isPositiveMoney, multiplyMoney, subtractMoney, toMoneyNumber } from '../../../../../utils/money';
 import { emitApiNotification } from '../../../../../utils/apiNotifications';
 import {
@@ -43,6 +44,7 @@ interface EditBookingDialogProps {
 
 // Edit Booking Dialog (Admin Only)
 const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, rooms, onClose, onError, onCompleted }) => {
+  const { t } = useTranslation('bookings');
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const { format: formatCurrency } = useCurrency();
@@ -214,11 +216,11 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
       }
 
       await updateBookingMutation.mutateAsync({ bookingId: booking.id, data: updateData });
-      emitApiNotification({ severity: 'success', message: 'Booking updated successfully!' });
+      emitApiNotification({ severity: 'success', message: t('edit.success') });
       onClose();
       await onCompleted();
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to update booking');
+      onError(getErrorMessage(err) || t('edit.failed'));
     } finally {
       setUpdating(false);
     }
@@ -226,13 +228,13 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Edit Booking #{booking?.folio_number || booking?.id.toString().substring(0, 8)}</DialogTitle>
+      <DialogTitle>{t('edit.title', { id: booking?.folio_number || booking?.id.toString().substring(0, 8) })}</DialogTitle>
       <DialogContent>
         <Grid container spacing={2} sx={{ mt: 1 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Check-In Date"
+              label={t('edit.checkInDate')}
               type="date"
               value={editFormData.check_in_date || ''}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, check_in_date: e.target.value }))}
@@ -244,7 +246,7 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Scheduled Check-Out Date"
+              label={t('edit.checkOutDate')}
               type="date"
               value={editFormData.check_out_date || ''}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, check_out_date: e.target.value }))}
@@ -257,11 +259,11 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Actual Check-Out Date"
+                label={t('edit.actualCheckOut')}
                 type="date"
                 value={editFormData.actual_check_out || ''}
                 onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, actual_check_out: e.target.value }))}
-                helperText="The date the guest actually checked out (shown on the invoice)"
+                helperText={t('edit.actualCheckOutHelper')}
                 slotProps={{
                   inputLabel: { shrink: true }
                 }}
@@ -272,43 +274,43 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
             <TextField
               select
               fullWidth
-              label="Status"
+              label={t('edit.status')}
               value={editFormData.status || 'pending'}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, status: e.target.value }))}
 
             >
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="confirmed">Confirmed</MenuItem>
-              <MenuItem value="checked_in">Checked In</MenuItem>
-              <MenuItem value="auto_checked_in">Auto Checked In</MenuItem>
-              <MenuItem value="checked_out">Checked Out</MenuItem>
-              <MenuItem value="late_checkout">Late Checkout</MenuItem>
-              <MenuItem value="voided">Voided</MenuItem>
+              <MenuItem value="pending">{statusLabel(t, 'booking', 'pending')}</MenuItem>
+              <MenuItem value="confirmed">{statusLabel(t, 'booking', 'confirmed')}</MenuItem>
+              <MenuItem value="checked_in">{statusLabel(t, 'booking', 'checked_in')}</MenuItem>
+              <MenuItem value="auto_checked_in">{statusLabel(t, 'booking', 'auto_checked_in')}</MenuItem>
+              <MenuItem value="checked_out">{statusLabel(t, 'booking', 'checked_out')}</MenuItem>
+              <MenuItem value="late_checkout">{statusLabel(t, 'booking', 'late_checkout')}</MenuItem>
+              <MenuItem value="voided">{statusLabel(t, 'booking', 'voided')}</MenuItem>
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
               fullWidth
-              label="Channel"
+              label={t('edit.channel')}
               value={editFormData.source || 'walk_in'}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, source: e.target.value }))}
             >
-              <MenuItem value="walk_in">Walk-in</MenuItem>
-              <MenuItem value="phone">Phone Reservation</MenuItem>
-              <MenuItem value="direct">Direct Booking</MenuItem>
-              <MenuItem value="online">Online (OTA)</MenuItem>
-              <MenuItem value="website">Website</MenuItem>
-              <MenuItem value="mobile">Mobile App</MenuItem>
-              <MenuItem value="agent">Travel Agent</MenuItem>
-              <MenuItem value="corporate">Corporate</MenuItem>
+              <MenuItem value="walk_in">{t('channels.walk_in')}</MenuItem>
+              <MenuItem value="phone">{t('channels.phone')}</MenuItem>
+              <MenuItem value="direct">{t('channels.direct')}</MenuItem>
+              <MenuItem value="online">{t('channels.online')}</MenuItem>
+              <MenuItem value="website">{t('channels.website')}</MenuItem>
+              <MenuItem value="mobile">{t('channels.mobile')}</MenuItem>
+              <MenuItem value="agent">{t('channels.agent')}</MenuItem>
+              <MenuItem value="corporate">{t('channels.corporate')}</MenuItem>
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               select
               fullWidth
-              label="Booking Platform"
+              label={t('edit.bookingPlatform')}
               value={editFormData.booking_channel_id || ''}
               onChange={(e) => {
                 const channel = bookingChannels.find((item) => String(item.id) === e.target.value);
@@ -319,7 +321,7 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
                 }));
               }}
             >
-              <MenuItem value="">None</MenuItem>
+              <MenuItem value="">{t('edit.noChannel')}</MenuItem>
               {bookingChannels.map((channel) => (
                 <MenuItem key={channel.id} value={channel.id}>
                   {channel.name}
@@ -331,7 +333,7 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="OTA Ref No"
+                label={t('edit.otaRef')}
                 value={editFormData.ota_reference || ''}
                 onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, ota_reference: e.target.value }))}
               />
@@ -368,7 +370,7 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
                             color: "text.secondary",
                             ml: 3.5
                           }}>
-                          Contact: {option.contact_person}
+                          {t('edit.contactPrefix', { name: option.contact_person })}
                         </Typography>
                       )}
                     </Box>
@@ -378,9 +380,9 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Company (optional)"
-                  placeholder="Search company (optional)"
-                  helperText="Leave empty for normal guest billing."
+                  label={t('edit.company')}
+                  placeholder={t('edit.companyPlaceholder')}
+                  helperText={t('edit.companyHelper')}
                   slotProps={{
                     ...params.slotProps,
 
@@ -415,14 +417,14 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
-              label="Room Rate (Before Tax)"
+              label={t('edit.roomRate')}
               type="number"
               value={editFormData.price_per_night || 0}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({
                 ...prev,
                 price_per_night: toMoneyNumber(e.target.value),
               }))}
-              helperText="Rate per night (before tax) - modifying will recalculate total"
+              helperText={t('edit.roomRateHelper')}
               slotProps={{
                 input: {
                   startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
@@ -435,7 +437,7 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Number of Extra Beds"
+                  label={t('edit.extraBedCount')}
                   type="number"
                   value={editFormData.extra_bed_count || 0}
                   onChange={(e) => {
@@ -448,9 +450,10 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
                       extra_bed_charge: multiplyMoney(chargePerBed, count),
                     }));
                   }}
-                  helperText={`${formatCurrency(
-                    toMoneyNumber(editRoomTypeConfig?.extra_bed_charge)
-                  )} per extra bed (max ${editRoomTypeConfig?.max_extra_beds || 0})`}
+                  helperText={t('edit.extraBedHelper', {
+                    rate: formatCurrency(toMoneyNumber(editRoomTypeConfig?.extra_bed_charge)),
+                    max: editRoomTypeConfig?.max_extra_beds || 0,
+                  })}
                   slotProps={{
                     htmlInput: { min: 0, max: editRoomTypeConfig?.max_extra_beds || 0 }
                   }}
@@ -459,14 +462,14 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Extra Bed Charge"
+                  label={t('edit.extraBedCharge')}
                   type="number"
                   value={editFormData.extra_bed_charge || 0}
                   onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({
                     ...prev,
                     extra_bed_charge: toMoneyNumber(e.target.value),
                   }))}
-                  helperText="Auto-calculated or manually adjust"
+                  helperText={t('edit.extraBedChargeHelper')}
                   slotProps={{
                     input: {
                       startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
@@ -479,23 +482,23 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
           <Grid size={12}>
             <TextField
               fullWidth
-              label="Notes / Remarks"
+              label={t('edit.remarks')}
               multiline
               rows={2}
               value={editFormData.remarks || ''}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, remarks: e.target.value }))}
-              placeholder="Enter any notes or remarks for this booking..."
+              placeholder={t('edit.remarksPlaceholder')}
             />
           </Grid>
           <Grid size={12}>
             <TextField
               fullWidth
-              label="Special Requests"
+              label={t('edit.specialRequests')}
               multiline
               rows={2}
               value={editFormData.special_requests || ''}
               onChange={(e) => setEditFormData((prev: BookingEditFormData) => ({ ...prev, special_requests: e.target.value }))}
-              placeholder="Enter any special requests..."
+              placeholder={t('edit.specialRequestsPlaceholder')}
             />
           </Grid>
           {booking && !['checked_in', 'auto_checked_in', 'checked_out', 'completed'].includes(booking.status) ? (
@@ -504,7 +507,7 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
                 <TextField
                   select
                   fullWidth
-                  label="Assigned Room"
+                  label={t('edit.assignedRoom')}
                   value={editFormData.room_id || ''}
                   onChange={(e) => {
                     const selectedRoom = availableRooms.find(r => r.id === e.target.value);
@@ -520,32 +523,36 @@ const EditBookingDialog: React.FC<EditBookingDialogProps> = ({ open, booking, ro
                 >
                   {availableRooms.map((room) => (
                     <MenuItem key={room.id} value={room.id}>
-                      Room {room.room_number} - {room.room_type} ({formatCurrency(toMoneyNumber(room.price_per_night))}/night)
-                      {room.id === booking.room_id ? ' (current)' : ''}
+                      {t('edit.roomOption', {
+                        number: room.room_number,
+                        type: room.room_type,
+                        rate: formatCurrency(toMoneyNumber(room.price_per_night)),
+                      })}
+                      {room.id === booking.room_id ? ` ${t('edit.currentMarker')}` : ''}
                     </MenuItem>
                   ))}
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Alert severity="info" sx={{ height: '100%', display: 'flex', alignItems: 'center' }}>
-                  Guest: <strong>{booking?.guest_name}</strong>
+                  {t('edit.guestLabel')} <strong>{booking?.guest_name}</strong>
                 </Alert>
               </Grid>
             </>
           ) : (
             <Grid size={12}>
               <Alert severity="info">
-                Guest: <strong>{booking?.guest_name}</strong><br />
-                Room: <strong>{booking?.room_type} - Room {booking?.room_number}</strong>
+                {t('edit.guestLabel')} <strong>{booking?.guest_name}</strong><br />
+                {t('edit.roomLabel')} <strong>{booking?.room_type} - {t('details.roomNumber', { number: booking?.room_number })}</strong>
               </Alert>
             </Grid>
           )}
         </Grid>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button onClick={handleUpdateBooking} variant="contained" disabled={updating}>
-          {updating ? 'Updating...' : 'Update Booking'}
+          {updating ? t('edit.updating') : t('edit.update')}
         </Button>
       </DialogActions>
     </Dialog>

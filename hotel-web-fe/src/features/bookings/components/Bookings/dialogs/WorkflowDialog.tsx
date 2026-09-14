@@ -22,7 +22,8 @@ import {
 } from '@mui/icons-material';
 import type { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary } from '../../../../../types';
 import { useCurrency } from '../../../../../hooks/useCurrency';
-import { getPaymentStatusText } from '../../../../../utils/bookingUtils';
+import { statusLabel, useTranslation } from '../../../../../i18n';
+import { formatHotelDateTime } from '../../../../../utils/date';
 import { compareMoney, isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface WorkflowDialogProps {
@@ -34,7 +35,7 @@ interface WorkflowDialogProps {
   onClose: () => void;
 }
 
-const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
+const getWorkflowEventIndicator = (event: BookingTimelineEntry, t: (key: string) => string) => {
   const source = (event.source || '').toLowerCase();
   const eventType = (event.event_type || '').toLowerCase();
   const statusTo = (event.status_to || '').toLowerCase();
@@ -50,7 +51,7 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
     title.includes('checked out')
   ) {
     return {
-      label: statusTo === 'voided' || eventType.includes('void') || title.includes('void') ? 'Void' : 'Checkout',
+      label: statusTo === 'voided' || eventType.includes('void') || title.includes('void') ? t('workflow.event.void') : t('workflow.event.checkout'),
       color: 'var(--hotel-danger)',
       backgroundColor: 'var(--hotel-danger-bg)',
       borderColor: 'var(--hotel-danger-border)',
@@ -65,7 +66,7 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
     title.includes('checked in')
   ) {
     return {
-      label: 'Check-in',
+      label: t('workflow.event.checkIn'),
       color: 'var(--hotel-warning)',
       backgroundColor: 'var(--hotel-warning-bg)',
       borderColor: 'var(--hotel-warning-border)',
@@ -75,7 +76,7 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
 
   if (source === 'payments') {
     return {
-      label: 'Payment',
+      label: t('workflow.event.payment'),
       color: 'var(--hotel-success)',
       backgroundColor: 'var(--hotel-success-bg)',
       borderColor: 'var(--hotel-success-border)',
@@ -84,7 +85,7 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
   }
 
   return {
-    label: 'Update',
+    label: t('workflow.event.update'),
     color: 'var(--hotel-info)',
     backgroundColor: 'var(--hotel-info-bg)',
     borderColor: 'var(--hotel-info-border)',
@@ -93,6 +94,7 @@ const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
 };
 
 const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary, timeline, loading, onClose }) => {
+  const { t } = useTranslation('bookings');
   const { format: formatCurrency } = useCurrency();
 
   return (
@@ -103,7 +105,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
       fullWidth
     >
       <DialogTitle>
-        Workflow - {booking?.booking_number || booking?.folio_number || `#${booking?.id}`}
+        {t('workflow.title', { id: booking?.booking_number || booking?.folio_number || `#${booking?.id}` })}
       </DialogTitle>
       <DialogContent dividers>
         {loading ? (
@@ -118,13 +120,13 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Total</Typography>
+                    }}>{t('workflow.total')}</Typography>
                     <Typography variant="subtitle2">{formatCurrency(toMoneyNumber(summary.total_amount))}</Typography>
                   </Box>
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Paid</Typography>
+                    }}>{t('workflow.paid')}</Typography>
                     <Typography variant="subtitle2" sx={{
                       color: "success.main"
                     }}>{formatCurrency(toMoneyNumber(summary.total_paid))}</Typography>
@@ -132,7 +134,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Balance</Typography>
+                    }}>{t('workflow.balance')}</Typography>
                     <Typography variant="subtitle2" color={isPositiveMoney(summary.balance_due) ? 'warning.main' : 'success.main'}>
                       {formatCurrency(toMoneyNumber(summary.balance_due))}
                     </Typography>
@@ -140,7 +142,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                   <Box>
                     <Typography variant="caption" sx={{
                       color: "text.secondary"
-                    }}>Refunded</Typography>
+                    }}>{t('workflow.refunded')}</Typography>
                     <Typography variant="subtitle2" sx={{
                       color: "info.main"
                     }}>{formatCurrency(toMoneyNumber(summary.total_refunded))}</Typography>
@@ -148,7 +150,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                 </Box>
                 <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Chip size="small" color="primary" label={summary.next_action} />
-                  <Chip size="small" variant="outlined" label={getPaymentStatusText(summary.payment_status)} />
+                  <Chip size="small" variant="outlined" label={statusLabel(t, 'payment', summary.payment_status)} />
                 </Box>
                 {summary.warnings.length > 0 && (
                   <Alert severity="warning" sx={{ mt: 1.5 }}>
@@ -162,15 +164,15 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
 
             <Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, mb: 1 }}>
-                <Typography variant="subtitle2">Timeline</Typography>
+                <Typography variant="subtitle2">{t('workflow.timeline')}</Typography>
                 <Stack direction="row" spacing={0.75} useFlexGap sx={{
                   flexWrap: "wrap"
                 }}>
                   {[
-                    { label: 'Update', color: 'var(--hotel-info)' },
-                    { label: 'Payment', color: 'var(--hotel-success)' },
-                    { label: 'Check-in', color: 'var(--hotel-warning)' },
-                    { label: 'Checkout / Void', color: 'var(--hotel-danger)' },
+                    { label: t('workflow.event.update'), color: 'var(--hotel-info)' },
+                    { label: t('workflow.event.payment'), color: 'var(--hotel-success)' },
+                    { label: t('workflow.event.checkIn'), color: 'var(--hotel-warning)' },
+                    { label: t('workflow.event.checkoutVoid'), color: 'var(--hotel-danger)' },
                   ].map((item) => (
                     <Chip
                       key={item.label}
@@ -192,11 +194,11 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
               {timeline.length === 0 ? (
                 <Typography variant="body2" sx={{
                   color: "text.secondary"
-                }}>No workflow events recorded yet.</Typography>
+                }}>{t('workflow.empty')}</Typography>
               ) : (
                 <Stack spacing={1.25}>
                   {timeline.map((event) => {
-                    const indicator = getWorkflowEventIndicator(event);
+                    const indicator = getWorkflowEventIndicator(event, t);
 
                     return (
                       <Box
@@ -254,8 +256,8 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
                           <Typography variant="caption" sx={{
                             color: "text.secondary"
                           }}>
-                            {new Date(event.created_at).toLocaleString()}
-                            {event.status_from && event.status_to ? ` / ${event.status_from} -> ${event.status_to}` : ''}
+                            {formatHotelDateTime(event.created_at)}
+                            {event.status_from && event.status_to ? ` / ${statusLabel(t, 'booking', event.status_from)} → ${statusLabel(t, 'booking', event.status_to)}` : ''}
                           </Typography>
                           {event.description && (
                             <Typography
@@ -278,7 +280,7 @@ const WorkflowDialog: React.FC<WorkflowDialogProps> = ({ open, booking, summary,
         )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Close</Button>
+        <Button onClick={onClose}>{t('common:actions.close')}</Button>
       </DialogActions>
     </Dialog>
   );

@@ -14,6 +14,7 @@ import type { BookingWithDetails } from '../../../../../types';
 import { BookingsService } from '../../../../../api';
 import { emitApiNotification } from '../../../../../utils/apiNotifications';
 import { getErrorMessage } from '../../../utils/bookingPageUtils';
+import { useTranslation } from '../../../../../i18n';
 
 interface ReleaseDialogProps {
   open: boolean;
@@ -25,6 +26,7 @@ interface ReleaseDialogProps {
 
 // Release an unpaid hold. Reason is required — see releaseBooking.
 const ReleaseDialog: React.FC<ReleaseDialogProps> = ({ open, booking, onClose, onError, onCompleted }) => {
+  const { t } = useTranslation('bookings');
   const [reason, setReason] = useState('');
   const [releasing, setReleasing] = useState(false);
 
@@ -44,13 +46,13 @@ const ReleaseDialog: React.FC<ReleaseDialogProps> = ({ open, booking, onClose, o
       emitApiNotification({
         severity: 'success',
         message: affectedDates.length > 0
-          ? `Room released. Rerun night audit for ${affectedDates.join(', ')} to refresh reports.`
-          : 'Room released and the booking voided.',
+          ? t('release.successAudit', { dates: affectedDates.join(', ') })
+          : t('release.success'),
       });
       onClose();
       await onCompleted();
     } catch (err: unknown) {
-      onError(getErrorMessage(err) || 'Failed to release booking');
+      onError(getErrorMessage(err) || t('release.failed'));
     } finally {
       setReleasing(false);
     }
@@ -58,39 +60,39 @@ const ReleaseDialog: React.FC<ReleaseDialogProps> = ({ open, booking, onClose, o
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Release Room</DialogTitle>
+      <DialogTitle>{t('release.title')}</DialogTitle>
       <DialogContent>
         <Alert severity="warning" sx={{ mb: 2 }}>
-          This booking is still awaiting payment. Releasing puts the room back on sale and voids the booking. Bookings with payments recorded against them must be voided through the refund flow instead.
+          {t('release.warning')}
         </Alert>
         <Box sx={{ mb: 2 }}>
-          <Typography variant="body2"><strong>Guest:</strong> {booking?.guest_name}</Typography>
-          <Typography variant="body2"><strong>Room:</strong> {booking?.room_type} - Room {booking?.room_number}</Typography>
-          <Typography variant="body2"><strong>Check-in:</strong> {booking?.formatted_check_in || booking?.check_in_date}</Typography>
-          <Typography variant="body2"><strong>Check-out:</strong> {booking?.formatted_check_out || booking?.check_out_date}</Typography>
+          <Typography variant="body2"><strong>{t('labels.guest')}</strong> {booking?.guest_name}</Typography>
+          <Typography variant="body2"><strong>{t('labels.room')}</strong> {booking?.room_type} - {t('details.roomNumber', { number: booking?.room_number })}</Typography>
+          <Typography variant="body2"><strong>{t('labels.checkIn')}</strong> {booking?.formatted_check_in || booking?.check_in_date}</Typography>
+          <Typography variant="body2"><strong>{t('labels.checkOut')}</strong> {booking?.formatted_check_out || booking?.check_out_date}</Typography>
         </Box>
         <TextField
           fullWidth
           required
           multiline
           rows={3}
-          label="Reason for releasing"
+          label={t('release.reasonLabel')}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          placeholder="e.g. No payment received after 7 days"
-          helperText="Recorded in the booking history and the audit log."
+          placeholder={t('release.reasonPlaceholder')}
+          helperText={t('release.reasonHelper')}
           slotProps={{ htmlInput: { maxLength: 500 } }}
         />
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('common:actions.cancel')}</Button>
         <Button
           onClick={handleConfirm}
           variant="contained"
           color="warning"
           disabled={releasing || reason.trim().length < 4}
         >
-          {releasing ? 'Releasing...' : 'Release Room'}
+          {releasing ? t('release.processing') : t('release.confirm')}
         </Button>
       </DialogActions>
     </Dialog>
